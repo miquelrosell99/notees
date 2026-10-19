@@ -125,7 +125,7 @@ import { ensureAliasProperty } from "../features/metadata/aliasProperty.js";
 import { AliasOfBanner } from "../features/metadata/AliasOfBanner.js";
 import { useDeviceSetting } from "../features/settings/deviceSettings.js";
 import { LocalGraphCard } from "../features/collection/LocalGraphCard.js";
-import { TocSection } from "./components/sidebarSections.js";
+import { TocSection } from "./app/sidebarSections.js";
 import { CommentsSection } from "../features/page-sections/CommentsSection.js";
 import { EmbedBoundary } from "./EmbedView.js";
 import { Icon } from "./Icon.js";

@@ -20,7 +20,7 @@ import { SystemSettingsModal } from "../src/features/settings/SystemSettingsModa
 import { toggleFocusMode } from "../src/features/settings/deviceSettings.js";
 import { AccentColorPicker, ThemeModeControl } from "../src/features/settings/SettingsPage.js";
 import { WorkspacesView } from "../src/features/workspaces/WorkspacesView.js";
-import { Sidebar, type AnyClient } from "../src/ui/components/Sidebar.js";
+import { Sidebar, type AnyClient } from "../src/ui/app/Sidebar.js";
 import { WorkspaceSwitcher } from "../src/features/workspaces/WorkspaceSwitcher.js";
 import type { AccountUser, WorkspaceEntry } from "../src/core/auth-api.js";
 

@@ -12,9 +12,9 @@ import type { ClientNode, SyncStatusSnapshot } from "@/core/workspace-client/ind
 import type { AccountUser } from "@/core/auth-api.js";
 import type { AnyClient } from "./clients.js";
 import type { ShareTarget } from "../../features/node-menu/NodeMenuButton.js";
-import type { NavKey } from "../components/Sidebar.js";
+import type { NavKey } from "./Sidebar.js";
 import { pathForNav } from "./routing.js";
-import { Sidebar } from "../components/Sidebar.js";
+import { Sidebar } from "./Sidebar.js";
 import { NodeLinkMenuHost } from "../../features/node-menu/NodeLinkContextMenu.js";
 import { FloatingEditorHost } from "../../features/block-editor/FloatingEditor.js";
 import { NodeHoverPreviewHost } from "../../features/node-menu/NodeHoverPreview.js";

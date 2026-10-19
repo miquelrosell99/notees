@@ -22,7 +22,7 @@ import type { ContentAst } from "@notees/protocol";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { LinkEditModal } from "../src/ui/editor-popups/LinkEditModal.js";
-import type { AnyClient } from "../src/ui/components/Sidebar.js";
+import type { AnyClient } from "../src/ui/app/Sidebar.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
