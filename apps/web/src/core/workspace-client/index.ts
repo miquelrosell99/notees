@@ -39,4 +39,5 @@ export {
   WorkspaceClientOptions,
   createAnnotation,
 } from "./types.js";
+export { fetchAssetBlob, postAssetUpload, readBlobAsDataUrl } from "./asset-transport.js";
 export * from "./client.js";
