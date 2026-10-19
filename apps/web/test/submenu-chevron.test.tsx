@@ -117,14 +117,16 @@ describe("chevron visibility", () => {
     expect(arrowBlock).toContain("var(--md-sys-color-on-surface-variant)");
     expect(arrowBlock).not.toContain("--md-sys-color-outline");
 
-    // The flyout is absolutely positioned — outside the menu's flow, so
-    // opening/closing it can never change the menu's box and re-fit it
-    // (the inline expansion used to grow the menu near the bottom edge and
-    // make the whole thing dance on hover). And the menu card must NOT
-    // clip: the card radius class hides overflow, which made the flyout
-    // invisible — the menu overrides it back to visible.
+    // The flyout rides outside the menu's flow — Radix's popper wrapper
+    // owns its position (a position rule on the flyout would break
+    // floating-ui's align math, same as the menu root), so opening/closing
+    // it can never change the menu's box and re-fit it (the inline
+    // expansion used to grow the menu near the bottom edge and make the
+    // whole thing dance on hover). And the menu card must NOT clip: the
+    // card radius class hides overflow, which made the flyout invisible —
+    // the menu overrides it back to visible.
     const flyoutBlock = menuCss.split(".context-menu-submenu-flyout {")[1]!.split("}")[0]!;
-    expect(flyoutBlock).toContain("position: absolute");
+    expect(flyoutBlock).not.toContain("position:");
     expect(menuCss).not.toContain("context-menu-submenu-inline");
     const menuRootBlock = menuCss.split(".card.context-menu {")[1]!.split("}")[0]!;
     expect(menuRootBlock).toContain("overflow: visible");
