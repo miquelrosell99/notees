@@ -10,6 +10,11 @@
  *   anchored below the given element — for embedding the picker under a
  *   custom trigger.
  *
+ * The empty-query picker opens to the device's RECENTLY USED nodes (MRU
+ * order, "Recently used" caption), not an empty list;
+ * the first keystroke replaces the list with search hits. Class-scoped
+ * pickers keep their member listing; the classes picker is unaffected.
+ *
  * All modes render the shared NodeResultItem rows; keyboard navigation,
  * date suggestions, and create-from-query are built in (`noCreate` turns
  * the create affordance off — search-without-match shows the honest empty
@@ -31,6 +36,7 @@ import { chainNodeIds, parseDateNodeId, rendersAsInlineBlock, rendersWithDocumen
 import type { ClientNode } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
 import { parentRenderFacts } from "../../renderStateLabel.js";
+import { readRecentIds } from "../Sidebar.js";
 import { Icon } from "../../Icon.js";
 import { parseDate, isPlainYearQuery } from "./dateParser.js";
 import { NodePill } from "./NodePill.js";
@@ -650,7 +656,24 @@ export function NodeSelector({
         .filter(matchesScopeTab)
         .filter((node) => searchMode !== "blocks" || rendersAsInlineBlock(node, parentRenderFacts(client, node)));
     }
-    return [];
+    // The empty-query default: the device's recently
+    // used nodes, MRU order, scoped like any other candidate set — the
+    // picker opens to "Recently used" instead of an empty list, and the
+    // first keystroke replaces the list with search hits. Class-scoped
+    // pickers keep the member listing above; the classes picker never
+    // reaches here. The mode filter mirrors the search-hit branch, so a
+    // blocks-mode picker never lists page recents.
+    return readRecentIds()
+      .map((id) => client.getNode(id))
+      .filter((node): node is ClientNode => node !== undefined)
+      .filter((node) => {
+        if (searchMode === "pages" && !rendersWithDocumentChrome(node, parentRenderFacts(client, node)))
+          return false;
+        if (searchMode === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node)))
+          return false;
+        return true;
+      })
+      .filter(matchesScopeTab);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesInlineFilters derives from inlineFilters (searchQuery); matchesScopeTab derives from scope/scopeTabs/searchMode.
   }, [client, searchQuery, searchMode, classRefine, effectiveClassIds, scopeTabs, scope]);
 
@@ -674,6 +697,18 @@ export function NodeSelector({
     [filteredResults, displayLimit],
   );
   const showMoreOption = filteredResults.length > visibleResults.length;
+  /**
+   * The recents listing is live: an empty effective query with no filter
+   * prefix and no class scope in a non-classes picker. Names the caption
+   * above the rows (and nothing else — selection math is unchanged).
+   */
+  const recentsActive =
+    searchMode !== "classes" &&
+    classRefine.query.trim() === "" &&
+    inlineFilters.filters.daily === null &&
+    inlineFilters.filters.page === null &&
+    inlineFilters.filters.cls === null &&
+    effectiveClassIds.length === 0;
 
   // Assigned-row gesture hint: rides the picker's bottom while a checkmarked
   // row is on screen (the gestures apply to it). Callers with onAssignedPick
@@ -841,6 +876,11 @@ export function NodeSelector({
 
   const renderResults = (emptyClassName: string, createIconSize: number) => (
     <>
+      {recentsActive && visibleResults.length > 0 && (
+        <div className="node-selector__recent-caption" aria-hidden="true">
+          Recently used
+        </div>
+      )}
       {dateSuggestion && (
         <NodeResultItem
           key={dateSuggestion.key}

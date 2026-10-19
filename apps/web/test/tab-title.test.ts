@@ -32,6 +32,7 @@ describe("tabTitle", () => {
       ["queries", "Queries"],
       ["graph", "Graph"],
       ["trash", "Trash"],
+      ["shares", "Shares"],
     ] as const;
     for (const [nav, label] of cases) {
       expect(tabTitle({ ...base, activeNav: nav }), nav).toBe(`${label} - Notees`);

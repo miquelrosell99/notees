@@ -276,6 +276,125 @@ describe("account menu dismissal", () => {
   });
 });
 
+describe("account popup — the user menu", () => {
+  const accountTrigger = () => screen.getByRole("button", { name: "Account" });
+  const user = {
+    id: "u1",
+    email: "miquel@example.com",
+    displayName: "Miquel",
+    name: "Miquel",
+    surnames: "Rosell",
+    avatarUrl: null,
+    isAdmin: true,
+  };
+  const syncStatus = {
+    status: "idle" as const,
+    error: null,
+    pending: 0,
+    failed: 0,
+    quarantined: 0,
+    parked: 0,
+    realtime: true,
+    cursorSeq: 7,
+  };
+
+  it("carries the identity header and the full entry list", async () => {
+    const client = await seedClient();
+    renderSidebar(client, {
+      user,
+      showSettings: true,
+      syncStatus,
+      onOpenSyncDetails: () => {},
+      onOpenAdminSettings: () => {},
+    });
+
+    fireEvent.click(accountTrigger());
+    const menu = screen.getByRole("menu");
+    // Identity header: derived display name + email.
+    expect(within(menu).getByText("Miquel Rosell")).not.toBeNull();
+    expect(within(menu).getByText("miquel@example.com")).not.toBeNull();
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((el) => el.textContent),
+    ).toEqual(["Syncup to date", "Shares", "Trash", "Settings", "Admin settings", "Sign out"]);
+  });
+
+  it("entries close the popup and call their host: sync / trash / shares / settings / admin / sign out", async () => {
+    const client = await seedClient();
+    const onOpenSyncDetails = vi.fn();
+    const onSelectNav = vi.fn();
+    const onOpenSettings = vi.fn();
+    const onOpenAdminSettings = vi.fn();
+    const onSignOut = vi.fn();
+    renderSidebar(client, {
+      user,
+      showSettings: true,
+      syncStatus,
+      onOpenSyncDetails,
+      onSelectNav,
+      onOpenSettings,
+      onOpenAdminSettings,
+      onSignOut,
+    });
+
+    const clickEntry = (label: string) => {
+      fireEvent.click(accountTrigger());
+      fireEvent.click(within(screen.getByRole("menu")).getByText(label));
+      expect(screen.queryByRole("menu")).toBeNull();
+    };
+    clickEntry("Sync");
+    expect(onOpenSyncDetails).toHaveBeenCalledTimes(1);
+    clickEntry("Trash");
+    expect(onSelectNav).toHaveBeenCalledWith("trash");
+    clickEntry("Shares");
+    expect(onSelectNav).toHaveBeenCalledWith("shares");
+    clickEntry("Settings");
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    clickEntry("Admin settings");
+    expect(onOpenAdminSettings).toHaveBeenCalledTimes(1);
+    clickEntry("Sign out");
+    expect(onSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("gates entries: no Sync row without a snapshot+handler, no Shares offline, no Settings/Admin without the flags", async () => {
+    const client = await seedClient();
+    renderSidebar(client, { user, offline: true });
+    fireEvent.click(accountTrigger());
+    const menu = screen.getByRole("menu");
+    expect(within(menu).queryByText("Sync")).toBeNull();
+    expect(within(menu).queryByText("Shares")).toBeNull();
+    expect(within(menu).queryByText("Settings")).toBeNull();
+    expect(within(menu).queryByText("Admin settings")).toBeNull();
+    // Trash + Sign out stay in every mode.
+    expect(within(menu).getByText("Trash")).not.toBeNull();
+    expect(within(menu).getByText("Sign out")).not.toBeNull();
+  });
+
+  it("sync badge rides the profile circle's corner; absent without a snapshot", async () => {
+    const client = await seedClient();
+    const { container, unmount } = renderSidebar(client, {
+      user,
+      syncStatus: { ...syncStatus, status: "error" as const, error: "relay down" },
+    });
+    expect(container.querySelector(".nt-profile-sync--error")).not.toBeNull();
+    unmount();
+
+    const { container: bare } = renderSidebar(client, { user });
+    expect(bare.querySelector(".nt-profile-sync")).toBeNull();
+  });
+
+  it("Trash left the sidebar nav list (the popup owns it now)", async () => {
+    const client = await seedClient();
+    renderSidebar(client, { user });
+    // No nav row…
+    expect(screen.queryByRole("button", { name: "Trash" })).toBeNull();
+    // …until the popup opens.
+    fireEvent.click(accountTrigger());
+    expect(within(screen.getByRole("menu")).getByText("Trash")).not.toBeNull();
+  });
+});
+
 describe("sidebar row labels render as read-only block content", () => {
   /**
    * The store flattens document-chrome content to text-only at the applier,
