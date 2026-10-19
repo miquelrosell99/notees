@@ -40,4 +40,14 @@ export {
   createAnnotation,
 } from "./types.js";
 export { fetchAssetBlob, postAssetUpload, readBlobAsDataUrl } from "./asset-transport.js";
+export {
+  MAX_SYNCED_RECENTS,
+  mergeFavoriteToggle,
+  mergeRecentOpen,
+  readDevicePrefList,
+  writeDevicePrefList,
+  type PrefsPatch,
+  type UserPrefs,
+  type UserPrefsSource,
+} from "./prefs.js";
 export * from "./client.js";
