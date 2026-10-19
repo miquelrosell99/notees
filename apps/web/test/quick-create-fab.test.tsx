@@ -16,7 +16,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { QuickCreateFab } from "../src/ui/components/QuickCreateFab.js";
-import { drawerDismissHandler } from "../src/ui/App.js";
+import { drawerDismissHandler } from "../src/ui/app/keymap.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
