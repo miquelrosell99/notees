@@ -1,6 +1,12 @@
 @import "./fonts.css";
 @import "./variables.css";
 
+/* Tailwind (the shadcn bridge — see tailwind.config.ts). Preflight is
+   disabled: the app's co-located CSS owns element resets. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 body {
   margin: 0;
   font-family: var(--font-family-base);

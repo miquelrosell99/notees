@@ -346,3 +346,196 @@ describe("css token drift gate", () => {
     }
   });
 });
+
+/**
+ * The class half of the drift gate (checks 8–11) — the shadcn bridge makes
+ * Tailwind classes a styling surface, so the same zero-baseline discipline
+ * that guards component CSS guards class strings: theme-key utilities
+ * only, because the Tailwind config maps every one of them to a token
+ * (registered-mapping mode; the catalog lives under src/components and is
+ * where this half applies in full — the app wrapper layer under src/ui
+ * composes catalog classes and may still carry legacy BEM hooks).
+ *
+ * Detectors are pure functions over fixture strings (unit-tested below,
+ * same discipline as the CSS-half helpers) and then run over the tree.
+ */
+
+/** TS files the class half scans. */
+function walkTsFiles(dir: string, out: string[] = []): string[] {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === "node_modules" || entry.name === "dist") continue;
+      walkTsFiles(full, out);
+    } else if (/\.(ts|tsx)$/.test(entry.name)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+const SRC_DIR = path.join(process.cwd(), "src");
+const CATALOG_DIR = path.join(SRC_DIR, "components");
+
+/** A class string: inside className="…", cn('…'), or cva({…: '…'}). */
+const CLASS_STRING =
+  /className\s*=\s*{?\s*"([^"]*)"|className\s*=\s*'([^']*)'|cn\(\s*'([^']*)'|`([^`]*)`|cva\(\s*\{|`([^`]*)`|'([^']*)'/g;
+
+/** Collect class-like string literals from a TS source. */
+export function collectClassStrings(ts: string): string[] {
+  const out: string[] = [];
+  for (const match of ts.matchAll(CLASS_STRING)) {
+    for (const group of match.slice(1)) {
+      if (group) out.push(group);
+    }
+  }
+  return out;
+}
+
+/** 8. Default Tailwind palette hues are banned — cite the role, never a hue. */
+const DEFAULT_PALETTE =
+  /\b(?:bg|text|border|from|to|via|fill|stroke|ring|divide|outline|placeholder|caret|accent)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-[0-9]{2,3}\b/;
+
+/** 9. Radii outside the registered fleet family (the config maps the family). */
+const RAW_RADIUS =
+  /(?:^|[\s"'])rounded(?:-(?:sm|md|lg|xl|2xl|3xl))?(?=[\s"']|$)/;
+
+/** 10. Arbitrary values — a bracketed value is a hardcoded value. */
+const ARBITRARY_VALUE =
+  /\b(?:bg|text|border|rounded|w|h|min-h|min-w|max-w|max-h|p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|gap|top|left|right|bottom|inset|translate-x|translate-y|shadow|duration|leading|tracking|z|grid-cols|outline)-\[/;
+
+/** 10b. Tailwind's default shadows and durations — the tokens own both. */
+const DEFAULT_SHADOW = /(?:^|[\s"'])shadow(?:-(?:sm|md|lg|xl|2xl|inner))?(?=[\s"']|$)/;
+const DEFAULT_DURATION = /\bduration-(?:75|100|150|200|300|500|700|1000)\b/;
+
+const CLASS_ROOTS = [UI_DIR, CATALOG_DIR];
+
+function classHalfFiles(): string[] {
+  const files: string[] = [];
+  for (const root of CLASS_ROOTS) {
+    if (fs.existsSync(root)) files.push(...walkTsFiles(root));
+  }
+  return files;
+}
+
+describe("tailwind class drift gate (the shadcn bridge half)", () => {
+  const files = classHalfFiles();
+
+  it("8. no default-palette utilities — theme-key colors only", () => {
+    for (const file of files) {
+      const ts = fs.readFileSync(file, "utf8");
+      for (const cls of collectClassStrings(ts)) {
+        const match = cls.match(DEFAULT_PALETTE);
+        if (match) {
+          expect.fail(`${path.relative(SRC_DIR, file)} cites a default-palette utility "${match[0]}" — cite the Material role (bg-surface, text-on-surface-variant, …)`);
+        }
+      }
+    }
+  });
+
+  it("9. no raw radii — the registered fleet family only (rounded-card/button/popover/…)", () => {
+    for (const file of files) {
+      const ts = fs.readFileSync(file, "utf8");
+      for (const cls of collectClassStrings(ts)) {
+        const stripped = cls.replace(/rounded-(?:card|sheet|button|button-sm|input|item|popover|badge|full|menu|floating|none)\b/g, "");
+        const match = stripped.match(RAW_RADIUS);
+        if (match) {
+          expect.fail(`${path.relative(SRC_DIR, file)} cites a raw radius utility "${match[0].trim()}" — use the fleet family (rounded-card, rounded-button, rounded-popover, …)`);
+        }
+      }
+    }
+  });
+
+  it("10. no arbitrary values, default shadows, or default durations", () => {
+    for (const file of files) {
+      const ts = fs.readFileSync(file, "utf8");
+      for (const cls of collectClassStrings(ts)) {
+        const arbitrary = cls.match(ARBITRARY_VALUE);
+        if (arbitrary) {
+          expect.fail(`${path.relative(SRC_DIR, file)} cites an arbitrary value "${arbitrary[0]}" — extend the Tailwind config so a utility maps to the token`);
+        }
+        const shadow = cls.match(DEFAULT_SHADOW);
+        if (shadow) {
+          expect.fail(`${path.relative(SRC_DIR, file)} cites a default shadow "${shadow[0].trim()}" — use the elevation utilities (shadow-card/popover/modal)`);
+        }
+        const duration = cls.match(DEFAULT_DURATION);
+        if (duration) {
+          expect.fail(`${path.relative(SRC_DIR, file)} cites a default duration "${duration[0]}" — use the motion utilities (duration-short/medium/long)`);
+        }
+      }
+    }
+  });
+
+  it("11. registered mapping — every theme-key utility in the catalog resolves to a Tailwind config key", () => {
+    if (!fs.existsSync(CATALOG_DIR)) return;
+    const configSrc = fs.readFileSync(path.join(process.cwd(), "tailwind.config.ts"), "utf8");
+    // The set of registered keys: every quoted key literal in the config.
+    const registered = new Set<string>();
+    for (const match of configSrc.matchAll(/"([a-zA-Z0-9-]+)"\s*:/g)) {
+      registered.add(match[1]!);
+    }
+    // Utility families whose suffix must be registered (or a Tailwind
+    // structural default that takes no themed suffix).
+    const THEME_FAMILY = /^(bg|text|border|rounded|shadow|duration|ease|op|outline|ring)-([a-zA-Z0-9-]+)$/;
+    const STRUCTURAL = new Set([
+      "bg-transparent", "bg-none", "text-left", "text-center", "text-right", "text-current",
+      "border-solid", "border-dashed", "border-none", "shadow-none", "outline-none", "outline-hidden",
+      "border-collapse", "border-separate",
+    ]);
+    for (const file of walkTsFiles(CATALOG_DIR)) {
+      const ts = fs.readFileSync(file, "utf8");
+      for (const cls of collectClassStrings(ts)) {
+        for (const token of cls.split(/\s+/)) {
+          const match = token.match(THEME_FAMILY);
+          if (!match) continue;
+          const utility = match[0];
+          if (STRUCTURAL.has(utility)) continue;
+          const suffix = match[2]!;
+          if (registered.has(suffix)) continue;
+          // Tailwind structural suffixes that are values, not theme keys.
+          if (/^(none|transparent|current|inherit|auto|hidden|full|left|center|right|justify|middle|top|bottom|solid|dashed|dotted|thick|tight|normal)$/.test(suffix)) continue;
+          // Opacity shorthand on colors (bg-primary/50) — the color is registered.
+          if (/^[a-zA-Z0-9-]+\/\d+$/.test(suffix) && registered.has(suffix.split("/")[0]!)) continue;
+          expect.fail(`${path.relative(SRC_DIR, file)} cites "${utility}" — "${suffix}" is not a registered Tailwind config key; add the token mapping or fix the class`);
+        }
+      }
+    }
+  });
+
+  it("detectors: fixture strings (the class-half detectors judge exactly)", () => {
+    // 8 — default palette hues are caught; registered roles pass.
+    expect("bg-slate-900".match(DEFAULT_PALETTE)?.[0]).toBe("bg-slate-900");
+    expect("text-red-500".match(DEFAULT_PALETTE)?.[0]).toBe("text-red-500");
+    expect("bg-surface-container-high".match(DEFAULT_PALETTE)).toBeNull();
+    expect("text-on-surface-variant".match(DEFAULT_PALETTE)).toBeNull();
+    expect("bg-primary text-on-primary".match(DEFAULT_PALETTE)).toBeNull();
+
+    // 9 — default radii and bare rounded are caught; the fleet family passes.
+    expect("rounded-md".match(RAW_RADIUS)?.[0].trim()).toBe("rounded-md");
+    expect("rounded".match(RAW_RADIUS)?.[0].trim()).toBe("rounded");
+    expect("rounded-2xl p-4".match(RAW_RADIUS)?.[0].trim()).toBe("rounded-2xl");
+    expect("rounded-full".match(RAW_RADIUS)).toBeNull();
+    expect("rounded-popover shadow-popover".match(RAW_RADIUS)).toBeNull();
+
+    // 10 — arbitrary values, default shadows, default durations are caught.
+    expect("text-[11px]".match(ARBITRARY_VALUE)?.[0]).toBe("text-[");
+    expect("bg-[#fff]".match(ARBITRARY_VALUE)?.[0]).toBe("bg-[");
+    expect("w-full".match(ARBITRARY_VALUE)).toBeNull();
+    expect("shadow-md".match(DEFAULT_SHADOW)?.[0].trim()).toBe("shadow-md");
+    expect("shadow".match(DEFAULT_SHADOW)?.[0].trim()).toBe("shadow");
+    expect("shadow-popover".match(DEFAULT_SHADOW)).toBeNull();
+    expect("duration-150".match(DEFAULT_DURATION)?.[0]).toBe("duration-150");
+    expect("duration-short".match(DEFAULT_DURATION)).toBeNull();
+
+    // 11 — fixture utilities resolve against a fixture config key set.
+    const fixtureRegistered = new Set(["surface", "popover", "primary", "short"]);
+    const judge = (utility: string): boolean => {
+      const match = utility.match(/^(bg|text|border|rounded|shadow|duration)-([a-zA-Z0-9-]+)$/);
+      return match ? fixtureRegistered.has(match[2]!) : true;
+    };
+    expect(judge("bg-surface")).toBe(true);
+    expect(judge("rounded-popover")).toBe(true);
+    expect(judge("bg-paper")).toBe(false);
+    expect(judge("flex")).toBe(true);
+  });
+});
