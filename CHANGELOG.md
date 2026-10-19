@@ -9,6 +9,57 @@ predating this file.
 
 ## 2026-10-19
 
+- **feat(web): the six fleet primitives migrate to the normalized catalog —
+  Button, TextField, Card, Tabs, ToggleSwitch, Modal become thin wrappers,
+  their CSS retires.** The third slice of the shadcn-alignment ruling. Every
+  call site keeps working unchanged: the wrappers preserve the full prop
+  APIs (72 files import Button by relative path — zero call-site edits
+  beyond the class-contract tests). What changed per component: **Button**
+  composes the catalog cva button; the fleet variant register
+  (default/primary/outline/ghost/danger/danger-solid, the active-toggle and
+  loading registers, MDI icons, icon badges, haptics, xs–lg sizes) ports to
+  token utilities; Button.css (406 lines) deletes; the `btn` and
+  `btn--icon-only` marker classes stay as documented hooks for feature CSS
+  that compounds on them (calendar days, icon-picker items) — unlayered
+  feature CSS still wins over the utility layer, so the overrides behave
+  exactly as before. Buttons go corner-full at every size (fleet ruling
+  2026-10-19 — the pre-catalog 12px corners retire with the migration).
+  **TextField** composes the catalog input with the app's underline register
+  (two new tokens: `--shadow-field-focus/error`, the 2px active underline);
+  TextField.css deletes. **Card** composes the catalog card; the
+  variant/elevation/radius/padding registers port to utilities
+  (`--scale-card-press` token for the TE tactile lift); the `card` marker
+  stays for ContextMenu/Dropdown compounds; Card.css deletes.
+  **ToggleSwitch** puts the Radix switch underneath (role/aria/keyboard are
+  the catalog's) with the dual-label register and the calc'd track/thumb
+  geometry as token-referencing inline styles (no utility can express calc);
+  ToggleSwitch.css deletes. **Tabs** puts Radix tabs underneath (focus
+  management, arrow-key activation, the tab/tabpanel ARIA wiring) keeping
+  the sliding-indicator register in Tabs.css and the `tabs__*` hooks;
+  triggers activate on click as well as Radix's mousedown (the app's
+  interaction contract). **Modal** puts Radix Dialog underneath (focus trap,
+  focus restore, portal layering) keeping the app chrome: the header/footer
+  structure, the bottom-sheet swipe-to-dismiss gesture, the scrim register
+  (Modal.css), and the app overlay stack as the single Escape authority
+  (Radix's own Escape is disabled so LIFO ordering across every overlay
+  surface survives); the Card composition the modal rode becomes token
+  utilities on the dialog content. **Two real bugs the migration exposed
+  and this slice fixes:** the hosted-views delete/reset confirms never
+  closed their own modal (the old portal never hid the inert tree, so the
+  stuck modal was invisible to the test queries — Radix's correct
+  aria-hidden surfaced it); and `twMerge` needed the app's custom type-scale
+  names registered (it mistook `text-button` for a color and dropped real
+  color classes as conflicts). **Test-contract updates:** ui-primitives,
+  hover-press-register, submenu-chevron, graph-view, node-link-gestures
+  assert the new catalog class contract (source-level register pins where
+  they used to read the retired CSS files); the modal backdrop test fires
+  pointer-down (Radix's dismissal event) and waits out Radix's macrotask
+  listener registration. **Verification:** full web suite 1811/1813 — the
+  2 failures are the pre-existing mobile-layout baseline that also fails on
+  unmodified HEAD; typecheck carries only the 3 pre-existing App.tsx
+  errors (same baseline); `vite build` green with the token utilities in
+  the bundle.
+
 - **feat(web): the normalized shadcn catalog lands — 20 components under
   `src/components/ui/`, tokens-only.** The second slice of the 2026-10-19
   shadcn-alignment ruling: button, input, textarea, label, card, dialog,
