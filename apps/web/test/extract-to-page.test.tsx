@@ -280,17 +280,17 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
     // means the SAME node keeps its children (the page is not new; the
     // block's parent_id is removed, identity untouched) — rides the
     // native title tooltips.
-    const stay = getByText("Extract without children").closest("button")!;
+    const stay = getByText("Extract without children").closest("[role='menuitem']")!;
     expect(stay.getAttribute("title")).toBe(
       "The block becomes a root page; a link block takes its place in this page, and the children stay nested under the link.",
     );
-    const follow = getByText("Extract with children").closest("button")!;
+    const follow = getByText("Extract with children").closest("[role='menuitem']")!;
     expect(follow.getAttribute("title")).toBe(
       "The block becomes a root page; a link block takes its place, and the children stay with the block — the same node, now a root page.",
     );
     // The visible explanation line is gone — the row carries no second-line
     // text (the tooltip owns the explanation).
-    expect(within(stay).queryByText(/takes its place/)).toBeNull();
+    expect(within(stay as HTMLElement).queryByText(/takes its place/)).toBeNull();
   });
 
   it("a plain click on 'children stay here' reparents the children to the link block", async () => {

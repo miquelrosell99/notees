@@ -2,33 +2,61 @@
  * ContextMenu Component
  *
  * A reusable context menu component that displays a list of actions
- * at the specified position. Uses the Card component for consistent styling.
- * Submenus (custom `submenu` content or a native `submenuItems` action
- * list) fly out to the SIDE of the parent row — the Notion pattern — as a
- * second card riding FLUSH against the menu edge (no overlap), aligned
- * to the parent row's top, flipping to the left side at the viewport edge
- * and clamping vertically. Opening rides hover on pointer-fine devices and
- * click/tap everywhere.
+ * at the specified position.
+ *
+ * Rebuilt on the Radix context-menu/sub composition (the register's
+ * scheduled migration, 2026-10-19): MenuPrimitive Content owns popper
+ * positioning (viewport flip/shift/clamp replace the old imperative
+ * fit), the roving-focus arrow-key walk, and the submenu flyout
+ * placement. The fleet register stays fleet-owned per the sourcing
+ * table — the surface/menu-item/submenu CSS hooks (ContextMenu.css),
+ * the MDI icon chrome, the Escape LIFO ordering through the app overlay
+ * stack (useOverlaySurface — Radix's own Escape is disabled via
+ * onEscapeKeyDown preventDefault so the stack stays the single Escape
+ * authority, the Modal-wrapper precedent), and the interaction
+ * contracts that differ from Radix defaults:
+ *
+ * - Positioning rides a hidden ContextMenu.Trigger whose synthetic
+ *   contextmenu event carries the anchor point (position prop) or the
+ *   anchorEl rect — the app drives the menu open itself (callers render
+ *   it on their own contextmenu gestures), so the Trigger is a pure
+ *   virtual anchor, never a visible right-click target.
+ * - Hover opens submenus on pointer-fine devices and click/tap toggles
+ *   them everywhere, with ENTER-ONLY semantics (entering any other
+ *   top-level item closes the open flyout; leaving fires no close) —
+ *   the seam is driven here onMouseEnter rather than by Radix's
+ *   pointermove/100ms hover, preserving the synchronous.
+ * - Escape closes the active submenu first, then the menu, from the
+ *   overlay stack regardless of where DOM focus is.
+ * - Dismissal exceptions: pointer presses inside the icon/color picker
+ *   popups (.ep--popup, .color-btn-picker), the caller's containerRef,
+ *   or the anchor element itself (the anchor owns the toggle) keep the
+ *   menu open.
+ * - keepOpen items prevent the select default instead of closing.
+ * - The flyout SubContent renders WITHOUT a Portal (inline child of the
+ *   menu card, absolutely positioned) so it can never re-fit the menu's
+ *   box and stays a DOM child of .context-menu (the feature-CSS and
+ *   test contract).
  */
 import {
   useRef,
   useEffect,
   useCallback,
-  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
-  type MouseEvent,
   type FocusEvent,
+  type MouseEvent,
   type RefObject,
 } from 'react';
-import { createPortal } from 'react-dom';
 
-import { Card } from './Card.js';
+import * as ContextMenuPrimitive from '@radix-ui/react-context-menu';
+
 import { Separator } from './Separator.js';
-import { useOverlaySurface, observeResizes } from './overlay-hooks.js';
+import { useOverlaySurface } from './overlay-hooks.js';
 import './ContextMenu.css';
 import { Icon } from '../../Icon.js';
+import { cn } from './cn.js';
 
 export interface ContextMenuItem {
   id: string;
@@ -51,11 +79,9 @@ export interface ContextMenuItem {
   submenu?: ReactNode | undefined;
   /**
    * If provided, shows a flyout submenu of action items to the side of the
-   * parent row when the item is clicked or hovered (the native action-list
-   * form — the whiteboard's `submenu` is the custom-content form). Subitems
-   * fire their own onClick and then close the whole menu (unless keepOpen).
-   * They render with the item styling but are excluded from the top-level
-   * arrow-key navigation.
+   * parent row (the native action-list form — the whiteboard's `submenu`
+   * is the custom-content form). Subitems fire their own onClick and then
+   * close the whole menu (unless keepOpen).
    */
   submenuItems?: ContextMenuItem[] | undefined;
   /** If provided, renders custom content directly in the menu row instead of a button */
@@ -101,9 +127,7 @@ export interface ContextMenuProps {
 }
 
 export function ContextMenu({ items, position, anchorEl, onClose, title, activeItem, containerRef, inline = false, alignRight = false, className = '', companion = false }: ContextMenuProps) {
-  const menuRef = useRef<HTMLDivElement>(null);
-  const flyoutRef = useRef<HTMLDivElement>(null);
-  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const triggerRef = useRef<HTMLSpanElement>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   const posX = position?.x;
   const posY = position?.y;
@@ -124,11 +148,9 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
   );
 
   // Hover seam: entering a submenu parent opens its flyout; entering any
-  // other top-level item closes the open one. The flyout carries no item
-  // handlers, so the pointer can travel into its rows. No hover bridge is
-  // needed: leaving the parent fires no close (enter-only semantics), and
-  // crossing to the panel hits no handler either — the flyout rides flush
-  // against the menu edge.
+  // other top-level item closes the open one. Enter-only semantics: the
+  // flyout carries no leave handlers, and the pointer can travel into its
+  // rows freely (it rides flush against the menu edge).
   const handleItemEnter = useCallback(
     (item: ContextMenuItem) => {
       if (!canHover || item.disabled || item.separator) return;
@@ -143,6 +165,8 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
 
   // Register with the overlay stack so Escape closes this context menu
   // (or its active submenu first) regardless of where DOM focus is.
+  // Radix's own Escape handling is disabled on the Content/SubContent —
+  // the stack is the single Escape authority across overlay surfaces.
   useOverlaySurface({
     type: 'popup',
     enabled: true,
@@ -156,338 +180,235 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
     },
   });
 
-  // Get keyboard-navigable items (the buttons rendered in the menu;
-  // separators, disabled items, and custom content rows are skipped)
-  const navigableItems = items.filter(item => !item.separator && !item.disabled && !item.content);
+  // Drive the hidden Trigger's internal virtual anchor: a synthetic
+  // contextmenu event at the requested point (or the anchor element's
+  // rect) is exactly how the Trigger itself opens, so the menu's popper
+  // anchor lands where the app asked. The Trigger's composed onContextMenu
+  // calls preventDefault, so nothing leaks to the browser.
+  useEffect(() => {
+    const trigger = triggerRef.current;
+    if (trigger === null) return;
+    const rect = anchorEl !== undefined && anchorEl !== null
+      ? anchorEl.getBoundingClientRect()
+      : null;
+    const x = rect ? rect.left : (posX ?? 0);
+    const y = rect ? rect.bottom : (posY ?? 0);
+    trigger.dispatchEvent(
+      new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: x,
+        clientY: y,
+      }),
+    );
+  }, [anchorEl, posX, posY]);
 
-  const handleItemClick = useCallback((item: ContextMenuItem, event?: MouseEvent) => {
-    if (item.disabled || item.separator) return;
+  // Dismissal exceptions: presses inside the icon/color picker popovers,
+  // the caller's container, or the anchor element (which owns the toggle)
+  // must not close the menu.
+  const isExceptionTarget = useCallback(
+    (target: EventTarget | null): boolean => {
+      const el = target as HTMLElement | null;
+      if (el === null || typeof el.closest !== 'function') return false;
+      if (el.closest('.ep--popup, .color-btn-picker')) return true;
+      if (containerRef?.current !== undefined && containerRef.current !== null && containerRef.current.contains(el)) {
+        return true;
+      }
+      if (anchorEl !== undefined && anchorEl !== null && anchorEl.contains(el)) return true;
+      return false;
+    },
+    [containerRef, anchorEl],
+  );
 
-    // If item has submenu (custom content or a native action list), toggle it
-    if (item.submenu !== undefined || item.submenuItems !== undefined) {
-      if (activeSubmenu === item.id) closeSubmenu();
-      else setActiveSubmenu(item.id);
-      return;
-    }
+  const handleInteractOutside = useCallback(
+    (event: Event) => {
+      if (isExceptionTarget(event.target)) event.preventDefault();
+    },
+    [isExceptionTarget],
+  );
 
-    item.onClick?.(event);
-    if (!item.keepOpen) {
-      onClose();
-    }
-  }, [activeSubmenu, closeSubmenu, onClose]);
+  // Shared row chrome: icon slot, label, badge, shortcut.
+  const renderRowChrome = (item: ContextMenuItem): ReactNode => (
+    <>
+      <span className="context-menu-icon-wrapper">
+        {item.icon && (
+          <Icon path={item.icon} size={0.7} className="context-menu-icon" />
+        )}
+      </span>
+      <span className="context-menu-label">{item.label}</span>
+      {item.badge && (
+        <span className="context-menu-badge">{item.badge}</span>
+      )}
+      {item.shortcut && (
+        <span className="context-menu-shortcut">{item.shortcut}</span>
+      )}
+    </>
+  );
 
-  // A native submenu item: fires its own action, then closes the whole menu
-  // (unless keepOpen). Rendered inside the flyout panel — a real button
-  // (Tab-focusable) but excluded from the arrow-key walk, which is scoped
-  // to the top-level items.
+  // A native submenu item: fires its own action, then notifies onClose
+  // (unless keepOpen). The select default is ALWAYS prevented: this menu
+  // is caller-controlled (open until the host unmounts it on onClose), so
+  // the flyout stays put — the old contract the confirmation flows rely
+  // on (the modal outlives the menu; the flyout lingers for a no-op
+  // onClose).
   const renderSubitem = (sub: ContextMenuItem): ReactNode => {
     if (sub.separator) {
       return <Separator key={`sub-sep-${sub.id}`} orientation="horizontal" spacing="sm" />;
     }
     return (
-      <button
+      <ContextMenuPrimitive.Item
         key={sub.id}
-        className={`context-menu-item context-menu-subitem ${sub.danger ? "danger" : ""} ${sub.disabled ? "disabled" : ""}`}
-        onClick={(e) => {
+        className={cn(
+          'context-menu-item context-menu-subitem',
+          sub.danger && 'danger',
+          sub.disabled && 'disabled',
+        )}
+        disabled={sub.disabled === true}
+        onSelect={(event) => {
           if (sub.disabled) return;
-          sub.onClick?.(e);
+          event.preventDefault();
+          sub.onClick?.();
           if (!sub.keepOpen) onClose();
         }}
-        disabled={sub.disabled}
-        role="menuitem"
-        tabIndex={-1}
         {...(sub.tooltip !== undefined ? { title: sub.tooltip } : {})}
       >
-        <span className="context-menu-icon-wrapper">
-          {sub.icon && <Icon path={sub.icon} size={0.7} className="context-menu-icon" />}
-        </span>
-        <span className="context-menu-label">{sub.label}</span>
-        {sub.badge && <span className="context-menu-badge">{sub.badge}</span>}
-        {sub.shortcut && <span className="context-menu-shortcut">{sub.shortcut}</span>}
-      </button>
+        {renderRowChrome(sub)}
+      </ContextMenuPrimitive.Item>
     );
   };
 
-  // Handle click outside
-  useEffect(() => {
-    const handleClickOutside = (e: globalThis.MouseEvent) => {
-      // Don't close if clicking inside emoji picker or color picker popovers
-      const pickerPopups = document.querySelectorAll('.ep--popup, .color-btn-picker');
-      for (const popup of Array.from(pickerPopups)) {
-        if (popup.contains(e.target as Node)) return;
-      }
-      // Don't close if clicking inside container (e.g., color picker row)
-      if (containerRef?.current && containerRef.current.contains(e.target as Node)) {
-        return;
-      }
-      // The anchor owns the toggle: a re-click on the button that opened the
-      // menu toggles it closed instead of the outside
-      // press closing it here and the button's click re-opening it.
-      if (anchorEl !== undefined && anchorEl !== null && anchorEl.contains(e.target as Node)) {
-        return;
-      }
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setFocusedIndex(prev =>
-          prev < navigableItems.length - 1 ? prev + 1 : 0
-        );
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setFocusedIndex(prev =>
-          prev > 0 ? prev - 1 : navigableItems.length - 1
-        );
-      } else if (e.key === 'Enter' && focusedIndex >= 0) {
-        // preventDefault also suppresses the focused button's native click,
-        // so the item is activated exactly once.
-        e.preventDefault();
-        const item = navigableItems[focusedIndex];
-        if (item) {
-          handleItemClick(item);
-        }
-      }
-    };
-
-    // Use both mousedown and click to ensure we catch outside clicks
-    document.addEventListener('mousedown', handleClickOutside, true);
-    document.addEventListener('click', handleClickOutside, true);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside, true);
-      document.removeEventListener('click', handleClickOutside, true);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [onClose, navigableItems, focusedIndex, containerRef, handleItemClick, anchorEl]);
-
-  // Move real DOM focus to the keyboard-navigated item so it is announced by
-  // screen readers, and keep it scrolled into view.
-  useEffect(() => {
-    if (focusedIndex < 0) return;
-    const buttons = menuRef.current?.querySelectorAll<HTMLButtonElement>(
-      '.context-menu-item:not(.context-menu-subitem):not(:disabled)',
-    );
-    const el = buttons?.[focusedIndex];
-    if (el) {
-      el.focus();
-      el.scrollIntoView?.({ block: 'nearest' });
+  const renderItem = (item: ContextMenuItem, index: number): ReactNode => {
+    if (item.separator) {
+      return <Separator key={`sep-${index}`} orientation="horizontal" spacing="sm" />;
     }
-  }, [focusedIndex]);
 
-  // Position the menu relative to the anchor element (or an explicit point)
-  // and keep it inside the viewport (flip above, shift sideways). Styles are
-  // written straight to the menu element, so repositioning never goes through
-  // React renders. Scroll (window), viewport resize, and element resize
-  // re-trigger positioning.
-  useLayoutEffect(() => {
-    const floating = menuRef.current;
-    if (!floating) return;
+    if (item.content) {
+      return (
+        <div
+          key={item.id}
+          className="context-menu-content-row"
+        >
+          {item.content}
+        </div>
+      );
+    }
 
-    const alignment = alignRight ? 'end' : 'start';
+    const hasSubmenu = item.submenu !== undefined || item.submenuItems !== undefined;
+    const isActive = activeItem === item.id;
 
-    // Portal mode renders position:fixed (see ContextMenu.css); inline mode
-    // positions absolutely within its offset parent. The position style is
-    // written imperatively so the strategy always matches the element.
-    const strategy = inline ? 'absolute' : 'fixed';
+    if (hasSubmenu) {
+      // Controlled Sub: the open state is ours so the overlay stack's
+      // Escape (submenu first) and the enter-only hover seam drive it
+      // synchronously; Radix's own open/close requests (click toggle,
+      // pointer leave) funnel through the same onOpenChange. The
+      // SubContent renders WITHOUT a Portal — an inline, absolutely
+      // positioned child of the menu card (never re-fits the menu's box,
+      // stays under .context-menu for feature CSS).
+      return (
+        <ContextMenuPrimitive.Sub
+          key={item.id}
+          open={activeSubmenu === item.id}
+          onOpenChange={(open) => setActiveSubmenu(open ? item.id : null)}
+        >
+          <ContextMenuPrimitive.SubTrigger
+            className={cn(
+              'context-menu-item has-submenu',
+              item.danger && 'danger',
+              item.disabled && 'disabled',
+              (isActive || activeSubmenu === item.id) && 'active',
+            )}
+            disabled={item.disabled === true}
+            onMouseEnter={() => handleItemEnter(item)}
+            {...(item.tooltip !== undefined ? { title: item.tooltip } : {})}
+          >
+            {renderRowChrome(item)}
+            <span className="context-menu-arrow" aria-hidden="true">
+              <Icon path="mdi-chevron-right" size={0.8} />
+            </span>
+          </ContextMenuPrimitive.SubTrigger>
+          <ContextMenuPrimitive.SubContent
+            className="context-menu-submenu-flyout card"
+            sideOffset={0}
+            collisionPadding={VIEWPORT_PADDING}
+            onEscapeKeyDown={(event) => event.preventDefault()}
+            // Focus leaving the flyout (e.g. into a confirmation modal the
+            // row spawned) must not close it — this menu is caller-
+            // controlled; dismissal rides onClose, not focus (Radix's
+            // default closes a sub on focus-outside).
+            onFocusOutside={(event) => event.preventDefault()}
+            onFocus={(e: FocusEvent) => e.stopPropagation()}
+            onMouseDown={(e: MouseEvent) => e.stopPropagation()}
+            onClick={(e: MouseEvent) => e.stopPropagation()}
+          >
+            {item.submenu !== undefined
+              ? item.submenu
+              : item.submenuItems!.map(renderSubitem)}
+          </ContextMenuPrimitive.SubContent>
+        </ContextMenuPrimitive.Sub>
+      );
+    }
 
-    const getReferenceRect = (): DOMRect => {
-      if (anchorEl) return anchorEl.getBoundingClientRect();
-      const x = posX ?? 0;
-      const y = posY ?? 0;
-      return { x, y, width: 0, height: 0, top: y, left: x, right: x, bottom: y, toJSON: () => ({}) } as DOMRect;
-    };
-
-    const update = () => {
-      // Re-read the anchor rect on every reposition so the menu follows a
-      // moving/scrolled anchor.
-      const referenceRect = getReferenceRect();
-      const floatingW = floating.offsetWidth;
-      const floatingH = floating.offsetHeight;
-      const viewportW = window.innerWidth;
-      const viewportH = window.innerHeight;
-
-      const scrollX = strategy === 'fixed' ? 0 : window.scrollX;
-      const scrollY = strategy === 'fixed' ? 0 : window.scrollY;
-
-      // Vertical: prefer below the anchor (or the point), flip above when
-      // there is not enough room and more space on top.
-      const spaceBelow = viewportH - referenceRect.bottom - VIEWPORT_PADDING;
-      const spaceAbove = referenceRect.top - VIEWPORT_PADDING;
-      let y: number;
-      if (spaceBelow < floatingH && spaceAbove > spaceBelow) {
-        y = referenceRect.top - floatingH;
-      } else {
-        y = referenceRect.bottom;
-      }
-      y = Math.min(Math.max(y, VIEWPORT_PADDING), Math.max(VIEWPORT_PADDING, viewportH - floatingH - VIEWPORT_PADDING));
-
-      // Horizontal: start (left) or end (right) aligned, then clamp.
-      let x: number;
-      if (alignment === 'end') {
-        x = referenceRect.right - floatingW;
-      } else {
-        x = referenceRect.left;
-      }
-      x = Math.min(Math.max(x, VIEWPORT_PADDING), Math.max(VIEWPORT_PADDING, viewportW - floatingW - VIEWPORT_PADDING));
-
-      floating.style.position = strategy;
-      floating.style.left = `${x + scrollX}px`;
-      floating.style.top = `${y + scrollY}px`;
-      floating.style.right = 'auto';
-      floating.style.bottom = 'auto';
-      floating.style.visibility = 'visible';
-
-      // The flyout submenu rides to the SIDE of the parent row (never
-      // inside the menu's flow — growing the menu there made the whole
-      // menu re-fit and dance when the panel opened/closed). It rides
-      // FLUSH against the menu edge (no overlap), aligns its top with the
-      // parent row, flips left when the right side lacks room, and clamps
-      // vertically into the viewport. Absolutely positioned inside the
-      // card, it never changes the menu's own box, so the position above
-      // stays put.
-      const flyout = flyoutRef.current;
-      if (flyout !== null && activeSubmenu !== null) {
-        const escaped =
-          typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-            ? CSS.escape(activeSubmenu)
-            : activeSubmenu;
-        const trigger = floating.querySelector<HTMLElement>(`[data-item-id="${escaped}"]`);
-        if (trigger !== null) {
-          const menuRect = floating.getBoundingClientRect();
-          const triggerRect = trigger.getBoundingClientRect();
-          const flyoutW = flyout.offsetWidth;
-          const flyoutH = flyout.offsetHeight;
-          const overlap = 0; // flush edge — no bridge (enter-only hover)
-          const roomRight = viewportW - menuRect.right + overlap - VIEWPORT_PADDING;
-          const roomLeft = menuRect.left + overlap - VIEWPORT_PADDING;
-          const openRight = roomRight >= flyoutW - overlap || roomRight >= roomLeft;
-          flyout.style.left = openRight ? `${floating.offsetWidth - overlap}px` : 'auto';
-          flyout.style.right = openRight ? 'auto' : `${floating.offsetWidth - overlap}px`;
-          const minTop = VIEWPORT_PADDING - menuRect.top;
-          const maxTop = viewportH - flyoutH - VIEWPORT_PADDING - menuRect.top;
-          const top = triggerRect.top - menuRect.top;
-          flyout.style.top = `${Math.min(Math.max(top, minTop), Math.max(minTop, maxTop))}px`;
-          flyout.style.bottom = 'auto';
-        }
-      }
-    };
-
-    update();
-
-    const handleReposition = () => update();
-    window.addEventListener('scroll', handleReposition, { capture: true, passive: true });
-    window.addEventListener('resize', handleReposition);
-    const unobserve = observeResizes([anchorEl, floating], handleReposition);
-
-    return () => {
-      window.removeEventListener('scroll', handleReposition, { capture: true });
-      window.removeEventListener('resize', handleReposition);
-      unobserve();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reference rect is re-read on every update cycle
-  }, [anchorEl, posX, posY, alignRight, inline, activeSubmenu]);
-
-  // Track index in navigable items for focus
-  let navigableIndex = -1;
+    return (
+      <ContextMenuPrimitive.Item
+        key={item.id}
+        className={cn(
+          'context-menu-item',
+          item.danger && 'danger',
+          item.disabled && 'disabled',
+          isActive && 'active',
+        )}
+        disabled={item.disabled === true}
+        onSelect={(event) => {
+          if (item.disabled) return;
+          item.onClick?.();
+          if (item.keepOpen) event.preventDefault();
+        }}
+        onMouseEnter={() => handleItemEnter(item)}
+        {...(item.tooltip !== undefined ? { title: item.tooltip } : {})}
+      >
+        {renderRowChrome(item)}
+      </ContextMenuPrimitive.Item>
+    );
+  };
 
   const menu = (
-    <Card
-      ref={menuRef}
-      className={`context-menu ${className}`}
-      // Hidden until positioned (visibility is flipped to visible imperatively
-      // after the first layout pass).
-      style={{ visibility: 'hidden' }}
-      {...(companion ? { "data-editor-companion": "true" } : {})}
-      role="menu"
-      elevation="medium"
-      radius="floating"
-      padding={false}
+    <ContextMenuPrimitive.Content
+      className={cn('context-menu card', className)}
+      side="bottom"
+      align={alignRight ? 'end' : 'start'}
+      sideOffset={0}
+      collisionPadding={VIEWPORT_PADDING}
+      onEscapeKeyDown={(event) => event.preventDefault()}
+      onPointerDownOutside={handleInteractOutside}
+      onInteractOutside={handleInteractOutside}
       onFocus={(e: FocusEvent) => e.stopPropagation()}
       onMouseDown={(e: MouseEvent) => e.stopPropagation()}
       onClick={(e: MouseEvent) => e.stopPropagation()}
+      {...(companion ? { 'data-editor-companion': 'true' } : {})}
     >
       {title && <div className="context-menu-title">{title}</div>}
-      {items.map((item, index) => {
-        if (item.separator) {
-          return <Separator key={`sep-${index}`} orientation="horizontal" spacing="sm" />;
-        }
-
-        if (item.content) {
-          return (
-            <div
-              key={item.id}
-              className="context-menu-content-row"
-            >
-              {item.content}
-            </div>
-          );
-        }
-
-        navigableIndex++;
-        const isFocused = navigableIndex === focusedIndex;
-        const isActive = activeItem === item.id;
-
-        return (
-          <button
-            key={item.id}
-            data-item-id={item.id}
-            className={`context-menu-item ${item.danger ? 'danger' : ''} ${item.disabled ? 'disabled' : ''} ${isFocused ? 'focused' : ''} ${isActive || activeSubmenu === item.id ? 'active' : ''} ${item.submenu !== undefined || item.submenuItems !== undefined ? 'has-submenu' : ''}`}
-            onClick={(e) => handleItemClick(item, e)}
-            disabled={item.disabled}
-            role="menuitem"
-            tabIndex={isFocused ? 0 : -1}
-            onMouseEnter={() => handleItemEnter(item)}
-          >
-            <span className="context-menu-icon-wrapper">
-              {item.icon && (
-                <Icon path={item.icon} size={0.7} className="context-menu-icon" />
-              )}
-            </span>
-            <span className="context-menu-label">{item.label}</span>
-            {item.badge && (
-              <span className="context-menu-badge">{item.badge}</span>
-            )}
-            {item.shortcut && (
-              <span className="context-menu-shortcut">{item.shortcut}</span>
-            )}
-            {(item.submenu !== undefined || item.submenuItems !== undefined) && (
-              <span className="context-menu-arrow" aria-hidden="true">
-                <Icon path="mdi-chevron-right" size={0.8} />
-              </span>
-            )}
-          </button>
-        );
-      })}
-      {activeSubmenu !== null &&
-        (() => {
-          const active = items.find((entry) => entry.id === activeSubmenu);
-          if (
-            active === undefined ||
-            (active.submenu === undefined && active.submenuItems === undefined)
-          ) {
-            return null;
-          }
-          return (
-            <Card
-              ref={flyoutRef}
-              className="context-menu-submenu-flyout"
-              role="menu"
-              elevation="medium"
-              radius="floating"
-              padding={false}
-            >
-              {active.submenu !== undefined
-                ? active.submenu
-                : active.submenuItems!.map(renderSubitem)}
-            </Card>
-          );
-        })()}
-    </Card>
+      {items.map((item, index) => renderItem(item, index))}
+    </ContextMenuPrimitive.Content>
   );
 
-  return inline ? menu : createPortal(menu, document.body);
+  return (
+    <ContextMenuPrimitive.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      modal={false}
+    >
+      {/* The hidden virtual anchor — see the positioning note in the
+          header. Never a visible right-click target. */}
+      <ContextMenuPrimitive.Trigger
+        ref={triggerRef}
+        aria-hidden="true"
+        style={{ display: 'none' }}
+      />
+      {inline ? menu : (
+        <ContextMenuPrimitive.Portal>{menu}</ContextMenuPrimitive.Portal>
+      )}
+    </ContextMenuPrimitive.Root>
+  );
 }

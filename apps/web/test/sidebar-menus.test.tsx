@@ -224,7 +224,12 @@ describe("sidebar row context menus", () => {
     const { container } = renderSidebar(client);
 
     openRowMenu(container, "Eta");
-    fireEvent.mouseDown(document.body);
+    // Radix dismisses on pointer-down outside (its document listener
+    // registers on a macrotask after mount).
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    fireEvent.pointerDown(document.body);
     expect(rowMenu()).toBeNull();
 
     openRowMenu(container, "Eta");

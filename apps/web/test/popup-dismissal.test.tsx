@@ -144,16 +144,21 @@ describe("dismissal matrix: kit ContextMenu", () => {
     expect(screen.getByTestId("closed")).toBeInTheDocument();
   });
 
-  it("pointer-down outside closes; pressing a menu item does not self-dismiss first", () => {
+  it("pointer-down outside closes; pressing a menu item does not self-dismiss first", async () => {
     const list = items();
     withOutside(<Closable>{(close) => <ContextMenu items={list} position={{ x: 8, y: 8 }} onClose={close} />}</Closable>);
 
-    fireEvent.mouseDown(outsideButton());
+    // Radix registers its document pointerdown listener on a macrotask
+    // (setTimeout 0) after mount.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    fireEvent.pointerDown(outsideButton());
     expect(screen.queryByRole("menu")).toBeNull();
 
     // Reopen: pressing inside the menu keeps it open…
     render(<Closable>{(close) => <ContextMenu items={list} position={{ x: 8, y: 8 }} onClose={close} />}</Closable>);
-    fireEvent.mouseDown(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Alpha" }));
+    fireEvent.pointerDown(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Alpha" }));
     expect(screen.getByRole("menu")).toBeInTheDocument();
     // …and the activating click still runs the item and then closes.
     fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Alpha" }));
