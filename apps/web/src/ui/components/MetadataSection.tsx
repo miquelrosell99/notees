@@ -38,11 +38,9 @@
  */
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 
 import {
   isRangeDatetimeValue,
-  isValidTimeOfDay,
   parseDateNodeId,
   rendersAsInlineBlock,
   rendersWithDocumentChrome,
@@ -89,7 +87,7 @@ import { NodeSelector } from "./pickers/NodeSelector.js";
 import { SelectionPropertyControl, type SelectionOption } from "./pickers/SelectionPropertyControl.js";
 import { AssetUploadModal } from "./modals/AssetUploadModal.js";
 import { propertyLinkHref } from "../views/propertyDisplay.js";
-import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
+import { cssColorFor } from "./ui/colorPresets.js";
 import { ClassPillsList } from "./ClassPillsList.js";
 import { NodePill } from "./NodePills.js";
 import { removeClassDissolvingLinks } from "./classRemoval.js";
@@ -103,113 +101,23 @@ import { PropertyHistoryModal } from "./PropertyHistoryModal.js";
 import { TextPropertyRow } from "./TextPropertyRow.js";
 import { AliasedNodeRow } from "./AliasedNodeRow.js";
 import { AliasNodePicker } from "./AliasNodePicker.js";
+import {
+  type AnyClient,
+  contrastFor,
+  fromEditableText,
+  isAssetClass,
+  nodeRefOf,
+  resolveTargetClassIds,
+  toEditableText,
+} from "./metadata/shared.js";
+import {
+  isoOfRef,
+  precisionOf,
+  qualifierIsoOf,
+  rangeSlotsOf,
+  slotOf,
+} from "./metadata/datetimeValue.js";
 import "./MetadataSection.css";
-
-type AnyClient = WorkspaceClient | WorkerClient;
-
-/** Text-round-trip of an authored/default value for the minimal editor. */
-function toEditableText(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (value === null || value === undefined) return "";
-  return JSON.stringify(value);
-}
-
-/** Inverse: bare text stays a string; JSON-looking text parses (42, true, …). */
-function fromEditableText(text: string): unknown {
-  const trimmed = text.trim();
-  if (trimmed === "") return "";
-  try {
-    return JSON.parse(trimmed) as unknown;
-  } catch {
-    return text;
-  }
-}
-
-/**
- * Node-typed property values carry the linked node's id as `{ "nodeId": … }`
- * (the shape the edge index projects, edges.ts); a bare string is accepted
- * leniently. Anything else is not a node reference.
- */
-function nodeRefOf(value: unknown): string | null {
-  if (typeof value === "string") return value.length > 0 ? value : null;
-  if (typeof value === "object" && value !== null && "nodeId" in value) {
-    const id = (value as { nodeId: unknown }).nodeId;
-    return typeof id === "string" && id.length > 0 ? id : null;
-  }
-  return null;
-}
-
-/**
- * One datetime slot of a stored value: the chain ref plus an optional
- * wall-clock time ({ nodeId, time? } — the SCHEMA.md "Datetime" union arm).
- * A bare string ref is accepted leniently; anything without a ref is null.
- */
-function slotOf(value: unknown): DatetimeSlot | null {
-  const ref = nodeRefOf(value);
-  if (ref === null) return null;
-  const time =
-    typeof value === "object" && value !== null
-      ? (value as { time?: unknown }).time
-      : undefined;
-  return isValidTimeOfDay(time) ? { nodeId: ref, time } : { nodeId: ref };
-}
-
-/** The range arm of the union: { start, end } of slots, either side open. */
-interface DatetimeRangeSlots {
-  start: DatetimeSlot | null;
-  end: DatetimeSlot | null;
-}
-
-function rangeSlotsOf(value: unknown): DatetimeRangeSlots {
-  if (typeof value !== "object" || value === null) return { start: null, end: null };
-  const range = value as { start?: unknown; end?: unknown };
-  return { start: slotOf(range.start), end: slotOf(range.end) };
-}
-
-/** The schema's commit ceiling for date values (day when unspecified). */
-function precisionOf(schema: { datePrecision?: DatePrecision | null } | null | undefined): DatePrecision {
-  return schema?.datePrecision ?? "day";
-}
-
-/**
- * Resolve a node-typed schema's targetClassFilter to class ids. The filter
- * entries may be class ids (property_schema row / registry binding, as the
- * server seeds them) or class names (the designed-seed fallback bindings) —
- * both are mapped through the class list; null means unconstrained.
- */
-function resolveTargetClassIds(
-  client: AnyClient,
-  propertySchemaId: string,
-  bindingFilter: string[] | null,
-): string[] | null {
-  const schemaRow = client.listPropertySchemas().find((s) => s.id === propertySchemaId);
-  const filter = schemaRow?.targetClassFilter ?? bindingFilter;
-  if (filter === null) return null;
-  const classes = client.listClasses();
-  const ids = filter
-    .map((entry) => classes.find((c) => c.id === entry)?.id ?? classes.find((c) => c.name === entry)?.id)
-    .filter((id): id is string => id !== undefined);
-  return ids;
-}
-
-/** True when the class is the asset class (seeded id, or a class named "asset"). */
-function isAssetClass(client: AnyClient, classId: string): boolean {
-  return classId === SYSTEM_CLASS_UUIDS.asset || client.getNode(classId)?.name === "asset";
-}
-
-/**
- * Readable text on a class-color background: relative-luminance threshold
- * picks the black/white token. Stored colors are preset tokens (`sky`) or
- * custom hex, so resolve to a concrete hex before computing.
- */
-function contrastFor(color: string): string {
-  const match = /^#([0-9a-f]{6})$/i.exec(resolveCssColor(color).trim());
-  if (match === null) return "var(--md-sys-color-on-primary-container)";
-  const rgb = parseInt(match[1]!, 16);
-  const channel = (shift: number) => ((rgb >> shift) & 0xff) / 255;
-  const luminance = 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
-  return luminance > 0.45 ? "var(--md-sys-color-black)" : "var(--md-sys-color-white)";
-}
 
 /**
  * PropertySelectCell — the single-value selection control:
@@ -1317,38 +1225,6 @@ function DatetimePropertyRow({
       {picker}
     </li>
   );
-}
-
-/** A date ref back to a full ISO date at its own precision (range merges). */
-function isoOfRef(ref: string | null): string | null {
-  if (ref === null) return null;
-  const parsed = parseDateNodeId(ref);
-  if (parsed === null) return null;
-  const y = String(parsed.year).padStart(4, "0");
-  const m = String(parsed.month).padStart(2, "0");
-  const d = String(parsed.day).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-/**
- * PC6 read-leniency: a qualifier slot reads BOTH shapes — a legacy ISO
- * string rides as-is; a canonical date-node ref formats from its
- * deterministic id (day precision `YYYY-MM-DD`). The panel still WRITES the
- * legacy string until the lockstep wave (the applier normalizes on write).
- */
-function qualifierIsoOf(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (typeof value === "object" && value !== null && "nodeId" in value) {
-    const id = (value as { nodeId: unknown }).nodeId;
-    if (typeof id === "string") {
-      const parsed = parseDateNodeId(id);
-      if (parsed !== null) {
-        return `${String(parsed.year).padStart(4, "0")}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`;
-      }
-      return id;
-    }
-  }
-  return "";
 }
 
 /**
