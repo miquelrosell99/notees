@@ -24,7 +24,7 @@ import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { ClassCreateModal } from "../src/ui/components/modals/ClassCreateModal.js";
 import { CommandPalette } from "../src/ui/components/CommandPalette.js";
-import { HubView } from "../src/ui/App.js";
+import { HubView } from "../src/ui/app/HubView.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
