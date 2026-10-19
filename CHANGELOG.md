@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-19
 
+- **feat(web): the shadcn bridge lands — Tailwind wired to the tokens, the
+  alias layer, and the class half of the drift gate.** Owner ruling
+  2026-10-19 ("full shadcn alignment and implementation") starts here: the
+  catalog alignment program retires the custom-primitive-layer exception
+  (`.agents/design-overrides.md`) and migrates the component layer to the
+  normalized shadcn catalog. This slice is the foundation, no visual change.
+  Tailwind v3 arrives as an implementation layer only — `tailwind.config.ts`
+  maps every utility a component may cite to a design token (colors to the
+  Material roles + the shadcn alias keys, radii to the fleet shape scale,
+  spacing/height/opacity/elevation/motion to the existing token families);
+  preflight stays OFF so the co-located CSS layer is untouched. The token
+  file gains the bridge alias layer (`--background`…`--ring` as `var()`
+  aliases of the canonical roles — `--accent` deliberately maps to the hover
+  register, not the seed) and the `--radius-*` family (buttons corner-full
+  per the 2026-10-19 fleet ruling). `components.json` adopts the fleet
+  template (new-york style, `@/` aliases, utils → the app's `cn`). `cn`
+  upgrades to clsx + tailwind-merge (merge semantics the catalog needs; the
+  old joiner behavior is unchanged for non-Tailwind classes). The drift gate
+  grows the class half (checks 8–11): no default-palette utilities, no raw
+  radii outside the registered family, no arbitrary values/default
+  shadows/default durations, and a registered-mapping check that proves
+  every theme-key utility in the catalog resolves to a config key —
+  detectors fixture-tested like the original seven. **Verification:**
+  drift gate 12/12 (7 CSS + 5 class); `vite build` green; full web suite
+  green; typecheck carries three pre-existing `App.tsx` errors that also
+  fail on unmodified HEAD (another session's in-flight work — reported, not
+  touched).
+
 - **fix(web): the sidebar foot is the three-column layout it should be
   (owner report, same-day).** The identity restore shipped with two CSS
   regressions: `.nt-profile-text` (the column layout + truncating buffer

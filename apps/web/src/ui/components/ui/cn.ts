@@ -1,14 +1,8 @@
 /**
- * Class name utility
+ * Class name utility — re-exports the app-wide cn (src/utils/cn).
  *
- * A lightweight conditional class name joiner. Notees uses a custom
- * design-token CSS system, not Tailwind, so no merge semantics are needed.
- *
- * Usage:
- *   cn('btn', variant === 'primary' && 'btn--primary', className)
+ * Historical home of the joiner (the app's CSS-only layer predates the
+ * shadcn bridge); kept so the dozens of relative `./cn` imports keep
+ * working. New code imports from `@/utils/cn`.
  */
-export type ClassValue = string | false | null | undefined;
-
-export function cn(...inputs: ClassValue[]): string {
-  return inputs.filter(Boolean).join(' ');
-}
+export { cn, type ClassValue } from "../../../utils/cn.js";

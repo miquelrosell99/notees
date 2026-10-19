@@ -338,6 +338,35 @@
   --shadow-elevation-2: var(--shadow-level2);
   --shadow-elevation-3: var(--shadow-level3);
 
+  /* ==================== shadcn bridge alias layer ==================== */
+  /* Catalog components read shadcn's theme keys; they are defined ONCE here
+     as var() aliases of the canonical roles above — never standalone
+     values — so re-theming (light/dark/OLED, accent swap) propagates into
+     every catalog component for free. Mapping per the fleet skill
+     (rosellramos-design-system → components/shadcn-bridge.md).
+     ⚠ --accent is NOT the fleet accent: shadcn uses it as a subtle hover
+     surface, so it maps to the hover register; the seed is --primary. */
+  --background: var(--md-sys-color-background);
+  --foreground: var(--md-sys-color-on-surface);
+  --card: var(--md-sys-color-surface);
+  --card-foreground: var(--md-sys-color-on-surface);
+  --popover: var(--md-sys-color-surface-container);
+  --popover-foreground: var(--md-sys-color-on-surface);
+  --primary: var(--md-sys-color-primary);
+  --primary-foreground: var(--md-sys-color-on-primary);
+  --secondary: var(--md-sys-color-secondary-container);
+  --secondary-foreground: var(--md-sys-color-on-secondary-container);
+  --muted: var(--md-sys-color-surface-container);
+  --muted-foreground: var(--md-sys-color-on-surface-variant);
+  --accent: var(--md-sys-color-hover-overlay);
+  --accent-foreground: var(--md-sys-color-on-surface);
+  --destructive: var(--md-sys-color-error);
+  --destructive-foreground: var(--md-sys-color-on-error);
+  --border: var(--md-sys-color-outline-variant);     /* hairlines */
+  --input: var(--md-sys-color-outline);              /* interactive borders */
+  --ring: var(--md-sys-color-primary);               /* focus ring — never suppress */
+  --radius: var(--radius-card);
+
   /* ==================== Shape (Border Radius) - Minimal ==================== */
   --shape-none: 0;
   --shape-extra-small: 2px;
@@ -560,6 +589,17 @@
   --radius-md: var(--shape-medium);
   --radius-sm: var(--shape-small);
   --radius-xs: var(--shape-extra-small);
+  /* The fleet shape scale the Tailwind config and the shadcn catalog ride
+     (skill rulings: buttons corner-full at every size 2026-10-19, popovers
+     4px, cards 20px, sheets 28px). */
+  --radius-card: var(--shape-card);
+  --radius-sheet: var(--shape-sheet);
+  --radius-button-lg: var(--shape-full);
+  --radius-button-sm: var(--shape-full);
+  --radius-input: var(--shape-extra-large);
+  --radius-item: var(--shape-large);
+  --radius-popover: var(--radius-menu);
+  --radius-badge: 9px;
   --shape-corner-xs: var(--shape-extra-small);
   --font-mono: var(--font-family-mono);
   --font-size: var(--font-size-base);
