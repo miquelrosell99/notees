@@ -23,9 +23,6 @@ import { WorkspaceClientUndo } from "./client-undo.js";
 export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
   // --- write API (optimistic local apply + outbox push) -----------------------
 
-
-
-
   /** Create an object; returns its id. Applied locally, push kicked off. */
   async createObject(partial: CreateObjectInput): Promise<string> {
     const id = partial.id ?? uuidv7();

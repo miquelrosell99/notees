@@ -258,7 +258,6 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
     return ids;
   }
 
-
   /**
    * Every node whose alias-terminal is `id` (the aliases listing behind the
    * title-row affordance): live ids from the store's recursive read, mapped
@@ -284,7 +283,6 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
   resolveAlias(id: string): string {
     return this.store.resolveAlias(id);
   }
-
 
   /**
    * Direct main children (Revision 11: is_class = 0 AND is_embedded = 0
