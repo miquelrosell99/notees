@@ -4,7 +4,8 @@
  * classes), the class-extends relations, and the class → property-schema
  * binding reads (registry rows + the extends-aware/seed-spec-synthesized
  * projection). All reads hit the LOCAL store only; list-scale reads ride the
- * revision cache (cachedListRead in this domain).
+ * revision cache (cachedListRead in this domain). Standalone domain — takes
+ * the shared ClientContext, no inheritance.
  */
 
 import {
@@ -19,28 +20,29 @@ import type { NodeRow } from "@notees/store";
 
 import {
   mapClassBindingRow,
-  type BlockTreeNode,
   type ClassBinding,
   type ClientNode,
   type ParentRenderFacts,
   type TrashedEntry,
 } from "./types.js";
-import { WorkspaceClientBase } from "./client-base.js";
+import type { ClientContext } from "./client-context.js";
 
-export abstract class WorkspaceClientReads extends WorkspaceClientBase {
+export class WorkspaceClientReads {
+  constructor(private readonly ctx: ClientContext) {}
+
   // --- read API (local store only) -------------------------------------------
 
   /** The node mapped to the client view, or undefined when missing/inactive. */
   getNode(id: string): ClientNode | undefined {
-    const row = this.store.getNode(id);
+    const row = this.ctx.store.getNode(id);
     if (!row || row.is_active !== 1) return undefined;
-    return this.mapNodeCached(row);
+    return this.ctx.mapNodeCached(row);
   }
 
   /** A single node, regardless of active state (backlink sources may be trashed). */
   getNodeRaw(id: string): ClientNode | undefined {
-    const row = this.store.getNode(id);
-    return row ? this.mapNodeCached(row) : undefined;
+    const row = this.ctx.store.getNode(id);
+    return row ? this.ctx.mapNodeCached(row) : undefined;
   }
 
   /** Display name for mentions/chips (SCHEMA.md name derivation); null when unknown. */
@@ -63,21 +65,21 @@ export abstract class WorkspaceClientReads extends WorkspaceClientBase {
   }
 
   /** The parent's render facts for the parent-page condition, when known. */
-  protected parentFactsOf(node: { parentId: string | null }): ParentRenderFacts {
+  parentFactsOf(node: { parentId: string | null }): ParentRenderFacts {
     return node.parentId !== null ? this.getNode(node.parentId) : undefined;
   }
 
   /** All document-chrome nodes (parentless or main children), deterministic order. */
   listPages(): ClientNode[] {
     return this.cachedListRead("listPages", () => {
-      const rows = this.store.database
+      const rows = this.ctx.store.database
         .prepare(
           `SELECT * FROM node
          WHERE workspace_id = ? AND is_class = 0 AND (parent_id IS NULL OR is_embedded = 0) AND is_active = 1
          ORDER BY COALESCE(name, id), id`,
         )
-        .all(this.workspaceId) as NodeRow[];
-      return rows.map((row) => this.mapNodeCached(row));
+        .all(this.ctx.workspaceId) as NodeRow[];
+      return rows.map((row) => this.ctx.mapNodeCached(row));
     });
   }
 
@@ -89,7 +91,7 @@ export abstract class WorkspaceClientReads extends WorkspaceClientBase {
    */
   roots(): ClientNode[] {
     return this.cachedListRead("roots", () =>
-      this.store.roots(this.workspaceId).map((row) => this.mapNodeCached(row)),
+      this.ctx.store.roots(this.ctx.workspaceId).map((row) => this.ctx.mapNodeCached(row)),
     );
   }
 
@@ -102,29 +104,29 @@ export abstract class WorkspaceClientReads extends WorkspaceClientBase {
    */
   listTrashed(): TrashedEntry[] {
     return this.cachedListRead("listTrashed", () => {
-      const rows = this.store.database
+      const rows = this.ctx.store.database
         .prepare(
           `SELECT n.*, t.deleted_at AS deleted_at FROM trash t
            JOIN node n ON n.id = t.node_id
            WHERE n.workspace_id = ? AND n.is_active = 0 AND t.is_permanent = 0
            ORDER BY t.deleted_at DESC, n.id`,
         )
-        .all(this.workspaceId) as Array<NodeRow & { deleted_at: string }>;
-      return rows.map((row) => ({ node: this.mapNodeCached(row), deletedAt: row.deleted_at }));
+        .all(this.ctx.workspaceId) as Array<NodeRow & { deleted_at: string }>;
+      return rows.map((row) => ({ node: this.ctx.mapNodeCached(row), deletedAt: row.deleted_at }));
     });
   }
 
   /** All active classes in the workspace, deterministic order (# capture). */
   listClasses(): ClientNode[] {
     return this.cachedListRead("listClasses", () => {
-      const rows = this.store.database
+      const rows = this.ctx.store.database
         .prepare(
           `SELECT * FROM node
          WHERE workspace_id = ? AND is_class = 1 AND is_active = 1
          ORDER BY COALESCE(name, id), id`,
         )
-        .all(this.workspaceId) as NodeRow[];
-      return rows.map((row) => this.mapNodeCached(row));
+        .all(this.ctx.workspaceId) as NodeRow[];
+      return rows.map((row) => this.ctx.mapNodeCached(row));
     });
   }
 
@@ -136,12 +138,12 @@ export abstract class WorkspaceClientReads extends WorkspaceClientBase {
    */
   classIcons(): ReadonlyMap<string, string | null> {
     return this.cachedListRead("classIcons", () => {
-      const rows = this.store.database
+      const rows = this.ctx.store.database
         .prepare(
           `SELECT id, icon FROM node
          WHERE workspace_id = ? AND is_class = 1 AND is_active = 1`,
         )
-        .all(this.workspaceId) as Array<{ id: string; icon: string | null }>;
+        .all(this.ctx.workspaceId) as Array<{ id: string; icon: string | null }>;
       return new Map(rows.map((row) => [row.id, row.icon]));
     });
   }
@@ -157,7 +159,7 @@ export abstract class WorkspaceClientReads extends WorkspaceClientBase {
   effectiveClassIcons(): ReadonlyMap<string, string | null> {
     return this.cachedListRead("effectiveClassIcons", () => {
       const own = this.classIcons();
-      const rows = this.store.database
+      const rows = this.ctx.store.database
         .prepare(
           "SELECT class_id, parent_class_id FROM class_extends ORDER BY class_id, parent_class_id",
         )
@@ -194,23 +196,23 @@ export abstract class WorkspaceClientReads extends WorkspaceClientBase {
   }
 
   /** Compute-once-per-revision list read (see `listReadCache`). */
-  protected cachedListRead<T>(key: string, compute: () => T): T {
-    if (this.listReadCache.has(key)) return this.listReadCache.get(key) as T;
+  cachedListRead<T>(key: string, compute: () => T): T {
+    if (this.ctx.listReadCache.has(key)) return this.ctx.listReadCache.get(key) as T;
     const value = compute();
-    this.listReadCache.set(key, value);
+    this.ctx.listReadCache.set(key, value);
     return value;
   }
 
   /** Direct extends parents of a class (m2m), deterministic order. */
   getClassParents(classId: string): string[] {
-    return this.store.classParentIds(classId);
+    return this.ctx.store.classParentIds(classId);
   }
 
   /** Classes directly extending this one (one extends edge), as nodes — the
    * "Extended by" rows: transitive extenders appear only under their own
    * direct parent. */
   getDirectClassChildren(classId: string): ClientNode[] {
-    return this.store
+    return this.ctx.store
       .directClassChildIds(classId)
       .map((id) => this.getNode(id) ?? this.getNodeRaw(id))
       .filter((node): node is ClientNode => node !== undefined);
@@ -218,7 +220,7 @@ export abstract class WorkspaceClientReads extends WorkspaceClientBase {
 
   /** Classes extending this one (transitive), as nodes — the "Extended by" read. */
   getClassChildren(classId: string): ClientNode[] {
-    return this.store
+    return this.ctx.store
       .classChildIds(classId)
       .map((id) => this.getNode(id) ?? this.getNodeRaw(id))
       .filter((node): node is ClientNode => node !== undefined);
@@ -226,12 +228,12 @@ export abstract class WorkspaceClientReads extends WorkspaceClientBase {
 
   /** Nodes with present OR-set membership in the class, display order. */
   getClassMembers(classId: string): ClientNode[] {
-    return this.store.classMembers(classId).map((row) => this.mapNodeCached(row));
+    return this.ctx.store.classMembers(classId).map((row) => this.ctx.mapNodeCached(row));
   }
 
   /** The classed-nodes section badge — the same membership projection as a COUNT. */
   getClassMemberCount(classId: string): number {
-    return this.store.classMembersCount(classId);
+    return this.ctx.store.classMembersCount(classId);
   }
 
   /**
@@ -255,7 +257,7 @@ export abstract class WorkspaceClientReads extends WorkspaceClientBase {
     // `classId` is `SELECT ancestor_id … WHERE class_id = classId` (the
     // transpose — `class_id … WHERE ancestor_id` — selected the DESCENDANTS,
     // leaking children's rows into the parent read).
-    const rows = this.store.database
+    const rows = this.ctx.store.database
       .prepare(
         `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.default_value,
                 cp.active AS binding_active, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
@@ -286,7 +288,7 @@ export abstract class WorkspaceClientReads extends WorkspaceClientBase {
     const systemClassName = (
       Object.entries(SYSTEM_CLASS_UUIDS) as Array<[string, string]>
     ).find(([, id]) => id === classId)?.[0];
-    const schemaNameStmt = this.store.database.prepare(
+    const schemaNameStmt = this.ctx.store.database.prepare(
       "SELECT name FROM property_schema WHERE id = ?",
     );
     let fallbackSeq = bindings.length;
@@ -336,7 +338,7 @@ export abstract class WorkspaceClientReads extends WorkspaceClientBase {
     if (node === undefined || !node.isClass) {
       return [];
     }
-    const rows = this.store.database
+    const rows = this.ctx.store.database
       .prepare(
         `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.default_value,
                 cp.active AS binding_active, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,

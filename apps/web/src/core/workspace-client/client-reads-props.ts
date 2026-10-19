@@ -4,7 +4,8 @@
  * node-backed-property carrier exclusion), FTS search (sync, paginated,
  * snippets), name resolution, the live-query bridge (runQueryAst /
  * runAggregateAst over @notees/query), and direct-children reads.
- * All reads hit the LOCAL store only.
+ * All reads hit the LOCAL store only. Standalone domain — takes the shared
+ * ClientContext and the reads domain, no inheritance.
  */
 
 import {
@@ -34,9 +35,14 @@ import {
   type SearchPageResult,
   type SearchSnippetData,
 } from "./types.js";
+import type { ClientContext } from "./client-context.js";
 import { WorkspaceClientReads } from "./client-reads.js";
 
-export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
+export class WorkspaceClientReadsProps {
+  constructor(
+    private readonly ctx: ClientContext,
+    private readonly reads: WorkspaceClientReads,
+  ) {}
 
   /**
    * Alias pages of `id`: every live document-chrome node whose alias-terminal
@@ -45,11 +51,11 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
    * (SCHEMA.md "Node aliases"): non-page carriers don't act as aliases, so
    * they filter out here.
    */
-  protected aliasPageIdsOf(id: string): string[] {
+  aliasPageIdsOf(id: string): string[] {
     const ids: string[] = [];
-    for (const aliasId of this.store.aliasNodesOf(id)) {
-      const alias = this.getNode(aliasId);
-      if (alias === undefined || !rendersWithDocumentChrome(alias, this.parentFactsOf(alias))) continue;
+    for (const aliasId of this.ctx.store.aliasNodesOf(id)) {
+      const alias = this.reads.getNode(aliasId);
+      if (alias === undefined || !rendersWithDocumentChrome(alias, this.reads.parentFactsOf(alias))) continue;
       ids.push(aliasId);
     }
     return ids;
@@ -60,10 +66,16 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
    * every alias page of the node — an alias page's title names its main page
    * for search (resolve + unlinked references).
    */
-  protected nameEquivalentsOf(id: string): string[] {
-    const names = aliasValuesOf(this, id);
+  nameEquivalentsOf(id: string): string[] {
+    const names = aliasValuesOf(
+      {
+        getNode: (nodeId) => this.reads.getNode(nodeId),
+        getEffectiveProperties: (nodeId) => this.getEffectiveProperties(nodeId),
+      },
+      id,
+    );
     for (const aliasId of this.aliasPageIdsOf(id)) {
-      const alias = this.getNode(aliasId);
+      const alias = this.reads.getNode(aliasId);
       if (alias === undefined) continue;
       const title = deriveDisplayName(alias);
       if (title !== null && title.trim() !== "") names.push(title);
@@ -76,7 +88,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
    * with first-class-applied-wins conflicts. Pure read over the local store.
    */
   getEffectiveProperties(id: string): EffectiveProperty[] {
-    return this.store.getEffectiveProperties(id);
+    return this.ctx.store.getEffectiveProperties(id);
   }
 
   /**
@@ -86,7 +98,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
    * list.
    */
   getPropertyReferences(schemaId: string): ClientNode[] {
-    return this.store.propertyValueCarriers(schemaId).map((entry) => mapNode(entry.node));
+    return this.ctx.store.propertyValueCarriers(schemaId).map((entry) => mapNode(entry.node));
   }
 
   /**
@@ -97,14 +109,14 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
    * cannot ride getLinkedReferences. Pure read over the local store.
    */
   getCoverReferences(assetId: string): ClientNode[] {
-    const rows = this.store.database
+    const rows = this.ctx.store.database
       .prepare(
         `SELECT * FROM node
          WHERE workspace_id = ? AND cover_asset_id = ? AND is_active = 1
          ORDER BY id`,
       )
-      .all(this.workspaceId, assetId) as NodeRow[];
-    return rows.map((row) => this.mapNodeCached(row));
+      .all(this.ctx.workspaceId, assetId) as NodeRow[];
+    return rows.map((row) => this.ctx.mapNodeCached(row));
   }
 
   /**
@@ -114,7 +126,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
    * arrives with the asset.attach op (optimistic local write or catch-up).
    */
   getAssetInfo(id: string): AssetInfo | undefined {
-    const row = this.store.database
+    const row = this.ctx.store.database
       .prepare(
         `SELECT asset_id, hash, mime_type, size, original_name, uploaded_at
          FROM node_asset WHERE node_id = ? ORDER BY uploaded_at DESC LIMIT 1`,
@@ -130,7 +142,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
     });
     if (row !== undefined) return mapped(row);
     // Fallback: id is an asset id itself (e.g. resolved from an asset_ref).
-    const byAsset = this.store.database
+    const byAsset = this.ctx.store.database
       .prepare(
         `SELECT asset_id, hash, mime_type, size, original_name, uploaded_at
          FROM node_asset WHERE asset_id = ? ORDER BY uploaded_at DESC LIMIT 1`,
@@ -147,9 +159,9 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
   async getAssetDataUrl(assetNodeId: string): Promise<string | null> {
     const info = this.getAssetInfo(assetNodeId);
     if (info === undefined || !info.mimeType.startsWith("image/")) return null;
-    if (this.restServerUrl === null || this.restApiKey === null) return null;
+    if (this.ctx.restServerUrl === null || this.ctx.restApiKey === null) return null;
     try {
-      const blob = await fetchAssetBlob(this.restServerUrl, this.restApiKey, info.assetId, this.workspaceId);
+      const blob = await fetchAssetBlob(this.ctx.restServerUrl, this.ctx.restApiKey, info.assetId, this.ctx.workspaceId);
       return await readBlobAsDataUrl(blob);
     } catch {
       return null;
@@ -166,7 +178,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
    * deterministic display order (name, then id).
    */
   getAnnotationsForAsset(assetId: string): ClientNode[] {
-    const rows = this.store.database
+    const rows = this.ctx.store.database
       .prepare(
         `SELECT source_id FROM edge
          WHERE target_id = ? AND type = 'property' AND verb = ?
@@ -179,7 +191,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
       const sourceId = String(row.source_id);
       if (seen.has(sourceId)) continue;
       seen.add(sourceId);
-      const node = this.getNode(sourceId);
+      const node = this.reads.getNode(sourceId);
       if (node === undefined || !node.classIds.includes(SYSTEM_CLASS_UUIDS.highlight)) continue;
       annotations.push(node);
     }
@@ -190,14 +202,14 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
 
   /** Active property schemas of the workspace (the add-binding picker set). */
   listPropertySchemas(): ClientPropertySchema[] {
-    const rows = this.store.database
+    const rows = this.ctx.store.database
       .prepare(
         `SELECT id, name, type, multi, scope, options, target_class_filter, date_precision, date_qualified,
                 display, readonly, hide_when_empty
          FROM property_schema WHERE workspace_id = ? AND active = 1
          ORDER BY name, id`,
       )
-      .all(this.workspaceId) as Array<Record<string, unknown>>;
+      .all(this.ctx.workspaceId) as Array<Record<string, unknown>>;
     return rows.map((row) => {
       const parseJsonArray = (raw: unknown): string[] | null => {
         if (raw === null || raw === undefined) return null;
@@ -268,13 +280,6 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
   }
 
   /**
-   * Children of a node in child-order, recursive to `depth` levels (the
-   * inline body only: main children render in their own section — the Pages
-   * zone — so the tree is filtered to is_class = 0 AND is_embedded = 1,
-   * the inline-block predicate; class children (spec I4) ride here as
-   * ordinary body blocks).
-   */
-  /**
    * Block-subtree rooted at `id`, capped at `depth` levels (cycle protection).
    * `depth` normalizes null → default: the worker RPC boundary turns an
    * omitted optional into JSON null, and `null <= 0` is true — without the
@@ -290,7 +295,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
     // The deferred follow-up: `useOutlinerValue` calls this on every
     // view render, so it rides the revision cache like the list reads (the
     // worker client already cachedReads it; now the in-process path matches).
-    return this.cachedListRead(`getBlockTree:${pageId}:${depth ?? "*"}`, () => {
+    return this.reads.cachedListRead(`getBlockTree:${pageId}:${depth ?? "*"}`, () => {
       const cap = depth ?? DEFAULT_TREE_DEPTH;
       const build = (id: string, remaining: number): BlockTreeNode[] => {
         if (remaining <= 0) return [];
@@ -299,7 +304,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
         // Two shapes: node-typed references ({"nodeId"}) and text properties,
         // whose scalar value may be the carrier block's uuid (legacy shape).
         const propertyRefIds = this.propertyCarrierIdsOf(id);
-        return this.store
+        return this.ctx.store
           .children(id)
           .filter(
             (row) =>
@@ -309,7 +314,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
               !propertyRefIds.has(row.id),
           )
           .map((row) => ({
-            node: this.mapNodeCached(row),
+            node: this.ctx.mapNodeCached(row),
             children: build(row.id, remaining - 1),
           }));
       };
@@ -325,7 +330,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
    */
   private propertyCarrierIdsOf(nodeId: string): Set<string> {
     const propertyRefIds = new Set<string>();
-    for (const row of visiblePropertyValueRows(this.store.database, nodeId)) {
+    for (const row of visiblePropertyValueRows(this.ctx.store.database, nodeId)) {
       try {
         const parsed: unknown = JSON.parse(row.value);
         if (
@@ -347,15 +352,15 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
 
   /** FTS prefix-AND search over active nodes (ranked; limit defaults to 50). */
   search(query: string, limit?: number): ClientNode[] {
-    return this.store
+    return this.ctx.store
       .search(query, limit)
-      .map((hit) => this.getNode(hit.nodeId))
+      .map((hit) => this.reads.getNode(hit.nodeId))
       .filter((node): node is ClientNode => node !== undefined);
   }
 
   /**
-   * Cursor-paginated ranked search: the async counterpart of the
-   * cached sync `search` for load-more surfaces. `cursor` is the opaque
+   * Cursor-paginated ranked search: the async counterpart of the cached sync
+   * `search` for load-more surfaces. `cursor` is the opaque
    * `nextCursor` of the previous page (null/absent = first page); the result
    * carries the next cursor (null = exhausted).
    */
@@ -363,10 +368,10 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
     query: string,
     opts?: { limit?: number; cursor?: string | null } | null,
   ): Promise<SearchPageResult> {
-    const page = this.store.searchPage(query, { limit: opts?.limit, cursor: opts?.cursor ?? null });
+    const page = this.ctx.store.searchPage(query, { limit: opts?.limit, cursor: opts?.cursor ?? null });
     return Promise.resolve({
       nodes: page.hits
-        .map((hit) => this.getNode(hit.nodeId))
+        .map((hit) => this.reads.getNode(hit.nodeId))
         .filter((node): node is ClientNode => node !== undefined),
       nextCursor: page.nextCursor,
     });
@@ -382,7 +387,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
     query: string,
     opts?: { maxTokens?: number; ellipsis?: string } | null,
   ): SearchSnippetData | null {
-    return this.store.getSearchSnippet(nodeId, query, opts ?? undefined);
+    return this.ctx.store.getSearchSnippet(nodeId, query, opts ?? undefined);
   }
 
   /**
@@ -398,8 +403,8 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
    */
   resolveNodeByName(name: string): string | null {
     const wanted = name.toLowerCase();
-    for (const hit of this.store.search(name, 100)) {
-      const node = this.getNode(hit.nodeId);
+    for (const hit of this.ctx.store.search(name, 100)) {
+      const node = this.reads.getNode(hit.nodeId);
       if (node === undefined) continue;
       if ((deriveDisplayName(node) || "").toLowerCase() === wanted) return node.id;
       if (this.nameEquivalentsOf(node.id).some((alias) => alias.toLowerCase() === wanted)) {
@@ -436,7 +441,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
     }
     let result: ReturnType<typeof runQuery>;
     try {
-      result = runQuery(this.store, ast);
+      result = runQuery(this.ctx.store, ast);
     } catch (error) {
       throw new InvalidQueryAstError(
         `query not supported: ${error instanceof Error ? error.message : String(error)}`,
@@ -445,7 +450,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
     return {
       ids: result.ids,
       rows: result.rows.map((row) => {
-        const node = this.getNode(String(row.id));
+        const node = this.reads.getNode(String(row.id));
         return {
           id: String(row.id),
           // Title-is-content: the summary name derives from the node's
@@ -475,7 +480,7 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
       );
     }
     try {
-      return runAggregate(this.store, ast);
+      return runAggregate(this.ctx.store, ast);
     } catch (error) {
       throw new InvalidQueryAstError(
         `query not supported: ${error instanceof Error ? error.message : String(error)}`,
@@ -485,10 +490,10 @@ export abstract class WorkspaceClientReadsProps extends WorkspaceClientReads {
 
   /** Direct children of a node in child order, active only (export's nested-bullets read). */
   getChildren(id: string): ClientNode[] {
-    return this.store
+    return this.ctx.store
       .children(id)
       .filter((row) => row.is_active === 1)
-      .map((row) => this.mapNodeCached(row));
+      .map((row) => this.ctx.mapNodeCached(row));
   }
 
   /**

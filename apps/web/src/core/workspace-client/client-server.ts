@@ -4,7 +4,8 @@
  * the hosted section-view CRUD under /api/me/nodes/:id/sections/:key/views,
  * and the paginated GET /api/operations history feeds. Everything here
  * speaks fetch against the configured relay; graph writes ride the op-log
- * path (attachAsset) or none at all (uploadAsset is bytes only).
+ * path (attachAsset) or none at all (uploadAsset is bytes only). Standalone
+ * domain — takes the shared ClientContext, no inheritance.
  */
 
 import { fetchAssetBlob, postAssetUpload } from "./asset-transport.js";
@@ -23,18 +24,20 @@ import {
   type SectionView,
 } from "./section-views.js";
 import type { AssetUploadResult, OperationFeedEntry } from "./types.js";
-import { WorkspaceClientSync } from "./client-sync.js";
+import type { ClientContext } from "./client-context.js";
 
-export abstract class WorkspaceClientServer extends WorkspaceClientSync {
+export class WorkspaceClientServer {
+  constructor(private readonly ctx: ClientContext) {}
+
   // --- assets (REST upload + op-log link) -------------------------------------
 
   private requireRest(): { serverUrl: string; apiKey: string } {
-    if (this.restServerUrl === null || this.restApiKey === null) {
+    if (this.ctx.restServerUrl === null || this.ctx.restApiKey === null) {
       throw new Error(
         "WorkspaceClient: this call requires serverUrl + apiKey (use createHttp)",
       );
     }
-    return { serverUrl: this.restServerUrl, apiKey: this.restApiKey };
+    return { serverUrl: this.ctx.restServerUrl, apiKey: this.ctx.restApiKey };
   }
 
   // --- per-user UI prefs (favorites/recents — server-side UI state) -------------
@@ -46,10 +49,10 @@ export abstract class WorkspaceClientServer extends WorkspaceClientSync {
    * REST config): the cached copy answers, tagged `source: "local"`.
    */
   async getPrefs(): Promise<UserPrefs & { source: UserPrefsSource }> {
-    if (this.restServerUrl !== null && this.restApiKey !== null) {
+    if (this.ctx.restServerUrl !== null && this.ctx.restApiKey !== null) {
       try {
-        const response = await fetch(`${this.restServerUrl.replace(/\/$/, "")}/api/me/prefs`, {
-          headers: { "X-API-Key": this.restApiKey },
+        const response = await fetch(`${this.ctx.restServerUrl.replace(/\/$/, "")}/api/me/prefs`, {
+          headers: { "X-API-Key": this.ctx.restApiKey },
         });
         if (response.ok) {
           const prefs = normalizeUserPrefs(await response.json());
@@ -81,11 +84,11 @@ export abstract class WorkspaceClientServer extends WorkspaceClientSync {
     };
     if (patch.favorites !== undefined) writeDevicePrefList("favorites", patch.favorites);
     if (patch.recents !== undefined) writeDevicePrefList("recents", patch.recents);
-    if (this.restServerUrl !== null && this.restApiKey !== null) {
+    if (this.ctx.restServerUrl !== null && this.ctx.restApiKey !== null) {
       try {
-        const response = await fetch(`${this.restServerUrl.replace(/\/$/, "")}/api/me/prefs`, {
+        const response = await fetch(`${this.ctx.restServerUrl.replace(/\/$/, "")}/api/me/prefs`, {
           method: "PUT",
-          headers: { "X-API-Key": this.restApiKey, "content-type": "application/json" },
+          headers: { "X-API-Key": this.ctx.restApiKey, "content-type": "application/json" },
           body: JSON.stringify(patch),
         });
         if (response.ok) {
@@ -213,7 +216,7 @@ export abstract class WorkspaceClientServer extends WorkspaceClientSync {
    */
   async uploadAsset(file: Blob, filename: string): Promise<AssetUploadResult> {
     const { serverUrl, apiKey } = this.requireRest();
-    return postAssetUpload(serverUrl, apiKey, this.workspaceId, file, filename);
+    return postAssetUpload(serverUrl, apiKey, this.ctx.workspaceId, file, filename);
   }
 
   /**
@@ -224,8 +227,8 @@ export abstract class WorkspaceClientServer extends WorkspaceClientSync {
    * pushed with the rest of the outbox.
    */
   async attachAsset(objectId: string, asset: AssetUploadResult): Promise<void> {
-    this.enqueueLocal(
-      this.buildEnvelope(
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope(
         "asset.attach",
         {
           objectId,
@@ -247,7 +250,7 @@ export abstract class WorkspaceClientServer extends WorkspaceClientSync {
    */
   async fetchAssetBytes(assetId: string): Promise<Blob> {
     const { serverUrl, apiKey } = this.requireRest();
-    return fetchAssetBlob(serverUrl, apiKey, assetId, this.workspaceId);
+    return fetchAssetBlob(serverUrl, apiKey, assetId, this.ctx.workspaceId);
   }
 
   /**
@@ -316,7 +319,7 @@ export abstract class WorkspaceClientServer extends WorkspaceClientSync {
     for (let page = 0; page < 30; page++) {
       const url = `${serverUrl.replace(/\/$/, "")}/api/operations?afterSeq=${afterSeq}&limit=10000`;
       const response = await fetch(url, {
-        headers: { "X-API-Key": apiKey, "X-Workspace-Id": this.workspaceId },
+        headers: { "X-API-Key": apiKey, "X-Workspace-Id": this.ctx.workspaceId },
       });
       if (!response.ok) {
         throw new Error(`operations feed failed: HTTP ${response.status}`);

@@ -1,9 +1,11 @@
 /**
  * The write API domain: the optimistic local-apply + outbox-push object,
  * class, tag, and property-schema operations. Every write builds a protocol
- * envelope (the base's buildEnvelope), applies through the single local
+ * envelope (the context's buildEnvelope), applies through the single local
  * enqueue seam, and kicks a best-effort push; composed gestures
- * (mergeNodes, promotePropertyCarrier) journal as one undo batch.
+ * (mergeNodes, promotePropertyCarrier) journal as one undo batch. Standalone
+ * domain — takes the shared ClientContext plus the reads and reads-props
+ * domains, no inheritance.
  */
 
 import { uuidv7 } from "uuidv7";
@@ -18,9 +20,17 @@ import type {
   UpdateObjectInput,
   UpdatePropertySchemaInput,
 } from "./types.js";
-import { WorkspaceClientUndo } from "./client-undo.js";
+import type { ClientContext } from "./client-context.js";
+import { WorkspaceClientReads } from "./client-reads.js";
+import { WorkspaceClientReadsProps } from "./client-reads-props.js";
 
-export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
+export class WorkspaceClientWrites {
+  constructor(
+    private readonly ctx: ClientContext,
+    private readonly reads: WorkspaceClientReads,
+    private readonly props: WorkspaceClientReadsProps,
+  ) {}
+
   // --- write API (optimistic local apply + outbox push) -----------------------
 
   /** Create an object; returns its id. Applied locally, push kicked off. */
@@ -41,7 +51,7 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
     if (partial.parentId !== undefined) payload.parentId = partial.parentId;
     if (partial.afterId !== undefined) payload.afterId = partial.afterId;
     if (partial.beforeId !== undefined) payload.beforeId = partial.beforeId;
-    this.enqueueLocal(this.buildEnvelope("object.create", payload, [id]));
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("object.create", payload, [id]));
     return id;
   }
 
@@ -57,13 +67,13 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
     if (fields.aliasedNodeId !== undefined) payload.aliasedNodeId = fields.aliasedNodeId;
     if (fields.description !== undefined) payload.description = fields.description;
     if (fields.listStyle !== undefined) payload.listStyle = fields.listStyle;
-    this.enqueueLocal(this.buildEnvelope("object.update", payload, [id]));
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("object.update", payload, [id]));
   }
 
   /** Trash (default) or permanently delete an object and its subtree. */
   async deleteObject(id: string, opts: DeleteObjectOptions = {}): Promise<void> {
-    this.enqueueLocal(
-      this.buildEnvelope(
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope(
         "object.delete",
         { objectId: id, permanent: opts.permanent ?? false },
         [id],
@@ -79,9 +89,9 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
    * the web surface the CLI's `object restore` already had.
    */
   async restoreObject(id: string): Promise<void> {
-    const node = this.getNodeRaw(id);
+    const node = this.reads.getNodeRaw(id);
     if (node === undefined || node.isActive) return;
-    this.enqueueLocal(this.buildEnvelope("object.restore", { objectId: id }, [id]));
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("object.restore", { objectId: id }, [id]));
   }
 
   /**
@@ -92,7 +102,7 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
    * journal. No-op when the trash is already empty (the applier no-ops).
    */
   async emptyTrash(): Promise<void> {
-    this.enqueueLocal(this.buildEnvelope("trash.empty", {}, []));
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("trash.empty", {}, []));
   }
 
   /**
@@ -113,7 +123,7 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
     const payload: Record<string, unknown> = { objectId: id, parentId };
     if (afterId !== undefined) payload.afterId = afterId;
     if (beforeId !== undefined) payload.beforeId = beforeId;
-    this.enqueueLocal(this.buildEnvelope("object.move", payload, [id]));
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("object.move", payload, [id]));
   }
 
   /**
@@ -126,11 +136,11 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
    * emitted; the wire is untouched (every op is an ordinary convergent op).
    */
   async mergeNodes(sourceId: string, targetId: string): Promise<MergePlanSummary> {
-    const plan = planMerge(this.store.database, sourceId, targetId);
-    this.undoJournal.batch(() => {
+    const plan = planMerge(this.ctx.store.database, sourceId, targetId);
+    this.ctx.undoJournal.batch(() => {
       for (const op of plan.ops) {
-        this.enqueueLocal(
-          this.buildEnvelope(op.opType, op.payload, [plan.sourceId, plan.targetId]),
+        this.ctx.enqueueLocal(
+          this.ctx.buildEnvelope(op.opType, op.payload, [plan.sourceId, plan.targetId]),
         );
       }
     });
@@ -148,7 +158,7 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
    * envelope path as any write.
    */
   async assignClass(id: string, classId: string): Promise<void> {
-    const node = this.getNode(id) ?? this.getNodeRaw(id);
+    const node = this.reads.getNode(id) ?? this.reads.getNodeRaw(id);
     if (!node) throw new Error(`assignClass: node ${id} not found`);
     if (node.classIds.includes(classId)) return;
     await this.createObject({
@@ -162,6 +172,15 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
   }
 
   /**
+   * User-defined class ORDER (class.reorder, display-only LWW): writes the
+   * full ordered member list; the applier keeps ordered members first and
+   * appends any unlisted members sorted by id.
+   */
+  async reorderClasses(id: string, classIds: string[]): Promise<void> {
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("class.reorder", { objectId: id, classIds }, [id]));
+  }
+
+  /**
    * OR-set class membership remove — the class chip's × gesture
    * (class.unassign). No-op when the class is not assigned. The applier
    * tombstones the class_member_set pair add-wins and recomputes class_ids;
@@ -169,34 +188,26 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
    * authored property values survive (SCHEMA.md "Class properties").
    * Immediate (not debounced) — a discrete gesture, same optimistic envelope
    * path as any write.
+   *
+   * authored values that merely MIRROR the departing
+   * class's binding defaults carry no user data — the user never put
+   * anything in that property. Sweep them (unset envelopes, explicit ops —
+   * every client converges) before the membership remove. The provenance
+   * flag (value metadata, wire-neutral) makes
+   * the call EXACT where present:
+   *   metadata.provenance === "system" → the system materialized it —
+   *     sweep even when it differs from the default;
+   *   metadata.provenance === "user"   → the user explicitly wrote it —
+   *     NEVER sweep, even when it equals the default;
+   *   absent (legacy data)             → the original mirror heuristic.
    */
-  /**
-   * User-defined class ORDER (class.reorder, display-only LWW): writes the
-   * full ordered member list; the applier keeps ordered members first and
-   * appends any unlisted members sorted by id.
-   */
-  async reorderClasses(id: string, classIds: string[]): Promise<void> {
-    this.enqueueLocal(this.buildEnvelope("class.reorder", { objectId: id, classIds }, [id]));
-  }
-
   async unassignClass(id: string, classId: string): Promise<void> {
-    const node = this.getNode(id) ?? this.getNodeRaw(id);
+    const node = this.reads.getNode(id) ?? this.reads.getNodeRaw(id);
     if (!node) throw new Error(`unassignClass: node ${id} not found`);
     if (!node.classIds.includes(classId)) return;
-    // authored values that merely MIRROR the departing
-    // class's binding defaults carry no user data — the user never put
-    // anything in that property. Sweep them (unset envelopes, explicit ops —
-    // every client converges) before the membership remove. The provenance
-    // flag (value metadata, wire-neutral) makes
-    // the call EXACT where present:
-    //   metadata.provenance === "system" → the system materialized it —
-    //     sweep even when it differs from the default;
-    //   metadata.provenance === "user"   → the user explicitly wrote it —
-    //     NEVER sweep, even when it equals the default;
-    //   absent (legacy data)             → the original mirror heuristic.
-    const bindings = this.getClassBindings(classId);
+    const bindings = this.reads.getClassBindings(classId);
     if (bindings.length > 0) {
-      const authored = this.getEffectiveProperties(id).filter((row) => row.source === "authored");
+      const authored = this.props.getEffectiveProperties(id).filter((row) => row.source === "authored");
       for (const binding of bindings) {
         const defaultJson = JSON.stringify(binding.defaultValue ?? null);
         for (const row of authored) {
@@ -225,11 +236,11 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
           } else {
             payload.idx = row.idx;
           }
-          this.enqueueLocal(this.buildEnvelope("property.unset", payload, [id]));
+          this.ctx.enqueueLocal(this.ctx.buildEnvelope("property.unset", payload, [id]));
         }
       }
     }
-    this.enqueueLocal(this.buildEnvelope("class.unassign", { objectId: id, classId }, [id]));
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("class.unassign", { objectId: id, classId }, [id]));
   }
 
   /**
@@ -238,7 +249,7 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
    * OR-Set convergence pattern as classes.
    */
   async assignTag(id: string, tagId: string): Promise<void> {
-    const node = this.getNode(id) ?? this.getNodeRaw(id);
+    const node = this.reads.getNode(id) ?? this.reads.getNodeRaw(id);
     if (!node) throw new Error(`assignTag: node ${id} not found`);
     if (node.tagIds.includes(tagId)) return;
     await this.createObject({
@@ -252,10 +263,10 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
 
   /** Remove a tag (OR-Set tombstone; loses to a concurrent newer add). */
   async unassignTag(id: string, tagId: string): Promise<void> {
-    const node = this.getNode(id) ?? this.getNodeRaw(id);
+    const node = this.reads.getNode(id) ?? this.reads.getNodeRaw(id);
     if (!node) throw new Error(`unassignTag: node ${id} not found`);
     if (!node.tagIds.includes(tagId)) return;
-    this.enqueueLocal(this.buildEnvelope("tag.unassign", { objectId: id, tagId }, [id]));
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("tag.unassign", { objectId: id, tagId }, [id]));
   }
 
   /**
@@ -279,7 +290,7 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
     };
     if (opts?.icon !== undefined) payload.icon = opts.icon;
     if (opts?.color !== undefined) payload.color = opts.color;
-    this.enqueueLocal(this.buildEnvelope("class.create", payload, [id]));
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("class.create", payload, [id]));
     return id;
   }
 
@@ -290,8 +301,8 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
    * which callers surface as a transient message.
    */
   async setClassExtends(classId: string, parentClassIds: string[]): Promise<void> {
-    this.enqueueLocal(
-      this.buildEnvelope(
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope(
         "class.setExtends",
         { classId, parentClassIds },
         [classId, ...parentClassIds],
@@ -314,13 +325,13 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
     if (fields.required !== undefined) payload.required = fields.required;
     if (fields.defaultValue !== undefined) payload.defaultValue = fields.defaultValue;
     if (fields.active !== undefined) payload.active = fields.active;
-    this.enqueueLocal(this.buildEnvelope("class.property.set", payload, [classId]));
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("class.property.set", payload, [classId]));
   }
 
   /** Remove a class → property-schema binding (class.property.unset). */
   async unsetClassProperty(classId: string, propertySchemaId: string): Promise<void> {
-    this.enqueueLocal(
-      this.buildEnvelope(
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope(
         "class.property.unset",
         { classId, propertySchemaId },
         [classId],
@@ -345,7 +356,7 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
     if (input.targetClassFilter !== undefined) payload.targetClassFilter = input.targetClassFilter;
     if (input.datePrecision !== undefined) payload.datePrecision = input.datePrecision;
     if (input.dateQualified !== undefined) payload.dateQualified = input.dateQualified;
-    this.enqueueLocal(this.buildEnvelope("propertySchema.create", payload, []));
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("propertySchema.create", payload, []));
     return id;
   }
 
@@ -366,7 +377,7 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
     if (fields.display !== undefined) payload.display = fields.display;
     if (fields.readonly !== undefined) payload.readonly = fields.readonly;
     if (fields.hideWhenEmpty !== undefined) payload.hideWhenEmpty = fields.hideWhenEmpty;
-    this.enqueueLocal(this.buildEnvelope("propertySchema.update", payload, []));
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("propertySchema.update", payload, []));
   }
 
   /**
@@ -375,8 +386,8 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
    * in the log; recreate-under-the-same-id reactivates (the applier upsert).
    */
   async deletePropertySchema(propertySchemaId: string): Promise<void> {
-    this.enqueueLocal(
-      this.buildEnvelope("propertySchema.delete", { propertySchemaId }, []),
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope("propertySchema.delete", { propertySchemaId }, []),
     );
   }
 
@@ -395,13 +406,13 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
   ): Promise<void> {
     const payload: Record<string, unknown> = { objectId, propertySchemaId, value, idx };
     if (metadata !== undefined) payload.metadata = metadata;
-    this.enqueueLocal(this.buildEnvelope("property.set", payload, [objectId]));
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("property.set", payload, [objectId]));
   }
 
   /** Clear an authored property value (property.unset) — the default resurfaces. */
   async unsetProperty(objectId: string, propertySchemaId: string, idx = 0): Promise<void> {
-    this.enqueueLocal(
-      this.buildEnvelope(
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope(
         "property.unset",
         { objectId, propertySchemaId, idx },
         [objectId],
@@ -422,7 +433,7 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
    * a node-backed reference.
    */
   async promotePropertyCarrier(objectId: string, propertySchemaId: string, idx = 0): Promise<void> {
-    const row = this.store.database
+    const row = this.ctx.store.database
       .prepare(
         "SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?",
       )
@@ -451,12 +462,12 @@ export abstract class WorkspaceClientWrites extends WorkspaceClientUndo {
     }
     // One gesture, two envelopes: journal them as a single entry (the unset
     // and the restore undo together, in reverse).
-    this.undoJournal.batch(() => {
-      this.enqueueLocal(
-        this.buildEnvelope("property.unset", { objectId, propertySchemaId, idx }, [objectId]),
+    this.ctx.undoJournal.batch(() => {
+      this.ctx.enqueueLocal(
+        this.ctx.buildEnvelope("property.unset", { objectId, propertySchemaId, idx }, [objectId]),
       );
-      this.enqueueLocal(
-        this.buildEnvelope("object.restore", { objectId: carrier }, [objectId, carrier]),
+      this.ctx.enqueueLocal(
+        this.ctx.buildEnvelope("object.restore", { objectId: carrier }, [objectId, carrier]),
       );
     });
   }
