@@ -6,7 +6,7 @@ import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../ui/components/ui/AddPill.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
-import { NodeContextMenu } from "../../ui/components/NodeContextMenu.js";
+import { NodeContextMenu } from "../node-menu/NodeContextMenu.js";
 import type { AnyClient } from "./shared.js";
 import { contrastFor } from "./shared.js";
 import { cssColorFor } from "../../ui/components/ui/colorPresets.js";

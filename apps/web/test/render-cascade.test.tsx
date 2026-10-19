@@ -19,7 +19,7 @@ import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client/index.js";
 import { NodeView } from "../src/ui/App.js";
-import { NodeContextMenu } from "../src/ui/components/NodeContextMenu.js";
+import { NodeContextMenu } from "../src/features/node-menu/NodeContextMenu.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

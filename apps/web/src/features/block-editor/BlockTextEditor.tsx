@@ -232,7 +232,7 @@ import { TriggerPopup, SLASH_COMMANDS, bumpSlashCommandUsage, readSlashCommandUs
 import { NodeSelector, type NodePickContext } from "../pickers/NodeSelector.js";
 import { parseDate } from "../date-pickers/dateParser.js";
 import { DatePickerPopup } from "../date-pickers/DatePickerPopup.js";
-import { NodeLinkContextMenu } from "../../ui/components/NodeLinkContextMenu.js";
+import { NodeLinkContextMenu } from "../node-menu/NodeLinkContextMenu.js";
 import { useLinkEditModalOpener } from "../../ui/editor-popups/LinkEditModal.js";
 import { requestQueryBuilderOpen } from "../../ui/QueryBlockView.js";
 import { TemplateListPopup } from "../../ui/templates/TemplateListPopup.js";

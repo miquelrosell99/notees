@@ -18,7 +18,7 @@ import { PageView } from "../src/ui/PageView.js";
 import { NodeCollection } from "../src/features/collection/index.js";
 import type { NodeCollectionItem } from "../src/features/collection/index.js";
 import { OutlinerContext, useOutlinerValue } from "../src/ui/outliner-context.js";
-import { NodeLinkMenuHost } from "../src/ui/components/NodeLinkContextMenu.js";
+import { NodeLinkMenuHost } from "../src/features/node-menu/NodeLinkContextMenu.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

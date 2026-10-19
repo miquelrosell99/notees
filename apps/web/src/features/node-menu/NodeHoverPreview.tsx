@@ -42,11 +42,11 @@ import { createPortal } from "react-dom";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { openFloatingEditor } from "./FloatingEditor.js";
-import { NodeView } from "../NodeView.js";
-import { renderStateLabel } from "../renderStateLabel.js";
-import { Button } from "./ui/Button.js";
-import { usePopupDismissal } from "./ui/usePopupDismissal.js";
+import { openFloatingEditor } from "../block-editor/FloatingEditor.js";
+import { NodeView } from "../../ui/NodeView.js";
+import { renderStateLabel } from "../../ui/renderStateLabel.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
 import "./NodeHoverPreview.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
