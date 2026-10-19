@@ -10,8 +10,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 
 import type { ClientNode } from "../src/core/workspace-client/index.js";
 import { NodeContextMenu } from "../src/features/node-menu/NodeContextMenu.js";
-import { SharePageModal } from "../src/ui/components/modals/SharePageModal.js";
-import type { ShareEntry } from "../src/ui/components/modals/shareApi.js";
+import { SharePageModal } from "../src/features/sharing/SharePageModal.js";
+import type { ShareEntry } from "../src/features/sharing/shareApi.js";
 
 afterEach(() => {
   cleanup();
