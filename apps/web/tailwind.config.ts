@@ -87,6 +87,7 @@ export default {
         "on-error-container": role("on-error-container"),
         "error-hover": role("error-hover"),
         "error-pressed": role("error-pressed"),
+        "on-warning": role("on-warning"),
         outline: role("outline"),
         "outline-variant": role("outline-variant"),
         scrim: role("scrim"),
@@ -133,6 +134,9 @@ export default {
         full: "var(--radius-full)",
         menu: "var(--radius-menu)",
         floating: "var(--shape-floating-panel)",
+        /* The sub-item corners (skeleton rows, check chips). */
+        "shape-xs": "var(--shape-extra-small)",
+        "shape-sm": "var(--shape-small)",
       },
       boxShadow: {
         /* M3 elevation: level 1 static cards/rails, 2 menus/popovers,
@@ -184,6 +188,20 @@ export default {
         lg: "var(--height-lg)",
         xl: "var(--height-xl)",
         "2xl": "var(--height-2xl)",
+        /* The icon canvas scale (widths registered under width). */
+        "icon-xs": "var(--icon-size-xs)",
+        "icon-sm": "var(--icon-size-sm)",
+        "icon-md": "var(--icon-size-md)",
+        "icon-lg": "var(--icon-size-lg)",
+        "icon-xl": "var(--icon-size-xl)",
+        "icon-2xl": "var(--icon-size-2xl)",
+        /* Skeleton row heights (adaptive — they ride the element's font
+           metrics via em, as the pre-catalog register did). */
+        "skeleton-text": "var(--skeleton-text-height)",
+        "skeleton-heading": "var(--skeleton-heading-height)",
+        /* Separator thickness register (1px rides the default h-px). */
+        "sep-md": "var(--border-width-thick)",
+        "sep-lg": "var(--border-width-extra-thick)",
         "button-xs": "var(--height-button-xs)",
         "button-sm": "var(--height-button-sm)",
         "button-md": "var(--height-button-md)",
@@ -207,12 +225,44 @@ export default {
         "icon-lg": "var(--icon-size-lg)",
         "icon-xl": "var(--icon-size-xl)",
         "icon-2xl": "var(--icon-size-2xl)",
+        /* The fraction scale (skeleton row widths). */
+        "3-4": "75%",
+        "2-3": "66%",
+        half: "50%",
+        "1-3": "33%",
+        "1-4": "25%",
+        /* Separator thickness register (1px rides the default w-px). */
+        "sep-md": "var(--border-width-thick)",
+        "sep-lg": "var(--border-width-extra-thick)",
       },
       maxWidth: {
         panel: "var(--panel-width-md)",
       },
       minWidth: {
         touch: "var(--button-min-height)",
+        xs: "var(--height-xs)",
+        sm: "var(--height-sm)",
+        md: "var(--height-md)",
+      },
+      backgroundImage: {
+        /* The fleet loading-shimmer sweep (LoadingSkeleton). */
+        shimmer:
+          "linear-gradient(90deg, var(--md-sys-color-surface-container-high) 25%, var(--md-sys-color-surface-container-highest) 50%, var(--md-sys-color-surface-container-high) 75%)",
+      },
+      backgroundSize: {
+        "sweep-200": "200% 100%",
+      },
+      animation: {
+        shimmer:
+          "shimmer var(--skeleton-shimmer-duration) var(--motion-easing-linear) infinite",
+        /* The spinner arc register (0.8s linear, pre-catalog value). */
+        "spinner-arc": "spinner-arc 0.8s var(--motion-easing-linear) infinite",
+      },
+      keyframes: {
+        "spinner-arc": {
+          from: { transform: "rotate(0deg)" },
+          to: { transform: "rotate(360deg)" },
+        },
       },
       opacity: {
         5: "var(--opacity-5)",

@@ -3,7 +3,22 @@
  *
  * A simple CSS-animated spinner for consistent loading states
  * across the application.
+ *
+ * Thin fleet wrapper over the normalized catalog spinner
+ * (src/components/ui/spinner.tsx — the border-arc register on the icon
+ * size tokens): the sm/md/lg size scale, the optional label, the
+ * centered layout, and the role=status/aria-busy announcement are the
+ * app's and live here. The reduced-motion honest cue (the arc swaps for
+ * a "…" text marker) rides this file's co-located CSS — the utility
+ * layer can't express the pseudo-element swap; that block is all the CSS
+ * the spinner keeps.
+ *
+ * Legacy hook classes: `spinner-wrapper` / `spinner` (+ the size and
+ * centered variants) stay on their elements so feature CSS and the
+ * reduced-motion block keep matching.
  */
+import { Spinner as CatalogSpinner } from '@/components/ui/spinner';
+import { cn } from './cn';
 import './Spinner.css';
 
 export interface SpinnerProps {
@@ -20,12 +35,29 @@ export interface SpinnerProps {
 export function Spinner({ size = 'md', label, centered = false, className = '' }: SpinnerProps) {
   return (
     <span
-      className={`spinner-wrapper spinner-wrapper--${size} ${centered ? 'spinner-wrapper--centered' : ''} ${className}`}
+      className={cn(
+        'spinner-wrapper',
+        centered
+          ? 'spinner-wrapper--centered flex w-full items-center justify-center'
+          : 'inline-flex items-center justify-center gap-2',
+        className,
+      )}
       role="status"
       aria-busy="true"
     >
-      <span className={`spinner spinner--${size}`} aria-hidden="true" />
-      {label && <span className="spinner-label">{label}</span>}
+      <CatalogSpinner
+        className={cn(
+          'spinner',
+          {
+            sm: 'h-icon-sm w-icon-sm',
+            md: 'h-icon-lg w-icon-lg',
+            lg: 'h-icon-xl w-icon-xl border-extra-thick',
+          }[size],
+        )}
+      />
+      {label && (
+        <span className="spinner-label text-on-surface-variant">{label}</span>
+      )}
     </span>
   );
 }
