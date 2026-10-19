@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-19
 
+- **fix(web): the sidebar foot is the three-column layout it should be
+.** The identity restore shipped with two CSS
+  regressions: `.nt-profile-text` (the column layout + truncating buffer
+  between the avatar and the gear) had been dropped in the account-popup
+  rewrite and was never restored — so the name and email rendered on ONE
+  inline row and overflowed into the settings gear — and the sync badge's
+  offsets were still computed against the old 48px button, parking the dot
+  INSIDE the avatar instead of on its rim. Restored `.nt-profile-text`
+  (flex column, `flex:1; min-width:0`, the ellipsis contract) and
+  re-anchored the badge to the avatar: `right/bottom: -3px` so the 10px
+  disc straddles the circle's bottom-right corner. **Verification:**
+  targeted suites green (48 tests); rendered-footer probe against the
+  built CSS (screenshot + geometry: badge straddles the rim, two stacked
+  rows, email ellipsizes clear of the gear, gear flush to the row's right
+  edge); live screenshot on the deployed stack.
+
 - **fix(web): the sidebar profile row wears the identity again; the
   settings gear returns.** The
   account-popup slice made the bottom-row trigger avatar-only; the owner
