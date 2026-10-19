@@ -1,8 +1,8 @@
 /**
  * The workspace-client folder module's public surface — identical to the
- * original single-file module (the compat shim at ../workspace-client.ts
- * re-exports this). Internal family helpers (row mappers, constants) stay
- * unexported here on purpose.
+ * original single-file module (the historical file shim is gone; this
+ * barrel is the only import surface). Internal family helpers (row
+ * mappers, constants) stay unexported here on purpose.
  */
 // The type-only names ride `export type` — a value-syntax re-export of an
 // interface/type dies at the browser's ESM link step in dev (esbuild erases

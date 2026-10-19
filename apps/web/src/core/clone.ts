@@ -1,7 +1,7 @@
 /**
  * Clone engine — the shared subtree-clone / template-instantiation
  * primitive (modelling decision 2, generalized from the createAnnotation
- * composition pattern in workspace-client.ts).
+ * composition pattern in the workspace-client folder module).
  *
  * The engine COMPOSES ops as plain data (assertable without a live sync) and
  * SUBMITS them through the existing client op path — one `object.create` per
