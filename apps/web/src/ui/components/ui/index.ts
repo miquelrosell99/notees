@@ -81,7 +81,7 @@ export type { SortMenuButtonProps, SortMenuOption } from './SortMenuButton.js';
 
 export { Checkbox } from './Checkbox.js';
 export type { CheckboxProps, CheckboxSize } from './Checkbox.js';
-export { Radio } from './Radio.js';
+export { Radio, RadioGroup } from './Radio.js';
 export type { RadioProps, RadioSize } from './Radio.js';
 
 export { Pill } from './Pill.js';
