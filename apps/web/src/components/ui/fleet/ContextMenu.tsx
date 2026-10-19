@@ -183,7 +183,11 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
   // Drive the hidden Trigger's internal virtual anchor: a synthetic
   // contextmenu event at the requested point (or the anchor element's
   // rect) is exactly how the Trigger itself opens, so the menu's popper
-  // anchor lands where the app asked. The Trigger's composed onContextMenu
+  // anchor lands where the app asked. The Trigger's virtual rect is a
+  // zero-size POINT at the event coordinates, so the alignment edge IS
+  // this x: the anchor's left edge for start-aligned menus, its right
+  // edge for alignRight menus (the old imperative fit anchored the menu's
+  // flush edge at the anchor rect). The Trigger's composed onContextMenu
   // calls preventDefault, so nothing leaks to the browser.
   useEffect(() => {
     const trigger = triggerRef.current;
@@ -191,7 +195,9 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
     const rect = anchorEl !== undefined && anchorEl !== null
       ? anchorEl.getBoundingClientRect()
       : null;
-    const x = rect ? rect.left : (posX ?? 0);
+    const x = rect
+      ? (alignRight ? rect.right : rect.left)
+      : (posX ?? 0);
     const y = rect ? rect.bottom : (posY ?? 0);
     trigger.dispatchEvent(
       new MouseEvent('contextmenu', {
@@ -201,7 +207,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
         clientY: y,
       }),
     );
-  }, [anchorEl, posX, posY]);
+  }, [anchorEl, posX, posY, alignRight]);
 
   // Dismissal exceptions: presses inside the icon/color picker popovers,
   // the caller's container, or the anchor element (which owns the toggle)
