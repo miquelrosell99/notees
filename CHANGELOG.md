@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): the metadata panel relocates to `src/features/metadata/`
+  — the tree realignment's first feature folder.** The
+  `ui/components/metadata/` folder module (the ui/components stage of the
+  modularization pipeline) moves verbatim to `features/metadata/`, the
+  first folder under `src/features/` in the canonical tree (lib/,
+  components/ui/, features/&lt;name&gt;/); internal relative imports are
+  re-pointed (`../` → `../../ui/components/`, `../../` → `../../ui/`).
+  A barrel (`index.ts`) carries the public surface; the seven importers
+  (PageView, PageChrome, BlockRow, CardsView + three test suites) now
+  import through it, and `ui/components/MetadataSection.tsx` survives as
+  a thin compatibility barrel re-exporting from the feature (its CSS
+  side-effect import unchanged). No behavior change — the nt-* class
+  hooks are untouched.
+  **Verification:** `npx tsc --noEmit` clean; the metadata/property
+  suites green (block-metadata, class-bindings, class-create-modal,
+  class-view, node-aliases, properties-panel, property-icon-button,
+  property-, property-view, system-class-deploy-bindings,
+  text-property-blocks, recurrence — 120 tests).
+
 - **refactor(core): the workspace-client's inheritance chain becomes
   composition — pure structural conversion, no behavior change.** The
   folder-module split's intermediate checkpoint (a
