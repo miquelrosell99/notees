@@ -395,6 +395,16 @@
   color: var(--md-sys-color-on-surface-variant);
 }
 
+/* "Recently used" caption over the empty-query recents listing: a quiet section label so the opening list reads as recents,
+   not search hits. */
+.node-selector__recent-caption {
+  padding: var(--spacing-1) var(--spacing-2);
+  font: var(--font-body-small);
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.8;
+}
+
 /* Parent hierarchy path prefix (faded text before page name) */
 .node-selector__item-path {
   font-size: var(--font-size-2xs);

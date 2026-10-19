@@ -113,6 +113,8 @@ export interface WorkspaceSettingsModalProps {
   workspaceRole: string;
   /** Called after a successful rename so the shell can update its label. */
   onRenamed?: ((name: string) => void) | undefined;
+  /** The tab the modal opens on (the account popup's admin entry lands on plugins). */
+  initialTab?: "general" | "features" | "plugins" | "shortcuts" | undefined;
   /**
    * The active workspace's client — powers the Calendar quick-create
    * section's eligible-class enumeration. Only sections whose workspaceId
@@ -131,9 +133,10 @@ export function WorkspaceSettingsModal({
   workspaceName,
   workspaceRole,
   onRenamed,
+  initialTab = "general",
   client,
 }: WorkspaceSettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<"general" | "features" | "plugins" | "shortcuts">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "features" | "plugins" | "shortcuts">(initialTab);
   const [dateFormat, setDateFormat] = useDeviceSetting<DateFormat>("dateFormat", "YYYY-MM-DD");
   const [showJournals, setShowJournals] = useDeviceSetting("sidebarShowJournals", true);
   const [showInbox, setShowInbox] = useDeviceSetting("sidebarShowInbox", true);

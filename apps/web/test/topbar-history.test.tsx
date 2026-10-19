@@ -24,21 +24,9 @@ import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { historyKeyHandler } from "../src/ui/App.js";
 import { TopBar } from "../src/ui/components/TopBar.js";
 import { HistoryMenuPopup } from "../src/ui/components/HistoryMenuPopup.js";
-import type { SyncStatusSnapshot } from "../src/core/workspace-client.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000f1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000f2";
-
-const SYNC: SyncStatusSnapshot = {
-  status: "idle",
-  error: null,
-  pending: 0,
-  failed: 0,
-  quarantined: 0,
-  parked: 0,
-  realtime: false,
-  cursorSeq: 0,
-};
 
 let sqlModule: SqlJsStatic;
 
@@ -76,7 +64,6 @@ describe("topbar undo/redo buttons", () => {
   it("renders disabled buttons with neutral labels on an empty journal, live labels when available", () => {
     const { rerender } = render(
       <TopBar
-        syncStatus={SYNC}
         sidebarOpen
         rightPanelOpen={false}
         undoState={EMPTY_UNDO_STATE}
@@ -95,7 +82,6 @@ describe("topbar undo/redo buttons", () => {
 
     rerender(
       <TopBar
-        syncStatus={SYNC}
         sidebarOpen
         rightPanelOpen={false}
         undoState={{
@@ -120,7 +106,6 @@ describe("topbar undo/redo buttons", () => {
     const calls: string[] = [];
     render(
       <TopBar
-        syncStatus={SYNC}
         sidebarOpen
         rightPanelOpen={false}
         undoState={{
@@ -143,7 +128,6 @@ describe("topbar undo/redo buttons", () => {
 
     const { container } = render(
       <TopBar
-        syncStatus={SYNC}
         sidebarOpen
         rightPanelOpen={false}
         onToggleSidebar={() => {}}

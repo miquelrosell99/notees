@@ -171,70 +171,6 @@
   color: var(--md-sys-color-on-surface-variant);
 }
 
-/* Sync dot — the indicator is a button once the client is live:
-   plain button chrome, same disc states. The visible box stays a 21px
-   square; the ::after overlay gives the control the 48px hit-area floor
-   (M3's 48dp minimum). */
-.nt-sync-dot {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  border-radius: var(--shape-medium);
-}
-
-.nt-sync-dot:hover {
-  background: var(--md-sys-color-hover-overlay);
-}
-
-.nt-sync-dot:active {
-  background: var(--md-sys-color-pressed-overlay);
-}
-
-.nt-sync-dot::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: max(100%, var(--button-min-height));
-  height: max(100%, var(--button-min-height));
-}
-
-button.nt-sync-dot:focus-visible {
-  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
-  outline-offset: var(--focus-outline-offset);
-}
-
-.nt-sync-dot-disc {
-  width: 9px;
-  height: 9px;
-  border-radius: var(--shape-full);
-  background: var(--md-sys-color-success);
-}
-
-.nt-sync-dot-syncing .nt-sync-dot-disc {
-  background: var(--md-sys-color-primary);
-  animation: nt-sync-pulse 1.2s var(--motion-easing-standard) infinite;
-}
-
-.nt-sync-dot-backlog .nt-sync-dot-disc {
-  background: var(--md-sys-color-warning);
-}
-
-.nt-sync-dot-error .nt-sync-dot-disc {
-  background: var(--md-sys-color-error);
-}
-
-@keyframes nt-sync-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-
 .sr-only {
   position: absolute;
   width: 1px;
@@ -242,12 +178,4 @@ button.nt-sync-dot:focus-visible {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
-}
-
-/* Reduced motion: the sync pulse freezes on its solid state — the status is
-   color-coded, the pulse is decoration. */
-@media (prefers-reduced-motion: reduce) {
-  .nt-sync-dot-syncing .nt-sync-dot-disc {
-    animation: none;
-  }
 }
