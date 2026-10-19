@@ -16,7 +16,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { NodeView } from "../src/ui/App.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

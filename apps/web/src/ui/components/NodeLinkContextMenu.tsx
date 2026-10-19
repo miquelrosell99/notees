@@ -23,7 +23,7 @@ import { spliceTokens } from "@/editor/edit-apply.js";
 import { withCandidateSpans } from "@/editor/capture.js";
 import { proseSpans } from "@/editor/prose.js";
 import type { ContentAst } from "@notees/protocol";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
 import { ContextMenu } from "./ui/ContextMenu.js";

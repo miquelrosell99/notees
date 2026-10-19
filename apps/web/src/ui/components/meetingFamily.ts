@@ -54,7 +54,7 @@ import type {
   ClientPropertySchema,
   CreatePropertySchemaInput,
   SetClassPropertyInput,
-} from "@/core/workspace-client.js";
+} from "@/core/workspace-client/index.js";
 
 type MaybePromise<T> = T | Promise<T>;
 

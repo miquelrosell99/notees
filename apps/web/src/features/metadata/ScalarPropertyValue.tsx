@@ -1,6 +1,6 @@
 import { rendersAsInlineBlock } from "@notees/domain";
 
-import type { EffectiveProperty } from "@/core/workspace-client.js";
+import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { propertyLinkHref } from "../../ui/views/propertyDisplay.js";

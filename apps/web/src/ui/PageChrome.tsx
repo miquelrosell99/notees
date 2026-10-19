@@ -27,7 +27,7 @@
 import { useRef, useState, type ReactNode } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { DayPageHeader } from "./components/DayPageHeader.js";
 import { ClassesRow, TagsRow } from "../features/metadata/index.js";

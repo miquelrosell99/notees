@@ -14,7 +14,7 @@ import { useRef, useState } from "react";
 import { rendersWithDocumentChrome } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../Icon.js";
 import { parentRenderFacts } from "../renderStateLabel.js";

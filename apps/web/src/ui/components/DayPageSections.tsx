@@ -21,7 +21,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Section } from "../Section.js";
 import { displayNameFromClient } from "../dateDisplay.js";

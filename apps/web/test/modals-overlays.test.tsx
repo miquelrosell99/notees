@@ -15,7 +15,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { deriveDisplayName } from "@notees/domain";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { ExportPageModal } from "../src/ui/components/modals/ExportPageModal.js";
 import { DuplicatePageModal } from "../src/ui/components/modals/DuplicatePageModal.js";
 import { CreatePageWithUuidModal } from "../src/ui/components/modals/CreatePageWithUuidModal.js";
@@ -25,7 +25,7 @@ import { BackendUnavailableOverlay } from "../src/ui/components/ui/BackendUnavai
 import { LoadingSkeleton, Skeleton } from "../src/ui/components/ui/LoadingSkeleton.js";
 import { NotificationToaster } from "../src/ui/components/ui/NotificationToaster.js";
 import { notificationStore } from "../src/ui/components/ui/notificationStore.js";
-import type { SyncStatusSnapshot } from "../src/core/workspace-client.js";
+import type { SyncStatusSnapshot } from "../src/core/workspace-client/index.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

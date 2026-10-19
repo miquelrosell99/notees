@@ -28,7 +28,7 @@ import { useMemo, type ReactNode } from "react";
 
 import { QUERY_PLACEHOLDERS } from "@notees/query";
 
-import type { ClassBinding, ClientNode, ClientPropertySchema } from "@/core/workspace-client.js";
+import type { ClassBinding, ClientNode, ClientPropertySchema } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../Icon.js";
 import { Button } from "./ui/Button.js";

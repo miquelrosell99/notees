@@ -1,6 +1,6 @@
 import type { DatePrecision } from "@notees/domain";
 
-import type { EffectiveProperty } from "@/core/workspace-client.js";
+import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { TextPropertyRow } from "../../ui/components/TextPropertyRow.js";
 import { ObjectPropertyRow } from "./ObjectPropertyRow.js";

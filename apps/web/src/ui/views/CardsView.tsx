@@ -97,7 +97,7 @@ import { useViewSelection, SelectionExportControls } from "./selectionExport.js"
 import type { CardLayout, NodeCollectionItem, NodeCollectionProps, SortMode } from "./types.js";
 import "./CardsView.css";
 
-function toBlockTree(item: NodeCollectionItem): import("@/core/workspace-client.js").BlockTreeNode {
+function toBlockTree(item: NodeCollectionItem): import("@/core/workspace-client/index.js").BlockTreeNode {
   return { node: item.node, children: (item.children ?? []).map(toBlockTree) };
 }
 

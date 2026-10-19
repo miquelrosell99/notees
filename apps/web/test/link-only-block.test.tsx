@@ -18,7 +18,7 @@ import { render, screen } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { NodeView } from "../src/ui/App.js";
 import { linkOnlyMentionTarget } from "../src/ui/linkOnlyBlock.js";
 

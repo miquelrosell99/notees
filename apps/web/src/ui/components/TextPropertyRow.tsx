@@ -37,7 +37,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { plainTextExcerpt, rendersAsInlineBlock } from "@notees/domain";
 
-import type { EffectiveProperty } from "@/core/workspace-client.js";
+import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { NodeCollection, type NodeCollectionItem } from "../views/index.js";
 import type { AnyClient } from "../views/types.js";

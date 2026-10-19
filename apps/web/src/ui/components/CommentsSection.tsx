@@ -27,7 +27,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";

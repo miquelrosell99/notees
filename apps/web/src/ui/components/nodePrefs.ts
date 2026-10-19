@@ -32,7 +32,7 @@ import {
   writeDevicePrefList,
   type PrefsPatch,
   type UserPrefs,
-} from "@/core/workspace-client.js";
+} from "@/core/workspace-client/index.js";
 
 /** The prefs seam both client classes satisfy (structural — tests can fake it). */
 export interface PrefsClient {

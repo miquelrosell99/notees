@@ -25,7 +25,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { BlockTreeNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { BlockTreeNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 import { proseFromAst } from "@/editor/prose.js";
 
 import { ensureTemplateFamily } from "./components/templateFamily.js";

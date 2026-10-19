@@ -8,7 +8,7 @@
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
-import type { ClientNode, SyncStatusSnapshot } from "@/core/workspace-client.js";
+import type { ClientNode, SyncStatusSnapshot } from "@/core/workspace-client/index.js";
 import type { AccountUser } from "@/core/auth-api.js";
 import type { AnyClient } from "./clients.js";
 import type { ShareTarget } from "../components/NodeMenuButton.js";

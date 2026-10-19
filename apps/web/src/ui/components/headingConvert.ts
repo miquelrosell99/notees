@@ -17,7 +17,7 @@
 import { plainTextExcerpt, rendersAsInlineBlock } from "@notees/domain";
 import type { ContentAst, InlineToken } from "@notees/protocol";
 
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 
 export type HeadingConversion = "to-heading" | "from-heading" | null;
 

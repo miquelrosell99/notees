@@ -15,7 +15,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { AssetUploadModal } from "../src/ui/components/modals/AssetUploadModal.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

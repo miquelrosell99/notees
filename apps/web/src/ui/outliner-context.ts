@@ -25,7 +25,7 @@ import type {
   SetClassPropertyInput,
   UpdateObjectInput,
   UpdatePropertySchemaInput,
-} from "@/core/workspace-client.js";
+} from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient } from "./dateDisplay.js";
 

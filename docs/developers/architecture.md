@@ -478,7 +478,7 @@ node→asset assertions in the derived store (`node_asset`).
 
 *Implemented — the web client is the full editor; GTK/Flutter are lockstep clients (see below).*
 
-**Web** (`apps/web`). `src/core/workspace-client.ts` is the whole data path: a `Store`
+**Web** (`apps/web`). `src/core/workspace-client/` is the whole data path: a `Store`
 over the **sql.js** backend (local derived state persisted to OPFS via a Web Worker since the slice-2 work), a `SyncEngine`
 (outbox push + seq-cursor pull + snapshot shortcut), and a `Transport`
 (`HttpTransport` against a relay server in the app; `MemoryTransport` over a `MemoryRelay`
@@ -607,7 +607,7 @@ cursors; writes are atomic (tmp + rename).
 | `packages/query` | QueryAST model + SQLite compiler over the derived store (live queries) | `src/index.ts` (`ast.ts` zod model, `compiler.ts` `compile(ast)`, `execute.ts` `runQuery`/`countQuery`/`matches`); 7 condition types; deferred set in README |
 | `packages/export` | Export projections over the object graph: `ExportDocument` IR + serializers (markdown/html/docx/latex package-side — options bag with per-format gating, escaping, full-closure outline, whiteboard sidecars, id8 filename policy, `linkTarget`/`assetPath` hooks, LaTeX CSL bibliography; pdf renders client-side in the web app), format registry (`SerializedExport` union), bundles + manifest v2, BibTeX/CSL; plus the two view-shaped serializers beside the IR registry: `csv.ts` (RFC-4180 view export — the web table toolbar downloads the visible columns × current results) and `json-archive.ts` (the Tier-1 `notees-json-archive` v1 envelope; `notees export json` + the web modal's JSON card) | `src/index.ts`; `document.ts` (IR + context hooks), `markdown.ts`, `html.ts`, `docx.ts`, `latex.ts`, `options.ts`, `formats.ts`, `bundle.ts`, `bibtex.ts`, `csl.ts` |
 | `apps/server` | Fastify relay + object/assets API; the one write path | `src/server.ts` (entry), `src/app.ts` (assembly), `src/config.ts`, `src/context.ts` (`ingestBatch`/`submit`), `src/relay-storage.ts`, `src/workspace-store.ts`, `src/routes-relay.ts`, `src/routes-objects.ts`, `src/assets.ts`, `src/seed.ts`, `src/identity.ts`, `src/validate.ts`, `src/rate-limit.ts`, `src/bus.ts` |
-| `apps/web` | Browser client: workspace data path + outliner UI + export delivery (modal, workspace zip, PDF renderer) + presentation mode + the session undo journal | `src/core/workspace-client.ts`, `src/core/undo-journal.ts` (the op-inverse journal + inversion matrix), `src/main.tsx`, `src/ui/{App,PageView,BlockRow,InlineTokens}.tsx`, `src/ui/presentation/` (deck builder + `DeckView` + session resume), `src/ui/export-pdf/` (client-side PDF — `@react-pdf/renderer`, code-split, vendored OFL Gentium), `src/shims/` (node built-ins stubbed for the browser bundle) |
+| `apps/web` | Browser client: workspace data path + outliner UI + export delivery (modal, workspace zip, PDF renderer) + presentation mode + the session undo journal | `src/core/workspace-client/` (folder module), `src/core/undo-journal.ts` (the op-inverse journal + inversion matrix), `src/main.tsx`, `src/ui/{App,PageView,BlockRow,InlineTokens}.tsx`, `src/ui/presentation/` (deck builder + `DeckView` + session resume), `src/ui/export-pdf/` (client-side PDF — `@react-pdf/renderer`, code-split, vendored OFL Gentium), `src/shims/` (node built-ins stubbed for the browser bundle) |
 | `packages/protocol/fixtures` | Canonical op fixtures — the blocking gate | seven JSON files, validated by `packages/protocol/test` and replayed by the store suite |
 
 ## 11. Code vs design discrepancies

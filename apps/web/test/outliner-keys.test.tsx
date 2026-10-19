@@ -22,7 +22,7 @@ import { act, fireEvent, render } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { writeDeviceSetting } from "../src/ui/components/modals/deviceSettings.js";
 

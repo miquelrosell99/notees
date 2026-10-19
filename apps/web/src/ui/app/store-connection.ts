@@ -11,7 +11,7 @@
 
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 
-import { WorkspaceClient } from "@/core/workspace-client.js";
+import { WorkspaceClient } from "@/core/workspace-client/index.js";
 import { WorkerClient } from "@/core/worker-client.js";
 import { markLocalWorkspaceCopy } from "@/core/workspace-registry.js";
 import { settingsSectionFromPath } from "../components/SettingsPage.js";

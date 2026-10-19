@@ -18,8 +18,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { BlockTreeNode } from "@/core/workspace-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { BlockTreeNode } from "@/core/workspace-client/index.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { BlockRow } from "./BlockRow.js";
 import { displayNameFromClient, fullTitleFromClient } from "./dateDisplay.js";

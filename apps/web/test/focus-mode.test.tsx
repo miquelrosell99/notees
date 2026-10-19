@@ -24,7 +24,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { CommandPalette } from "../src/ui/components/CommandPalette.js";
 import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";

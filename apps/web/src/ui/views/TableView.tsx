@@ -71,7 +71,7 @@ import { ShowMoreButton } from "./ShowMoreButton.js";
 import { useViewChromeTarget } from "./viewChrome.js";
 import { createPortal } from "react-dom";
 import { isEmptyPropertyValue, propertyDisplayText, propertyLinkHref } from "./propertyDisplay.js";
-import type { ClientNode, EffectiveProperty } from "@/core/workspace-client.js";
+import type { ClientNode, EffectiveProperty } from "@/core/workspace-client/index.js";
 import type {
   AnyClient,
   NodeCollectionItem,

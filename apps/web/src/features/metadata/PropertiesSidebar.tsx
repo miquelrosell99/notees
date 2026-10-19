@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { EffectiveProperty } from "@/core/workspace-client.js";
+import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
