@@ -279,8 +279,8 @@ function BindingRow({
               <Checkbox
                 size="sm"
                 checked={binding[field] === true}
-                onChange={(event) =>
-                  patch({ [field]: event.target.checked } as Parameters<AnyClient["setClassProperty"]>[2])
+                onChange={(checked) =>
+                  patch({ [field]: checked } as Parameters<AnyClient["setClassProperty"]>[2])
                 }
               />
               <span>{label}</span>
@@ -328,7 +328,7 @@ function BindingRow({
               <Checkbox
                 size="sm"
                 checked={binding.dateQualified === true}
-                onChange={(event) => patchSchema({ dateQualified: event.target.checked })}
+                onChange={(checked) => patchSchema({ dateQualified: checked })}
               />
               <span>Date qualified</span>
             </label>

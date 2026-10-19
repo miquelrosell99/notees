@@ -56,7 +56,7 @@ import { copyToClipboard } from "./clipboard";
 import { Button } from "../ui/Button.js";
 import { Card } from "../ui/Card.js";
 import { Checkbox } from "../ui/Checkbox.js";
-import { Radio } from "../ui/Radio.js";
+import { Radio, RadioGroup } from "../ui/Radio.js";
 import { Dropdown } from "../ui/Dropdown.js";
 import { Spinner } from "../ui/Spinner.js";
 import { Icon } from "../../Icon";
@@ -466,8 +466,8 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
                   size="sm"
                   label={spec.label}
                   checked={optionValues[spec.key] ?? spec.defaultValue}
-                  onChange={(event) =>
-                    setOptionValues((prev) => ({ ...prev, [spec.key]: event.target.checked }))
+                  onChange={(checked) =>
+                    setOptionValues((prev) => ({ ...prev, [spec.key]: checked }))
                   }
                 />
               ))}
@@ -479,9 +479,11 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
                   <span className="export-modal__select-label" id="export-modal__layout-label">
                     Layout
                   </span>
-                  <div
+                  <RadioGroup
                     className="export-modal__radio-group"
-                    role="radiogroup"
+                    name="export-pdf-layout"
+                    value={layout}
+                    onValueChange={(value) => setLayout(value as PdfLayout)}
                     aria-labelledby="export-modal__layout-label"
                   >
                     {layoutSpec.choices.map((choice) => {
@@ -489,10 +491,8 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
                       return (
                         <Radio
                           key={choice.value}
-                          name="export-pdf-layout"
+                          value={value}
                           size="sm"
-                          checked={layout === value}
-                          onChange={() => setLayout(value)}
                           label={
                             <span className="export-modal__radio-label">
                               <Icon path={`mdi mdi-${LAYOUT_ICONS[value] ?? "file-outline"}`} size={0.8} />
@@ -502,7 +502,7 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
                         />
                       );
                     })}
-                  </div>
+                  </RadioGroup>
                 </div>
               )}
               {/* Page size (pdf only) — the same Options surface as the
