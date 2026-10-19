@@ -39,26 +39,18 @@
 
 import { useState } from "react";
 
-import {
-  rendersAsInlineBlock,
-  SYSTEM_PROPERTY_UUIDS,
-  type DatePrecision,
-} from "@notees/domain";
+import { type DatePrecision } from "@notees/domain";
 
 import type {
-  ClassBinding,
   EffectiveProperty,
   PropertyDisplay,
 } from "@/core/workspace-client.js";
 
-import { parentRenderFacts } from "../renderStateLabel.js";
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { IconPickerPopup } from "./IconPickerPopup.js";
 import { SelectionButton } from "./ui/SelectionButton.js";
 import { ToggleSwitch } from "./ui/ToggleSwitch.js";
-import { ReferenceSubtree } from "./ReferenceSubtree.js";
-import { propertyLinkHref } from "../views/propertyDisplay.js";
 import { cssColorFor } from "./ui/colorPresets.js";
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { Modal } from "./ui/Modal.js";
@@ -67,139 +59,25 @@ import { ColorButton } from "./ui/ColorButton.js";
 import { PropertyView } from "./PropertyView.js";
 import { PropertyConvertModal } from "./PropertyConvertModal.js";
 import { PropertyHistoryModal } from "./PropertyHistoryModal.js";
-import { TextPropertyRow } from "./TextPropertyRow.js";
 import { AliasedNodeRow } from "./AliasedNodeRow.js";
-import {
-  type AnyClient,
-  fromEditableText,
-  toEditableText,
-} from "./metadata/shared.js";
-import { ObjectPropertyRow } from "./metadata/ObjectPropertyRow.js";
-import { AssetPropertyRow } from "./metadata/AssetPropertyRow.js";
-import { DatetimePropertyRow } from "./metadata/DatetimePropertyRow.js";
-import { SelectPropertyRow } from "./metadata/SelectPropertyRow.js";
-import { BooleanPropertyRow } from "./metadata/BooleanPropertyRow.js";
+import { type AnyClient } from "./metadata/shared.js";
 import { AliasesRow } from "./metadata/AliasesRow.js";
 import { AddPropertyRow } from "./metadata/AddPropertyRow.js";
+import {
+  propertyGroupsOf,
+  propertiesCountOf,
+} from "./metadata/propertyGroups.js";
+import { GroupedPropertyRow } from "./metadata/GroupedPropertyRow.js";
+import { ScalarPropertyValue } from "./metadata/ScalarPropertyValue.js";
 import "./MetadataSection.css";
 
-// The identity rows are hosted by PageChrome/BlockRow/CardsView through this
-// historical import surface — re-exported, not composed here.
+// The identity rows and the emptiness count are consumed by PageChrome /
+// BlockRow / CardsView / PageView through this historical import surface —
+// re-exported, not composed here.
 export { ClassesRow } from "./metadata/ClassesRow.js";
 export { TagsRow } from "./metadata/TagsRow.js";
+export { metadataRowCount } from "./metadata/propertyGroups.js";
 
-
-/**
- * The property-rows model shared by the Metadata section (blocks) and the
- * Properties section (pages): effective rows grouped per schema, plus the
- * bound-but-empty grouped bindings that still render an add affordance.
- *
- * `omitDisplayPositions` filters out rows whose SCHEMA carries a
- * bullet/inline value-display position (the render contracts are
- * property-level; the block row surfaces those values itself — the panel
- * must not duplicate them). The same filter applies to the bound-but-empty
- * bindings, whose add affordance the block row's icon button already covers.
- */
-function propertyGroupsOf(
-  client: AnyClient,
-  nodeId: string,
-  omitDisplayPositions?: ReadonlyArray<"bullet" | "inline">,
-) {
-  const omittedByDisplay = (display: PropertyDisplay | null): boolean =>
-    (display === "bullet" || display === "inline") &&
-    (omitDisplayPositions?.includes(display) ?? false);
-  const node = client.getNode(nodeId);
-  // Class pages: the class's has-template values render in the dedicated
-  // Templates section — the generic table suppresses that schema row. The
-  // cover schema is suppressed EVERYWHERE: the cover is header
-  // chrome (PageBanner/AddCover), never a property row.
-  const isClassNode = node?.isClass === true;
-  const rows = client
-    .getEffectiveProperties(nodeId)
-    .filter(
-      (row) =>
-        !(isClassNode && row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate) &&
-        row.propertySchemaId !== SYSTEM_PROPERTY_UUIDS.cover &&
-        !omittedByDisplay(row.display),
-    );
-
-  // Node-typed / datetime / boolean / text schemas render as one
-  // grouped row per schema; the `asset` type joins the family with its
-  // dedicated row (the upload/link chrome + the multi asset list).
-  // Select AND multi_select schemas join them only when they declare
-  // options (without options the minimal text editor is the honest editor —
-  // there is nothing to pick; the shape routes multi_select to the selection
-  // control). Text groups render as a blocks list (the carrier blocks
-  // themselves). Grouped rows appear at their first occurrence so the panel
-  // order is unchanged.
-  const optionsOf = (propertySchemaId: string) =>
-    client.listPropertySchemas().find((s) => s.id === propertySchemaId)?.options;
-  const isGroupedType = (type: string | undefined, propertySchemaId: string): boolean => {
-    if (type === "object" || type === "asset" || type === "datetime" || type === "boolean" || type === "text") {
-      return true;
-    }
-    if (type === "select" || type === "multi_select") {
-      const options = optionsOf(propertySchemaId);
-      return options !== null && options !== undefined && options.length > 0;
-    }
-    return false;
-  };
-
-  const renderedGroups = new Set<string>();
-  const rendered = rows.map((row) => {
-    const type = row.schema?.type;
-    if (!isGroupedType(type, row.propertySchemaId)) {
-      return { kind: "scalar" as const, row };
-    }
-    if (renderedGroups.has(row.propertySchemaId)) return null;
-    renderedGroups.add(row.propertySchemaId);
-    return {
-      kind: "grouped" as const,
-      propertySchemaId: row.propertySchemaId,
-      type,
-      groupRows: rows.filter((r) => r.propertySchemaId === row.propertySchemaId),
-    };
-  });
-
-  // A bound grouped property with no effective rows still renders: the row
-  // hosts the add/set affordance (the scalar editor has no way to author a
-  // first value). hide-when-empty schemas are the exception: the
-  // render contracts are property-level — read from the schema row, not the
-  // binding).
-  const emptyObjectBindings: ClassBinding[] = [];
-  for (const classId of node?.classIds ?? []) {
-    for (const binding of client.getClassBindings(classId)) {
-      if (!isGroupedType(binding.type, binding.propertySchemaId)) continue;
-      if (isClassNode && binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate) continue;
-      if (binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover) continue;
-      const schemaRow = client.listPropertySchemas().find((s) => s.id === binding.propertySchemaId);
-      if (omittedByDisplay(schemaRow?.display ?? null)) continue;
-      if (renderedGroups.has(binding.propertySchemaId)) continue;
-      if (emptyObjectBindings.some((b) => b.propertySchemaId === binding.propertySchemaId)) continue;
-      if (schemaRow?.hideWhenEmpty === true) continue;
-      emptyObjectBindings.push(binding);
-    }
-  }
-
-  return { rows, rendered, emptyObjectBindings };
-}
-
-type PropertyGroups = ReturnType<typeof propertyGroupsOf>;
-
-/** Visible table rows: scalars + one per grouped schema + empty bindings. */
-function propertiesCountOf(groups: PropertyGroups): number {
-  return groups.rendered.filter((entry) => entry !== null).length + groups.emptyObjectBindings.length;
-}
-
-/**
- * The node's effective metadata row count — the section's emptiness test.
- * Exported for hosts that gate sibling chrome on it (PageView hides the
- * whole in-flow section, divider included, on empty embedded renders — the
- * journal and calendar day feeds).
- */
-export function metadataRowCount(client: AnyClient, nodeId: string): number {
-  return propertiesCountOf(propertyGroupsOf(client, nodeId));
-}
 
 /**
  * PropertiesTable — the property rows and the add affordance, shared by the
@@ -211,246 +89,6 @@ export function metadataRowCount(client: AnyClient, nodeId: string): number {
  * Both ride event delegation on the list — the label spans carry
  * `data-property-schema-id`.
  */
-/**
- * GroupedPropertyRow — one row per grouped schema (node-typed / datetime /
- * boolean / text always; select schemas once they declare options), the
- * per-type value-row component chosen by schema type.
- * Shared by the properties table and the properties sidebar.
- */
-function GroupedPropertyRow({
-  client,
-  nodeId,
-  type,
-  propertySchemaId,
-  label,
-  multi,
-  schema,
-  bindingFilter,
-  groupRows,
-  onOpenPage,
-  /** Hide the label/hints (the host chrome carries them — the sidebar). */
-  bare = false,
-  /** Read-only projection: the value renders statically, no mutation UI. */
-  readOnly = false,
-}: {
-  client: AnyClient;
-  nodeId: string;
-  type: string | undefined;
-  propertySchemaId: string;
-  label: string;
-  multi: boolean;
-  schema: { datePrecision?: DatePrecision | null } | null;
-  bindingFilter: string[] | null;
-  groupRows: EffectiveProperty[];
-  onOpenPage?: ((pageId: string) => void) | undefined;
-  bare?: boolean;
-  readOnly?: boolean | undefined;
-}) {
-  if (type === "datetime") {
-    return (
-      <DatetimePropertyRow
-        client={client}
-        nodeId={nodeId}
-        propertySchemaId={propertySchemaId}
-        label={label}
-        multi={multi}
-        schema={schema}
-        rows={groupRows}
-        bare={bare}
-        readOnly={readOnly}
-      />
-    );
-  }
-  if (type === "select" || type === "multi_select") {
-    const options =
-      client.listPropertySchemas().find((s) => s.id === propertySchemaId)?.options ?? [];
-    return (
-      <SelectPropertyRow
-        client={client}
-        nodeId={nodeId}
-        propertySchemaId={propertySchemaId}
-        label={label}
-        multi={type === "multi_select" ? true : multi}
-        options={options}
-        rows={groupRows}
-        bare={bare}
-        readOnly={readOnly}
-      />
-    );
-  }
-  if (type === "boolean") {
-    return (
-      <BooleanPropertyRow
-        client={client}
-        nodeId={nodeId}
-        propertySchemaId={propertySchemaId}
-        label={label}
-        rows={groupRows}
-        bare={bare}
-        readOnly={readOnly}
-      />
-    );
-  }
-  if (type === "text") {
-    return (
-      <TextPropertyRow
-        client={client}
-        nodeId={nodeId}
-        propertySchemaId={propertySchemaId}
-        label={label}
-        multi={multi}
-        rows={groupRows}
-        onOpenPage={onOpenPage}
-        bare={bare}
-        readOnly={readOnly}
-      />
-    );
-  }
-  if (type === "asset") {
-    return (
-      <AssetPropertyRow
-        client={client}
-        nodeId={nodeId}
-        propertySchemaId={propertySchemaId}
-        label={label}
-        multi={multi}
-        rows={groupRows}
-        bare={bare}
-        readOnly={readOnly}
-      />
-    );
-  }
-  return (
-    <ObjectPropertyRow
-      client={client}
-      nodeId={nodeId}
-      propertySchemaId={propertySchemaId}
-      label={label}
-      multi={multi}
-      bindingFilter={bindingFilter}
-      rows={groupRows}
-      onOpenPage={onOpenPage}
-      bare={bare}
-      readOnly={readOnly}
-    />
-  );
-}
-
-/**
- * ScalarPropertyValue — the value cell of a scalar (ungrouped) property
- * row: a node-backed carrier block renders its editable subtree; anything
- * else rides the minimal text editor (a dead carrier reference renders
- * EMPTY, never the raw uuid — typing authors a fresh carrier, leaving it
- * empty unsets the dead value). Shared by the properties table and the
- * sidebar; the row chrome (label, hints, li wrapper) stays at the call
- * sites.
- */
-function ScalarPropertyValue({
-  client,
-  nodeId,
-  row,
-  onOpenPage,
-  /** Read-only projection: the carrier renders read-only, scalars as text. */
-  readOnly = false,
-}: {
-  client: AnyClient;
-  nodeId: string;
-  row: EffectiveProperty;
-  onOpenPage?: ((pageId: string) => void) | undefined;
-  readOnly?: boolean | undefined;
-}) {
-  // Text properties are node-backed: the value references a carrier
-  // block — {"nodeId"} after migration, a bare uuid string in archived
-  // data. Render the block, editable, in place of the raw input when it
-  // resolves to a block.
-  const editable = toEditableText(row.value);
-  const rawRef =
-    typeof row.value === "object" && row.value !== null && "nodeId" in (row.value as object)
-      ? String((row.value as { nodeId: unknown }).nodeId)
-      : typeof editable === "string" &&
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editable)
-        ? editable
-        : null;
-  const rawNode = rawRef !== null ? client.getNode(rawRef) : undefined;
-  const carrier =
-    rawNode !== undefined && rendersAsInlineBlock(rawNode, parentRenderFacts(client, rawNode))
-      ? rawNode
-      : undefined;
-  // Dead carrier: the value references a
-  // carrier block that was deleted/trashed from the value cell. The
-  // content is GONE — display EMPTY, never the raw uuid; editing authors
-  // a fresh carrier, and touching it empty cleans the dead value row (so
-  // the uuid does not survive reloads).
-  const deadCarrierRef = rawRef !== null && carrier === undefined;
-  const editableText = deadCarrierRef ? "" : toEditableText(row.value);
-  // Url/email scalars keep the text editor and gain an
-  // external-link affordance (mailto: for email; url values keep their
-  // authored scheme, tel: included).
-  const linkHref = propertyLinkHref(row.schema?.type, row.value);
-  return (
-    <>
-      {carrier !== undefined ? (
-        <span className="nt-property-blockcell">
-          <ReferenceSubtree client={client} rootId={carrier.id} onOpenNode={onOpenPage} readOnly={readOnly} />
-        </span>
-      ) : readOnly ? (
-        <span className="nt-property-value nt-property-value--readonly">
-          {editableText === "" ? null : String(editableText)}
-        </span>
-      ) : (
-        <input
-          key={`${row.propertySchemaId}:${row.idx}:${editableText}`}
-          type="text"
-          className="nt-property-value"
-          defaultValue={editableText}
-          aria-label={`Property ${row.schema?.name ?? row.propertySchemaId}`}
-          onBlur={(event) => {
-            const text = event.target.value;
-            if (deadCarrierRef) {
-              // The old carrier is gone: typing authors a NEW carrier
-              // (the established create-carrier pattern); leaving it empty unsets the dead
-              // value so the row does not hold a dangling ref.
-              if (text.trim() === "") {
-                void client.unsetProperty(nodeId, row.propertySchemaId, row.idx);
-              } else {
-                void (async () => {
-                  const carrierId = await client.createObject({
-                    parentId: nodeId,
-                    contentAst: [{ type: "text", text }],
-                  });
-                  await client.setProperty(
-                    nodeId,
-                    row.propertySchemaId,
-                    { nodeId: carrierId },
-                    row.idx,
-                  );
-                })();
-              }
-              return;
-            }
-            const next = fromEditableText(text);
-            // Deep-compare so a no-op blur never enqueues a write.
-            if (JSON.stringify(next) !== JSON.stringify(row.value)) {
-              void client.setProperty(nodeId, row.propertySchemaId, next, row.idx);
-            }
-          }}
-        />
-      )}
-      {linkHref !== null && (
-        <a
-          className="nt-property-link"
-          href={linkHref}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={`Open ${row.schema?.name ?? row.propertySchemaId}`}
-        >
-          <Icon path="mdi-open-in-new" size={0.7} />
-        </a>
-      )}
-    </>
-  );
-}
-
 export function PropertiesTable({
   client,
   nodeId,
