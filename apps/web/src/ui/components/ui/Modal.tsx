@@ -4,23 +4,33 @@
  * A reusable modal component that provides consistent styling for
  * modal dialogs throughout the app.
  *
+ * Thin fleet wrapper over the normalized catalog dialog's foundation
+ * (Radix Dialog — the same primitives src/components/ui/dialog.tsx wraps):
+ * focus trap, focus restore, portal layering, and the dialog/tabpanel ARIA
+ * wiring are the catalog's. The app chrome stays fleet-owned per the
+ * sourcing table: the header/footer/content structure, the bottom-sheet
+ * presentation with swipe-to-dismiss (Modal.css), the Escape LIFO ordering
+ * through the app overlay stack (useOverlaySurface — Radix's own Escape is
+ * disabled so the stack stays the single Escape authority), and the
+ * backdrop/scrim register.
+ *
  * Features:
  * - Backdrop click to close
- * - Escape key to close
- * - Focus trapping (optional)
+ * - Escape key to close (via the app overlay stack)
+ * - Focus trapping + restore (Radix)
  * - Consistent header/footer structure
  */
 import { useCallback, useEffect, useRef, type ReactNode, type MouseEvent } from 'react';
-import { createPortal } from 'react-dom';
-import { Card } from './Card.js';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Button } from './Button.js';
-import { useFocusTrap, useOverlaySurface, useIsMobile } from './overlay-hooks.js';
+import { useOverlaySurface, useIsMobile } from './overlay-hooks.js';
 import {
   SHEET_DRAG_SLOP_PX,
   shouldEngageSheetDrag,
   shouldDismissSheet,
   type SheetDragRegion,
 } from './sheetGesture.js';
+import { cn } from './cn.js';
 import './Modal.css';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -85,28 +95,13 @@ export function Modal({
 
   // Register with the overlay stack so Escape closes this modal
   // regardless of where DOM focus is, and in the correct LIFO order.
+  // Radix's own Escape handling is disabled below — the stack is the
+  // single Escape authority across every overlay surface in the app.
   useOverlaySurface({
     type: 'modal',
     enabled: isOpen && closeOnEscape,
     onClose,
   });
-
-  // Enable focus trap for accessibility (Tab cycling / restore focus).
-  // Escape handling is owned by the overlay stack.
-  useFocusTrap(containerRef, {
-    enabled: isOpen,
-    onEscape: undefined,
-  });
-
-  // Handle backdrop click
-  const handleBackdropClick = useCallback(
-    (e: MouseEvent) => {
-      if (closeOnBackdrop && e.target === e.currentTarget) {
-        onClose();
-      }
-    },
-    [closeOnBackdrop, onClose]
-  );
 
   // Swipe-to-dismiss for the bottom-sheet variant. Mirrors the MobileLayout
   // drawer gesture: the drag offset is injected as a CSS variable, the
@@ -252,66 +247,81 @@ export function Modal({
     };
   }, [isOpen, isSheet, onClose]);
 
-  if (!isOpen) return null;
-
-  const modal = (
-    // Backdrop closes on click; an explicit close button is provided.
-    <div
-      ref={backdropRef}
-      className="modal-backdrop"
-      onClick={handleBackdropClick}
+  return (
+    <DialogPrimitive.Root
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-      <Card
-        ref={containerRef}
-        className={`modal modal--${size} ${isSheet ? 'modal--sheet' : ''} ${className}`}
-        elevation="high"
-        padding={false}
-        radius={isSheet ? 'none' : 'xl'}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={title ? 'modal-title' : undefined}
-        aria-label={title ? undefined : ariaLabel}
-      >
-        {isSheet && (
-          <div className="modal__drag-handle" aria-hidden="true" />
-        )}
-        {(title || headerLeftElement || showCloseButton) && (
-          <div className="modal__header">
-            {headerLeftElement && (
-              <div className="modal__header-left">
-                {headerLeftElement}
-              </div>
-            )}
-            {title && <h2 id="modal-title" className="modal__title">{title}</h2>}
-            {showCloseButton && (
-              <Button
-                icon={"mdi mdi-close"}
-                aria-label="Close modal"
-                className="modal__close"
-                onClick={onClose}
-                size="sm"
-                variant="ghost"
-              />
-            )}
-          </div>
-        )}
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay
+          ref={backdropRef}
+          className="modal-backdrop"
+          // Radix dismisses on pointer-down outside; the app's contract is
+          // backdrop CLICK (callers and tests drive click) — keep both.
+          onClick={(event) => {
+            if (closeOnBackdrop && event.target === event.currentTarget) onClose();
+          }}
+        />
+        <DialogPrimitive.Content
+          ref={containerRef}
+          aria-label={title ? undefined : ariaLabel}
+          aria-labelledby={title ? 'modal-title' : undefined}
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => {
+            if (!closeOnBackdrop) event.preventDefault();
+          }}
+          onInteractOutside={(event) => {
+            if (!closeOnBackdrop) event.preventDefault();
+          }}
+          className={cn(
+            'modal',
+            `modal--${size}`,
+            isSheet && 'modal--sheet',
+            // The Card surface the modal used to compose (elevation high,
+            // radius sheet) — now token utilities on the dialog content.
+            'bg-surface border border-outline-variant rounded-sheet shadow-level3 overflow-visible',
+            className,
+          )}
+        >
+          {isSheet && (
+            <div className="modal__drag-handle" aria-hidden="true" />
+          )}
+          {(title || headerLeftElement || showCloseButton) && (
+            <div className="modal__header">
+              {headerLeftElement && (
+                <div className="modal__header-left">
+                  {headerLeftElement}
+                </div>
+              )}
+              {title && (
+                <h2 id="modal-title" className="modal__title">{title}</h2>
+              )}
+              {showCloseButton && (
+                <Button
+                  icon={"mdi mdi-close"}
+                  aria-label="Close modal"
+                  className="modal__close"
+                  onClick={onClose}
+                  size="sm"
+                  variant="ghost"
+                />
+              )}
+            </div>
+          )}
 
-        <div className={`modal__content ${contentClassName}`}>
-          {children}
-        </div>
-
-        {footer && (
-          <div className="modal__footer">
-            {footer}
+          <div className={`modal__content ${contentClassName}`}>
+            {children}
           </div>
-        )}
-      </Card>
-    </div>
+
+          {footer && (
+            <div className="modal__footer">
+              {footer}
+            </div>
+          )}
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
-
-  // Portal to document.body so modals always float above everything,
-  // even when rendered inside editor portals or other
-  // constrained DOM contexts (contentEditable, overflow containers, etc.)
-  return createPortal(modal, document.body);
 }

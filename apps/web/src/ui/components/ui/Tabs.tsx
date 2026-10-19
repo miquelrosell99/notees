@@ -6,6 +6,13 @@
  * active tab, muted vertical dividers between tabs, and an optional
  * add-tab button.
  *
+ * Thin fleet wrapper over the normalized catalog tabs
+ * (src/components/ui/tabs.tsx — Radix Tabs underneath): focus management,
+ * arrow-key navigation, activation, and the tab/tabpanel ARIA wiring are
+ * the catalog's (Radix's). The sliding-indicator pill-bar register is the
+ * app's and stays in Tabs.css, with the legacy `tabs__*` classes kept as
+ * the hook feature CSS compounds on (SectionViewTabs, NodeSelector).
+ *
  * Usage:
  *   <Tabs value={activeTab} onChange={setActiveTab}>
  *     <Tabs.List>
@@ -24,36 +31,26 @@ import {
   useState,
   useEffect,
   useCallback,
-  useMemo,
-  useId,
   type ReactNode,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
   type CSSProperties,
-  type MouseEvent,
-  type KeyboardEvent,
-} from 'react';
+} from "react";
+import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 import { Button } from './Button.js';
 import { Icon } from '../../Icon.js';
 import { cn } from './cn.js';
 import './Tabs.css';
 
-interface TabsContextValue<TValue extends string = string> {
-  value: TValue;
-  onChange: (value: TValue) => void;
-  baseId: string;
-}
-
-const TabsContext = createContext<TabsContextValue<string> | null>(null);
-
-function useTabsContext<TValue extends string = string>(componentName: string): TabsContextValue<TValue> {
-  const ctx = useContext(TabsContext);
-  if (!ctx) {
-    throw new Error(`${componentName} must be used inside <Tabs>`);
-  }
-  return ctx as unknown as TabsContextValue<TValue>;
-}
+/** The controlled value + change handler, provided by the root: the list
+ * re-measures its sliding indicator when the active tab changes, and the
+ * Tab trigger activates on CLICK as well as Radix's mousedown (the app's
+ * interaction contract predates the catalog). */
+const TabsValueContext = createContext<{ value: string; onChange: (value: string) => void }>({
+  value: "",
+  onChange: () => {},
+});
 
 export interface TabsProps<TValue extends string = string> {
   /** Currently active tab value. */
@@ -72,16 +69,18 @@ export function Tabs<TValue extends string = string>({
   children,
   className = '',
 }: TabsProps<TValue>) {
-  const baseId = useId();
-  const ctx = useMemo<TabsContextValue<TValue>>(
-    () => ({ value, onChange, baseId }),
-    [value, onChange, baseId],
-  );
-
   return (
-    <TabsContext.Provider value={ctx as unknown as TabsContextValue<string>}>
-      <div className={cn('tabs', className)}>{children}</div>
-    </TabsContext.Provider>
+    <TabsValueContext.Provider
+      value={{ value, onChange: (v) => onChange(v as TValue) }}
+    >
+      <TabsPrimitive.Root
+        value={value}
+        onValueChange={(v) => onChange(v as TValue)}
+        className={cn('tabs', className)}
+      >
+        {children}
+      </TabsPrimitive.Root>
+    </TabsValueContext.Provider>
   );
 }
 
@@ -94,7 +93,9 @@ export interface TabsListProps extends Omit<HTMLAttributes<HTMLDivElement>, 'rol
 }
 
 function TabsList({ children, variant = 'ghost', className = '', ...props }: TabsListProps) {
-  const { value } = useTabsContext('Tabs.List');
+  // The controlled value drives the indicator: re-measure when it changes
+  // (the active trigger swaps via Radix's data-state).
+  const { value } = useContext(TabsValueContext);
   const listRef = useRef<HTMLDivElement>(null);
   const [indicatorStyle, setIndicatorStyle] = useState<CSSProperties>({});
 
@@ -102,7 +103,7 @@ function TabsList({ children, variant = 'ghost', className = '', ...props }: Tab
     const list = listRef.current;
     if (!list) return;
 
-    const activeTab = list.querySelector('.tabs__tab--active') as HTMLElement | null;
+    const activeTab = list.querySelector('.tabs__tab[data-state="active"]') as HTMLElement | null;
     if (!activeTab) {
       setIndicatorStyle({});
       return;
@@ -133,15 +134,14 @@ function TabsList({ children, variant = 'ghost', className = '', ...props }: Tab
   }, [value, updateIndicator]);
 
   return (
-    <div
+    <TabsPrimitive.List
       ref={listRef}
       className={cn('tabs__list', `tabs__list--${variant}`, className)}
-      role="tablist"
       {...props}
     >
       <span className="tabs__indicator" style={indicatorStyle} aria-hidden="true" />
       {children}
-    </div>
+    </TabsPrimitive.List>
   );
 }
 
@@ -164,82 +164,26 @@ function Tab<TValue extends string = string>({
   disabled = false,
   className = '',
   onClick,
-  onKeyDown,
   ...props
 }: TabProps<TValue>) {
-  const { value, onChange, baseId } = useTabsContext<TValue>('Tabs.Tab');
-  const isActive = value === tabValue;
-  const valueKey = String(tabValue);
-  const tabId = `${baseId}-tab-${valueKey}`;
-  const panelId = `${baseId}-panel-${valueKey}`;
-
-  const handleClick = useCallback(
-    (e: MouseEvent<HTMLButtonElement>) => {
-      if (!disabled && !isActive) {
-        onChange(tabValue);
-      }
-      onClick?.(e);
-    },
-    [disabled, isActive, onChange, tabValue, onClick],
-  );
-
-  // WAI-ARIA tabs: ArrowLeft/ArrowRight (plus Home/End) move focus between
-  // tabs and activate the target tab (automatic activation).
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLButtonElement>) => {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') {
-        onKeyDown?.(e);
-        return;
-      }
-      const list = e.currentTarget.closest('[role="tablist"]');
-      const tabs = list
-        ? Array.from(list.querySelectorAll<HTMLButtonElement>('[role="tab"]:not(:disabled)'))
-        : [];
-      const currentIndex = tabs.indexOf(e.currentTarget);
-      if (currentIndex === -1) {
-        onKeyDown?.(e);
-        return;
-      }
-      e.preventDefault();
-      let nextIndex = currentIndex;
-      if (e.key === 'ArrowLeft') nextIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1;
-      else if (e.key === 'ArrowRight') nextIndex = currentIndex < tabs.length - 1 ? currentIndex + 1 : 0;
-      else if (e.key === 'Home') nextIndex = 0;
-      else nextIndex = tabs.length - 1;
-      const nextTab = tabs[nextIndex];
-      nextTab?.focus();
-      const nextValue = nextTab?.dataset.value as TValue | undefined;
-      if (nextValue !== undefined && nextValue !== tabValue) {
-        onChange(nextValue);
-      }
-      onKeyDown?.(e);
-    },
-    [onChange, tabValue, onKeyDown],
-  );
-
+  const { onChange } = useContext(TabsValueContext);
   return (
-    <button
-      id={tabId}
-      type="button"
-      role="tab"
-      aria-selected={isActive}
-      aria-controls={panelId}
+    <TabsPrimitive.Trigger
+      value={String(tabValue)}
       disabled={disabled}
-      tabIndex={isActive ? 0 : -1}
-      data-value={valueKey}
-      className={cn(
-        'tabs__tab',
-        isActive && 'tabs__tab--active',
-        disabled && 'tabs__tab--disabled',
-        className,
-      )}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
+      data-value={String(tabValue)}
+      className={cn('tabs__tab', className)}
+      onClick={(event) => {
+        // The app contract activates tabs on click (Radix activates on
+        // mousedown); the controlled root makes both paths converge.
+        if (!disabled) onChange(String(tabValue));
+        onClick?.(event);
+      }}
       {...props}
     >
       {icon && <Icon path={icon} size={0.75} className="tabs__tab-icon" />}
       <span className="tabs__tab-label">{children}</span>
-    </button>
+    </TabsPrimitive.Trigger>
   );
 }
 
@@ -278,24 +222,14 @@ function TabPanel<TValue extends string = string>({
   className = '',
   ...props
 }: TabPanelProps<TValue>) {
-  const { value, baseId } = useTabsContext<TValue>('Tabs.Panel');
-  const isActive = value === panelValue;
-  const valueKey = String(panelValue);
-  const tabId = `${baseId}-tab-${valueKey}`;
-  const panelId = `${baseId}-panel-${valueKey}`;
-
-  if (!isActive) return null;
-
   return (
-    <div
-      id={panelId}
-      role="tabpanel"
-      aria-labelledby={tabId}
+    <TabsPrimitive.Content
+      value={String(panelValue)}
       className={cn('tabs__panel', className)}
       {...props}
     >
       {children}
-    </div>
+    </TabsPrimitive.Content>
   );
 }
 
