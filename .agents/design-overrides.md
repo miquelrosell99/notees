@@ -1,14 +1,38 @@
 # Design overrides — Notees
 
 Per-project override register for the RosellRamos design system (contract:
-`rosellramos-design-system` → `references/overrides.md`). Every deviation from
+`rosellramos-design-system` → `identity/procedure.md`). Every deviation from
 the skill's defaults/foundations is recorded here; an undocumented deviation
 is drift, a documented one is a decision. Newest first. Entries bind until the
 rule they override changes, the review trigger fires, or the owner re-rules.
 
+### Export token family (`--nt-*`) is a registered, self-contained namespace
+- **Rule**: `law/spec.md` §1 namespace hygiene — extensions register with a reason; a token family outside the canonical roles must be documented.
+- **Decision**: `packages/export/src/html.ts` emits self-contained HTML exports carrying their own `--nt-*` token family (defined inline in the export document) — exports render identically outside the app and never read the app's runtime tokens.
+- **Rationale**: an exported document is frozen at export time; referencing the app's token file would let a later re-theme rewrite history. The family lives only inside exports and is never imported into app chrome.
+- **Scope**: `packages/export` (exported documents only).
+- **Ruled**: 2026-10-19 audit, same-pass duty.
+- **Review trigger**: the export pipeline is redesigned, or an export is found reading runtime tokens.
+
+### Default theme is follow-system (Auto)
+- **Rule**: `SKILL.md` default 1 — themes ship complete; which theme is the DEFAULT is a per-app identity decision.
+- **Decision**: the no-preference default follows the OS scheme (Auto); the user's explicit choice persists per user and wins from then on.
+- **Rationale**: a knowledge workspace is a day-and-night surface; forcing dark or light on first launch misreads half the user's days. The one-writer seam + pre-paint parity test (components/web-patterns.md) carry the default.
+- **Scope**: global (appearance).
+- **Ruled**: 2026-10-19 audit — registered as an identity axis the register was missing.
+- **Review trigger**: the owner wants dark-first, or a first-paint flash finding against the bootstrap.
+
+### Type stack — Stack A (Instrument Sans · Newsreader · JetBrains Mono)
+- **Rule**: `identity/procedure.md` + `identity/palettes.md` — the type stack is a per-app identity decision, picked once and registered.
+- **Decision**: Stack A — Instrument Sans for chrome/UI, Newsreader as the content serif (reading/note surfaces only), JetBrains Mono for code and data (`variables.css` `--font-family-*`).
+- **Rationale**: the knowledge-workspace register (neutral grotesque chrome, editorial serif reading); chosen at build, predating v2's explicit identity axes.
+- **Scope**: global (typography).
+- **Ruled**: 2026-10-19 audit — registered as an identity axis the register was missing.
+- **Review trigger**: brand refresh or a legibility/contrast finding against the stacks.
+
 ### Sidebar, top bar, and canvas chrome are excepted from the alignment program
-- **Rule**: audit-checklist §0–§10 wholesale — every area × surface sweep of the skill.
-- **Decision**: the owner's 100%-alignment program (2026-10-16) sweeps and fixes every surface against the skill EXCEPT three, which stay as-is and are not walked: the **sidebar** (`.nt-sidebar` — transparent over the app background, hairline-separated, drawer-below-768), the **top bar** (the app-shell TopBar, including its ≤768px crowding), and **on-canvas chrome** (whiteboard, graph, and presentation-stage surfaces and their floating controls — canvas geometry follows `references/web-patterns.md` → "Canvas paint resolves tokens at runtime", not component rules).
+- **Rule**: machinery/audit.md §0–§10 wholesale — every area × surface sweep of the skill.
+- **Decision**: the owner's 100%-alignment program (2026-10-16) sweeps and fixes every surface against the skill EXCEPT three, which stay as-is and are not walked: the **sidebar** (`.nt-sidebar` — transparent over the app background, hairline-separated, drawer-below-768), the **top bar** (the app-shell TopBar, including its ≤768px crowding), and **on-canvas chrome** (whiteboard, graph, and presentation-stage surfaces and their floating controls — canvas geometry follows `components/web-patterns.md → "Canvas paint resolves tokens at runtime", not component rules).
 - **Rationale**:"I want the app to be 100% aligned with the skill (except the sidebar and top bar on canvas stuff)". These three are deliberate app identity / canvas-specific surfaces; alignment work on them is out of scope until the owner re-rules.
 - **Scope**: the three named surfaces and their children only — everything else in the app is IN scope for alignment (deviations outside them are drift, documented or not).
 - **Ruled**:.
@@ -22,7 +46,7 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Review trigger**: a fleet-wide ruling on shell layouts, or an adaptiveness finding against the missing rail.
 
 ### The night is seed-tinted
-- **Rule**: rosellramos-design-system default 2 (warm near-black ground, monochrome surfaces) + foundations.md §2 (surface neutrals are near-gray).
+- **Rule**: rosellramos-design-system default 2 (warm near-black ground, monochrome surfaces) + law/spec.md §2 (surface neutrals are near-gray).
 - **Decision**: the dark theme's background/surface/outline family derives from `--md-sys-color-primary` via `color-mix` at 4–13% (`variables.css` `[data-theme="dark"]` block) — the night wears the active seed. The monochrome preset is near-achromatic, so it still lands on untinted graphite; the light ground stays brand paper regardless of seed.
 - **Rationale**: personalization is the product's identity (the accent IS the theme, Material You dynamic-color model); a neutral night would make the picker decorative.
 - **Scope**: global (dark theme).
@@ -30,7 +54,7 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Review trigger**: an accessibility or contrast finding against tinted surfaces, or a fleet-wide ruling that dark grounds must be untinted.
 
 ### Active/selected states wear the seed's primary-container, not secondary-container
-- **Rule**: foundations.md §2 usage mapping — nav active indicator = `secondary-container`; M3 keeps primary emphasis for buttons.
+- **Rule**: law/spec.md §2 usage mapping — nav active indicator = `secondary-container`; M3 keeps primary emphasis for buttons.
 - **Decision**: selected chrome (settings section nav, selected segmented options, selected rows) fills `--md-sys-color-primary-container` (seed-derived), with `on-primary-container` ink.
 - **Rationale**: one accent hue active at a time (skill hard rule) — the fleet's "accent is the selected signal" table takes precedence over M3's quieter nav register; Notees has no secondary hue in play.
 - **Scope**: global (selected/active chrome).
