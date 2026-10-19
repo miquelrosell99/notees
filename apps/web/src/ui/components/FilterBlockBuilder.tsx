@@ -1234,8 +1234,6 @@ function applyOperator(condition: Condition, op: string): Child {
       return { ...condition, isEmbedded: op !== "is-not" };
     case "linkedToQuery":
       return op === "is-not" ? neg(condition) : wrap(condition);
-    case "descendantOfQuery":
-      return op === "is-not" ? neg(condition) : wrap(condition);
     case "coverAsset":
     case "bannerAsset":
     case "aliasedNode":
@@ -1717,18 +1715,7 @@ function BlockValue({
           onPick={(nodeId) => onChange({ ...condition, nodeId })}
         />
       );
-    case "descendantOfAny":
-      return (
-        <NodeMultiPick
-          ariaLabel="Parents"
-          nodeIds={condition.nodeIds}
-          addLabel="Add parent"
-          client={client}
-          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
-        />
-      );
     case "linkedToQuery":
-    case "descendantOfQuery":
       return <span className="nt-fb-block__word">matching</span>;
     case "createdAfter":
     case "createdBefore":
