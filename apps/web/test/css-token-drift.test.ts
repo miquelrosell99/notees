@@ -469,17 +469,19 @@ describe("tailwind class drift gate (the shadcn bridge half)", () => {
   it("11. registered mapping — every theme-key utility in the catalog resolves to a Tailwind config key", () => {
     if (!fs.existsSync(CATALOG_DIR)) return;
     const configSrc = fs.readFileSync(path.join(process.cwd(), "tailwind.config.ts"), "utf8");
-    // The set of registered keys: every quoted key literal in the config.
+    // The set of registered keys: every key literal in the config (quoted
+    // or bare — `border: "var(--border)"` is as registered as `"2xs": …`).
     const registered = new Set<string>();
-    for (const match of configSrc.matchAll(/"([a-zA-Z0-9-]+)"\s*:/g)) {
-      registered.add(match[1]!);
+    for (const match of configSrc.matchAll(/([a-zA-Z][a-zA-Z0-9-]*|['"][a-zA-Z0-9-]+['"])\s*:/g)) {
+      registered.add(match[1]!.replace(/['"]/g, ""));
     }
     // Utility families whose suffix must be registered (or a Tailwind
     // structural default that takes no themed suffix).
     const THEME_FAMILY = /^(bg|text|border|rounded|shadow|duration|ease|op|outline|ring)-([a-zA-Z0-9-]+)$/;
     const STRUCTURAL = new Set([
       "bg-transparent", "bg-none", "text-left", "text-center", "text-right", "text-current",
-      "border-solid", "border-dashed", "border-none", "shadow-none", "outline-none", "outline-hidden",
+      "border-solid", "border-dashed", "border-none", "border-b", "border-t", "border-l", "border-r", "border-x", "border-y",
+      "shadow-none", "outline-none", "outline-hidden",
       "border-collapse", "border-separate",
     ]);
     for (const file of walkTsFiles(CATALOG_DIR)) {

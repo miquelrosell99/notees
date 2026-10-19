@@ -151,6 +151,7 @@ export default {
         hairline: "var(--spacing-hairline)",
         tiny: "var(--spacing-tiny)",
         xxs: "var(--spacing-xxs)",
+        "1-5": "var(--spacing-1-5)",
         "2-5": "var(--spacing-2-5)",
         "4-5": "var(--spacing-4-5)",
         "7-5": "var(--spacing-7-5)",
@@ -191,14 +192,21 @@ export default {
       },
       minHeight: {
         touch: "var(--button-min-height)",
+        topbar: "var(--topbar-height)",
+        "button-lg": "var(--height-button-lg)",
       },
       width: {
+        panel: "var(--panel-width-md)",
+        sidebar: "var(--sidebar-width)",
         "icon-xs": "var(--icon-size-xs)",
         "icon-sm": "var(--icon-size-sm)",
         "icon-md": "var(--icon-size-md)",
         "icon-lg": "var(--icon-size-lg)",
         "icon-xl": "var(--icon-size-xl)",
         "icon-2xl": "var(--icon-size-2xl)",
+      },
+      maxWidth: {
+        panel: "var(--panel-width-md)",
       },
       minWidth: {
         touch: "var(--button-min-height)",
@@ -229,6 +237,10 @@ export default {
         "extra-thick": "var(--border-width-extra-thick)",
       },
       outlineWidth: {
+        DEFAULT: "var(--border-width-thick)",
+        thick: "var(--border-width-thick)",
+      },
+      ringWidth: {
         DEFAULT: "var(--border-width-thick)",
         thick: "var(--border-width-thick)",
       },
