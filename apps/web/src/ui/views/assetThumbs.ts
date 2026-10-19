@@ -12,7 +12,7 @@
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 
 const cache = new Map<string, Promise<string | null>>();
 /** Session-cache bound (entries). */

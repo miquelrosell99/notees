@@ -24,7 +24,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import type { ContentAst } from "@notees/protocol";
 import type { Child, QueryAst, Scope } from "@notees/query";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

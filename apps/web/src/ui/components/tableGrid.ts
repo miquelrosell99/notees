@@ -9,7 +9,7 @@
  * object.delete ops — no new wire token.
  */
 
-import type { BlockTreeNode, CreateObjectInput } from "@/core/workspace-client.js";
+import type { BlockTreeNode, CreateObjectInput } from "@/core/workspace-client/index.js";
 
 /** Minimal write surface: the outliner seam and both full clients satisfy it. */
 export interface TableWriteSurface {

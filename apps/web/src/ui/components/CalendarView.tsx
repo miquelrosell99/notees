@@ -35,7 +35,7 @@ import {
   type RecurrenceRule,
 } from "@notees/domain";
 
-import type { ClientNode, QueryRunResult } from "@/core/workspace-client.js";
+import type { ClientNode, QueryRunResult } from "@/core/workspace-client/index.js";
 
 import { instantiateTemplate } from "@/core/clone.js";
 import { displayNameFromClient, formatDateName } from "../dateDisplay.js";

@@ -10,7 +10,7 @@ import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Icon } from "../../Icon.js";
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
 import { ColorPickerRow } from "./ColorPickerRow.js";
 import { usePopupDismissal } from "../ui/usePopupDismissal.js";

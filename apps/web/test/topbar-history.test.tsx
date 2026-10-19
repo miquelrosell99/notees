@@ -19,7 +19,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { historyKeyHandler } from "../src/ui/app/keymap.js";
 import { TopBar } from "../src/ui/components/TopBar.js";

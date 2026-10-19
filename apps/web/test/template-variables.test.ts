@@ -20,7 +20,7 @@ import {
   type CloneReadSurface,
 } from "../src/core/clone.js";
 import { computeDynamicTemplateVariables, isDynamicTemplateVariable } from "../src/ui/templates/templateVariables.js";
-import type { ClientNode, EffectiveProperty } from "../src/core/workspace-client.js";
+import type { ClientNode, EffectiveProperty } from "../src/core/workspace-client/index.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
 

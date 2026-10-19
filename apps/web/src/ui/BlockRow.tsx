@@ -79,7 +79,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 
 import { excerptOf, isRuleContent } from "@notees/domain";
 
-import type { BlockTreeNode, EffectiveProperty, WorkspaceClient } from "@/core/workspace-client.js";
+import type { BlockTreeNode, EffectiveProperty, WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import { hiddenLinksOf } from "@/editor/condensed.js";
 

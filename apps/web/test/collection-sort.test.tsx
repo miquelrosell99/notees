@@ -27,7 +27,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { chainNodeIds } from "@notees/domain";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client.js";
+import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client/index.js";
 import { NodeCollection, groupByContainingPage } from "../src/ui/views/index.js";
 import type { CollectionGroup, NodeCollectionItem } from "../src/ui/views/index.js";
 import { OutlinerContext, useOutlinerValue } from "../src/ui/outliner-context.js";

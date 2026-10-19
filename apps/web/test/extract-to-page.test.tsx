@@ -19,7 +19,7 @@ import { dayNodeId } from "@notees/domain";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { extractBlockToPage } from "../src/core/extractToPage.js";
-import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client.js";
+import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client/index.js";
 import { NodeContextMenu } from "../src/ui/components/NodeContextMenu.js";
 import { notificationStore } from "../src/ui/components/ui/notificationStore.js";
 

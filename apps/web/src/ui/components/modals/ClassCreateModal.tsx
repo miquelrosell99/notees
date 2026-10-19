@@ -21,7 +21,7 @@ import { useMemo, useRef, useState } from "react";
 import { SYSTEM_CLASS_DISPLAY_NAMES, SYSTEM_CLASS_ICONS, type SystemClassName } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Modal } from "../ui/Modal.js";
 import { Button } from "../ui/Button.js";

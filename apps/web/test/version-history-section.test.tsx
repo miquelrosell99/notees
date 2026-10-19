@@ -10,7 +10,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
-import type { OperationFeedEntry } from "../src/core/workspace-client.js";
+import type { OperationFeedEntry } from "../src/core/workspace-client/index.js";
 import {
   VersionHistorySection,
   describeHistoryEntry,

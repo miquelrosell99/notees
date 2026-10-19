@@ -6,7 +6,7 @@
  */
 
 import type { AnyClient } from "./types.js";
-import type { EffectiveProperty } from "@/core/workspace-client.js";
+import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 import { displayNameFromClient, datetimeValueText } from "../dateDisplay.js";
 
 export function isEmptyPropertyValue(value: unknown): boolean {

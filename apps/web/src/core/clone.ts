@@ -42,7 +42,7 @@ import type {
   CreateObjectInput,
   EffectiveProperty,
   UpdateObjectInput,
-} from "./workspace-client.js";
+} from "./workspace-client/index.js";
 
 /** Read surface the engine composes from (both client classes satisfy it). */
 export interface CloneReadSurface {

@@ -100,7 +100,7 @@ import { createPortal } from "react-dom";
 import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragMoveEvent, type DragStartEvent, type DraggableAttributes, type DraggableSyntheticListeners } from "@dnd-kit/core";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { OutlinePositionMap } from "@/editor/outline.js";
 
 import { displayNameFromClient } from "./dateDisplay.js";
