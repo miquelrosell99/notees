@@ -3,6 +3,8 @@
  * string): the year/month/day chain ensure + heal, the schema-precision ref
  * resolution, the unified point/range datetime write, and the annotation
  * write (composed from the primitive ops in types.ts's createAnnotation).
+ * Standalone domain — takes the reads, reads-props, and writes domains, no
+ * inheritance.
  */
 
 import {
@@ -21,14 +23,22 @@ import {
   type DatetimePointInput,
   type DatetimeValueInput,
 } from "./types.js";
+import { WorkspaceClientReads } from "./client-reads.js";
+import { WorkspaceClientReadsProps } from "./client-reads-props.js";
 import { WorkspaceClientWrites } from "./client-writes.js";
 
-export abstract class WorkspaceClientDates extends WorkspaceClientWrites {
+export class WorkspaceClientDates {
+  constructor(
+    private readonly reads: WorkspaceClientReads,
+    private readonly props: WorkspaceClientReadsProps,
+    private readonly writes: WorkspaceClientWrites,
+  ) {}
+
   // --- dates (SCHEMA.md "Datetime" — a date is a node, not a string) ----------
 
   /** The schema's date precision (default day when the row predates the field). */
   private datePrecisionOf(propertySchemaId: string): DatePrecision {
-    const schema = this.listPropertySchemas().find((s) => s.id === propertySchemaId);
+    const schema = this.props.listPropertySchemas().find((s) => s.id === propertySchemaId);
     return schema?.datePrecision ?? "day";
   }
 
@@ -45,8 +55,8 @@ export abstract class WorkspaceClientDates extends WorkspaceClientWrites {
   ): Promise<{ year: string; month: string; day: string }> {
     const parts = parseIsoDate(isoDate);
     const ids = chainNodeIds(isoDate);
-    if (this.getNodeRaw(ids.year) === undefined) {
-      await this.createObject({
+    if (this.reads.getNodeRaw(ids.year) === undefined) {
+      await this.writes.createObject({
         id: ids.year,
         isEmbedded: false,
         parentId: null,
@@ -54,8 +64,8 @@ export abstract class WorkspaceClientDates extends WorkspaceClientWrites {
         classIds: [SYSTEM_CLASS_UUIDS.year],
       });
     }
-    if (this.getNodeRaw(ids.month) === undefined) {
-      await this.createObject({
+    if (this.reads.getNodeRaw(ids.month) === undefined) {
+      await this.writes.createObject({
         id: ids.month,
         isEmbedded: false,
         parentId: ids.year,
@@ -63,8 +73,8 @@ export abstract class WorkspaceClientDates extends WorkspaceClientWrites {
         classIds: [SYSTEM_CLASS_UUIDS.month],
       });
     }
-    if (this.getNodeRaw(ids.day) === undefined) {
-      await this.createObject({
+    if (this.reads.getNodeRaw(ids.day) === undefined) {
+      await this.writes.createObject({
         id: ids.day,
         isEmbedded: false,
         parentId: ids.month,
@@ -82,10 +92,10 @@ export abstract class WorkspaceClientDates extends WorkspaceClientWrites {
       parentId: string | null,
       precision: "year" | "month" | "day",
     ): Promise<void> => {
-      const node = this.getNodeRaw(id);
+      const node = this.reads.getNodeRaw(id);
       if (node === undefined) return;
       if ((node.parentId ?? null) !== parentId) {
-        await this.moveObject(id, parentId);
+        await this.writes.moveObject(id, parentId);
       }
       const label = dateNodeLabel(parts, precision);
       const first = node.contentAst[0];
@@ -94,7 +104,7 @@ export abstract class WorkspaceClientDates extends WorkspaceClientWrites {
           ? String((first as { text?: unknown }).text ?? "")
           : "";
       if (text !== label) {
-        await this.updateObject(id, { contentAst: [{ type: "text", text: label }] });
+        await this.writes.updateObject(id, { contentAst: [{ type: "text", text: label }] });
       }
     };
     await healLevel(ids.year, null, "year");
@@ -152,11 +162,11 @@ export abstract class WorkspaceClientDates extends WorkspaceClientWrites {
       if (rangeInput.end !== null && rangeInput.end !== undefined) {
         range.end = await slotOf(rangeInput.end);
       }
-      await this.setProperty(objectId, propertySchemaId, range, idx, metadata);
+      await this.writes.setProperty(objectId, propertySchemaId, range, idx, metadata);
       return;
     }
     const slot = await slotOf(value);
-    await this.setProperty(objectId, propertySchemaId, slot, idx, metadata);
+    await this.writes.setProperty(objectId, propertySchemaId, slot, idx, metadata);
   }
 
   /**
@@ -166,6 +176,6 @@ export abstract class WorkspaceClientDates extends WorkspaceClientWrites {
    * note child block. Applied locally, push kicked off.
    */
   createAnnotation(input: CreateAnnotationInput): Promise<string> {
-    return createAnnotation(this, input);
+    return createAnnotation(this.writes, input);
   }
 }
