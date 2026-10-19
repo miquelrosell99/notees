@@ -37,8 +37,8 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { PageView, BLOCKS_VIEW_MODES } from "./PageView.js";
-import { ReferenceSubtree } from "./components/ReferenceSubtree.js";
-import { NodeMenuButton, type ShareTarget } from "./components/NodeMenuButton.js";
+import { ReferenceSubtree } from "../features/block-editor/ReferenceSubtree.js";
+import { NodeMenuButton, type ShareTarget } from "../features/node-menu/NodeMenuButton.js";
 import { parentRenderFacts } from "./renderStateLabel.js";
 import { ViewToolbar } from "../features/collection/ViewToolbar.js";
 import { useViewModePreference } from "./viewPrefs.js";

@@ -14,7 +14,7 @@
 
 import { useState, type ReactNode } from "react";
 
-import { Icon } from "../Icon.js";
+import { Icon } from "../../ui/Icon.js";
 import "./NodeViewSection.css";
 
 /** The header's trailing icon-only action (the section-scoped create). */

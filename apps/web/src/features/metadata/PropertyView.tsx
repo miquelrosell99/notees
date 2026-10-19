@@ -20,7 +20,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 import { Icon } from "../../ui/Icon.js";
 import { Modal } from "../../ui/components/ui/Modal.js";
 import { Button } from "../../ui/components/ui/Button.js";
-import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
+import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { NodeCollection } from "../collection/index.js";
 import type { TableColumn } from "../collection/index.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";

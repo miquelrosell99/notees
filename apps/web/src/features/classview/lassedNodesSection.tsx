@@ -39,7 +39,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 
 import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
-import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
+import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { useViewModePreference } from "../../ui/viewPrefs.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
 import { FilterBar } from "../collection/FilterBar.js";

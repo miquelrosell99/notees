@@ -29,10 +29,10 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Icon } from "../Icon.js";
+import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
-import { displayNameFromClient } from "../dateDisplay.js";
-import { useSectionData } from "../../features/collection/useSectionData.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { useSectionData } from "../collection/useSectionData.js";
 import "./CommentsSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

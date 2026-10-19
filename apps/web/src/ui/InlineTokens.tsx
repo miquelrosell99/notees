@@ -32,7 +32,7 @@
 import { Fragment, type ReactNode } from "react";
 
 import { cssColorFor } from "./components/ui/colorPresets.js";
-import { notifyNodeHover } from "./components/NodeHoverPreview.js";
+import { notifyNodeHover } from "../features/node-menu/NodeHoverPreview.js";
 import { Icon } from "./Icon.js";
 
 export interface InlineTokensProps {

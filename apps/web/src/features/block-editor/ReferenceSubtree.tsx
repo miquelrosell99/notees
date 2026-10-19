@@ -26,10 +26,10 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { BlockRow } from "../BlockRow.js";
-import { displayNameFromClient } from "../dateDisplay.js";
-import { GhostRow, realizeGhost } from "../GhostRow.js";
-import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
+import { BlockRow } from "../../ui/BlockRow.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { GhostRow, realizeGhost } from "../../ui/GhostRow.js";
+import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
