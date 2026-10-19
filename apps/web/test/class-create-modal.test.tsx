@@ -128,7 +128,7 @@ describe("ClassCreateModal deploy mode (#14)", () => {
 
   it("re-deploying is a complete no-op", async () => {
     const client = await seedClient();
-    const { deploySystemClass } = await import("../src/ui/components/systemClassDeploy.js");
+    const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
     await deploySystemClass(client, "source");
     await flushSync();
     const snapshot = {
@@ -161,7 +161,7 @@ describe("weblink→source extension heal (existing workspaces)", () => {
   it("materializes the edge idempotently on the pre-ruling workspace shape", async () => {
     const client = await seedClient();
     const { ensureWeblinkExtendsSource } = await import(
-      "../src/ui/components/systemClassDeploy.js"
+      "../src/features/classview/systemClassDeploy.js"
     );
     // The pre-ruling shape: the weblink class + its url family exist,
     // the source edge predates the ruling.
@@ -208,7 +208,7 @@ describe("weblink→source extension heal (existing workspaces)", () => {
   it("a converged (server-seeded) workspace skips the heal entirely", async () => {
     const client = await seedClient();
     const { deploySystemClass, ensureWeblinkExtendsSource } = await import(
-      "../src/ui/components/systemClassDeploy.js"
+      "../src/features/classview/systemClassDeploy.js"
     );
     await deploySystemClass(client, "weblink");
     await flushSync();

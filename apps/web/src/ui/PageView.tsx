@@ -142,7 +142,7 @@ import {
   LinkEditModalHost,
 } from "./editor-popups/LinkEditModal.js";
 import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
-import { ensureTemplateFamily } from "./components/templateFamily.js";
+import { ensureTemplateFamily } from "../features/templates/templateFamily.js";
 import { GhostRow, realizeGhost } from "./GhostRow.js";
 import { usePageMachinery } from "./usePageMachinery.js";
 import { NodeTopbar, PageHeaderChrome, PageFooterChrome } from "./PageChrome.js";

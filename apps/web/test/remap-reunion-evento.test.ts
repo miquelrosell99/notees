@@ -23,7 +23,7 @@ import {
   ensureMeetingFamily,
   EVENT_CLASS_ID,
   MEETING_CLASS_ID,
-} from "../src/ui/components/meetingFamily.js";
+} from "../src/features/classview/meetingFamily.js";
 import {
   buildRemapPlan,
   isRemapSourceTitle,

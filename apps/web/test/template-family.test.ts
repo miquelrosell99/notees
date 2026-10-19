@@ -23,7 +23,7 @@ import {
   ensureTemplateProperty,
   listClassTemplates,
   templatePropertyPresent,
-} from "../src/ui/components/templateFamily.js";
+} from "../src/features/templates/templateFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000f1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000f2";

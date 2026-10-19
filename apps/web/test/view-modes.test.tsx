@@ -27,7 +27,7 @@ import { PageView } from "../src/ui/PageView.js";
 import { NodeView } from "../src/ui/App.js";
 import { CollectionHub } from "../src/features/collection/CollectionHub.js";
 import { childQuery } from "../src/features/collection/childQuery.js";
-import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
+import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 import { getViewDefinition, getViewModeOptions, NodeCollection } from "../src/features/collection/index.js";
 import { applyCardGroupDrop } from "../src/features/collection/CardsBoard.js";
 import { writeViewModePref } from "../src/ui/viewPrefs.js";

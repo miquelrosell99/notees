@@ -18,7 +18,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/ui/components/CalendarView.js";
 import { dayNodeId, todayIsoLocal } from "../src/ui/components/calendarViewUtils.js";
-import { ensureTemplateProperty } from "../src/ui/components/templateFamily.js";
+import { ensureTemplateProperty } from "../src/features/templates/templateFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000b1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000b2";

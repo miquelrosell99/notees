@@ -17,7 +17,7 @@ import type { WorkspaceConnection } from "./useWorkspaceConnection.js";
 import { TopBar } from "../components/TopBar.js";
 import { Breadcrumbs } from "../components/Breadcrumbs.js";
 import { WorkspaceSwitcher } from "../components/WorkspaceSwitcher.js";
-import { createNodesWithClasses } from "../components/createNodesWithClasses.js";
+import { createNodesWithClasses } from "../../features/templates/createNodesWithClasses.js";
 import { HistoryMenuPopup } from "../components/HistoryMenuPopup.js";
 import { CalendarPopup } from "../components/ui/CalendarPopup.js";
 import { NodeSelector } from "../components/pickers/NodeSelector.js";

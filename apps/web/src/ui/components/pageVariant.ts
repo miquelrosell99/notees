@@ -34,11 +34,11 @@ import { parseDateNodeId, rendersWithDocumentChrome } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { ClassedNodesSection } from "./classview/ClassedNodesSection.js";
+import { ClassedNodesSection } from "../../features/classview/lassedNodesSection.js";
 import { parentRenderFacts } from "../renderStateLabel.js";
-import { ExtendedBySection } from "./classview/ExtendedBySection.js";
-import { PropertyDefinitionsSection } from "./classview/PropertyDefinitionsSection.js";
-import { TemplatesSection } from "./classview/TemplatesSection.js";
+import { ExtendedBySection } from "../../features/classview/xtendedBySection.js";
+import { PropertyDefinitionsSection } from "../../features/classview/ropertyDefinitionsSection.js";
+import { TemplatesSection } from "../../features/classview/emplatesSection.js";
 import { createdPeriodBounds, isoOfDateParts } from "./calendarViewUtils.js";
 import type { SectionSpec } from "../../features/collection/useSectionData.js";
 

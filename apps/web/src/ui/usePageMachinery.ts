@@ -28,7 +28,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 import { proseFromAst } from "@/editor/prose.js";
 
-import { ensureTemplateFamily } from "./components/templateFamily.js";
+import { ensureTemplateFamily } from "../features/templates/templateFamily.js";
 import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
 import { useOutlinerValue } from "./outliner-context.js";
 import { useBlockSelectionSurface } from "./use-block-selection.js";

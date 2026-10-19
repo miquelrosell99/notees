@@ -20,15 +20,15 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameForSettings } from "../../dateDisplay.js";
-import { Icon } from "../../Icon.js";
-import { NodeSelector } from "../pickers/NodeSelector.js";
-import { AddPill } from "../ui/AddPill.js";
-import { NodeViewSection } from "../NodeViewSection.js";
-import { notificationStore } from "../ui/notificationStore.js";
-import { ensureTemplateFamily, listClassTemplateBindings } from "../templateFamily.js";
-import { useTemplateApplyToExisting } from "../../templates/useTemplateApplyToExisting.js";
-import "./TemplatesSection.css";
+import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
+import { AddPill } from "../../ui/components/ui/AddPill.js";
+import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
+import { notificationStore } from "../../ui/components/ui/notificationStore.js";
+import { ensureTemplateFamily, listClassTemplateBindings } from "../templates/templateFamily.js";
+import { useTemplateApplyToExisting } from "../../ui/templates/useTemplateApplyToExisting.js";
+import "./emplatesSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 

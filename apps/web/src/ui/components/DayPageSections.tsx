@@ -38,7 +38,7 @@ import {
   taskRowsOf,
   taskStatusLabel,
 } from "./calendarRows.js";
-import { ensureTaskFamily } from "./taskFamily.js";
+import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
 import { Checkbox } from "./ui/Checkbox.js";
 import { CreatedSection } from "./CreatedSection.js";
 import { Pill } from "./ui/Pill.js";

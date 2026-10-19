@@ -37,22 +37,22 @@ import { rendersWithDocumentChrome } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameForSettings } from "../../dateDisplay.js";
-import { Icon } from "../../Icon.js";
-import { NodeViewSection } from "../NodeViewSection.js";
-import { useViewModePreference } from "../../viewPrefs.js";
-import { refuseClassRemoval, removeClassDissolvingLinks } from "../../../features/metadata/classRemoval.js";
-import { FilterBar } from "../../../features/collection/FilterBar.js";
+import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
+import { useViewModePreference } from "../../ui/viewPrefs.js";
+import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
+import { FilterBar } from "../collection/FilterBar.js";
 import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
   isFilterInactive,
   quickTextOf,
   type FilterQuery,
-} from "../../../features/collection/filterQuery.js";
-import { useSectionData, type SectionRowFilter } from "../../../features/collection/useSectionData.js";
-import { NodeCollection, ViewSwitcher } from "../../../features/collection/index.js";
-import type { NodeCollectionItem, TableColumn, ViewMode } from "../../../features/collection/index.js";
+} from "../collection/filterQuery.js";
+import { useSectionData, type SectionRowFilter } from "../collection/useSectionData.js";
+import { NodeCollection, ViewSwitcher } from "../collection/index.js";
+import type { NodeCollectionItem, TableColumn, ViewMode } from "../collection/index.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 

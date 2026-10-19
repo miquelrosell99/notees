@@ -21,7 +21,7 @@ import { CalendarView } from "../src/ui/components/CalendarView.js";
 import { PropertiesSection } from "../src/features/metadata/index.js";
 import { addDaysIso, todayIsoLocal } from "../src/ui/components/calendarViewUtils.js";
 import { recurringRowsOf } from "../src/ui/components/calendarRows.js";
-import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
+import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000d2";
