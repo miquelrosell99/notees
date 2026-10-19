@@ -1753,15 +1753,19 @@ export function App() {
       // plain-http LAN dev entry, where "Work offline" is a first-run path
       // (audit 2026-10-19: the throw silently broke offline connect there).
       // getRandomValues is NOT gated; build an RFC 4122 v4 id from it.
-      if (typeof crypto.randomUUID === "function") {
-        localId = crypto.randomUUID();
-      } else {
+      const webCrypto: Crypto | undefined = globalThis.crypto;
+      if (webCrypto !== undefined && typeof webCrypto.randomUUID === "function") {
+        localId = webCrypto.randomUUID();
+      } else if (webCrypto !== undefined) {
         const bytes = new Uint8Array(16);
-        crypto.getRandomValues(bytes);
-        bytes[6] = (bytes[6] & 0x0f) | 0x40;
-        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        webCrypto.getRandomValues(bytes);
+        bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+        bytes[8] = (bytes[8]! & 0x3f) | 0x80;
         const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
         localId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+      } else {
+        // No Web Crypto at all (ancient context): last-resort non-secure id.
+        localId = `ws-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
       }
       writeStored(STORAGE_KEYS.localWorkspaceId, localId);
     }

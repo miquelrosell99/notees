@@ -13,7 +13,7 @@ import { useState } from "react";
 import { Icon } from "../../Icon.js";
 import "./InProcessStoreBanner.css";
 
-export function InProcessStoreBanner({ reason }: { reason?: string }) {
+export function InProcessStoreBanner({ reason }: { reason?: string | undefined }) {
   const [dismissed, setDismissed] = useState(false);
   if (dismissed) return null;
   return (

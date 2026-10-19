@@ -1,10 +1,13 @@
 /**
  * Mobile layout contract tests: the responsive pass lives in
  * app.css as additive media queries — this file pins the contract so the
- * block cannot silently rot: two breakpoint steps (768px tablet chrome, 480px
- * phone bottom sheet), the drawer-surface + touch-target adaptations, the
- * peek card's full-width sheet override, and token-only values inside the
- * block (no hex literals / no raw px).
+ * block cannot silently rot: the 768px step (tablet chrome + the panelled
+ * editor's compact stacking), the drawer-surface + touch-target adaptations,
+ * and token-only values inside the block (no hex literals / no raw px).
+ *
+ * The retired 480px bottom-sheet step stays pinned as ABSENT (owner ruling
+ * 2026-10-19): the rule it carried targeted an element React never mounts —
+ * at phone widths the panelled layout stacks instead (asserted below).
  */
 
 import { describe, expect, it } from "vitest";
@@ -31,10 +34,12 @@ function responsiveBlock(): string {
 }
 
 describe("mobile layout (app.css responsive pass)", () => {
-  it("keeps the two breakpoint steps", () => {
+  it("keeps the 768px step and the retired 480px step absent", () => {
     const block = responsiveBlock();
     expect(block).toContain("@media (width <= 768px)");
-    expect(block).toContain("@media (width <= 480px)");
+    // Retired with the dead bottom-sheet rule (audit 2026-10-19) — the
+    // 480px step must not creep back in.
+    expect(block).not.toContain("@media (width <= 480px)");
   });
 
   it("adapts the sidebar drawer, touch targets, and the page chrome", () => {
@@ -52,12 +57,15 @@ describe("mobile layout (app.css responsive pass)", () => {
     expect(block).toContain(".nt-wordmark");
   });
 
-  it("makes the peek card a full-width bottom sheet at phone widths", () => {
-    const block = responsiveBlock();
-    expect(block).toContain(".nt-body .nt-right-card");
-    expect(block).toContain("position: fixed");
-    expect(block).toContain("width: 100%");
-    expect(block).toContain("bottom: 0");
+  it("stacks the panelled editor at compact widths (the 390px adaptation)", () => {
+    // The audit-2026-10-19 Critical: the two panel cards' minima outran the
+    // content card and the document column vanished at 390px. The page now
+    // stacks — document first, panels full-width below.
+    expect(css).toContain(".nt-page--panelled .nt-page-body");
+    expect(css).toMatch(/@media \(width <= 768px\)\s*\{[^]*?\.nt-page--panelled \.nt-page-body\s*\{[^}]*flex-direction:\s*column/s);
+    expect(css).toContain("order: -1"); // the document column leads
+    // The retired right-rail bottom sheet stays retired.
+    expect(css).not.toContain(".nt-body .nt-right-card");
   });
 
   it("surfaces the quick-create FAB at narrow widths only (hidden on desktop)", () => {
