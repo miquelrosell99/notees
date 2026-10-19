@@ -23,7 +23,7 @@ import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { historyKeyHandler } from "../src/ui/app/keymap.js";
 import { TopBar } from "../src/ui/components/TopBar.js";
-import { HistoryMenuPopup } from "../src/ui/components/HistoryMenuPopup.js";
+import { HistoryMenuPopup } from "../src/features/page-sections/HistoryMenuPopup.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000f1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000f2";

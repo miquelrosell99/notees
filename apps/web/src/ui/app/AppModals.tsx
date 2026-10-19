@@ -17,7 +17,7 @@ import { QuickAddModal } from "../components/modals/QuickAddModal.js";
 import { ClassCreateModal } from "../components/modals/ClassCreateModal.js";
 import { MergeNodesModal } from "../components/modals/MergeNodesModal.js";
 import { PropertyView } from "../../features/metadata/PropertyView.js";
-import { QuickCreateFab } from "../components/QuickCreateFab.js";
+import { QuickCreateFab } from "../../features/block-editor/QuickCreateFab.js";
 import { DeckView } from "../presentation/DeckView.js";
 
 export interface AppModalsProps {

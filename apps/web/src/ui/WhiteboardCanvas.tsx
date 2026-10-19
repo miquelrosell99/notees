@@ -87,7 +87,7 @@ import type {
 
 import { displayNameFromClient, fullTitleFromClient } from "./dateDisplay.js";
 import { InlineTokens } from "./InlineTokens.js";
-import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
+import { openNodeLinkMenu } from "../features/node-menu/NodeLinkContextMenu.js";
 import { SAVE_DEBOUNCE_MS } from "../features/block-editor/index.js";
 import { Button } from "./components/ui/Button.js";
 import { ColorButton } from "./components/ui/ColorButton.js";

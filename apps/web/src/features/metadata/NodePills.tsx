@@ -47,7 +47,7 @@ import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../ui/components/ui/AddPill.js";
 import { ColorPickerRow } from "../pickers/ColorPickerRow.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
-import { NodeContextMenu } from "../../ui/components/NodeContextMenu.js";
+import { NodeContextMenu } from "../node-menu/NodeContextMenu.js";
 import { removeClassDissolvingLinks } from "./classRemoval.js";
 import { ClassCreateModal } from "../../ui/components/modals/ClassCreateModal.js";
 import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";

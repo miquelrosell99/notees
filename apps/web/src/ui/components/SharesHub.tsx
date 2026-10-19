@@ -23,7 +23,7 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../Icon.js";
 import { nodeIcon } from "../iconFor.js";
-import { relativeTime } from "./ActivityLogSection.js";
+import { relativeTime } from "../../features/page-sections/ActivityLogSection.js";
 import { Button } from "./ui/Button.js";
 import { EmptyState } from "./ui/EmptyState.js";
 import { InlineConfirmButton } from "./ui/InlineConfirmButton.js";

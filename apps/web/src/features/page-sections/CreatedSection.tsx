@@ -20,13 +20,13 @@ import { parseDateNodeId } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { buildCreatedInPeriodAst } from "./calendarViewUtils.js";
-import { Icon } from "../Icon.js";
+import { buildCreatedInPeriodAst } from "../../ui/components/calendarViewUtils.js";
+import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
-import { NodeCollection, ViewToolbar } from "../../features/collection/index.js";
-import type { ViewMode } from "../../features/collection/index.js";
-import { useViewModePreference } from "../viewPrefs.js";
-import { useSectionData } from "../../features/collection/useSectionData.js";
+import { NodeCollection, ViewToolbar } from "../collection/index.js";
+import type { ViewMode } from "../collection/index.js";
+import { useViewModePreference } from "../../ui/viewPrefs.js";
+import { useSectionData } from "../collection/useSectionData.js";
 import "./CreatedSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

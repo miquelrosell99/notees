@@ -5,7 +5,7 @@ import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { propertyLinkHref } from "../collection/propertyDisplay.js";
 import { Icon } from "../../ui/Icon.js";
-import { ReferenceSubtree } from "../../ui/components/ReferenceSubtree.js";
+import { ReferenceSubtree } from "../block-editor/ReferenceSubtree.js";
 import type { AnyClient } from "./shared.js";
 import { fromEditableText, toEditableText } from "./shared.js";
 

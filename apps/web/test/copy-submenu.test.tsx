@@ -14,7 +14,7 @@ import { fireEvent, render, waitFor } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { NodeContextMenu } from "../src/ui/components/NodeContextMenu.js";
+import { NodeContextMenu } from "../src/features/node-menu/NodeContextMenu.js";
 import { nodeLinkUrl } from "../src/ui/nodeLink.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

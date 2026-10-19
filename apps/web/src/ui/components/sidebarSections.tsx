@@ -22,8 +22,8 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../Icon.js";
-import { NodeViewSection } from "./NodeViewSection.js";
-import { clipCrumbName } from "./Breadcrumbs.js";
+import { NodeViewSection } from "../../features/page-sections/NodeViewSection.js";
+import { clipCrumbName } from "../../features/node-menu/Breadcrumbs.js";
 import { tocEntriesOf } from "./sidebarToc.js";
 import "./sidebarSections.css";
 

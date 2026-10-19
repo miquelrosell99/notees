@@ -61,26 +61,26 @@ import { parseDateNodeId } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Icon } from "../Icon.js";
-import { Breadcrumbs } from "./Breadcrumbs.js";
-import { ReferenceSubtree } from "./ReferenceSubtree.js";
-import { Section } from "../Section.js";
-import { displayNameForSettings } from "../dateDisplay.js";
-import { untitledLabelOf } from "../renderStateLabel.js";
-import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../viewPrefs.js";
-import { promoteMentionInAst } from "../../features/collection/unlinkedRefs.js";
-import { FilterBar } from "../../features/collection/FilterBar.js";
+import { Icon } from "../../ui/Icon.js";
+import { Breadcrumbs } from "../node-menu/Breadcrumbs.js";
+import { ReferenceSubtree } from "../block-editor/ReferenceSubtree.js";
+import { Section } from "../../ui/Section.js";
+import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../../ui/viewPrefs.js";
+import { promoteMentionInAst } from "../collection/unlinkedRefs.js";
+import { FilterBar } from "../collection/FilterBar.js";
 import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
   isFilterInactive,
   quickTextOf,
   type FilterQuery,
-} from "../../features/collection/filterQuery.js";
-import { NodeCollection, groupByContainingPage } from "../../features/collection/index.js";
-import type { HostedViewsConfig, NodeCollectionItem, SortMode } from "../../features/collection/index.js";
+} from "../collection/filterQuery.js";
+import { NodeCollection, groupByContainingPage } from "../collection/index.js";
+import type { HostedViewsConfig, NodeCollectionItem, SortMode } from "../collection/index.js";
 import { NodeViewSection } from "./NodeViewSection.js";
-import { useSectionData, type SectionRowFilter } from "../../features/collection/useSectionData.js";
+import { useSectionData, type SectionRowFilter } from "../collection/useSectionData.js";
 import "./SystemSections.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

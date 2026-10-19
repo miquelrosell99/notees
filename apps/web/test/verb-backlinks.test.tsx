@@ -19,7 +19,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
-import { ReferenceList } from "../src/ui/components/SystemSections.js";
+import { ReferenceList } from "../src/features/page-sections/SystemSections.js";
 import { BlockBacklinkPanel } from "../src/ui/BlockBacklinks.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000e1";

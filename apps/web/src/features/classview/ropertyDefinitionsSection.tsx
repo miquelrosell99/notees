@@ -50,7 +50,7 @@ import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../ui/components/ui/AddPill.js";
 import { Checkbox } from "../../ui/components/ui/Checkbox.js";
 import { ToggleSwitch } from "../../ui/components/ui/ToggleSwitch.js";
-import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
+import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import "./ropertyDefinitionsSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

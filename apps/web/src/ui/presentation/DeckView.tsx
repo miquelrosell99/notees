@@ -23,7 +23,7 @@ import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspac
 
 import { PresentationOverlay } from "../components/ui/PresentationOverlay.js";
 import { cssColorFor } from "../components/ui/colorPresets.js";
-import { openNodeLinkMenu } from "../components/NodeLinkContextMenu.js";
+import { openNodeLinkMenu } from "../../features/node-menu/NodeLinkContextMenu.js";
 import { EmbedBoundary, EmbedView } from "../EmbedView.js";
 import { Icon } from "../Icon.js";
 import { InlineTokens } from "../InlineTokens.js";

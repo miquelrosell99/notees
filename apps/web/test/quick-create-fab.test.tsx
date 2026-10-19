@@ -15,7 +15,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { QuickCreateFab } from "../src/ui/components/QuickCreateFab.js";
+import { QuickCreateFab } from "../src/features/block-editor/QuickCreateFab.js";
 import { drawerDismissHandler } from "../src/ui/app/keymap.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

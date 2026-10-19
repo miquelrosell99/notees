@@ -32,11 +32,11 @@ import { createPortal } from "react-dom";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameFromClient } from "../dateDisplay.js";
-import { nodeIcon } from "../iconFor.js";
-import { Icon } from "../Icon.js";
-import { NodeView } from "../NodeView.js";
-import { Button } from "./ui/Button.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { nodeIcon } from "../../ui/iconFor.js";
+import { Icon } from "../../ui/Icon.js";
+import { NodeView } from "../../ui/NodeView.js";
+import { Button } from "../../ui/components/ui/Button.js";
 import "./FloatingEditor.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

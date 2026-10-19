@@ -35,12 +35,12 @@ import { PageView } from "../src/ui/PageView.js";
 import {
   FloatingEditorHost,
   openFloatingEditor,
-} from "../src/ui/components/FloatingEditor.js";
+} from "../src/features/block-editor/FloatingEditor.js";
 import {
   HOVER_DWELL_MS,
   HOVER_GRACE_MS,
   NodeHoverPreviewHost,
-} from "../src/ui/components/NodeHoverPreview.js";
+} from "../src/features/node-menu/NodeHoverPreview.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

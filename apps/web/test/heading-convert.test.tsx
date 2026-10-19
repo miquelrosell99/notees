@@ -22,8 +22,8 @@ import {
   headingAstOf,
   headingConversionOf,
   plainTextAstOf,
-} from "../src/ui/components/headingConvert.js";
-import { NodeContextMenu } from "../src/ui/components/NodeContextMenu.js";
+} from "../src/features/block-editor/headingConvert.js";
+import { NodeContextMenu } from "../src/features/node-menu/NodeContextMenu.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

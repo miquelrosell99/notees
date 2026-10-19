@@ -34,15 +34,15 @@ import { cloneSubtree, type CloneReadSurface, type CloneWriteSurface } from "@/c
 import { extractBlockToPage } from "@/core/extractToPage.js";
 import type { ClientNode, ClientPropertySchema } from "@/core/workspace-client/index.js";
 
-import { displayNameForSettings } from "../dateDisplay.js";
-import { nodeLinkUrl } from "../nodeLink.js";
-import { parentRenderFacts, untitledLabelOf } from "../renderStateLabel.js";
-import { copyToClipboard } from "./modals/clipboard.js";import { notificationStore } from "./ui/notificationStore.js";
-import { clipboardMarkdown } from "./modals/exportSubtree.js";
-import { refuseClassRemoval, removeClassDissolvingLinks } from "../../features/metadata/classRemoval.js";
-import { headingAstOf, headingConversionOf, plainTextAstOf } from "./headingConvert.js";
-import { ConfirmationModal } from "./ui/ConfirmationModal.js";
-import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
+import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { nodeLinkUrl } from "../../ui/nodeLink.js";
+import { parentRenderFacts, untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { copyToClipboard } from "../../ui/components/modals/clipboard.js";import { notificationStore } from "../../ui/components/ui/notificationStore.js";
+import { clipboardMarkdown } from "../../ui/components/modals/exportSubtree.js";
+import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
+import { headingAstOf, headingConversionOf, plainTextAstOf } from "../block-editor/headingConvert.js";
+import { ConfirmationModal } from "../../ui/components/ui/ConfirmationModal.js";
+import { ContextMenu, type ContextMenuItem } from "../../ui/components/ui/ContextMenu.js";
 
 /**
  * The minimal client surface the menu needs (both client classes and the

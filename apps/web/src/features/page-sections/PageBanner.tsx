@@ -40,13 +40,13 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { useBannerCollapsed } from "../viewPrefs.js";
-import { assetImageUrl } from "../../features/collection/assetThumbs.js";
-import { Icon } from "../Icon.js";
-import { NodeSelector } from "../../features/pickers/NodeSelector.js";
-import { AssetUploadModal } from "./modals/AssetUploadModal.js";
-import { Button, ImageModal } from "./ui/index.js";
-import { clearNodeCover, setNodeCover, uploadCoverAsset } from "../../features/metadata/coverProperty.js";
+import { useBannerCollapsed } from "../../ui/viewPrefs.js";
+import { assetImageUrl } from "../collection/assetThumbs.js";
+import { Icon } from "../../ui/Icon.js";
+import { NodeSelector } from "../pickers/NodeSelector.js";
+import { AssetUploadModal } from "../../ui/components/modals/AssetUploadModal.js";
+import { Button, ImageModal } from "../../ui/components/ui/index.js";
+import { clearNodeCover, setNodeCover, uploadCoverAsset } from "../metadata/coverProperty.js";
 import "./PageBanner.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

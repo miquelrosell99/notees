@@ -24,9 +24,9 @@ import type { ContentAst } from "@notees/protocol";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { OperationFeedEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Button } from "./ui/Button.js";
-import { Spinner } from "./ui/Spinner.js";
-import { Icon } from "../Icon.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { Spinner } from "../../ui/components/ui/Spinner.js";
+import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { relativeTime } from "./ActivityLogSection.js";
 import "./VersionHistorySection.css";

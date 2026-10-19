@@ -24,7 +24,7 @@ import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { AddPill } from "../../ui/components/ui/AddPill.js";
-import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
+import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { notificationStore } from "../../ui/components/ui/notificationStore.js";
 import { ensureTemplateFamily, listClassTemplateBindings } from "../templates/templateFamily.js";
 import { useTemplateApplyToExisting } from "../../ui/templates/useTemplateApplyToExisting.js";

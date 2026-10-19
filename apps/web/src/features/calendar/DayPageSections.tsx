@@ -40,7 +40,7 @@ import {
 } from "./calendarRows.js";
 import { ensureTaskFamily } from "../classview/taskFamily.js";
 import { Checkbox } from "../../ui/components/ui/Checkbox.js";
-import { CreatedSection } from "../../ui/components/CreatedSection.js";
+import { CreatedSection } from "../page-sections/CreatedSection.js";
 import { Pill } from "../../ui/components/ui/Pill.js";
 import "./DayPageSections.css";
 

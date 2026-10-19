@@ -20,7 +20,7 @@ import { useState, type ReactNode } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { NodeViewSection, type NodeViewSectionAction } from "./components/NodeViewSection.js";
+import { NodeViewSection, type NodeViewSectionAction } from "../features/page-sections/NodeViewSection.js";
 import { useSectionData } from "../features/collection/useSectionData.js";
 
 export interface SectionProps<T> {

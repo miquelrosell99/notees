@@ -18,9 +18,9 @@ import { rendersWithDocumentChrome } from "@notees/domain";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
-import { displayNameFromClient } from "../dateDisplay.js";
-import { NodeResultItem } from "../../features/pickers/NodeResultItem.js";
-import { usePopupDismissal } from "./ui/usePopupDismissal.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { NodeResultItem } from "../pickers/NodeResultItem.js";
+import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
 import type { HiddenLinkTarget } from "@/editor/condensed.js";
 import "./CondensedLinksPopup.css";
 

@@ -25,7 +25,7 @@ import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { HubView } from "../src/ui/app/HubView.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
-import { Breadcrumbs } from "../src/ui/components/Breadcrumbs.js";
+import { Breadcrumbs } from "../src/features/node-menu/Breadcrumbs.js";
 import { TocSection } from "../src/ui/components/sidebarSections.js";
 import { headingLabelOf, tocEntriesOf } from "../src/ui/components/sidebarToc.js";
 import {

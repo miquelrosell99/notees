@@ -16,7 +16,7 @@ import { useState } from "react";
 import type { AnyClient } from "./types.js";
 import { GraphView } from "./graph/GraphView.js";
 import { Icon } from "../../ui/Icon.js";
-import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
+import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import "./LocalGraphCard.css";
 
 export function LocalGraphCard({
