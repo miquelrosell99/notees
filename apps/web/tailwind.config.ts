@@ -145,6 +145,9 @@ export default {
         level1: "var(--elevation-1)",
         level2: "var(--elevation-2)",
         level3: "var(--elevation-3)",
+        /* The underline field register (TextField). */
+        "field-focus": "var(--shadow-field-focus)",
+        "field-error": "var(--shadow-field-error)",
       },
       spacing: {
         micro: "var(--spacing-micro)",
@@ -281,8 +284,13 @@ export default {
         tactile: "var(--motion-easing-tactile)",
         collapse: "var(--motion-easing-collapse)",
       },
+      transitionProperty: {
+        card: "background-color, border-color, transform",
+        colors: "background-color, border-color, color",
+      },
       scale: {
         press: "var(--tactile-press-scale)",
+        card: "var(--scale-card-press)",
       },
     },
   },

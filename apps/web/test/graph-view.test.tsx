@@ -295,7 +295,8 @@ describe("GraphView component", () => {
       // Colors chip (the rail toggle)…
       const visibility = screen.getByRole("button", { name: "Visibility" });
       expect(visibility.className).toContain("btn");
-      expect(visibility.className).toContain("btn--ghost");
+      // The pressed visibility toggle wears the active register (container-active fill).
+      expect(visibility.className).toContain("bg-surface-container-active");
       expect(screen.getByText(/nodes · .* edges/)).toBeTruthy();
       const colorsChip = screen.getByRole("button", { name: "Colors" });
       expect(colorsChip.className).toContain("chip");
@@ -310,7 +311,7 @@ describe("GraphView component", () => {
       expect(screen.getByRole("radio", { name: "Force" })).toBeTruthy();
       expect(screen.getByRole("radio", { name: "Circle" })).toBeTruthy();
       const timeLapse = screen.getByRole("button", { name: "Time lapse" });
-      expect(timeLapse.className).toContain("btn--ghost");
+      expect(timeLapse.className).toContain("bg-transparent");
       expect(timeLapse.getAttribute("aria-pressed")).toBe("false");
 
       // The Visibility popover carries what-to-draw: families, orphans,

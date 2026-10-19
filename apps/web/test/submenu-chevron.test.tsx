@@ -140,16 +140,22 @@ describe("chevron visibility", () => {
     expect(flyoutSurface).toContain("border-radius: var(--radius-menu)");
 
     // Card's levels map to the M3 elevation table (// static cards carry level 1, menus/popovers level 2, dialogs level 3).
-    const cardCss = readCss(["src", "ui", "components", "ui", "Card.css"]);
-    expect(cardCss.split(".card--elevation-medium {")[1]!.split("}")[0]!).toContain(
-      "var(--shadow-level2)",
+    // The mapping rides the Tailwind config + Card wrapper classes since
+    // the shadcn-catalog migration (Card.css retired 2026-10-19).
+    const cardSrc = fs.readFileSync(
+      path.join(process.cwd(), "src", "ui", "components", "ui", "Card.tsx"),
+      "utf8",
     );
-    expect(cardCss.split(".card--elevation-high {")[1]!.split("}")[0]!).toContain(
-      "var(--shadow-level3)",
+    expect(cardSrc).toContain('medium: "shadow-level2"');
+    expect(cardSrc).toContain('high: "shadow-level3"');
+    expect(cardSrc).toContain('low: "shadow-level1"');
+    const tailwindConfig = fs.readFileSync(
+      path.join(process.cwd(), "tailwind.config.ts"),
+      "utf8",
     );
-    expect(cardCss.split(".card--elevation-low {")[1]!.split("}")[0]!).toContain(
-      "var(--shadow-level1)",
-    );
+    expect(tailwindConfig).toContain('level2: "var(--elevation-2)"');
+    expect(tailwindConfig).toContain('level3: "var(--elevation-3)"');
+    expect(tailwindConfig).toContain('level1: "var(--elevation-1)"');
 
     const crumbsCss = readCss(["src", "ui", "components", "Breadcrumbs.css"]);
     const separatorBlock = crumbsCss.split(".node-breadcrumb-separator {")[1]!.split("}")[0]!;

@@ -132,15 +132,23 @@ describe("custom buttons carry the pressed layer (skill §6 tactile press)", () 
     expect(pressed![0]).toContain("background: var(--md-sys-color-pressed-overlay)");
   });
 
-  it("the journals empty state composes the kit EmptyState — the CTA register lives in Button.css", () => {
+  it("the journals empty state composes the kit EmptyState — the CTA register lives in the kit Button", () => {
     // The hand-rolled .journals-empty__action retired with the composition;
     // the CTA is the kit primary Button, whose pressed register is pinned
-    // here as the single source of truth.
+    // here as the single source of truth. The register lives in the Button
+    // wrapper's variant classes since the shadcn-catalog migration
+    // (Button.css retired 2026-10-19).
     expect(journalsCss).not.toMatch(/\.journals-empty__action/);
-    const buttonCss = readCss("components", "ui", "Button.css");
-    const pressed = /\.btn--primary:active:not\(:disabled\) \{[^}]*\}/.exec(buttonCss);
-    expect(pressed).not.toBeNull();
-    expect(pressed![0]).toContain("background: var(--md-sys-color-primary-pressed)");
+    const buttonSrc = fs.readFileSync(
+      path.join(process.cwd(), "src", "ui", "components", "ui", "Button.tsx"),
+      "utf8",
+    );
+    expect(buttonSrc).toContain("active:bg-primary-pressed");
+    const tailwindConfig = fs.readFileSync(
+      path.join(process.cwd(), "tailwind.config.ts"),
+      "utf8",
+    );
+    expect(tailwindConfig).toContain('role("primary-pressed")');
   });
 
   it("the settings theme buttons press with the overlay, before the active register", () => {

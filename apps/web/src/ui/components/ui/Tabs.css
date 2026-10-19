@@ -106,12 +106,12 @@
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
-.tabs__tab--active {
+.tabs__tab[data-state="active"] {
   color: var(--md-sys-color-on-surface);
   font-weight: 500;
 }
 
-.tabs__tab--active:hover:not(:disabled) {
+.tabs__tab[data-state="active"]:hover:not(:disabled) {
   background: transparent;
 }
 
@@ -125,7 +125,7 @@
   opacity: var(--opacity-70);
 }
 
-.tabs__tab--active .tabs__tab-icon {
+.tabs__tab[data-state="active"] .tabs__tab-icon {
   opacity: var(--opacity-100);
 }
 

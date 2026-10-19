@@ -26,22 +26,26 @@ describe("Button", () => {
       </Button>,
     );
     const button = screen.getByRole("button", { name: "Save" });
-    expect(button).toHaveClass("btn", "btn--primary", "btn--lg");
+    // The catalog contract: the `btn` marker hook + token utilities.
+    expect(button).toHaveClass("btn", "bg-primary", "border-primary", "h-button-lg", "rounded-button");
     expect(button.querySelector(".btn__text")).toHaveTextContent("Save");
   });
 
-  it("marks icon+text buttons with the icon-text class", () => {
+  it("marks icon+text buttons with the icon + text spans", () => {
     render(<Button icon="mdi mdi-cog">Settings</Button>);
-    expect(screen.getByRole("button", { name: /settings/i })).toHaveClass("btn--icon-text");
+    const button = screen.getByRole("button", { name: /settings/i });
+    expect(button.querySelector(".btn__icon")).not.toBeNull();
+    expect(button.querySelector(".btn__text")).toHaveTextContent("Settings");
   });
 
-  it("renders icon-only with the icon-only class; the spinner waits out the 300ms rule", () => {
+  it("renders icon-only with the icon-only hook; the spinner waits out the 300ms rule", () => {
     vi.useFakeTimers();
     try {
       render(<Button icon="mdi mdi-cog" aria-label="Settings" loading />);
       const button = screen.getByRole("button", { name: "Settings" });
-      expect(button).toHaveClass("btn--icon-only", "btn--loading");
+      expect(button).toHaveClass("btn--icon-only");
       expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("aria-busy", "true");
       // The loading-timing rule: nothing for <300ms, spinner after.
       expect(button.querySelector(".spinner")).toBeNull();
       act(() => {
@@ -130,21 +134,29 @@ describe("Modal", () => {
       </Modal>,
     );
     const dialog = screen.getByRole("dialog");
-    expect(dialog).toHaveClass("modal", "modal--md", "card");
+    // The dialog chrome (modal, modal--md) + the token surface utilities the
+    // old Card composition carried (elevation high, radius sheet).
+    expect(dialog).toHaveClass("modal", "modal--md", "bg-surface", "rounded-sheet", "shadow-level3");
     expect(screen.getByRole("heading", { name: "Settings" })).toHaveClass("modal__title");
     expect(dialog.querySelector(".modal__content")).toHaveTextContent("Body text");
     expect(dialog.querySelector(".modal__footer")).not.toBeNull();
   });
 
-  it("closes on backdrop click but not on content click", () => {
+  it("closes on backdrop pointer-down but not on content click", async () => {
     const onClose = vi.fn();
     render(
       <Modal isOpen onClose={onClose}>
         <p>inside</p>
       </Modal>,
     );
+    // Radix registers its document pointerdown listener on a macrotask
+    // (setTimeout 0) after mount.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     const backdrop = document.body.querySelector(".modal-backdrop") as HTMLElement;
-    fireEvent.click(backdrop);
+    // Radix dismisses on pointer-down outside the content (the overlay).
+    fireEvent.pointerDown(backdrop);
     expect(onClose).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("dialog"));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -192,7 +204,12 @@ describe("ConfirmationModal", () => {
       />,
     );
     expect(screen.getByRole("dialog")).toHaveClass("confirmation-modal--danger");
-    expect(screen.getByRole("button", { name: "Confirm" })).toHaveClass("btn--danger-solid");
+    // The danger-solid register as token utilities (the catalog contract).
+    expect(screen.getByRole("button", { name: "Confirm" })).toHaveClass(
+      "bg-error",
+      "border-error",
+      "text-on-error",
+    );
   });
 });
 

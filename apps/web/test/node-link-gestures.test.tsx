@@ -434,10 +434,7 @@ describe("node-link context menu", () => {
     const labelInput = modal.querySelector<HTMLInputElement>("#link-label-input");
     if (labelInput === null) throw new Error("no label input in the modal");
     fireEvent.change(labelInput, { target: { value: "that page" } });
-    const save = Array.from(modal.querySelectorAll<HTMLButtonElement>("button.btn--primary")).find(
-      (b) => b.textContent === "Save",
-    );
-    if (save === undefined) throw new Error("no Save button in the modal");
+    const save = within(modal).getByRole("button", { name: "Save" });
     fireEvent.click(save);
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
@@ -464,10 +461,7 @@ describe("node-link context menu", () => {
     // The current custom label is prefilled; clearing it removes the override.
     expect(labelInput.value).toBe("the Republic");
     fireEvent.change(labelInput, { target: { value: "" } });
-    const save = Array.from(modal.querySelectorAll<HTMLButtonElement>("button.btn--primary")).find(
-      (b) => b.textContent === "Save",
-    );
-    if (save === undefined) throw new Error("no Save button in the modal");
+    const save = within(modal).getByRole("button", { name: "Save" });
     fireEvent.click(save);
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
@@ -594,10 +588,7 @@ describe("node-link context menu (read mode)", () => {
     if (pickerInput === null) throw new Error("no picker in the modal");
     fireEvent.change(pickerInput, { target: { value: "Else" } });
     fireEvent.click(document.body.querySelector<HTMLElement>(".node-result-item")!);
-    const save = Array.from(modal.querySelectorAll<HTMLButtonElement>("button.btn--primary")).find(
-      (b) => b.textContent === "Save",
-    );
-    if (save === undefined) throw new Error("no Save button in the modal");
+    const save = within(modal).getByRole("button", { name: "Save" });
     fireEvent.click(save);
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;

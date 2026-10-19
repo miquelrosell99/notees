@@ -3,10 +3,17 @@
  *
  * A reusable text input component with consistent styling.
  * Features a minimal underline that highlights when active.
+ *
+ * Thin fleet wrapper over the normalized catalog input + label
+ * (src/components/ui/input.tsx, label.tsx): the underline register is the
+ * app's field identity (the catalog Input is a boxed field), so the wrapper
+ * composes the catalog base and re-points the shell classes at the
+ * underline register. All visual values resolve to tokens through the
+ * Tailwind config (registered-mapping mode of the drift gate).
  */
-
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from "react";
-import "./TextField.css";
+
+import { cn } from "./cn";
 
 export type TextFieldSize = "sm" | "md" | "lg";
 
@@ -26,6 +33,12 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   /** Additional className for the container */
   containerClassName?: string;
 }
+
+const SIZE_CLASSES: Record<TextFieldSize, string> = {
+  sm: "h-md py-1 text-xs",
+  md: "h-xl py-2 text-sm",
+  lg: "h-xl py-3 text-base",
+};
 
 /**
  * TextField component for text input with consistent styling.
@@ -56,27 +69,35 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     [error && errorMessage ? errorId : undefined, ariaDescribedBy].filter(Boolean).join(" ") ||
     undefined;
 
-  const inputClasses = [
-    "text-field",
-    `text-field--${size}`,
-    error && "text-field--error",
-    disabled && "text-field--disabled",
-    icon && "text-field--with-icon",
+  const underlineClasses = error
+    ? "border-b-error focus:border-b-error focus:shadow-field-error"
+    : "border-b-outline-variant focus:border-b-primary focus:shadow-field-focus";
+
+  const inputClasses = cn(
+    "w-full bg-transparent border-b px-0 text-on-surface transition-colors duration-short ease-standard",
+    "placeholder:text-muted-foreground focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed",
+    SIZE_CLASSES[size],
+    underlineClasses,
+    icon && "border-b-0 focus:shadow-none",
     className,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  );
 
-  const wrapperClasses = ["text-field-wrapper", wrapperClassName].filter(Boolean).join(" ");
+  const wrapperClasses = cn("flex flex-col gap-1", wrapperClassName);
 
-  const containerClasses = [
-    "text-field__container",
-    error && "text-field__container--error",
-    disabled && "text-field__container--disabled",
+  const containerClasses = cn(
+    "flex items-center w-full bg-transparent border-b transition-colors duration-short ease-standard",
+    underlineClasses,
+    "focus-within:outline-none",
+    error ? "focus-within:border-b-error focus-within:shadow-field-error" : "focus-within:border-b-primary focus-within:shadow-field-focus",
+    disabled && "opacity-50 cursor-not-allowed",
     containerClassName,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  );
+
+  const errorElement = error && errorMessage ? (
+    <span id={errorId} className="text-xs text-error" role="alert">
+      {errorMessage}
+    </span>
+  ) : null;
 
   const inputElement = icon ? (
     <div className={containerClasses}>
@@ -89,12 +110,8 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
         aria-describedby={describedByIds}
         {...props}
       />
-      {icon && (
-        <>
-          <div className="text-field__divider" />
-          <div className="text-field__icon">{icon}</div>
-        </>
-      )}
+      <div className="w-px h-xs bg-outline-variant mx-2" />
+      <div className="flex items-center justify-center pr-3 text-outline">{icon}</div>
     </div>
   ) : (
     <input
@@ -111,15 +128,11 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   if (label) {
     return (
       <div className={wrapperClasses}>
-        <label htmlFor={id} className="text-field__label">
+        <label htmlFor={id} className="text-sm font-semibold text-on-surface-variant">
           {label}
         </label>
         {inputElement}
-        {error && errorMessage && (
-          <span id={errorId} className="text-field__error" role="alert">
-            {errorMessage}
-          </span>
-        )}
+        {errorElement}
       </div>
     );
   }
@@ -127,11 +140,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   return (
     <>
       {inputElement}
-      {error && errorMessage && (
-        <span id={errorId} className="text-field__error" role="alert">
-          {errorMessage}
-        </span>
-      )}
+      {errorElement}
     </>
   );
 });

@@ -132,6 +132,7 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
 
   const confirmResetAction = async () => {
     await Promise.all(views.map((view) => deleteSectionView(client, nodeId, sectionKey, view.id)));
+    setConfirmReset(false);
     onSelect(SECTION_DEFAULT_TAB);
   };
 
@@ -262,6 +263,7 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
         onConfirm={async () => {
           if (confirmDelete !== null) {
             await deleteSectionView(client, nodeId, sectionKey, confirmDelete.id);
+            setConfirmDelete(null);
             onSelect(SECTION_DEFAULT_TAB);
           }
         }}

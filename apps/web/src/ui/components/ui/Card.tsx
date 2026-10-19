@@ -2,17 +2,21 @@
  * Card Component
  *
  * A reusable card component that provides consistent styling for
- * floating panels, context menus, dropdowns, and containers throughout the app.
+ * floating panels, context menus, dropdowns, and containers throughout
+ * the app.
  *
- * Local stand-in for the app-level Card: identical DOM output and class
- * contract, minus the mobile-layout context consumer (the `mobileLayout`
- * prop remains for explicit control).
+ * Thin fleet wrapper over the normalized catalog card
+ * (src/components/ui/card.tsx): every visual value resolves to a token
+ * through the Tailwind config (registered-mapping mode). The legacy `card`
+ * marker class stays on the root — feature CSS (ContextMenu, Dropdown)
+ * legitimately compounds on `.card` for their surface registers, and
+ * unlayered feature CSS keeps winning over the utility layer, so the
+ * overrides behave exactly as before.
  */
-import { forwardRef, type ReactNode, type HTMLAttributes } from 'react';
-import './Card.css';
-import { cn } from './cn';
+import { forwardRef, type ReactNode, type HTMLAttributes } from "react";
+import { cn } from "./cn";
 
-export type CardElevation = 'none' | 'low' | 'medium' | 'high';
+export type CardElevation = "none" | "low" | "medium" | "high";
 export type CardVariant = 'default' | 'outlined' | 'filled' | 'transparent' | 'dashed';
 export type CardRadius = 'sm' | 'md' | 'lg' | 'xl' | 'none' | 'floating';
 
@@ -43,6 +47,37 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   mobileLayout?: boolean | undefined;
 }
 
+const VARIANT_CLASSES: Record<CardVariant, string> = {
+  default: "bg-surface border border-outline-variant",
+  outlined: "bg-transparent border border-outline",
+  filled: "bg-surface-variant border-0",
+  transparent: "bg-transparent border-0 shadow-none",
+  dashed: "bg-transparent border-thick border-dashed border-outline-variant",
+};
+
+/** The radius scale maps the app's shape tokens onto the registered family. */
+const RADIUS_CLASSES: Record<CardRadius, string> = {
+  none: "rounded-none",
+  sm: "rounded-menu overflow-hidden",
+  floating: "rounded-floating overflow-hidden",
+  md: "rounded-input overflow-hidden",
+  lg: "rounded-card overflow-hidden",
+  xl: "rounded-sheet overflow-hidden",
+};
+
+const ELEVATION_CLASSES: Record<CardElevation, string> = {
+  none: "shadow-none",
+  low: "shadow-level1",
+  medium: "shadow-level2",
+  high: "shadow-level3",
+};
+
+const PADDING_CLASSES = {
+  sm: "p-2",
+  md: "p-4",
+  lg: "p-6",
+} as const;
+
 /**
  * Card component for floating UI elements like dropdowns, menus, popovers,
  * as well as container cards for content sections.
@@ -69,14 +104,17 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   const mobileLayoutAttr = mobileLayout || undefined;
 
   const classes = cn(
-    'card',
-    `card--elevation-${elevation}`,
-    `card--variant-${variant}`,
-    radius ? `card--radius-${radius}` : '',
-    padding ? `card--padded card--padding-${paddingSize}` : '',
-    interactive ? 'card--interactive' : '',
-    selected ? 'card--selected' : '',
-    showCloseButton ? 'card--has-close' : '',
+    "card",
+    VARIANT_CLASSES[variant],
+    mobileLayout ? "rounded-none shadow-none" : RADIUS_CLASSES[radius],
+    mobileLayout ? "shadow-none" : ELEVATION_CLASSES[elevation],
+    padding && !mobileLayout && PADDING_CLASSES[paddingSize],
+    interactive &&
+      "cursor-pointer transition-card duration-short ease-standard hover:bg-hover-overlay hover:border-outline hover:-translate-y-hairline active:bg-pressed-overlay active:translate-y-0 active:scale-card",
+    selected && "border-primary bg-primary-container",
+    showCloseButton && "relative",
+    variant === "dashed" &&
+      "hover:border-primary hover:bg-hover-overlay focus-within:border-primary focus-within:bg-hover-overlay",
     className,
   );
 
@@ -85,7 +123,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
       {showCloseButton && (
         <button
           type="button"
-          className="card__close-btn"
+          className="absolute top-2 right-2 z-1"
           onClick={onClose}
           aria-label="Close"
         >
