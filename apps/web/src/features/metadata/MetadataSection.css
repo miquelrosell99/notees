@@ -357,9 +357,7 @@ span.pill__text {
 
 /* The → navigate button: beside the chevron, the
    table's pinned Open-button idiom — the value click owns the picker, the
-   button owns navigation. Visible at rest: in the panel the button is the
-   cell's only navigation affordance (the table's hover-reveal stays a
-   dense-row idiom). */
+   button owns navigation. */
 .nt-property-select__nav {
   display: inline-flex;
   align-items: center;
@@ -411,6 +409,37 @@ span.pill__text {
 .nt-property-select__clear:focus-visible {
   opacity: var(--opacity-100);
   color: var(--md-sys-color-on-surface);
+}
+
+/* Hover-reveal chrome: at rest the cell reads as pure
+   value text — the → navigate button, the dropdown chevron, and the ×
+   clear collapse (the pill × max-width idiom) and expand on cell hover /
+   focus-in, the content flexing out of their way. */
+.nt-property-select__nav,
+.nt-property-select__chevron,
+.nt-property-select__clear {
+  max-width: 0;
+  padding-inline: 0;
+  margin-inline-start: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              max-width var(--motion-duration-short) var(--motion-easing-standard),
+              margin var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-property-select:hover .nt-property-select__nav,
+.nt-property-select:hover .nt-property-select__chevron,
+.nt-property-select:hover .nt-property-select__clear,
+.nt-property-select:focus-within .nt-property-select__nav,
+.nt-property-select:focus-within .nt-property-select__chevron,
+.nt-property-select:focus-within .nt-property-select__clear,
+.nt-property-select__nav:focus-visible {
+  max-width: 1.5rem;
+  padding-inline: var(--spacing-1);
+  margin-inline-start: var(--spacing-1);
+  overflow: visible;
+  opacity: var(--opacity-100);
 }
 
 .nt-property-select__broken code {
