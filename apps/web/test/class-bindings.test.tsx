@@ -146,7 +146,7 @@ describe("Class View class properties editor", () => {
       required: null,
     });
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Required for priority" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Required" }));
     await flushWrites();
     expect(client.getRegistryBindings(classId)[0]!.required).toBe(true);
   });
