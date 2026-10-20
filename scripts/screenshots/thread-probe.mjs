@@ -30,6 +30,9 @@
 //      clears it.
 //  10. the focused block view threads from the FOCUSED block (the view
 //      root row, a real bullet) down to the editing child.
+//  11. the prose focused view renders the parent as an editable top-level
+//      header (the title-variant row); bullets hide — no thread (the
+//      prose law) — and the view stays editable.
 // TEST workspace; cleans up after itself.
 import { chromium } from "playwright";
 const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL;
@@ -396,6 +399,35 @@ try {
     expect(Math.abs(focused.end.x - (focused.a2GlyphLeft - 3)) <= 1.5 && Math.abs(focused.end.y - focused.cA2.y) <= 1.5,
       "the thread ends before the editing child's icon (the arm language, focused view included)");
     expect(focused.qCount === 1, "one rounded turn (focused block → child)");
+  }
+
+  // ── 11. the prose focused view: the parent renders as an editable
+  //      top-level header; bullets hide (no thread, per the prose law) ──
+  {
+    await pg.evaluate((aid) => {
+      localStorage.setItem(`notees.settings.viewMode.nodeBlocks.${aid}`, JSON.stringify("prose"));
+    }, A);
+    await pg.reload({ waitUntil: "commit" });
+    await pg.waitForSelector(".nt-focused-block", { timeout: 60_000 });
+    await pg.waitForTimeout(400);
+    const prose = await pg.evaluate(([aid, a2id]) => {
+      const view = document.querySelector(".nt-focused-block");
+      const header = view.querySelector(`[data-block-id="${aid}"]`);
+      const childBullet = view.querySelector(`[data-block-id="${a2id}"] .nt-bullet`);
+      return {
+        headerIsTitle: header?.classList.contains("nt-block--title") ?? false,
+        childBulletDisplay: childBullet === null ? null : getComputedStyle(childBullet).display,
+        overlay: view.querySelector(".nt-edit-thread-overlay") !== null,
+        ghost: view.querySelector(".nt-ghost-row") !== null,
+      };
+    }, [A, a2]);
+    expect(prose.headerIsTitle, "the prose focused view renders the parent as an editable top-level header (the title-variant row)");
+    expect(prose.childBulletDisplay === "none", "prose hides the child bullets (the view transform)");
+    expect(!prose.overlay, "no thread in prose — bullets hidden, nothing to measure (the prose law)");
+    expect(prose.ghost, "the + Add block ghost trails the prose focused view");
+    await pg.click(`.nt-focused-block [data-block-id="${a2b}"] .nt-block-content`);
+    await pg.waitForSelector(`.nt-focused-block [data-block-id="${a2b}"].nt-block--editing`, { timeout: 10_000 });
+    console.log("ok — the prose focused view stays editable (click-to-edit on a child)");
   }
 
   if (consoleErrors.length > 0) throw new Error("console errors: " + consoleErrors.join(" | "));

@@ -8,6 +8,31 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **feat(web): the focused block view becomes a NodeCollection parent —
+  each view mode owns the parent display (outline: the root block row;
+  prose: an editable top-level header).** Owner direction 2026-10-20 ("in
+  v1 we had a prop for NodeCollection to show the parents — each node view
+  mode could decide how to handle the display of a parent block"). The
+  focused view (the bullet-zoom `rendersAsInlineBlock` branch) rendered
+  `ReferenceSubtree` directly — outline-only, hard-wired, a third
+  rendering surface. Now: `NodeCollection` takes an optional `parent`
+  (the focused block) + `parentTrailing` (the "+ Add block" ghost at the
+  child indent level), and the VIEW entries decide the display — outline
+  renders the parent as the root block row with the items nested inside
+  (the exact zoom grammar, SortableContext included); prose renders it as
+  an editable top-level header via the TITLE-VARIANT row (title-is-
+  content: the block's own text IS the header, Newsreader display type),
+  the children flattened below, the ghost trailing the list. The new
+  `FocusedBlockView` (ui/) hosts the outliner context, the edit-thread
+  provider + measured overlay (the thread still runs from the focused
+  block down to the editing child), the per-node `nodeBlocks.<id>` view
+  preference, and the ghost; cards/table have no defined parent display
+  yet — the focused view falls back to outline for them (documented gap
+  until the modes decide). `ReferenceSubtree` keeps the genuine subtree
+  renders (linked references, the hover-preview trampoline). Probe: step
+  11 drives the prose focused view — the title-header parent, hidden
+  bullets (no thread, the prose law), the ghost, and click-to-edit.
+  Docs: NodeCollection/FocusedBlockView/NodeView/ReferenceSubtree headers.
 - **refactor(web): the class-page binding panel is a simple inline editor —
   presence is the on/off (owner amendment to R7).** A property applies to a
   class by being in the list — the PC4 "Active on this class" switch leaves
