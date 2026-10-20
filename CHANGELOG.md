@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-20
 
+- **feat(web): table name cells wrap long titles over multiple lines — and
+  the Open button is a hover reveal whose lane the text yields.**, three refinements on the pinned Open button: **(1)** the name
+  label drops the single-line ellipsis and WRAPS (`overflow-wrap:
+  break-word`) — the row grows with the text, and the cell's intrinsic
+  width collapses to its longest word, which also dissolves the
+  narrow-column clipping the long titles used to cause. **(2)** the cell
+  reads the FULL title — `nameCellText` switches from the 80-char
+  dense-chrome budget to the links' uncapped `fullTitleOf` (chip
+  resolution kept; date nodes keep the settings-formatted branch) — the
+  CSV projection and the sort key ride the same text. **(3)** the button
+  hides at rest and reveals on cell hover / focus-in / button focus (the
+  class-pill × idiom), and the reveal is IN the layout, not over it: the
+  cell's right padding grows `spacing-3 → button-icon-only-visible-sm +
+  spacing-2` on engagement (animated, `motion-duration-short`) so the
+  wrapping text moves out of the button's way instead of running under
+  it. `TableView.css` + `TableView.tsx`. Verified live (rest: hidden
+  button, full-width text; hover: revealed pinned button, text re-wrapped
+  into the narrower lane; click opens).
 - **feat(web): the edit thread — in edit mode the ancestor chain from the
   top-level block to the editing block wears the accent thread.**. While a block is in edit mode, every ancestor's indent rail
   takes the hover-weight accent hairline (the same 2px primary gradient the

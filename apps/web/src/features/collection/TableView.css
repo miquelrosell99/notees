@@ -108,7 +108,7 @@
      table, the label clipped without an ellipsis, and the pinned Open
      button stranded under the context column (live probe 2026-10-20). A
      block flex's width/max-width resolve against the cell content box, so
-     the label ellipsizes inside its lane and the table keeps its width. */
+     the label wraps inside its lane and the table keeps its width. */
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
@@ -135,9 +135,13 @@
 }
 
 .nt-table-name-label {
+  /* Long titles WRAP to multiple lines — the row grows
+     with the text instead of clipping at one line. overflow stays hidden
+     so the flex item's automatic minimum size stays 0 (the lane holds),
+     and break-word catches words longer than the lane. */
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 
 .nt-table-created {
@@ -478,25 +482,39 @@
 }
 
 /* The name cell hosts the pinned Open button: relative positioning makes
-   the cell the anchor, and the right padding reserves the button's lane
-   so the label ellipsizes clear of it. */
+   the cell the anchor. The button's lane is reserved ONLY while the cell
+   is engaged — at rest the label rides the full cell width; when the
+   button appears the cell padding grows and the wrapping label moves out
+   of its way, the class-pill × idiom. */
 td.nt-table-name {
   position: relative;
+  transition: padding-right var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+td.nt-table-name:hover,
+td.nt-table-name:focus-within {
   padding-right: calc(var(--button-icon-only-visible-sm) + var(--spacing-2));
 }
 
-/* The Open button — the "Open workspace" twin (ghost sm, right arrow,
-   always visible), pinned to the cell's right edge regardless of the
-   text content. Centered without a transform so the press-scale utility
-   keeps working. The td-qualified selector is deliberate: the fleet
-   Button's icon-only `relative` utility (same specificity, later source)
-   would otherwise beat a bare class and keep the button in-flow (found
-   by the live probe 2026-10-20). */
+/* The Open button — the "Open workspace" twin (ghost sm, right arrow),
+   pinned to the cell's right edge regardless of the text content. Hidden
+   at rest like the pill's ×, revealed on cell hover / focus-within /
+   button focus. Centered without a transform so the
+   press-scale utility keeps working. The td-qualified selector is
+   deliberate: the fleet Button's icon-only `relative` utility (same
+   specificity, later source) would otherwise beat a bare class and keep
+   the button in-flow (found by the live probe 2026-10-20). */
 td.nt-table-name .nt-table-open-btn {
   position: absolute;
   top: 0;
   bottom: 0;
   right: var(--spacing-1);
   margin-block: auto;
+  opacity: 0;
+}
+
+td.nt-table-name:hover .nt-table-open-btn,
+td.nt-table-name:focus-within .nt-table-open-btn,
+td.nt-table-name .nt-table-open-btn:focus-visible {
   opacity: var(--opacity-100);
 }
