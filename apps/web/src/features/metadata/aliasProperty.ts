@@ -45,7 +45,8 @@ export async function ensureAliasProperty(client: AnyClient): Promise<void> {
     name: SYSTEM_PROPERTY_DISPLAY_NAMES.alias,
     type: "text",
     multi: true,
-    scope: "global",
+    // Global: absent scopeClassIds = any node may carry it (owner ruling
+    // 2026-10-20 — aliases are page metadata, "page" is not a class).
   });
 }
 

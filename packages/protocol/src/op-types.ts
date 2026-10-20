@@ -377,7 +377,26 @@ export const propertySchemaCreatePayload = z
       "asset",
     ]),
     multi: z.boolean().default(false),
-    scope: z.enum(["global", "class", "object"]).default("global"),
+    /**
+     * The schema's icon (owner 2026-10-20, the property-definition surfaces
+     * batch): an OPTIONAL MDI icon name (camelCase @mdi/js convention, max 64
+     * chars — the same string shape as node/class/option icons); absent/null =
+     * no icon.
+     */
+    icon: z.string().max(64).nullable().optional(),
+    /**
+     * The SOLE locality authority (owner ruling 2026-10-20, R1): absent/null =
+     * GLOBAL (any node may carry the property); a non-empty UUID list = LOCAL
+     * to those classes AND their extends-ancestors (eligibility walks
+     * class_hierarchy the same way binding resolution does). The EMPTY array
+     * is rejected — exactly one spelling of "global". This field RETIRES the
+     * display-only `scope: "global"|"class"|"object"` enum (rejected outright
+     * like any retired key; live logs rewrite in place via
+     * scripts/migrate-property-scope.mts). Bindings (`class_property` rows)
+     * carry ZERO availability semantics — scope says who MAY carry the
+     * property; a binding says what a class DOES WITH it.
+     */
+    scopeClassIds: z.array(uuid).min(1).nullable().optional(),
     options: z.array(propertySchemaOptionSchema).optional(),
     /** Node-typed (m2o/m2m) schemas constrain their targets to these classes. */
     targetClassFilter: z.array(uuid).optional(),
@@ -427,10 +446,44 @@ export const propertySchemaCreatePayload = z
   })
   .strict();
 
+export const validationRulesSchema = z
+  .object({
+    /** Number schemas only: the inclusive lower/upper bounds. */
+    min: z.number().optional(),
+    max: z.number().optional(),
+    /** text/url/email schemas only: an authored regex. */
+    pattern: z.string().optional(),
+  })
+  .strict()
+  .refine((rules) => rules.min === undefined || rules.max === undefined || rules.min <= rules.max, {
+    message: "validationRules: min must be <= max when both are present",
+  });
+
 export const propertySchemaUpdatePayload = z
   .object({
     propertySchemaId: uuid,
     name: z.string().min(1).max(256).optional(),
+    icon: z.string().max(64).nullable().optional(),
+    /**
+     * The locality authority (create-side doc above) — keep/clear contract:
+     * absent keeps the stored list, null clears back to global. The EMPTY
+     * array is rejected exactly like at create.
+     */
+    scopeClassIds: z.array(uuid).min(1).nullable().optional(),
+    /** Node-typed (m2o/m2m) target classes; absent keeps, null clears the
+     *  filter (an empty array means "no filter"). */
+    targetClassFilter: z.array(uuid).nullable().optional(),
+    /** Values single/multiple; absent keeps, null clears back to single. */
+    multi: z.boolean().nullable().optional(),
+    /**
+     * Value validation rules (v1 parity, owner 2026-10-20): absent keeps the
+     * stored rules, null clears them. Applicability is enforced at APPLY time
+     * against the schema's stored type — min/max only on `number` schemas,
+     * pattern only on `text`/`url`/`email`; min <= max is a parse-time rule.
+     * Values are validated against the stored rules at property.set
+     * (integrity, fail loud, SCHEMA.md "Properties").
+     */
+    validationRules: validationRulesSchema.nullable().optional(),
     options: z.array(propertySchemaOptionSchema).optional(),
     /** Patchable so the Class View bindings editor can retune datetime behavior
      * after creation (same optional-fields contract as name/options). */

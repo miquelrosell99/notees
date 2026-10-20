@@ -65,9 +65,11 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
   for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
     if (spec === undefined) continue;
     const propertySchemaId = SYSTEM_PROPERTY_UUIDS[name as SystemPropertyName];
-    // bindTo-less specs (the alias property) seed the schema at
-    // global scope with NO class binding row.
-    const scope = spec.bindTo === undefined ? "global" : "class";
+    // bindTo-less specs (the alias property) seed the schema at global scope
+    // with NO class binding row; a bound spec is scoped to its class (owner
+    // ruling 2026-10-20: scopeClassIds is the sole locality authority — a
+    // class-bound property is local to that class and its extensions).
+    const scopeClassIds = spec.bindTo === undefined ? null : [SYSTEM_CLASS_UUIDS[spec.bindTo]];
     envelopes.push(
       factory.make({
         workspaceId,
@@ -78,7 +80,7 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
           name: SYSTEM_PROPERTY_DISPLAY_NAMES[name as SystemPropertyName],
           type: spec.type,
           multi: spec.multi ?? false,
-          scope,
+          ...(scopeClassIds !== null ? { scopeClassIds } : {}),
           ...(spec.options !== undefined ? { options: spec.options } : {}),
           ...(spec.targetClassFilter !== undefined
             ? { targetClassFilter: spec.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }

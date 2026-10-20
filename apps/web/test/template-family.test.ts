@@ -100,7 +100,7 @@ describe("ensureTemplateProperty", () => {
     expect(schema?.name).toBe("Templates");
     expect(schema?.type).toBe("object");
     expect(schema?.multi).toBe(true);
-    expect(schema?.scope).toBe("global");
+    expect(schema?.scopeClassIds).toBeNull();
     expect(schema?.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.template]);
     // M47: nothing binds it — the retired class-class binding is gone and
     // no class hosts the family. The registry is empty for the schema.
@@ -145,7 +145,6 @@ describe("ensureTemplateProperty", () => {
       name: "has-template",
       type: "object",
       multi: true,
-      scope: "global",
       targetClassFilter: [SYSTEM_CLASS_UUIDS.template],
     });
     const before = client.listPropertySchemas().length;

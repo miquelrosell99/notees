@@ -249,7 +249,9 @@ export function PropertyConvertModal({
         name: schema.name,
         type: targetType,
         multi: targetMulti,
-        scope: schema.scope,
+        // Scope rides the scopeClassIds list (the sole locality authority,
+        // owner ruling 2026-10-20) — null (global) rides as the omission.
+        ...(schema.scopeClassIds !== null ? { scopeClassIds: schema.scopeClassIds } : {}),
         ...(plan.carriedOptions !== null ? { options: plan.carriedOptions } : {}),
         ...(schema.targetClassFilter !== null && (targetType === "object" || targetType === "datetime")
           ? { targetClassFilter: schema.targetClassFilter }

@@ -213,6 +213,11 @@ describe("cycleTaskState", () => {
     ]);
     const client = await seedClient(relay);
     const liveTask = await client.createClass("task");
+    // The scope law (owner ruling 2026-10-20) keeps the live-class preference
+    // lawful ONLY through the extends closure: the Status schema is scoped to
+    // the designed task class, and R3 eligibility walks ancestors — the user
+    // class must extend the designed one for the status write to land.
+    await client.setClassExtends(liveTask, [SYSTEM_CLASS_UUIDS.task]);
     const id = await client.createObject({ contentAst: [{ type: "text", text: "Buy milk" }] });
 
     await cycleTaskState(client, id);

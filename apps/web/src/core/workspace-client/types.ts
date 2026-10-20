@@ -360,7 +360,11 @@ export interface ClientPropertySchema {
   name: string;
   type: string;
   multi: boolean;
-  scope: string;
+  /** The schema's icon (owner 2026-10-20); null = none. */
+  icon: string | null;
+  /** The SOLE locality authority (owner ruling 2026-10-20): null = global,
+   *  a non-empty list = local to those classes + their extensions. */
+  scopeClassIds: string[] | null;
   options: ClientPropertyOption[] | null;
   targetClassFilter: string[] | null;
   /** SCHEMA.md "Dates": finest granularity a date value may claim (null = day). */
@@ -403,7 +407,10 @@ export interface CreatePropertySchemaInput {
   name: string;
   type: string;
   multi?: boolean;
-  scope?: string;
+  /** Locality (owner ruling 2026-10-20): omit/null = global; a non-empty
+   *  class-id list scopes the schema to those classes + their extensions. */
+  scopeClassIds?: string[];
+  icon?: string;
   options?: ClientPropertyOption[];
   targetClassFilter?: string[];
   datePrecision?: DatePrecision;

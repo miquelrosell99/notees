@@ -42,7 +42,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the thirty-three required fixtures", () => {
+  it("has exactly the thirty-five required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
@@ -72,6 +72,8 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "property-asset-type.json",
       "property-date-qualifier.json",
       "property-datetime.json",
+      "property-schema-scope.json",
+      "property-schema-update-fields.json",
       "property-set-lww.json",
       "property-value-elements.json",
       "trash-empty.json",
@@ -288,8 +290,12 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "asset",
       "asset",
     ]);
-    expect(creates[0]!.payload).toMatchObject({ multi: true, scope: "class" });
-    expect(creates[1]!.payload).toMatchObject({ multi: false, scope: "object" });
+    expect(creates[0]!.payload).toMatchObject({
+      multi: true,
+      scopeClassIds: ["00000000-0000-0000-0001-000000000023"],
+    });
+    expect(creates[1]!.payload).toMatchObject({ multi: false });
+    expect((creates[1]!.payload as Record<string, unknown>).scopeClassIds).toBeUndefined();
     // The update coexists with an asset-typed schema (type rides create only).
     const update = fixture.envelopes.find((env) => env.opType === "propertySchema.update")!;
     expect(update.payload).toEqual({
@@ -907,6 +913,79 @@ describe("property schema dates (SCHEMA.md \"Datetime\")", () => {
     expect(update.safeParse({ propertySchemaId: "0192a000-0000-7000-8000-0000000000d1" }).success).toBe(
       true,
     );
+  });
+});
+
+describe("property schema scope + update fields (owner ruling 2026-10-20)", () => {
+  const create = payloadSchemaFor("propertySchema.create")!;
+  const update = payloadSchemaFor("propertySchema.update")!;
+  const id = "0192a000-0000-7000-8000-0000000000d1";
+  const classId = "00000000-0000-0000-0001-000000000023";
+
+  it("create accepts icon + scopeClassIds; absent scopeClassIds = global", () => {
+    const base = { propertySchemaId: id, name: "Genre", type: "text" };
+    expect(create.safeParse(base).success).toBe(true);
+    const full = create.safeParse({ ...base, icon: "mdiTagOutline", scopeClassIds: [classId] });
+    expect(full.success).toBe(true);
+    expect(create.safeParse({ ...base, icon: null, scopeClassIds: null }).success).toBe(true);
+  });
+
+  it("the retired scope key is rejected outright on create and update (no wire compat)", () => {
+    for (const scope of ["global", "class", "object"]) {
+      expect(
+        create.safeParse({ propertySchemaId: id, name: "x", type: "text", scope }).success,
+      ).toBe(false);
+      expect(update.safeParse({ propertySchemaId: id, scope }).success).toBe(false);
+    }
+  });
+
+  it("an empty scopeClassIds is rejected at create and update (one spelling of global)", () => {
+    expect(create.safeParse({ propertySchemaId: id, name: "x", type: "text", scopeClassIds: [] }).success).toBe(false);
+    expect(create.safeParse({ propertySchemaId: id, name: "x", type: "text", scopeClassIds: null }).success).toBe(true);
+    expect(update.safeParse({ propertySchemaId: id, scopeClassIds: [] }).success).toBe(false);
+    expect(update.safeParse({ propertySchemaId: id, scopeClassIds: null }).success).toBe(true);
+  });
+
+  it("update accepts the new fields nullable (keep/clear); unknown keys fail loud", () => {
+    const full = update.safeParse({
+      propertySchemaId: id,
+      icon: "mdiStar",
+      scopeClassIds: [classId],
+      targetClassFilter: [classId],
+      multi: true,
+      validationRules: { min: 0, max: 10 },
+    });
+    expect(full.success).toBe(true);
+    expect(
+      update.safeParse({
+        propertySchemaId: id,
+        icon: null,
+        scopeClassIds: null,
+        targetClassFilter: null,
+        multi: null,
+        validationRules: null,
+      }).success,
+    ).toBe(true);
+    expect(update.safeParse({ propertySchemaId: id, retiredKey: true }).success).toBe(false);
+  });
+
+  it("validationRules shape: min/max are numbers, pattern a string, min <= max", () => {
+    expect(update.safeParse({ propertySchemaId: id, validationRules: {} }).success).toBe(true);
+    expect(
+      update.safeParse({ propertySchemaId: id, validationRules: { min: 5, max: 1 } }).success,
+    ).toBe(false);
+    expect(
+      update.safeParse({ propertySchemaId: id, validationRules: { min: "0" } }).success,
+    ).toBe(false);
+    expect(
+      update.safeParse({ propertySchemaId: id, validationRules: { pattern: 7 } }).success,
+    ).toBe(false);
+    expect(
+      update.safeParse({ propertySchemaId: id, validationRules: { min: 1, max: 2, extra: 3 } }).success,
+    ).toBe(false);
+    // Type applicability (min on number only, pattern on text/url/email only)
+    // is an APPLY-time rule against the stored schema type — the store suite
+    // pins it; the payload schema deliberately carries no type.
   });
 });
 

@@ -206,8 +206,8 @@ export function planRetirement(store: Pick<Store, "database">): ClassClassPlan {
       .prepare("SELECT 1 FROM class_property WHERE class_id = ? AND property_schema_id = ?")
       .get(CLASS_CLASS_ID, HAS_TEMPLATE_ID) !== undefined;
   const schemaRow = db
-    .prepare("SELECT scope FROM property_schema WHERE id = ?")
-    .get(HAS_TEMPLATE_ID) as { scope: string } | undefined;
+    .prepare("SELECT scope_class_ids FROM property_schema WHERE id = ?")
+    .get(HAS_TEMPLATE_ID) as { scope_class_ids: string | null } | undefined;
   const classClassLive =
     db
       .prepare("SELECT is_active FROM node WHERE id = ?")
@@ -221,7 +221,10 @@ export function planRetirement(store: Pick<Store, "database">): ClassClassPlan {
   return {
     conversions,
     templateBindingPresent,
-    templateRescopeNeeded: schemaRow !== undefined && schemaRow.scope !== "global",
+    // v24 (owner ruling 2026-10-20): the retired `scope` column is gone —
+    // global reads as a NULL scope_class_ids; anything else needs the
+    // re-scope to global (the class-class host retired with M47).
+    templateRescopeNeeded: schemaRow !== undefined && schemaRow.scope_class_ids !== null,
     templateSchemaAbsent: schemaRow === undefined,
     classClassLive,
   };
@@ -285,7 +288,9 @@ export function buildEnvelopes(
     }
     // propertySchema.create is an upsert — the only wire path that can move
     // scope. The current row's values ride verbatim (name preserved across
-    // user renames); only scope becomes "global".
+    // user renames); the scope CLEARS to global (owner ruling 2026-10-20:
+    // global is the ABSENT/null scopeClassIds — the retired `scope` key is
+    // rejected outright).
     push(
       "propertySchema.create",
       {
@@ -293,7 +298,6 @@ export function buildEnvelopes(
         name: templateRow.name,
         type: "object",
         multi: templateRow.multi === 1,
-        scope: "global",
         ...(templateRow.targetClassFilter !== null
           ? { targetClassFilter: JSON.parse(templateRow.targetClassFilter) as string[] }
           : {}),
@@ -388,11 +392,11 @@ function verify(relay: RelayStorage, workspaceId: string, plan: ClassClassPlan, 
       }
     }
     if (plan.templateRescopeNeeded) {
-      const row = db.prepare("SELECT scope FROM property_schema WHERE id = ?").get(HAS_TEMPLATE_ID) as
-        | { scope: string }
+      const row = db.prepare("SELECT scope_class_ids FROM property_schema WHERE id = ?").get(HAS_TEMPLATE_ID) as
+        | { scope_class_ids: string | null }
         | undefined;
-      if (row?.scope !== "global") {
-        throw new Error(`verification failed: has-template scope = ${row?.scope}, expected global`);
+      if (row?.scope_class_ids !== null) {
+        throw new Error("verification failed: has-template scope_class_ids is not NULL (global) after the re-scope");
       }
     }
     if (

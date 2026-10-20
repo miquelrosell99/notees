@@ -352,7 +352,8 @@ export class WorkspaceClientWrites {
       type: input.type,
     };
     if (input.multi !== undefined) payload.multi = input.multi;
-    if (input.scope !== undefined) payload.scope = input.scope;
+    if (input.scopeClassIds !== undefined) payload.scopeClassIds = input.scopeClassIds;
+    if (input.icon !== undefined) payload.icon = input.icon;
     if (input.options !== undefined) payload.options = input.options;
     if (input.targetClassFilter !== undefined) payload.targetClassFilter = input.targetClassFilter;
     if (input.datePrecision !== undefined) payload.datePrecision = input.datePrecision;

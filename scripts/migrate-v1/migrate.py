@@ -674,8 +674,13 @@ class WorkspaceTransformer:
             "type": schema_type,
             "multi": multi,
         }
-        scope = p.get("scope")
-        out_payload["scope"] = scope if scope in ("global", "class", "object") else "global"
+        # v1's `scope` enum retired 2026-10-20 (owner ruling): the strict
+        # v2 payload rejects the key outright — global is the omission, and
+        # v1's class scope is display-only in v2 (locality rides
+        # scopeClassIds, authored post-import). Drop the key.
+        for dropped in ("scope",):
+            if dropped in p:
+                self._note("skipped_by_reason", f"schema_field_dropped:{dropped}")
         options = None
         config = p.get("config")
         if isinstance(config, dict) and isinstance(config.get("options"), list):

@@ -195,11 +195,72 @@ function propertySchemaRowOf(
   const row = db
     .prepare(
       `SELECT id, type, multi, options, target_class_filter AS targetClassFilter,
-              date_precision AS datePrecision, date_qualified AS dateQualified
+              date_precision AS datePrecision, date_qualified AS dateQualified,
+              scope_class_ids AS scopeClassIds
        FROM property_schema WHERE id = ?`,
     )
     .get(propertySchemaId) as PropertySchemaValidationRow | undefined;
   return row ?? null;
+}
+
+/**
+ * R3/R5 eligibility (owner ruling 2026-10-20): the scope list vs a candidate
+ * class set's EXTENDS-AWARE closure — carried classes plus their
+ * class_hierarchy ancestors (the same closure walk assertRefTargetForSchema
+ * uses for targetClassFilter, and effective.ts's reachOf for bindings).
+ * An empty scope list never occurs (the wire rejects it); NULL means global.
+ */
+function classClosureIntersectsScope(
+  db: StoreDatabase,
+  carriedClassIds: string[],
+  scopeClassIds: string[] | null,
+): boolean {
+  if (scopeClassIds === null) return true; // global — anyone may carry it.
+  if (scopeClassIds.length === 0) return true; // defensive: no stored empty list.
+  const allowed = new Set<string>(carriedClassIds);
+  if (carriedClassIds.length > 0) {
+    const ancestors = db
+      .prepare(
+        "SELECT ancestor_id FROM class_hierarchy WHERE class_id IN (SELECT value FROM json_each(?))",
+      )
+      .all(JSON.stringify(carriedClassIds)) as Array<{ ancestor_id: string }>;
+    for (const row of ancestors) allowed.add(row.ancestor_id);
+  }
+  return scopeClassIds.some((id) => allowed.has(id));
+}
+
+/** The stored scope list of a schema row (NULL = global). */
+function scopeClassIdsOfRow(row: { scopeClassIds?: string | null } | null): string[] | null {
+  if (row === null || row.scopeClassIds === null || row.scopeClassIds === undefined) return null;
+  try {
+    const parsed: unknown = JSON.parse(row.scopeClassIds);
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * R3 (owner ruling 2026-10-20): a node is eligible for a schema when the
+ * schema is global or the node's class closure (its classes + extends
+ * ancestors) intersects the scope list. The node's classes come from the
+ * derived class_ids projection (already assignment-order; eligibility is a
+ * pure set test).
+ */
+function nodeEligibleForSchema(
+  db: StoreDatabase,
+  nodeClassIdsJson: string | null,
+  scopeClassIds: string[] | null,
+): boolean {
+  if (scopeClassIds === null) return true;
+  let carried: string[] = [];
+  try {
+    const parsed: unknown = JSON.parse(nodeClassIdsJson ?? "[]");
+    if (Array.isArray(parsed)) carried = parsed.filter((v): v is string => typeof v === "string");
+  } catch {
+    carried = [];
+  }
+  return classClosureIntersectsScope(db, carried, scopeClassIds);
 }
 
 /** Subtree ids (inclusive) via a parent_id walk; deterministic order. */
@@ -1573,6 +1634,26 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
     return summary(opType, [p.classId], true);
   }
 
+  // R5 (owner ruling 2026-10-20): dead config is rejected — a binding on a
+  // schema whose scope EXCLUDES the class is provably inert (the effective
+  // read suppresses its default under R4), so the write fails loud. The
+  // class's own extends closure counts: a class scoped to an ANCESTOR of the
+  // binding class still binds (subclass instances are eligible via the
+  // ancestor). Schema-less writes (unknown schema id) stay unchecked.
+  {
+    const schema = propertySchemaRowOf(db, p.propertySchemaId);
+    if (schema !== null) {
+      const scope = scopeClassIdsOfRow(schema);
+      if (!classClosureIntersectsScope(db, [p.classId], scope)) {
+        throw new MoveGuardError(
+          `${opType}: schema ${p.propertySchemaId} is scoped to classes that exclude ${p.classId} — ` +
+            "the binding would be inert (scope is the sole locality authority)",
+          opType,
+        );
+      }
+    }
+  }
+
   // PC2: defaultValue is typed per the schema type — a wrong-typed
   // default fails loud here instead of deriving silently on every read.
   // Omitted defaultValue (patch keeps the stored one) skips the check; a
@@ -1662,13 +1743,14 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
   const p = env.payload as OpPayload<"propertySchema.create">;
   db.prepare(
     `INSERT INTO property_schema
-       (id, workspace_id, name, type, multi, scope, options, target_class_filter,
+       (id, workspace_id, name, type, multi, icon, scope_class_ids, options, target_class_filter,
         date_precision, date_qualified, number_pad, number_decimals, number_rounding,
         display, readonly, hide_when_empty,
         active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
-       name = excluded.name, type = excluded.type, multi = excluded.multi, scope = excluded.scope,
+       name = excluded.name, type = excluded.type, multi = excluded.multi, icon = excluded.icon,
+       scope_class_ids = excluded.scope_class_ids,
        options = excluded.options, target_class_filter = excluded.target_class_filter,
        date_precision = excluded.date_precision, date_qualified = excluded.date_qualified,
        number_pad = excluded.number_pad, number_decimals = excluded.number_decimals,
@@ -1682,7 +1764,8 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
     p.name,
     p.type,
     p.multi ? 1 : 0,
-    p.scope,
+    p.icon ?? null,
+    p.scopeClassIds !== undefined ? JSON.stringify(p.scopeClassIds) : null,
     JSON.stringify(p.options ?? []),
     p.targetClassFilter !== undefined ? JSON.stringify(p.targetClassFilter) : null,
     p.datePrecision ?? null,
@@ -1699,6 +1782,36 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
   return summary(opType, []);
 }
 
+/**
+ * R2 applicability (owner ruling 2026-10-20): the update payload is a patch
+ * carrying no type, so validationRules applicability is enforced HERE against
+ * the schema's STORED type — min/max only on `number` schemas, pattern only
+ * on `text`/`url`/`email`. (min <= max is a parse-time rule.) Fail loud —
+ * the rules would be provably inert or wrong-typed.
+ */
+function assertValidationRulesApplicable(
+  schemaType: string,
+  rules: { min?: number | undefined; max?: number | undefined; pattern?: string | undefined },
+  opType: string,
+): void {
+  if (rules.min !== undefined || rules.max !== undefined) {
+    if (schemaType !== "number") {
+      throw new PropertyValueShapeError(
+        `${opType}: validationRules min/max apply to number schemas only — schema type is ${schemaType}`,
+        opType,
+      );
+    }
+  }
+  if (rules.pattern !== undefined) {
+    if (schemaType !== "text" && schemaType !== "url" && schemaType !== "email") {
+      throw new PropertyValueShapeError(
+        `${opType}: validationRules pattern applies to text/url/email schemas only — schema type is ${schemaType}`,
+        opType,
+      );
+    }
+  }
+}
+
 function applyPropertySchemaUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "propertySchema.update";
   const p = env.payload as OpPayload<"propertySchema.update">;
@@ -1707,6 +1820,38 @@ function applyPropertySchemaUpdate(db: StoreDatabase, env: Envelope): ChangeSumm
   if (p.name !== undefined) {
     sets.push("name = ?");
     values.push(p.name);
+  }
+  // icon / scope / validation rules: the keep/clear contract (absent keeps
+  // the stored value, present-null clears back to NULL/global/none) — the
+  // same shape as the number formats below.
+  if (p.icon !== undefined) {
+    sets.push("icon = ?");
+    values.push(p.icon);
+  }
+  if (p.scopeClassIds !== undefined) {
+    sets.push("scope_class_ids = ?");
+    values.push(p.scopeClassIds === null ? null : JSON.stringify(p.scopeClassIds));
+  }
+  if (p.targetClassFilter !== undefined) {
+    sets.push("target_class_filter = ?");
+    values.push(p.targetClassFilter === null ? null : JSON.stringify(p.targetClassFilter));
+  }
+  if (p.multi !== undefined) {
+    // The column is NOT NULL — "clear" is the single-value default (0), not SQL NULL.
+    sets.push("multi = ?");
+    values.push(p.multi === null ? 0 : p.multi ? 1 : 0);
+  }
+  if (p.validationRules !== undefined) {
+    if (p.validationRules !== null) {
+      const schemaType = propertySchemaTypeOf(db, p.propertySchemaId);
+      // A schema-less update (unknown id — no schema FK here either) stores
+      // unchecked, exactly like property.set; a known schema enforces.
+      if (schemaType !== null) {
+        assertValidationRulesApplicable(schemaType, p.validationRules, opType);
+      }
+    }
+    sets.push("validation_rules = ?");
+    values.push(p.validationRules === null ? null : JSON.stringify(p.validationRules));
   }
   if (p.options !== undefined) {
     sets.push("options = ?");
@@ -1789,7 +1934,30 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
   // schema's precision, a target outside the class filter, and a ref to a
   // nonexistent node all fail loud; a legacy bare-uuid reference or numeric
   // string normalizes to the canonical encoding.
+  // R3 (owner ruling 2026-10-20): the write fails loud when the target node
+  // is INELIGIBLE for the schema — scopeClassIds set and the node's class
+  // closure (its classes + extends ancestors) misses the list. Schema-less
+  // writes (unknown schema id) stay unchecked, exactly like the shape checks
+  // below. Narrowing a scope later never orphans history: pre-existing
+  // authored rows survive in the log and the effective read returns them
+  // tagged eligible=false — enforcement is never retroactive.
   const schema = propertySchemaRowOf(db, p.propertySchemaId);
+  if (schema !== null) {
+    const scope = scopeClassIdsOfRow(schema);
+    if (scope !== null) {
+      const nodeRow = db.prepare("SELECT class_ids FROM node WHERE id = ?").get(p.objectId) as
+        | { class_ids: string | null }
+        | undefined;
+      const carried = nodeRow === undefined ? null : (nodeRow.class_ids ?? null);
+      if (!nodeEligibleForSchema(db, carried, scope)) {
+        throw new MoveGuardError(
+          `${opType}: node ${p.objectId} is not eligible for schema ${p.propertySchemaId} ` +
+            "(its classes — extends-aware — do not intersect the schema's scopeClassIds)",
+          opType,
+        );
+      }
+    }
+  }
   const value =
     schema !== null
       ? assertValueForSchema(db, schema, p.value ?? null, opType)
@@ -2328,10 +2496,23 @@ function ensureTaskFamilyRows(db: StoreDatabase, env: Envelope): void {
     const schemaId = SYSTEM_PROPERTY_UUIDS[entry.property];
     db.prepare(
       `INSERT OR IGNORE INTO property_schema
-         (id, workspace_id, name, type, multi, scope, options, target_class_filter,
+         (id, workspace_id, name, type, multi, icon, scope_class_ids, options, target_class_filter,
           date_precision, date_qualified, display, active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 0, 'class', ?, NULL, NULL, NULL, ?, 1, ?, ?)`,
-    ).run(schemaId, env.workspaceId, entry.name, entry.type, JSON.stringify([...(entry.options ?? [])]), entry.display ?? null, env.timestamp, env.timestamp);
+       VALUES (?, ?, ?, ?, 0, NULL, ?, ?, NULL, NULL, NULL, ?, 1, ?, ?)`,
+    ).run(
+      schemaId,
+      env.workspaceId,
+      entry.name,
+      entry.type,
+      // The task family is scoped to the task class (and its future
+      // extensions) — scopeClassIds is the sole locality authority (owner
+      // ruling 2026-10-20); the family binds the same class below.
+      JSON.stringify([classId]),
+      JSON.stringify([...(entry.options ?? [])]),
+      entry.display ?? null,
+      env.timestamp,
+      env.timestamp,
+    );
     db.prepare(
       `INSERT OR IGNORE INTO class_property
          (class_id, property_schema_id, sequence, required, default_value,
