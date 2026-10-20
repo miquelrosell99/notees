@@ -21,9 +21,10 @@
  */
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
@@ -360,6 +361,170 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(env("object.delete", { objectId: OWNER, permanent: true }, 1727200006000));
       expect(edgeRows(store, OWNER)).toEqual([]);
       expect(valueRow(store, SCHEMA_OBJECT_FILTERED)).toBeUndefined();
+    });
+  });
+
+  describe("validationRules value enforcement (R2, owner 2026-10-20)", () => {
+    function ruleStore(): { store: Store; step: () => number } {
+      const store = seededStore();
+      let ts = 1727200010000;
+      const step = (): number => (ts += 100);
+      // Rating {min: 1, max: 5}; Floor min-only {min: 0}; Cap max-only
+      // {max: 100}; Slug + Homepage patterns; Keywords multi pattern.
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_NUMBER, validationRules: { min: 1, max: 5 } }, step()));
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_URL, validationRules: { pattern: "https://.+" } }, step()));
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_TEXT_MULTI, validationRules: { pattern: "[a-z]+" } }, step()));
+      return { store, step };
+    }
+
+    it("number min/max accept in-range + boundaries and reject outside; a legacy numeric string validates after normalization", () => {
+      const { store, step } = ruleStore();
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_NUMBER, value: 1 }, step()));
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_NUMBER, value: 5 }, step()));
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_NUMBER, value: "4" }, step()));
+      expect(valueRow(store, SCHEMA_NUMBER)?.value).toBe("4");
+      expect(() =>
+        store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_NUMBER, value: 0 }, step())),
+      ).toThrow(/below the schema's validationRules min 1/);
+      expect(() =>
+        store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_NUMBER, value: 6 }, step())),
+      ).toThrow(/above the schema's validationRules max 5/);
+      // The legacy numeric string normalizes FIRST, then validates.
+      expect(() =>
+        store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_NUMBER, value: "6" }, step())),
+      ).toThrow(PropertyValueShapeError);
+      // A rejected write leaves the last accepted value in place.
+      expect(valueRow(store, SCHEMA_NUMBER)?.value).toBe("4");
+    });
+
+    it("min-only and max-only schemas enforce their single bound", () => {
+      const store = seededStore();
+      let ts = 1727200010000;
+      const step = (): number => (ts += 100);
+      store.apply(env("propertySchema.create", { propertySchemaId: "0192a000-0000-7000-8000-0000000000d1", name: "floor", type: "number" }, step()));
+      store.apply(env("propertySchema.update", { propertySchemaId: "0192a000-0000-7000-8000-0000000000d1", validationRules: { min: 0 } }, step()));
+      store.apply(env("propertySchema.create", { propertySchemaId: "0192a000-0000-7000-8000-0000000000d2", name: "cap", type: "number" }, step()));
+      store.apply(env("propertySchema.update", { propertySchemaId: "0192a000-0000-7000-8000-0000000000d2", validationRules: { max: 100 } }, step()));
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: "0192a000-0000-7000-8000-0000000000d1", value: 0 }, step()));
+      expect(() =>
+        store.apply(env("property.set", { objectId: OWNER, propertySchemaId: "0192a000-0000-7000-8000-0000000000d1", value: -1 }, step())),
+      ).toThrow(/below the schema's validationRules min 0/);
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: "0192a000-0000-7000-8000-0000000000d2", value: 100 }, step()));
+      expect(() =>
+        store.apply(env("property.set", { objectId: OWNER, propertySchemaId: "0192a000-0000-7000-8000-0000000000d2", value: 101 }, step())),
+      ).toThrow(/above the schema's validationRules max 100/);
+    });
+
+    it("pattern full-string-tests text scalars; a carrier ref rides unchecked; null clears bypass", () => {
+      const { store, step } = ruleStore();
+      // SCHEMA_TEXT stays rule-free in ruleStore — give it a pattern here.
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_TEXT, validationRules: { pattern: "[a-z]+" } }, step()));
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, value: "lowercase" }, step()));
+      expect(valueRow(store, SCHEMA_TEXT)?.value).toBe(JSON.stringify("lowercase"));
+      expect(() =>
+        store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, value: "UPPER CASE" }, step())),
+      ).toThrow(/does not match the schema's validationRules pattern/);
+      // A carrier ref is not a scalar string — the shape family owns refs.
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, value: { nodeId: GHOST } }, step()));
+      expect(valueRow(store, SCHEMA_TEXT)?.value).toBe(JSON.stringify({ nodeId: GHOST }));
+      // null = "no value" — bypasses the rule check like every other check.
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, value: null }, step()));
+      expect(valueRow(store, SCHEMA_TEXT)?.value).toBe("null");
+    });
+
+    it("pattern applies to url scalars (and would to email — same branch)", () => {
+      const { store, step } = ruleStore();
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_URL, value: "https://x.test" }, step()));
+      expect(() =>
+        store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_URL, value: "ftp://x.test" }, step())),
+      ).toThrow(/does not match the schema's validationRules pattern/);
+    });
+
+    it("a multi batch validates EVERY element at its own add — one bad element rejects its op, the survivors stay", () => {
+      const { store, step } = ruleStore();
+      const E1 = "0192a000-0000-7000-8000-0000000000e1";
+      const E2 = "0192a000-0000-7000-8000-0000000000e2";
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT_MULTI, value: "good", elementId: E1, idx: 0 }, step()));
+      expect(() =>
+        store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT_MULTI, value: "BAD1", elementId: E2, idx: 1 }, step())),
+      ).toThrow(/does not match the schema's validationRules pattern/);
+      // The whole bad op rejected — its element row never landed; the good
+      // element survives untouched.
+      const rows = store.database
+        .prepare("SELECT id, value FROM property_value WHERE node_id = ? AND property_schema_id = ?")
+        .all(OWNER, SCHEMA_TEXT_MULTI) as Array<{ id: string; value: string }>;
+      expect(rows).toEqual([{ id: E1, value: JSON.stringify("good") }]);
+    });
+
+    it("rule-free schemas stay unaffected and schema-less writes stay unchecked", () => {
+      const { store, step } = ruleStore();
+      // SCHEMA_SELECT carries no rules — any string shape rides.
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_SELECT, value: "UPPER 123 !" }, step()));
+      expect(valueRow(store, SCHEMA_SELECT)?.value).toBe(JSON.stringify("UPPER 123 !"));
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_UNKNOWN, value: { anything: true }, idx: 7 }, step()));
+      expect(valueRow(store, SCHEMA_UNKNOWN, 7)?.value).toBe(JSON.stringify({ anything: true }));
+    });
+
+    it("propertySchema.update carrying a non-compilable pattern fails loud at the rule write", () => {
+      const { store, step } = ruleStore();
+      expect(() =>
+        store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_TEXT, validationRules: { pattern: "([a-z" } }, step())),
+      ).toThrow(/not a compilable regex/);
+      // The bad rules never landed.
+      const row = store.database
+        .prepare("SELECT validation_rules FROM property_schema WHERE id = ?")
+        .get(SCHEMA_TEXT) as { validation_rules: string | null };
+      expect(row.validation_rules).toBeNull();
+    });
+  });
+
+  describe("property-validation-rules fixture (R2 reject tail)", () => {
+    const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "protocol", "fixtures");
+    const fixture = JSON.parse(
+      readFileSync(join(fixturesDir, "property-validation-rules.json"), "utf8"),
+    ) as { envelopes: Record<string, unknown>[] };
+    // The first 24 envelopes are the accepting prefix (incl. boundaries, the
+    // normalized numeric string, min-only/max-only, rule-free, schema-less);
+    // the tail of 6 pins the rejects.
+    const ACCEPTS = fixture.envelopes.slice(0, 24);
+    const REJECTS = fixture.envelopes.slice(24);
+    const OWNER_ID = "0192a000-0000-7000-8000-000000001001";
+    const RATING = "0192a000-0000-7000-8000-000000001010";
+    const KEYWORDS = "0192a000-0000-7000-8000-000000001013";
+    const GOOD_ELEMENT = "0192a000-0000-7000-8000-000000001020";
+
+    it("accepting prefix replays cleanly and idempotently", () => {
+      const store = makeStore();
+      store.applyMany(ACCEPTS);
+      const again = store.applyMany(ACCEPTS);
+      expect(again.every((s) => s.ignored)).toBe(true);
+      expect(
+        (store.database.prepare("SELECT COUNT(*) AS n FROM property_value").get() as { n: number }).n,
+      ).toBeGreaterThan(0);
+    });
+
+    it("reject tail throws on apply, each leaving the accepted state intact", () => {
+      const store = makeStore();
+      store.applyMany(ACCEPTS);
+      // Below min / above max on Rating.
+      expect(() => store.apply(REJECTS[0]!)).toThrow(/below the schema's validationRules min 1/);
+      expect(() => store.apply(REJECTS[1]!)).toThrow(/above the schema's validationRules max 5/);
+      // Pattern rejects on text + url.
+      expect(() => store.apply(REJECTS[2]!)).toThrow(/does not match the schema's validationRules pattern/);
+      expect(() => store.apply(REJECTS[3]!)).toThrow(/does not match the schema's validationRules pattern/);
+      // One bad multi element: the op rejects, the good element survives.
+      expect(() => store.apply(REJECTS[4]!)).toThrow(/does not match the schema's validationRules pattern/);
+      // Un compilable pattern at the rule write.
+      expect(() => store.apply(REJECTS[5]!)).toThrow(/not a compilable regex/);
+      // Rating holds the last accepted value (the normalized "4").
+      const rating = store.database
+        .prepare("SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = 0")
+        .get(OWNER_ID, RATING) as { value: string };
+      expect(rating.value).toBe("4");
+      const keywords = store.database
+        .prepare("SELECT id FROM property_value WHERE node_id = ? AND property_schema_id = ?")
+        .all(OWNER_ID, KEYWORDS) as Array<{ id: string }>;
+      expect(keywords.map((r) => r.id)).toEqual([GOOD_ELEMENT]);
     });
   });
 });

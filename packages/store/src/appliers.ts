@@ -196,7 +196,7 @@ function propertySchemaRowOf(
     .prepare(
       `SELECT id, type, multi, options, target_class_filter AS targetClassFilter,
               date_precision AS datePrecision, date_qualified AS dateQualified,
-              scope_class_ids AS scopeClassIds
+              scope_class_ids AS scopeClassIds, validation_rules AS validationRules
        FROM property_schema WHERE id = ?`,
     )
     .get(propertySchemaId) as PropertySchemaValidationRow | undefined;
@@ -1812,6 +1812,27 @@ function assertValidationRulesApplicable(
   }
 }
 
+/**
+ * A pattern that does not compile would throw at value-check time (an applier
+ * crash is never acceptable) — the rule write itself fails loud instead. The
+ * pattern is stored as authored (no anchoring rewrite: the value check adds
+ * the full-string anchors around the source).
+ */
+function assertValidationPatternCompilable(
+  rules: { pattern?: string | undefined },
+  opType: string,
+): void {
+  if (rules.pattern === undefined) return;
+  try {
+    new RegExp(rules.pattern);
+  } catch {
+    throw new PropertyValueShapeError(
+      `${opType}: validationRules pattern is not a compilable regex — got ${JSON.stringify(rules.pattern)}`,
+      opType,
+    );
+  }
+}
+
 function applyPropertySchemaUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "propertySchema.update";
   const p = env.payload as OpPayload<"propertySchema.update">;
@@ -1849,6 +1870,9 @@ function applyPropertySchemaUpdate(db: StoreDatabase, env: Envelope): ChangeSumm
       if (schemaType !== null) {
         assertValidationRulesApplicable(schemaType, p.validationRules, opType);
       }
+      // Applicable to every write carrying a pattern: a stored pattern that
+      // throws at value-check time would be an applier crash.
+      assertValidationPatternCompilable(p.validationRules, opType);
     }
     sets.push("validation_rules = ?");
     values.push(p.validationRules === null ? null : JSON.stringify(p.validationRules));
@@ -1940,7 +1964,10 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
   // writes (unknown schema id) stay unchecked, exactly like the shape checks
   // below. Narrowing a scope later never orphans history: pre-existing
   // authored rows survive in the log and the effective read returns them
-  // tagged eligible=false — enforcement is never retroactive.
+  // tagged eligible=false — enforcement is never retroactive. A schema
+  // carrying validationRules validates the value before the write too (R2
+  // value enforcement — min/max on numbers, pattern full-string on
+  // text/url/email scalars, each multi element at its own add).
   const schema = propertySchemaRowOf(db, p.propertySchemaId);
   if (schema !== null) {
     const scope = scopeClassIdsOfRow(schema);
