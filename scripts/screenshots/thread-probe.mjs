@@ -348,7 +348,8 @@ try {
         const after = s.path.pts[s.path.pts.indexOf(rowPairs[3]) + 1];
         expect(after !== undefined && Math.abs(after.x - (glyphGeom.a2.glyphLeft - 3)) <= 1.5 && Math.abs(after.y - (glyphGeom.a2.cy + 5)) <= 1.5,
           "the surround first hugs the icon's left edge down");
-        const rejoin = s.path.pts.find((p) => Math.abs(p.y - (glyphGeom.a2.glyphBottom + 3)) <= 1.5);
+        const rejoinCandidates = s.path.pts.filter((p) => Math.abs(p.y - (glyphGeom.a2.glyphBottom + 3)) <= 1.5);
+        const rejoin = rejoinCandidates[rejoinCandidates.length - 1]; // the rejoin is the LAST pair on that line (the wrap control + end come first)
         expect(rejoin !== undefined && Math.abs(rejoin.x - glyphGeom.a2.cx) <= 1.5,
           "the downward line rejoins the CENTER column just below the glyph — its original position");
       }
