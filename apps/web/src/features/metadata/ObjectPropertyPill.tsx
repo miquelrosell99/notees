@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
+import { Icon } from "../../ui/Icon.js";
 import { NodePill } from "./NodePills.js";
 import type { AnyClient } from "./shared.js";
 
@@ -76,7 +77,7 @@ export function ObjectPropertyPill({
             aria-label={removeLabel}
             onClick={() => void unlink(row.idx)}
           >
-            ×
+            <Icon path="mdi-close" size={0.6} />
           </button>
         )}
         {trailing}

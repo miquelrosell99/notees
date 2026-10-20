@@ -215,7 +215,7 @@ function BindingRow({
           aria-label={`Remove binding ${name}`}
           onClick={() => void client.unsetClassProperty(classId, binding.propertySchemaId)}
         >
-          ×
+          <Icon path="mdi-close" size={0.7} />
         </button>
       </div>
       {expanded && (

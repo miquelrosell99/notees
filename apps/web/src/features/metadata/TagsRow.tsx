@@ -91,7 +91,7 @@ export function TagsRow({
                   aria-label={`Remove tag ${label}`}
                   onClick={() => void client.unassignTag(nodeId, tag.id)}
                 >
-                  ×
+                  <Icon path="mdi-close" size={0.6} />
                 </button>
               )}
             </span>
