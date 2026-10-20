@@ -1,5 +1,0 @@
-/**
- * NodeMenuButton styles — the button itself is the shared .nt-icon-btn
- * primitive (app.css); its absolute corner cluster lives in App.tsx's
- * NodeView (.nt-node-view__corner), so this module carries no positioning.
- */
