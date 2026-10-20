@@ -1195,6 +1195,27 @@ select:focus-visible {
   transform: scale(1.2);
 }
 
+/* Context-menu anchor: while a block node menu is open
+   (grip or prose right-click — both ride the same gripMenu state), the
+   bullet carries the hover/active highlight: the menu floats free at the
+   pointer, and the lit bullet names the block it belongs to. */
+.nt-block--menu-open > .nt-block-row .nt-bullet-dot {
+  opacity: 1;
+  background-color: var(--md-sys-color-primary);
+  transform: scale(1.2);
+}
+
+.nt-block--menu-open > .nt-block-row .nt-list-marker {
+  color: var(--md-sys-color-primary);
+  opacity: 1;
+}
+
+.nt-block--menu-open > .nt-block-row .nt-bullet-icon {
+  opacity: 1;
+  color: var(--md-sys-color-primary);
+  transform: scale(1.2);
+}
+
 .nt-block-chevron {
   position: absolute;
   /* Above the edit-thread overlay (z-index 1 — app.css "the edit
