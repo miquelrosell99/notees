@@ -8,6 +8,39 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **docs: the person-facing docs split from two monoliths into a
+  feature-centric structure (the Capacities-docs precedent).** `docs/usage.md`
+  (install + CLI + web app + API in one 581-line page) and `docs/ux.md` (the
+  whole interaction model in one 316-line page) are gone; every section was
+  re-homed under the feature it belongs to, no content dropped (the split
+  output is larger than the input — merges removed only verbatim duplicates).
+  New shape: `docs/README.md` is the front door (grouped like Capacities:
+  getting started → core concepts → features → reference); `getting-started.md`
+  holds prereqs/install/server env/boot/accounts scope; `cli.md` the CLI
+  tutorial (config, a real session, the shell, use cases); `api.md` the Object
+  API quick reference; `feature-status.md` carries the Today vs Designed
+  honesty table; `philosophy.md` is unchanged but for links; and 19 feature
+  pages live under `docs/features/` — pages (view resolution, chrome,
+  presenting, promote/convert/copy/divide/merge), outliner (the editor
+  contract), links (mentions/chips/verbs, pickers, aliases, references),
+  classes, properties, queries, views (list/cards/board, sort, windowing),
+  calendar, tasks, templates, tables, whiteboards, graph, search, undo,
+  offline-and-sync, exporting, sharing, workflows, plugins. Each feature page
+  opens with an intro cross-linking its neighbors; usage+ux duplicate rulings
+  were kept once, distinct details kept both. Repo-level follow-through:
+  `README.md` (root) + `AGENTS.md` (the `docs/` layout line) re-pointed;
+  code-comment pointers updated where safe (`SCHEMA.md`, `routes-shares.ts`,
+  `shares.ts`, `keymap.ts`, `BlockTextEditor.tsx`, `undo-keymap.test.tsx`).
+  Three files with doc pointers still name `docs/ux.md` — `op-types.ts`,
+  `appliers.ts`, `undo-journal.ts` — left untouched because another session's
+  uncommitted work owns them; their landing slice should re-point them to
+  `docs/features/outliner.md` / `docs/features/undo.md`. No runtime behavior —
+  no redeploy. Verification: every relative link and heading anchor across the
+  25 new/rewritten files resolves (scripted check); the preservation
+  spot-checks pass (env table, search ranking modes, the 2026-10-20 backlinks
+  flat-outline ruling, recurrence `completedOccurrences`, graph color groups,
+  the condensed layer, `{today}` placeholders, the workflow curl, merge
+  dry-run, the 128 MiB/512 MiB body caps).
 - **refactor(web): the section stack loses its group — one chromeless
   container, a hairline per section, no group-level hiding (owner ruling
   2026-10-20).** The page-bottom sections ran two visual systems: the

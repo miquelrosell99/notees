@@ -88,7 +88,7 @@
  * unflushed typing is preserved), splice tokens through spliceTokens, then
  * write the result directly with client.updateObject and re-sync the DOM.
  *
- * Keyboard contract (docs/ux.md "The outliner"):
+ * Keyboard contract (docs/features/outliner.md):
  * - Enter mid-text → split at the caret: head stays, tail moves to a new
  *                  sibling right after.
  * - Enter at start → new empty block BEFORE this one (object.create with
