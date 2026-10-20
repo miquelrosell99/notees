@@ -56,6 +56,9 @@
   cursor: pointer;
   font: var(--font-body-medium);
   line-height: 1;
+  /* corner-full like every fleet button (ruling 2026-10-19) — the hover
+     wash was a square before. */
+  border-radius: var(--shape-full);
   opacity: var(--opacity-70);
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
               max-width var(--motion-duration-short) var(--motion-easing-standard),
@@ -69,7 +72,7 @@
 .pill__right-button:focus-visible {
   outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: var(--spacing-micro);
-  border-radius: var(--shape-small);
+  border-radius: var(--shape-full);
 }
 
 /* Hover-reveal right icon: pill expands to show the icon on hover/focus.
