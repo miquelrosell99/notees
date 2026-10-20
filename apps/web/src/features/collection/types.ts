@@ -233,6 +233,14 @@ export interface NodeCollectionProps {
    * meaningful with `parent`.
    */
   parentTrailing?: ReactNode | undefined;
+  /**
+   * A trailing affordance rendered AFTER the view's items — the cards
+   * mode's "+ Add card" ghost card. Only the flat cards
+   * grid rides it (the last grid cell); the grouped board, outline, prose,
+   * and table ignore it — document bodies in outline/prose trail their own
+   * GhostRow after the collection instead.
+   */
+  trailingGhost?: ReactNode | undefined;
 
   // --- table / cards shared --------------------------------------------------
 

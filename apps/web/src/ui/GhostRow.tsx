@@ -9,14 +9,26 @@
  * ruling stands in spirit: the ghost is the SOLE add affordance and shows
  * even on empty bodies — in outline AND prose mode (prose hides bullets,
  * so the `prose` flag drops this row's gutter to read as plain trailing
- * text). Cards, read-only projections, and embedded renders mount none.
+ * text). Cards rides the twin GhostCard as the grid's last cell (the
+ * page body's `trailingGhost`). Read-only projections and embedded renders
+ * mount none.
  *
  * The row is display state only — it never enters a SortableContext items
  * array, carries no sortable/drag wiring, and the click is the single write.
+ *
+ * GhostCard — the cards-mode twin: where the block list
+ * wears card mode (the page body), the add affordance is a ghost CARD in
+ * the grid's last cell, not a row: the same dashed, muted slot the card
+ * grid reads it as, "+ Add card", realizing into a new child block (a new
+ * card) after the last one. The document body decides the mode-specific
+ * shape: outline/prose trail GhostRow, cards passes GhostCard through the
+ * collection's `trailingGhost` slot.
  */
 
 import type { OutlinerContextValue } from "./outliner-context.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
+
+import { Icon } from "./Icon.js";
 
 import "./GhostRow.css";
 
@@ -82,4 +94,30 @@ export async function realizeGhost(
     ...(last !== undefined ? { afterId: last.id } : {}),
   });
   outliner.requestFocus(id, "start");
+}
+
+/**
+ * The cards-mode ghost: the last grid cell in card mode (the page body) —
+ * a dashed, muted "+ Add card" slot wearing the card's corner shape, never
+ * a real card's content. The click realizes it exactly like the row ghost:
+ * a new empty child block (a new card) after the last one. Display state
+ * only — no sortable/drag wiring, the click is the single write.
+ */
+export function GhostCard({ parentId, onRealize }: GhostRowProps) {
+  return (
+    <button
+      type="button"
+      className="nt-ghost-card"
+      data-ghost={ghostIdFor(parentId)}
+      data-ghost-parent={parentId}
+      aria-label="Add card"
+      onClick={(event) => {
+        event.stopPropagation();
+        onRealize();
+      }}
+    >
+      <Icon path="mdi-plus" size={0.9} aria-hidden="true" />
+      <span className="nt-ghost-card__label">Add card</span>
+    </button>
+  );
 }
