@@ -24,13 +24,15 @@
  * Expanded card (CLASS-LEVEL ONLY, ruling R7 + the same-day
  * amendments: a property applies to a class by being in this list,
  * nothing more): the row's own expansion — NO repeated icon/name header.
- * Exactly two fields: the default-value editor (class.property.set
- * {defaultValue}) and the catalog Checkbox (its composed `label` prop —
- * no hand-rolled label wrappers). No group labels, no "Active on this
- * class" switch (the PC4 `active` flag stays wire-level; presence IS the
- * on/off), no footer (Remove is the row's ×), no "Edit definition…"
- * button (the cog owns the definition path). Definition-level fields
- * (rename, type/Convert, multi, target classes, date settings, scope)
+ * Two fields, the second always present: the default-value editor
+ * (class.property.set {defaultValue}) — ONLY for default-capable schema
+ * types (text/number/boolean/select; node-typed
+ * schemas get no default editor at all) — and the catalog Checkbox (its
+ * composed `label` prop — no hand-rolled label wrappers). No group labels,
+ * no "Active on this class" switch (the PC4 `active` flag stays wire-level;
+ * presence IS the on/off), no footer (Remove is the row's ×), no "Edit
+ * definition…" button (the cog owns the definition path). Definition-level
+ * fields (rename, type/Convert, multi, target classes, date settings, scope)
  * live exclusively in the S2 PropertyEditModal.
  *
  * Add property: the AddPill opens an anchored popover (SearchField,
@@ -87,6 +89,7 @@ import { PropertyEditModal } from "../metadata/PropertySettingsModal.js";
 import { PropertyView } from "../metadata/PropertyView.js";
 import { requestPropertyCreate } from "../metadata/PropertyCreateHost.js";
 import { isSchemaEligibleForClass } from "../metadata/schemaEligibility.js";
+import { defaultCapable } from "../metadata/shared.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import "./PropertyDefinitionsSection.css";
 
@@ -193,6 +196,130 @@ function reorderIds(ids: string[], activeId: string, overId: string): string[] {
   return next;
 }
 
+/**
+ * The binding card's default-value editor, per the schema type: text keeps the plain input, number a numeric input, boolean a
+ * None/True/False dropdown, select a dropdown of the SCHEMA's options (the
+ * option ids are the stored default). "None" writes an explicit JSON null —
+ * the only wire shape every type accepts (PC2); it derives no visible value
+ * (an empty text/select renders nothing, an unchecked boolean). The parent
+ * gates this on defaultCapable — node-typed and remaining types render no
+ * default editor at all.
+ */
+function BindingDefaultEditor({
+  binding,
+  schema,
+  name,
+  patch,
+}: {
+  binding: ClassBinding;
+  schema: ClientPropertySchema | undefined;
+  name: string;
+  patch: (fields: Parameters<AnyClient["setClassProperty"]>[2]) => void;
+}) {
+  const type = schema?.type ?? binding.type;
+  // The uncontrolled-controls remount trick (the binding's default in the
+  // key) — a patch re-renders with a new key, resetting the control to the
+  // stored value.
+  const key = `def:${binding.propertySchemaId}:${binding.defaultValue ?? ""}`;
+  const clear = () => {
+    if (binding.defaultValue !== null) patch({ defaultValue: null });
+  };
+
+  if (type === "boolean") {
+    return (
+      <select
+        key={key}
+        className="nt-propdef-input"
+        aria-label={`Default for ${name}`}
+        defaultValue={
+          binding.defaultValue === "true"
+            ? "true"
+            : binding.defaultValue === "false"
+              ? "false"
+              : ""
+        }
+        onChange={(event) => {
+          const value = event.target.value;
+          if (value === "") clear();
+          else if (value !== binding.defaultValue) patch({ defaultValue: value === "true" });
+        }}
+      >
+        <option value="">None</option>
+        <option value="true">True</option>
+        <option value="false">False</option>
+      </select>
+    );
+  }
+
+  if (type === "select") {
+    return (
+      <select
+        key={key}
+        className="nt-propdef-input"
+        aria-label={`Default for ${name}`}
+        defaultValue={binding.defaultValue ?? ""}
+        onChange={(event) => {
+          const value = event.target.value;
+          if (value === "") clear();
+          else if (value !== binding.defaultValue) patch({ defaultValue: value });
+        }}
+      >
+        <option value="">None</option>
+        {(schema?.options ?? []).map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  if (type === "number") {
+    return (
+      <input
+        key={key}
+        type="number"
+        className="nt-propdef-input"
+        placeholder="None"
+        defaultValue={binding.defaultValue ?? ""}
+        aria-label={`Default for ${name}`}
+        onBlur={(event) => {
+          const raw = event.target.value;
+          if (raw === "") {
+            clear();
+            return;
+          }
+          const value = Number(raw);
+          if (!Number.isFinite(value)) return;
+          if (binding.defaultValue === null || Number(binding.defaultValue) !== value) {
+            patch({ defaultValue: value });
+          }
+        }}
+      />
+    );
+  }
+
+  // text (the defaultCapable gate keeps this the only remaining type).
+  return (
+    <input
+      key={key}
+      type="text"
+      className="nt-propdef-input"
+      placeholder="None"
+      defaultValue={binding.defaultValue ?? ""}
+      aria-label={`Default for ${name}`}
+      onBlur={(event) => {
+        const value = event.target.value;
+        if (value === "") {
+          clear();
+          return;
+        }
+        if (value !== binding.defaultValue) patch({ defaultValue: value });
+      }}
+    />
+  );
+}
+
 function BindingRow({
   client,
   classId,
@@ -285,23 +412,21 @@ function BindingRow({
         <div className="nt-propdef-config">
           {/* No repeated identity: the card under the row IS
               the row's expansion — the icon + name live on the row above.
-              Class-level fields only: the default editor + Required. */}
+              Class-level fields only: the type-gated default editor +
+              Required. Node-typed schemas (object/asset/image/datetime) and
+              the other non-capable types get NO default editor. */}
           <div className="nt-propdef-group">
-            <label className="nt-propdef-stack">
-              <span className="nt-propdef-label">Default value</span>
-              <input
-                key={`def:${binding.propertySchemaId}:${binding.defaultValue ?? ""}`}
-                type="text"
-                className="nt-propdef-input"
-                placeholder="None"
-                defaultValue={binding.defaultValue ?? ""}
-                aria-label={`Default for ${name}`}
-                onBlur={(event) => {
-                  const value = event.target.value;
-                  if (value !== (binding.defaultValue ?? "")) patch({ defaultValue: value });
-                }}
-              />
-            </label>
+            {defaultCapable(schema?.type ?? binding.type) && (
+              <label className="nt-propdef-stack">
+                <span className="nt-propdef-label">Default value</span>
+                <BindingDefaultEditor
+                  binding={binding}
+                  schema={schema}
+                  name={name}
+                  patch={patch}
+                />
+              </label>
+            )}
             <Checkbox
               size="sm"
               label="Required"
