@@ -114,11 +114,14 @@ describe("bound-verb backlinks", () => {
     expect(badge.getAttribute("title")).toBe("via supports");
     expect(badge.classList.contains("nt-ref-verb")).toBe(true);
 
-    // The row opens the source like other references: the containing-page
-    // group header navigates to the referencing page on click.
-    const header = screen.getByRole("button", { name: /^Source/ });
-    fireEvent.click(header);
-    await waitFor(() => expect(onOpenPage).toHaveBeenCalledWith(source));
+    // The source IS its containing page (the property value lives on the
+    // page itself), so the owner 2026-10-20 ruling stands: no self-named
+    // one-row group — the page source rides the top-level flat outline,
+    // its row carrying the verb badge.
+    expect(document.querySelector(".outline-group")).toBeNull();
+    const row = document.querySelector("ul.outline-flat > li")!;
+    expect(row.textContent).toContain("Source");
+    expect(row.contains(badge)).toBe(true);
   });
 
   it("the block-level backlink gutter renders the verb badge for a block target", async () => {

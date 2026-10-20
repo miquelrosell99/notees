@@ -35,12 +35,19 @@
  * Dates first (date pages newest → oldest, then the rest A–Z), Name A–Z,
  * and Default order (the container's natural order). The mode orders pages:
  * a grouped rendering sorts its GROUPS (rows inside a group keep their
- * position order), a tree sorts EVERY sibling level, a flat list sorts its
- * items; the window re-narrows on every resort. Editable surfaces (the
- * outliner, the task list) hide the button — there the drag order IS the
- * order. Hosted collections portal the toolbar into the tab bar's
+ * position order) and its UNGROUPED top-level rows (the page sources — a
+ * flat list sorts its items), a tree sorts EVERY sibling level, a flat list
+ * sorts its items; the window re-narrows on every resort. Editable surfaces
+ * (the outliner, the task list) hide the button — there the drag order IS
+ * the order. Hosted collections portal the toolbar into the tab bar's
  * right-hand cluster (the table/cards precedent); un-hosted it rides the
  * body top.
+ *
+ * GROUPED + UNGROUPED (owner 2026-10-20): a grouped rendering may carry
+ * `ungroupedItems` — rows that belong to no group (the references grouping's
+ * page sources: a page mentioning the node from its own body). They render
+ * FIRST, as a separated flat outline list of block rows, before the group
+ * sections — never inside a self-named one-row group.
  */
 
 import { useContext, useMemo, useState, type ReactNode } from "react";
@@ -248,6 +255,17 @@ export function OutlineView(props: NodeCollectionProps) {
     if (groups === undefined || sortMode === "position") return groups;
     return [...groups].sort(compareGroupsByMode(sortMode));
   }, [groups, sortMode]);
+  /**
+   * The ungrouped top-level rows (the references grouping's page sources):
+   * one flat list sorted like any flat list — the grouped rendering lists
+   * them before the group sections.
+   */
+  const sortedUngrouped = useMemo(() => {
+    const ungrouped = props.ungroupedItems;
+    if (ungrouped === undefined || sortMode === "position") return ungrouped;
+    const resolveClassName = (classId: string) => client.getDisplayName(classId);
+    return [...ungrouped].sort(compareItemsByMode(sortMode, resolveClassName));
+  }, [props.ungroupedItems, sortMode, client]);
 
   if (items.length === 0 && props.parent === undefined) return null;
 
@@ -311,6 +329,12 @@ export function OutlineView(props: NodeCollectionProps) {
     return (
       <>
         {chrome}
+        {/* The page sources ride first, as a separated flat outline, before
+            the group sections (the owner 2026-10-20 ruling) — never inside
+            a self-named one-row group. */}
+        {sortedUngrouped !== undefined && sortedUngrouped.length > 0 && (
+          <FlatRows items={sortedUngrouped} props={props} resetKey={sortMode} />
+        )}
         <GroupedFlat props={props} groups={sortedGroups} sortKey={sortMode} />
       </>
     );

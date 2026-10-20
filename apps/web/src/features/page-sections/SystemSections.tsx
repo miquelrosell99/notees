@@ -107,7 +107,10 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
  * shared groupBy capability — collapsible group headers, click to open the
  * page); each row renders the referencing block's content (the block/editor
  * view), and clicking it opens the source — the block itself in focused view
- * when the edge is direct, otherwise the containing page.
+ * when the edge is direct, otherwise the containing page. A page referencing
+ * the target from its OWN body is no group at all (a self-named one-row
+ * group names nothing): it rides `ungroupedItems` and renders as its own
+ * top-level row, before the groups (owner 2026-10-20).
  *
  * `unlinkedPageId` enables the promote/ignore action pair on every row (the
  * unlinked section only): Promote converts the literal match into a mention;
@@ -182,13 +185,14 @@ export function ReferenceList({
     node: entry.source,
     meta: { containingPageId: entry.containingPageId, verb: entry.verb },
   }));
-  const groups = groupByContainingPage(client, items, onOpenPage);
+  const { standalone, groups } = groupByContainingPage(client, items, onOpenPage);
   return (
     <NodeCollection
       viewMode="outline"
       client={client}
       items={items}
       groups={groups}
+      ungroupedItems={standalone}
       defaultSortMode={defaultSortMode}
       {...(hostedViews !== undefined ? { hostedViews } : {})}
       {...(trailing !== undefined ? { tabBarTrailing: trailing } : {})}
