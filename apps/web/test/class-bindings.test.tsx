@@ -1,12 +1,12 @@
 /**
- * Class bindings editor tests (the S6 redesign):
- * the collapsed row is identity-only (grip + icon + name, click opens the
- * config), the config panel writes binding fields (default/required/active)
- * and schema fields (rename/targetClassFilter), the ⋯ overflow offers
- * "Open property" / "Remove from class" (the danger behind a
- * ConfirmationModal), the add popover offers eligible schemas only and its
- * "Create …" row opens the S1 creation modal pre-filled (which binds on
- * confirm via contextClassId). jsdom over the in-process WorkspaceClient.
+ * Class bindings editor tests (the S6 redesign): the collapsed row is identity-only (grip + icon +
+ * name, click expands the config, the COG opens the definition modal), the
+ * config panel writes ONLY binding fields (default/required — presence in
+ * the list is the on/off, no active switch, no group labels), Remove from
+ * class sits in the panel footer behind a ConfirmationModal, the add popover
+ * offers eligible schemas only and its "Create …" row opens the S1 creation
+ * modal pre-filled (which binds on confirm via contextClassId). jsdom over
+ * the in-process WorkspaceClient.
  */
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -127,7 +127,7 @@ describe("Class View class properties editor", () => {
     expect(bindings[0]).toMatchObject({ name: "impact", type: "text", sequence: 0 });
   });
 
-  it("edits the default, Required, and Enabled in the config panel", async () => {
+  it("edits the default and Required in the config panel", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Task");
     const schemaId = await client.createPropertySchema({ name: "priority", type: "select" });
@@ -149,11 +149,6 @@ describe("Class View class properties editor", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Required for priority" }));
     await flushWrites();
     expect(client.getRegistryBindings(classId)[0]!.required).toBe(true);
-
-    // PC4 lockstep shipped: the "Active on this class" switch writes binding.active live.
-    fireEvent.click(screen.getByRole("switch", { name: "Active on this class" }));
-    await flushWrites();
-    expect(client.getRegistryBindings(classId)[0]!.active).toBe(false);
   });
 
   it("renames through the definition modal (update {name})", async () => {
@@ -165,9 +160,9 @@ describe("Class View class properties editor", () => {
     await expandDefinitions();
 
     fireEvent.click(screen.getByRole("button", { name: "Configure Priority" }));
-    // R7 (2026-10-20): rename left the inline panel — the panel's "Edit
-    // definition…" opens the S2 modal, whose Name field owns the rename.
-    fireEvent.click(screen.getByRole("button", { name: "Edit definition…" }));
+    // R7 (2026-10-20): rename left the inline panel — the row's COG opens
+    // the S2 modal directly, whose Name field owns the rename.
+    fireEvent.click(screen.getByRole("button", { name: "Definition settings for Priority" }));
     const nameInput = screen.getByLabelText("Property name");
     fireEvent.blur(nameInput, { target: { value: "Importance" } });
     await flushWrites();
@@ -177,7 +172,7 @@ describe("Class View class properties editor", () => {
     expect(client.getRegistryBindings(classId)[0]!.name).toBe("Importance");
   });
 
-  it("removes a binding via the ⋯ menu's danger action behind the confirm", async () => {
+  it("removes a binding via the panel's danger action behind the confirm", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Task");
     const schemaId = await client.createPropertySchema({ name: "priority", type: "select" });
@@ -187,8 +182,8 @@ describe("Class View class properties editor", () => {
 
     expect(client.getRegistryBindings(classId)).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Options for priority" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Remove from class" }));
+    fireEvent.click(screen.getByRole("button", { name: "Configure priority" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove from class" }));
     // The danger action sits behind a ConfirmationModal.
     const confirm = screen.getByRole("dialog", { name: "Remove from class" });
     fireEvent.click(within(confirm).getByRole("button", { name: "Remove from class" }));
