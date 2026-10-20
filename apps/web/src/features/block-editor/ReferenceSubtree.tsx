@@ -17,6 +17,11 @@
  * and its own SortableContext — but NO DndContext: the surrounding page
  * view's DndContext owns every row, so blocks drag across lists (page body
  * ↔ linked references) within one drag session.
+ *
+ * The edit thread (owner 2026-10-20): the focused-block host (NodeView
+ * inline-block branch) wraps this subtree in the EditThread provider +
+ * overlay — the thread runs from the FOCUSED block row (the view root)
+ * down to the editing child, same measured overlay as the page body.
  */
 
 import { useEffect, useState } from "react";
