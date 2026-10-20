@@ -728,17 +728,30 @@ describe("datetime (SCHEMA.md)", () => {
     fireEvent.click(screen.getByRole("button", { name: /class properties/i }));
     await flushWrites();
 
-    fireEvent.click(screen.getByRole("button", { name: "Configure published" }));
-    fireEvent.change(screen.getByLabelText("Date precision for published"), {
+    // R7 (2026-10-20): precision/qualified are definition-level — the
+    // panel's "Edit definition…" opens the S2 modal where they live. Row-
+    // scoped: expanded rows stay expanded, so both panels can be open.
+    const publishedRow = screen
+      .getByRole("button", { name: "Configure published" })
+      .closest("li") as HTMLElement;
+    fireEvent.click(within(publishedRow).getByRole("button", { name: "Configure published" }));
+    fireEvent.click(within(publishedRow).getByRole("button", { name: "Edit definition…" }));
+    fireEvent.change(screen.getByLabelText("Date precision"), {
       target: { value: "year" },
     });
     await flushWrites();
     expect(
       client.listPropertySchemas().find((s) => s.id === dateSchema)?.datePrecision,
     ).toBe("year");
+    fireEvent.click(screen.getByLabelText("Close modal"));
+    await flushWrites();
 
-    fireEvent.click(screen.getByRole("button", { name: "Configure member" }));
-    fireEvent.click(screen.getByLabelText("Date qualified"));
+    const memberRow = screen
+      .getByRole("button", { name: "Configure member" })
+      .closest("li") as HTMLElement;
+    fireEvent.click(within(memberRow).getByRole("button", { name: "Configure member" }));
+    fireEvent.click(within(memberRow).getByRole("button", { name: "Edit definition…" }));
+    fireEvent.click(screen.getByLabelText("Date range qualifiers"));
     await flushWrites();
     expect(
       client.listPropertySchemas().find((s) => s.id === linkSchema)?.dateQualified,

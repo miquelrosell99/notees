@@ -280,12 +280,18 @@ describe("Class View", () => {
     // agent-filtered property (linkedAuthors was withdrawn same day, …0025).
     const authorsRow = rows[1]!;
     // The collapsed row is identity-only (S6): grip + icon + name, no type
-    // chip. The type and the target classes live in the expanded config.
+    // chip. R7 (2026-10-20): the expanded panel is class-level only too —
+    // identity header, "For this class" group, and the "Edit definition…"
+    // path to the modal (the type/multi display and the unresolved-targets
+    // hint for the undeployed "agent" class live there now).
     fireEvent.click(within(authorsRow as HTMLElement).getByRole("button", { name: "Configure Authors" }));
     await flushWrites();
-    expect(authorsRow.querySelector(".nt-propdef-meta")?.textContent).toContain("object");
-    expect(authorsRow.querySelector(".nt-propdef-meta")?.textContent).toContain("multi");
-    expect(authorsRow.textContent).toContain("agent");
+    expect(authorsRow.textContent).toContain("For this class");
+    expect(
+      within(authorsRow as HTMLElement).getByRole("button", { name: "Edit definition…" }),
+    ).not.toBeNull();
+    expect(within(authorsRow as HTMLElement).queryByText("Definition")).toBeNull();
+    expect(within(authorsRow as HTMLElement).queryByText("Target classes")).toBeNull();
   });
 
   it("renders the class's children as the editable body — a class has no child pages", async () => {
