@@ -10,7 +10,7 @@
  * The token is the capability and is stored as-is: a relay.db leak already
  * exposes the workspace's whole derived content, so hashing the token would
  * buy nothing the threat model cares about (documented in the OpenAPI
- * description + docs/usage.md).
+ * description + docs/features/sharing.md).
  */
 
 import { randomBytes } from "node:crypto";
