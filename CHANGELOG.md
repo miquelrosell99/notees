@@ -8,6 +8,21 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **refactor(web): the class-property row gets the section-collapse
+  treatment — one hover surface, the catalog checkbox, no repeated identity
+.** The row is now: a collapse CHEVRON
+  (NodeViewSection parity — `mdi-chevron-right` rotating open), the schema
+  icon, the name — and nothing else chrome-wise. The grip button is gone
+  (the whole row is the drag handle, grab cursor, dnd-kit's 4px activation
+  keeps clicks expanding); the row hover tint is gone — hover reveals
+  exactly ONE surface, the right-side cog + × cluster. The expanded card is
+  the row's own expansion: no repeated icon/name header, just Default value
+  and the catalog `Checkbox` used as designed (its composed `label` prop —
+  the hand-rolled label wrapper that rendered the off-shape box is gone, as
+  are the orphaned grip/header/check CSS). Tests re-anchored (29 green;
+  typecheck clean); the tracked section probe re-run — PROBE-PASS, the
+  capture shows the chevron + clean card + square catalog checkbox, zero
+  overflow at 390.
 - **fix(web): useDeviceSetting re-reads when its key changes — the focused
   view zoom no longer inherits the previous node's view mode.** The prose
   focused view rendering outline after an in-app zoom exposed it: the

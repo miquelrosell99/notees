@@ -202,7 +202,7 @@ describe("S6 PropertyDefinitionsSection", () => {
     // The definition path is the row's COG; removal is the row's hover × —
     // neither lives in the panel (owner amendment).
     expect(within(row).getByLabelText("Default for link")).not.toBeNull();
-    expect(within(row).getByRole("checkbox", { name: "Required for link" })).not.toBeNull();
+    expect(within(row).getByRole("checkbox", { name: "Required" })).not.toBeNull();
     expect(within(row).getByRole("button", { name: "Remove link from class" })).not.toBeNull();
     expect(within(row).getByRole("button", { name: "Definition settings for link" })).not.toBeNull();
     // Gone: group labels, the active switch, the panel's modal path, the
