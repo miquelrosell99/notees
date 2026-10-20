@@ -1,16 +1,23 @@
-// Edit-thread probe: while a block is in edit mode, the ancestor chain from
-// the top-level block down to the editing block wears the accent thread
-// (app.css "the edit thread"):
-//   1. every chain level's indent rail takes the hover-weight accent hairline
-//      (the 1px-3px gradient), non-chain rails stay on the resting hairline;
-//   2. each path link (and the editing block) grows a horizontal elbow from
-//      the rail column into its bullet (::after on the bullet); non-path
-//      rows grow none — including the chain's TOP block (its rail starts the
-//      thread; the body container above it is not a .nt-block-children);
-//   3. the elbow is pointer-events: none — a click on the strip reaches the
-//      rail beneath (folds the child), never the bullet (zoom);
-//   4. the thread follows the caret (editing a sibling tears the old thread
-//      down) and ends AT the editing block (its own subtree stays resting).
+// Edit-thread probe (the measured overlay): while
+// a block is in edit mode, the page body draws ONE SVG polyline
+// (EditThread.tsx) from the top-level ancestor's bullet to the editing
+// block's bullet — down each bullet's column, a rounded right turn at each
+// level change — a SEPARATE overlay, never the tree's own indent rail
+// highlighted:
+//   1. editing a3 (chain A → a2 → a3): the overlay exists with a 2-turn
+//      path; the stroke is the accent; the svg is pointer-events: none.
+//   2. the tree chrome is untouched: every rail rests (A's rail reads as
+//      C's), the grip pseudos grow nothing.
+//   3. geometry: the path starts at A's bullet center, ends at a3's, and
+//      x strictly increases per level.
+//   4. the ANCESTORS' chevrons stay hidden while a descendant edits (the
+//      focus-within reveal is row-scoped).
+//   5. the thread follows the caret: editing a top-level block draws
+//      nothing; editing a2b draws A → a2b (one turn).
+//   6. the overlay passes clicks through — the rail's fold still fires
+//      beneath it.
+//   7. editing chrome stays on the editing row: the subtree dots don't
+//      accent (the descendant-selector bug stays fixed).
 // TEST workspace; cleans up after itself.
 import { chromium } from "playwright";
 const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL;
@@ -41,7 +48,7 @@ let A, a2, a3, a2b, B, C, c1;
 try {
   A = await block(pageId, "alfa");
   a2 = await block(A, "bravo");
-  a3 = await block(a2, "charlie");
+  a3 = await block(a2, "misterio");
   a2b = await block(A, "delta"); // non-path direct child of A
   B = await block(pageId, "echo"); // non-path top-level block
   C = await block(pageId, "foxtrot");
@@ -71,177 +78,165 @@ try {
   await pg.goto(`${WEB}/${pageId}`, { waitUntil: "commit", timeout: 120_000 });
   await pg.waitForSelector(`[data-block-id="${A}"] .nt-block-children__rail`, { timeout: 60_000 });
 
-  // In-page helpers: the rail gradient signature (accent carries a 3px stop,
-  // the resting hairline ends at 2px), the elbow read (::after on the path
-  // link's grip) and the stud read (::before on the ancestor's grip).
-  const thread = () =>
-    pg.evaluate(([aid, a2id, a3id, a2bid, bid, cid, c1id]) => {
-      const q = (id) => document.querySelector(`[data-block-id="${id}"]`);
-      const railBg = (id) => getComputedStyle(q(id).querySelector(".nt-block-children__rail")).backgroundImage;
-      const arm = (pseudo) => (id) => {
-        // Both arms ride the GRIP (the bullet's own ::after is the retired
-        // ring — banned by the no-ring-hooks register).
-        const grip = q(id).querySelector(":scope > .nt-block-row .nt-block-grip");
-        if (grip === null) return { grip: false };
-        const cs = getComputedStyle(grip, pseudo);
-        if (cs.content === "none") return { content: "none" };
-        return { content: cs.content, pointerEvents: cs.pointerEvents };
-      };
-      const elbow = arm("::after");
-      const stud = arm("::before");
-      return {
-        editingA3: q(a3id).classList.contains("nt-block--editing"),
-        railA: railBg(aid),
-        railA2: railBg(a2id),
-        railC: railBg(cid),
-        elbowA: elbow(aid),
-        elbowA2: elbow(a2id),
-        elbowA3: elbow(a3id),
-        elbowA2b: elbow(a2bid),
-        elbowB: elbow(bid),
-        elbowC1: elbow(c1id),
-        studA: stud(aid),
-        studA2: stud(a2id),
-        studA3: stud(a3id),
-        studA2b: stud(a2bid),
-        studB: stud(bid),
-        studC1: stud(c1id),
-      };
-    }, [A, a2, a3, a2b, B, C, c1]);
-
-  const elbowBox = (id) =>
-    pg.evaluate((bid) => {
-      const grip = document.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-block-grip`);
-      const bullet = document.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet`);
-      const cs = getComputedStyle(grip, "::after");
-      const rg = grip.getBoundingClientRect();
-      const rb = bullet.getBoundingClientRect();
-      return {
-        leftOffset: parseFloat(cs.left),
-        width: parseFloat(cs.width),
-        top: rg.top + parseFloat(cs.top),
-        height: parseFloat(cs.height),
-        bulletCenterY: rb.top + rb.height / 2,
-      };
-    }, id);
-
-  const studBox = (id) =>
-    pg.evaluate((bid) => {
-      const grip = document.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-block-grip`);
-      const cs = getComputedStyle(grip, "::before");
-      return {
-        width: parseFloat(cs.width),
-        topOffset: parseFloat(cs.top), // rel. the grip's padding box (22px tall)
-        height: parseFloat(cs.height),
-      };
-    }, id);
-
-  const dotOpacity = (id) =>
-    pg.evaluate((bid) => {
-      const dot = document.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet-dot`);
-      return getComputedStyle(dot).opacity;
-    }, id);
-
   const expect = (cond, msg) => {
     if (!cond) throw new Error("ASSERT: " + msg);
     console.log("ok —", msg);
   };
 
-  // ── enter edit on a3 (the deepest block) ──
+  // One read of the whole thread state: the overlay path (+ its parsed
+  // points and turn count), the chrome-resting proofs, the ancestor
+  // chevrons, and the dot opacities — all host-relative.
+  const state = (ids) =>
+    pg.evaluate(([aid, a2id, a3id, a2bid, bid, cid]) => {
+      const host = document.querySelector(".nt-edit-thread-host");
+      if (host === null) return { host: false };
+      const svg = host.querySelector(":scope > .nt-edit-thread-overlay");
+      let path = null;
+      if (svg !== null) {
+        const p = svg.querySelector("path");
+        path = {
+          d: p?.getAttribute("d") ?? null,
+          qCount: (p?.getAttribute("d").match(/Q/g) ?? []).length,
+          stroke: p === null || p === undefined ? null : getComputedStyle(p).stroke,
+        };
+        if (path.d !== null) {
+          const nums = path.d.match(/-?\d+(?:\.\d+)?/g).map(Number);
+          path.pts = [];
+          for (let i = 0; i + 1 < nums.length; i += 2) path.pts.push({ x: nums[i], y: nums[i + 1] });
+        }
+      }
+      const center = (bid) => {
+        const b = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet`);
+        if (b === null) return null;
+        const r = b.getBoundingClientRect();
+        const h = host.getBoundingClientRect();
+        return { x: r.left + r.width / 2 - h.left, y: r.top + r.height / 2 - h.top };
+      };
+      const railBg = (bid) => getComputedStyle(host.querySelector(`[data-block-id="${bid}"] .nt-block-children__rail`)).backgroundImage;
+      const chevronOpacity = (bid) => {
+        const c = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-block-chevron`);
+        return c === null ? null : getComputedStyle(c).opacity;
+      };
+      const dotOpacity = (bid) => {
+        const d = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet-dot`);
+        return d === null ? null : getComputedStyle(d).opacity;
+      };
+      const gripArms = (bid) => {
+        const g = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-block-grip`);
+        return { before: getComputedStyle(g, "::before").content, after: getComputedStyle(g, "::after").content };
+      };
+      return {
+        host: true,
+        svg: svg === null ? false : { pointerEvents: getComputedStyle(svg).pointerEvents },
+        path,
+        railA: railBg(aid),
+        railC: railBg(cid),
+        armsA2: gripArms(a2id),
+        chevronA: chevronOpacity(aid),
+        chevronA2: chevronOpacity(a2id),
+        dotA2: dotOpacity(a2id),
+        dotA3: dotOpacity(a3id),
+        dotA2b: dotOpacity(a2bid),
+        dotB: dotOpacity(bid),
+        centerA: center(aid),
+        centerA2: center(a2id),
+        centerA3: center(a3id),
+        centerA2b: center(a2bid),
+      };
+    }, ids);
+
+  // ── 1–4. edit the deepest block: the overlay draws the chain ──
   await pg.click(`[data-block-id="${a3}"] .nt-block-content`);
   await pg.waitForSelector(`[data-block-id="${a3}"].nt-block--editing`, { timeout: 10_000 });
-  let t = await thread();
+  await pg.waitForSelector(".nt-edit-thread-overlay path", { timeout: 10_000 });
+  await pg.waitForTimeout(350); // chevron/dot opacities ride short transitions
+  let s = await state([A, a2, a3, a2b, B, C]);
 
-  expect(t.editingA3, "a3 is in edit mode");
-  expect(/3px/.test(t.railA) && /3px/.test(t.railA2), "the chain rails (A, a2) wear the accent hairline");
-  expect(!/3px/.test(t.railC), "the non-chain rail (C) stays on the resting hairline");
-  expect(t.elbowA.content === "none", "the chain's top block (A) grows no elbow — its rail starts the thread");
-  expect(t.elbowA2.content !== "none", "the path link a2 grows an elbow");
-  expect(t.elbowA3.content !== "none", "the editing block a3 grows an elbow");
-  expect(t.elbowA2b.content === "none" && t.elbowB.content === "none" && t.elbowC1.content === "none",
-    "non-path rows (a2b, B, c1) grow no elbow");
-  expect(t.elbowA2.pointerEvents === "none", "the elbow is pointer-events: none");
-
-  // ── elbow geometry: from the rail column into the bullet's center ──
+  expect(s.host && s.svg !== false, "the overlay svg mounts in the select surface");
+  expect(s.svg.pointerEvents === "none", "the overlay is pointer-events: none");
+  expect(s.path !== null && s.path.qCount === 2, `the path takes a turn per level change (2 turns for A → a2 → a3; d=${s.path?.d})`);
+  expect(s.path.pts.length >= 6, "the path carries the rounded-corner segments");
   {
-    const b2 = await elbowBox(a2);
-    const b3 = await elbowBox(a3);
-    expect(Math.abs(b2.width - 31) <= 1 && Math.abs(b2.height - 2) <= 0.5,
-      `a2's elbow reads ${Math.round(b2.width)}x${Math.round(b2.height)} (31x2 expected)`);
-    expect(Math.abs(b2.leftOffset - -22) <= 1, "a2's elbow starts at the rail column (22px left of the grip)");
-    expect(Math.abs(b2.top + b2.height / 2 - b2.bulletCenterY) <= 1.5, "a2's elbow rides the bullet's vertical center");
-    expect(Math.abs(b3.width - 31) <= 1 && Math.abs(b3.height - 2) <= 0.5,
-      `a3's elbow reads ${Math.round(b3.width)}x${Math.round(b3.height)} (31x2 expected)`);
+    const start = s.path.pts[0];
+    const end = s.path.pts[s.path.pts.length - 1];
+    const near = (p, c) => Math.abs(p.x - c.x) <= 2 && Math.abs(p.y - c.y) <= 2;
+    expect(near(start, s.centerA), "the thread starts at the TOP block's bullet center");
+    expect(near(end, s.centerA3), "the thread ends at the editing block's bullet center");
+    const xs = [s.centerA.x, s.centerA2.x, s.centerA3.x];
+    expect(xs[0] < xs[1] && xs[1] < xs[2], "each level change turns to the right");
   }
+  // The stroke is the accent: read the editing dot's own accent color.
+  const strokeIsAccent = await pg.evaluate(() => {
+    const host = document.querySelector(".nt-edit-thread-host");
+    const editing = host.querySelector(".nt-block--editing > .nt-block-row .nt-bullet-dot");
+    const path = host.querySelector(".nt-edit-thread-overlay path");
+    return getComputedStyle(path).stroke === getComputedStyle(editing).backgroundColor;
+  });
+  expect(strokeIsAccent, "the thread stroke is the accent color");
 
-  // ── the stud: each ancestor drops a vertical from its dot into its rail,
-  //    so the thread passes THROUGH every path bullet ──
-  expect(t.studA.content !== "none" && t.studA2.content !== "none",
-    "the ancestors (A, a2) grow the stud below their bullets");
-  expect(t.studA3.content === "none", "the editing block grows no stud — the thread ends at its dot");
-  expect(t.studA2b.content === "none" && t.studB.content === "none" && t.studC1.content === "none",
-    "non-path rows grow no stud");
-  expect(t.studA.pointerEvents === "none", "the stud is pointer-events: none");
-  {
-    const s = await studBox(A);
-    expect(Math.abs(s.width - 2) <= 0.5, `A's stud reads ${s.width}px wide (2px expected)`);
-    expect(Math.abs(s.topOffset - 12) <= 1.5, `A's stud starts just below the dot (top ${Math.round(s.topOffset)}, ~12 expected)`);
-    expect(s.height >= 12 && s.height <= 26,
-      `A's stud spans a half line-height past the row bottom (${Math.round(s.height)}px — resolved from 0.5lh + 6px)`);
-  }
+  expect(s.railA === s.railC, "the tree's own rails stay resting — the thread is a separate overlay");
+  expect(s.armsA2.before === "none" && s.armsA2.after === "none", "no CSS pseudo arms ride the grips");
+  expect(s.chevronA === "0" && s.chevronA2 === "0", "the ancestors' chevrons stay hidden while a descendant edits");
 
-  // ── editing chrome stays on the editing ROW: the subtree must not accent ──
-  await pg.click(`[data-block-id="${a2}"] .nt-block-content`);
-  await pg.waitForSelector(`[data-block-id="${a2}"].nt-block--editing`, { timeout: 10_000 });
-  await pg.waitForTimeout(350); // the dot opacity rides a short transition — read it settled
-  {
-    const own = await dotOpacity(a2);
-    const child = await dotOpacity(a3);
-    const sibling = await dotOpacity(a2b);
-    expect(own === "1", "the editing block's own dot carries the accent (opacity 1)");
-    expect(child !== "1", "the editing block's CHILD dot stays resting (the subtree-accent bug stays fixed)");
-    expect(sibling !== "1", "the sibling row's dot stays resting");
-  }
-
-  // ── the thread follows the caret: editing a sibling tears it down ──
+  // ── 5a. the caret follows: a top-level edit draws nothing ──
   await pg.click(`[data-block-id="${B}"] .nt-block-content`);
   await pg.waitForSelector(`[data-block-id="${B}"].nt-block--editing`, { timeout: 10_000 });
-  t = await thread();
-  expect(!/3px/.test(t.railA) && !/3px/.test(t.railA2), "editing a top-level sibling accents no rail");
-  expect(t.elbowA2.content === "none" && t.elbowA3.content === "none", "the old thread's elbows are gone");
+  await pg.waitForTimeout(200);
+  s = await state([A, a2, a3, a2b, B, C]);
+  expect(s.svg === false, "editing a top-level block draws no thread (no ancestors)");
 
-  // ── the thread ends AT the editing block: its own subtree stays resting ──
+  // ── 5b. editing a2b draws A → a2b (one turn) ──
   await pg.click(`[data-block-id="${a2b}"] .nt-block-content`);
   await pg.waitForSelector(`[data-block-id="${a2b}"].nt-block--editing`, { timeout: 10_000 });
-  t = await thread();
-  expect(/3px/.test(t.railA), "editing a2b accents A's rail (a2b is a direct child of A)");
-  expect(!/3px/.test(t.railA2), "a2b's own (childless) subtree adds nothing; a2's rail stays resting");
-  expect(t.elbowA2b.content !== "none", "the editing block a2b grows its elbow into the thread");
+  await pg.waitForSelector(".nt-edit-thread-overlay path", { timeout: 10_000 });
+  s = await state([A, a2, a3, a2b, B, C]);
+  expect(s.path !== null && s.path.qCount === 1, "editing a2b draws one turn (A → a2b)");
+  {
+    const end = s.path.pts[s.path.pts.length - 1];
+    expect(Math.abs(end.x - s.centerA2b.x) <= 2 && Math.abs(end.y - s.centerA2b.y) <= 2,
+      "the thread ends at the editing block's bullet");
+  }
 
-  // ── the elbow strip must not eat the rail's fold click (no zoom) ──
+  // ── 6. the overlay passes clicks through: the rail's fold still fires ──
   {
     await pg.click(`[data-block-id="${a3}"] .nt-block-content`);
     await pg.waitForSelector(`[data-block-id="${a3}"].nt-block--editing`, { timeout: 10_000 });
+    await pg.waitForSelector(".nt-edit-thread-overlay path", { timeout: 10_000 });
     const geom = await pg.evaluate(([aid, a2id]) => {
       const rail = document.querySelector(`[data-block-id="${aid}"] .nt-block-children__rail`).getBoundingClientRect();
       const bullet = document.querySelector(`[data-block-id="${a2id}"] > .nt-block-row .nt-bullet`).getBoundingClientRect();
-      return { railX: rail.left + 4, elbowY: bullet.top + bullet.height / 2 };
+      return { railX: rail.left + 4, y: bullet.top + bullet.height / 2 };
     }, [A, a2]);
-    // A click on the elbow's strip (over the rail column, at a2's row): must
-    // reach the RAIL (fold a2 → a3 disappears), never the bullet (zoom).
-    await pg.mouse.click(geom.railX, geom.elbowY);
+    await pg.mouse.click(geom.railX, geom.y);
     await pg.waitForTimeout(300);
     const folded = await pg.evaluate(([a2id, a3id]) => {
       const chevron = document.querySelector(`[data-block-id="${a2id}"] .nt-block-chevron`);
-      return { expanded: chevron?.getAttribute("aria-expanded"), a3Gone: document.querySelector(`[data-block-id="${a3id}"]`) === null, url: location.pathname };
+      return {
+        expanded: chevron?.getAttribute("aria-expanded"),
+        a3Gone: document.querySelector(`[data-block-id="${a3id}"]`) === null,
+        threadGone: document.querySelector(".nt-edit-thread-overlay") === null,
+        url: location.pathname,
+      };
     }, [a2, a3]);
     expect(folded.expanded === "false", "the click reached the rail — a2 folded");
     expect(folded.a3Gone, "a2's subtree hid with the fold");
+    expect(folded.threadGone, "the fold unmounted the editor — the thread tore down");
     expect(folded.url === `/${pageId}`, "no zoom — the URL stays on the page");
   }
 
+  // ── 7. the editing accent stays on the editing row (subtree regression) ──
+  {
+    await pg.click(`[data-block-id="${a2}"] .nt-block-content`);
+    await pg.waitForSelector(`[data-block-id="${a2}"].nt-block--editing`, { timeout: 10_000 });
+    await pg.waitForTimeout(350);
+    s = await state([A, a2, a3, a2b, B, C]);
+    expect(s.dotA2 === "1", "the editing block's own dot carries the accent (opacity 1)");
+    expect(s.dotA3 !== "1", "the editing block's CHILD dot stays resting (the subtree-accent bug stays fixed)");
+    expect(s.dotA2b !== "1", "the sibling row's dot stays resting");
+  }
+
   if (consoleErrors.length > 0) throw new Error("console errors: " + consoleErrors.join(" | "));
-  console.log("PROBE-PASS: the edit thread lights the ancestor chain, elbows into the path bullets, passes clicks through, and follows the caret");
+  console.log("PROBE-PASS: the overlay thread draws the ancestor path with rounded turns, leaves the tree chrome resting, passes clicks through, and follows the caret");
   await browser.close();
 } finally {
   await fetch(`${API}/api/objects/${pageId}`, { method: "DELETE", headers: { "x-api-key": KEY, "x-workspace-id": WS } }).catch(() => {});

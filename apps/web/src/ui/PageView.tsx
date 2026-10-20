@@ -113,6 +113,7 @@ import { definedNodeIcon } from "./iconFor.js";
 
 import { WorkspaceDragScopeContext } from "./block-dnd.js";
 import { useWorkspaceDndZone } from "./useWorkspaceDnd.js";
+import { EditThreadOverlay, EditThreadProvider } from "./EditThread.js";
 import { PropertiesSection, PropertiesSidebar, ClassesRow, metadataRowCount } from "../features/metadata/index.js";
 import { bannerAssetIdOf, setNodeBanner } from "../features/page-sections/PageBanner.js";
 import { AssetUploadModal } from "../features/modals/AssetUploadModal.js";
@@ -598,9 +599,14 @@ export function PageView({
             <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
               <div
                 ref={selectionRootRef}
-                className="nt-select-surface"
+                className="nt-select-surface nt-edit-thread-host"
                 onMouseDownCapture={selectionSurface.onMouseDownCapture}
               >
+                {/* The edit thread (EditThread.tsx): the measured overlay
+                    paints behind the rows (the host isolates the stacking
+                    context) and draws the ancestor path to the editing
+                    block — a separate layer, never the tree's own rails. */}
+                <EditThreadOverlay client={client} hostRef={selectionRootRef} rootId={pageId} />
                 <NodeCollection
                   viewMode={blocksMode}
                   client={client}
@@ -953,6 +959,9 @@ export function PageView({
   return (
     <OutlinerContext.Provider value={outliner}>
       <LinkEditModalHost client={client}>
+        {/* The edit thread (EditThread.tsx): rows report their edit state;
+            the select surface below hosts the measured SVG overlay. */}
+        <EditThreadProvider>
         {/* The drag scope: inside it block rows are draggable (the workspace
             session owns them); every PageView tree is a workspace editing
             surface, standalone renders included — without a host the grips
@@ -1066,6 +1075,7 @@ export function PageView({
             onClose={() => setSharing(null)}
           />
         )}
+        </EditThreadProvider>
       </LinkEditModalHost>
     </OutlinerContext.Provider>
   );
