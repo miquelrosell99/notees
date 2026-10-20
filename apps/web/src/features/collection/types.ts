@@ -213,6 +213,28 @@ export interface NodeCollectionProps {
   onNodeClick?: ((nodeId: string) => void) | undefined;
   onNodeShiftClick?: ((nodeId: string) => void) | undefined;
 
+  // --- the focused-block view (the v1 "show parents" concern) -----------------
+  /**
+   * The parent node — set ONLY by the focused block view (the bullet-zoom
+   * surface): the collection shows the focused block ABOVE/AROUND its
+   * children, and each VIEW MODE decides the display (owner 2026-10-20 —
+   * the v1 NodeCollection prop, generalized). Outline renders the parent
+   * as the root block row with the items nested under it (the zoom
+   * grammar); prose renders it as an editable top-level header (the
+   * title-variant row — title-is-content: the block's text IS the header);
+   * cards/table have no defined parent display yet and ignore it (the
+   * focused view falls back to outline for them at the callsite).
+   */
+  parent?: ClientNode | undefined;
+  /**
+   * A trailing affordance rendered at the CHILD INDENT LEVEL of a focused
+   * block view — the "+ Add block" ghost. Outline rides it inside the
+   * parent row's children container (the last child); prose trails it at
+   * the end of the flattened list (no children container there). Only
+   * meaningful with `parent`.
+   */
+  parentTrailing?: ReactNode | undefined;
+
   // --- table / cards shared --------------------------------------------------
 
   /** Resolved table columns (container-derived; default per surface). */

@@ -25,6 +25,16 @@
  * view's own per-view toolbar (table columns/sort/more, cards cover/selection)
  * portals into a slot mounted BEFORE the trailing chrome — the cluster ends
  * with the FilterBar so its wrapped structured panel never moves the row.
+ *
+ *  The focused-block view (the `parent` prop, owner 2026-10-20 — the v1
+ *  "show parents" NodeCollection prop, generalized): the collection shows
+ *  the focused block above/around its children and EACH VIEW MODE decides
+ *  the display — outline renders it as the root block row (the items
+ *  nested inside, the zoom grammar); prose renders it as an editable
+ *  top-level header (the title-variant row); cards/table ignore it (no
+ *  defined parent display yet — the focused view falls back to outline
+ *  for them at the callsite). `parentTrailing` carries the "+ Add block"
+ *  ghost at the child indent level.
  */
 
 import { Suspense, useEffect, useState } from "react";

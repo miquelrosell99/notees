@@ -1749,6 +1749,13 @@ select:focus-visible {
   padding: 8px 0;
 }
 
+/* The focused block view's parent header (owner 2026-10-20): the focused
+   block as an editable top-level header in prose — the title-variant row.
+   A breath of space separates the header from the flattened children. */
+.nt-prose-parent {
+  margin-bottom: var(--spacing-3);
+}
+
 /* --- view transforms: the condensed layer (stretchtext, owner 2026-10-15,
    refined same day after owner feedback) ------------------------------------
    A DISPLAY LAYER over the view modes, not a mode: under the layer a
