@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-10-20
 
+- **feat(web): the outliner level grid — the indent rail column derives
+  from the bullet by construction, no hand-guessed margins.** Owner
+  question 2026-10-20 ("why hand-guess the margin pixels — can't a grid /
+  subgrid system be implemented"). Every `.nt-block` is now one grid,
+  `grid-template-columns: var(--nt-row-gutter) var(--nt-grip-half)
+  var(--nt-grip-half) minmax(0, 1fr)` — the two half-tracks split AT the
+  bullet centerline (the grip spans them, centered by construction), and
+  the children container spans from that centerline track, so the rail
+  rides the bullet column with zero margin arithmetic. The constants live
+  once on `.nt-block`: `--nt-row-gutter` (14px) feeds both the template
+  and the row's padding; `--nt-grip-half` (9px) feeds the template and
+  the grip width — a grip resize propagates to the rails and the thread
+  column automatically. Consequences: the container's `border-left`
+  retires (the rail draws the only line everywhere the border showed);
+  the rail becomes a 10px centered hit area drawing a gradient-centered
+  2px hairline (resting outline-variant / hover accent) — exact column,
+  full click target; full-width siblings ride a `:not(.nt-block-children)`
+  sweep; prose flattens with `display: block`. **Paint order completed:**
+  the rail is a POSITIONED button — z-auto left it striking over the
+  thread by DOM order — so the overlay now carries z-index 1 and the
+  bullets/chevron z-index 2 (thread over the rails, under the dots).
+  Probes: the thread-probe's alignment/z assertions update to the new
+  contract (rail-button center vs bullet ≤1.2px, z 1/2). Subgrid for the
+  row internals not taken — the block-level grid already removes every
+  hand-derived constant; noted as the escalation path if the row chrome
+  ever needs track alignment.
+
 - **feat(web): the indent rails ride the parent bullet's center column —
   the 2026-10-15 alignment math was 2px off — and the edit thread paints
   above the rails, under the dots.** Owner feedback 2026-10-20, revealed by

@@ -20,14 +20,18 @@
  *   with a rounded corner at each level change (owner 2026-10-20, third
  *   pass — the two `:has()` takes styled the tree rails and lit whole
  *   subtree columns; the reference look is one line anchored at the
- *   bullets, a shape the tree chrome cannot draw). The overlay paints
- *   above the tree chrome (the resting rails pass under it where the
- *   columns coincide) and below the bullets and the hover chevron, and
- *   passes clicks through; no thread for a top-level edit, in prose, or
- *   in cards. The indent rails ride the parent bullet's center column
- *   (the 2026-10-15 margin math assumed the bullet started at the grip
- *   edge; centered in the 18px grip its true center is 2px left). The
- *   editing bullet highlight stays
+ *   bullets, a shape the tree chrome cannot draw). The overlay carries
+ *   z-index 1 — above the tree chrome (the resting rails pass under the
+ *   thread where the columns coincide) and below the bullets and the
+ *   hover chevron (z-index 2) — and passes clicks through; no thread for
+ *   a top-level edit, in prose, or in cards. The outliner level grid
+ *   (app.css): each block is one grid whose template splits AT the
+ *   bullet centerline — [gutter][half-grip][half-grip][content] — and
+ *   the children container spans from that centerline, so the indent
+ *   rails ride the bullet column by construction (two vars,
+ *   --nt-row-gutter and --nt-grip-half, single-source the row gutter and
+ *   the grip width; no hand-derived margins left). The editing bullet
+ *   highlight stays
  *   direct-row scoped (a descendant selector lit the whole subtree —
  *   owner 2026-10-20: children must not read as active), and the
  *   collapse chevron focus reveal is row-scoped the same way — while a
