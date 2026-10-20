@@ -277,14 +277,24 @@ export function EditThreadOverlay({
       return;
     }
     let raf = 0;
-    const update = () => {
+    // A settling pass: bullet geometry can ride a CSS transition (the
+    // editing block's icon scales 1.2 over 120ms) — a mutation-driven
+    // recompute measures mid-transition and nothing re-fires after the
+    // transform settles (transforms mutate no DOM). One re-measure 220ms
+    // after the LAST change lets the path settle, then goes quiet.
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    const update = (settling = false) => {
       raf = 0;
       const points = measureChain(host, chainOf(client, host, rootId, editingId));
       const next = points === null ? null : threadPath(points);
       if (next !== pathRef.current) setPath(next);
+      if (settleTimer !== undefined) clearTimeout(settleTimer);
+      settleTimer = settling ? undefined : setTimeout(() => {
+        if (raf === 0) raf = requestAnimationFrame(() => update(true));
+      }, 220);
     };
     const schedule = () => {
-      if (raf === 0) raf = requestAnimationFrame(update);
+      if (raf === 0) raf = requestAnimationFrame(() => update(false));
     };
     update();
     const observer = new ResizeObserver(schedule);
@@ -305,6 +315,7 @@ export function EditThreadOverlay({
       window.removeEventListener("scroll", schedule, true);
       window.removeEventListener("resize", schedule);
       if (raf !== 0) cancelAnimationFrame(raf);
+      if (settleTimer !== undefined) clearTimeout(settleTimer);
     };
   }, [client, hostRef, rootId, editingId]);
 
