@@ -29,6 +29,14 @@ export interface EffectivePropertySchema {
   name: string;
   type: string;
   multi: boolean;
+  /** The schema's icon; null = none. */
+  icon: string | null;
+  /** The SOLE locality authority: the scope
+   *  class list (null = global). Eligibility walks the node's class closure
+   *  against this list — extends-aware, the binding-resolution closure. */
+  scopeClassIds: string[] | null;
+  /** Value validation rules; null = none. */
+  validationRules: { min?: number; max?: number; pattern?: string } | null;
   /** SCHEMA.md "Dates": finest granularity a date value may claim (NULL = day). */
   datePrecision: "year" | "month" | "day" | null;
   /** SCHEMA.md "Dates": node-typed values may carry date qualifiers. */
@@ -72,6 +80,15 @@ export interface EffectiveProperty {
   hideWhenEmpty: boolean | null;
   sequence: number | null;
   display: "panel" | "bullet" | "inline" | null;
+  /**
+   * R3 eligibility: false when the schema's
+   * scopeClassIds excludes the node (its class closure misses the list) —
+   * the row survives (authored values always survive; narrowing a scope is
+   * never retroactive) but callers know it is out of scope; derived defaults
+   * never materialize for ineligible nodes (R4), so only authored rows can
+   * carry eligible=false. Schema-less rows (schema deleted) read true.
+   */
+  eligible: boolean;
 }
 
 interface AuthoredRow {
@@ -90,6 +107,17 @@ function parseJson(raw: string): unknown {
     return JSON.parse(raw);
   } catch {
     return raw;
+  }
+}
+
+/** A stored JSON array column as a string array (NULL/malformed → null). */
+function parseJsonArray(raw: string | null): string[] | null {
+  if (raw === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : null;
+  } catch {
+    return null;
   }
 }
 
@@ -211,7 +239,8 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     const placeholders = [...schemaIds].map(() => "?").join(",");
     const rows = db
       .prepare(
-        `SELECT id, name, type, multi, date_precision, date_qualified,
+        `SELECT id, name, type, multi, icon, scope_class_ids, validation_rules,
+                date_precision, date_qualified,
                 number_pad, number_decimals, number_rounding,
                 display, readonly, hide_when_empty
          FROM property_schema WHERE id IN (${placeholders})`,
@@ -221,6 +250,9 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       name: string;
       type: string;
       multi: number;
+      icon: string | null;
+      scope_class_ids: string | null;
+      validation_rules: string | null;
       date_precision: string | null;
       date_qualified: number | null;
       number_pad: number | null;
@@ -236,6 +268,14 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
         name: row.name,
         type: row.type,
         multi: row.multi === 1,
+        icon: row.icon,
+        scopeClassIds: parseJsonArray(row.scope_class_ids),
+        validationRules: (() => {
+          const parsed = row.validation_rules === null ? null : parseJson(row.validation_rules);
+          return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+            ? (parsed as { min?: number; max?: number; pattern?: string })
+            : null;
+        })(),
         datePrecision:
           row.date_precision === "year" || row.date_precision === "month" || row.date_precision === "day"
             ? row.date_precision
@@ -254,6 +294,26 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       });
     }
   }
+
+  // 4b. R3 eligibility: the node's EXTENDS-AWARE
+  //     class closure (its classes + all ancestors via reachOf — the same
+  //     walk binding resolution uses) against each schema's scopeClassIds.
+  //     A schema is eligible for the node when global (null list) or the
+  //     closure intersects the list. The closure set is computed once.
+  const nodeClassClosure = new Set<string>();
+  for (const cls of classes) {
+    for (const reach of reachOf(cls.class_id)) nodeClassClosure.add(reach.ancestorId);
+  }
+  const eligibleBySchema = new Map<string, boolean>();
+  for (const [schemaId, schema] of schemas) {
+    const scope = schema.scopeClassIds;
+    eligibleBySchema.set(
+      schemaId,
+      scope === null || scope.some((id) => nodeClassClosure.has(id)),
+    );
+  }
+  const eligibleOf = (schemaId: string, schema: EffectivePropertySchema | null): boolean =>
+    schema === null ? true : (eligibleBySchema.get(schemaId) ?? true);
 
   // 5. Merge: authored wins per (schema, idx, ELEMENT — PG5: rows at the same
   //    idx are distinct elements and all surface); a winning ACTIVE binding
@@ -286,16 +346,24 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       hideWhenEmpty: schema?.hideWhenEmpty ?? null,
       sequence: winner ? winner.binding.sequence : null,
       display: schema?.display ?? null,
+      // Authored rows SURVIVE scope narrowing (never retroactive) — the
+      // read tags them; callers decide how an ineligible row renders.
+      eligible: eligibleOf(authored.property_schema_id, schema),
     });
   }
 
   for (const [schemaId, winner] of winnerBySchema) {
     const { binding, classId } = winner;
     if (binding.default_value === null) continue; // bound without a default
+    // R4: an ineligible node shows NEITHER the
+    // property NOR a derived default from an out-of-scope binding — a stray
+    // binding must not render a value for a property the node can't have.
+    const schemaForEligibility = schemas.get(schemaId) ?? null;
+    if (!eligibleOf(schemaId, schemaForEligibility)) continue;
     // PC2 read-side: a stored default that no longer matches the schema
     // type (written before validation, or after a delete+recreate changed
     // the type) yields no default rather than a wrong-typed value.
-    const schema = schemas.get(schemaId);
+    const schema = schemaForEligibility;
     if (schema && !isValidDefaultForType(schema.type, parseJson(binding.default_value))) continue;
     if (shadowedDefaultSchemas.has(schemaId)) continue; // authored at idx 0 shadows the default
     push(`${schemaId}:0:default`, {
@@ -312,6 +380,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       hideWhenEmpty: schema?.hideWhenEmpty ?? null,
       sequence: binding.sequence,
       display: schema?.display ?? null,
+      eligible: true,
     });
   }
 

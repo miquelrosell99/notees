@@ -287,7 +287,12 @@ interface SchemaRow {
   name: string;
   type: string;
   multi: number;
-  scope: string;
+  /** The schema's icon; null = none. */
+  icon: string | null;
+  /** The SOLE locality authority: null = global. */
+  scopeClassIds: string | null;
+  /** Value validation rules; null = none. */
+  validationRules: string | null;
   options: string;
   targetClassFilter: string | null;
   datePrecision: string | null;
@@ -301,7 +306,8 @@ interface SchemaRow {
 function readSchemaRow(store: Store, id: string): SchemaRow | undefined {
   return store.database
     .prepare(
-      `SELECT id, name, type, multi, scope, options, target_class_filter AS targetClassFilter,
+      `SELECT id, name, type, multi, icon, scope_class_ids AS scopeClassIds, validation_rules AS validationRules,
+              options, target_class_filter AS targetClassFilter,
               date_precision AS datePrecision, date_qualified AS dateQualified,
               number_pad AS numberPad, number_decimals AS numberDecimals, number_rounding AS numberRounding,
               display, readonly, hide_when_empty AS hideWhenEmpty
@@ -316,6 +322,8 @@ function schemaView(row: SchemaRow): Record<string, unknown> {
     ...row,
     multi: row.multi === 1,
     options: JSON.parse(row.options) as unknown,
+    scopeClassIds: row.scopeClassIds !== null ? (JSON.parse(row.scopeClassIds) as unknown) : null,
+    validationRules: row.validationRules !== null ? (JSON.parse(row.validationRules) as unknown) : null,
     targetClassFilter: row.targetClassFilter !== null ? (JSON.parse(row.targetClassFilter) as unknown) : null,
     datePrecision: row.datePrecision === "year" || row.datePrecision === "month" || row.datePrecision === "day" ? row.datePrecision : null,
     display: row.display === "bullet" || row.display === "inline" ? row.display : null,
@@ -754,7 +762,8 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const store = ctx.workspaces.storeFor(workspaceId);
     const rows = store.database
       .prepare(
-        `SELECT id, name, type, multi, scope, options, target_class_filter AS targetClassFilter,
+        `SELECT id, name, type, multi, icon, scope_class_ids AS scopeClassIds, validation_rules AS validationRules,
+                options, target_class_filter AS targetClassFilter,
                 date_precision AS datePrecision, date_qualified AS dateQualified,
               number_pad AS numberPad, number_decimals AS numberDecimals, number_rounding AS numberRounding
          FROM property_schema WHERE active = 1 ORDER BY name, id`,

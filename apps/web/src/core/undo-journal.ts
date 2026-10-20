@@ -159,7 +159,11 @@ export interface UndoSchemaSnapshot {
   name: string;
   type: string;
   multi: boolean;
-  scope: string;
+  icon: string | null;
+  /** The SOLE locality authority: null = global. */
+  scopeClassIds: string[] | null;
+  /** Value validation rules; null = none. */
+  validationRules: { min?: number; max?: number; pattern?: string } | null;
   options: unknown;
   targetClassFilter: string[] | null;
   datePrecision: string | null;
@@ -514,6 +518,13 @@ export function invertEnvelope(
       if (hasOwn(p, "display")) restore.display = prior.display;
       if (hasOwn(p, "readonly")) restore.readonly = prior.readonly;
       if (hasOwn(p, "hideWhenEmpty")) restore.hideWhenEmpty = prior.hideWhenEmpty;
+      // The property-definition surfaces batch:
+      // the new update fields restore with the same keep/clear shape.
+      if (hasOwn(p, "icon")) restore.icon = prior.icon;
+      if (hasOwn(p, "scopeClassIds")) restore.scopeClassIds = prior.scopeClassIds;
+      if (hasOwn(p, "targetClassFilter")) restore.targetClassFilter = prior.targetClassFilter;
+      if (hasOwn(p, "multi")) restore.multi = prior.multi;
+      if (hasOwn(p, "validationRules")) restore.validationRules = prior.validationRules;
       if (Object.keys(restore).length === 1) return null;
       return [{ opType: "propertySchema.update", payload: restore, affected: [] }];
     }
@@ -527,8 +538,9 @@ export function invertEnvelope(
         name: prior.name,
         type: prior.type,
         multi: prior.multi,
-        scope: prior.scope,
       };
+      if (prior.scopeClassIds !== null) payload.scopeClassIds = prior.scopeClassIds;
+      if (prior.icon !== null) payload.icon = prior.icon;
       if (Array.isArray(prior.options)) payload.options = prior.options;
       if (prior.targetClassFilter !== null) payload.targetClassFilter = prior.targetClassFilter;
       if (prior.datePrecision !== null) payload.datePrecision = prior.datePrecision;

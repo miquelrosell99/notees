@@ -289,7 +289,8 @@ async function main(): Promise<void> {
           name: string;
           type: string;
           multi: boolean;
-          scope: string;
+          icon: string | null;
+          scopeClassIds: string[] | null;
           options: unknown;
           targetClassFilter: unknown;
           datePrecision: unknown;
@@ -348,7 +349,7 @@ async function main(): Promise<void> {
           name: input.name,
           type: input.type,
           ...(input.multi !== undefined ? { multi: input.multi } : {}),
-          ...(input.scope !== undefined ? { scope: input.scope } : {}),
+          ...(input.scopeClassIds !== undefined ? { scopeClassIds: input.scopeClassIds } : {}),
           ...(input.options !== undefined ? { options: input.options } : {}),
           ...(input.targetClassFilter !== undefined
             ? { targetClassFilter: input.targetClassFilter }

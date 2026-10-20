@@ -983,6 +983,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
             name: "priority",
             type: "select",
             multi: false,
+            icon: null,
+            scopeClassIds: null,
+            validationRules: null,
             datePrecision: null,
             dateQualified: null,
             numberPad: null,
@@ -1001,6 +1004,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           hideWhenEmpty: null,
           sequence: 0,
           display: null,
+          eligible: true,
         },
       ]);
       // The default is DERIVED: no property_value row was ever written.
@@ -1528,7 +1532,6 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
             propertySchemaId: id,
             name: "fmt",
             type: "number",
-            scope: "global",
             numberPad: 4,
             numberDecimals: 1,
             numberRounding: "floor",
@@ -3935,7 +3938,15 @@ describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) =>
         1727199999000,
       ),
     );
-    store.apply(createPage(PAGE, 1727200000000));
+    // The page carries the source class: the class-scoped schemas below
+    // (scopeClassIds is the sole locality authority) require it for property.set eligibility.
+    store.apply(
+      env(
+        "object.create",
+        { objectId: PAGE, isEmbedded: false, classIds: [SOURCE_CLASS] },
+        1727200000000,
+      ),
+    );
     store.apply(
       env(
         "object.create",
@@ -3951,21 +3962,23 @@ describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) =>
     const store = makeStore();
     store.applyMany(loadFixture("property-asset-type.json"));
     const rows = store.database
-      .prepare("SELECT id, type, multi, scope, name FROM property_schema ORDER BY id")
-      .all() as Array<{ id: string; type: string; multi: number; scope: string; name: string }>;
+      .prepare("SELECT id, type, multi, scope_class_ids, name FROM property_schema ORDER BY id")
+      .all() as Array<{ id: string; type: string; multi: number; scope_class_ids: string | null; name: string }>;
     expect(rows).toEqual([
       {
         id: "0192a000-0000-7000-8000-000000000541",
         type: "asset",
         multi: 1,
-        scope: "class",
+        // Scoped to the source class (the sole locality authority) — the retired "class" scope's one-element case.
+        scope_class_ids: JSON.stringify([SOURCE_CLASS]),
         name: "Attachment",
       },
       {
         id: "0192a000-0000-7000-8000-000000000542",
         type: "asset",
         multi: 0,
-        scope: "object",
+        // The retired "object" scope had no consumer — it converges to global.
+        scope_class_ids: null,
         name: "Cover file (renamed)",
       },
     ]);
@@ -3977,7 +3990,7 @@ describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) =>
     store.applyMany([
       env(
         "propertySchema.create",
-        { propertySchemaId: SCHEMA, name: "Attachment", type: "asset", multi: true, scope: "class" },
+        { propertySchemaId: SCHEMA, name: "Attachment", type: "asset", multi: true, scopeClassIds: [SOURCE_CLASS] },
         1727200001000,
       ),
       env("class.property.set", { classId: SOURCE_CLASS, propertySchemaId: SCHEMA, sequence: 0 }, 1727200001100),
@@ -4019,7 +4032,7 @@ describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) =>
     store.apply(
       env(
         "propertySchema.create",
-        { propertySchemaId: SCHEMA, name: "Attachment", type: "asset", multi: true, scope: "class" },
+        { propertySchemaId: SCHEMA, name: "Attachment", type: "asset", multi: true, scopeClassIds: [SOURCE_CLASS] },
         1727200001000,
       ),
     );
@@ -4046,7 +4059,7 @@ describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) =>
           name: "Attachments",
           type: "object",
           multi: true,
-          scope: "class",
+          scopeClassIds: [SOURCE_CLASS],
           targetClassFilter: [ASSET_CLASS],
         },
         1727200001000,
@@ -4066,7 +4079,7 @@ describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) =>
           name: "Attachments",
           type: "asset",
           multi: true,
-          scope: "class",
+          scopeClassIds: [SOURCE_CLASS],
           options: [],
           display: "inline",
         },
@@ -4093,6 +4106,263 @@ describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) =>
         env("property.set", { objectId: PAGE, propertySchemaId: ATTACHMENTS, value: { nodeId: PLAIN_NODE } }, 1727200003000),
       ),
     ).toThrow(/does not carry any of the schema's allowed classes/);
+    store.close();
+  });
+});
+
+// --- Property-schema scope (scopeClassIds is the sole
+// --- locality authority; R3 write-time enforcement, R4 read gating, R5
+// --- dead-config rejection; update gains icon/scopeClassIds/targetClassFilter/
+// --- multi/validationRules with keep/clear)
+
+describe.each(adapters)("$name: property-schema scope + update fields", ({ makeBackend }) => {
+  const CLASS_A = "0192a000-0000-7000-8000-000000000a01";
+  const CLASS_B = "0192a000-0000-7000-8000-000000000a02";
+  const SCHEMA = "0192a000-0000-7000-8000-000000000a10";
+  const NODE_A = "0192a000-0000-7000-8000-000000000a21";
+  const NODE_B = "0192a000-0000-7000-8000-000000000a22";
+  const NODE_X = "0192a000-0000-7000-8000-000000000a23";
+
+  function scopedWorld(store: Store): void {
+    store.applyMany([
+      env("class.create", { classId: CLASS_A, contentAst: [{ type: "text", "text": "A" }] }, 1727200001000),
+      env("class.create", { classId: CLASS_B, contentAst: [{ type: "text", "text": "B" }] }, 1727200001100),
+      env("class.setExtends", { classId: CLASS_B, parentClassIds: [CLASS_A] }, 1727200001200),
+      env(
+        "propertySchema.create",
+        { propertySchemaId: SCHEMA, name: "Genre", type: "text", scopeClassIds: [CLASS_A] },
+        1727200001300,
+      ),
+      env("object.create", { objectId: NODE_A, isEmbedded: false, classIds: [CLASS_A] }, 1727200001400),
+      env("object.create", { objectId: NODE_B, isEmbedded: false, classIds: [CLASS_B] }, 1727200001500),
+      env("object.create", { objectId: NODE_X, isEmbedded: false }, 1727200001600),
+    ]);
+  }
+
+  it("the fixture pins extends-aware eligibility and survival under narrowing", () => {
+    const store = Store.open(makeBackend());
+    store.applyMany(loadFixture("property-schema-scope.json"));
+    const A = "0192a000-0000-7000-8000-000000000901";
+    const SCHEMA_ID = "0192a000-0000-7000-8000-000000000910";
+    const NA = "0192a000-0000-7000-8000-000000000921";
+    const NB = "0192a000-0000-7000-8000-000000000922";
+    const NX = "0192a000-0000-7000-8000-000000000923";
+
+    const rowsOf = (nodeId: string) =>
+      store.getEffectiveProperties(nodeId).filter((row) => row.propertySchemaId === SCHEMA_ID);
+    // The scope list rides the schema row; the icon rides too.
+    const schemaRow = store.database
+      .prepare("SELECT icon, scope_class_ids FROM property_schema WHERE id = ?")
+      .get(SCHEMA_ID) as { icon: string | null; scope_class_ids: string | null };
+    expect(schemaRow.icon).toBe("mdiTagOutline");
+    expect(JSON.parse(schemaRow.scope_class_ids!)).toEqual([A]);
+    // A-member and B-member (via the extends ancestor) are eligible.
+    expect(rowsOf(NA).map((row) => [row.value, row.eligible])).toEqual([["science fiction", true]]);
+    expect(rowsOf(NB).map((row) => [row.value, row.eligible])).toEqual([["hard sci-fi", true]]);
+    // The unclassed node's authored row SURVIVES the narrowing (never
+    // retroactive) and reads tagged eligible=false (R3 read-side arm).
+    expect(rowsOf(NX).map((row) => [row.value, row.eligible])).toEqual([
+      ["authored while global", false],
+    ]);
+    // The binding row authored while the schema was scoped to A survives too.
+    expect(
+      store.database
+        .prepare("SELECT COUNT(*) AS n FROM class_property WHERE class_id = ? AND property_schema_id = ?")
+        .get(A, SCHEMA_ID),
+    ).toEqual({ n: 1 });
+    store.close();
+  });
+
+  it("R3: property.set on an ineligible node fails loud; schema-less writes stay unchecked", () => {
+    const store = Store.open(makeBackend());
+    scopedWorld(store);
+    expect(() =>
+      store.apply(
+        env("property.set", { objectId: NODE_X, propertySchemaId: SCHEMA, value: "nope", idx: 0 }, 1727200002000),
+      ),
+    ).toThrow(MoveGuardError);
+    expect(() =>
+      store.apply(
+        env("property.set", { objectId: NODE_X, propertySchemaId: SCHEMA, value: "nope", idx: 0 }, 1727200002000),
+      ),
+    ).toThrow(/not eligible/);
+    // An eligible node (own class) writes fine; an extends-aware node (the
+    // subclass carries B; A is an ancestor) writes fine.
+    store.apply(env("property.set", { objectId: NODE_A, propertySchemaId: SCHEMA, value: "a", idx: 0 }, 1727200002100));
+    store.apply(env("property.set", { objectId: NODE_B, propertySchemaId: SCHEMA, value: "b", idx: 0 }, 1727200002200));
+    // Unknown schema id: no schema row, no eligibility check (PG6 precedent).
+    store.apply(
+      env(
+        "property.set",
+        { objectId: NODE_X, propertySchemaId: "0192a000-0000-7000-8000-00000000beef", value: "free", idx: 0 },
+        1727200002300,
+      ),
+    );
+    store.close();
+  });
+
+  it("R5: class.property.set on a class outside the scope fails loud; a subclass-of-scope class binds fine", () => {
+    const store = Store.open(makeBackend());
+    scopedWorld(store);
+    // A class with NO relation to the scope: dead config, rejected.
+    const foreign = "0192a000-0000-7000-8000-000000000a30";
+    store.apply(
+      env("class.create", { classId: foreign, contentAst: [{ type: "text", "text": "Foreign" }] }, 1727200002000),
+    );
+    expect(() =>
+      store.apply(
+        env("class.property.set", { classId: foreign, propertySchemaId: SCHEMA, sequence: 0 }, 1727200002100),
+      ),
+    ).toThrow(MoveGuardError);
+    expect(() =>
+      store.apply(
+        env("class.property.set", { classId: foreign, propertySchemaId: SCHEMA, sequence: 0 }, 1727200002100),
+      ),
+    ).toThrow(/would be inert/);
+    // B extends A (in scope): the binding is live — it must be accepted.
+    store.apply(
+      env("class.property.set", { classId: CLASS_B, propertySchemaId: SCHEMA, sequence: 0, defaultValue: "inherited" }, 1727200002200),
+    );
+    // R4 arm: NODE_X carries no scope class — B's binding with a default
+    // derives NOTHING for it; NODE_B (via the A ancestor) reads the default.
+    const rows = (nodeId: string) =>
+      store.getEffectiveProperties(nodeId).filter((row) => row.propertySchemaId === SCHEMA);
+    expect(rows(NODE_X).filter((row) => row.source === "default")).toHaveLength(0);
+    expect(rows(NODE_B).some((row) => row.source === "default" && row.value === "inherited" && row.eligible)).toBe(true);
+    store.close();
+  });
+
+  it("R4: an ineligible node reads neither the property nor a derived default", () => {
+    const store = Store.open(makeBackend());
+    scopedWorld(store);
+    store.apply(
+      env(
+        "class.property.set",
+        { classId: CLASS_A, propertySchemaId: SCHEMA, sequence: 0, defaultValue: "defaulted" },
+        1727200002000,
+      ),
+    );
+    const rows = (nodeId: string) =>
+      store.getEffectiveProperties(nodeId).filter((row) => row.propertySchemaId === SCHEMA);
+    // NODE_X: no authored rows, no derived default (the stray binding is inert).
+    expect(rows(NODE_X)).toHaveLength(0);
+    // NODE_A: the derived default materializes, eligible.
+    expect(rows(NODE_A).map((row) => [row.source, row.value, row.eligible])).toEqual([
+      ["default", "defaulted", true],
+    ]);
+    store.close();
+  });
+
+  it("the retired scope key fails loud at the envelope gate (create and update)", () => {
+    const store = Store.open(makeBackend());
+    for (const scope of ["global", "class", "object"]) {
+      expect(() =>
+        store.apply(
+          env(
+            "propertySchema.create",
+            { propertySchemaId: SCHEMA, name: "x", type: "text", scope },
+            1727200001000,
+          ),
+        ),
+      ).toThrow(/invalid propertySchema\.create payload/);
+    }
+    expect(() =>
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA, scope: "global" }, 1727200001000)),
+    ).toThrow(/invalid propertySchema\.update payload/);
+    // An empty scopeClassIds is likewise rejected at the gate.
+    expect(() =>
+      store.apply(
+        env(
+          "propertySchema.create",
+          { propertySchemaId: SCHEMA, name: "x", type: "text", scopeClassIds: [] },
+          1727200001000,
+        ),
+      ),
+    ).toThrow(/invalid propertySchema\.create payload/);
+    store.close();
+  });
+
+  it("update keep/clear for icon/scopeClassIds/targetClassFilter/multi/validationRules", () => {
+    const store = Store.open(makeBackend());
+    store.applyMany(loadFixture("property-schema-update-fields.json"));
+    const row = () =>
+      store.database
+        .prepare(
+          "SELECT icon, multi, scope_class_ids, target_class_filter, validation_rules FROM property_schema WHERE id = ?",
+        )
+        .get("0192a000-0000-7000-8000-000000000960") as {
+        icon: string | null;
+        multi: number;
+        scope_class_ids: string | null;
+        target_class_filter: string | null;
+        validation_rules: string | null;
+      };
+    // Cleared at the end of the Score lifecycle: icon/multi/rules back to
+    // defaults, the keep-riding name landed.
+    expect(row()).toEqual({
+      icon: null,
+      multi: 0,
+      scope_class_ids: null,
+      target_class_filter: null,
+      validation_rules: null,
+    });
+    expect(
+      (
+        store.database
+          .prepare("SELECT name FROM property_schema WHERE id = ?")
+          .get("0192a000-0000-7000-8000-000000000960") as { name: string }
+      ).name,
+    ).toBe("Score (kept fields ride)");
+    // Related: filter + scope set then cleared.
+    const related = store.database
+      .prepare("SELECT scope_class_ids, target_class_filter FROM property_schema WHERE id = ?")
+      .get("0192a000-0000-7000-8000-000000000961") as {
+      scope_class_ids: string | null;
+      target_class_filter: string | null;
+    };
+    expect(related).toEqual({ scope_class_ids: null, target_class_filter: null });
+    store.close();
+  });
+
+  it("validationRules applicability is apply-time against the stored type", () => {
+    const store = Store.open(makeBackend());
+    const text = "0192a000-0000-7000-8000-000000000b10";
+    const num = "0192a000-0000-7000-8000-000000000b11";
+    const url = "0192a000-0000-7000-8000-000000000b12";
+    store.applyMany([
+      env("propertySchema.create", { propertySchemaId: text, name: "t", type: "text" }, 1727200001000),
+      env("propertySchema.create", { propertySchemaId: num, name: "n", type: "number" }, 1727200001100),
+      env("propertySchema.create", { propertySchemaId: url, name: "u", type: "url" }, 1727200001200),
+    ]);
+    // min/max on a text schema: fail loud.
+    expect(() =>
+      store.apply(env("propertySchema.update", { propertySchemaId: text, validationRules: { min: 0 } }, 1727200002000)),
+    ).toThrow(/min\/max apply to number schemas only/);
+    expect(() =>
+      store.apply(env("propertySchema.update", { propertySchemaId: text, validationRules: { max: 5 } }, 1727200002100)),
+    ).toThrow(/min\/max apply to number schemas only/);
+    // pattern on a number schema: fail loud.
+    expect(() =>
+      store.apply(env("propertySchema.update", { propertySchemaId: num, validationRules: { pattern: "^a" } }, 1727200002200)),
+    ).toThrow(/pattern applies to text\/url\/email schemas only/);
+    // Legal arms: min/max on number, pattern on text and url.
+    store.apply(env("propertySchema.update", { propertySchemaId: num, validationRules: { min: 0, max: 10 } }, 1727200002300));
+    store.apply(env("propertySchema.update", { propertySchemaId: text, validationRules: { pattern: "^#" } }, 1727200002400));
+    store.apply(env("propertySchema.update", { propertySchemaId: url, validationRules: { pattern: "^https://" } }, 1727200002500));
+    // min > max fails at the payload gate.
+    expect(() =>
+      store.apply(env("propertySchema.update", { propertySchemaId: num, validationRules: { min: 5, max: 1 } }, 1727200002600)),
+    ).toThrow(/invalid propertySchema\.update payload/);
+    const rulesOf = (id: string) =>
+      (store.database.prepare("SELECT validation_rules FROM property_schema WHERE id = ?").get(id) as {
+        validation_rules: string | null;
+      }).validation_rules;
+    expect(JSON.parse(rulesOf(num)!)).toEqual({ min: 0, max: 10 });
+    expect(JSON.parse(rulesOf(text)!)).toEqual({ pattern: "^#" });
+    expect(JSON.parse(rulesOf(url)!)).toEqual({ pattern: "^https://" });
+    // Null clears.
+    store.apply(env("propertySchema.update", { propertySchemaId: num, validationRules: null }, 1727200002700));
+    expect(rulesOf(num)).toBeNull();
     store.close();
   });
 });

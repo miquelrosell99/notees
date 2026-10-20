@@ -228,7 +228,8 @@ export async function ensureCitationFamily(client: AnyClient): Promise<void> {
       id: spec.id,
       name: spec.name,
       type: spec.type,
-      scope: "class",
+      // Scoped to the bound class (the sole locality authority) — the binding below lands on the same class.
+      scopeClassIds: [spec.bindTo],
       ...(spec.multi !== undefined ? { multi: spec.multi } : {}),
       ...(spec.targetClassFilter !== undefined ? { targetClassFilter: spec.targetClassFilter } : {}),
     });
