@@ -8,6 +8,14 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **fix(web): the class-page binding panel clarifies the active switch and
+  hides non-removable removes (owner review).** The PC4 "Active on this
+  class" toggle (was the unlabeled Disabled/Enabled pair) now carries its
+  group label + a helper line — off keeps the binding's settings but stops
+  applying them. "Remove from class" is HIDDEN for system property schemas
+  (panel and the ⋯ overflow alike — non-removable means absent) and the
+  "System properties stay on their class" caption is gone. Tests re-anchored
+  (29 green in the three section suites; typecheck clean).
 - **refactor(web): the class-page property config panel is class-level only
   (owner ruling R7).** The expanded panel duplicated the base-definition
   modal (rename, type/Convert, multi, target classes, date settings); it now

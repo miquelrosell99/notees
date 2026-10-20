@@ -211,12 +211,13 @@ describe("S6 PropertyDefinitionsSection", () => {
     expect(within(row).queryByLabelText("Property name")).toBeNull();
   });
 
-  it("disables Remove from class for system property schemas", async () => {
+  it("hides Remove from class for system property schemas", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "A");
     // `alias` is a global system schema (…0028) — author the schema row at
     // the reserved id (as the workspace seed would), bind it manually
-    // (scope-legal: global), and the row must not be removable from the class.
+    // (scope-legal: global), and the row must carry no remove affordance
+    // (owner ruling: non-removable = hidden, not disabled — no caption).
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.alias,
       name: "Aliases",
@@ -228,8 +229,8 @@ describe("S6 PropertyDefinitionsSection", () => {
     await expandSection();
 
     fireEvent.click(screen.getByRole("button", { name: "Configure Aliases" }));
-    const remove = screen.getByRole("button", { name: "Remove from class" });
-    expect(remove).toHaveProperty("disabled", true);
+    expect(screen.queryByRole("button", { name: "Remove from class" })).toBeNull();
+    expect(screen.queryByText(/System properties stay/)).toBeNull();
   });
 
   it("keeps the inherited group read-only — no grip, no config toggle", async () => {
