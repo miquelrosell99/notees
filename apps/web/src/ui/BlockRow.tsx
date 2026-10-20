@@ -30,12 +30,19 @@
  *   the children container spans from that centerline, so the indent
  *   rails ride the bullet column by construction (two vars,
  *   --nt-row-gutter and --nt-grip-half, single-source the row gutter and
- *   the grip width; no hand-derived margins left). The editing bullet
- *   highlight stays
+ *   the grip width; no hand-derived margins left). The thread arms end at
+ *   each path bullet near edge — under a dot, a few px BEFORE a class icon
+ *   or list marker (the arm struck through glyphs and
+ *   read as an overlap) — and at an intermediate glyph the path jogs back
+ *   to the center column under the opaque icon for the next vertical.
+ *   While a block edits, the ancestor path dots and class icons wear the
+ *   accent at RESTING SIZE (the thread reads through them; only the
+ *   editing bullet grows — the scale is the engaged-row signal). The
+ *   editing bullet highlight stays
  *   direct-row scoped (a descendant selector lit the whole subtree —
- *   children must not read as active), and the
- *   collapse chevron focus reveal is row-scoped the same way — while a
- *   block edits, the ancestor chevrons stay hidden.
+ *   children must not read as active), and the collapse
+ *   chevron reveals on grip hover ONLY — no focus reveal of any kind: an
+ *   editing block shows no chevron until hovered, like every other block.
  *
  * A collapsed block (session-local display state from OutlinerContext) hides
  * its entire subtree — the children container is not rendered. The chevron
