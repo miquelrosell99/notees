@@ -172,8 +172,9 @@ The single most important process rule:
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
 groups). The exact file set is the contract — the gate test below asserts it
-verbatim (35 files after the 2026-10-20 property-scope batch added
-`property-schema-scope.json` + `property-schema-update-fields.json`); the core
+verbatim (36 files after the 2026-10-20 property-scope batch added
+`property-schema-scope.json` + `property-schema-update-fields.json` and the
+validationRules value enforcement added `property-validation-rules.json`); the core
 scenarios:
 
 | Fixture | Scenario it pins |
@@ -193,6 +194,7 @@ scenarios:
 | `property-asset-type.json` | the `asset` property type through `propertySchema.create` + a coexisting update |
 | `property-schema-scope.json` | the property-schema scope model: `scopeClassIds` create + R5 binding accept + R3 extends-aware eligibility + survival under a non-retroactive narrowing |
 | `property-schema-update-fields.json` | the update payload's new fields: icon/scopeClassIds/targetClassFilter/multi/validationRules set + cleared (the keep/clear contract) |
+| `property-validation-rules.json` | validationRules value enforcement: number min/max (boundaries + normalized numeric strings), text/url pattern accepts, min-only/max-only, a multi element batch with one bad element, rule-free + schema-less writes unchecked — and a reject tail (out-of-range, pattern misses, un compilable pattern) that must throw on apply |
 | `trash-empty.json` | the `trash.empty` bulk op: apply-time permanent delete of every trashed root, a restore-before-empty survives |
 
 The gate is enforced by `packages/protocol/test/protocol.test.ts`:
