@@ -9,6 +9,50 @@ predating this file.
 
 ## 2026-10-20
 
+- **feat(web): checkboxes wear the same rounded square as the buttons.**
+  Owner feedback 2026-10-20 (the task checkbox "looked weird" — a 4px
+  corner against the bar's new register). Both checkbox primitives move
+  to the shared shape: the fleet `Checkbox` (`rounded-shape-sm` →
+  `rounded-shape-md`) and the catalog `checkbox` (`rounded-item` →
+  `rounded-shape-md`, the Dropdown composables included). `rounded-
+  shape-md` joins the Tailwind radius map as the shared rounded-square
+  utility (owner ruling: buttons and checkboxes wear the switcher's
+  `shape-medium`). Verified live: a table selection checkbox computes
+  `border-radius: 6px`, identical to the top-bar buttons; drift gate
+  green (12/12). Full-suite note: the 36 collect failures at this moment
+  are entirely another session's in-progress
+  `packages/store/src/schema.ts` (a backticked `` `scope` `` inside a SQL
+  template string — a pre-parse error in THEIR uncommitted +85-line v24
+  edit; zero tests reference the checkbox classes); reported, not
+  touched, per the parallel-session law.
+- **feat(web): the card view's second view mode is the FLOW — single column /
+  grid / masonry — and the old one stands renamed to what it always was, the
+  cover position.** Owner request 2026-10-20: the cards view carried one
+  "secondary view mode" that was really about cover placement, and wanted a
+  second one for layout (single column / grid / masonry), with the open
+  design question settled in the same slice: ONE flow enum, not a
+  multi-column × grid pair — the boolean decomposition creates a meaningless
+  single-column-grid combination, and grid vs masonry only differ in
+  multi-column. The rename: `CardLayout` → `CoverLayout` (type, prefs
+  functions `readCoverLayoutPref`/`writeCoverLayoutPref`/
+  `useCoverLayoutPreference`, the capability flag, the toggle's aria-label —
+  "Cover position"; the `cards.coverLayout` storage key and its values are
+  unchanged, no migration). The flow: `CardFlow = "stack" | "grid" |
+  "masonry"` (types.ts), persisted device-globally like the cover position
+  (`cards.flow`, `useCardFlowPreference`, surfaces shape only the unset
+  fallback via `defaultCardFlow` — default "masonry", the recovered original
+  adaptive multicol, so every existing surface keeps its look). The flat
+  grid's toolbar gains the flow picker (stack = full-width rows; grid =
+  row-aligned `repeat(auto-fill, minmax(...))` columns; masonry = the
+  original CSS-columns flow, now scoped under `.cards-grid--masonry`); the
+  raised panel chrome is the shared base. The grouped board rides no flow —
+  its columns are the property groupBy, not a visual layout (kanban stays
+  cards + groupBy, and the flow is not a fourth board value either).
+  Verified: `view-modes.test.tsx` gains the flow test (masonry default,
+  toggle switch + device-local write, stale-value fallback) and the
+  board-ignores-flow test; full suite green. Docs: `docs/ux.md` (the stick
+  ruling), `docs/usage.md` (view modes stick, the cards board section, the
+  new flat-cards-flow section, the Assets hub cover-first wording).
 - **feat(web): the thread SURROUNDS an in-path icon — a loop of inverted
   rounding wraps its lower-left, and the downward line keeps its original
   position.** Owner correction 2026-10-20 ("keep the downward line in its
