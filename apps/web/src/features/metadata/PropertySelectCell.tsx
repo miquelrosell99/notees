@@ -29,6 +29,14 @@ export function PropertySelectCell({
   onClear,
   /** Trailing chrome beside the trigger (repeat picker, qualifier range). */
   trailing,
+  /**
+   * The navigate action (owner 2026-10-20): with a value set, the → button
+   * renders inside the trigger beside the chevron — the value click keeps
+   * owning the picker, the button owns navigation (the table's pinned Open
+   * button idiom).
+   */
+  onNavigate,
+  navigateLabel,
   /** The selected value's content — one pill, or the date's display name. */
   children,
 }: {
@@ -41,6 +49,8 @@ export function PropertySelectCell({
   clearLabel: string;
   onClear: (() => void) | undefined;
   trailing?: ReactNode;
+  onNavigate?: (() => void) | undefined;
+  navigateLabel?: string | undefined;
   children?: ReactNode;
 }) {
   const linkedNode = valueRef !== null ? client.getNode(valueRef) : undefined;
@@ -78,6 +88,22 @@ export function PropertySelectCell({
             children
           )}
         </div>
+        {onNavigate !== undefined && valueRef !== null && (
+          <button
+            type="button"
+            className="nt-property-select__nav"
+            title={navigateLabel}
+            aria-label={navigateLabel}
+            onClick={(event) => {
+              // The trigger's click owns the picker — the button owns
+              // navigation (owner 2026-10-20).
+              event.stopPropagation();
+              onNavigate();
+            }}
+          >
+            <Icon path="mdi-arrow-right" size={0.7} />
+          </button>
+        )}
         <span className="nt-property-select__chevron" aria-hidden="true">
           <Icon path="mdi-chevron-down" size={0.7} />
         </span>

@@ -47,6 +47,8 @@ export function DatetimePropertyRow({
   multi,
   schema,
   rows,
+  /** Page navigation (the single-value cell's → button, owner 2026-10-20). */
+  onOpenPage,
   /** Hide the label/hints (the host chrome carries them — the sidebar). */
   bare = false,
   /** Read-only projection: values render as static pills, no picker. */
@@ -59,6 +61,7 @@ export function DatetimePropertyRow({
   multi: boolean;
   schema: { datePrecision?: DatePrecision | null } | null;
   rows: EffectiveProperty[];
+  onOpenPage?: ((pageId: string) => void) | undefined;
   bare?: boolean;
   readOnly?: boolean | undefined;
 }) {
@@ -239,6 +242,25 @@ export function DatetimePropertyRow({
           onClear={
             single !== undefined && single.source === "authored"
               ? () => void client.unsetProperty(nodeId, propertySchemaId, single.idx)
+              : undefined
+          }
+          onNavigate={
+            singleRef !== null
+              ? () => {
+                  // A date ref jumps to its day page (chain ensured, the
+                  // table DateCell precedent); anything else opens as a node.
+                  const iso = isoOfRef(singleRef);
+                  if (iso !== null) {
+                    void client.ensureDateChain(iso).then(({ day }) => onOpenPage?.(day));
+                  } else {
+                    onOpenPage?.(singleRef);
+                  }
+                }
+              : undefined
+          }
+          navigateLabel={
+            singleRef !== null
+              ? `Open ${displayNameFromClient(client, singleRef) ?? singleRef}`
               : undefined
           }
           trailing={

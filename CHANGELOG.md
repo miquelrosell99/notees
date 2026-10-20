@@ -33,6 +33,34 @@ predating this file.
   `docs/ux.md`. Verification: `thread-probe.mjs` grows stud assertions
   (ancestors only, 2px geometry, pointer-events) and a subtree-accent
   regression step; gate green.
+- **feat(web): the navigate button extends to single-value node/date
+  property cells — table view and the properties panel.** Owner
+  2026-10-20: the click/value distinction the pinned Open button
+  established for the name cell now governs the single-value node-typed
+  and datetime property cells too. **Table view**: the value click owns
+  the picker (the NodeSelector / the canonical date-popup, unless
+  read-only), and the retired inline open-arrow's two navigations — the
+  link target and the day-page jump — move onto the same pinned
+  hover-revealed → button (shift+click peeks the target/day in the
+  sidebar), with the cell's lane yielded on hover via the `:has()` host
+  selector (no class plumbing — the td opts in when the cell renders a
+  button); read-only property cells (query results) gain navigation they
+  never had. **Properties panel**: `PropertySelectCell` grows an
+  `onNavigate` → button beside the chevron, visible at rest (in the panel
+  it is the cell's only navigation affordance — the table's hover-reveal
+  stays a dense-row idiom); `DatetimePropertyRow` gains the `onOpenPage`
+  plumbing (GroupedPropertyRow passes it) and a date ref jumps to its day
+  page through the ensured chain, anything else opens as a node. The
+  read-only projections stay click-to-navigate pills (deliberate, noted
+  for the owner). The `↗` `OpenArrow` retires with its CSS.
+  `TableView.tsx/.css`, `PropertySelectCell.tsx`, `ObjectPropertyRow.tsx`,
+  `DatetimePropertyRow.tsx`, `GroupedPropertyRow.tsx`,
+  `MetadataSection.css`. Verified live (11 checks): table node/date cells
+  reveal on hover, value clicks open the pickers, buttons navigate to the
+  target and the deterministic day page; panel buttons navigate from both
+  rows. Probe-found pre-existing quirk noted: an EMPTY date cell's trigger
+  collapses to zero height (clickable only via its line box) — untouched,
+  a panel/cell-sizing follow-up.
 - **feat(web): table name cells wrap long titles over multiple lines — and
   the Open button is a hover reveal whose lane the text yields.** Owner
   2026-10-20, three refinements on the pinned Open button: **(1)** the name

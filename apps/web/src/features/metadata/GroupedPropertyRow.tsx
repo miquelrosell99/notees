@@ -55,6 +55,7 @@ export function GroupedPropertyRow({
         multi={multi}
         schema={schema}
         rows={groupRows}
+        onOpenPage={onOpenPage}
         bare={bare}
         readOnly={readOnly}
       />

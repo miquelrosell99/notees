@@ -28,6 +28,11 @@
  *   unified datetime union (ensureDateChain); node cells open the anchored
  *   NodeSelector.
  *   Multi-value properties stay read-only.
+ * - The navigate button (owner 2026-10-20): the pinned Open button also
+ *   rides the single-value node/date property cells — the VALUE click owns
+ *   the picker (unless read-only), the button owns navigation (target
+ *   node / day page), hover-revealed like the name cell. The retired
+ *   inline open-arrow was its only navigation.
  * - Name cell: row click opens, shift+click peeks. The pinned Open
  *   button — the workspace card's "Open workspace" twin (ghost/sm,
  *   right arrow, owner 2026-10-20) — rides the cell's right edge
@@ -361,7 +366,7 @@ async function commitTextCellValue(
  * ("create the day page" — the chain ensure is an idempotent no-op when it
  * exists).
  */
-function DateCell({ row, schemaId, props, schemaName }: { row: TableRow; schemaId: string; props: NodeCollectionProps; schemaName: string }) {
+function DateCell({ row, schemaId, props, schemaName, peek }: { row: TableRow; schemaId: string; props: NodeCollectionProps; schemaName: string; peek: (id: string) => void }) {
   const { client } = props;
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement | null>(null);
@@ -421,10 +426,13 @@ function DateCell({ row, schemaId, props, schemaName }: { row: TableRow; schemaI
         />
       )}
       {start !== null && (
-        <OpenArrow
+        <OpenButton
           label={`the ${start.iso} day page`}
           onOpen={() => {
             void client.ensureDateChain(start.iso).then(({ day }) => props.onNodeClick?.(day));
+          }}
+          onPeek={() => {
+            void client.ensureDateChain(start.iso).then(({ day }) => peek(day));
           }}
         />
       )}
@@ -439,31 +447,28 @@ function isoOfRef(ref: string): string | null {
   return `${String(parsed.year).padStart(4, "0")}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`;
 }
 
-/** The open-arrow — navigates to a node (link target, day page). The
-    name cell rides the pinned OpenButton instead (owner 2026-10-20). */
-function OpenArrow({ label, onOpen }: { label: string; onOpen: () => void }) {
-  return (
-    <button
-      type="button"
-      className="nt-table-open"
-      title={`Open ${label}`}
-      aria-label={`Open ${label}`}
-      onClick={(event) => {
-        event.stopPropagation();
-        onOpen();
-      }}
-    >
-      <Icon path="mdi-arrow-top-right" size={0.7} />
-    </button>
-  );
+/** The datetime value's navigation target: the START slot's node id (a
+    range's day-page jump rides its start, the DateCell precedent). */
+function datetimeStartRef(value: unknown): string | null {
+  const refOf = (slot: unknown): string | null =>
+    typeof slot === "object" &&
+    slot !== null &&
+    "nodeId" in slot &&
+    typeof (slot as { nodeId: unknown }).nodeId === "string"
+      ? (slot as { nodeId: string }).nodeId
+      : null;
+  if (isRangeDatetimeValue(value)) return refOf((value as { start?: unknown }).start);
+  return refOf(value);
 }
 
 /**
  * The row's Open button — the table's navigate affordance (owner
  * 2026-10-20): the same ghost/sm/arrow-right button as the workspace
- * card's "Open workspace" action, pinned to the name cell's right edge
- * regardless of the text content. Click opens the node; shift+click
- * peeks it in the sidebar card.
+ * card's "Open workspace" action, pinned to the cell's right edge
+ * regardless of the text content. Serves the name cell and the
+ * single-value node/date property cells alike (the value click owns the
+ * picker; the button owns navigation). Click opens; shift+click peeks
+ * in the sidebar card.
  */
 function OpenButton({
   label,
@@ -563,7 +568,7 @@ function NameCell({
   );
 }
 
-function NodeCell({ row, schemaId, props, schemaName }: { row: TableRow; schemaId: string; props: NodeCollectionProps; schemaName: string }) {
+function NodeCell({ row, schemaId, props, schemaName, peek }: { row: TableRow; schemaId: string; props: NodeCollectionProps; schemaName: string; peek: (id: string) => void }) {
   const prop = row.properties.find((p) => p.propertySchemaId === schemaId);
   const target = prop?.value as { nodeId?: unknown } | undefined;
   const targetId = typeof target?.nodeId === "string" ? target.nodeId : null;
@@ -580,9 +585,10 @@ function NodeCell({ row, schemaId, props, schemaName }: { row: TableRow; schemaI
         {targetId !== null ? (displayNameFromClient(props.client, targetId) ?? targetId) : schemaName}
       </button>
       {targetId !== null && (
-        <OpenArrow
+        <OpenButton
           label={displayNameFromClient(props.client, targetId) ?? "target"}
           onOpen={() => props.onNodeClick?.(targetId)}
+          onPeek={() => peek(targetId)}
         />
       )}
       {open && (
@@ -600,7 +606,7 @@ function NodeCell({ row, schemaId, props, schemaName }: { row: TableRow; schemaI
   );
 }
 
-function PropertyCell({ row, column, props }: { row: TableRow; column: TableColumn; props: NodeCollectionProps }) {
+function PropertyCell({ row, column, props, peek }: { row: TableRow; column: TableColumn; props: NodeCollectionProps; peek: (id: string) => void }) {
   const { client, tableEditable = false } = props;
   const schemaId = column.propertySchemaId!;
   const schema = client.listPropertySchemas().find((s) => s.id === schemaId);
@@ -676,11 +682,11 @@ function PropertyCell({ row, column, props }: { row: TableRow; column: TableColu
   }
 
   if (editable && schema?.type === "datetime" && schema?.multi !== true) {
-    return <DateCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} />;
+    return <DateCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} peek={peek} />;
   }
 
   if (editable && schema?.type === "object" && schema?.multi !== true) {
-    return <NodeCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} />;
+    return <NodeCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} peek={peek} />;
   }
 
   // Url/email values render as links (mailto: for email; a url
@@ -692,6 +698,57 @@ function PropertyCell({ row, column, props }: { row: TableRow; column: TableColu
         {propertyDisplayText(client, prop)}
       </a>
     );
+  }
+
+  // Read-only node/date cells: no picker on click (the editable branch owns
+  // the picker), but the navigate button still applies — owner 2026-10-20:
+  // navigation rides the pinned button everywhere these cells render.
+  if (prop !== undefined && schema?.multi !== true) {
+    if (schema?.type === "object") {
+      const ref = carrierRefOf(prop.value);
+      if (ref !== null) {
+        return (
+          <span className="nt-table-node">
+            {propertyDisplayText(client, prop)}
+            <OpenButton
+              label={displayNameFromClient(client, ref) ?? "target"}
+              onOpen={() => props.onNodeClick?.(ref)}
+              onPeek={() => peek(ref)}
+            />
+          </span>
+        );
+      }
+    }
+    if (schema?.type === "datetime") {
+      const ref = datetimeStartRef(prop.value);
+      if (ref !== null) {
+        const iso = isoOfRef(ref);
+        const open = () => {
+          if (iso !== null) {
+            void client.ensureDateChain(iso).then(({ day }) => props.onNodeClick?.(day));
+          } else {
+            props.onNodeClick?.(ref);
+          }
+        };
+        const peekTarget = () => {
+          if (iso !== null) {
+            void client.ensureDateChain(iso).then(({ day }) => peek(day));
+          } else {
+            peek(ref);
+          }
+        };
+        return (
+          <span className="nt-table-node">
+            {propertyDisplayText(client, prop)}
+            <OpenButton
+              label={iso !== null ? `the ${iso} day page` : "target"}
+              onOpen={open}
+              onPeek={peekTarget}
+            />
+          </span>
+        );
+      }
+    }
   }
 
   return <>{propertyDisplayText(client, prop)}</>;
@@ -1057,7 +1114,7 @@ export function TableView(props: NodeCollectionProps) {
     }
     return (
       <td key={column.id}>
-        <PropertyCell row={row} column={column} props={props} />
+        <PropertyCell row={row} column={column} props={props} peek={peekNode} />
       </td>
     );
   };
