@@ -673,8 +673,13 @@ export function PageView({
                 a drop anchored on a main child promotes into the Pages
                 zone, see the host's drop resolution). The variant's
                 section stack (the class sections) inserts its descriptors
-                here — data, not a slot. */}
-            {variantSections}
+                here — data, not a slot. The stack rides the
+                nt-variant-sections wrapper so its first section keeps the
+                same ghost-row separation the system-sections wrapper owns
+                (bare, the hairline sat tight under the body's ghost row). */}
+            {variantSections.length > 0 && (
+              <div className="nt-variant-sections">{variantSections}</div>
+            )}
             {!preview && dayIso !== null && !embedded && (
               <DayPageSections
                 client={client}
