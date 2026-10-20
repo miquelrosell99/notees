@@ -282,12 +282,16 @@ describe("Class View", () => {
     const authorsRow = rows[1]!;
     // The collapsed row is identity-only (S6): grip + icon + name, no type
     // chip. R7 + the same-day amendment: the expanded panel is class-level
-    // only too — identity header, default value + Required, no group labels,
+    // only too — identity header, the type-gated default value + Required,
+    // no group labels,
     // no active switch; the row's COG is the path to the modal (the
     // unresolved-targets hint for the undeployed "agent" class lives there).
     fireEvent.click(within(authorsRow as HTMLElement).getByRole("button", { name: "Configure Authors" }));
     await flushWrites();
-    expect(within(authorsRow as HTMLElement).getByLabelText("Default for Authors")).not.toBeNull();
+    // Authors is object-typed: the owner ruling (2026-10-20) gives node-typed
+    // bindings NO default editor — Required is the inline field.
+    expect(within(authorsRow as HTMLElement).queryByLabelText("Default for Authors")).toBeNull();
+    expect(within(authorsRow as HTMLElement).getByRole("checkbox", { name: "Required" })).not.toBeNull();
     expect(
       within(authorsRow as HTMLElement).getByRole("button", { name: "Definition settings for Authors" }),
     ).not.toBeNull();

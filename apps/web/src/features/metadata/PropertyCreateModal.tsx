@@ -36,6 +36,7 @@ import { IconTriggerButton, PropertyField } from "./ClassMultiPickField.js";
 import { ClassMultiPickField } from "./ClassMultiPickField.js";
 import { PropertyOptionsEditor } from "./PropertyOptionsEditor.js";
 import { PropertyScopeControl } from "./PropertyScopeControl.js";
+import { defaultCapable } from "./shared.js";
 import type { AnyClient } from "./shared.js";
 import "./PropertyCreateModal.css";
 
@@ -63,11 +64,6 @@ export const PROPERTY_TYPE_OPTIONS: PropertyTypeOption[] = [
 
 /** Node-typed schemas constrain their targets to picked classes. */
 const FILTERED_TYPES = new Set(["object", "asset", "datetime"]);
-
-/** Types a class-binding defaultValue can meaningfully carry (PC2). */
-function defaultCapable(type: string): boolean {
-  return ["text", "number", "boolean", "url", "email", "select"].includes(type);
-}
 
 export interface PropertyCreateModalProps {
   isOpen: boolean;
@@ -449,11 +445,11 @@ export function PropertyCreateModal({
               </select>
             ) : (
               <input
-                type={type === "number" ? "number" : type === "url" ? "url" : type === "email" ? "email" : "text"}
+                type={type === "number" ? "number" : "text"}
                 className="nt-property-settings__input"
                 value={defaultValue ?? ""}
                 onChange={(event) => setDefaultValue(event.target.value)}
-                placeholder={type === "url" ? "https://example.com" : type === "email" ? "name@example.com" : "Default value"}
+                placeholder="Default value"
                 aria-label="Default value"
               />
             )}

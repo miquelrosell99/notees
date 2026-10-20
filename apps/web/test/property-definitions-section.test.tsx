@@ -3,7 +3,9 @@
  * the add popover's class-context eligibility (R1/R2 — global + schemas
  * scoped to this class or its extends-ancestors), the config panel's
  * class-level-only scope (owner ruling R7 + the same-day amendment —
- * identity header + default value + Required, the row's COG as the path
+ * identity header + the type-gated default value (owner ruling 2026-10-20:
+ * no default editor for node-typed schemas) + Required, the row's COG as
+ * the path
  * to the S2 modal where target-class editing and the unresolved-targets
  * hint live; no group labels, no active switch, no "Edit definition…"), the
  * system-schema remove lock, and the keyboard-navigable popover. jsdom
@@ -201,10 +203,12 @@ describe("S6 PropertyDefinitionsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Configure link" }));
     await flushWrites();
     const row = container.querySelector(".nt-propdef") as HTMLElement;
-    // Stays (class-level, the only inline fields): default value + Required.
+    // Stays (class-level, the only inline fields): Required, plus the
+    // default editor for default-capable types — "link" is object-typed, so
+    // the owner ruling (2026-10-20) gives it NO default editor at all.
     // The definition path is the row's COG; removal is the row's hover × —
     // neither lives in the panel (owner amendment).
-    expect(within(row).getByLabelText("Default for link")).not.toBeNull();
+    expect(within(row).queryByLabelText("Default for link")).toBeNull();
     expect(within(row).getByRole("checkbox", { name: "Required" })).not.toBeNull();
     expect(within(row).getByRole("button", { name: "Remove link from class" })).not.toBeNull();
     expect(within(row).getByRole("button", { name: "Definition settings for link" })).not.toBeNull();

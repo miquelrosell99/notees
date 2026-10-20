@@ -197,6 +197,38 @@ describe("S1 in class context — the create binds (+ the optional default)", ()
     expect(binding).toBeDefined();
     expect(binding?.defaultValue).toBe("978-");
   });
+
+  it("the default field is type-gated: text/number/boolean/select only (owner ruling 2026-10-20)", async () => {
+    const client = await seedClient();
+    const fiction = await createTitledClass(client, "Fiction");
+    render(
+      <PropertyCreateModal
+        isOpen
+        client={client}
+        contextClassId={fiction}
+        onClose={() => {}}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Property name"), { target: { value: "Probe" } });
+
+    // The text default (the default type) is present…
+    expect(screen.getByLabelText("Default value")).not.toBeNull();
+    // …and disappears for every non-capable type, node-typed included.
+    for (const label of ["URL", "Email", "Date", "Multi-select", "Object", "Image", "Asset"]) {
+      fireEvent.click(screen.getByRole("radio", { name: new RegExp(`^${label}`) }));
+      expect(screen.queryByLabelText("Default value")).toBeNull();
+      expect(screen.queryByText(/Default value for new members/)).toBeNull();
+    }
+
+    // Select: the default is a dropdown of the authored options.
+    fireEvent.click(screen.getByRole("radio", { name: /^Select/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Add option" }));
+    fireEvent.change(screen.getByLabelText("Option New option"), { target: { value: "Alpha" } });
+    fireEvent.blur(screen.getByLabelText("Option New option"), { target: { value: "Alpha" } });
+    const select = screen.getByLabelText("Default value");
+    expect(select.tagName).toBe("SELECT");
+    expect(within(select).getByText("Alpha")).not.toBeNull();
+  });
 });
 
 describe("S1 entry points", () => {

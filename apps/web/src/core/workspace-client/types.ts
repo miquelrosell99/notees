@@ -250,6 +250,9 @@ export function mapClassBindingRow(row: Record<string, unknown>): ClassBinding {
     if (raw === null) return null;
     try {
       const parsed: unknown = JSON.parse(raw);
+      // A cleared default (explicit JSON null) reads back as no default —
+      // never as the string "null" (the old decode artifact).
+      if (parsed === null) return null;
       return typeof parsed === "string" ? parsed : JSON.stringify(parsed);
     } catch {
       return raw;
