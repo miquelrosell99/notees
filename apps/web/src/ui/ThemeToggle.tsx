@@ -10,7 +10,7 @@
 
 import { applyAppearance, resolveTheme, useDeviceSetting, writeDeviceSetting, type ThemePreference } from "../features/settings/deviceSettings.js";
 
-import { Icon } from "./Icon.js";
+import { Button } from "../components/ui/fleet/Button.js";
 
 export function ThemeToggle() {
   const [theme] = useDeviceSetting<ThemePreference>("theme", "system");
@@ -23,14 +23,14 @@ export function ThemeToggle() {
   };
 
   return (
-    <button
+    <Button
       type="button"
-      className="nt-icon-btn"
+      variant="ghost"
+      size="sm"
+      icon={resolved === "dark" ? "mdi mdi-weather-night" : "mdi mdi-white-balance-sunny"}
       title={resolved === "dark" ? "Switch to light theme" : "Switch to dark theme"}
       aria-label="Toggle theme"
       onClick={toggle}
-    >
-      <Icon path={resolved === "dark" ? "mdi-weather-night" : "mdi-white-balance-sunny"} size={1} />
-    </button>
+    />
   );
 }

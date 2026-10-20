@@ -16,12 +16,11 @@ import { rendersWithDocumentChrome } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Icon } from "../../ui/Icon.js";
+import { Button } from "../../components/ui/fleet/Button.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { ExportPageModal } from "../export/ExportPageModal.js";
 import { SharePageModal } from "../sharing/SharePageModal.js";
 import { NodeContextMenu, type NodeMenuState } from "./NodeContextMenu.js";
-import "./NodeMenuButton.css";
 
 /** The server coordinates the Share… modal needs (undefined = hide Share…). */
 export interface ShareTarget {
@@ -53,10 +52,12 @@ export function NodeMenuButton({
 
   return (
     <>
-      <button
+      <Button
         ref={buttonRef}
         type="button"
-        className="nt-icon-btn"
+        variant="ghost"
+        size="sm"
+        icon="mdi mdi-dots-vertical"
         title="Node actions"
         aria-label="Node actions"
         aria-haspopup="menu"
@@ -76,9 +77,7 @@ export function NodeMenuButton({
               : null,
           )
         }
-      >
-        <Icon path="mdi-dots-vertical" size={1} />
-      </button>
+      />
       <NodeContextMenu
         state={menu}
         client={client}
