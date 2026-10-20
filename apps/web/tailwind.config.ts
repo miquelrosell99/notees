@@ -121,8 +121,9 @@ export default {
         "4xl": "var(--font-size-4xl)",
       },
       borderRadius: {
-        /* The fleet shape scale (rulings: buttons corner-full at every
-           size, popovers 4px, cards 20px, sheets 28px). */
+        /* The fleet shape scale (rulings: buttons the rounded square at
+           every size — the switcher's
+           shape-medium; popovers 4px, cards 20px, sheets 28px). */
         card: "var(--radius-card)",
         sheet: "var(--radius-sheet)",
         button: "var(--radius-button-lg)",
@@ -234,6 +235,13 @@ export default {
         "icon-lg": "var(--icon-size-lg)",
         "icon-xl": "var(--icon-size-xl)",
         "icon-2xl": "var(--icon-size-2xl)",
+        /* The icon-only button visible box (the height register's twin —
+           without it the width utility never generates and aspect-square
+           alone carried the square, blowing up with min-h-touch). */
+        "icon-only-visible-xs": "var(--button-icon-only-visible-xs)",
+        "icon-only-visible-sm": "var(--button-icon-only-visible-sm)",
+        "icon-only-visible-md": "var(--button-icon-only-visible-md)",
+        "icon-only-visible-lg": "var(--button-icon-only-visible-lg)",
         /* The fraction scale (skeleton row widths). */
         "3-4": "75%",
         "2-3": "66%",

@@ -590,12 +590,12 @@
   --radius-sm: var(--shape-small);
   --radius-xs: var(--shape-extra-small);
   /* The fleet shape scale the Tailwind config and the shadcn catalog ride
-     (skill rulings: buttons corner-full at every size 2026-10-19, popovers
-     4px, cards 20px, sheets 28px). */
+     (skill rulings: buttons the rounded square at every size — supersedes the 2026-10-19 corner-full, matching the
+     view-mode switcher; popovers 4px, cards 20px, sheets 28px). */
   --radius-card: var(--shape-card);
   --radius-sheet: var(--shape-sheet);
-  --radius-button-lg: var(--shape-full);
-  --radius-button-sm: var(--shape-full);
+  --radius-button-lg: var(--shape-medium);
+  --radius-button-sm: var(--shape-medium);
   --radius-input: var(--shape-extra-large);
   --radius-item: var(--shape-large);
   --radius-popover: var(--radius-menu);
