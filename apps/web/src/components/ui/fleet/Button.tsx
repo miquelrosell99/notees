@@ -12,9 +12,8 @@
  * visual value resolves to a token through the Tailwind config
  * (registered-mapping mode of the drift gate).
  *
- * Radius: corner-full at every size (fleet ruling 2026-10-19, M3
- * corner-full buttons — the pre-catalog 12px corners retire with the
- * migration).
+ * Radius: the rounded-square shape at every size (the view-mode switcher's shape-medium, superseding the
+ * 2026-10-19 corner-full).
  *
  * Legacy hook classes: `btn` and `btn--icon-only` stay on the root so
  * feature CSS that compounds on them (calendar days, icon-picker items,
@@ -45,6 +44,7 @@ import { Spinner } from './Spinner.js';
 import { useReducedMotion } from './overlay-hooks.js';
 import { useDelayedVisible } from './useDelayedVisible.js';
 import { cn } from './cn.js';
+import './Button.css';
 
 export type ButtonVariant = 'default' | 'primary' | 'outline' | 'ghost' | 'danger' | 'danger-solid';
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -237,7 +237,7 @@ export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonPr
 
   const classNames = cn(
     buttonVariants({ variant, size }),
-    isIconOnly && ["btn--icon-only", "p-0 aspect-square relative", ICON_ONLY_SIZE[size]],
+    isIconOnly && ["btn--icon-only", "p-0 relative", ICON_ONLY_SIZE[size]],
     fullWidth && "w-full",
     active && ACTIVE_CLASSES[variant],
     isDisabled && "opacity-50 cursor-not-allowed",
