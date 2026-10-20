@@ -249,7 +249,7 @@
   border: none;
   background: transparent;
   padding: 0 var(--spacing-1);
-  border-radius: var(--shape-full);
+  border-radius: var(--shape-medium);
   color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
   font: inherit;
