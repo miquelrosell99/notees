@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-20
 
+- **feat(web): the edit thread passes THROUGH the path bullets (the stud),
+  and the editing bullet highlight stops spilling to the subtree.** Owner
+  feedback 2026-10-20, same day as the thread's first pass. **The stud:**
+  the first pass touched each path bullet only from the left — the owner's
+  reference look has the thread anchored at the dots, so every ancestor now
+  also grows a short vertical stud (`::before` on the grip — the bullet's
+  own pseudos stay retired) from just below its dot down into its children
+  rail below (a half line-height + the row padding, `calc(0.5lh + 6px)`);
+  an intermediate path link wears both the elbow (from the rail into its
+  dot) and the stud (down from its dot) — the ├ junction of the mock — the
+  top block grows only the stud, the editing block only the elbow. The stud
+  is scoped to ancestors that render a real `.nt-block-children` rail (a
+  table container's grid gets none) and both arms are killed under
+  `.nt-prose` — the grip still renders in prose, so the round-1 claim
+  "prose finds nothing" was wrong for the elbow: the flattened layout drew
+  orphan stubs (latent from the first pass, fixed here). **The subtree
+  spill:** the editing bullet/marker/icon highlight (resting-calm chrome,
+  2026-10-06) was a DESCENDANT selector — entering edit on a parent lit
+  every bullet in its subtree (accent + scale), which read as the children
+  being active; the three rules are direct-row scoped now
+  (`.nt-block--editing > .nt-block-row …`). Docs: `BlockRow.tsx` header +
+  `docs/ux.md`. Verification: `thread-probe.mjs` grows stud assertions
+  (ancestors only, 2px geometry, pointer-events) and a subtree-accent
+  regression step; gate green.
 - **feat(web): table name cells wrap long titles over multiple lines — and
   the Open button is a hover reveal whose lane the text yields.** Owner
   2026-10-20, three refinements on the pinned Open button: **(1)** the name

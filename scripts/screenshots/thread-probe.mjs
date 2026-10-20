@@ -70,21 +70,23 @@ try {
   await pg.waitForSelector(`[data-block-id="${A}"] .nt-block-children__rail`, { timeout: 60_000 });
 
   // In-page helpers: the rail gradient signature (accent carries a 3px stop,
-  // the resting hairline ends at 2px) and the elbow read (::after on the
-  // path link's bullet).
+  // the resting hairline ends at 2px), the elbow read (::after on the path
+  // link's grip) and the stud read (::before on the ancestor's grip).
   const thread = () =>
     pg.evaluate(([aid, a2id, a3id, a2bid, bid, cid, c1id]) => {
       const q = (id) => document.querySelector(`[data-block-id="${id}"]`);
       const railBg = (id) => getComputedStyle(q(id).querySelector(".nt-block-children__rail")).backgroundImage;
-      const elbow = (id) => {
-        // The elbow rides ::after on the GRIP (the bullet's own ::after is
-        // the retired ring — banned by the no-ring-hooks register).
+      const arm = (pseudo) => (id) => {
+        // Both arms ride the GRIP (the bullet's own ::after is the retired
+        // ring — banned by the no-ring-hooks register).
         const grip = q(id).querySelector(":scope > .nt-block-row .nt-block-grip");
         if (grip === null) return { grip: false };
-        const cs = getComputedStyle(grip, "::after");
+        const cs = getComputedStyle(grip, pseudo);
         if (cs.content === "none") return { content: "none" };
         return { content: cs.content, pointerEvents: cs.pointerEvents };
       };
+      const elbow = arm("::after");
+      const stud = arm("::before");
       return {
         editingA3: q(a3id).classList.contains("nt-block--editing"),
         railA: railBg(aid),
@@ -96,6 +98,12 @@ try {
         elbowA2b: elbow(a2bid),
         elbowB: elbow(bid),
         elbowC1: elbow(c1id),
+        studA: stud(aid),
+        studA2: stud(a2id),
+        studA3: stud(a3id),
+        studA2b: stud(a2bid),
+        studB: stud(bid),
+        studC1: stud(c1id),
       };
     }, [A, a2, a3, a2b, B, C, c1]);
 
@@ -113,6 +121,26 @@ try {
         height: parseFloat(cs.height),
         bulletCenterY: rb.top + rb.height / 2,
       };
+    }, id);
+
+  const studBox = (id) =>
+    pg.evaluate((bid) => {
+      const grip = document.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-block-grip`);
+      const cs = getComputedStyle(grip, "::before");
+      const rg = grip.getBoundingClientRect();
+      const lh = parseFloat(getComputedStyle(grip).lineHeight);
+      return {
+        width: parseFloat(cs.width),
+        topOffset: parseFloat(cs.top), // rel. the grip's padding box (22px tall)
+        height: parseFloat(cs.height),
+        expectedHeight: 0.5 * lh + 6,
+      };
+    }, id);
+
+  const dotOpacity = (id) =>
+    pg.evaluate((bid) => {
+      const dot = document.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet-dot`);
+      return getComputedStyle(dot).opacity;
     }, id);
 
   const expect = (cond, msg) => {
@@ -145,6 +173,34 @@ try {
     expect(Math.abs(b2.top + b2.height / 2 - b2.bulletCenterY) <= 1.5, "a2's elbow rides the bullet's vertical center");
     expect(Math.abs(b3.width - 31) <= 1 && Math.abs(b3.height - 2) <= 0.5,
       `a3's elbow reads ${Math.round(b3.width)}x${Math.round(b3.height)} (31x2 expected)`);
+  }
+
+  // ── the stud: each ancestor drops a vertical from its dot into its rail,
+  //    so the thread passes THROUGH every path bullet ──
+  expect(t.studA.content !== "none" && t.studA2.content !== "none",
+    "the ancestors (A, a2) grow the stud below their bullets");
+  expect(t.studA3.content === "none", "the editing block grows no stud — the thread ends at its dot");
+  expect(t.studA2b.content === "none" && t.studB.content === "none" && t.studC1.content === "none",
+    "non-path rows grow no stud");
+  expect(t.studA.pointerEvents === "none", "the stud is pointer-events: none");
+  {
+    const s = await studBox(A);
+    expect(Math.abs(s.width - 2) <= 0.5, `A's stud reads ${s.width}px wide (2px expected)`);
+    expect(Math.abs(s.topOffset - 12) <= 1.5, `A's stud starts just below the dot (top ${Math.round(s.topOffset)}, ~12 expected)`);
+    expect(Math.abs(s.height - s.expectedHeight) <= 1,
+      `A's stud spans a half line-height past the row bottom (${Math.round(s.height)}px)`);
+  }
+
+  // ── editing chrome stays on the editing ROW: the subtree must not accent ──
+  await pg.click(`[data-block-id="${a2}"] .nt-block-content`);
+  await pg.waitForSelector(`[data-block-id="${a2}"].nt-block--editing`, { timeout: 10_000 });
+  {
+    const own = await dotOpacity(a2);
+    const child = await dotOpacity(a3);
+    const sibling = await dotOpacity(a2b);
+    expect(own === "1", "the editing block's own dot carries the accent (opacity 1)");
+    expect(child !== "1", "the editing block's CHILD dot stays resting (the subtree-accent bug stays fixed)");
+    expect(sibling !== "1", "the sibling row's dot stays resting");
   }
 
   // ── the thread follows the caret: editing a sibling tears it down ──
