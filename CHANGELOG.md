@@ -8,6 +8,16 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **fix(web): the nodeview top bar's panel toggles go ghost — the same
+  register as the main top bar (owner review).** The properties-panel and
+  context-panel toggles on the panelled page's nodeview top bar still wore
+  the `outline` variant's visible border at rest, setting them apart from
+  the app top bar's dock toggles (which went ghost earlier today) and from
+  the rest of the bar. Both move `outline → ghost`: at rest they are
+  pixel-identical to the other chrome buttons, and the pressed state (panel
+  open) wears the same ghost active fill as every other toggle — one
+  pressed register across both bars. `PageChrome.tsx` (the NodeTopbar's two
+  words); full suite green.
 - **fix(web): the class-property row actions are the standard fleet buttons,
   and the expanded card is integrated into its row (owner review).** The
   cog + × are now the catalog `Button` (ghost, sm, icon-only — the
