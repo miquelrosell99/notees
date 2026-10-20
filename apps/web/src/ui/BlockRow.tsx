@@ -33,8 +33,9 @@
  *   the grip width; no hand-derived margins left). The thread arms end at
  *   each path bullet near edge — under a dot, a few px BEFORE a class icon
  *   or list marker (the arm struck through glyphs and
- *   read as an overlap) — and at an intermediate glyph the path jogs back
- *   to the center column under the opaque icon for the next vertical.
+ *   read as an overlap) — and at an intermediate glyph an INWARD rounded
+ *   corner drops the next vertical into the gap column LEFT of the icon,
+ *   circumventing it (a line under a hollow quote glyph peeks through).
  *   While a block edits, the ancestor path dots and class icons wear the
  *   accent at RESTING SIZE (the thread reads through them; only the
  *   editing bullet grows — the scale is the engaged-row signal). The
@@ -43,6 +44,9 @@
  *   children must not read as active), and the collapse
  *   chevron reveals on grip hover ONLY — no focus reveal of any kind: an
  *   editing block shows no chevron until hovered, like every other block.
+ *   An open node menu (grip or prose right-click — the same gripMenu
+ *   state) anchors to its block: `nt-block--menu-open` carries the
+ *   hover/active bullet highlight until the menu closes (*   the menu floats free at the pointer; the lit bullet names its block).
  *
  * A collapsed block (session-local display state from OutlinerContext) hides
  * its entire subtree — the children container is not rendered. The chevron
@@ -743,7 +747,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
 
   return (
     <div
-      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${readOnly && readOnlyInert ? " nt-block--inert" : ""}${editing ? " nt-block--editing" : ""}${isCollapsed && children.length > 0 ? " nt-block--collapsed" : ""}${dropClass}${selectedClass}${dragSourceClass}`}
+      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${readOnly && readOnlyInert ? " nt-block--inert" : ""}${editing ? " nt-block--editing" : ""}${gripMenu !== null ? " nt-block--menu-open" : ""}${isCollapsed && children.length > 0 ? " nt-block--collapsed" : ""}${dropClass}${selectedClass}${dragSourceClass}`}
       ref={(el) => {
         blockRef.current = el;
         setNodeRef(el);
