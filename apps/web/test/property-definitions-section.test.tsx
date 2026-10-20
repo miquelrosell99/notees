@@ -198,16 +198,19 @@ describe("S6 PropertyDefinitionsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Configure link" }));
     await flushWrites();
     const row = container.querySelector(".nt-propdef") as HTMLElement;
-    // Stays (class-level, the only inline fields): default value + Required
-    // + the Remove action. The definition path is the row's COG, not a
-    // panel button (owner amendment: no "Edit definition…" in the panel).
+    // Stays (class-level, the only inline fields): default value + Required.
+    // The definition path is the row's COG; removal is the row's hover × —
+    // neither lives in the panel (owner amendment).
     expect(within(row).getByLabelText("Default for link")).not.toBeNull();
     expect(within(row).getByRole("checkbox", { name: "Required for link" })).not.toBeNull();
-    expect(within(row).getByRole("button", { name: "Remove from class" })).not.toBeNull();
-    // Gone: group labels, the active switch, the panel's modal path.
+    expect(within(row).getByRole("button", { name: "Remove link from class" })).not.toBeNull();
+    expect(within(row).getByRole("button", { name: "Definition settings for link" })).not.toBeNull();
+    // Gone: group labels, the active switch, the panel's modal path, the
+    // panel footer (Remove left for the row's ×).
     expect(within(row).queryByText("For this class")).toBeNull();
     expect(within(row).queryByRole("switch")).toBeNull();
     expect(within(row).queryByRole("button", { name: "Edit definition…" })).toBeNull();
+    expect(within(row).queryByRole("button", { name: "Remove from class" })).toBeNull();
     // Gone (definition-level, the modal's home): rename, type/Convert,
     // multi/Values, target classes.
     expect(within(row).queryByText("Definition")).toBeNull();
@@ -234,7 +237,9 @@ describe("S6 PropertyDefinitionsSection", () => {
     await expandSection();
 
     fireEvent.click(screen.getByRole("button", { name: "Configure Aliases" }));
+    // Neither the panel footer action nor the row's hover × exists.
     expect(screen.queryByRole("button", { name: "Remove from class" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove Aliases from class" })).toBeNull();
     expect(screen.queryByText(/System properties stay/)).toBeNull();
   });
 

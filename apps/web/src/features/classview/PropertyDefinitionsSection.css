@@ -106,8 +106,10 @@
   font-weight: var(--font-weight-semibold);
 }
 
-/* The ⋯ overflow: hover-revealed like the grip. */
-.nt-propdef-more {
+/* The row's hover-revealed icon actions (the cog + the remove ×): revealed
+   like the grip. */
+.nt-propdef-more,
+.nt-propdef-remove {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
@@ -121,15 +123,19 @@
 }
 
 .nt-propdef-row:hover .nt-propdef-more,
-.nt-propdef-more:focus-visible {
+.nt-propdef-row:hover .nt-propdef-remove,
+.nt-propdef-more:focus-visible,
+.nt-propdef-remove:focus-visible {
   opacity: 1;
 }
 
-.nt-propdef-more:hover {
+.nt-propdef-more:hover,
+.nt-propdef-remove:hover {
   background: var(--md-sys-color-hover-overlay);
 }
 
-.nt-propdef-more:focus-visible {
+.nt-propdef-more:focus-visible,
+.nt-propdef-remove:focus-visible {
   box-shadow: var(--shadow-focus-ring);
 }
 
@@ -201,14 +207,6 @@
   gap: var(--spacing-2);
   font-size: var(--font-size-button);
   color: var(--md-sys-color-on-surface);
-}
-
-.nt-propdef-footer {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--spacing-2);
-  min-width: 0;
 }
 
 /* The add-property popover: anchored under the AddPill, clamped to the
