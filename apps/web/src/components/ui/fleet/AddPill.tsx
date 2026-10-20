@@ -2,7 +2,9 @@
  * AddPill — dashed ghost pill button that appends a chip to a group.
  *
  * The "+ Add class" / "+ Add tag" / "+ Add" affordance in metadata sections:
- * composes the Pill base look with the `pill--add` dashed modifier.
+ * composes the Pill base look with the `pill--add` dashed modifier. Callers
+ * may override the leading glyph via `icon` (e.g. the page-header action row
+ * uses per-action icons); the default is "+".
  */
 
 import { forwardRef, type ReactNode, type MouseEvent } from 'react';
@@ -15,6 +17,8 @@ export interface AddPillProps {
   onClick: (element: HTMLButtonElement) => void;
   /** Pill label (e.g. "Add class"); the leading "+" is rendered by the primitive. */
   label: string;
+  /** Leading icon (MDI name); defaults to "+". */
+  icon?: string;
   /** Additional className on the button. */
   className?: string;
   /** Optional extra content rendered after the label. */
@@ -24,7 +28,7 @@ export interface AddPillProps {
 }
 
 export const AddPill = forwardRef<HTMLButtonElement, AddPillProps>(function AddPill(
-  { onClick, label, className = '', children, ...props },
+  { onClick, label, icon = 'mdi mdi-plus', className = '', children, ...props },
   ref,
 ) {
   const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
@@ -40,7 +44,7 @@ export const AddPill = forwardRef<HTMLButtonElement, AddPillProps>(function AddP
       {...props}
     >
       <span className="pill__left-icon">
-        <Icon path="mdi mdi-plus" size={0.75} />
+        <Icon path={icon} size={0.75} />
       </span>
       <span className="pill__text">{label}</span>
       {children}
