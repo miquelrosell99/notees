@@ -28,13 +28,19 @@
  * fold gesture underneath keeps working). Each arm ends at the path
  * bullet NEAR EDGE: under a dot, a few px BEFORE a class icon or list
  * marker (owner 2026-10-20 — the arm struck through glyphs and read as
- * an overlap); at an INTERMEDIATE glyph an INWARD rounded corner drops
- * the next vertical into the gap column LEFT of the icon (owner:
- * "circumvent in-path icons" — a line under a hollow quote glyph peeks
- * through its strokes), and the path START sits just below a top-level
- * glyph bottom edge for the same reason. The ancestor path
+ * an overlap). At an INTERMEDIATE glyph the path SURROUNDS its lower-left
+ * corner (owner: "keep the downward line in its original position and do
+ * a flipped round in the corner, surrounding the icon" — a loop of
+ * inverted rounding): the arm stops a radius early, hugs the glyph left
+ * edge down, rounds the bottom-left, and rejoins the CENTER column just
+ * below the glyph — the downward line keeps its original position, so
+ * the staircase columns stay on the bullet centers through dots and
+ * icons alike. The path START sits just below a top-level glyph bottom
+ * edge for the same reason. The ancestor path
  * dots and icons recolor through CSS (`:has` — app.css "path bullets"),
- * not here.
+ * not here. A MutationObserver keeps the path honest when in-path chrome
+ * arrives or leaves without a resize/scroll/store event (an icon
+ * rendering after an op).
  * Recomputed on edit changes, store notifications, host resizes, and any
  * scroll (the bullets move with the scroller); a missing bullet (prose
  * hides them, cards mode, a not-rendered ancestor, a top-level edit)
@@ -200,11 +206,23 @@ function threadPath(points: PathPoint[]): string {
       curY = to.y;
       continue;
     }
-    // Intermediate glyph: end the arm a radius early, then the INWARD
-    // corner — descend in the gap column left of the glyph.
-    d += ` L ${to.ex - RADIUS} ${to.y} Q ${to.ex} ${to.y} ${to.ex} ${to.y + RADIUS}`;
-    curX = to.ex;
-    curY = to.y + RADIUS;
+    // Intermediate glyph: end the arm a radius early, then SURROUND the
+    // glyph's lower-left corner (owner: "keep the downward line in its
+    // original position and do a flipped round in the corner, surrounding
+    // the icon") — hug its left edge down, round the bottom-left, and
+    // rejoin the CENTER column just below the glyph. The downward line
+    // keeps its original position: the staircase columns stay on the
+    // bullet centers, straight through dots and icons alike, and the icon
+    // reads as sitting on the thread rather than beside it. The under-
+    // glyph run passes BELOW the glyph — nothing to peek through.
+    const below = to.glyphBottom + GLYPH_GAP;
+    d += ` L ${to.ex - RADIUS} ${to.y}`;
+    d += ` Q ${to.ex} ${to.y} ${to.ex} ${to.y + RADIUS}`;
+    d += ` L ${to.ex} ${below - RADIUS}`;
+    d += ` Q ${to.ex} ${below} ${to.ex + RADIUS} ${below}`;
+    d += ` L ${to.cx} ${below}`;
+    curX = to.cx;
+    curY = below;
   }
   return d;
 }
@@ -253,11 +271,18 @@ export function EditThreadOverlay({
     update();
     const observer = new ResizeObserver(schedule);
     observer.observe(host);
+    // A mutation catch-all: in-path chrome arriving or leaving (a class
+    // icon rendering after an op, a list marker, collapse) changes the
+    // measured geometry without a resize or scroll — the observer keeps
+    // the path honest (rAF-throttled; typing churn is a few rect reads).
+    const mutations = new MutationObserver(schedule);
+    mutations.observe(host, { childList: true, subtree: true });
     const unsubscribe = client.subscribe(schedule);
     window.addEventListener("scroll", schedule, true);
     window.addEventListener("resize", schedule);
     return () => {
       observer.disconnect();
+      mutations.disconnect();
       unsubscribe();
       window.removeEventListener("scroll", schedule, true);
       window.removeEventListener("resize", schedule);
