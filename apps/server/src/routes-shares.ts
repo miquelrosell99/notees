@@ -15,7 +15,7 @@
  *    404 so the route never distinguishes them.
  *
  * Threat note (documented in the OpenAPI entries and
- * docs/usage.md): possession of the URL is the capability — the token is 24
+ * docs/features/sharing.md): possession of the URL is the capability — the token is 24
  * random bytes (base64url), there is NO directory listing (unguessable
  * tokens; every failure is the same 404), revocation takes effect on the next
  * request, and minting accepts an optional expiresAt after which the link
