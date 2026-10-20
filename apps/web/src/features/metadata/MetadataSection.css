@@ -355,6 +355,34 @@ span.pill__text {
   color: var(--md-sys-color-on-surface-variant);
 }
 
+/* The → navigate button: beside the chevron, the
+   table's pinned Open-button idiom — the value click owns the picker, the
+   button owns navigation. Visible at rest: in the panel the button is the
+   cell's only navigation affordance (the table's hover-reveal stays a
+   dense-row idiom). */
+.nt-property-select__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.nt-property-select__nav:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-primary);
+}
+
+.nt-property-select__nav:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
 /* The trailing chrome's kit Dropdown (the date repeat picker) defaults to
    width:100% of its flex row — inside the select cell it must hug its
    icon and never push over the trigger content. */
