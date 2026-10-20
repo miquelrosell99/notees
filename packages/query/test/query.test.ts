@@ -103,8 +103,10 @@ function worldEnvelopes(): Envelope[] {
         { id: "high", label: "high" },
       ],
     }, t(3)),
-    env("class.property.set", { classId: PLACE, propertySchemaId: PRIORITY, defaultValue: "medium" }, t(4)),
-    env("class.property.set", { classId: CITY, propertySchemaId: PRIORITY, defaultValue: "high" }, t(5)),
+    env("class.property.set", { classId: PLACE, propertySchemaId: PRIORITY, sequence: 0 }, t(4)),
+    env("class.property.set", { classId: CITY, propertySchemaId: PRIORITY, sequence: 0 }, t(5)),
+    // The default is SCHEMA-level.
+    env("propertySchema.update", { propertySchemaId: PRIORITY, defaultValue: "medium" }, t(5) + 1),
     env("object.create", { objectId: FRANCE, contentAst: text("France"), classIds: [PLACE] }, t(6)),
     // Paris rides in France's main-children zone: the create carries the
     // render bit (a plain parented create would land in the inline body).
@@ -132,7 +134,8 @@ function worldEnvelopes(): Envelope[] {
     }, t(12)),
     env("property.set", { objectId: LONE, propertySchemaId: PRIORITY, value: "low" }, t(13)),
     env("propertySchema.create", { propertySchemaId: RATING, name: "rating", type: "number" }, t(14)),
-    env("class.property.set", { classId: PLACE, propertySchemaId: RATING, defaultValue: 1 }, t(15)),
+    env("class.property.set", { classId: PLACE, propertySchemaId: RATING, sequence: 0 }, t(15)),
+    env("propertySchema.update", { propertySchemaId: RATING, defaultValue: 1 }, t(15) + 1),
     env("property.set", { objectId: PARIS, propertySchemaId: RATING, value: 3 }, t(16)),
     // Comparison-operator fixture (offset range keeps HLC clear of later tests):
     // "year" is a JSON number (numeric comparison), "opened" an ISO-8601 date
@@ -635,9 +638,14 @@ describe.each(adapters)("$name", ({ makeStore }) => {
   describe("property conditions (effective read model)", () => {
     it("eq matches binding-derived defaults (includeDefaults default)", () => {
       const store = worldStore();
-      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "medium" }])).ids).toEqual([FRANCE]);
-      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "high" }])).ids).toEqual([PARIS]);
-      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "low" }])).ids).toEqual([LONE]);
+      // The default is the SCHEMA's single global value: France (Place) and Paris (City) BOTH derive "medium";
+      // Lone's authored "low" is the only other effective value.
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "medium" }])).ids.sort(),
+      ).toEqual([FRANCE, PARIS].sort());
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "low" }])).ids,
+      ).toEqual([LONE]);
     });
 
     it("exists matches default-derived and authored values", () => {
@@ -675,7 +683,7 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       );
       expect(
         runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "medium" }])).ids,
-      ).toEqual([]);
+      ).toEqual([PARIS]);
       expect(
         runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "urgent" }])).ids,
       ).toEqual([FRANCE]);
@@ -701,11 +709,11 @@ describe.each(adapters)("$name", ({ makeStore }) => {
     it("contains matches substrings of effective values; neq negates membership", () => {
       const store = worldStore();
       expect(
-        runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "contains", value: "med" }])).ids,
-      ).toEqual([FRANCE]);
+        runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "contains", value: "med" }])).ids.sort(),
+      ).toEqual([FRANCE, PARIS].sort());
       expect(
         runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "neq", value: "medium" }])).ids.sort(),
-      ).toEqual([LONE, PARIS].sort());
+      ).toEqual([LONE].sort());
     });
   });
 
@@ -715,13 +723,10 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       store.apply(
         env("class.property.set", { classId: PLACE, propertySchemaId: PRIORITY, active: false }, T0 + 22 * STEP),
       );
-      // France's derived "medium" is gone; Paris's authored-equivalent default
-      // from City stays (City's binding is active)…
+      // France's binding is inactive — its derived "medium" is gone; Paris's
+      // City binding stays active, so Paris still derives the schema default…
       expect(
         runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "medium" }])).ids,
-      ).toEqual([]);
-      expect(
-        runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "high" }])).ids,
       ).toEqual([PARIS]);
       // Lone's AUTHORED "low" still matches.
       expect(
@@ -1120,12 +1125,9 @@ describe.each(adapters)("$name", ({ makeStore }) => {
         },
       });
       expect(result.columns).toEqual([`property:${PRIORITY}`, `sum:${RATING}`, `avg:${RATING}`]);
-      // Paris: priority "high" (City default), rating authored 3.
-      // France: priority "medium" (Place default), rating default 1.
-      expect(result.rows).toEqual([
-        ["high", 3, 3],
-        ["medium", 1, 1],
-      ]);
+      // The priority default is the SCHEMA's single global "medium" — France and Paris land in ONE group: Paris's
+      // rating is authored 3, France's is the derived default 1.
+      expect(result.rows).toEqual([["medium", 4, 2]]);
     });
 
     it("class dimension groups by hierarchy-aware membership", () => {

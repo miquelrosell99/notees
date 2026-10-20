@@ -259,7 +259,7 @@ export class WorkspaceClientReads {
     // leaking children's rows into the parent read).
     const rows = this.ctx.store.database
       .prepare(
-        `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.default_value,
+        `SELECT cp.property_schema_id, cp.sequence,
                 cp.active AS binding_active, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
@@ -311,8 +311,6 @@ export class WorkspaceClientReads {
         multi: spec.multi ?? false,
         targetClassFilter: spec.targetClassFilter ?? null,
         sequence: fallbackSeq++,
-        required: null,
-        defaultValue: spec.defaultValue ?? null,
         datePrecision: null,
         dateQualified: null,
         active: true,
@@ -340,7 +338,7 @@ export class WorkspaceClientReads {
     }
     const rows = this.ctx.store.database
       .prepare(
-        `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.default_value,
+        `SELECT cp.property_schema_id, cp.sequence,
                 cp.active AS binding_active, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp

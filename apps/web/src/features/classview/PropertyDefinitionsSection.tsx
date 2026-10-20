@@ -1,39 +1,27 @@
 /**
- * PropertyDefinitionsSection — the class page's schema editor (the
- * Capacities type-panel analogue).
+ * PropertyDefinitionsSection — the class page's schema list (the Capacities
+ * type-panel analogue, the class-level inline
+ * editor is GONE — the default moved to the property schema (one global
+ * default per property, the Logseq shape) and `required` retired outright,
+ * so a binding has nothing left to edit. The class page is now JUST the
+ * list of assigned properties).
  *
- * Section level (v1 ClassPropertiesEditor parity): two groups —
- * "Class properties" (the class's DIRECT bindings, drag-sortable) and
- * "Inherited" (read-only rows attributed to the NEAREST extends-ancestor
- * that binds each schema; clicking one opens the base-definition editor —
- * nothing binding-level is editable there).
+ * Section level: two groups — "Class properties" (the class's DIRECT
+ * bindings, drag-sortable) and "Inherited" (read-only rows attributed to
+ * the NEAREST extends-ancestor that binds each schema; clicking one opens
+ * the base-definition editor).
  *
- * Collapsed row (the 99% state, the Notion database-property-row
- * pattern): a section-style COLLAPSE CHEVRON (NodeViewSection parity —
- * mdi-chevron-right rotating open), the schema icon (the
- * owner-2026-10-20 icon field, per-type glyph fallback), and the name
- * (min-width 0 + ellipsis). NOTHING else. Inactive bindings dim the name
- * (the only disabled cue). The row click expands the card; the whole row
- * is the drag handle (grab cursor, dnd-kit PointerSensor 4px — a plain
- * click still expands; no grip chrome). Hover reveals exactly ONE surface
- * (no row tint, no grip): the right-side action cluster —
- * a COG opening the S2 base-definition modal and a REMOVE × (the
+ * The row (the Notion database-property-row pattern, now the WHOLE
+ * surface): the schema icon (the owner-2026-10-20 icon field, per-type
+ * glyph fallback) and the name (min-width 0 + ellipsis). NOTHING else —
+ * no chevron, no expansion, no inline fields. Inactive bindings dim the
+ * name (the only disabled cue). The whole row is ONE action: it opens the
+ * S2 base-definition modal (PropertyEditModal — the default editor lives
+ * there now, at the schema level), and the whole row is also the drag
+ * handle (grab cursor, dnd-kit PointerSensor 4px — a plain click still
+ * opens; no grip chrome). Hover reveals exactly ONE surface (no row tint, no grip): the right-side REMOVE × (the
  * section-level danger confirm; hidden for system property schemas —
- * non-removable means absent). Removal never requires opening the card.
- *
- * Expanded card (CLASS-LEVEL ONLY, ruling R7 + the same-day
- * amendments: a property applies to a class by being in this list,
- * nothing more): the row's own expansion — NO repeated icon/name header.
- * Two fields, the second always present: the default-value editor
- * (class.property.set {defaultValue}) — ONLY for default-capable schema
- * types (text/number/boolean/select; node-typed
- * schemas get no default editor at all) — and the catalog Checkbox (its
- * composed `label` prop — no hand-rolled label wrappers). No group labels,
- * no "Active on this class" switch (the PC4 `active` flag stays wire-level;
- * presence IS the on/off), no footer (Remove is the row's ×), no "Edit
- * definition…" button (the cog owns the definition path). Definition-level
- * fields (rename, type/Convert, multi, target classes, date settings, scope)
- * live exclusively in the S2 PropertyEditModal.
+ * non-removable means absent). Removal never requires opening anything.
  *
  * Add property: the AddPill opens an anchored popover (SearchField,
  * keyboard-navigable listbox, rows = icon + name + type label) filtered
@@ -81,7 +69,6 @@ import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { Button } from "../../components/ui/fleet/Button.js";
-import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
 import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
 import { SearchField } from "../../components/ui/fleet/SearchField.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
@@ -89,7 +76,6 @@ import { PropertyEditModal } from "../metadata/PropertySettingsModal.js";
 import { PropertyView } from "../metadata/PropertyView.js";
 import { requestPropertyCreate } from "../metadata/PropertyCreateHost.js";
 import { isSchemaEligibleForClass } from "../metadata/schemaEligibility.js";
-import { defaultCapable } from "../metadata/shared.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import "./PropertyDefinitionsSection.css";
 
@@ -196,147 +182,15 @@ function reorderIds(ids: string[], activeId: string, overId: string): string[] {
   return next;
 }
 
-/**
- * The binding card's default-value editor, per the schema type: text keeps the plain input, number a numeric input, boolean a
- * None/True/False dropdown, select a dropdown of the SCHEMA's options (the
- * option ids are the stored default). "None" writes an explicit JSON null —
- * the only wire shape every type accepts (PC2); it derives no visible value
- * (an empty text/select renders nothing, an unchecked boolean). The parent
- * gates this on defaultCapable — node-typed and remaining types render no
- * default editor at all.
- */
-function BindingDefaultEditor({
-  binding,
-  schema,
-  name,
-  patch,
-}: {
-  binding: ClassBinding;
-  schema: ClientPropertySchema | undefined;
-  name: string;
-  patch: (fields: Parameters<AnyClient["setClassProperty"]>[2]) => void;
-}) {
-  const type = schema?.type ?? binding.type;
-  // The uncontrolled-controls remount trick (the binding's default in the
-  // key) — a patch re-renders with a new key, resetting the control to the
-  // stored value.
-  const key = `def:${binding.propertySchemaId}:${binding.defaultValue ?? ""}`;
-  const clear = () => {
-    if (binding.defaultValue !== null) patch({ defaultValue: null });
-  };
-
-  if (type === "boolean") {
-    return (
-      <select
-        key={key}
-        className="nt-propdef-input"
-        aria-label={`Default for ${name}`}
-        defaultValue={
-          binding.defaultValue === "true"
-            ? "true"
-            : binding.defaultValue === "false"
-              ? "false"
-              : ""
-        }
-        onChange={(event) => {
-          const value = event.target.value;
-          if (value === "") clear();
-          else if (value !== binding.defaultValue) patch({ defaultValue: value === "true" });
-        }}
-      >
-        <option value="">None</option>
-        <option value="true">True</option>
-        <option value="false">False</option>
-      </select>
-    );
-  }
-
-  if (type === "select") {
-    return (
-      <select
-        key={key}
-        className="nt-propdef-input"
-        aria-label={`Default for ${name}`}
-        defaultValue={binding.defaultValue ?? ""}
-        onChange={(event) => {
-          const value = event.target.value;
-          if (value === "") clear();
-          else if (value !== binding.defaultValue) patch({ defaultValue: value });
-        }}
-      >
-        <option value="">None</option>
-        {(schema?.options ?? []).map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    );
-  }
-
-  if (type === "number") {
-    return (
-      <input
-        key={key}
-        type="number"
-        className="nt-propdef-input"
-        placeholder="None"
-        defaultValue={binding.defaultValue ?? ""}
-        aria-label={`Default for ${name}`}
-        onBlur={(event) => {
-          const raw = event.target.value;
-          if (raw === "") {
-            clear();
-            return;
-          }
-          const value = Number(raw);
-          if (!Number.isFinite(value)) return;
-          if (binding.defaultValue === null || Number(binding.defaultValue) !== value) {
-            patch({ defaultValue: value });
-          }
-        }}
-      />
-    );
-  }
-
-  // text (the defaultCapable gate keeps this the only remaining type).
-  return (
-    <input
-      key={key}
-      type="text"
-      className="nt-propdef-input"
-      placeholder="None"
-      defaultValue={binding.defaultValue ?? ""}
-      aria-label={`Default for ${name}`}
-      onBlur={(event) => {
-        const value = event.target.value;
-        if (value === "") {
-          clear();
-          return;
-        }
-        if (value !== binding.defaultValue) patch({ defaultValue: value });
-      }}
-    />
-  );
-}
-
 function BindingRow({
-  client,
-  classId,
   binding,
   schema,
-  expanded,
-  onToggleExpanded,
   onOpenDefinition,
   onRemoveRequest,
 }: {
-  client: AnyClient;
-  classId: string;
   binding: ClassBinding;
   schema: ClientPropertySchema | undefined;
-  expanded: boolean;
-  onToggleExpanded: () => void;
-  /** The row's cog — opens the S2 base-definition modal directly. */
+  /** The row's single action — opens the S2 base-definition modal. */
   onOpenDefinition: () => void;
   /** "Remove from class" — the section-level danger confirm. */
   onRemoveRequest: () => void;
@@ -346,9 +200,6 @@ function BindingRow({
   });
 
   const name = schema?.name ?? binding.name;
-  const patch = (fields: Parameters<AnyClient["setClassProperty"]>[2]) =>
-    void client.setClassProperty(classId, binding.propertySchemaId, fields);
-
   const isSystem = isSystemSchema(binding.propertySchemaId);
 
   return (
@@ -356,44 +207,32 @@ function BindingRow({
       ref={setNodeRef}
       data-property-schema-id={binding.propertySchemaId}
       className={
-        `nt-propdef${expanded ? " nt-propdef--expanded" : ""}` +
+        `nt-propdef` +
         (isDragging ? " nt-propdef--dragging" : "") +
         (binding.active ? "" : " nt-propdef--inactive")
       }
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
       <div className="nt-propdef-row" {...listeners}>
+        {/* The whole row is ONE action: it opens the base-definition modal
+            (the default editor lives there now, at the schema level — the
+            class-level inline editor is gone). A
+            plain click still wins over the row's drag-handle role
+            (PointerSensor 4px). */}
         <button
           type="button"
           className="nt-propdef-main"
-          aria-expanded={expanded}
-          aria-label={`Configure ${name}`}
-          onClick={onToggleExpanded}
+          aria-label={`Open property ${name}`}
+          onClick={onOpenDefinition}
         >
-          {/* The section-collapse affordance (NodeViewSection parity):
-              chevron left of the icon, rotating open like the sections. */}
-          <span className="nt-propdef-toggle" aria-hidden="true">
-            <Icon path="mdi-chevron-right" size={0.7} className="nt-propdef-chevron" />
-          </span>
           <span className="nt-propdef-icon" aria-hidden="true">
             <Icon path={schemaIconOf(schema, binding.type)} size={0.8} />
           </span>
           <span className="nt-propdef-name">{name}</span>
         </button>
-        {/* The row's two actions are the STANDARD fleet ghost icon buttons
-            (the nt-propdef-* classes are reveal hooks only) — the single
-            hover surface, revealed beside each other on hover. */}
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="mdi-cog-outline"
-          className="nt-propdef-more"
-          aria-label={`Definition settings for ${name}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpenDefinition();
-          }}
-        />
+        {/* The row's ONE hover surface (no row tint, no grip):
+            the REMOVE × (hidden for system property schemas — non-removable
+            means absent). */}
         {!isSystem && (
           <Button
             variant="ghost"
@@ -408,34 +247,6 @@ function BindingRow({
           />
         )}
       </div>
-      {expanded && (
-        <div className="nt-propdef-config">
-          {/* No repeated identity: the card under the row IS
-              the row's expansion — the icon + name live on the row above.
-              Class-level fields only: the type-gated default editor +
-              Required. Node-typed schemas (object/asset/image/datetime) and
-              the other non-capable types get NO default editor. */}
-          <div className="nt-propdef-group">
-            {defaultCapable(schema?.type ?? binding.type) && (
-              <label className="nt-propdef-stack">
-                <span className="nt-propdef-label">Default value</span>
-                <BindingDefaultEditor
-                  binding={binding}
-                  schema={schema}
-                  name={name}
-                  patch={patch}
-                />
-              </label>
-            )}
-            <Checkbox
-              size="sm"
-              label="Required"
-              checked={binding.required === true}
-              onChange={(checked) => patch({ required: checked })}
-            />
-          </div>
-        </div>
-      )}
     </li>
   );
 }
@@ -448,8 +259,6 @@ export function PropertyDefinitionsSection({
   classId: string;
 }) {
   const { direct, inherited } = bindingAttributionOf(client, classId);
-  /** Expanded config rows (property-schema ids). */
-  const [expandedRows, setExpandedRows] = useState<ReadonlySet<string>>(new Set());
   const [editFor, setEditFor] = useState<string | null>(null);
   const [viewFor, setViewFor] = useState<string | null>(null);
   const [removeFor, setRemoveFor] = useState<ClassBinding | null>(null);
@@ -467,15 +276,6 @@ export function PropertyDefinitionsSection({
     isOpen: pickerOpen,
     onClose: () => setPickerOpen(false),
   });
-
-  const toggleRow = (schemaId: string) => {
-    setExpandedRows((current) => {
-      const next = new Set(current);
-      if (next.has(schemaId)) next.delete(schemaId);
-      else next.add(schemaId);
-      return next;
-    });
-  };
 
   /** Drag reorder: rewrite every row's sequence in the dropped order. */
   const onDragEnd = (event: DragEndEvent) => {
@@ -564,14 +364,10 @@ export function PropertyDefinitionsSection({
                 {direct.map((binding) => (
                   <BindingRow
                     key={binding.propertySchemaId}
-                    client={client}
-                    classId={classId}
                     binding={binding}
                     schema={client
                       .listPropertySchemas()
                       .find((s) => s.id === binding.propertySchemaId)}
-                    expanded={expandedRows.has(binding.propertySchemaId)}
-                    onToggleExpanded={() => toggleRow(binding.propertySchemaId)}
                     onOpenDefinition={() => setEditFor(binding.propertySchemaId)}
                     onRemoveRequest={() => setRemoveFor(binding)}
                   />

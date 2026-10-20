@@ -332,14 +332,16 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
   });
 
-  it("class-property-defaults binds priority on Task and Project, aggregates on the node, and unsets Task's binding last", () => {
+  it("class-property-defaults: the schema carries the global default; bindings are sequence-only; Task unsets then Project unsets", () => {
     const fixture = fixtures.find((f) => f.name === "class-property-defaults.json")!;
-    const [schema, task, project, node, taskBinding, projectBinding, assignProject, unsetTask] =
+    const [schema, task, project, node, taskBinding, projectBinding, assignProject, unsetTask, unsetProject] =
       fixture.envelopes;
     const priority = "0192a000-0000-7000-8000-000000000301";
     const nodePayload = node!.payload as { objectId: string };
     const taskPayload = task!.payload as { classId: string };
     expect(schema!.opType).toBe("propertySchema.create");
+    // The default is SCHEMA-level.
+    expect(schema!.payload).toMatchObject({ propertySchemaId: priority, defaultValue: "medium" });
     expect(task!.payload).toMatchObject({ contentAst: [{ type: "text", text: "Task" }] });
     expect(project!.payload).toMatchObject({ contentAst: [{ type: "text", text: "Project" }] });
     // The node is created with Task, then Project is assigned via the OR-Set
@@ -347,26 +349,23 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     expect(node!.opType).toBe("object.create");
     expect(assignProject!.opType).toBe("object.create");
     expect(assignProject!.payload).toMatchObject({ objectId: nodePayload.objectId });
-    // Both bindings carry defaults; Task's unset is the final envelope.
-    expect(taskBinding!.payload).toMatchObject({
-      propertySchemaId: priority,
-      defaultValue: "medium",
-    });
-    expect(projectBinding!.payload).toMatchObject({
-      propertySchemaId: priority,
-      defaultValue: "high",
-    });
+    // Both bindings are sequence-only rows (no default/required — retired or
+    // moved); Task's unset lands first, Project's second (no binding → the
+    // schema default derives nothing).
+    expect(taskBinding!.payload).toMatchObject({ propertySchemaId: priority, sequence: 0 });
+    expect(projectBinding!.payload).toMatchObject({ propertySchemaId: priority, sequence: 0 });
     expect(unsetTask!.opType).toBe("class.property.unset");
     expect(unsetTask!.payload).toMatchObject({
       classId: taskPayload.classId,
       propertySchemaId: priority,
     });
+    expect(unsetProject!.opType).toBe("class.property.unset");
     // Applicable in sequence: every HLC strictly follows the previous one.
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
   });
 
-  it("class-unassign fixture: binds two defaults, authors one value, unassigns, then re-assigns", () => {
+  it("class-unassign fixture: the schemas carry the defaults, one value is authored, unassigns, then re-assigns", () => {
     const fixture = fixtures.find((f) => f.name === "class-unassign.json")!;
     const [effort, impact, task, node, effortBinding, impactBinding, authored, unassign, reassign] =
       fixture.envelopes;
@@ -376,20 +375,23 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     const nodeId = "0192a000-0000-7000-8000-000000000413";
     expect(effort!.opType).toBe("propertySchema.create");
     expect(impact!.opType).toBe("propertySchema.create");
-    // The node is created classed with Task; Task binds 'effort' (default 'xs')
-    // and 'impact' (default 'xl'); impact is then AUTHORED at idx 0 (shadowing
-    // the default) so the unassign can pin both read outcomes on one node.
+    // The defaults are SCHEMA-level.
+    expect(effort!.payload).toMatchObject({ propertySchemaId: effortSchema, defaultValue: "xs" });
+    expect(impact!.payload).toMatchObject({ propertySchemaId: impactSchema, defaultValue: "xl" });
+    // The node is created classed with Task; Task binds 'effort' and 'impact'
+    // (sequence-only rows); impact is then AUTHORED at idx 0 (shadowing the
+    // default) so the unassign can pin both read outcomes on one node.
     expect(node!.opType).toBe("object.create");
     expect(node!.payload).toMatchObject({ objectId: nodeId, classIds: [taskId] });
     expect(effortBinding!.payload).toMatchObject({
       classId: taskId,
       propertySchemaId: effortSchema,
-      defaultValue: "xs",
+      sequence: 0,
     });
     expect(impactBinding!.payload).toMatchObject({
       classId: taskId,
       propertySchemaId: impactSchema,
-      defaultValue: "xl",
+      sequence: 1,
     });
     expect(authored!.opType).toBe("property.set");
     expect(authored!.payload).toMatchObject({

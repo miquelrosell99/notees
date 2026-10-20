@@ -172,8 +172,8 @@ describe("S1 PropertyCreateModal — the payload composition", () => {
   });
 });
 
-describe("S1 in class context — the create binds (+ the optional default)", () => {
-  it("setClassProperty follows the create; the default field writes the binding defaultValue", async () => {
+describe("S1 in class context — the create binds (+ the optional schema default)", () => {
+  it("setClassProperty follows the create; the default field writes the SCHEMA defaultValue", async () => {
     const client = await seedClient();
     const fiction = await createTitledClass(client, "Fiction");
     render(
@@ -185,16 +185,18 @@ describe("S1 in class context — the create binds (+ the optional default)", ()
       />,
     );
     fireEvent.change(screen.getByLabelText("Property name"), { target: { value: "ISBN" } });
-    // The default field is class-context-only.
+    // The default field rides the create payload itself.
     const defaultInput = screen.getByLabelText("Default value");
     fireEvent.change(defaultInput, { target: { value: "978-" } });
     fireEvent.click(screen.getByRole("button", { name: "Create Property" }));
     await flushWrites();
     const schema = client.listPropertySchemas().find((s) => s.name === "ISBN");
     expect(schema).toBeDefined();
+    expect(schema?.defaultValue).toBe("978-");
     const binding = client.getClassBindings(fiction).find((b) => b.propertySchemaId === schema!.id);
     expect(binding).toBeDefined();
-    expect(binding?.defaultValue).toBe("978-");
+    // The binding is sequence-only — no default/required fields anymore.
+    expect(binding).toMatchObject({ sequence: 0 });
   });
 
   it("the default field is type-gated: text/number/boolean/select only", async () => {
@@ -216,7 +218,6 @@ describe("S1 in class context — the create binds (+ the optional default)", ()
     for (const label of ["URL", "Email", "Date", "Multi-select", "Object", "Image", "Asset"]) {
       fireEvent.click(screen.getByRole("radio", { name: new RegExp(`^${label}`) }));
       expect(screen.queryByLabelText("Default value")).toBeNull();
-      expect(screen.queryByText(/Default value for new members/)).toBeNull();
     }
 
     // Select: the default is a dropdown of the authored options.

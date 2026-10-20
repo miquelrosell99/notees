@@ -85,6 +85,9 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
           type: spec.type,
           multi: spec.multi ?? false,
           ...(scopeClassIds !== null ? { scopeClassIds } : {}),
+          // The spec's default is SCHEMA-level (one
+          // global default per property, the Logseq shape).
+          ...(spec.defaultValue !== undefined ? { defaultValue: spec.defaultValue } : {}),
           ...(spec.options !== undefined ? { options: spec.options } : {}),
           ...(spec.targetClassFilter !== undefined
             ? { targetClassFilter: spec.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
@@ -94,8 +97,9 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
       }),
     );
     if (spec.bindTo === undefined) continue;
-    // The binding is a configuration ROW (class.property.*), not just spec
-    // metadata — effective-properties derives boundBy/defaults from rows.
+    // The binding is a configuration ROW (class.property.*) carrying the
+    // genuinely per-class mechanics ONLY (sequence — effective-properties
+    // derives boundBy from rows; the default rides the schema).
     const classId = SYSTEM_CLASS_UUIDS[spec.bindTo];
     const sequence = bindingSequence.get(classId) ?? 0;
     bindingSequence.set(classId, sequence + 1);
@@ -107,7 +111,6 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
           classId,
           propertySchemaId,
           sequence,
-          ...(spec.defaultValue !== undefined ? { defaultValue: spec.defaultValue } : {}),
         },
         affectedNodeIds: [classId],
         client: "seed",

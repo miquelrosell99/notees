@@ -90,15 +90,17 @@ async function seedClient(relay: MemoryRelay = seededRelay()): Promise<Workspace
 /**
  * A gathering class (a generic user class — "meeting" is system vocabulary)
  * with a date binding (quick-create eligibility), a Priority
- * binding whose defaultValue "low" the template overrides with "high" (D2),
- * and the "Sync template" bound via has-template with one child block.
+ * binding whose SCHEMA-level default "low" the template overrides with
+ * "high" (D2), and the "Sync template" bound via has-template with one child
+ * block.
  */
 async function setupMeetingWithTemplate(client: WorkspaceClient) {
   const meetingId = await client.createClass("gathering");
   const whenId = await client.createPropertySchema({ name: "When", type: "datetime" });
   await client.setClassProperty(meetingId, whenId, { sequence: 0 });
   const prioId = await client.createPropertySchema({ name: "Priority", type: "select" });
-  await client.setClassProperty(meetingId, prioId, { defaultValue: "low" });
+  await client.setClassProperty(meetingId, prioId, { sequence: 1 });
+  await client.updatePropertySchema(prioId, { defaultValue: "low" });
 
   const templateId = await client.createObject({
     isEmbedded: false,

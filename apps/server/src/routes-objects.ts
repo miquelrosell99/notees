@@ -301,6 +301,8 @@ interface SchemaRow {
   display: string | null;
   readonly: number | null;
   hideWhenEmpty: number | null;
+  /** The GLOBAL default; null = none. */
+  defaultValue: string | null;
 }
 
 function readSchemaRow(store: Store, id: string): SchemaRow | undefined {
@@ -310,7 +312,8 @@ function readSchemaRow(store: Store, id: string): SchemaRow | undefined {
               options, target_class_filter AS targetClassFilter,
               date_precision AS datePrecision, date_qualified AS dateQualified,
               number_pad AS numberPad, number_decimals AS numberDecimals, number_rounding AS numberRounding,
-              display, readonly, hide_when_empty AS hideWhenEmpty
+              display, readonly, hide_when_empty AS hideWhenEmpty,
+              default_value AS defaultValue
        FROM property_schema WHERE id = ? AND active = 1`,
     )
     .get(id) as SchemaRow | undefined;
@@ -330,6 +333,7 @@ function schemaView(row: SchemaRow): Record<string, unknown> {
     readonly: row.readonly === null ? null : row.readonly === 1,
     hideWhenEmpty: row.hideWhenEmpty === null ? null : row.hideWhenEmpty === 1,
     dateQualified: row.dateQualified === null ? null : row.dateQualified === 1,
+    defaultValue: row.defaultValue !== null ? (JSON.parse(row.defaultValue) as unknown) : null,
   };
 }
 
@@ -765,7 +769,8 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
         `SELECT id, name, type, multi, icon, scope_class_ids AS scopeClassIds, validation_rules AS validationRules,
                 options, target_class_filter AS targetClassFilter,
                 date_precision AS datePrecision, date_qualified AS dateQualified,
-              number_pad AS numberPad, number_decimals AS numberDecimals, number_rounding AS numberRounding
+              number_pad AS numberPad, number_decimals AS numberDecimals, number_rounding AS numberRounding,
+              default_value AS defaultValue
          FROM property_schema WHERE active = 1 ORDER BY name, id`,
       )
       .all() as SchemaRow[];
@@ -852,10 +857,11 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
   });
 
   /**
-   * class.property.set: the binding upsert (sequence, flags,
-   * defaultValue patch — omitted fields keep their values; null clears a
-   * flag). A wrong-typed defaultValue fails loud at the applier and
-   * surfaces as 422 validation_failed.
+   * class.property.set: the binding upsert (sequence/active patch — omitted
+   * fields keep their values; the binding carries
+   * the genuinely per-class mechanics ONLY; `required` retired outright and
+   * `defaultValue` moved to the property schema, so the strict payload
+   * rejects both keys).
    */
   app.post("/classes/:id/properties", async (request) => {
     const { id } = request.params as { id: string };
@@ -882,11 +888,11 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     });
     const row = store.database
       .prepare(
-        `SELECT property_schema_id, sequence, required, default_value, active
+        `SELECT property_schema_id, sequence, active
          FROM class_property WHERE class_id = ? AND property_schema_id = ?`,
       )
       .get(id, propertySchemaId) as
-      | { property_schema_id: string; sequence: number; required: number | null; default_value: string | null; active: number }
+      | { property_schema_id: string; sequence: number; active: number }
       | undefined;
     return {
       classId: id,
@@ -897,8 +903,6 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
           : {
               propertySchemaId: row.property_schema_id,
               sequence: row.sequence,
-              required: row.required === null ? null : row.required === 1,
-              defaultValue: row.default_value === null ? null : (JSON.parse(row.default_value) as unknown),
               active: row.active === 1,
             },
     };
@@ -1045,7 +1049,6 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       metadata: row.metadata,
       source: row.source,
       boundBy: row.boundBy,
-      required: row.required,
       readonly: row.readonly,
       hideWhenEmpty: row.hideWhenEmpty,
       sequence: row.sequence,
