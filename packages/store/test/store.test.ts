@@ -51,11 +51,14 @@ function loadFixture(name: string): Record<string, unknown>[] {
 /** Fixtures whose application must THROW — never part of the all-fixtures
  * replay/determinism sets (class-extends-cycle.json closes cycles and fails
  * loud by design; is-embedded-parent-page.json claims the render bit
- * under a block parent and fails loud by design; both are applied
- * deliberately in their own tests). */
+ * under a block parent and fails loud by design;
+ * property-validation-rules.json pins its reject tail (below-min/above-max,
+ * pattern rejects, one bad multi element, one un compilable pattern) after
+ * an accepting prefix — all applied deliberately in their own tests). */
 const REPLAY_EXCLUDED_FIXTURES = new Set([
   "class-extends-cycle.json",
   "is-embedded-parent-page.json",
+  "property-validation-rules.json",
 ]);
 
 function allFixtureEnvelopes(): Record<string, unknown>[] {
