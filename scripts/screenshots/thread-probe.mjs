@@ -402,11 +402,16 @@ try {
   // ── 11. the prose focused view: the parent renders as an editable
   //      top-level header; bullets hide (no thread, per the prose law) ──
   {
+    // The SPA zoom path (no reload): the per-node view pref is read when
+    // the zoom lands — useDeviceSetting re-reads on a key change now (the
+    // prose header rendering outline exposed the stale-value bug).
+    await pg.goto(`${WEB}/${pageId}`, { waitUntil: "commit" });
+    await pg.waitForSelector(`[data-block-id="${A}"] .nt-bullet`, { timeout: 60_000 });
     await pg.evaluate((aid) => {
       localStorage.setItem(`notees.settings.viewMode.nodeBlocks.${aid}`, JSON.stringify("prose"));
     }, A);
-    await pg.reload({ waitUntil: "commit" });
-    await pg.waitForSelector(".nt-focused-block", { timeout: 60_000 });
+    await pg.click(`[data-block-id="${A}"] .nt-bullet`);
+    await pg.waitForSelector(".nt-focused-block", { timeout: 10_000 });
     await pg.waitForTimeout(400);
     const prose = await pg.evaluate(([aid, a2id]) => {
       const view = document.querySelector(".nt-focused-block");
