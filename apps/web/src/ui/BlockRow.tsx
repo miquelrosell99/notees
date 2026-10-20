@@ -33,9 +33,11 @@
  *   the grip width; no hand-derived margins left). The thread arms end at
  *   each path bullet near edge — under a dot, a few px BEFORE a class icon
  *   or list marker (the arm struck through glyphs and
- *   read as an overlap) — and at an intermediate glyph an INWARD rounded
- *   corner drops the next vertical into the gap column LEFT of the icon,
- *   circumventing it (a line under a hollow quote glyph peeks through).
+ *   read as an overlap) — and at an intermediate glyph the path
+ *   SURROUNDS its lower-left corner (a loop of inverted rounding: hug the
+ *   left edge, round the bottom-left, rejoin the center column just
+ *   below the glyph) so the downward line keeps its original position —
+ *   the staircase stays on the bullet centers through dots and icons.
  *   While a block edits, the ancestor path dots and class icons wear the
  *   accent at RESTING SIZE (the thread reads through them; only the
  *   editing bullet grows — the scale is the engaged-row signal). The
