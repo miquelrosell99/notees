@@ -9,6 +9,17 @@ predating this file.
 
 ## 2026-10-20
 
+- **feat(web): the single-value property cell's chrome is hover-revealed —
+  navigate button, dropdown chevron, and × clear.** Owner 2026-10-20,
+  the panel half of the pinned-button idiom: at rest the
+  `PropertySelectCell` reads as pure value text (the pill label, nothing
+  else); hovering the cell (or focusing in) expands the → navigate
+  button, the dropdown chevron, and the × clear out of the collapsed
+  state — the pill × `max-width` idiom, `motion-duration-short` — and the
+  value content flexes out of their way. The always-visible round
+  shipped minutes earlier and read as chrome noise. Supersedes the
+  "visible at rest" note in the navigate-button entry below.
+  `MetadataSection.css` only.
 - **feat(web): the edit thread passes THROUGH the path bullets (the stud),
   and the editing bullet highlight stops spilling to the subtree.** Owner
   feedback 2026-10-20, same day as the thread's first pass. **The stud:**
@@ -46,9 +57,8 @@ predating this file.
   selector (no class plumbing — the td opts in when the cell renders a
   button); read-only property cells (query results) gain navigation they
   never had. **Properties panel**: `PropertySelectCell` grows an
-  `onNavigate` → button beside the chevron, visible at rest (in the panel
-  it is the cell's only navigation affordance — the table's hover-reveal
-  stays a dense-row idiom); `DatetimePropertyRow` gains the `onOpenPage`
+  `onNavigate` → button beside the chevron (revealed on cell hover /
+  focus-in like the table's — see the follow-up below); `DatetimePropertyRow` gains the `onOpenPage`
   plumbing (GroupedPropertyRow passes it) and a date ref jumps to its day
   page through the ensured chain, anything else opens as a node. The
   read-only projections stay click-to-navigate pills (deliberate, noted
