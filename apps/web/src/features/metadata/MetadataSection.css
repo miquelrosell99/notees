@@ -255,6 +255,24 @@ span.pill__text {
   box-shadow: var(--shadow-focus-ring);
 }
 
+/* S5 block-to-property drop affordance (owner ruling 2026-10-20). While a
+   block drag is live, a text row the drop WOULD land on reads as a drop
+   target — the empty placeholder carries an accent ring (Capacities-grade
+   discoverability, no permanent chrome); the row under the pointer rides a
+   state-layer; a refused row (foreign block, occupied single slot,
+   ineligible schema) shows the no-drop cursor. No layout shift anywhere. */
+.nt-property--droppable .nt-property-value:placeholder-shown {
+  box-shadow: var(--shadow-focus-ring-primary-thin);
+}
+
+.nt-property--drop-over .nt-property-value {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-property--no-drop .nt-property-value {
+  cursor: no-drop;
+}
+
 /* url/email rows: the external-link affordance beside the text editor. */
 .nt-property-link {
   display: inline-flex;

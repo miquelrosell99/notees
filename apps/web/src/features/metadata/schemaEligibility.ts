@@ -64,3 +64,30 @@ export function eligibleSchemasForNode(
 ): ClientPropertySchema[] {
   return schemas.filter((schema) => isSchemaEligibleForNode(client, schema, node));
 }
+
+/**
+ * The CLASS-context eligibility (the class page's add-property popup,
+ * proposal S4): global rides; a local schema is offered when the class
+ * ITSELF or any of its transitive extends-ancestors is in the scope list
+ * (the classClosureOf walk has no class node to start from, so the closure
+ * seeds with the class id directly).
+ */
+export function isSchemaEligibleForClass(
+  client: AnyClient,
+  schema: Pick<ClientPropertySchema, "scopeClassIds">,
+  classId: string,
+): boolean {
+  if (schema.scopeClassIds === null) return true;
+  const closure = new Set<string>([classId]);
+  const queue = [classId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const parent of client.getClassParents(current)) {
+      if (!closure.has(parent)) {
+        closure.add(parent);
+        queue.push(parent);
+      }
+    }
+  }
+  return schema.scopeClassIds.some((id) => closure.has(id));
+}
