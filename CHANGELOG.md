@@ -8,6 +8,21 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **fix(scripts): `migrate-property-scope.mts` snapshot patch rewritten —
+  the live run exposed the ordering bug.** The first `--apply` rewrote the
+  5,389 retired-`scope` envelopes in place and then failed at the snapshot
+  step ("no such column: scope_class_ids"): the script wrote the new column
+  BEFORE the store's v24 rebuild created it (and the rebuild hard-codes NULL
+  for the new columns anyway, so the write had to move AFTER `Store.open`).
+  Fixed: the mapping is captured from the pre-migration bytes, `Store.open`
+  runs the rebuild, then `scope_class_ids` is written into the rebuilt table;
+  the apply flow is now resumable (a run with nothing left to rewrite still
+  patches a scope-carrying snapshot, bumps the epoch exactly once, and
+  verifies). The live migration was resumed to completion: snapshot
+  `01a159f0…` patched (bytes backed up), `restore_epoch` bumped to 10, the
+  5,496 propertySchema envelopes re-validate clean, and the full-log scratch
+  replay passes. Relay backups: `/tmp/relay.db.bak-property-scope-2026-10-20T16-24-38-944Z`
+  and `/tmp/snapshot-01a159f0-….bak-2026-10-20T16-28-19-641Z`.
 - **feat(domain,web,server,store): seed-scope audit — the reusable seeds flip
   to global scope; family-identity seeds stay local (owner ruling,
   the follow-up to the property-scope batch b8548e0e).**
