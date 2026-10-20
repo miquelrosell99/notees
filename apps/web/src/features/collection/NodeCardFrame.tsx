@@ -164,7 +164,7 @@ export function NodeCardFrame({
             title="Close"
             onClick={onClose}
           >
-            ×
+            <Icon path="mdi-close" size={0.8} />
           </button>
         </span>
       </header>

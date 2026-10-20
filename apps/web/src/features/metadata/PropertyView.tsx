@@ -95,14 +95,14 @@ export function PropertyView({
     <Modal isOpen onClose={onClose} size="lg" showCloseButton={false} className="nt-property-view">
       <div className="modal__header">
         <h2 className="modal__title">{schema.name}</h2>
-        <button
-          type="button"
+        <Button
+          icon="mdi mdi-close"
           aria-label="Close modal"
-          className="btn btn--ghost btn--sm btn--icon-only modal__close"
+          className="modal__close"
           onClick={onClose}
-        >
-          ×
-        </button>
+          size="sm"
+          variant="ghost"
+        />
       </div>
       <div className="modal__content">
         <p className="nt-property-view__type">

@@ -25,6 +25,7 @@ import { parseDateNodeId, SYSTEM_CLASS_UUIDS, type DatePrecision } from "@notees
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
+import { Icon } from "../../ui/Icon.js";
 import { DatePickerPopup } from "./DatePickerPopup.js";
 import { RepeatPicker } from "./RepeatPicker.js";
 import "./DateSlotControl.css";
@@ -105,7 +106,7 @@ export function DateSlotControl({
           aria-label={clearLabel ?? `${ariaLabel} (clear)`}
           onClick={() => onCommit(null)}
         >
-          ×
+          <Icon path="mdi-close" size={0.7} />
         </button>
       )}
       {onRepeatChange !== undefined && (

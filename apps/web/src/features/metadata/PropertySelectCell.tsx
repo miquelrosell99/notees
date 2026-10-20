@@ -107,17 +107,22 @@ export function PropertySelectCell({
         <span className="nt-property-select__chevron" aria-hidden="true">
           <Icon path="mdi-chevron-down" size={0.7} />
         </span>
+        {onClear !== undefined && valueRef !== null && (
+          <button
+            type="button"
+            className="nt-property-select__clear"
+            aria-label={clearLabel}
+            onClick={(event) => {
+              // The trigger's click owns the picker — the × owns clearing;
+              // it rides the revealed chrome cluster.
+              event.stopPropagation();
+              onClear();
+            }}
+          >
+            <Icon path="mdi-close" size={0.7} />
+          </button>
+        )}
       </div>
-      {onClear !== undefined && valueRef !== null && (
-        <button
-          type="button"
-          className="nt-property-select__clear"
-          aria-label={clearLabel}
-          onClick={onClear}
-        >
-          ×
-        </button>
-      )}
       {trailing}
     </div>
   );

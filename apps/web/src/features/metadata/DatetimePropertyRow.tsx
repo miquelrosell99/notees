@@ -9,6 +9,7 @@ import {
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
+import { Icon } from "../../ui/Icon.js";
 import { displayNameFromClient, datetimeValueText } from "../../ui/dateDisplay.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import {
@@ -335,7 +336,7 @@ export function DatetimePropertyRow({
                   aria-label={`Clear ${label}`}
                   onClick={() => void client.unsetProperty(nodeId, propertySchemaId, row.idx)}
                 >
-                  ×
+                  <Icon path="mdi-close" size={0.6} />
                 </button>
               )}
               {row.source === "authored" && precision === "day" && (

@@ -74,6 +74,7 @@ import type { ContentAst } from "@notees/protocol";
 import { uuidv7 } from "uuidv7";
 
 import { rendersAsInlineBlock } from "@notees/domain";
+import { Icon } from "./Icon.js";
 
 import { applyTextEdit } from "@/editor/edit-apply.js";
 import { withCandidateSpans } from "@/editor/capture.js";
@@ -1601,7 +1602,7 @@ export function WhiteboardCanvas({
                       deleteSelected([card.id]);
                     }}
                   >
-                    ×
+                    <Icon path="mdi-close" size={0.7} />
                   </button>
                 </div>
                 <div
