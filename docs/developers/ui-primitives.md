@@ -1,9 +1,10 @@
 # UI primitives — the web client's component library
 
 The web client (`apps/web`) composes **all chrome from one primitive library**:
-`src/ui/components/ui/` — one reusable element per file, co-located CSS,
+`src/components/ui/fleet/` — one reusable element per file, co-located CSS,
 exported through the `index.ts` barrel. This page is the canonical reference
-for that library (extracted from AGENTS.md, 2026-10-06); AGENTS.md carries only
+for that library (extracted from AGENTS.md, 2026-10-06; the path corrected to
+the fleet tree realignment, 2026-10-20); AGENTS.md carries only
 the pointer and the law.
 
 ## The law
