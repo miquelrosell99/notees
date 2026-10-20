@@ -298,7 +298,21 @@ try {
   console.log("STAGE 390 overflow:", JSON.stringify(overflow));
   if (overflow.documentOverflow > 0) fail(`390px document overflows horizontally by ${overflow.documentOverflow}px`);
   for (const s of overflow.sections) {
-    if (s.scroll > s.client) fail(`section overflows: ${JSON.stringify(s)}`);
+    if (s.scroll > s.client) {
+      const offenders = await pg.evaluate(() => {
+        const out = [];
+        document.querySelectorAll("section.nt-propdefs, section.nt-propdefs-inherited").forEach((sec) => {
+          sec.querySelectorAll("*").forEach((el) => {
+            if (el.scrollWidth > el.clientWidth + 1 || el.getBoundingClientRect().right > sec.getBoundingClientRect().right + 1) {
+              out.push(`${el.tagName}.${String(el.className).slice(0, 70)} scroll=${el.scrollWidth}/${el.clientWidth} right=${Math.round(el.getBoundingClientRect().right)}/${Math.round(sec.getBoundingClientRect().right)}`);
+            }
+          });
+        });
+        return out.slice(0, 10);
+      });
+      console.log("OFFENDERS:", JSON.stringify(offenders, null, 1));
+      fail(`section overflows: ${JSON.stringify(s)}`);
+    }
   }
 
   if (consoleErrors.length > 0) {
