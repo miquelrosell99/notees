@@ -267,7 +267,7 @@
   border: none;
   background: none;
   padding: 0 var(--spacing-1);
-  border-radius: var(--shape-small);
+  border-radius: var(--shape-full);
   color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   cursor: pointer;
@@ -522,41 +522,4 @@ td:has(> .nt-table-node > .nt-table-open-btn):hover .nt-table-open-btn,
 td:has(> .nt-table-node > .nt-table-open-btn):focus-within .nt-table-open-btn,
 td:has(> .nt-table-node > .nt-table-open-btn) .nt-table-open-btn:focus-visible {
   opacity: var(--opacity-100);
-}
-
-/* The row's trailing action rides the name cell's hover cluster, pinned
-   beside the Open button (trailingAction was
-   outline-only — cards unassign through the card's classes row, the table
-   now through this ×). The hover lane widens to host both. */
-.nt-table-name .nt-table-row-action {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: calc(var(--spacing-1) + var(--button-icon-only-visible-sm));
-  margin-block: auto;
-  display: inline-flex;
-  align-items: center;
-  opacity: 0;
-}
-
-.nt-table-name .nt-table-row-action .nt-class-member-remove {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--spacing-1);
-  border-radius: var(--radius-sm);
-  line-height: 0;
-}
-
-.nt-table-name .nt-table-row-action .nt-class-member-remove:hover {
-  background: var(--md-sys-color-hover-overlay);
-}
-
-td.nt-table-name:hover .nt-table-row-action,
-td.nt-table-name:focus-within .nt-table-row-action {
-  opacity: var(--opacity-100);
-}
-
-td.nt-table-name:has(> .nt-table-row-action):hover,
-td.nt-table-name:has(> .nt-table-row-action):focus-within {
-  padding-right: calc(2 * var(--button-icon-only-visible-sm) + var(--spacing-2));
 }

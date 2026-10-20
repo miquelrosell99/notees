@@ -252,16 +252,10 @@ export function ObjectPropertyRow({
           {singleRef !== null && (() => {
             const linked = client.getNode(singleRef);
             if (linked === undefined) return null; // broken — the cell shows it
-            // ONE compact pill: the dropdown's
-            // content names the selected node and nothing more — never the
-            // node's subtree, never editable row chrome.
-            return (
-              <NodePill
-                color={client.effectiveNodeColor(linked)}
-                icon={linked.icon}
-                label={pillLabel(singleRef)}
-              />
-            );
+            // The PLAIN display text: the dropdown's
+            // content names the selected node like a select option or a
+            // date value — never a pill (the NodePill chip retired here).
+            return pillLabel(singleRef);
           })()}
         </PropertySelectCell>
         {annotatingRef !== null && (

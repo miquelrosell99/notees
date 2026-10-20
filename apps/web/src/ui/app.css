@@ -2694,6 +2694,7 @@ select:focus-visible {
   padding: 4px 10px;
   font-size: var(--font-size-base);
   color: var(--md-sys-color-on-surface-variant);
+  border-radius: var(--shape-full);
 }
 
 .nt-class-member-remove:hover {
@@ -3231,6 +3232,7 @@ mark {
   background: none;
   color: var(--md-sys-color-on-surface-variant);
   padding: 0 2px;
+  border-radius: var(--shape-full);
   line-height: 1;
   font-size: var(--font-size-base);
 }
