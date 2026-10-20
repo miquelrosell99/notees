@@ -58,8 +58,7 @@ Repo checkouts used for releases (both clean, tagged from `main`):
   + GitHub Release; `android.yml` produces debug-signed CI artifacts for
   try-out builds).
 
-**Current wire (wire node fields added 2026-10-07, the `heading`
-content token added 2026-10-12, the per-block list style added 2026-10-16):** envelope v3; Revision-11
+**Current wire (through the 2026-10-20 property-definition batch):** envelope v3; Revision-12
 render state; `object.restore`; the color grammar; the
 workspace-feature batch (`workspace.feature.set`, `code_block`/`hr`, `embed_ref.view`, PG5
 element ids, PC4 `active`, PC6 qualifiers); number formats; the
@@ -74,11 +73,24 @@ cover/banner/aliasOf property schemas (live assertions migrate via
 `object.create`/`object.update` gain optional nullable `listStyle`
 (`"numbered" | "alpha" | "roman"`, absent/null = bullet; store v23; fixture
 `object-list-style.json`; the marker number is derived at render time, never
-stored). **GTK/Flutter ports of the wire
-fields are a separate follow-up in the clients repo — pending at shipment, so
-the live migration run waits for them.** TS reference: main repo
-**v3.4.4** (store v16); GTK **v3.1.2** (store v12); Flutter **v3.1.2**
-(app DB v26). The GTK UI has no property rendering (protocol+store port
+stored); **the property-definition batch — the
+retired `scope` enum is REJECTED outright, replaced by `scopeClassIds` (absent/null
+= global, non-empty = local to those classes + extends; the SOLE locality
+authority — bindings carry zero availability semantics); schema-level `icon`;
+`propertySchema.update` gains `scopeClassIds`/`targetClassFilter`/`multi`/`validationRules`
+(`{min?,max?,pattern?}`, keep/clear); fail-loud extends-aware eligibility at
+`property.set` (R3) and `class.property.set` (R5); eligible-tagged effective reads;
+validationRules VALUE enforcement at `property.set`; store v24 (the
+property_schema rebuild); gate 33→36 (`property-schema-scope.json`,
+`property-schema-update-fields.json`, `property-validation-rules.json`) — the
+2026-10-07 wire fields + class conversion + asset type shipped in the clients'
+2026-10-07 lockstep (GTK v4.1.x / Flutter v4.0.x), and this batch's ports are
+GTK **v4.2.0** (store v16) / Flutter **v4.1.0** (DB v31) — fixtures 36/36
+byte-identical both; the live migration ran the same day (5,389 + 175 envelopes,
+snapshots patched, epochs 10/4) and the stack redeployed — VERIFY-PASS.**
+TS reference: main repo
+**v4.4.0** (store v24); GTK **v4.2.0** (store v16); Flutter **v4.1.0**
+(app DB v31). The GTK UI has no property rendering (protocol+store port
 only); Flutter renders the block-bullet value button.
 
 **The 2026-10-07 wire batch (second, third, and fourth changes of the day):**
@@ -91,8 +103,8 @@ change, so pre-batch clients apply the registry upsert but never flip
 property type (a new value in `propertySchema.create`'s strict type enum —
 pre-batch clients reject retype envelopes). Canonical fixtures
 `object-wire-fields.json`, `class-convert.json`, `property-asset-type.json`
-(gate 21→24). **GTK/Flutter ports of all three are a separate follow-up in
-the clients repo — pending at shipment.** Also shipped applier-side with no
+(gate 21→24). **GTK/Flutter ports SHIPPED in the clients' 2026-10-07 lockstep
+(GTK v4.1.x / Flutter v4.0.x).** Also shipped applier-side with no
 wire footprint: write-time alias-cycle validation (`CycleError`, the
 extends-DAG precedent) and the `Store.resolveAlias` chain walker; the alias
 read-path repointing shipped the same day in the read-layer slice below — no
@@ -126,12 +138,13 @@ this batch = bumping the package pins + releases, not code ports.
 | review pass + the palette query-wipe fix | 2026-10-06 | Owner screenshot pass: hamburger rail pinned to the body's top-left corner, classes pills at the content column's top (panel pushes them right, toggle stays), the weekday flag pinned to en-US; then the smoke caught the CommandPalette open-reset effect wiping the typed query on every shell re-render (deps included `onOpenNode`'s fresh inline identity) — reset on the open-transition only now, regression test added; verify-min polls for its search hit. Web-only; TS **v3.4.3** (store v15); **client alignment: none needed**; ghcr `notees-sync`/`notees-web` v3.4.3 + latest from the tag |
 | the main-layout grid | 2026-10-06 | The panelled layout finalized the card's centered 960px cap drops (`.nt-page-card > .nt-node-view:has(.nt-page--panelled)`) so the 1/3 sidebar \| 2/3 nodeview split spans the full card; the second column becomes a three-row stack — nodeview top bar (hamburger + classes left, view switcher + "…" right) pinned to the top, the nodeview auto-height (the scrolling cell) between, the footer pinned to the bottom as a divided section; `PropertiesSidebar` replaces the reused table (name row + value-cell row per property, `bare` value rows, full right-click menu parity); the app top bar owns New/Search/the workspace selector exclusively and the sidebar starts at Navigation. Web-only; TS **v3.4.4** (store v15); **client alignment: none needed**; ghcr `notees-sync`/`notees-web` v3.4.4 + latest from the tag |
 | grid fix | 2026-10-06 | The column now stretches (`align-self: stretch` — the flex row's `align-items: flex-start` had kept it at content height), so the footer pins to the card bottom; the top bar's/footer's dividers start at the column edge (left insets removed — no more crossing the vertical divider or the properties scrollbar). Web-only; TS **v3.4.5** (store v15); **client alignment: none needed**; ghcr `notees-sync`/`notees-web` v3.4.5 + latest from the tag |
-| wire node fields | 2026-10-07 | `object.update` gains optional nullable `coverAssetId`/`bannerAssetId`/`aliasedNodeId` (store v15→v16; gate 21→22, `object-wire-fields.json`); the retired cover/banner/aliasOf property schemas superseded (`scripts/migrate-cover-banner-alias.mts` rewrites live assertions); query field predicates; JSON archive carries the fields — **GTK/Flutter ports pending in the clients repo** (strict-payload additive: the live migration run gates on them) |
-| class-class retirement + conversion | 2026-10-07 | the seeded `class` meta class (…0001) withdrawn — `class.create` on an existing node DECLARES it a class (the conversion capability; gate 22→23, `class-convert.json`); the has-template family relocates to a global-scope schema (no binding anywhere); `migrate-retire-class-class.mts` converts live workspaces; M12 write-time alias-cycle validation + `Store.resolveAlias` ship applier-side — **GTK/Flutter ports pending** (class identity is the lockstep gate) |
-| the asset property type | 2026-10-07 | `propertySchema.create`'s type enum gains `asset` (implicit asset-class filter; gate 23→24, `property-asset-type.json`); the attachments schema (…0011) retypes object→asset by `migrate-attachments-asset-type.mts` (values ride untouched) — **GTK/Flutter ports pending** (strict-enum additive) |
+| wire node fields | 2026-10-07 | `object.update` gains optional nullable `coverAssetId`/`bannerAssetId`/`aliasedNodeId` (store v15→v16; gate 21→22, `object-wire-fields.json`); the retired cover/banner/aliasOf property schemas superseded (`scripts/migrate-cover-banner-alias.mts` rewrites live assertions); query field predicates; JSON archive carries the fields — **GTK/Flutter ports shipped in the clients' 2026-10-07 lockstep** (GTK v4.1.x / Flutter v4.0.x) |
+| class-class retirement + conversion | 2026-10-07 | the seeded `class` meta class (…0001) withdrawn — `class.create` on an existing node DECLARES it a class (the conversion capability; gate 22→23, `class-convert.json`); the has-template family relocates to a global-scope schema (no binding anywhere); `migrate-retire-class-class.mts` converts live workspaces; M12 write-time alias-cycle validation + `Store.resolveAlias` ship applier-side — **GTK/Flutter ports shipped in the clients' 2026-10-07 lockstep** |
+| the asset property type | 2026-10-07 | `propertySchema.create`'s type enum gains `asset` (implicit asset-class filter; gate 23→24, `property-asset-type.json`); the attachments schema (…0011) retypes object→asset by `migrate-attachments-asset-type.mts` (values ride untouched) — **GTK/Flutter ports shipped in the clients' 2026-10-07 lockstep** |
 | alias read paths (the final alias-program slice) | 2026-10-07 | every alias read repointed onto the `aliased_node_id` column: the universal redirect (the App open funnels ride `resolveAliasOpen` over `Store.resolveAlias` — mentions, links, palette, breadcrumbs, graph clicks, backlink/query rows), the linked-references roll-up via a new recursive store read `Store.aliasNodesOf` (chains included; the property-based `aliasOfTarget` retires), graph exclusion (aliases are not vertices; incident edges repoint to the terminal and merge), the server `/resolve` chain fold, and the aliases UI (the title-row Aliases button/list with the backward write + the NAVIGATE bypass; the alias-side "Aliased node" pseudo-property row) — NO wire change, NO store schema change; store API delta: `aliasNodesOf` added / `aliasOfTarget` retired (clients on the store package ride `resolveAlias`/`aliasNodesOf`); web+server read layer, TS-only |
 | unified datetime | 2026-10-09 | the `date`/`date_range` property types unify into one `datetime` type (strict `propertySchema.create` type enum — the retired values are rejected outright; gate 24→25, `property-datetime.json`); values ride untouched (every legacy shape is a legal member of the new union), so the live rewrite is payload-only: `scripts/migrate-unified-datetime.mts` (Path B, no compensation) — TS **v4.1.0** (ghcr `notees-sync`/`notees-web` v4.1.0 + latest from the tag); **client alignment: GTK v4.1.0 + Flutter v4.0.1 + CLI v4.1.0 tagged** (fixtures sha256-matched 25/25; CLI vendor pin → af57c5bb); live migration run the same day (owner workspace 82 envelopes rewritten, epoch 6; test workspace 3, epoch 1; snapshots patched both; full-replay verified) and the stack redeployed — VERIFY-PASS |
-| per-block list style | 2026-10-16 | `object.create`/`object.update` gain the optional nullable `listStyle` (`"numbered" \| "alpha" \| "roman"`; absent/null = bullet — store v22→v23, gate 32→33, `object-list-style.json`); the marker number is render-time derivation from the sibling run, never stored; no query predicate (presentation state) — **LOCKSTEP-PENDING: GTK/Flutter ports accept the key in the clients repo** (strict-payload additive; no log migration — pre-existing nodes default to bullet) |
+| per-block list style | 2026-10-16 | `object.create`/`object.update` gain the optional nullable `listStyle` (`"numbered" \| "alpha" \| "roman"`; absent/null = bullet — store v22→v23, gate 32→33, `object-list-style.json`); the marker number is render-time derivation from the sibling run, never stored; no query predicate (presentation state) — **LOCKSTEP SHIPPED 2026-10-20** with the property-definition batch's ports (GTK v4.2.0 / Flutter v4.1.0; strict-payload additive; no log migration — pre-existing nodes default to bullet) |
+| property-definition batch | 2026-10-20 | the retired `scope` enum is rejected outright, replaced by `scopeClassIds` (the sole locality authority — bindings carry zero availability semantics; owner R1–R6); schema-level `icon`; `propertySchema.update` gains `scopeClassIds`/`targetClassFilter`/`multi`/`validationRules`; fail-loud extends-aware eligibility at `property.set`/`class.property.set`; eligible-tagged effective reads; validationRules value enforcement at `property.set`; store v23→v24 (the property_schema rebuild); gate 33→36 (`property-schema-scope.json`, `property-schema-update-fields.json`, `property-validation-rules.json`) — TS **v4.4.0**, GTK **v4.2.0** (store v16, 847 tests, fixtures 36/36), Flutter **v4.1.0** (DB v31, 664 tests, 36/36), CLI by vendor pin; the seed-scope audit (task family + weblink `url` → global) rides the same window; live migration run the same day (owner workspace 5,389 envelopes + test workspace 175, snapshots patched both, restore_epoch 10/4, seed-flip convergence appended; the migration script gained a snapshot-patch ordering fix + resumable apply + a verify comparison fix) and the stack redeployed — VERIFY-PASS |
 
 ## 5. The SDK/repo splits (parked, owner)
 
