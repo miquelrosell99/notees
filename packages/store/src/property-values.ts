@@ -57,6 +57,12 @@
  *    an absence). Text carrier refs are NOT existence-checked: PB2 keeps
  *    legacy carrier encodings read-lenient, and the migrated log carries
  *    sixteen of them.
+ *  - validationRules (R2 value enforcement): a schema
+ *    carrying stored rules validates every property.set value BEFORE the
+ *    write — min/max bound numbers (after the legacy numeric-string
+ *    normalization), pattern full-string-tests text/url/email scalars, each
+ *    multi element at its own add. A non-compilable stored pattern fails
+ *    loud (never an applier crash).
  */
 
 import { dayNodeId, isValidTimeOfDay, parseDateNodeId, SYSTEM_CLASS_UUIDS, yearNodeId } from "@notees/domain";
@@ -200,6 +206,13 @@ export function isValidDefaultForType(type: string, value: unknown): boolean {
   }
 }
 
+/** The parsed validationRules column (NULL column = no rules). */
+export interface ValidationRules {
+  min?: number;
+  max?: number;
+  pattern?: string;
+}
+
 /** The schema row the value validators consult (PG6). */
 export interface PropertySchemaValidationRow {
   id: string;
@@ -212,6 +225,27 @@ export interface PropertySchemaValidationRow {
   dateQualified?: number | null;
   /** R3: the JSON scope list (NULL = global) — the eligibility authority. */
   scopeClassIds?: string | null;
+  /** The JSON validationRules column (NULL = no rules — the R2 keep/clear). */
+  validationRules?: string | null;
+}
+
+/** The stored validation_rules column parsed to the rule object (null on NULL
+ *  or unparseable — a corrupt column reads as "no rules", never a crash). */
+export function validationRulesOfRow(row: PropertySchemaValidationRow): ValidationRules | null {
+  const raw = row.validationRules;
+  if (raw === null || raw === undefined) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const rules = parsed as Record<string, unknown>;
+    const out: ValidationRules = {};
+    if (typeof rules.min === "number" && Number.isFinite(rules.min)) out.min = rules.min;
+    if (typeof rules.max === "number" && Number.isFinite(rules.max)) out.max = rules.max;
+    if (typeof rules.pattern === "string") out.pattern = rules.pattern;
+    return out;
+  } catch {
+    return null;
+  }
 }
 
 /** Shape + scalar typing only (no graph checks) — the PG6 extension of
@@ -335,10 +369,70 @@ function assertRefTargetForSchema(
 }
 
 /**
+ * The stored validationRules applied to a NORMALIZED value (the R2 value
+ * enforcement, SCHEMA.md "Class properties"): min/max
+ * bound a number schema's value (the legacy numeric string already
+ * normalized to a finite number upstream), pattern full-string-tests a
+ * text/url/email schema's SCALAR strings (a text carrier ref {nodeId} is not
+ * a string and rides unchecked — the shape family owns refs). A multi batch
+ * is a property.set per element (PG5), so every element is validated at its
+ * own write and one bad element rejects its op while the surviving elements
+ * stay. Types outside applicability never reach here — rule writes on them
+ * are rejected at the schema-update path. A stored pattern that does not
+ * compile is corrupt config: fail loud (PropertyValueShapeError), never an
+ * applier crash.
+ */
+function assertValidationRulesForValue(
+  schema: PropertySchemaValidationRow,
+  typed: unknown,
+  opType: string,
+): void {
+  const rules = validationRulesOfRow(schema);
+  if (rules === null) return;
+  if (schema.type === "number") {
+    if (typeof typed !== "number") return; // shape check owns non-numbers
+    if (rules.min !== undefined && typed < rules.min) {
+      throw new PropertyValueShapeError(
+        `${opType}: value ${JSON.stringify(typed)} is below the schema's validationRules min ${rules.min}`,
+        opType,
+      );
+    }
+    if (rules.max !== undefined && typed > rules.max) {
+      throw new PropertyValueShapeError(
+        `${opType}: value ${JSON.stringify(typed)} is above the schema's validationRules max ${rules.max}`,
+        opType,
+      );
+    }
+    return;
+  }
+  if (schema.type === "text" || schema.type === "url" || schema.type === "email") {
+    if (rules.pattern === undefined || typeof typed !== "string") return;
+    let re: RegExp;
+    try {
+      re = new RegExp(`^(?:${rules.pattern})$`);
+    } catch {
+      throw new PropertyValueShapeError(
+        `${opType}: schema ${schema.id} carries a validationRules pattern that is not a compilable regex — ` +
+          `stored config is corrupt (rewrite the schema's rules via propertySchema.update)`,
+        opType,
+      );
+    }
+    if (!re.test(typed)) {
+      throw new PropertyValueShapeError(
+        `${opType}: value ${JSON.stringify(typed)} does not match the schema's validationRules pattern ` +
+          `${JSON.stringify(rules.pattern)} (full-string match)`,
+        opType,
+      );
+    }
+  }
+}
+
+/**
  * PG6: the full apply-time validation for a property.set against a KNOWN
  * schema row — shape/scalar typing (assertValueShapeForType extended),
  * graph checks (existence / class filter / date precision) for the
- * node-typed link family. `null` means "no value" and bypasses everything.
+ * node-typed link family, and the stored validationRules (R2 value
+ * enforcement). `null` means "no value" and bypasses everything.
  * Returns the normalized value to store.
  */
 export function assertValueForSchema(
@@ -350,6 +444,7 @@ export function assertValueForSchema(
   const shaped = assertValueShapeForType(schema.type, value, opType);
   const typed = assertScalarShapeForType(schema.type, shaped, opType);
   if (typed === null) return typed;
+  assertValidationRulesForValue(schema, typed, opType);
   if (schema.type === "object" || schema.type === "asset") {
     const ref = nodeRefOfValue(typed);
     if (ref !== null) assertRefTargetForSchema(db, schema, ref, opType);

@@ -8,6 +8,42 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **feat(store,protocol): validationRules value enforcement at `property.set`
+  — the R2 companion to the property-scope batch (commit b8548e0e).**
+  SCHEMA.md's Properties section promised "values validated at
+  `property.set`, fail loud"; this slice implements it in the TS reference
+  applier. A schema carrying stored `validationRules` validates every
+  `property.set` value BEFORE the write (`assertValueForSchema` extension,
+  `packages/store/src/property-values.ts`): `number` schemas bound the value
+  with inclusive `min`/`max`, checked AFTER the existing legacy
+  numeric-string normalization (a migrated epoch-millis string normalizes,
+  then validates); `text`/`url`/`email` schemas full-string-test SCALAR
+  values against `pattern` (implicit anchors — the HTML `pattern`
+  semantics; a text carrier ref `{nodeId}` is not a string and rides
+  unchecked, the shape family owns refs). Each multi element is its own
+  `property.set` (PG5), so every element is validated at its own add and one
+  bad element rejects its op while the surviving elements stay. Rule-free
+  schemas and schema-less writes (unknown schema id) stay unchecked, exactly
+  like the shape checks; types outside applicability (boolean/select/
+  multi_select/datetime/object/asset/image) can never carry rules — the
+  update-path applicability enforcement guarantees it. **New apply-time
+  guard:** `propertySchema.update` carrying a non-compilable `pattern` now
+  fails loud at the rule write (a stored pattern that threw at value-check
+  time would be an applier crash — never acceptable); the value check also
+  fails loud (never crashes) on a corrupt stored pattern as defense in
+  depth. Canonical fixture `property-validation-rules.json` (fixture gate
+  35→36): an accepting prefix (boundaries, the normalized numeric string,
+  min-only/max-only, rule-free, schema-less) replays on both adapters; the
+  six-envelope reject tail (below-min/above-max, two pattern misses, one bad
+  multi element, one un compilable pattern) throws on apply by design — the
+  file joins the replay-excluded set and each reject is pinned in the store
+  suite (both adapters). Docs: SCHEMA.md's validationRules + PG6 paragraphs
+  tightened (value enforcement shipped, no pending hedge), the development
+  runbook's fixture-gate count 35→36. LOCKSTEP-PENDING: GTK/Flutter converge
+  on the three fixtures before the live migration runs. Verified:
+  `pnpm typecheck` green; store suite 615 green (incl. the new
+  `validationRules value enforcement` + fixture-pinning tests on both
+  adapters); protocol suite 528 green (the 36-file gate).
 - **feat(web): the class properties section rebuilt (S6) + block-to-property drag (S5) — the property-definition batch's visual slice (phase B).**
   (the property-definition proposal: "terrible, horizontal scroll on the sidebar; on par with Capacities and Notion"). **S6 — PropertyDefinitionsSection ground-up** (the missing-P filename typo fixed in the same slice: `ropertyDefinitionsSection.*` → `PropertyDefinitionsSection.*`, references in `classview/index.ts` + `page-sections/pageVariant.ts` updated): the collapsed row is **identity-only** — hover-revealed drag grip (dnd-kit, the reorder→sequence writes unchanged), the schema icon (the owner-2026-10-20 icon field, per-type glyph fallback), and the name with `min-width: 0` + ellipsis; no chips, no row-level flag toggle, no × — inactive bindings dim the name (the only disabled cue). The row click opens the **config panel** (full section width, stacked groups, sidebar-safe at 390): header (icon picker + rename → `propertySchema.update {name}`); a **Definition** group (read-only type + Convert… → the R6-gated PropertyConvertModal, the multi state, "Edit definition…" → the S2 PropertyEditModal); a **For this class** group (typed default-value editor → `class.property.set {defaultValue}`, the Required checkbox, the **Enabled ToggleSwitch now writing `binding.active` live** — the PC4 lockstep shipped, the pending-copy is gone); a type-specific group (**target classes editable** via `update {targetClassFilter}` — the 3A wire, ClassMultiPickField; date precision for datetime; dateQualified for object); footer **Remove from class** behind a ConfirmationModal, disabled for system schemas (the fixed `SYSTEM_PROPERTY_UUIDS` in @notees/domain). **The Inherited group (v1 parity, was missing entirely)**: read-only rows attributed to the NEAREST extends-ancestor binding each schema (BFS over `getClassParents`; the direct/inherited split reads `getRegistryBindings` + the same seed-spec synthesis `getClassBindings` applies, so attribution can never disagree with the effective list); a click opens the base-definition editor. **The add-property popover**: anchored under the AddPill, SearchField + keyboard-navigable listbox (icon + name + type label), filtered by query AND class-context eligibility (global + schemas scoped to this class or its extends-ancestors — `isSchemaEligibleForClass`, the R2 closure); its "Create …" row opens the S1 creation modal pre-filled via `requestPropertyCreate({ contextClassId, initialName })` — the instant text create-and-bind is gone. **S5 — block-to-property drag**: dragging a block from the owner's body onto a text-property row makes it the value's carrier, in the ONE workspace drag session — the row registers a droppable with the `WorkspaceDndHost` (`useWorkspaceDndPropertyDrop`, `workspace-prop-drop:` namespace; the host intercepts over→slot in handleDragMove/handleDragEnd, suppressing the zone drop line); the decision matrix lives in `ui/property-drop.ts` (pure, jsdom-tested): single-value slot EMPTY → one `property.set {value:{nodeId}}` at idx 0 (the placeholder convention); OCCUPIED → no-op (never an overwrite); MULTI → append at nextIdx with a **writer-minted UUIDv7 elementId** (the PG5 OR-Set add — `setProperty` gains the optional elementId pass-through, web layer only, the wire always carried it); same-owner only (a foreign block is refused), the schema must be eligible for the owner (R3's applier guard backs it), garbage cases refused (the owner itself, an ancestor of it), text slots only. Affordance off DragSourcesContext: empty slots accent-ring on block-drag start, drop-over state-layer on the row under the pointer, the no-drop cursor on refused rows — no layout shift. Docs: `docs/usage.md` gains the drag paragraph. Verified: `pnpm typecheck` green repo-wide; web vitest green incl. the rewritten `class-bindings` suite, the new `property-definitions-section` (7) and `block-property-drop` (9) suites; visual QA captures at 1440/768/390 (the capture loop's own probe).
 - **feat(web): property-definition surfaces — the S1 pre-creation modal, the
