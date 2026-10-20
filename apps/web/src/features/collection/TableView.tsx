@@ -28,7 +28,11 @@
  *   unified datetime union (ensureDateChain); node cells open the anchored
  *   NodeSelector.
  *   Multi-value properties stay read-only.
- * - Name cell: row click opens, shift+click peeks.
+ * - Name cell: row click opens, shift+click peeks. The pinned Open
+ *   button — the workspace card's "Open workspace" twin (ghost/sm,
+ *   right arrow, owner 2026-10-20) — rides the cell's right edge
+ *   regardless of the text: click opens, shift+click peeks the node in
+ *   the sidebar card.
  * - CSV export: the toolbar "…" menu's "Export CSV"
  *   downloads the CURRENT view — the visible columns × the full sorted
  *   result set (the window is display-only, never an export cut) — through
@@ -424,7 +428,8 @@ function isoOfRef(ref: string): string | null {
   return `${String(parsed.year).padStart(4, "0")}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`;
 }
 
-/** The open-arrow — navigates to a node (row, link target, day page). */
+/** The open-arrow — navigates to a node (link target, day page). The
+    name cell rides the pinned OpenButton instead (owner 2026-10-20). */
 function OpenArrow({ label, onOpen }: { label: string; onOpen: () => void }) {
   return (
     <button
@@ -442,9 +447,42 @@ function OpenArrow({ label, onOpen }: { label: string; onOpen: () => void }) {
   );
 }
 
+/**
+ * The row's Open button — the table's navigate affordance (owner
+ * 2026-10-20): the same ghost/sm/arrow-right button as the workspace
+ * card's "Open workspace" action, pinned to the name cell's right edge
+ * regardless of the text content. Click opens the node; shift+click
+ * peeks it in the sidebar card.
+ */
+function OpenButton({
+  label,
+  onOpen,
+  onPeek,
+}: {
+  label: string;
+  onOpen: () => void;
+  onPeek: () => void;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      icon="mdi mdi-arrow-right"
+      className="nt-table-open-btn"
+      title={`Open ${label}`}
+      aria-label={`Open ${label}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (event.shiftKey) onPeek();
+        else onOpen();
+      }}
+    />
+  );
+}
+
 /** Name cell: click enters inline edit for simple titles (single text token);
     rich content keeps click-to-open (editing flattens it — never silently).
-    The open-arrow always navigates. */
+    The pinned Open button always navigates; shift+click peeks. */
 function NameCell({
   node,
   icon,
@@ -478,7 +516,11 @@ function NameCell({
             }
           }}
         />
-        <OpenArrow label={label} onOpen={() => props.onNodeClick?.(node.id)} />
+        <OpenButton
+          label={label}
+          onOpen={() => props.onNodeClick?.(node.id)}
+          onPeek={() => props.onNodeShiftClick?.(node.id)}
+        />
       </span>
     );
   }
@@ -497,7 +539,11 @@ function NameCell({
         {icon !== null && <Icon path={icon} size={0.9} className="nt-table-name-icon" />}
         <span className="nt-table-name-label">{label}</span>
       </button>
-      <OpenArrow label={label} onOpen={() => props.onNodeClick?.(node.id)} />
+      <OpenButton
+        label={label}
+        onOpen={() => props.onNodeClick?.(node.id)}
+        onPeek={() => props.onNodeShiftClick?.(node.id)}
+      />
     </span>
   );
 }

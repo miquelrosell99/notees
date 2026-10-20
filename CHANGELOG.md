@@ -7,6 +7,24 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-20
+
+- **feat(web): the table's Open button — the name cell's inline open-arrow
+  retires in favor of a pinned navigate button.** Owner 2026-10-20: the
+  hover-revealed `↗` that trailed the name text is replaced by a
+  ghost/sm/`mdi-arrow-right` button — the same register as the workspace
+  card's "Open workspace" action — absolutely pinned to the right edge of
+  the name cell regardless of the text content (the td anchors it and
+  reserves a right padding lane of `button-icon-only-visible-sm + spacing`
+  so the label ellipsizes clear of it; centered via `top/bottom + margin-
+  block` so the press-scale utility keeps the transform). Click opens the
+  node; **shift+click peeks it in the sidebar card** (`onNodeShiftClick`).
+  The quiet `↗` open-arrow survives only where it navigates to a *different*
+  node — the date cell's day-page jump and the node-typed cell's link
+  target. `TableView.tsx` (`OpenButton`, `NameCell`) + `TableView.css`;
+  the web suite stays green (one unrelated apps/server snapshot test
+  flaked at 5s under full-suite load, passes in isolation).
+
 ## 2026-10-19
 
 - **refactor(web): the full tree realignment — the layer-first tree becomes the fleet's feature-first canonical tree, one cohesion cluster at a time.** The owner ruling (full alignment, no shortcuts) supersedes the register's incremental move-on-touch entry: `src/ui/components/` (~135 entries) and `src/ui/views/` are retired in eleven commits — **collection** (views + graph engine/renderer + query/filter builder + hubs → `features/collection/`), **metadata** (property rows/modals, class pills, alias surfaces, node pills), **classview + templates** (class detail, system-class families, the template family), **calendar** (view/journals/day pages/grids/top-bar popup) **+ date-pickers**, **shared pickers + icon-picker**, **node-menu + page-sections + block-editor** (context/link/sidebar-item menus, hover preview, breadcrumbs; the activity/comments/created/version/system/node-view sections + page banner/card/footer; the floating editor, selection bar, quick-create), **workspaces**, **sharing/trash/command-palette**, **settings/export/modals/find-in-page**, **the primitive layer** (`src/components/ui/fleet/` joins the normalized catalog — a subdir because the kebab catalog files and the PascalCase fleet wrappers collide by case in one flat dir; the drift gate's registered-mapping catalog check skips the wrapper layer, and its JS-scoped owner walk covers shell + features + fleet), and **the shell** (Sidebar/TopBar join `ui/app/`). `src/ui/` is the shell + composition root only; every feature carries an `index.ts` barrel. Imports repointed across src/test/e2e (including `vi.mock` paths and the source-level contract tests' CSS paths); the repo-root remap script's import follows. Register: the tree entry is superseded as DONE with the clustering map.

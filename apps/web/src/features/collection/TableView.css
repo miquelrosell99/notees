@@ -439,7 +439,9 @@
   text-decoration: underline;
 }
 
-/* The open-arrow — a quiet navigate affordance beside cell content. */
+/* The open-arrow — a quiet navigate affordance beside cell content (the
+   link-target and day-page cells; the name cell rides the pinned Open
+   button below instead, owner 2026-10-20). */
 .nt-table-open {
   display: inline-flex;
   align-items: center;
@@ -457,7 +459,6 @@
   vertical-align: middle;
 }
 
-.nt-table-name:hover .nt-table-open,
 .nt-table-node:hover .nt-table-open,
 .nt-table-open:focus-visible {
   opacity: 1;
@@ -466,4 +467,25 @@
 .nt-table-open:hover {
   background: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-primary);
+}
+
+/* The name cell hosts the pinned Open button: relative positioning makes
+   the cell the anchor, and the right padding reserves the button's lane
+   so the label ellipsizes clear of it. */
+td.nt-table-name {
+  position: relative;
+  padding-right: calc(var(--button-icon-only-visible-sm) + var(--spacing-2));
+}
+
+/* The Open button — the "Open workspace" twin (ghost sm, right arrow,
+   always visible), pinned to the cell's right edge regardless of the
+   text content. Centered without a transform so the press-scale utility
+   keeps working. */
+.nt-table-open-btn {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: var(--spacing-1);
+  margin-block: auto;
+  opacity: var(--opacity-100);
 }
