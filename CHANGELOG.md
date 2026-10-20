@@ -8,6 +8,16 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **fix(web): the dates suite's property-definitions test rides the shipped
+  row-cog flow again (the suite's one red).** The class-property row refactor
+  (the cog + × became the standard fleet ghost icon buttons) retired the
+  in-row "Edit definition…" button — the S2 base-definition modal now opens
+  straight off the row's cog ("Definition settings for …"), the in-row
+  expansion holding class-level fields only (Default value + Required). The
+  dates test still walked the old flow (expand → "Edit definition…") and went
+  red; it now clicks the cog, same modal, same write-through assertions
+  (precision select, date-range-qualifiers checkbox). Test-only re-anchoring —
+  no behavior change; the full suite is green again.
 - **fix(web): the ghost add-block leaves the system sections; cards mode gets
   the ghost card (owner report).** The "+ Add block" ghost leaked into the
   node collection system sections: every referencing subtree in Backlinks /
