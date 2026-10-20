@@ -8,6 +8,19 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **refactor(web): the class-page binding panel is a simple inline editor —
+  presence is the on/off (owner amendment to R7).** A property applies to a
+  class by being in the list — the PC4 "Active on this class" switch leaves
+  the panel (the flag stays wire-level; the row's dimmed-name cue still
+  renders inactive bindings honestly), along with the "For this class" group
+  label and the bordered group box. The panel is now exactly: read-only
+  header, Default value, Required, Remove from class (hidden for system
+  schemas). The ⋯ overflow is gone — its menu replaced by a row COG
+  (`mdi-cog-outline`, hover-revealed) that opens the definition modal
+  directly; the panel's "Edit definition…" button went with it. Tests
+  re-anchored (29 green); the tracked section probe updated and re-run —
+  PROBE-PASS, captures in `scripts/screenshots/.runtime/s6/` (the simple
+  panel at 1440, zero overflow at 390).
 - **fix(web): the class-page binding panel clarifies the active switch and
   hides non-removable removes.** The PC4 "Active on this
   class" toggle (was the unlabeled Disabled/Enabled pair) now carries its

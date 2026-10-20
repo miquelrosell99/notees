@@ -96,9 +96,8 @@ try {
 
   // Rename Summary to a very long name (truncation evidence). R7
   // (2026-10-20): the panel is class-level only — the rename lives in the
-  // definition modal, reachable from the panel's "Edit definition…".
-  await pg.getByRole("button", { name: "Configure Summary" }).click();
-  await pg.getByRole("button", { name: "Edit definition…" }).click();
+  // definition modal, reachable from the row's COG.
+  await pg.getByRole("button", { name: "Definition settings for Summary" }).click();
   const nameInput = pg.getByLabel("Property name");
   await nameInput.fill("A genuinely long property name that must truncate cleanly");
   await nameInput.press("Tab"); // blur → write
@@ -106,30 +105,17 @@ try {
   await pg.waitForTimeout(700);
   console.log("STAGE long rename written");
 
-  // Verdict: disable (dimmed row); set a default on the long one + Required.
-  // Rows stay independently expanded — scope every query to its row.
-  await pg.getByRole("button", { name: "Configure Verdict" }).click();
-  await pg.waitForTimeout(400);
-  const verdictRow = pg.getByRole("listitem").filter({ hasText: /^Verdict/ });
-  await verdictRow.getByRole("switch", { name: "Disabled Enabled" }).click();
-  await pg.waitForTimeout(700);
+  // The long row: expand it, then set a default + Required (the panel's only
+  // fields besides the row drag). Rows stay independently expanded — scope
+  // queries to rows.
   const longRow = pg.getByRole("listitem").filter({ hasText: /A genuinely long/ });
+  await longRow.getByRole("button", { name: /Configure A genuinely long/ }).click();
+  await pg.waitForTimeout(400);
   await longRow.getByLabel(/Default for A genuinely long/).fill("Nothing to say");
   await longRow.getByRole("checkbox", { name: /Required for A genuinely long/ }).click();
   await pg.locator(".nt-page-header").first().click();
   await pg.waitForTimeout(700);
   console.log("STAGE flags written");
-  const dimCheck = await pg.evaluate(() =>
-    [...document.querySelectorAll(".nt-propdef")].map((li) => ({
-      name: li.querySelector(".nt-propdef-name")?.textContent,
-      inactive: li.classList.contains("nt-propdef--inactive"),
-      opacity: getComputedStyle(li.querySelector(".nt-propdef-name") ?? li).opacity,
-    })),
-  );
-  console.log("STAGE dim check:", JSON.stringify(dimCheck));
-  if (!dimCheck.some((r) => r.name === "Verdict" && r.inactive === true)) {
-    fail("Verdict binding did not go inactive (Enabled switch write failed)");
-  }
 
   // --- extends Base (the Inherited group) ----------------------------------
   await pg.getByRole("button", { name: "Add class extension" }).click();
@@ -191,7 +177,7 @@ try {
       ?.scrollIntoView({ block: "nearest" });
   });
   await pg.waitForTimeout(300);
-  await pg.getByRole("button", { name: "Edit definition…" }).click();
+  await pg.getByRole("button", { name: "Definition settings for Reviewed at" }).click();
   await pg.waitForTimeout(600);
   await shot("03-definition-modal-datetime-1440");
   await pg.getByLabel("Close modal").click();
