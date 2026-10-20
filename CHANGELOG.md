@@ -8,6 +8,27 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **feat(web): the thread SURROUNDS an in-path icon — a loop of inverted
+  rounding wraps its lower-left, and the downward line keeps its original
+  position.** ("keep the downward line in its
+  original position and do a flipped round in the corner, surrounding the
+  icon — a loop/inverted rounding around the bottom left"). The shipped
+  inward-corner variant dropped the vertical into the gap LEFT of the
+  icon for the whole descent — the staircase columns zigzagged between
+  the gap and the center. The surround refines it: the arm still stops a
+  radius early, but the corner then hugs the glyph left edge down, rounds
+  the bottom-left, and rejoins the CENTER column just below the glyph (a
+  short run passes beneath it — nothing to peek through). Every downward
+  segment now rides a bullet center column, straight through dots and
+  icons alike; the icon reads as sitting ON the thread. Ships with the
+  overlay MutationObserver hardening (an icon arriving via an op — or any
+  in-path chrome change without a resize/scroll/store event — re-measures
+  the path; caught by the live probe as a stale-geometry race) and the
+  probe accent-reference fix (the menu click blurs the editor, so the
+  editing dot is gone by the menu-anchor read). Probe: the surround
+  asserts the hug, the bottom-left wrap, and the center-column rejoin
+  (4 quadratic joins for an iconed chain). Docs: EditThread/BlockRow
+  headers.
 - **feat(web): an open block context menu anchors to its block — the
   bullet carries the hover/active highlight while the menu floats.**
   the node menu renders free at the pointer, so
