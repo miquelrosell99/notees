@@ -2531,10 +2531,11 @@ function ensureTaskFamilyRows(db: StoreDatabase, env: Envelope): void {
       env.workspaceId,
       entry.name,
       entry.type,
-      // The task family is scoped to the task class (and its future
-      // extensions) — scopeClassIds is the sole locality authority (owner
-      // ruling 2026-10-20); the family binds the same class below.
-      JSON.stringify([classId]),
+      // Global scope (owner ruling 2026-10-20, the seed-scope audit — the
+      // whole task family is reusable, Status explicitly so): NULL
+      // scope_class_ids; the family binds the task class below (bindings
+      // are per-class config, zero availability semantics).
+      null,
       JSON.stringify([...(entry.options ?? [])]),
       entry.display ?? null,
       env.timestamp,

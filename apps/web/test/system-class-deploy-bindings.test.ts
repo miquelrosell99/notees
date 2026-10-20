@@ -233,6 +233,25 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
     expect(await eventFamilyPresent(client)).toBe(true);
   });
 
+  it("deploys weblink's url schema at GLOBAL scope with the weblink binding row", async () => {
+    const client = await seedClient();
+    const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
+    await deploySystemClass(client, "weblink");
+    await flushSync();
+
+    const url = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.url);
+    // Owner ruling 2026-10-20 (the seed-scope audit): a url is generically
+    // reusable — global scope (NULL scopeClassIds), NOT local to weblink…
+    expect(url).toMatchObject({ name: "URL", type: "url", scopeClassIds: null });
+    // …while the binding row still lands on the weblink class (bindings are
+    // per-class config, zero availability semantics).
+    expect(client.getRegistryBindings(SYSTEM_CLASS_UUIDS.weblink).map((b) => b.propertySchemaId)).toEqual([
+      SYSTEM_PROPERTY_UUIDS.url,
+    ]);
+  });
+
   it("composes with the birthday ensure: the calendar chip row rides either path", async () => {
     const client = await seedClient();
     // A workspace where the birthday family was ensured (fallback-only

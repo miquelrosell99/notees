@@ -359,6 +359,15 @@ export interface SystemPropertySpec {
     | "asset";
   multi?: boolean;
   bindTo?: SystemClassName;
+  /**
+   * Owner ruling 2026-10-20 (the seed-scope audit): a bound spec normally
+   * seeds its schema LOCAL to `bindTo` (scopeClassIds [bindClass]) — the
+   * binding row still lands on `bindTo` (bindings are per-class config),
+   * but `global: true` flips the SCHEMA's scope to global for genuinely
+   * reusable properties. citekey is the counter-precedent: explicitly
+   * ruled local to `source` + extensions.
+   */
+  global?: boolean;
   targetClassFilter?: SystemClassName[];
   defaultValue?: string;
   options?: { id: string; label: string }[];
@@ -398,7 +407,7 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   givenName: { type: "text", bindTo: "person" },
   familyName: { type: "text", bindTo: "person" },
   citekey: { type: "text", bindTo: "source", defaultValue: "" },
-  url: { type: "url", bindTo: "weblink" },
+  url: { type: "url", bindTo: "weblink", global: true },
   // D1: templates are ordinary nodes of the seeded `template` class;
   // a class binds its templates by authored values on the class node itself.
   // M47 (2026-10-07): the relation hosts on NO class — global scope, no
@@ -567,6 +576,12 @@ export const TASK_PRIORITY_OPTION_UUIDS = {
  * schema defaults to "bullet" (its value rides the block bullet as an icon
  * button, the Logseq-DB "beginning of the block" behavior); the rest stay in
  * the properties panel.
+ *
+ * Owner ruling 2026-10-20 (the seed-scope audit): the SIX SCHEMAS seed at
+ * GLOBAL scope (scopeClassIds absent — Status "can be reused for other
+ * nodes", and the ruling covers the whole family); the task-class BINDING
+ * ROWS below are untouched (bindings are per-class config, zero availability
+ * semantics).
  */
 export const TASK_FAMILY_SEED: ReadonlyArray<{
   property: SystemPropertyName;

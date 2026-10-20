@@ -2623,6 +2623,19 @@ for (const adapter of adapters) {
         "Scheduled",
         "Status",
       ]);
+      // Owner ruling 2026-10-20 (the seed-scope audit): the whole task
+      // family seeds at GLOBAL scope (Status "can be reused for other
+      // nodes") — NULL scope_class_ids; the bindings below stay per-class
+      // config.
+      const scopes = store.database
+        .prepare(
+          "SELECT id, scope_class_ids FROM property_schema WHERE id LIKE '00000000-0000-0000-0003-00000000000_'",
+        )
+        .all() as Array<{ id: string; scope_class_ids: string | null }>;
+      expect(scopes).toHaveLength(6);
+      for (const row of scopes) {
+        expect(row.scope_class_ids).toBeNull();
+      }
       const status = store.database
         .prepare("SELECT options FROM property_schema WHERE id = ?")
         .get("00000000-0000-0000-0003-000000000001") as { options: string };

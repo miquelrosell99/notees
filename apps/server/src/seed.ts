@@ -66,10 +66,15 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
     if (spec === undefined) continue;
     const propertySchemaId = SYSTEM_PROPERTY_UUIDS[name as SystemPropertyName];
     // bindTo-less specs (the alias property) seed the schema at global scope
-    // with NO class binding row; a bound spec is scoped to its class (owner
-    // ruling 2026-10-20: scopeClassIds is the sole locality authority — a
-    // class-bound property is local to that class and its extensions).
-    const scopeClassIds = spec.bindTo === undefined ? null : [SYSTEM_CLASS_UUIDS[spec.bindTo]];
+    // with NO class binding row; a bound spec is scoped to its class unless
+    // the spec is marked `global` (owner ruling 2026-10-20, the seed-scope
+    // audit: genuinely reusable properties — the task family, weblink's url —
+    // are global; family-identity fields like citekey stay local). The
+    // binding row below lands either way — bindings are per-class config.
+    const scopeClassIds =
+      spec.bindTo === undefined || spec.global === true
+        ? null
+        : [SYSTEM_CLASS_UUIDS[spec.bindTo]];
     envelopes.push(
       factory.make({
         workspaceId,
