@@ -2,7 +2,10 @@
  * Class bindings editor tests (the S6 redesign): the collapsed row is identity-only (grip + icon +
  * name, click expands the config, the COG opens the definition modal), the
  * config panel writes ONLY binding fields (default/required — presence in
- * the list is the on/off, no active switch, no group labels), Remove from
+ * the list is the on/off, no active switch, no group labels), the default
+ * editor is type-gated (text/number/boolean/select
+ * only — boolean a true/false dropdown, select a dropdown of the schema's
+ * options, node-typed schemas no editor at all), Remove from
  * class sits in the panel footer behind a ConfirmationModal, the add popover
  * offers eligible schemas only and its "Create …" row opens the S1 creation
  * modal pre-filled (which binds on confirm via contextClassId). jsdom over
@@ -127,28 +130,93 @@ describe("Class View class properties editor", () => {
     expect(bindings[0]).toMatchObject({ name: "impact", type: "text", sequence: 0 });
   });
 
-  it("edits the default and Required in the config panel", async () => {
+  it("edits the select default (a dropdown of the schema's options) and Required", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Task");
-    const schemaId = await client.createPropertySchema({ name: "priority", type: "select" });
-    await client.setClassProperty(classId, schemaId, { sequence: 0, defaultValue: "medium" });
+    const schemaId = await client.createPropertySchema({
+      name: "priority",
+      type: "select",
+      options: [
+        { id: "opt-low", label: "Low" },
+        { id: "opt-medium", label: "Medium" },
+        { id: "opt-high", label: "High" },
+      ],
+    });
+    await client.setClassProperty(classId, schemaId, { sequence: 0, defaultValue: "opt-medium" });
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
 
     fireEvent.click(screen.getByRole("button", { name: "Configure priority" }));
-    const defaultInput = screen.getByLabelText("Default for priority");
-    expect(defaultInput).toHaveProperty("value", "medium");
-    fireEvent.blur(defaultInput, { target: { value: "high" } });
+    const defaultSelect = screen.getByLabelText("Default for priority");
+    expect(defaultSelect).toHaveProperty("value", "opt-medium");
+    fireEvent.change(defaultSelect, { target: { value: "opt-high" } });
     await flushWrites();
     expect(client.getRegistryBindings(classId)[0]).toMatchObject({
-      defaultValue: "high",
+      defaultValue: "opt-high",
       sequence: 0,
       required: null,
     });
 
+    // Back to None clears the default (explicit JSON null — the one default
+    // shape PC2 accepts for every type); the remount lands on "None".
+    fireEvent.change(screen.getByLabelText("Default for priority"), { target: { value: "" } });
+    await flushWrites();
+    expect(client.getRegistryBindings(classId)[0]!.defaultValue).toBeNull();
+
     fireEvent.click(screen.getByRole("checkbox", { name: "Required" }));
     await flushWrites();
     expect(client.getRegistryBindings(classId)[0]!.required).toBe(true);
+  });
+
+  it("boolean bindings get a true/false dropdown writing wire booleans", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "Task");
+    const schemaId = await client.createPropertySchema({ name: "done", type: "boolean" });
+    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    await expandDefinitions();
+
+    fireEvent.click(screen.getByRole("button", { name: "Configure done" }));
+    fireEvent.change(screen.getByLabelText("Default for done"), { target: { value: "true" } });
+    await flushWrites();
+    // The editor writes the wire BOOLEAN (a "true" string would fail PC2 and
+    // leave the binding untouched); the decoded binding reads it back.
+    expect(client.getRegistryBindings(classId)[0]!.defaultValue).toBe("true");
+
+    fireEvent.change(screen.getByLabelText("Default for done"), { target: { value: "" } });
+    await flushWrites();
+    expect(client.getRegistryBindings(classId)[0]!.defaultValue).toBeNull();
+  });
+
+  it("number bindings write a numeric default", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "Task");
+    const schemaId = await client.createPropertySchema({ name: "estimate", type: "number" });
+    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    await expandDefinitions();
+
+    fireEvent.click(screen.getByRole("button", { name: "Configure estimate" }));
+    const input = screen.getByLabelText("Default for estimate");
+    expect(input).toHaveProperty("type", "number");
+    fireEvent.blur(input, { target: { value: "42.5" } });
+    await flushWrites();
+    expect(client.getRegistryBindings(classId)[0]!.defaultValue).toBe("42.5");
+  });
+
+  it("node-typed bindings get NO default editor", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "Task");
+    const schemaId = await client.createPropertySchema({ name: "link", type: "object" });
+    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    await expandDefinitions();
+
+    fireEvent.click(screen.getByRole("button", { name: "Configure link" }));
+    // A default that links a node is meaningless (PC2): no default editor —
+    // Required is the only inline field.
+    expect(screen.queryByLabelText("Default for link")).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "Required" })).not.toBeNull();
   });
 
   it("renames through the definition modal (update {name})", async () => {

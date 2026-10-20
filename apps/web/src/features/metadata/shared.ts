@@ -16,6 +16,17 @@ import { resolveCssColor } from "../../components/ui/fleet/colorPresets.js";
 /** The panel's client union — in-process or worker-backed. */
 export type AnyClient = WorkspaceClient | WorkerClient;
 
+/**
+ * Types a class-binding defaultValue can meaningfully carry (PC2 +): text/number/boolean/select ONLY. Node-typed schemas
+ * (object/asset/image/datetime) reject defaults at the wire ("a default that
+ * links a node is meaningless"); url/email/multi_select pass the validator
+ * but a class default for them carries no meaning — both the class-page
+ * binding card and the create modal hide the default field for these.
+ */
+export function defaultCapable(type: string): boolean {
+  return ["text", "number", "boolean", "select"].includes(type);
+}
+
 /** Text-round-trip of an authored/default value for the minimal editor. */
 export function toEditableText(value: unknown): string {
   if (typeof value === "string") return value;

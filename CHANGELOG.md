@@ -8,6 +8,32 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **feat(web): the binding default editor is type-gated — text/number/
+  boolean/select only; node-typed schemas lose the default UI.** A class binding's "Default value" never made sense for
+  node-typed properties (object/asset — a default that links a node is
+  meaningless; PC2 already rejects them at the wire) and the class-page
+  expanded card offered a plain TEXT input for every type — writing a
+  string where the wire wants a boolean/number failed loud at apply time,
+  so the field was broken for exactly the types that could use it. The
+  card's default editor is now per-type: text
+  keeps the input, number a numeric input, boolean a None/True/False
+  dropdown, select a dropdown of the SCHEMA's options (the stored default
+  is the option id); "None" writes an explicit JSON null — the one default
+  shape PC2 accepts for every type (a cleared default now decodes back to
+  null client-side instead of the "null" string artifact). For every other
+  type — the node-typed family (object/asset/image/datetime) plus
+  url/email/multi_select — the card shows NO default editor at all (Required
+  remains). The S1 create modal shares the gate (`defaultCapable` in
+  `metadata/shared.ts`): its default field narrowed from text/number/
+  boolean/url/email/select to text/number/boolean/select. UI-only slice —
+  the wire validator is untouched (url/email/multi_select defaults still
+  validate; existing stored defaults keep deriving). `PropertyDefinitions
+  Section.tsx` (the `BindingDefaultEditor`), `PropertyCreateModal.tsx`,
+  `shared.ts` (the shared predicate), `types.ts` (`decodeDefault`'s null
+  round-trip); tests — the select/boolean/number editor writes, the
+  object-typed no-editor rule (class page + seeded class view + R7 panel
+  scope), the create-modal type gate + the select-options dropdown.
+  Full suite green.
 - **fix(web): the dates suite's property-definitions test rides the shipped
   row-cog flow again (the suite's one red).** The class-property row refactor
   (the cog + × became the standard fleet ghost icon buttons) retired the
