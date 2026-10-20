@@ -30,7 +30,10 @@
  * or a dead cell. The pass runs on every store-synced render and when focus
  * leaves the row; a carrier is skipped while focus is inside the row (an
  * Add/Enter just minted an empty value the user may be about to type into)
- * and unsetting trashes the carrier — "Unset deletes the carrier".
+ * and a placeholder the "+ Add property" flow just minted is skipped via the
+ * pending-carrier mark in propertyValueInit (that flow never focuses the row,
+ * so the focus guard can't see it) until content lands or the user leaves the
+ * row — and unsetting trashes the carrier — "Unset deletes the carrier".
  *
  * Block-to-property drop (S5, owner ruling 2026-10-20): the row registers
  * as a drop target of the ONE workspace drag session — dragging a
@@ -50,6 +53,7 @@ import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { NodeCollection, type NodeCollectionItem } from "../collection/index.js";
 import type { AnyClient } from "../collection/types.js";
+import { clearPendingTextCarrier, isPendingTextCarrier } from "./propertyValueInit.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
@@ -236,8 +240,10 @@ export function TextPropertyRow({
    * contentless — a scalar empty string, a dead carrier ref, or a carrier
    * with no text and no children. The unset trashes the carrier, so a
    * carrier is skipped while focus is anywhere inside THIS row (an Add/Enter
-   * just minted an empty value the user is about to type into); the
-   * focusout handler re-runs the pass once the caret leaves.
+   * just minted an empty value the user is about to type into) and while the
+   * placeholder is still pending from the panel add flow; the focusout
+   * handler clears the pending marks and re-runs the pass once the caret
+   * leaves.
    */
   const cleanupEmptyValues = (): void => {
     const rowHasFocus = rootRef.current?.contains(document.activeElement) === true;
@@ -252,12 +258,22 @@ export function TextPropertyRow({
     for (const row of fresh) {
       const state = carrierStateOf(client, row.value);
       if (state.kind === "carrier") {
-        if (rowHasFocus) continue;
         const node = client.getNode(state.id);
         if (node === undefined) continue;
-        if (plainTextExcerpt(node.contentAst).trim() === "" && client.getChildren(state.id).length === 0) {
-          void client.unsetProperty(nodeId, propertySchemaId, row.idx);
+        const contentless =
+          plainTextExcerpt(node.contentAst).trim() === "" && client.getChildren(state.id).length === 0;
+        if (!contentless) {
+          // Content (or a child) landed — the placeholder settled; the mark
+          // (if any) has done its job.
+          clearPendingTextCarrier(state.id);
+          continue;
         }
+        if (rowHasFocus) continue;
+        // A placeholder the "+ Add property" flow just minted never had focus
+        // in the row — keep it until content lands or the row's blur pass
+        // clears the marks (that is "the user left it empty").
+        if (isPendingTextCarrier(state.id)) continue;
+        void client.unsetProperty(nodeId, propertySchemaId, row.idx);
         continue;
       }
       if (fallbackInputsRef.current.get(`${propertySchemaId}:${row.idx}`) === document.activeElement) {
@@ -311,11 +327,21 @@ export function TextPropertyRow({
       ref={setRowRef}
       onBlur={(event) => {
         // Focus truly left the row (React's onBlur is the bubbling focusout —
-        // it also fires on carrier-to-carrier hops, so filter those): re-run
-        // the auto-unset pass so an abandoned empty value goes now, not at
-        // the next unrelated store update. Read-only never writes.
+        // it also fires on carrier-to-carrier hops, so filter those): the
+        // user has LEFT any placeholder the add flow minted, so clear its
+        // pending mark and re-run the auto-unset pass — an abandoned empty
+        // placeholder goes now, not at the next unrelated store update.
+        // Read-only never writes.
         if (readOnly) return;
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        for (const row of client
+          .getEffectiveProperties(nodeId)
+          .filter(
+            (each) => each.propertySchemaId === propertySchemaId && each.source === "authored",
+          )) {
+          const state = carrierStateOf(client, row.value);
+          if (state.kind === "carrier") clearPendingTextCarrier(state.id);
+        }
         cleanupEmptyValues();
       }}
       className={
