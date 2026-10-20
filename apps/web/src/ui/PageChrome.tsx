@@ -119,7 +119,7 @@ export function NodeTopbar({
         <>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
             icon="mdi mdi-format-list-bulleted"
             aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
@@ -142,7 +142,7 @@ export function NodeTopbar({
         {onToggleContextPanel !== undefined && (
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
             icon="mdi mdi-information-outline"
             aria-label={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
