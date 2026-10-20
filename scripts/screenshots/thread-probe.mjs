@@ -125,12 +125,24 @@ try {
         const g = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-block-grip`);
         return { before: getComputedStyle(g, "::before").content, after: getComputedStyle(g, "::after").content };
       };
+      // Alignment: the rail's composite hairline (border
+      // + gradient, 2px centered at rail.left + 1) rides the parent bullet
+      // center column. Paint order: the overlay is positioned-z-auto (above
+      // the static rails, below the z-indexed bullets/chevrons).
+      const railEl = host.querySelector(`[data-block-id="${aid}"] .nt-block-children__rail`);
+      const bulletA = host.querySelector(`[data-block-id="${aid}"] > .nt-block-row .nt-bullet`);
+      const railRect = railEl.getBoundingClientRect();
+      const bulletRect = bulletA.getBoundingClientRect();
+      const chevronA2El = host.querySelector(`[data-block-id="${a2id}"] > .nt-block-row .nt-block-chevron`);
       return {
         host: true,
-        svg: svg === null ? false : { pointerEvents: getComputedStyle(svg).pointerEvents },
+        svg: svg === null ? false : { pointerEvents: getComputedStyle(svg).pointerEvents, zIndex: getComputedStyle(svg).zIndex },
         path,
         railA: railBg(aid),
         railC: railBg(cid),
+        railVsBullet: +(railRect.left + 1 - (bulletRect.left + bulletRect.width / 2)).toFixed(2),
+        bulletZ: getComputedStyle(bulletA).zIndex,
+        chevronZ: chevronA2El === null ? null : getComputedStyle(chevronA2El).zIndex,
         armsA2: gripArms(a2id),
         chevronA: chevronOpacity(aid),
         chevronA2: chevronOpacity(a2id),
@@ -176,6 +188,9 @@ try {
 
   expect(s.railA === s.railC, "the tree's own rails stay resting — the thread is a separate overlay");
   expect(s.armsA2.before === "none" && s.armsA2.after === "none", "no CSS pseudo arms ride the grips");
+  expect(Math.abs(s.railVsBullet) <= 1.2, `the rail rides the parent bullet column (offset ${s.railVsBullet}px)`);
+  expect(s.svg.zIndex === "auto", "the overlay is positioned-z-auto — above the static rails, below the z-indexed chrome");
+  expect(s.bulletZ === "1" && s.chevronZ === "1", "the bullets and the hover chevron paint above the thread");
   expect(s.chevronA === "0" && s.chevronA2 === "0", "the ancestors' chevrons stay hidden while a descendant edits");
 
   // ── 5a. the caret follows: a top-level edit draws nothing ──
