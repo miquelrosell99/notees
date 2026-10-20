@@ -20,14 +20,16 @@
  * never overflow the sidebar) — CLASS-LEVEL ONLY:
  * a read-only header (icon + name — identity display, no rename); a
  * "For this class" group (the default-value editor → class.property.set
- * {defaultValue}, Required checkbox, the Enabled ToggleSwitch — the only
- * class-by-class binding fields: defaultValue/required/sequence/active,
- * sequence being the drag reorder on the collapsed row); footer (a quiet
- * "Edit definition…" → the S2 PropertyEditModal — the class page's path
- * to the definition-level editor (rename, type/Convert, multi, target
- * classes, date settings all live there); "Remove from class" behind a
- * ConfirmationModal, disabled for system property schemas — the fixed
- * SYSTEM_PROPERTY_UUIDS in @notees/domain).
+ * {defaultValue}, Required checkbox, the "Active on this class"
+ * ToggleSwitch (PC4 `active` — off keeps the binding's settings but stops
+ * applying them) — the only class-by-class binding fields:
+ * defaultValue/required/sequence/active, sequence being the drag reorder
+ * on the collapsed row); footer (a quiet "Edit definition…" → the S2
+ * PropertyEditModal — the class page's path to the definition-level editor
+ * (rename, type/Convert, multi, target classes, date settings all live
+ * there); "Remove from class" behind a ConfirmationModal, HIDDEN for
+ * system property schemas (and absent from the ⋯ overflow there too) —
+ * the fixed SYSTEM_PROPERTY_UUIDS in @notees/domain).
  *
  * Add property: the AddPill opens an anchored popover (SearchField,
  * keyboard-navigable listbox, rows = icon + name + type label) filtered
@@ -308,13 +310,20 @@ function BindingRow({
               <span>Required</span>
             </label>
             <div className="nt-propdef-check">
+              <span className="nt-propdef-label" id={`active-label:${binding.propertySchemaId}`}>
+                Active on this class
+              </span>
               <ToggleSwitch
                 size="sm"
-                leftLabel="Disabled"
-                rightLabel="Enabled"
+                leftLabel="Off"
+                rightLabel="On"
                 checked={binding.active}
                 onChange={(enabled) => patch({ active: enabled })}
+                aria-labelledby={`active-label:${binding.propertySchemaId}`}
               />
+              <span className="nt-propdef-hint">
+                Off keeps this class's settings but stops applying them.
+              </span>
             </div>
           </fieldset>
 
@@ -324,18 +333,11 @@ function BindingRow({
             <Button variant="ghost" size="sm" onClick={onOpenDefinition}>
               Edit definition…
             </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={isSystem}
-              {...(isSystem
-                ? { title: "System properties cannot be removed from their class" }
-                : {})}
-              onClick={onRemoveRequest}
-            >
-              Remove from class
-            </Button>
-            {isSystem && <span className="nt-propdef-hint">System properties stay on their class.</span>}
+            {!isSystem && (
+              <Button variant="danger" size="sm" onClick={onRemoveRequest}>
+                Remove from class
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -453,17 +455,16 @@ export function PropertyDefinitionsSection({
       icon: "mdi-open-in-app",
       onClick: () => setEditFor(binding.propertySchemaId),
     },
-    {
-      id: "remove-from-class",
-      label: "Remove from class",
-      icon: "mdi-close-circle-outline",
-      danger: true,
-      disabled: isSystemSchema(binding.propertySchemaId),
-      tooltip: isSystemSchema(binding.propertySchemaId)
-        ? "System properties cannot be removed from their class"
-        : undefined,
-      onClick: () => setRemoveFor(binding),
-    },
+    // System properties have no remove entry — non-removable means absent.
+    ...(isSystemSchema(binding.propertySchemaId)
+      ? []
+      : [{
+          id: "remove-from-class",
+          label: "Remove from class",
+          icon: "mdi-close-circle-outline",
+          danger: true,
+          onClick: () => setRemoveFor(binding),
+        }]),
   ];
 
   return (
