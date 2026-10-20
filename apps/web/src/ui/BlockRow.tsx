@@ -12,7 +12,11 @@
  *   (`readOnlyInert`, the node-collection list view) leaves the content
  *   click dead — the bullet element is the only open gesture.
  * - edit mode: a click swaps in BlockTextEditor (contentEditable prose
- *   editing, the outliner keyboard contract).
+ *   editing, the outliner keyboard contract). While a block is editing,
+ *   the ancestor chain from the top-level block down to it wears the
+ *   accent thread — the chain's indent rails and the per-link elbow
+ *   connectors into each path bullet (app.css "the edit thread") — pure structural CSS over `.nt-block--editing`, no
+ *   state threads the recursion.
  *
  * A collapsed block (session-local display state from OutlinerContext) hides
  * its entire subtree — the children container is not rendered. The chevron
