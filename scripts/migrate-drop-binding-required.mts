@@ -252,18 +252,49 @@ function main(): void {
       `workspace ${options.workspace}: log seq ${latestSeq}, snapshot ${snapshot?.id ?? "(none)"} at seq ${snapshotSeq}`,
     );
 
-    // 1. Plan: scan the log for class.property.set envelopes carrying retired keys.
+    // 1. Plan: scan the log for class.property.set envelopes carrying retired
+    //    keys. RAW rows (seq included — storedToEnvelope drops seq: it is not
+    //    part of the wire Envelope, and the rewrite addresses rows by it; the
+    //    mapped-envelope shape leaves it undefined and the UPDATE matches
+    //    nothing).
     const affected = (
-      relay.allEnvelopes(options.workspace) as Array<{
-        seq: number;
-        id: string;
-        opType: string;
-        payload: Record<string, unknown>;
-      }>
-    ).filter((env) => env.opType === "class.property.set" && movedKeysOf(env.payload).length > 0);
+      relay.db
+        .prepare("SELECT seq, id, op_type, payload FROM envelope WHERE workspace_id = ?")
+        .all(options.workspace) as Array<{ seq: number; id: string; op_type: string; payload: string }>
+    )
+      .map((row) => ({
+        seq: row.seq,
+        id: row.id,
+        opType: row.op_type,
+        payload: JSON.parse(row.payload) as Record<string, unknown>,
+      }))
+      .filter((env) => env.opType === "class.property.set" && movedKeysOf(env.payload).length > 0);
 
     // 2. The converged per-schema defaults (from the server's derived store).
     const defaults = readMovedDefaults(options.dataDir, options.workspace);
+    // Idempotence: a propertySchema.update carrying defaultValue was REJECTED
+    // by every pre-batch strict schema — any such envelope in the log is a
+    // compensation this script (or the new code) already wrote. A re-run must
+    // not append a duplicate.
+    const compensated = new Set(
+      (
+        relay.db
+          .prepare(
+            "SELECT payload FROM envelope WHERE workspace_id = ? AND op_type = 'propertySchema.update'",
+          )
+          .all(options.workspace) as Array<{ payload: string }>
+      )
+        .map((row) => {
+          try {
+            return JSON.parse(row.payload) as Record<string, unknown>;
+          } catch {
+            return null;
+          }
+        })
+        .filter((p): p is Record<string, unknown> => p !== null && "defaultValue" in p)
+        .map((p) => String(p.propertySchemaId)),
+    );
+    const pendingDefaults = defaults.filter((value) => !compensated.has(value.schemaId));
 
     console.log("\nplanned binding required/defaultValue rewrite:");
     if (affected.length === 0) {
@@ -275,24 +306,24 @@ function main(): void {
       }
       if (affected.length > 8) console.log(`    … and ${affected.length - 8} more`);
     }
-    if (defaults.length === 0) {
+    if (pendingDefaults.length === 0) {
       console.log("  no binding row carries a default — no compensation update needed.");
     } else {
-      console.log(`  ${defaults.length} schema(s) gain the moved default via appended propertySchema.update:`);
-      for (const value of defaults.slice(0, 8)) {
+      console.log(`  ${pendingDefaults.length} schema(s) gain the moved default via appended propertySchema.update:`);
+      for (const value of pendingDefaults.slice(0, 8)) {
         console.log(`    ${value.schemaId}  ${JSON.stringify(value.defaultValue)}`);
       }
-      if (defaults.length > 8) console.log(`    … and ${defaults.length - 8} more`);
+      if (pendingDefaults.length > 8) console.log(`    … and ${pendingDefaults.length - 8} more`);
     }
 
-    if (affected.length === 0 && defaults.length === 0) {
+    if (affected.length === 0 && pendingDefaults.length === 0) {
       console.log("\nnothing to rewrite — the log is already clean.");
       return;
     }
 
     // The compensation envelopes (appended after the log tail).
     const physical = Date.now();
-    const compensation: Envelope[] = defaults.map((value, index) =>
+    const compensation: Envelope[] = pendingDefaults.map((value, index) =>
       newEnvelope({
         workspaceId: options.workspace,
         actorId: ACTOR,
@@ -322,9 +353,12 @@ function main(): void {
       for (const env of affected) {
         const stripped = { ...env.payload };
         for (const key of movedKeysOf(env.payload)) delete stripped[key];
-        relay.db
+        const info = relay.db
           .prepare("UPDATE envelope SET payload = ? WHERE seq = ? AND workspace_id = ?")
           .run(JSON.stringify(stripped), env.seq, options.workspace);
+        if (info.changes !== 1) {
+          throw new Error(`envelope rewrite matched ${info.changes} rows at seq ${env.seq} — aborting`);
+        }
       }
     });
     rewrite();
