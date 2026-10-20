@@ -399,7 +399,10 @@ function DateCell({ row, schemaId, props, schemaName, peek }: { row: TableRow; s
         aria-expanded={open}
         onClick={() => setOpen((cur) => !cur)}
       >
-        {display}
+        {/* The empty cell shows the muted schema-name placeholder (the
+            NodeCell precedent) — an empty button collapsed to zero height
+            and was near-unclickable. */}
+        {display === "" ? <span className="nt-table-date-placeholder">{schemaName}</span> : display}
       </button>
       {open && (
         <DatePickerPopup
@@ -749,7 +752,18 @@ function PropertyCell({ row, column, props, peek }: { row: TableRow; column: Tab
     }
   }
 
-  return <>{propertyDisplayText(client, prop)}</>;
+  // Read-only EMPTY node/date cells: the muted schema-name placeholder
+  // (the editable DateCell precedent) — a blank cell reads as nothing.
+  const tailText = propertyDisplayText(client, prop);
+  if (
+    tailText === "" &&
+    schema?.multi !== true &&
+    (schema?.type === "object" || schema?.type === "datetime")
+  ) {
+    return <span className="nt-table-date-placeholder">{schema?.name ?? ""}</span>;
+  }
+
+  return <>{tailText}</>;
 }
 
 /** The multi-sort panel: ordered entries, add/remove, direction, priority. */
@@ -1048,9 +1062,15 @@ export function TableView(props: NodeCollectionProps) {
     const node = row.item.node;
     if (column.kind === "name") {
       const icon = nodeIcon(node, iconMap);
+      // The row's trailing action (the Classed nodes member-remove ×) rides
+      // the name cell's hover cluster, pinned beside the Open button
+      // (trailingAction was outline-only; cards already
+      // unassign through the card's classes row).
+      const trailing = props.trailingAction?.(row.item);
       return (
         <td key={column.id} className="nt-table-name">
           <NameCell node={node} icon={icon} props={props} onPeek={peekNode} />
+          {trailing !== undefined && <span className="nt-table-row-action">{trailing}</span>}
         </td>
       );
     }

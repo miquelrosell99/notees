@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-20
 
+- **fix(web): the two pre-existing gaps the navigate-button sweep exposed.**
+ , "resolve them too": **(1) the empty date cell** — an
+  unset datetime cell's trigger rendered EMPTY and collapsed to zero
+  height (near-unclickable); the editable cell now shows the muted
+  schema-name placeholder (the panel "Select" / NodeCell precedent — an
+  honest line box AND an affordance), and the READ-ONLY empty node/date
+  cells show the same placeholder instead of a blank. **(2) the
+  class-member unassign was outline-only** — `trailingAction` rendered in
+  list mode alone, so table/cards mode had no unassign path (cards
+  already unassign through the card's classes row). TableView now honors
+  `trailingAction`: the action rides the name cell's hover cluster,
+  pinned beside the Open button (the × keeps its `mdi-close` from the
+  icon sweep), the hover lane widening to host both via `:has()`. The
+  switcher half of the old note was a probe artifact — the options carry
+  `aria-label`s (Outline/Cards/Table) and were re-verified. Verified live
+  (8 checks): placeholder + height + popup on click; the × revealed
+  beside the Open button and unassigning the member end-to-end.
+  `TableView.tsx/.css`. (One full-suite flake observed and re-isolated
+  green, the known load pattern.)
 - **feat(web): the edit thread becomes a separate measured overlay — one
   SVG polyline with rounded turns at each level change — and the ancestor
   chevrons stop pinning open during edit.**
