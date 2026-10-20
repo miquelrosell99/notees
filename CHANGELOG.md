@@ -8,6 +8,31 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **fix(web): the ghost add-block leaves the system sections; cards mode gets
+  the ghost card (owner report).** The "+ Add block" ghost leaked into the
+  node collection system sections: every referencing subtree in Backlinks /
+  Unlinked mentions (and the text-property carrier cell) trailed its own
+  ghost — a click would have appended a child block to the *source* page from
+  inside a read-out section. The ghost is document-body chrome and now mounts
+  only there: `ReferenceSubtree` gains an explicit `showGhost` opt-in
+  (default OFF — every surface it serves is system chrome; their add flow is
+  the section's own "+", `showAddButton`/`onAdd`). Per the owner's mode
+  register, the document add affordance is now mode-shaped everywhere: outline
+  → the ghost bullet row, prose → the same row with its bullet dropped (the
+  focused view's prose ghost now drops it too — it kept its gutter before),
+  cards → a NEW GhostCard: a dashed, muted "+ Add card" slot in the grid's
+  last cell (via the collection contract's new `trailingGhost` slot — a grid
+  needs its slot as a cell, not a row after the grid; an empty cards body
+  mounts the grid around the slot alone, the sole add affordance). The click
+  realizes any variant into a real empty child block after the last one.
+  `ReferenceSubtree.tsx` (the `showGhost` opt-in), `GhostRow.tsx` +
+  `GhostRow.css` (`GhostCard`), `types.ts` (`trailingGhost`),
+  `CardsView.tsx` (the last-cell ride + the empty-body gate), `PageView.tsx`
+  (mode-shaped affordance), `FocusedBlockView.tsx` (the prose flag); tests —
+  the system-sections regression (the Backlinks section mounts no ghost; the
+  page body's one is untouched), the `showGhost` default/opt-in pair, the
+  cards ghost card (presence, grid placement, realize), the focused prose
+  bullet; `docs/ux.md`'s ghost rows re-pointed. Full suite green.
 - **fix(web): the nodeview top bar's panel toggles go ghost — the same
   register as the main top bar (owner review).** The properties-panel and
   context-panel toggles on the panelled page's nodeview top bar still wore

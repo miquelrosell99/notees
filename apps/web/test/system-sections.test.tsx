@@ -30,6 +30,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { Breadcrumbs } from "../src/features/node-menu/Breadcrumbs.js";
+import { ReferenceSubtree } from "../src/features/block-editor/ReferenceSubtree.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -86,6 +87,56 @@ function expandUnlinkedMentions(): HTMLElement {
 }
 
 describe("PageView system sections", () => {
+  it("the reference sections mount no add-block ghost — the ghost is document-body chrome, not section chrome (owner report 2026-10-20)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const linkedSource = await client.createObject({ isEmbedded: false, name: "Linked Source" });
+    await client.createObject({
+      parentId: linkedSource,
+      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
+    });
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const backlinks = backlinksSection();
+    // The referencing subtree used to trail its own "+ Add block" ghost —
+    // a click would have appended a child block to the SOURCE page from
+    // inside a read-out section. The section's add flow is its own "+"
+    // (showAddButton/onAdd), never the per-item ghost.
+    expect(within(backlinks).queryByRole("button", { name: "Add block" })).toBeNull();
+    expect(backlinks.querySelectorAll("[data-ghost]")).toHaveLength(0);
+    // The page BODY's ghost is untouched: exactly one on the whole page,
+    // the page root's own.
+    const ghosts = container.querySelectorAll<HTMLElement>("[data-ghost]");
+    expect(ghosts).toHaveLength(1);
+    expect(ghosts[0]!.dataset.ghost).toBe(`__ghost-${pageId}`);
+  });
+
+  it("ReferenceSubtree's ghost is opt-in: none by default, one at the child level with showGhost", async () => {
+    const client = await seedClient();
+    const sourceId = await client.createObject({ isEmbedded: false, name: "Source" });
+    await client.createObject({
+      parentId: sourceId,
+      contentAst: [{ type: "text", text: "referencing line" }],
+    });
+
+    // Default: system chrome surface — no ghost.
+    const first = render(
+      <ReferenceSubtree client={client} rootId={sourceId} onOpenNode={() => {}} />,
+    );
+    expect(first.container.querySelector("[data-ghost]")).toBeNull();
+    first.unmount();
+
+    // Opt-in: exactly one, the root's own, riding the child level.
+    const second = render(
+      <ReferenceSubtree client={client} rootId={sourceId} onOpenNode={() => {}} showGhost />,
+    );
+    const ghosts = second.container.querySelectorAll<HTMLElement>("[data-ghost]");
+    expect(ghosts).toHaveLength(1);
+    expect(ghosts[0]!.dataset.ghost).toBe(`__ghost-${sourceId}`);
+    expect(within(ghosts[0] as HTMLElement).getByRole("button", { name: "Add block" })).not.toBeNull();
+    second.unmount();
+  });
+
   it("renders the two reference sections: eager counts ride the badges, Backlinks expanded (query on mount), Unlinked mentions collapsed (no query yet)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });

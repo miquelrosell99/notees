@@ -144,7 +144,7 @@ import {
 } from "./editor-popups/LinkEditModal.js";
 import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
 import { ensureTemplateFamily } from "../features/templates/templateFamily.js";
-import { GhostRow, realizeGhost } from "./GhostRow.js";
+import { GhostCard, GhostRow, realizeGhost } from "./GhostRow.js";
 import { usePageMachinery } from "./usePageMachinery.js";
 import { NodeTopbar, PageHeaderChrome, PageFooterChrome } from "./PageChrome.js";
 
@@ -570,10 +570,11 @@ export function PageView({
    * sole "add" affordance. Blocks no longer trail their own ghosts at
    * deeper levels. Prose hides bullets (app.css .nt-prose), so the ghost
    * mounts there with its gutter dropped (the `prose` flag). Cards is a
-   * card grid, not a block list — no ghost. The click realizes the ghost
-   * into a real empty block at the end and focuses it.
+   * card grid — the affordance is the GhostCard, the grid's last cell
+   * (the `trailingGhost` slot), not a row after the grid. The click
+   * realizes the ghost into a real empty block at the end and focuses it.
    */
-  const ghostVisible = !embedded && !preview && blocksMode !== "cards";
+  const ghostVisible = !embedded && !preview;
 
   /**
    * The page body: the whiteboard canvas, or the editable block tree + the
@@ -621,6 +622,23 @@ export function PageView({
                   maxDepth={preview ? PREVIEW_BODY_DEPTH : undefined}
                   onNodeClick={(id) => onOpenPage?.(id)}
                   onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
+                  /* Cards mode: the add affordance is the grid's last cell
+                     (the GhostCard) — it must live INSIDE the grid to read
+                     as a card slot, so it rides the collection's
+                     trailingGhost slot instead of trailing the collection
+                     like the row ghost below. */
+                  trailingGhost={
+                    ghostVisible && blocksMode === "cards" ? (
+                      <GhostCard
+                        parentId={pageId}
+                        onRealize={() => {
+                          void realizeGhost(client, outliner, pageId).catch((error: unknown) => {
+                            console.warn(`[outliner] ghost realize (${pageId}) failed:`, error);
+                          });
+                        }}
+                      />
+                    ) : undefined
+                  }
                 />
                 {/* ghost trailing block (owner refinement of
                     ): the page root trails exactly ONE "+ Add
@@ -631,8 +649,11 @@ export function PageView({
                     their own ghosts at deeper levels, and focus mode
                     keeps the body (hence this ghost) — only chrome
                     steps aside. Prose mounts it too, gutter dropped
-                    (bullets are hidden in that transform). */}
-                {ghostVisible && (
+                    (bullets are hidden in that transform). Cards wears
+                    the GhostCard inside the grid instead (the
+                    trailingGhost above — a grid needs its slot as a
+                    cell, not a row after the grid). */}
+                {ghostVisible && blocksMode !== "cards" && (
                   <GhostRow
                     parentId={pageId}
                     prose={blocksMode === "prose"}

@@ -12,6 +12,15 @@
  * read-only projection also mounts no ghost (the add affordance is editing
  * chrome).
  *
+ * The "+ Add block" ghost is OPT-IN (`showGhost`, owner 2026-10-20): this
+ * component serves system chrome surfaces — the Backlinks / Unlinked
+ * mentions sections, the property carrier cell — where the trailing ghost
+ * leaked in as stray editing chrome (a click would append a child block to
+ * a referencing node from inside a read-out section). The ghost belongs to
+ * document bodies (the page root, the focused block view), never to
+ * collection sections; their add affordance is the section's own "+"
+ * (showAddButton/onAdd).
+ *
  * BlockRow consumes OutlinerContext and useSortable, so each subtree hosts
  * its own OutlinerContext (via useOutlinerValue, same as PageView)
  * and its own SortableContext — but NO DndContext: the surrounding page
@@ -56,12 +65,20 @@ export function ReferenceSubtree({
   rootId,
   onOpenNode,
   readOnly = false,
+  showGhost = false,
 }: {
   client: AnyClient;
   rootId: string;
   onOpenNode?: ((nodeId: string) => void) | undefined;
   /** Read-only projection (the hover preview): clicks navigate, never edit. */
   readOnly?: boolean;
+  /**
+   * Trail the "+ Add block" ghost as the root's last CHILD (the focused
+   * block view's affordance register). DEFAULT OFF: every current surface
+   * of this component is system chrome, where the ghost is stray editing
+   * chrome — document bodies mount their own GhostRow directly.
+   */
+  showGhost?: boolean;
 }) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
@@ -82,14 +99,15 @@ export function ReferenceSubtree({
             client={client}
             resolveName={(id) => displayNameFromClient(client, id)}
             readOnly={readOnly}
-            /* The focused block view's "+ Add block" affordance: the root
-               block trails ONE ghost as the last CHILD (the child indent
-               level — never a sibling of the focused block). The click
-               realizes it into a real empty child and focuses it. The
-               read-only projection (the hover preview) mounts none, same as
-               every other read-only surface. */
+            /* The "+ Add block" affordance rides ONLY when the surface opts
+               in (`showGhost`) and edits: the root block trails ONE ghost
+               as the last CHILD (the child indent level — never a sibling
+               of the root). The click realizes it into a real empty child
+               and focuses it. The read-only projection (the hover
+               preview) mounts none, same as every other read-only
+               surface. */
             trailingGhost={
-              readOnly ? undefined : (
+              showGhost && !readOnly ? (
                 <GhostRow
                   parentId={rootId}
                   onRealize={() => {
@@ -98,7 +116,7 @@ export function ReferenceSubtree({
                     });
                   }}
                 />
-              )
+              ) : undefined
             }
           />
         </div>

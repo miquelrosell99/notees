@@ -79,6 +79,10 @@ export function FocusedBlockView({
               readOnly ? undefined : (
                 <GhostRow
                   parentId={node.id}
+                  /* Prose trails the ghost at the flattened list's end —
+                     its bullet goes like every prose bullet (the gutter
+                     would read as a stray dot among the paragraphs). */
+                  prose={effectiveMode === "prose"}
                   onRealize={() => {
                     void realizeGhost(client, outliner, node.id).catch((error: unknown) => {
                       console.warn(`[outliner] ghost realize (${node.id}) failed:`, error);
