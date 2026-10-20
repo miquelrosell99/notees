@@ -210,6 +210,8 @@ export interface PropertySchemaValidationRow {
   datePrecision: string | null;
   /** PC6: 1 = values may carry date-node qualifier refs (startDate/endDate). */
   dateQualified?: number | null;
+  /** R3: the JSON scope list (NULL = global) — the eligibility authority. */
+  scopeClassIds?: string | null;
 }
 
 /** Shape + scalar typing only (no graph checks) — the PG6 extension of

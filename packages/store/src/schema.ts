@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 23;
+export const SCHEMA_VERSION = 24;
 
 /**
  * The render-path list-reads index: composite for the
@@ -248,7 +248,22 @@ CREATE TABLE IF NOT EXISTS property_schema (
     name TEXT NOT NULL,
     type TEXT NOT NULL,
     multi INTEGER NOT NULL DEFAULT 0,
-    scope TEXT NOT NULL DEFAULT 'global',
+    -- The schema's icon: an MDI icon name; NULL = none.
+    icon TEXT,
+    -- The SOLE locality authority:
+    -- a JSON array of class ids, NULL = GLOBAL (any node may carry the
+    -- property). A non-empty list is LOCAL to those classes and their
+    -- extends-ancestors (eligibility walks class_hierarchy, the same closure
+    -- binding resolution uses). RETIRES the display-only scope TEXT column
+    -- (rebuilt away at v24; the live log rewrite is
+    -- scripts/migrate-property-scope.mts). Bindings (class_property rows)
+    -- carry ZERO availability semantics — scope says who MAY carry the
+    -- property; a binding says what a class DOES WITH it.
+    scope_class_ids TEXT,
+    -- Value validation rules, JSON {min?, max?, pattern?};
+    -- NULL = none. min/max apply to number schemas, pattern to
+    -- text/url/email (apply-time enforcement against the stored type).
+    validation_rules TEXT,
     options TEXT NOT NULL DEFAULT '[]',
     target_class_filter TEXT,
     -- SCHEMA.md "Dates": finest granularity a date value may claim
@@ -988,6 +1003,73 @@ export function migrate(
     const nodeColumnsV23 = db.prepare("PRAGMA table_info(node)").all() as { name: string }[];
     if (!nodeColumnsV23.some((c) => c.name === "list_style")) {
       db.exec("ALTER TABLE node ADD COLUMN list_style TEXT;");
+    }
+  }
+  // v23 -> v24: the property_schema table REBUILDS (the class_property v14
+  // precedent — SQLite cannot drop a column on old builds): the display-only
+  // `scope` TEXT column retires (the locality authority is the new
+  // `scope_class_ids` JSON column, NULL = global), and the schema gains
+  // `icon` + `validation_rules` (both NULL = unset). Rows copy through with
+  // the new columns NULL — the live log rewrite (scripts/migrate-property-
+  // scope.mts, Path B) sets scope_class_ids from the retired enum and the
+  // epoch bump makes every replica wipe + resync, so converged bytes never
+  // depend on this backfill. Guarded on the old column so the step is a
+  // no-op for databases that already carry the new shape (idempotent).
+  {
+    const schemaColsV24 = db.prepare("PRAGMA table_info(property_schema)").all() as { name: string }[];
+    if (schemaColsV24.some((c) => c.name === "scope")) {
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE property_schema_v24 (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            multi INTEGER NOT NULL DEFAULT 0,
+            icon TEXT,
+            scope_class_ids TEXT,
+            validation_rules TEXT,
+            options TEXT NOT NULL DEFAULT '[]',
+            target_class_filter TEXT,
+            date_precision TEXT,
+            date_qualified INTEGER,
+            number_pad INTEGER,
+            number_decimals INTEGER,
+            number_rounding TEXT,
+            display TEXT,
+            readonly INTEGER,
+            hide_when_empty INTEGER,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        INSERT INTO property_schema_v24 (
+            id, workspace_id, name, type, multi, icon, scope_class_ids, validation_rules,
+            options, target_class_filter, date_precision, date_qualified,
+            number_pad, number_decimals, number_rounding,
+            display, readonly, hide_when_empty, active, created_at, updated_at
+        )
+        SELECT id, workspace_id, name, type, multi, NULL, NULL, NULL,
+               options, target_class_filter, date_precision, date_qualified,
+               number_pad, number_decimals, number_rounding,
+               display, readonly, hide_when_empty, active, created_at, updated_at
+        FROM property_schema;
+        DROP TABLE property_schema;
+        ALTER TABLE property_schema_v24 RENAME TO property_schema;
+        CREATE INDEX IF NOT EXISTS idx_property_schema_workspace
+            ON property_schema (workspace_id);
+        PRAGMA foreign_keys = ON;
+      `);
+    } else {
+      // Fresh v24 creates (and databases already carrying the new shape)
+      // still gain the columns additively when missing.
+      if (!schemaColsV24.some((c) => c.name === "scope_class_ids")) {
+        db.exec(`
+          ALTER TABLE property_schema ADD COLUMN icon TEXT;
+          ALTER TABLE property_schema ADD COLUMN scope_class_ids TEXT;
+          ALTER TABLE property_schema ADD COLUMN validation_rules TEXT;
+        `);
+      }
     }
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

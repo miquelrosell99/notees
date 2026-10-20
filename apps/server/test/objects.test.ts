@@ -447,7 +447,13 @@ describe("objects API", () => {
 
   it("property values endpoint returns stored values", async () => {
     server = await makeTestServer();
-    const { id } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Prop" } })).json();
+    // The node carries the source class: the seeded isbn schema is scoped
+    // to it (the sole locality authority).
+    const { id } = (
+      await api("POST", "/api/objects", {
+        payload: { isEmbedded: false, name: "Prop", classIds: [SYSTEM_CLASS_UUIDS.source] },
+      })
+    ).json();
     const isbnSchema = SYSTEM_PROPERTY_UUIDS.isbn;
     const env = newEnvelope({
       workspaceId: server.ctx.defaultWorkspace,

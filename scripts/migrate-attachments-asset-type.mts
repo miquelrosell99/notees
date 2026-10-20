@@ -121,7 +121,9 @@ export interface AttachmentsSchemaRow {
   name: string;
   type: string;
   multi: number;
-  scope: string;
+  /** The v24 locality column (JSON class-id list; NULL = global) — the
+   *  retired `scope` enum column was rebuilt away at store v24; the list rides the retype envelope verbatim. */
+  scopeClassIds: string | null;
   options: string;
   display: string | null;
   readonly: number | null;
@@ -144,7 +146,7 @@ export interface AssetTypePlan {
 export function planAssetType(store: Pick<Store, "database">): AssetTypePlan {
   const row = store.database
     .prepare(
-      `SELECT name, type, multi, scope, options, display, readonly, hide_when_empty AS hideWhenEmpty
+      `SELECT name, type, multi, scope_class_ids AS scopeClassIds, options, display, readonly, hide_when_empty AS hideWhenEmpty
        FROM property_schema WHERE id = ?`,
     )
     .get(ATTACHMENTS_SCHEMA_ID) as AttachmentsSchemaRow | undefined;
@@ -168,6 +170,15 @@ export function buildEnvelopes(workspaceId: string, plan: AssetTypePlan): Envelo
   } catch {
     options = [];
   }
+  let scopeClassIds: string[] | null = null;
+  try {
+    const parsed: unknown = row.scopeClassIds === null ? null : JSON.parse(row.scopeClassIds);
+    scopeClassIds = Array.isArray(parsed)
+      ? parsed.filter((v): v is string => typeof v === "string")
+      : null;
+  } catch {
+    scopeClassIds = null;
+  }
   return [
     newEnvelope({
       workspaceId,
@@ -182,7 +193,9 @@ export function buildEnvelopes(workspaceId: string, plan: AssetTypePlan): Envelo
         name: row.name,
         type: "asset",
         multi: row.multi === 1,
-        scope: row.scope as "global" | "class" | "object",
+        // The scope list rides verbatim (absent = global) — the retired
+        // `scope` enum is rejected outright by the strict schema.
+        ...(scopeClassIds !== null ? { scopeClassIds } : {}),
         options: options as Array<{ id: string; label: string }>,
         // No targetClassFilter: the asset type carries the filter implicitly
         // now — the explicit column retires (NULL on the upsert).
