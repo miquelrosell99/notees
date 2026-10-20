@@ -24,7 +24,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { NodeCollection } from "../src/features/collection/index.js";
-import { writeCardLayoutPref } from "../src/ui/viewPrefs.js";
+import { writeCoverLayoutPref } from "../src/ui/viewPrefs.js";
 import {
   clearNodeCover,
   coverAssetIdOf,
@@ -434,14 +434,14 @@ describe("the recovered cover", () => {
 
 describe("the card cover slot (cards mode)", () => {
   afterEach(() => {
-    writeCardLayoutPref("no-cover");
+    writeCoverLayoutPref("no-cover");
   });
 
   it("under a cover layout the slot renders EVEN WHEN EMPTY — the Add affordance names the missing cover", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Bare Page" });
     await flushWrites();
-    writeCardLayoutPref("cover-top");
+    writeCoverLayoutPref("cover-top");
 
     render(
       <NodeCollection
@@ -480,7 +480,7 @@ describe("the card cover slot (cards mode)", () => {
     await seedAssetClass(client);
     const pageId = await client.createObject({ isEmbedded: false, name: "Card Fill" });
     await flushWrites();
-    writeCardLayoutPref("cover-top");
+    writeCoverLayoutPref("cover-top");
 
     const upload = vi.spyOn(client, "uploadAsset").mockResolvedValue({
       assetId: "asset-card-1",
@@ -543,7 +543,7 @@ describe("the card cover slot (cards mode)", () => {
     // The CLI/API path: plain object.update on the field.
     await client.updateObject(pageId, { coverAssetId: assetId });
     await flushWrites();
-    writeCardLayoutPref("cover-top");
+    writeCoverLayoutPref("cover-top");
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,FIELD");
 
     render(

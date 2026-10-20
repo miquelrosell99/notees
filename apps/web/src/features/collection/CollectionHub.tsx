@@ -16,7 +16,7 @@ import { Icon } from "../../ui/Icon.js";
 import { useViewModePreference } from "../../ui/viewPrefs.js";
 import { NodeCollection, ViewToolbar } from "./index.js";
 import type { NodeCollectionItem, SortSpec, TableColumn, ViewMode } from "./index.js";
-import type { AnyClient, CardLayout } from "./types.js";
+import type { AnyClient, CoverLayout } from "./types.js";
 
 export interface CollectionHubProps {
   client: AnyClient;
@@ -37,7 +37,7 @@ export interface CollectionHubProps {
    * Cards: the cover layout this hub's cards fall back to when the device
    * has no persisted cover choice yet (the Assets hub passes "cover-top").
    */
-  defaultCoverLayout?: CardLayout | undefined;
+  defaultCoverLayout?: CoverLayout | undefined;
   tableEditable?: boolean | undefined;
   /**
    * Table mode's sort default; other modes ignore it. Unset = the container's
