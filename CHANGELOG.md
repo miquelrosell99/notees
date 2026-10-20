@@ -37,6 +37,36 @@ predating this file.
   start/end at the path bullets, rails resting, pointer-events, click-
   through fold, caret-follow, chevron + subtree-accent regressions);
   gate green.
+- **feat(web): every close/remove × in the app is an mdi-close icon, not a
+  plain-text glyph.** the text × read differently from
+  the icon buttons beside it. 21 sites swapped: the property pills
+  (NodePills ×2, AliasedNodeRow, ObjectPropertyPill, TagsRow,
+  PropertySettingsModal's option rows, DatetimePropertyRow's multi pill —
+  all `pill__right-button`, size 0.6), the small remove buttons
+  (PropertySelectCell's cluster ×, the class-member remove, the property-
+  definition remove, the template unbind, the asset-item remove, the
+  date-slot clear, the table sort-panel remove, the filter-builder
+  multipick remove, the whiteboard card delete — size 0.7), the sidebar
+  card close (0.8, its arrow neighbor's size), and the four hand-rolled
+  modal close buttons (PropertyView, PropertySettingsModal,
+  PropertyHistoryModal, PropertyConvertModal) which now ride the fleet
+  `Button` with `mdi mdi-close` — the exact idiom the fleet `Modal`'s own
+  close already used. `Icon` imports added where missing (DateSlotControl,
+  DatetimePropertyRow, ObjectPropertyPill, WhiteboardCanvas). Verified
+  live: the panel cluster ×, and a fleet-Button modal close both resolve
+  `/mdi-sprite.svg#mdi-close`. (Unrelated pre-existing gap the sweep
+  exposed: `trailingAction` — the class-member × — renders in outline
+  mode only, and the section's switcher labels don't expose it to role
+  queries; left as found.) Typecheck + full suite green (1810).
+- **fix(web): the single-value cell's × clear rides the revealed chrome
+  cluster — and stops opening the picker on its way out.** the × moved INSIDE the trigger, adjacent to the → navigate
+  button and the dropdown chevron (one cluster: value → → ⌄ ×, 12px
+  steps), instead of detached at the cell's far right. The move also
+  fixes a live bug the relocation exposed: the ×'s click bubbled to the
+  trigger, so clearing a value simultaneously opened the picker —
+  `stopPropagation` now, the nav button's precedent. Verified live:
+  cluster order/adjacency, the click empties the cell without leaking
+  the picker. `PropertySelectCell.tsx`.
 - **feat(web): the page-header action row's pills carry per-action icons
   instead of the generic "+".**. The Capacities action row
   ("Add icon" / "Add description" / "Add aliases") rendered the same `+`

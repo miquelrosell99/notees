@@ -156,7 +156,7 @@ export function NodePill({
           aria-label={removeLabel}
           onClick={onRemove}
         >
-          ×
+          <Icon path="mdi-close" size={0.6} />
         </button>
       )}
       {trailing}
@@ -308,7 +308,7 @@ function PopupRow({
           aria-label={removeLabel(label)}
           onClick={() => onRemove(classId)}
         >
-          ×
+          <Icon path="mdi-close" size={0.6} />
         </button>
       )}
     </li>

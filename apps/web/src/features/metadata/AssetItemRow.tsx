@@ -102,7 +102,7 @@ export function AssetItemRow({
           aria-label={`Remove ${name}`}
           onClick={onRemove}
         >
-          ×
+          <Icon path="mdi-close" size={0.7} />
         </button>
       )}
     </li>

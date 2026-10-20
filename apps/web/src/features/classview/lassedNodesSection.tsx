@@ -198,7 +198,7 @@ export function ClassedNodesSection({
         void removeClassDissolvingLinks(client, item.node.id, classId);
       }}
     >
-      ×
+      <Icon path="mdi-close" size={0.7} />
     </button>
   );
 
