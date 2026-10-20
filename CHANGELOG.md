@@ -8,6 +8,15 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **refactor(web): removal is a row action — the hover × next to the cog
+  (owner ruling).** The expanded panel's Remove footer is gone; the collapsed
+  row now carries TWO hover-revealed icon actions — the definition-settings
+  COG and a REMOVE × (both stopPropagation, both hidden until row hover; the
+  × is absent for system property schemas). The config panel is now purely
+  settings: read-only header, Default value, Required — nothing else.
+  Tests re-anchored (29 green; typecheck clean); the tracked section probe
+  re-run — PROBE-PASS, the hover capture shows grip + cog + × on the hovered
+  row only, zero overflow at 390.
 - **feat(web): the focused block view becomes a NodeCollection parent —
   each view mode owns the parent display (outline: the root block row;
   prose: an editable top-level header).** Owner direction 2026-10-20 ("in

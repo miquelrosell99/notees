@@ -14,22 +14,22 @@
  * pattern): hover-revealed drag grip (dnd-kit, reorder → sequence
  * writes), the schema icon (the owner-2026-10-20 icon field, per-type
  * glyph fallback), and the name (min-width 0 + ellipsis). NOTHING else —
- * no chips, no row-level flag toggle, no ×. Inactive bindings dim the
- * name (the only disabled cue). The row click expands the config; hover
- * also reveals a COG that opens the S2 base-definition modal directly
- * (the ⋯ overflow menu is gone — its two items moved: "Open property" =
- * the cog, "Remove from class" = the panel footer).
+ * no chips, no row-level flag toggle. Inactive bindings dim the name (the
+ * only disabled cue). The row click expands the config; hover also reveals
+ * the row's two icon actions — a COG opening the S2 base-definition modal
+ * and a REMOVE × (the section-level danger confirm; hidden for system
+ * property schemas — non-removable means absent, owner ruling). Removal
+ * never requires opening the config (owner ruling, same day).
  *
  * Config panel (expanded, full section width — CLASS-LEVEL ONLY, owner
- * ruling R7 + the same-day amendment: a property applies to a class by
+ * ruling R7 + the same-day amendments: a property applies to a class by
  * being in this list, nothing more): a read-only header (icon + name —
- * identity display, no rename), the default-value editor
- * (class.property.set {defaultValue}) and the Required checkbox — no
- * group labels, no "Active on this class" switch (the PC4 `active` flag
- * stays wire-level; presence in the list IS the on/off, owner ruling).
- * The footer holds only "Remove from class" (behind a ConfirmationModal,
- * HIDDEN for system property schemas) — no "Edit definition…" button;
- * the cog owns the definition path. Definition-level fields (rename,
+ * identity display, no rename) and exactly two fields — the
+ * default-value editor (class.property.set {defaultValue}) and the
+ * Required checkbox. No group labels, no "Active on this class" switch
+ * (the PC4 `active` flag stays wire-level; presence IS the on/off), no
+ * footer (Remove left for the row's ×), no "Edit definition…" button (the
+ * cog owns the definition path). Definition-level fields (rename,
  * type/Convert, multi, target classes, date settings, scope) live
  * exclusively in the S2 PropertyEditModal.
  *
@@ -78,7 +78,6 @@ import type {
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
-import { Button } from "../../components/ui/fleet/Button.js";
 import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
 import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
 import { SearchField } from "../../components/ui/fleet/SearchField.js";
@@ -269,6 +268,20 @@ function BindingRow({
         >
           <Icon path="mdi-cog-outline" size={0.7} />
         </button>
+        {!isSystem && (
+          <button
+            type="button"
+            className="nt-propdef-remove"
+            aria-label={`Remove ${name} from class`}
+            title="Remove from class"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemoveRequest();
+            }}
+          >
+            <Icon path="mdi-close" size={0.7} />
+          </button>
+        )}
       </div>
       {expanded && (
         <div className="nt-propdef-config">
@@ -306,14 +319,6 @@ function BindingRow({
               />
               <span>Required</span>
             </label>
-          </div>
-
-          <div className="nt-propdef-footer">
-            {!isSystem && (
-              <Button variant="danger" size="sm" onClick={onRemoveRequest}>
-                Remove from class
-              </Button>
-            )}
           </div>
         </div>
       )}

@@ -173,7 +173,7 @@ describe("Class View class properties editor", () => {
     expect(client.getRegistryBindings(classId)[0]!.name).toBe("Importance");
   });
 
-  it("removes a binding via the panel's danger action behind the confirm", async () => {
+  it("removes a binding via the row's hover × behind the confirm", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Task");
     const schemaId = await client.createPropertySchema({ name: "priority", type: "select" });
@@ -183,8 +183,8 @@ describe("Class View class properties editor", () => {
 
     expect(client.getRegistryBindings(classId)).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Configure priority" }));
-    fireEvent.click(screen.getByRole("button", { name: "Remove from class" }));
+    // The row's hover × (no expansion needed — removal is a row action).
+    fireEvent.click(screen.getByRole("button", { name: "Remove priority from class" }));
     // The danger action sits behind a ConfirmationModal.
     const confirm = screen.getByRole("dialog", { name: "Remove from class" });
     fireEvent.click(within(confirm).getByRole("button", { name: "Remove from class" }));
