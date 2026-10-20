@@ -30,38 +30,53 @@
   min-width: 0;
 }
 
-.nt-propdef-row:hover {
-  background: var(--md-sys-color-hover-overlay);
+.nt-propdef-row {
+  cursor: grab;
+}
+
+/* ONE hover surface (owner ruling): hover reveals only the right-side
+   action cluster (cog + ×) — no row background tint, no grip chrome. The
+   row itself is the drag handle (grab cursor; dnd-kit's 4px activation
+   keeps plain clicks expanding the row). */
+.nt-propdef-row:active {
+  cursor: grabbing;
 }
 
 .nt-propdef--dragging {
   z-index: var(--z-sticky);
   box-shadow: var(--shadow-elevation-1);
+  cursor: grabbing;
 }
 
-/* The grip rides hover (saves width) but stays visible while focused or
-   while its drag is live. */
-.nt-propdef-grip {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  border: none;
-  background: none;
-  padding: 2px;
-  border-radius: var(--shape-small);
-  color: var(--md-sys-color-on-surface-variant);
-  cursor: grab;
-  opacity: 0;
-}
-
-.nt-propdef-row:hover .nt-propdef-grip,
-.nt-propdef-grip:focus-visible,
-.nt-propdef-grip:active {
+.nt-propdef-row:hover .nt-propdef-more,
+.nt-propdef-row:hover .nt-propdef-remove,
+.nt-propdef-more:focus-visible,
+.nt-propdef-remove:focus-visible {
   opacity: 1;
 }
 
-.nt-propdef-grip:focus-visible {
+.nt-propdef-more:hover,
+.nt-propdef-remove:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-propdef-more:focus-visible,
+.nt-propdef-remove:focus-visible {
   box-shadow: var(--shadow-focus-ring);
+}
+
+.nt-propdef-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-propdef-chevron {
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-propdef--expanded .nt-propdef-chevron {
+  transform: rotate(90deg);
 }
 
 /* The main click target: icon + name, flexing to fill and truncating. */
@@ -106,39 +121,6 @@
   font-weight: var(--font-weight-semibold);
 }
 
-/* The row's hover-revealed icon actions (the cog + the remove ×): revealed
-   like the grip. */
-.nt-propdef-more,
-.nt-propdef-remove {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  border: none;
-  background: none;
-  padding: 2px;
-  border-radius: var(--shape-small);
-  color: var(--md-sys-color-on-surface-variant);
-  cursor: pointer;
-  opacity: 0;
-}
-
-.nt-propdef-row:hover .nt-propdef-more,
-.nt-propdef-row:hover .nt-propdef-remove,
-.nt-propdef-more:focus-visible,
-.nt-propdef-remove:focus-visible {
-  opacity: 1;
-}
-
-.nt-propdef-more:hover,
-.nt-propdef-remove:hover {
-  background: var(--md-sys-color-hover-overlay);
-}
-
-.nt-propdef-more:focus-visible,
-.nt-propdef-remove:focus-visible {
-  box-shadow: var(--shadow-focus-ring);
-}
-
 /* An inactive binding dims its identity (the only disabled cue). */
 .nt-propdef--inactive .nt-propdef-name,
 .nt-propdef--inactive .nt-propdef-icon {
@@ -156,13 +138,6 @@
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
   background: var(--md-sys-color-surface-container-high);
-}
-
-.nt-propdef-header {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-width: 0;
 }
 
 .nt-propdef-input {
@@ -199,14 +174,6 @@
   font: var(--font-label-medium);
   font-size: var(--font-size-xs);
   color: var(--md-sys-color-on-surface-variant);
-}
-
-.nt-propdef-check {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  font-size: var(--font-size-button);
-  color: var(--md-sys-color-on-surface);
 }
 
 /* The add-property popover: anchored under the AddPill, clamped to the
