@@ -250,6 +250,10 @@ try {
     expect(folded.a3Gone, "a2's subtree hid with the fold");
     expect(folded.threadGone, "the fold unmounted the editor — the thread tore down");
     expect(folded.url === `/${pageId}`, "no zoom — the URL stays on the page");
+    // Unfold a2 again — the glyph step below edits a3, which lives inside
+    // a2's subtree (the second rail click unfolds every folded child).
+    await pg.mouse.click(geom.railX, geom.y);
+    await pg.waitForSelector(`[data-block-id="${a3}"] .nt-block-content`, { timeout: 10_000 });
   }
 
   // ── 7. the editing accent stays on the editing row (subtree regression) ──
