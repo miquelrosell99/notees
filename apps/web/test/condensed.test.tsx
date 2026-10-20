@@ -402,7 +402,9 @@ describe("condensed layer switch surfaces", () => {
     // The engaged state wears the pressed chrome and names the exit.
     const active = screen.getByRole("button", { name: "Exit condensed mode" });
     expect(active).toHaveAttribute("aria-pressed", "true");
-    expect(active.classList.contains("nt-icon-btn-active")).toBe(true);
+    // The fleet ghost button's active classes carry the pressed chrome
+    // since the 2026-10-20 catalog conversion (nt-icon-btn retired).
+    expect(active.classList.contains("bg-surface-container-active")).toBe(true);
   });
 
   it("command palette: the Condensed row mirrors the focus row and is absent without a handler", async () => {
@@ -516,8 +518,8 @@ describe("condensed chrome reveal mechanism (CSS source)", () => {
   it("the pinned … is a filled chip in the app's active-toggle register", () => {
     const chip = /\.nt-block-excerpt__ellipsis--pinned \{[^}]*\}/.exec(css);
     expect(chip).not.toBeNull();
-    // The exact fill the focus-mode TopBar button's nt-icon-btn-active
-    // wears (primary-container / on-primary-container) + its radius idiom.
+    // The exact fill the fleet ghost active state wears
+    // (primary-container / on-primary-container) + its radius idiom.
     expect(chip![0]).toContain("var(--md-sys-color-primary-container)");
     expect(chip![0]).toContain("var(--md-sys-color-on-primary-container)");
     expect(chip![0]).toContain("var(--shape-medium)");
