@@ -78,6 +78,7 @@ import type {
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
+import { Button } from "../../components/ui/fleet/Button.js";
 import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
 import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
 import { SearchField } from "../../components/ui/fleet/SearchField.js";
@@ -252,31 +253,32 @@ function BindingRow({
           </span>
           <span className="nt-propdef-name">{name}</span>
         </button>
-        <button
-          type="button"
+        {/* The row's two actions are the STANDARD fleet ghost icon buttons
+            (the nt-propdef-* classes are reveal hooks only) — the single
+            hover surface, revealed beside each other on hover. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="mdi-cog-outline"
           className="nt-propdef-more"
           aria-label={`Definition settings for ${name}`}
-          title="Definition settings"
           onClick={(event) => {
             event.stopPropagation();
             onOpenDefinition();
           }}
-        >
-          <Icon path="mdi-cog-outline" size={0.7} />
-        </button>
+        />
         {!isSystem && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="mdi-close"
             className="nt-propdef-remove"
             aria-label={`Remove ${name} from class`}
-            title="Remove from class"
             onClick={(event) => {
               event.stopPropagation();
               onRemoveRequest();
             }}
-          >
-            <Icon path="mdi-close" size={0.7} />
-          </button>
+          />
         )}
       </div>
       {expanded && (
