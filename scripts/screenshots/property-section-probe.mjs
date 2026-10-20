@@ -94,11 +94,15 @@ try {
   console.log("STAGE review bindings:", JSON.stringify(names));
   if (names.length !== 3) fail(`expected 3 bindings, got ${JSON.stringify(names)}`);
 
-  // Rename Summary to a very long name (truncation evidence).
+  // Rename Summary to a very long name (truncation evidence). R7
+  // (2026-10-20): the panel is class-level only — the rename lives in the
+  // definition modal, reachable from the panel's "Edit definition…".
   await pg.getByRole("button", { name: "Configure Summary" }).click();
+  await pg.getByRole("button", { name: "Edit definition…" }).click();
   const nameInput = pg.getByLabel("Property name");
   await nameInput.fill("A genuinely long property name that must truncate cleanly");
-  await pg.locator(".nt-page-header").first().click(); // blur → write
+  await nameInput.press("Tab"); // blur → write
+  await pg.getByLabel("Close modal").click();
   await pg.waitForTimeout(700);
   console.log("STAGE long rename written");
 
@@ -164,10 +168,12 @@ try {
   await pg.waitForTimeout(500);
   await shot("02-config-panel-1440");
 
-  // The datetime row's type-specific group. DOM-dispatched clicks: the
-  // sidebar re-measures under Playwright's pointer and role-clicks land
-  // unreliably here. The long row collapses first so the datetime config
-  // rides near the top of the (internally scrolling) side panel.
+  // The datetime row's definition modal (R7, 2026-10-20: precision/qualified
+  // are definition-level — they moved out of the inline panel into this
+  // modal). DOM-dispatched clicks: the sidebar re-measures under Playwright's
+  // pointer and role-clicks land unreliably here. The long row collapses
+  // first so the row's config rides near the top of the (internally
+  // scrolling) side panel.
   const toggleRow = (name) =>
     pg.evaluate((n) => {
       const btn = [...document.querySelectorAll(".nt-propdef-main")].find((b) =>
@@ -178,14 +184,18 @@ try {
     }, name);
   await toggleRow("A genuinely long"); // collapse the long row
   await toggleRow("Reviewed at");
-  await pg.waitForTimeout(500);
+  await pg.waitForTimeout(400);
   await pg.evaluate(() => {
     document
       .querySelector(".nt-propdef--expanded .nt-propdef-config")
       ?.scrollIntoView({ block: "nearest" });
   });
+  await pg.waitForTimeout(300);
+  await pg.getByRole("button", { name: "Edit definition…" }).click();
+  await pg.waitForTimeout(600);
+  await shot("03-definition-modal-datetime-1440");
+  await pg.getByLabel("Close modal").click();
   await pg.waitForTimeout(400);
-  await shot("03-config-panel-datetime-1440");
   await toggleRow("Reviewed at"); // collapse
   await pg.waitForTimeout(300);
 
