@@ -42,7 +42,10 @@
  * `isClass`/`isEmbedded` by bit; every sort ends in the `id ASC` tiebreak.
  * Groups refine alongside items (a group's rows filter by the same
  * predicate; emptied groups drop), so grouped rendering (the backlinks
- * containing-page groups) stays consistent.
+ * containing-page groups) stays consistent. The ungrouped rows (the
+ * references grouping's page sources) refine the same way and keep their
+ * container's order — never sorted by the refinement (the groups'
+ * precedent), the view's own sort button orders them.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -73,6 +76,8 @@ export interface SectionViewResolveClient {
 export interface SectionViewResolution {
   items: NodeCollectionItem[];
   groups: CollectionGroup[] | undefined;
+  /** The rows belonging to no group (the references grouping's page sources) — filtered like the items. */
+  ungrouped: NodeCollectionItem[] | undefined;
   /** A parse/compile failure — the chrome renders the error, the section stays. */
   error: string | null;
 }
@@ -732,11 +737,15 @@ function filterGroups(ctx: EvalContext, ast: QueryAst, groups: CollectionGroup[]
  */
 export function applySectionView(
   client: SectionViewResolveClient,
-  base: { items: NodeCollectionItem[]; groups: CollectionGroup[] | undefined },
+  base: {
+    items: NodeCollectionItem[];
+    groups: CollectionGroup[] | undefined;
+    ungrouped?: NodeCollectionItem[] | undefined;
+  },
   plan: SectionViewPlan,
-): { items: NodeCollectionItem[]; groups: CollectionGroup[] | undefined } {
+): { items: NodeCollectionItem[]; groups: CollectionGroup[] | undefined; ungrouped: NodeCollectionItem[] | undefined } {
   if (plan.ast.root.children.length === 0 && (plan.ast.sort === undefined || plan.ast.sort.length === 0)) {
-    return { items: base.items, groups: base.groups };
+    return { items: base.items, groups: base.groups, ungrouped: base.ungrouped };
   }
   const ctx: EvalContext = { client, closures: new Map(), bounds: new Map() };
   const allKept = (source: NodeCollectionItem[]) => {
@@ -756,12 +765,20 @@ export function applySectionView(
       : base.groups.every((group) => allKept(group.items))
         ? base.groups
         : filterGroups(ctx, plan.ast, base.groups);
+  // The ungrouped rows refine like the groups' rows: filtered by the same
+  // predicate, keeping their container's order (the groups' precedent).
+  const ungrouped =
+    base.ungrouped === undefined
+      ? undefined
+      : allKept(base.ungrouped)
+        ? base.ungrouped
+        : filterItems(ctx, plan.ast, base.ungrouped);
   if (plan.ast.sort !== undefined && plan.ast.sort.length > 0) {
     // Groups keep their container's order — a grouped view sorts within the
     // refinement only when the caller renders flat rows.
-    return { items: [...items].sort(compareBySort(plan.ast.sort)), groups };
+    return { items: [...items].sort(compareBySort(plan.ast.sort)), groups, ungrouped };
   }
-  return { items, groups };
+  return { items, groups, ungrouped };
 }
 
 /**
@@ -771,9 +788,13 @@ export function applySectionView(
  */
 export async function resolveSectionViewProbed(
   client: SectionViewResolveClient,
-  base: { items: NodeCollectionItem[]; groups: CollectionGroup[] | undefined },
+  base: {
+    items: NodeCollectionItem[];
+    groups: CollectionGroup[] | undefined;
+    ungrouped?: NodeCollectionItem[] | undefined;
+  },
   plan: SectionViewPlan,
-): Promise<{ items: NodeCollectionItem[]; groups: CollectionGroup[] | undefined }> {
+): Promise<{ items: NodeCollectionItem[]; groups: CollectionGroup[] | undefined; ungrouped: NodeCollectionItem[] | undefined }> {
   const probes = new Map<string, Set<string>>();
   const probeFor = async (condition: QueryAst["root"]["children"][number]): Promise<Set<string>> => {
     const key = JSON.stringify(condition);
@@ -831,10 +852,21 @@ export async function resolveSectionViewProbed(
             ).filter((item): item is NodeCollectionItem => item !== null),
           })),
         )).filter((group) => group.items.length > 0);
+  // The ungrouped rows refine like the groups' rows (the sync path's rule).
+  const ungrouped =
+    base.ungrouped === undefined
+      ? undefined
+      : (
+          await Promise.all(
+            base.ungrouped.map(async (item) =>
+              (await matches({ type: "group", logic: plan.ast.root.logic, children: plan.ast.root.children }, item)) ? item : null,
+            ),
+          )
+        ).filter((item): item is NodeCollectionItem => item !== null);
   if (plan.ast.sort !== undefined && plan.ast.sort.length > 0) {
     items = [...items].sort(compareBySort(plan.ast.sort));
   }
-  return { items, groups };
+  return { items, groups, ungrouped };
 }
 
 // --- the hook ------------------------------------------------------------------------
@@ -850,9 +882,10 @@ export function useSectionViewResolution(
   client: SectionViewResolveClient,
   items: NodeCollectionItem[],
   groups: CollectionGroup[] | undefined,
+  ungrouped: NodeCollectionItem[] | undefined,
   view: { id: string; queryAst: unknown } | null | undefined,
 ): SectionViewResolution {
-  const [probed, setProbed] = useState<{ key: string; items?: NodeCollectionItem[]; groups?: CollectionGroup[] | undefined; error?: string } | null>(null);
+  const [probed, setProbed] = useState<{ key: string; items?: NodeCollectionItem[]; groups?: CollectionGroup[] | undefined; ungrouped?: NodeCollectionItem[] | undefined; error?: string } | null>(null);
   const [version, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
@@ -870,7 +903,7 @@ export function useSectionViewResolution(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [astKey]);
 
-  const base: SectionViewResolution = { items, groups, error: null };
+  const base: SectionViewResolution = { items, groups, ungrouped, error: null };
   const needsProbe = plan !== null && !("error" in plan) && plan.needsProbe;
   const signature = needsProbe
     ? `${astKey}|${items.map((item) => item.node.id).join(",")}|${(groups ?? []).map((group) => group.id).join(",")}|${version}`
@@ -879,9 +912,9 @@ export function useSectionViewResolution(
   useEffect(() => {
     if (!needsProbe || plan === null || "error" in plan) return;
     let cancelled = false;
-    void resolveSectionViewProbed(client, { items, groups }, plan)
+    void resolveSectionViewProbed(client, { items, groups, ungrouped }, plan)
       .then((result) => {
-        if (!cancelled) setProbed({ key: signature, items: result.items, groups: result.groups });
+        if (!cancelled) setProbed({ key: signature, items: result.items, groups: result.groups, ungrouped: result.ungrouped });
       })
       .catch((error: unknown) => {
         if (!cancelled) setProbed({ key: signature, error: errorMessage(error) });
@@ -896,12 +929,12 @@ export function useSectionViewResolution(
   if ("error" in plan) return { ...base, error: plan.error };
   if (!needsProbe) {
     try {
-      return { ...applySectionView(client, { items, groups }, plan), error: null };
+      return { ...applySectionView(client, { items, groups, ungrouped }, plan), error: null };
     } catch (error) {
       return { ...base, error: errorMessage(error) };
     }
   }
   if (probed === null || probed.key !== signature) return base; // first probe still running
   if (probed.error !== undefined) return { ...base, error: probed.error };
-  return { items: probed.items ?? items, groups: probed.groups, error: null };
+  return { items: probed.items ?? items, groups: probed.groups, ungrouped: probed.ungrouped, error: null };
 }

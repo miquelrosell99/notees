@@ -12,6 +12,7 @@ import "./graph/GraphView.js";
 export { registerView, unregisterView, getViewDefinition, getRegisteredViewModes, getViewModeOptions } from "./registry.js";
 export type { ViewModeOption } from "./registry.js";
 export { groupByContainingPage } from "./grouping.js";
+export type { ContainingPageGrouping } from "./grouping.js";
 export { useWindowed, DEFAULT_WINDOW_SIZE } from "./useWindowed.js";
 export type { UseWindowedOptions, WindowedState } from "./useWindowed.js";
 export { ShowMoreButton } from "./ShowMoreButton.js";
