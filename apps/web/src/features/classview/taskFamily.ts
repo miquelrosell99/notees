@@ -162,8 +162,10 @@ export async function ensureTaskFamily(client: TaskFamilyClient): Promise<void> 
           id: spec.id,
           name: spec.name,
           type: spec.type,
-          // Scoped to the task class (the sole locality authority) — the bindings below land on the same class.
-          scopeClassIds: [SYSTEM_CLASS_UUIDS.task],
+          // Global scope (// Status "can be reused for other nodes", and the ruling covers
+          // the whole family): absent scopeClassIds = any node may carry
+          // it. The task-class bindings below are untouched (per-class
+          // config, zero availability semantics).
           ...(options !== undefined ? { options } : {}),
         });
       }
