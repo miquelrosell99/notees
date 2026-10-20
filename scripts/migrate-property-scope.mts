@@ -277,9 +277,12 @@ function main(): void {
       }
     }
 
-    if (planned.length === 0) {
+    if (planned.length === 0 && !options.apply) {
       console.log("\nnothing to rewrite — the log is already clean.");
       return;
+    }
+    if (planned.length === 0) {
+      console.log("\nlog already clean — resuming: snapshot patch / epoch bump / verify only.");
     }
 
     if (!options.apply) {
@@ -318,25 +321,37 @@ function main(): void {
     rewrite();
     console.log(`rewrote ${planned.length} envelope(s) in place; no compensation envelopes (the scope moved inside the same envelope).`);
 
-    // 3. Snapshot patch (only when the snapshot post-dates the first rewritten
-    //    envelope — an older snapshot embeds none of them).
-    const firstSeq = Math.min(...planned.map((p) => p.seq));
-    if (snapshot !== null && snapshotSeq >= firstSeq) {
-      const snapshotFile = join(options.dataDir, "snapshots", `${snapshot.id}.db`);
-      if (!existsSync(snapshotFile)) throw new Error(`snapshot ${snapshot.id} has no bytes on disk`);
+    // 3. Snapshot patch (only when the snapshot embeds rewritten envelopes or
+    //    still carries the retired column — a resumed run after a failed apply
+    //    finds planned empty but the snapshot unpatched).
+    const snapshotFile =
+      snapshot !== null ? join(options.dataDir, "snapshots", `${snapshot.id}.db`) : null;
+    const snapshotHasScope =
+      snapshotFile !== null && existsSync(snapshotFile) && snapshotCarriesScopeColumn(snapshotFile);
+    const firstSeq = planned.length > 0 ? Math.min(...planned.map((p) => p.seq)) : Infinity;
+    let patchedSnapshot = false;
+    if (snapshot !== null && (snapshotSeq >= firstSeq || snapshotHasScope)) {
+      if (snapshotFile === null || !existsSync(snapshotFile))
+        throw new Error(`snapshot ${snapshot.id} has no bytes on disk`);
       copyFileSync(snapshotFile, `/tmp/snapshot-${snapshot.id}.bak-${stamp}`);
       const patched = patchSnapshot(snapshotFile);
       writeFileSync(snapshotFile, patched);
+      patchedSnapshot = true;
       console.log(`patched snapshot ${snapshot.id} (bytes backup at /tmp/snapshot-${snapshot.id}.bak-${stamp}).`);
     } else if (snapshot !== null) {
-      console.log(`snapshot ${snapshot.id} predates the first rewritten envelope — left untouched.`);
+      console.log("snapshot predates the first rewritten envelope — left untouched.");
     } else {
       console.log("no snapshot — the next hydration replays the full log (slow path, correct by construction).");
     }
 
     // 4. Epoch bump: every client wipes + resyncs from the rewritten log.
-    const epoch = relay.bumpRestoreEpoch(options.workspace);
-    console.log(`restore_epoch bumped to ${epoch}.`);
+    //    Exactly once per apply — only when this run changed something.
+    if (planned.length > 0 || patchedSnapshot) {
+      const epoch = relay.bumpRestoreEpoch(options.workspace);
+      console.log(`restore_epoch bumped to ${epoch}.`);
+    } else {
+      console.log("nothing to rewrite and snapshot clean — epoch left unchanged.");
+    }
 
     // 5. Verify (migrations.md §B order).
     verify(relay, options.workspace, planned);
@@ -346,46 +361,87 @@ function main(): void {
   }
 }
 
+/** True when the snapshot bytes still carry the retired property_schema.scope column. */
+function snapshotCarriesScopeColumn(snapshotFile: string): boolean {
+  const raw = new Database(snapshotFile, { readonly: true, fileMustExist: true });
+  try {
+    const cols = raw.prepare("PRAGMA table_info(property_schema)").all() as Array<{ name: string }>;
+    return cols.some((c) => c.name === "scope");
+  } finally {
+    raw.close();
+  }
+}
+
 /**
- * Apply the same move to a snapshot's bytes: the serialized derived store's
- * property_schema rows still carry the retired `scope` TEXT column — resolve
- * each row's value through the same mapping, write `scope_class_ids`, then
- * open the bytes through the store so migrate() runs the v24 rebuild (the
- * scope column retires) and the rows verify. Returns the patched bytes.
+ * Apply the same move to a snapshot's bytes. ORDER MATTERS (the 2026-10-20
+ * live-run fix): the serialized derived store's property_schema rows carry
+ * the retired `scope` column, and the store's v24 rebuild hard-codes NULL for
+ * the new columns — so the mapping must be captured BEFORE Store.open runs,
+ * and scope_class_ids written AFTER the rebuild (when the column exists):
+ *  1. capture (id, scope) rows from the pre-migration bytes,
+ *  2. Store.open → migrate() runs the v24 rebuild (scope column drops, the
+ *     new columns exist as NULL),
+ *  3. write scope_class_ids from the captured mapping (seed-resolvable
+ *     "class" rows; everything else falls to global = NULL, the same
+ *     demotion the envelope rewrite applies),
+ *  4. verify the retired column is gone. Returns the patched bytes.
  */
 function patchSnapshot(snapshotFile: string): Buffer {
   const dir = mkdtempSync(join(tmpdir(), "notees-property-scope-snapshot-patch-"));
   const tempDb = join(dir, "snapshot.db");
   try {
     copyFileSync(snapshotFile, tempDb);
-    const raw = new Database(tempDb);
-    try {
-      const rows = raw
-        .prepare("SELECT id, scope FROM property_schema WHERE scope IS NOT NULL")
-        .all() as Array<{ id: string; scope: string }>;
-      const update = raw.prepare("UPDATE property_schema SET scope_class_ids = ? WHERE id = ?");
-      for (const row of rows) {
-        if (row.scope === "class") {
-          const seeded = SEED_SCOPE_BY_SCHEMA_ID.get(row.id);
-          if (seeded !== undefined) update.run(JSON.stringify([seeded]), row.id);
-          // Unresolvable "class" rows (and every "object"/"global" row) fall
-          // to global — the same demotion the envelope rewrite applies.
+
+    // 1. Capture the mapping source before migrate() drops the column.
+    const mapped: Array<{ id: string; scopeClassIds: string | null }> = [];
+    {
+      const raw = new Database(tempDb, { readonly: true });
+      try {
+        let rows: Array<{ id: string; scope: string }> = [];
+        try {
+          rows = raw.prepare("SELECT id, scope FROM property_schema WHERE scope IS NOT NULL").all();
+        } catch {
+          rows = []; // no scope column — nothing to map
         }
+        for (const row of rows) {
+          const seeded = row.scope === "class" ? SEED_SCOPE_BY_SCHEMA_ID.get(row.id) : undefined;
+          mapped.push({ id: row.id, scopeClassIds: seeded !== undefined ? JSON.stringify([seeded]) : null });
+        }
+      } finally {
+        raw.close();
       }
-    } finally {
-      raw.close();
     }
-    // Store.open runs migrate() on the snapshot bytes (the v24 rebuild drops
-    // the scope column); verify no retired value survives and the rows
-    // re-derive clean.
-    const store = Store.open(betterSqlite3Backend(tempDb));
-    try {
-      const cols = store.database.prepare("PRAGMA table_info(property_schema)").all() as Array<{ name: string }>;
-      if (cols.some((c) => c.name === "scope")) {
-        throw new Error("snapshot patch verification failed: the retired scope column survives the v24 rebuild");
-      }
-    } finally {
+
+    // 2. Run the store migration (v24 rebuild — new columns exist afterwards).
+    {
+      const store = Store.open(betterSqlite3Backend(tempDb));
       store.close();
+    }
+
+    // 3. Write the mapped scope lists into the rebuilt table.
+    {
+      const raw = new Database(tempDb);
+      try {
+        const update = raw.prepare("UPDATE property_schema SET scope_class_ids = ? WHERE id = ?");
+        for (const row of mapped) {
+          if (row.scopeClassIds !== null) update.run(row.scopeClassIds, row.id);
+        }
+      } finally {
+        raw.close();
+      }
+    }
+
+    // 4. Verify no retired value survives.
+    {
+      const raw = new Database(tempDb, { readonly: true });
+      try {
+        const cols = raw.prepare("PRAGMA table_info(property_schema)").all() as Array<{ name: string }>;
+        if (cols.some((c) => c.name === "scope")) {
+          throw new Error("snapshot patch verification failed: the retired scope column survives the v24 rebuild");
+        }
+      } finally {
+        raw.close();
+      }
     }
     return readFileSync(tempDb);
   } finally {
