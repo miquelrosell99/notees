@@ -1157,6 +1157,9 @@ select:focus-visible {
 
 .nt-block-chevron {
   position: absolute;
+  /* Above the edit-thread elbow (app.css edit-thread block): the hover
+     chevron's glyph must not be crossed by the path hairline. */
+  z-index: 1;
   right: calc(100% + 1px);
   top: 50%;
   transform: translateY(-50%);
@@ -1589,6 +1592,47 @@ select:focus-visible {
 .nt-block-children__rail:focus-visible {
   background: linear-gradient(to right, transparent 0 1px, var(--md-sys-color-primary) 1px 3px, transparent 3px);
   outline: none;
+}
+
+/* --- the edit thread (owner 2026-10-20) -------------------------------------
+   While a block is in edit mode, the ancestor chain from the top-level
+   block down to the editing block wears an accent thread, so the eye can
+   follow the path from the root block to the caret. Purely structural
+   CSS: `:has()` matches the true ancestor chain (every block that contains
+   the editing block), so no JS state threads the recursion and the thread
+   composes with every surface BlockRow renders on. The chain's indent
+   rails take the hover-weight accent hairline (the thread reads as a
+   persistent hover along the path), and each link on the path grows a
+   horizontal elbow from the rail column into its bullet — ::after on the
+   GRIP (the bullet's own pseudo hooks stay retired: ::before is the
+   baseline strut and ::after was the retired collapse ring, banned by the
+   condensed-layer register's no-ring-hooks test). The elbow's strip is
+   pointer-events: none: it paints over the rail's column but must not eat
+   the rail's fold clicks nor widen the grip's drag target. Outline-only
+   by construction — prose hides the bullets and renders no rail, and
+   table cells live outside .nt-block-children, so the selectors find
+   nothing there. The thread ends AT the editing block: its own subtree
+   stays on the resting hairline. */
+.nt-block:has(.nt-block--editing) > .nt-block-children > .nt-block-children__rail {
+  background: linear-gradient(to right, transparent 0 1px, var(--md-sys-color-primary) 1px 3px, transparent 3px);
+}
+
+.nt-block:has(.nt-block--editing) > .nt-block-children > .nt-block:is(.nt-block--editing, :has(.nt-block--editing)) > .nt-block-row .nt-block-grip::after {
+  content: "";
+  position: absolute;
+  /* From the rail hairline column (-22px: 8px children padding + 1px border
+     + the rail's 1px inset, measured from the grip's left edge, which sits
+     14px into the row) to the grip's center — the bullet is centered in
+     the 18px grip, so the line merges into the dot's middle. */
+  left: -22px;
+  width: 31px;
+  /* The bullet rides translateY(-2px) inside the grip (its optical
+     alignment), so the line centers on the bullet, not the grip box. */
+  top: calc(50% - 2px);
+  height: 2px;
+  transform: translateY(-50%);
+  background: var(--md-sys-color-primary);
+  pointer-events: none;
 }
 
 /* --- child-blocks view toolbar (outline / prose / cards switcher) ----------- */

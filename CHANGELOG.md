@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-20
 
+- **feat(web): the edit thread — in edit mode the ancestor chain from the
+  top-level block to the editing block wears the accent thread.** Owner
+  2026-10-20. While a block is in edit mode, every ancestor's indent rail
+  takes the hover-weight accent hairline (the same 2px primary gradient the
+  rail's hover/focus wears — the thread reads as a persistent hover along
+  the path), and each link on the path grows a horizontal elbow from the
+  rail column into its bullet, ending at the editing block's own bullet
+  (which already carries the engaged-row accent). Purely structural CSS:
+  `:has()` matches the true ancestor chain off `.nt-block--editing`, so no
+  JS state threads the BlockRow recursion and every surface composes. The
+  elbow rides `::after` on the GRIP (the bullet's own ::after stays retired
+  — the condensed-layer register bans the old ring hook; the `top` carries
+  a `-2px` compensation for the bullet's optical shift), is `pointer-events:
+  none` so it never eats the rail's fold clicks nor widens the grip's drag
+  target, and the hover chevron gains `z-index: 1` so its glyph paints
+  above the crossing hairline. Outline-only by construction — prose hides
+  the bullets and renders no rail, and table cells live outside
+  `.nt-block-children`, so the selectors find nothing there; the thread
+  ends AT the editing block, its own subtree stays on the resting hairline,
+  and it follows the caret (editing a sibling tears the old chain down).
+  Docs: `BlockRow.tsx` header + `docs/ux.md` the editor section.
+  Verification: `scripts/screenshots/thread-probe.mjs` (chain rails accent,
+  elbows 31×2px into the path bullets only, click-through to the rail,
+  caret-follow) against the live stack.
 - **docs(deploy): the source/stack split lands in the runbooks — the
   compose-from-the-checkout trap is recorded.** The 2026-10-19 split (live
   stack = a thin Komodo-managed folder outside the checkout; the repo's
