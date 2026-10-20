@@ -31,7 +31,10 @@ const api = async (path, init) => {
 const block = (parentId, text) =>
   api("/api/objects", { method: "POST", body: { parentId, contentAst: [{ type: "text", text }] } }).then((r) => r.id);
 
-const pageId = (await api("/api/objects", { method: "POST", body: { name: "Thread probe scratch", presentAsMain: true } })).id;
+// A parentless create is a Page (Revision 12: standalone by definition;
+// `presentAsMain` retired). `name` seeds the initial text content
+// (title-is-content).
+const pageId = (await api("/api/objects", { method: "POST", body: { name: "Thread probe scratch" } })).id;
 let A, a2, a3, a2b, B, C, c1;
 try {
   A = await block(pageId, "alfa");
@@ -172,10 +175,10 @@ try {
     // reach the RAIL (fold a2 → a3 disappears), never the bullet (zoom).
     await pg.mouse.click(geom.railX, geom.elbowY);
     await pg.waitForTimeout(300);
-    const folded = await pg.evaluate((a2id) => {
+    const folded = await pg.evaluate(([a2id, a3id]) => {
       const chevron = document.querySelector(`[data-block-id="${a2id}"] .nt-block-chevron`);
-      return { expanded: chevron?.getAttribute("aria-expanded"), a3Gone: document.querySelector(`[data-block-id="${a3}"]`) === null, url: location.pathname };
-    }, a2);
+      return { expanded: chevron?.getAttribute("aria-expanded"), a3Gone: document.querySelector(`[data-block-id="${a3id}"]`) === null, url: location.pathname };
+    }, [a2, a3]);
     expect(folded.expanded === "false", "the click reached the rail — a2 folded");
     expect(folded.a3Gone, "a2's subtree hid with the fold");
     expect(folded.url === `/${pageId}`, "no zoom — the URL stays on the page");
