@@ -1,9 +1,10 @@
 /**
  * AppModals — the shell's floating-command layer: the Ctrl/Cmd+K command
  * palette and the modals/popups it and the other surfaces open (quick
- * add, class create, merge, property view), plus the mobile quick-create
- * FAB and the presentation deck. Pure composition: every behavior arrives
- * via props from App.
+ * add, class create, merge, property view), the S1 property-create host
+ * (the /property slash command, Ctrl/Cmd+Alt+P, the verb create-and-bind),
+ * plus the mobile quick-create FAB and the presentation deck. Pure
+ * composition: every behavior arrives via props from App.
  */
 
 import type { Dispatch, SetStateAction } from "react";
@@ -17,6 +18,7 @@ import { QuickAddModal } from "../../features/modals/QuickAddModal.js";
 import { ClassCreateModal } from "../../features/modals/ClassCreateModal.js";
 import { MergeNodesModal } from "../../features/modals/MergeNodesModal.js";
 import { PropertyView } from "../../features/metadata/PropertyView.js";
+import { PropertyCreateHost } from "../../features/metadata/PropertyCreateHost.js";
 import { QuickCreateFab } from "../../features/block-editor/QuickCreateFab.js";
 import { DeckView } from "../presentation/DeckView.js";
 
@@ -137,6 +139,11 @@ export function AppModals(props: AppModalsProps) {
       {/* The mobile quick-create FAB: hosts its own
           QuickAddModal; CSS surfaces the button only at narrow widths. */}
       <QuickCreateFab client={client} />
+      {/* The S1 property-creation modal's app-level host: the slash
+          /property command, the Ctrl/Cmd+Alt+P chord, and the
+          VerbPopover create-and-bind request the modal through the
+          module-level queue. */}
+      <PropertyCreateHost client={client} />
       {presentingId !== null && (
         <DeckView
           client={client}

@@ -21,7 +21,8 @@
  * builder), date (typed date → daily-page link), template
  * (flat template list instantiated at the caret), table
  * (container node classed `table`, one row + three cells; the
- * typed remainder is the column count).
+ * typed remainder is the column count), property (the S1 creation modal
+ * opened against this block).
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -53,6 +54,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   // derivation — zero wire footprint).
   { id: "code", label: "Code", description: "Convert block to a code block (e.g. /code python)" },
   { id: "hr", label: "Divider", description: "Insert a horizontal rule" },
+  { id: "property", label: "Property", description: "Add property to this block (e.g. /property year)" },
 ];
 
 /** localStorage-backed command usage counts (frequent commands rank first). */

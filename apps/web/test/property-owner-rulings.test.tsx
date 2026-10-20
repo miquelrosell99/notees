@@ -13,9 +13,10 @@
  *    the selection control, and the settings modal carries a per-option
  *    ColorButton dot;
  *  - PG3 conversion: the settings modal's Convert… runs the blessed
- *    delete+recreate flow — mappable values copy, unmappable values list
- *    and require the drop confirmation, bindings re-point, the old schema
- *    soft-deletes;
+ *    delete+recreate flow — a value-free schema converts (bindings
+ *    re-point), and R6 blocks the modal with an
+ *    explanation when any value exists (the plan/drop-confirm UI is
+ *    unreachable);
  *  - PG13 history: the context-menu "Value history…" opens the modal,
  *    honestly degraded to the device-local note when the operations feed
  *    is unreachable (the jsdom client has no REST config).
@@ -189,27 +190,26 @@ describe("PG3: conversion via blessed delete+recreate", () => {
     expect(convertValueForType("opt-9", "select", "select", [{ id: "opt-1", label: "One" }]).ok).toBe(false);
   });
 
-  it("the modal flow copies mappable values, lists the dropped ones, rebinds, deletes", async () => {
+  it("a value-free schema converts freely: bindings re-point, the old schema deletes", async () => {
     const client = await seedClient();
-    const schemaId = await client.createPropertySchema({ name: "Score", type: "number" });
+    // A boolean (a grouped type) so the bound-but-empty row renders and its
+    // label opens the settings modal — the schema stays value-free.
+    const schemaId = await client.createPropertySchema({ name: "Flag", type: "boolean" });
     const classId = await client.createClass("Graded");
     await client.updateObject(classId, { contentAst: [{ type: "text", text: "Graded" }] });
     await client.setClassProperty(classId, schemaId, { sequence: 2 });
     const page = await client.createObject({ isEmbedded: false, name: "Exam", classIds: [classId] });
-    await client.setProperty(page, schemaId, 10, 0);
-    const other = await client.createObject({ isEmbedded: false, name: "Essay" });
-    await client.setProperty(other, schemaId, 7, 0);
 
     render(<PageView client={client} pageId={page} />);
     expandProperties();
     await flushWrites();
-    fireEvent.click(screen.getByText("Score"));
+    fireEvent.click(screen.getByText("Flag"));
     await screen.findByText("Property settings");
     const dialog = document.querySelector(".nt-property-settings") as HTMLElement;
     fireEvent.click(within(dialog).getByRole("button", { name: "Convert…" }));
-    await screen.findByText('Convert “Score”');
+    await screen.findByText('Convert “Flag”');
     const convert = document.querySelector(".nt-property-convert") as HTMLElement;
-    // Choose text: both numbers map to strings — nothing dropped.
+    // Choose text: nothing to copy (R6 gate passed — the schema is value-free).
     fireEvent.change(within(convert).getByRole("combobox", { name: "New property type" }), {
       target: { value: "text" },
     });
@@ -218,27 +218,19 @@ describe("PG3: conversion via blessed delete+recreate", () => {
     fireEvent.click(within(convert).getByRole("button", { name: "Convert" }));
     await flushWrites();
 
-    // The old schema soft-deleted; a new text schema carries the values.
+    // The old schema soft-deleted; a new text schema carries the binding.
     const schemas = client.listPropertySchemas();
     expect(schemas.find((s) => s.id === schemaId)).toBeUndefined();
-    const created = schemas.find((s) => s.name === "Score" && s.type === "text");
+    const created = schemas.find((s) => s.name === "Flag" && s.type === "text");
     expect(created).toBeDefined();
-    const rows = client
-      .getEffectiveProperties(page)
-      .filter((row) => row.propertySchemaId === created!.id && row.source === "authored");
-    expect(rows.map((row) => row.value)).toEqual(["10"]);
     // The class binding re-pointed at the new schema.
     expect(
       client.getClassBindings(classId).some((b) => b.propertySchemaId === created!.id && b.sequence === 2),
     ).toBe(true);
     expect(client.getClassBindings(classId).some((b) => b.propertySchemaId === schemaId)).toBe(false);
-    // The second node's value copied too.
-    expect(
-      client.getEffectiveProperties(other).find((row) => row.propertySchemaId === created!.id)?.value,
-    ).toBe("7");
   });
 
-  it("unmappable values require the drop confirmation", async () => {
+  it("R6: a value anywhere blocks the conversion — the plan/convert UI is unreachable", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "Link", type: "object" });
     const page = await client.createObject({ isEmbedded: false, name: "Holder" });
@@ -254,18 +246,15 @@ describe("PG3: conversion via blessed delete+recreate", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Convert…" }));
     await screen.findByText('Convert “Link”');
     const convert = document.querySelector(".nt-property-convert") as HTMLElement;
-    fireEvent.change(within(convert).getByRole("combobox", { name: "New property type" }), {
-      target: { value: "number" },
-    });
-    await flushWrites();
-    // The linked value cannot map — listed, and the Convert button stays
-    // disabled until the checkbox confirms the drop.
-    expect(within(convert).getByText(/cannot be converted and will be/)).not.toBeNull();
-    const convertButton = within(convert).getByRole("button", { name: "Convert" }) as HTMLButtonElement;
-    expect(convertButton.disabled).toBe(true);
-    fireEvent.click(within(convert).getByRole("checkbox", { name: "Confirm dropping unmappable values" }));
-    await flushWrites();
-    expect((within(convert).getByRole("button", { name: "Convert" }) as HTMLButtonElement).disabled).toBe(false);
+    // The blocked state: the explanation names the node count; the type
+    // picker, the plan, the Convert button, and the drop-confirm checkbox
+    // are gone.
+    expect(within(convert).getByText(/has values on 1 node, so its type can’t change/)).not.toBeNull();
+    expect(within(convert).queryByRole("combobox", { name: "New property type" })).toBeNull();
+    expect(within(convert).queryByRole("button", { name: "Convert" })).toBeNull();
+    expect(within(convert).queryByRole("checkbox", { name: "Confirm dropping unmappable values" })).toBeNull();
+    // The schema is untouched.
+    expect(client.listPropertySchemas().some((s) => s.id === schemaId)).toBe(true);
   });
 });
 

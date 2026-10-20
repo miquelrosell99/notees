@@ -81,6 +81,7 @@ function authoredProp(
     metadata,
     source: "authored",
     boundBy: null,
+    eligible: true,
     required: null,
     readonly: null,
     hideWhenEmpty: null,
