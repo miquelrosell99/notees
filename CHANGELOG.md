@@ -8,6 +8,30 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **fix(web): an unbound text property added from "+ Add property" no longer
+  self-unsets the instant its row appears.**
+  The panel add flow (`initializePropertyValue`, the placeholder+init
+  pattern) mints a fresh empty carrier block for a text property and never
+  moves focus into the row; the 2026-10-09 auto-unset pass
+  (`TextPropertyRow`'s `cleanupEmptyValues`) runs on every render and skips
+  contentless carriers only while the row holds focus — so the just-created
+  placeholder read as an abandoned dead block and the row vanished before
+  the user could type (found while probing phase B, commit 5729fa94). The
+  placeholder init now records the carrier id in a session-local pending
+  set (`propertyValueInit.ts`); the pass skips a pending contentless
+  carrier (a non-pending one still unsets — the legacy-data cleanup is
+  untouched), clears the mark the moment content or a child lands, and the
+  row's focusout handler clears this row's marks and re-runs the pass — so
+  the placeholder survives until the user leaves it empty, exactly the
+  ruling's intent. The class-bound add flow rides the same protection
+  (default-derived rows were never in the pass's authored-only filter).
+  Regression: `text-property-blocks.test.tsx` gains the "+ Add property"
+  suite — the panel-driven unbound add leaves a stable editable row (no
+  unset op, carrier untrashed), unsets only after the user leaves it empty,
+  settles once content lands, and the class-bound variant stays. Docs: the
+  pass contract comments in both files. Verified: `pnpm typecheck` green;
+  the new suite's four tests fail against the pre-fix sources and pass with
+  the fix (stash-verified); full gate below.
 - **feat(store,protocol): validationRules value enforcement at `property.set`
   — the R2 companion to the property-scope batch (commit b8548e0e).**
   SCHEMA.md's Properties section promised "values validated at
