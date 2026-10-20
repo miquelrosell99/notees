@@ -8,6 +8,28 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **feat(protocol,store,web): the property-definition batch ships — lockstep
+  complete, live-migrated, deployed (VERIFY-PASS).** The 2026-10-20
+  property-definition effort lands end to end: `scopeClassIds` replaces the
+  retired `scope` enum (the sole locality authority — bindings carry zero
+  availability semantics), schema `icon`, update-side `scopeClassIds`/
+  `targetClassFilter`/`multi`/`validationRules`, R3/R5 fail-loud eligibility,
+  eligible-tagged reads, validationRules value enforcement at `property.set`,
+  the web surfaces (S1 pre-creation modal on all entry points, S2 definition
+  editor, the R6 convert gate, S4 eligibility pickers, S5 block-to-property
+  drag, the S6 class-properties rebuild), and the seed-scope audit (task
+  family + weblink `url` global; family-identity seeds stay local).
+  **Lockstep:** GTK **v4.2.0** (store v16, 847 tests, fixtures 36/36
+  byte-identical) + Flutter **v4.1.0** (DB v31, 664 tests, 36/36) tagged and
+  released; the CLI aligns by vendor pin (its own tag). **Live migration
+  (Path B):** 5,389 owner-workspace envelopes + 175 test-workspace envelopes
+  rewritten in place, both snapshots patched, `restore_epoch` bumped (10/4),
+  the seed-flip convergence appended (weblink `url` → global, 1 envelope) —
+  `migrate-property-scope.mts` gained a snapshot-patch ordering fix + a
+  resumable apply flow + a verify comparison fix (899f8d2c, 668a835b).
+  **Deployed:** `notees-sync` + `notees-web` rebuilt from the live stack
+  folder, `verify-min.mjs` → **VERIFY-PASS**. Relay backups in `/tmp`
+  (`relay.db.bak-property-scope-2026-10-20T16-2*`).
 - **fix(scripts): `migrate-property-scope.mts` snapshot patch rewritten —
   the live run exposed the ordering bug.** The first `--apply` rewrote the
   5,389 retired-`scope` envelopes in place and then failed at the snapshot
