@@ -8,6 +8,33 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **feat(web): an open block context menu anchors to its block — the
+  bullet carries the hover/active highlight while the menu floats.**
+  the node menu renders free at the pointer, so
+  the block it belongs to must name itself. Both menu entries (grip and
+  prose right-click) ride the same row-level `gripMenu` state — the block
+  root wears `nt-block--menu-open` while it is set, and the bullet
+  dot/class-icon/list-marker mirrors the hover-active register (accent +
+  scale 1.2, the same register as the editing bullet); the highlight
+  survives the pointer wandering (it out-specifies the row-hover rule)
+  and clears with the menu. Probe: right-click opens the anchored
+  highlight, Escape clears it. Docs: BlockRow header.
+
+- **feat(web): the thread circumvents in-path icons — an inward rounded
+  corner drops the vertical into the gap left of an intermediate glyph.**
+  ("any way we could circumvent in-path icons
+  too? maybe an inward round corner"). The round-6 arm stopped BEFORE an
+  icon, but an INTERMEDIATE glyph still had the next vertical passing
+  under it — and hollow glyphs (the quote icon) let the line peek
+  through their transparent strokes. Now the arm ends a radius early and
+  an INWARD quarter-round drops the vertical into the 3px gap column
+  left of the glyph: the line rides the gap to the next level and never
+  crosses the icon at all. The path start moves too: a top-level glyph
+  gets the line beginning just below its bottom edge instead of under
+  its strokes. Dot links unchanged (the cusp hides under the opaque
+  dot). Probe: the intermediate-glyph assertions now expect the turn +
+  arm + inward-corner quartet and the gap-column descent (3 quadratic
+  joins for an iconed chain). Docs: EditThread/BlockRow headers.
 
 - **fix(web): breathing room between the page title and the tags row.**
   (screenshot: the "Tags:" row sat flush under
