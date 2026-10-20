@@ -143,7 +143,7 @@ export function TopBar({
       <div className="nt-topbar-left">
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
           icon="mdi mdi-dock-left"
           aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
@@ -298,7 +298,7 @@ export function TopBar({
         )}
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
           icon="mdi mdi-dock-right"
           title={rightPanelOpen ? "Hide right sidebar" : "Show right sidebar"}
