@@ -143,14 +143,12 @@ export interface UndoPropertyValueSnapshot {
   metadata: Record<string, unknown> | null;
 }
 
-/** One class_property binding row, decoded. The render contracts
- *  (readonly/hideWhenEmpty/display) left the binding for the property schema
- *  — a binding snapshot carries only what class.property.set still writes. */
+/** One class_property binding row, decoded. A binding carries the genuinely
+ *  per-class mechanics ONLY (sequence + active —
+ *  the render contracts left for the schema earlier; `required` retired
+ *  outright and `defaultValue` moved to the property schema). */
 export interface UndoBindingSnapshot {
   sequence: number;
-  required: boolean | null;
-  /** undefined = the row's default_value SQL NULL (no stored default). */
-  defaultValue: unknown;
   active: boolean;
 }
 
@@ -172,6 +170,8 @@ export interface UndoSchemaSnapshot {
   display: "panel" | "bullet" | "inline" | null;
   readonly: boolean | null;
   hideWhenEmpty: boolean | null;
+  /** The GLOBAL default: null = none. */
+  defaultValue: unknown;
 }
 
 /** One node_asset row, decoded. */
@@ -437,12 +437,8 @@ export function invertEnvelope(
       const classId = asString(p.classId);
       const propertySchemaId = asString(p.propertySchemaId);
       if (classId === null || propertySchemaId === null) return null;
-      const BINDING_FIELDS = [
-        "sequence",
-        "required",
-        "defaultValue",
-        "active",
-      ] as const;
+      // The binding carries sequence + active only.
+      const BINDING_FIELDS = ["sequence", "active"] as const;
       const touched = BINDING_FIELDS.filter((field) => hasOwn(p, field));
       if (touched.length === 0) return null;
       const prior = capture.classBinding(classId, propertySchemaId);
@@ -458,18 +454,7 @@ export function invertEnvelope(
       }
       const restore: Record<string, unknown> = { classId, propertySchemaId };
       for (const field of touched) {
-        // Wire warts, both applier-sanctioned: default_value SQL NULL cannot
-        // be re-expressed (restored as an explicit JSON null), and the
-        // nullable flags coerce payload null → 0/false at apply time — so a
-        // NULL prior flag restores as false (the "cleared" value the UI
-        // itself can only ever write).
-        const value = prior[field as keyof UndoBindingSnapshot];
-        if (field === "defaultValue" && value === undefined) restore[field] = null;
-        else if (field === "required" && value === null) {
-          restore[field] = false;
-        } else {
-          restore[field] = value;
-        }
+        restore[field] = prior[field as keyof UndoBindingSnapshot];
       }
       return [{ opType: "class.property.set", payload: restore, affected: [classId] }];
     }
@@ -479,13 +464,10 @@ export function invertEnvelope(
       if (classId === null || propertySchemaId === null) return null;
       const prior = capture.classBinding(classId, propertySchemaId);
       if (prior === null) return null; // nothing bound — no-op
-      const nullableFlag = (value: boolean | null): boolean | null => value ?? false;
       const payload: Record<string, unknown> = {
         classId,
         propertySchemaId,
         sequence: prior.sequence,
-        required: nullableFlag(prior.required),
-        defaultValue: prior.defaultValue === undefined ? null : prior.defaultValue,
         active: prior.active,
       };
       return [{ opType: "class.property.set", payload, affected: [classId] }];
@@ -525,6 +507,7 @@ export function invertEnvelope(
       if (hasOwn(p, "targetClassFilter")) restore.targetClassFilter = prior.targetClassFilter;
       if (hasOwn(p, "multi")) restore.multi = prior.multi;
       if (hasOwn(p, "validationRules")) restore.validationRules = prior.validationRules;
+      if (hasOwn(p, "defaultValue")) restore.defaultValue = prior.defaultValue;
       if (Object.keys(restore).length === 1) return null;
       return [{ opType: "propertySchema.update", payload: restore, affected: [] }];
     }

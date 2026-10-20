@@ -100,22 +100,18 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
     classBinding: (classId, propertySchemaId) => {
       const row = db()
         .prepare(
-          `SELECT sequence, required, default_value, active
+          `SELECT sequence, active
            FROM class_property WHERE class_id = ? AND property_schema_id = ?`,
         )
         .get(classId, propertySchemaId) as
         | {
             sequence: number;
-            required: number | null;
-            default_value: string | null;
             active: number;
           }
         | undefined;
       if (row === undefined) return null;
       return {
         sequence: row.sequence,
-        required: nullableBool(row.required),
-        defaultValue: row.default_value === null ? undefined : parseJson(row.default_value),
         active: row.active !== 0,
       };
     },
@@ -131,7 +127,7 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
       const row = db()
         .prepare(
           `SELECT name, type, multi, icon, scope_class_ids, validation_rules, options, target_class_filter, date_precision, date_qualified,
-                  display, readonly, hide_when_empty
+                  display, readonly, hide_when_empty, default_value
            FROM property_schema WHERE id = ?`,
         )
         .get(propertySchemaId) as
@@ -149,6 +145,7 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
             display: string | null;
             readonly: number | null;
             hide_when_empty: number | null;
+            default_value: string | null;
           }
         | undefined;
       if (row === undefined) return null;
@@ -179,6 +176,7 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
         display: row.display === "bullet" || row.display === "inline" ? row.display : null,
         readonly: nullableBool(row.readonly),
         hideWhenEmpty: nullableBool(row.hide_when_empty),
+        defaultValue: row.default_value === null ? null : parseJson(row.default_value),
       };
     },
     assetSnapshot: (objectId, assetId) => {

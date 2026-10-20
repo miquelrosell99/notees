@@ -13,14 +13,14 @@
  *  - targetClassFilter class multi-pick (object/asset/datetime);
  *  - scope control (global default / "local to classes" — the sole locality
  *    authority);
- *  - default value — ONLY in class context (contextClassId given): defaults
- *    are binding-level (the v2 correction over v1), so the field writes the
- *    class binding after the create; elsewhere the field is omitted and the
- *    caller decides the follow-up via onCreated.
+ *  - default value — the schema's GLOBAL default (*    one default per property, the Logseq shape — the default rides the
+ *    propertySchema.create payload itself, never a class binding; shown for
+ *    default-capable types only, text/number/boolean/select);
  *
  * Emits client.createPropertySchema ONCE, on confirm. In class context the
- * create is followed by setClassProperty(classId, id, { sequence, … }) and
- * the optional binding defaultValue write. Footer: Cancel / Create Property.
+ * create is followed by setClassProperty(classId, id, { sequence }) — the
+ * binding is sequence-only (the default/required binding fields retired or
+ * moved). Footer: Cancel / Create Property.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -183,19 +183,18 @@ export function PropertyCreateModal({
         if (datePrecision !== "day") payload.datePrecision = datePrecision;
         if (dateQualified) payload.dateQualified = true;
       }
+      // The GLOBAL default rides the create payload itself.
+      if (defaultValue !== null && defaultValue !== "" && defaultCapable(type)) {
+        payload.defaultValue = coerceDefault(type, defaultValue, options);
+      }
       const schemaId = await client.createPropertySchema(payload);
       if (contextClassId !== undefined) {
-        // Class context: bind the schema to the class, then the optional
-        // binding-level default (the v2 correction — defaults are binding
-        // configuration, never schema fields).
+        // Class context: bind the schema to the class — the binding is
+        // sequence-only (the default/required binding fields retired or
+        // moved to the schema).
         const bindings = client.getClassBindings(contextClassId);
         await client.setClassProperty(contextClassId, schemaId, {
           sequence: bindings.length,
-          ...(defaultValue !== null &&
-          defaultValue !== "" &&
-          defaultCapable(type)
-            ? { defaultValue: coerceDefault(type, defaultValue, options) }
-            : {}),
         });
       }
       onCreated?.(schemaId, type);
@@ -412,9 +411,9 @@ export function PropertyCreateModal({
           </p>
         )}
 
-        {/* Default value — class context only (defaults are binding-level). */}
-        {contextClassId !== undefined && defaultCapable(type) && (
-          <PropertyField label="Default value for new members (optional)">
+        {/* The GLOBAL default — schema-level since; default-capable types only. */}
+        {defaultCapable(type) && (
+          <PropertyField label="Default value (optional)">
             {type === "boolean" ? (
               <SelectionButton
                 size="sm"

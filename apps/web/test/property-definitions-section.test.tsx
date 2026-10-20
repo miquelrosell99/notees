@@ -1,12 +1,11 @@
 /**
  * S6 section-level tests (PropertyDefinitionsSection, rendered directly):
  * the add popover's class-context eligibility (R1/R2 — global + schemas
- * scoped to this class or its extends-ancestors), the config panel's
- * class-level-only scope (ruling R7 + the same-day amendment —
- * identity header + the type-gated default value (* no default editor for node-typed schemas) + Required, the row's COG as
- * the path
- * to the S2 modal where target-class editing and the unresolved-targets
- * hint live; no group labels, no active switch, no "Edit definition…"), the
+ * scoped to this class or its extends-ancestors), the list-only surface
+ * (the class-level inline editor is gone — the
+ * identity-only row click opens the S2 modal, where the schema-level default
+ * (type-gated, no editor for node-typed schemas) + target-class editing and
+ * the unresolved-targets hint live; no chevron, no cog, no Required), the
  * system-schema remove lock, and the keyboard-navigable popover. jsdom
  * over the in-process WorkspaceClient.
  */
@@ -150,11 +149,10 @@ describe("S6 PropertyDefinitionsSection", () => {
     renderSection(client, classId);
     await expandSection();
 
-    fireEvent.click(screen.getByRole("button", { name: "Configure link" }));
-    // R7: target-class editing left the inline panel — the row's COG opens
-    // the S2 modal directly, whose Target classes field writes
+    // The whole row opens the S2 modal directly (the inline panel is gone —
+    //); its Target classes field writes
     // update {targetClassFilter}.
-    fireEvent.click(screen.getByRole("button", { name: "Definition settings for link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open property link" }));
     const dialog = screen.getByRole("dialog");
     // The ClassMultiPickField's SelectTrigger adds the class.
     fireEvent.click(within(dialog).getByRole("button", { name: "Target classes" }));
@@ -183,46 +181,38 @@ describe("S6 PropertyDefinitionsSection", () => {
     renderSection(client, classId);
     await expandSection();
 
-    fireEvent.click(screen.getByRole("button", { name: "Configure link" }));
-    fireEvent.click(screen.getByRole("button", { name: "Definition settings for link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open property link" }));
     const dialog = screen.getByRole("dialog");
     expect(
       within(dialog).getByText(`Unresolved targets (kept until edited): ${GHOST}`),
     ).not.toBeNull();
   });
 
-  it("keeps the expanded panel class-level only (R7)", async () => {
+  it("the row is the whole surface: click opens the definition modal; no inline editor", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "A");
     const schemaId = await client.createPropertySchema({ name: "link", type: "object" });
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
-    const { container } = renderSection(client, classId);
+    renderSection(client, classId);
     await expandSection();
 
-    fireEvent.click(screen.getByRole("button", { name: "Configure link" }));
-    await flushWrites();
-    const row = container.querySelector(".nt-propdef") as HTMLElement;
-    // Stays (class-level, the only inline fields): Required, plus the
-    // default editor for default-capable types — "link" is object-typed, so
-    // gives it NO default editor at all.
-    // The definition path is the row's COG; removal is the row's hover × —
-    // neither lives in the panel (owner amendment).
+    const row = screen.getByRole("button", { name: "Open property link" });
+    // Identity-only row: no chevron/expansion, no cog, no inline fields.
     expect(within(row).queryByLabelText("Default for link")).toBeNull();
-    expect(within(row).getByRole("checkbox", { name: "Required" })).not.toBeNull();
-    expect(within(row).getByRole("button", { name: "Remove link from class" })).not.toBeNull();
-    expect(within(row).getByRole("button", { name: "Definition settings for link" })).not.toBeNull();
-    // Gone: group labels, the active switch, the panel's modal path, the
-    // panel footer (Remove left for the row's ×).
-    expect(within(row).queryByText("For this class")).toBeNull();
-    expect(within(row).queryByRole("switch")).toBeNull();
-    expect(within(row).queryByRole("button", { name: "Edit definition…" })).toBeNull();
-    expect(within(row).queryByRole("button", { name: "Remove from class" })).toBeNull();
-    // Gone (definition-level, the modal's home): rename, type/Convert,
-    // multi/Values, target classes.
-    expect(within(row).queryByText("Definition")).toBeNull();
-    expect(within(row).queryByText("Target classes")).toBeNull();
-    expect(within(row).queryByRole("button", { name: "Convert…" })).toBeNull();
-    expect(within(row).queryByLabelText("Property name")).toBeNull();
+    expect(within(row).queryByLabelText("Default value")).toBeNull();
+    expect(within(row).queryByRole("checkbox", { name: "Required" })).toBeNull();
+    expect(within(row).queryByRole("button", { name: "Definition settings for link" })).toBeNull();
+    // Removal is the row's hover ×.
+    const item = row.closest(".nt-propdef") as HTMLElement;
+    expect(within(item).getByRole("button", { name: "Remove link from class" })).not.toBeNull();
+
+    // The click opens the S2 definition modal (object-typed → no default
+    // editor there either).
+    fireEvent.click(row);
+    await flushWrites();
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Property settings" })).not.toBeNull();
+    expect(within(dialog).queryByLabelText("Default value")).toBeNull();
   });
 
   it("hides Remove from class for system property schemas", async () => {
@@ -242,8 +232,7 @@ describe("S6 PropertyDefinitionsSection", () => {
     renderSection(client, classId);
     await expandSection();
 
-    fireEvent.click(screen.getByRole("button", { name: "Configure Aliases" }));
-    // Neither the panel footer action nor the row's hover × exists.
+    // Neither a panel footer action nor the row's hover × exists.
     expect(screen.queryByRole("button", { name: "Remove from class" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Remove Aliases from class" })).toBeNull();
     expect(screen.queryByText(/System properties stay/)).toBeNull();

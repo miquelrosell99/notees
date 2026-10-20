@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { type DatePrecision } from "@notees/domain";
 
@@ -16,9 +16,11 @@ import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
 import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
 import { PropertyConvertModal } from "./PropertyConvertModal.js";
 import { PropertyDeleteModal } from "./PropertyDeleteModal.js";
+import { DefaultValueEditor } from "./DefaultValueEditor.js";
 import { PropertyOptionsEditor } from "./PropertyOptionsEditor.js";
 import { PropertyScopeControl } from "./PropertyScopeControl.js";
 import { ClassMultiPickField, PropertyField } from "./ClassMultiPickField.js";
+import { defaultCapable, ensureSeedSchemaRow } from "./shared.js";
 import type { AnyClient } from "./shared.js";
 
 /**
@@ -39,6 +41,10 @@ import type { AnyClient } from "./shared.js";
  *    no workspace deployed yet);
  *  - scope control (update {scopeClassIds}, null = global — the sole
  *    locality authority, R1);
+ *  - the GLOBAL default value (moved from the
+ *    class binding to the schema, the Logseq shape; text/number/boolean/
+ *    select get the type-aware DefaultValueEditor, node-typed and the
+ *    remaining types get no default editor at all);
  *  - number formats (pad/decimals/rounding, display-only);
  *  - date precision (datetime) + dateQualified (datetime AND object links —
  *    the class-page panel's object-type "Date qualified" moved here, R7);
@@ -77,6 +83,17 @@ export function PropertySettingsModal({
    *  the wire — the empty list is rejected); the write lands on the first
    *  pick. Flipping off writes null (global) immediately. */
   const [scopeLocal, setScopeLocal] = useState(schema?.scopeClassIds !== null);
+  // A MISSING system schema row (a workspace riding the read-synthesized
+  // seed-spec fallback — pre-seed era or a synthetic test workspace): the
+  // modal edits the ROW, so the seed self-heal authors it idempotently at
+  // the reserved id before the editor mounts (writes against a missing row
+  // would no-op). Non-system ids render nothing, same as before.
+  const [healRequested, setHealRequested] = useState(false);
+  useEffect(() => {
+    if (schema !== undefined || healRequested) return;
+    setHealRequested(true);
+    void ensureSeedSchemaRow(client, propertySchemaId);
+  }, [schema, healRequested, client, propertySchemaId]);
   if (schema === undefined) return null;
 
   const patch = (fields: Parameters<AnyClient["updatePropertySchema"]>[1]) =>
@@ -225,6 +242,23 @@ export function PropertySettingsModal({
             aria-label="Hide when empty"
           />
         </PropertyField>
+
+        {/* The GLOBAL default value: one default
+            per property, typed per the schema type; node-typed and the
+            remaining non-capable types get no editor at all. */}
+        {defaultCapable(schema.type) && (
+          <PropertyField label="Default value">
+            <DefaultValueEditor
+              id={schema.id}
+              type={schema.type}
+              value={schema.defaultValue}
+              options={schema.options}
+              ariaLabel="Default value"
+              inputClass="nt-property-settings__input"
+              onPatch={(value) => patch({ defaultValue: value })}
+            />
+          </PropertyField>
+        )}
 
         {/* Validation rules (v1 parity): min/max on number,
             pattern on text/url/email — the regex must compile first. */}

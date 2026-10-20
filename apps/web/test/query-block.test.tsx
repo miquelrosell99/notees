@@ -439,7 +439,8 @@ describe("query block (live query token)", () => {
     const client = await seedClient();
     const { city, london } = await seedWorld(client);
     const rating = await client.createPropertySchema({ name: "rating", type: "number" });
-    await client.setClassProperty(city, rating, { defaultValue: 1 });
+    await client.setClassProperty(city, rating, { sequence: 0 });
+    await client.updatePropertySchema(rating, { defaultValue: 1 });
     await client.setProperty(london, rating, 5);
 
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
