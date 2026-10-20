@@ -75,7 +75,7 @@ function attachmentsWorld(): Store {
         name: "Attachments",
         type: "object",
         multi: true,
-        scope: "class",
+        scopeClassIds: [SOURCE_CLASS],
         targetClassFilter: [ASSET_CLASS],
       },
       1001,
@@ -85,7 +85,8 @@ function attachmentsWorld(): Store {
       { classId: SOURCE_CLASS, propertySchemaId: ATTACHMENTS_SCHEMA_ID, sequence: 0 },
       1002,
     ),
-    env("object.create", { objectId: PAGE, isEmbedded: false }, 1003),
+    // The page carries the source class: the scoped schema requires it (R3).
+    env("object.create", { objectId: PAGE, isEmbedded: false, classIds: [SOURCE_CLASS] }, 1003),
     env("object.create", { objectId: ASSET_NODE, isEmbedded: false, classIds: [ASSET_CLASS] }, 1004),
     env(
       "property.set",
@@ -132,7 +133,7 @@ describe("migrate-attachments-asset-type", () => {
 
     const row = store.database
       .prepare(
-        "SELECT name, type, multi, scope, target_class_filter, display FROM property_schema WHERE id = ?",
+        "SELECT name, type, multi, scope_class_ids, target_class_filter, display FROM property_schema WHERE id = ?",
       )
       .get(ATTACHMENTS_SCHEMA_ID) as Record<string, unknown>;
     expect(row).toMatchObject({

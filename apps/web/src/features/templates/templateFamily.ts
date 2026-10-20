@@ -81,7 +81,7 @@ export async function ensureTemplateProperty(client: AnyClient): Promise<void> {
     name: SYSTEM_PROPERTY_DISPLAY_NAMES.hasTemplate,
     type: "object",
     multi: true,
-    scope: "global",
+    // Global (M47): absent scopeClassIds = any node may carry it.
     targetClassFilter: [SYSTEM_CLASS_UUIDS.template],
   });
 }
@@ -151,8 +151,9 @@ export function generatedFromPropertyPresent(
 /**
  * Author the generated-from schema when missing (idempotent — safe on every
  * instantiation). Single node-typed value targeting the template class;
- * scope "object" — never class-bound, so no class.property.set row exists
- * anywhere for it.
+ * global — never class-bound, so no class.property.set row exists anywhere
+ * for it (the retired "object" scope had no consumer; node-locked locality
+ * is not expressible as class ids).
  */
 export async function ensureGeneratedFromProperty(client: AnyClient): Promise<void> {
   if (generatedFromPropertyPresent(client)) return;
@@ -161,7 +162,6 @@ export async function ensureGeneratedFromProperty(client: AnyClient): Promise<vo
     name: SYSTEM_PROPERTY_DISPLAY_NAMES.generatedFrom,
     type: "object",
     multi: false,
-    scope: "object",
     targetClassFilter: [SYSTEM_CLASS_UUIDS.template],
   });
 }

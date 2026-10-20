@@ -174,7 +174,8 @@ async function ensureFamilySchemas(
       id: spec.id,
       name: spec.name,
       type: spec.type,
-      scope: "class",
+      // Scoped to the family class (the sole locality authority) — the binding below lands on the same class.
+      scopeClassIds: [classId],
       ...(spec.targetClassFilter !== undefined
         ? { targetClassFilter: spec.targetClassFilter }
         : {}),
@@ -254,8 +255,16 @@ export async function ensureBirthdayFamily(surface: MeetingFamilySurface): Promi
     });
   }
   await ensureFamilySchemas(surface, BIRTHDAY_CLASS_ID, BIRTHDAY_FAMILY);
+  const parents = await surface.getClassParents(BIRTHDAY_CLASS_ID);
+  if (!parents.includes(EVENT_CLASS_ID)) {
+    await surface.setClassExtends(BIRTHDAY_CLASS_ID, [EVENT_CLASS_ID]);
+  }
   // The chip-eligibility row: eventDate re-bound on birthday, sequence 0
   // exactly as the server seed emits it (SYSTEM_EXTRA_CLASS_BINDINGS).
+  // The binding lands AFTER the extends edge: eventDate is scoped to event
+  // (the sole locality authority) and R5 rejects a
+  // binding whose class cannot reach the scope — only the edge makes
+  // birthday eligible.
   const bound = new Set(
     (await surface.getClassBindings(BIRTHDAY_CLASS_ID)).map(
       (binding) => binding.propertySchemaId,
@@ -265,9 +274,5 @@ export async function ensureBirthdayFamily(surface: MeetingFamilySurface): Promi
     await surface.setClassProperty(BIRTHDAY_CLASS_ID, SYSTEM_PROPERTY_UUIDS.eventDate, {
       sequence: 0,
     });
-  }
-  const parents = await surface.getClassParents(BIRTHDAY_CLASS_ID);
-  if (!parents.includes(EVENT_CLASS_ID)) {
-    await surface.setClassExtends(BIRTHDAY_CLASS_ID, [EVENT_CLASS_ID]);
   }
 }

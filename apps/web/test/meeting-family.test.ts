@@ -100,7 +100,7 @@ function classSeedEnvelopes(
           name: spec.name,
           type: spec.type,
           multi: false,
-          scope: "class",
+          scopeClassIds: [classId],
           ...(spec.targetClassFilter !== undefined
             ? { targetClassFilter: spec.targetClassFilter }
             : {}),
@@ -171,7 +171,7 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.eventDate)).toMatchObject({
       name: "Event date",
       type: "datetime",
-      scope: "class",
+      scopeClassIds: [EVENT_CLASS_ID],
     });
     expect(client.getClassBindings(EVENT_CLASS_ID).map((binding) => binding.propertySchemaId)).toEqual(
       [SYSTEM_PROPERTY_UUIDS.eventDate],
@@ -184,7 +184,7 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.meetingDate)).toMatchObject({
       name: "Meeting date",
       type: "datetime",
-      scope: "class",
+      scopeClassIds: [MEETING_CLASS_ID],
     });
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.location)).toMatchObject({
       name: "Location",
@@ -263,7 +263,7 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
       id: SYSTEM_PROPERTY_UUIDS.meetingDate,
       name: "When",
       type: "datetime",
-      scope: "class",
+      scopeClassIds: [MEETING_CLASS_ID],
     });
     await client.setClassProperty(MEETING_CLASS_ID, SYSTEM_PROPERTY_UUIDS.meetingDate, {});
 
@@ -352,7 +352,7 @@ describe("ensureBirthdayFamily (birthday extends event, for persons)", () => {
     const schema = client
       .listPropertySchemas()
       .find((entry) => entry.id === SYSTEM_PROPERTY_UUIDS.birthdayPerson);
-    expect(schema).toMatchObject({ name: "Birthday person", type: "object", scope: "class" });
+    expect(schema).toMatchObject({ name: "Birthday person", type: "object", scopeClassIds: [BIRTHDAY_CLASS_ID] });
     expect(schema?.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.person]);
     // …its binding, the eventDate chip-eligibility row, and the edge.
     const bound = client

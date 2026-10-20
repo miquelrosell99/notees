@@ -566,13 +566,16 @@ describe("weblink extends source — inherited bindings + own-first resolution",
       id: SYSTEM_PROPERTY_UUIDS.doi,
       name: "DOI",
       type: "text",
-      scope: "class",
+      scopeClassIds: [SYSTEM_CLASS_UUIDS.source],
     });
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.url,
       name: "URL",
       type: "url",
-      scope: "class",
+      // Global (no scopeClassIds): this scenario sharpens the seeded reality
+      // by binding url on BOTH classes — under the scope law a weblink-scoped url would make source's row dead config
+      // (R5 rejects it), and the own-first resolution rule under test is
+      // orthogonal to locality.
     });
     await client.setClassProperty(SYSTEM_CLASS_UUIDS.source, SYSTEM_PROPERTY_UUIDS.doi, {
       sequence: 0,

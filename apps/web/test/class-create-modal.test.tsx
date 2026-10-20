@@ -170,7 +170,7 @@ describe("weblink→source extension heal (existing workspaces)", () => {
       id: SYSTEM_PROPERTY_UUIDS.url,
       name: "URL",
       type: "url",
-      scope: "class",
+      scopeClassIds: [SYSTEM_CLASS_UUIDS.weblink],
     });
     await client.setClassProperty(SYSTEM_CLASS_UUIDS.weblink, SYSTEM_PROPERTY_UUIDS.url, {
       sequence: 0,

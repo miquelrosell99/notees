@@ -107,7 +107,10 @@ export function PropertyView({
       <div className="modal__content">
         <p className="nt-property-view__type">
           {schema.type}
-          {schema.multi ? " · multi" : ""} · {schema.scope}
+          {schema.multi ? " · multi" : ""} ·{" "}
+          {schema.scopeClassIds === null
+            ? "global"
+            : `local to ${schema.scopeClassIds.length} class${schema.scopeClassIds.length === 1 ? "" : "es"}`}
         </p>
         {schema.type === "datetime" && (
           <p className="nt-property-view__meta">

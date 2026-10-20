@@ -130,7 +130,7 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
     schemaSnapshot: (propertySchemaId) => {
       const row = db()
         .prepare(
-          `SELECT name, type, multi, scope, options, target_class_filter, date_precision, date_qualified,
+          `SELECT name, type, multi, icon, scope_class_ids, validation_rules, options, target_class_filter, date_precision, date_qualified,
                   display, readonly, hide_when_empty
            FROM property_schema WHERE id = ?`,
         )
@@ -139,7 +139,9 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
             name: string;
             type: string;
             multi: number;
-            scope: string;
+            icon: string | null;
+            scope_class_ids: string | null;
+            validation_rules: string | null;
             options: string;
             target_class_filter: string | null;
             date_precision: string | null;
@@ -155,7 +157,19 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
         name: row.name,
         type: row.type,
         multi: row.multi === 1,
-        scope: row.scope,
+        icon: row.icon,
+        scopeClassIds: (() => {
+          const parsed = parseJson(row.scope_class_ids);
+          return Array.isArray(parsed)
+            ? parsed.filter((v): v is string => typeof v === "string")
+            : null;
+        })(),
+        validationRules: (() => {
+          const parsed = parseJson(row.validation_rules);
+          return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+            ? (parsed as { min?: number; max?: number; pattern?: string })
+            : null;
+        })(),
         options: parseJson(row.options),
         targetClassFilter: Array.isArray(filter)
           ? filter.filter((v): v is string => typeof v === "string")

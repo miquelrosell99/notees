@@ -88,19 +88,19 @@ async function shapePreRulingMeetingWorkspace(client: WorkspaceClient): Promise<
     id: SYSTEM_PROPERTY_UUIDS.meetingDate,
     name: "Meeting date",
     type: "datetime",
-    scope: "class",
+    scopeClassIds: [MEETING_CLASS_ID],
   });
   await client.createPropertySchema({
     id: SYSTEM_PROPERTY_UUIDS.location,
     name: "Location",
     type: "text",
-    scope: "class",
+    scopeClassIds: [MEETING_CLASS_ID],
   });
   await client.createPropertySchema({
     id: SYSTEM_PROPERTY_UUIDS.agenda,
     name: "Agenda",
     type: "text",
-    scope: "class",
+    scopeClassIds: [MEETING_CLASS_ID],
   });
   await flushSync();
 }
@@ -214,7 +214,7 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
       id: SYSTEM_PROPERTY_UUIDS.eventDate,
       name: "Event date",
       type: "datetime",
-      scope: "class",
+      scopeClassIds: [EVENT_CLASS_ID],
     });
     await flushSync();
 

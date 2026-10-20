@@ -83,7 +83,7 @@ function seedRelay(): MemoryRelay {
         name: "attachments",
         type: "asset",
         multi: true,
-        scope: "class",
+        scopeClassIds: [SOURCE_CLASS],
       },
       [],
     ),

@@ -162,7 +162,8 @@ export async function ensureTaskFamily(client: TaskFamilyClient): Promise<void> 
           id: spec.id,
           name: spec.name,
           type: spec.type,
-          scope: "class",
+          // Scoped to the task class (the sole locality authority) — the bindings below land on the same class.
+          scopeClassIds: [SYSTEM_CLASS_UUIDS.task],
           ...(options !== undefined ? { options } : {}),
         });
       }
