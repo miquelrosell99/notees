@@ -492,7 +492,7 @@ function verify(relay: RelayStorage, workspaceId: string, planned: PlannedRewrit
       if (row === undefined) continue; // schema deleted later in the log
       const expected = p.scopeClassIds;
       const actual = row.scope_class_ids === null ? null : (JSON.parse(row.scope_class_ids) as string[]);
-      if (JSON.stringify(actual?.slice().sort()) !== JSON.stringify(expected?.slice().sort() ?? null)) {
+      if (JSON.stringify(actual?.slice().sort() ?? null) !== JSON.stringify(expected?.slice().sort() ?? null)) {
         throw new Error(
           `verification failed: schema ${schemaId} scope_class_ids = ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`,
         );
