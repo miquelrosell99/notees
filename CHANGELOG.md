@@ -8,6 +8,22 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **feat(web): the focused block view hosts the edit thread — from the
+  focused block down to the editing child.** in
+  the focused view (the bullet-zoom `rendersAsInlineBlock` branch of
+  NodeView) no thread showed for edits at the first children level. Two
+  gaps: the focused view renders `ReferenceSubtree` outside PageView, so
+  no EditThread provider/overlay existed there at all, and the ancestor
+  walk stopped at `parentId === rootId` — in the focused view the root IS
+  a block row (a real bullet, per the zoom grammar), so a direct-child
+  edit produced a one-point chain. NodeView now wraps the focused-block
+  wrapper in the provider + overlay (the wrapper is the host). The walk
+  includes the view root when its row renders a measurable bullet — the
+  page view keeps the old behavior (the page title row owns no bullet, so
+  body edits still stop at the top-level block, and a top-level edit
+  shows no thread). Probe: step 10 zooms into A, edits a child, and
+  asserts the thread starts at the focused block's bullet and ends before
+  the child's icon. Docs: NodeView/ReferenceSubtree/EditThread headers.
 
 - **fix(web): the SPA stops serving stale app versions after a redeploy —
   index.html is never cached, hashed assets are immutable.** 

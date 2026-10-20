@@ -90,21 +90,39 @@ const RADIUS = 5;
 const MAX_CHAIN = 1000;
 
 /**
- * Resolve the editing block ancestor chain, editing-first: the walk
- * stops at the page root (a top-level block), a parentless node, a
- * standalone (non-embedded) parent — the page body never renders inside
- * the tree — or a missing read.
+ * Resolve the editing block ancestor chain, editing-first. The walk stops
+ * at a parentless node, a standalone (non-embedded) parent — the page body
+ * never renders inside the tree — a missing read, or the VIEW ROOT. The
+ * root itself becomes the chain top ONLY when it renders a measurable
+ * bullet: in the page body the root is the page title row (bullet-less),
+ * so a nested edit threads up to the top-level block, while in the
+ * FOCUSED BLOCK VIEW the root is the focused block row (a real BlockRow
+ * with a bullet) — there the thread runs from the focused block down to
+ * the editing child (the focused view showed no thread
+ * to the first children level). The host lookup decides which is which.
  */
-function chainOf(client: WorkspaceClient | WorkerClient, rootId: string, editingId: string): string[] {
+function chainOf(
+  client: WorkspaceClient | WorkerClient,
+  host: HTMLElement,
+  rootId: string,
+  editingId: string,
+): string[] {
   const chain: string[] = [];
   let id: string | null = editingId;
   while (id !== null && chain.length < MAX_CHAIN) {
     chain.push(id);
     const node: ClientNode | undefined = client.getNode(id);
     if (node === undefined) break;
-    if (node.parentId === null || node.parentId === rootId) break;
+    if (node.parentId === null) break;
     const parent = client.getNode(node.parentId);
     if (parent === undefined || parent.isEmbedded === false) break;
+    if (node.parentId === rootId) {
+      const rootEl = host.querySelector(`[data-block-id="${rootId}"]`);
+      const bullet = rootEl?.querySelector(":scope > .nt-block-row .nt-bullet");
+      if (rootEl === null || rootEl === undefined || bullet === null) break;
+      chain.push(rootId);
+      break;
+    }
     id = node.parentId;
   }
   return chain;
@@ -260,7 +278,7 @@ export function EditThreadOverlay({
     let raf = 0;
     const update = () => {
       raf = 0;
-      const points = measureChain(host, chainOf(client, rootId, editingId));
+      const points = measureChain(host, chainOf(client, host, rootId, editingId));
       const next = points === null ? null : threadPath(points);
       if (next !== pathRef.current) setPath(next);
     };
