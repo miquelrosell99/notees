@@ -286,6 +286,7 @@ export function PageHeaderChrome({
             {headerIcon === null && (
               <AddPill
                 label="Add icon"
+                icon="mdi mdi-shape-plus-outline"
                 onClick={(element) =>
                   setIconPickerAnchor((anchor) =>
                     anchor === null ? element : null,
@@ -296,12 +297,14 @@ export function PageHeaderChrome({
             {description === null && (
               <AddPill
                 label="Add description"
+                icon="mdi mdi-text-short"
                 onClick={() => setDescriptionEditing(true)}
               />
             )}
             {!hasAliases && (
               <AddPill
                 label="Add aliases"
+                icon="mdi mdi-link-variant-plus"
                 ref={aliasButtonRef}
                 aria-expanded={aliasPickerOpen}
                 onClick={() => setAliasPickerOpen(true)}

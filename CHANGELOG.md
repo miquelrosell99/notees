@@ -9,6 +9,16 @@ predating this file.
 
 ## 2026-10-20
 
+- **feat(web): the page-header action row's pills carry per-action icons
+  instead of the generic "+".** Owner 2026-10-20. The Capacities action row
+  ("Add icon" / "Add description" / "Add aliases") rendered the same `+`
+  glyph for every action; each now gets a specific leading icon — a shape-plus
+  for the icon+color picker entry, a short-text line for the description
+  editor, a link-plus for the alias picker (all verified against the
+  `mdi-sprite.svg` sheet). The `AddPill` primitive grows an optional `icon`
+  prop (defaults to `+`, so the metadata-panel pills are untouched).
+  `AddPill.tsx` + `PageChrome.tsx` only; `apps/web` typecheck + 1810 tests
+  green.
 - **feat(web): the single-value property cell's chrome is hover-revealed —
   navigate button, dropdown chevron, and × clear.** Owner 2026-10-20,
   the panel half of the pinned-button idiom: at rest the
