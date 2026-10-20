@@ -44,13 +44,13 @@ import { EmptyState } from "../../components/ui/fleet/index.js";
 import { Icon } from "../../ui/Icon.js";
 import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
-import { useCardLayoutPreference } from "../../ui/viewPrefs.js";
+import { useCoverLayoutPreference } from "../../ui/viewPrefs.js";
 import { NodeCard, CoverLayoutToggle } from "./CardsView.js";
 import { useViewSelection, SelectionExportControls } from "./selectionExport.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
 import { useViewChromeTarget } from "./viewChrome.js";
-import type { AnyClient, CardLayout, NodeCollectionItem, NodeCollectionProps } from "./types.js";
+import type { AnyClient, CoverLayout, NodeCollectionItem, NodeCollectionProps } from "./types.js";
 import type { ViewSelection } from "./selectionExport.js";
 import "./CardsBoard.css";
 
@@ -120,7 +120,7 @@ function DraggableCard({
 }: {
   item: NodeCollectionItem;
   props: NodeCollectionProps;
-  coverLayout: CardLayout;
+  coverLayout: CoverLayout;
   selection?: { checked: boolean; onToggle: () => void } | undefined;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({
@@ -158,7 +158,7 @@ function BoardColumn({
   props: NodeCollectionProps;
   collapsed: boolean;
   onToggleCollapse: () => void;
-  coverLayout: CardLayout;
+  coverLayout: CoverLayout;
   /** Selection export: card checkboxes + the column's checked set. */
   selectable: boolean;
   selection: ViewSelection;
@@ -224,8 +224,10 @@ export function CardsBoard({ props }: { props: NodeCollectionProps }) {
   const [collapsedColumns, setCollapsedColumns] = useState<ReadonlySet<string>>(new Set());
   /** Within-column order overrides (session — see the persistence note). */
   const [columnOrder, setColumnOrder] = useState<ReadonlyMap<string, readonly string[]>>(new Map());
-  /** The cover layout persists device-locally — never an op. */
-  const [coverLayout, setCoverLayout] = useCardLayoutPreference("no-cover");
+  /** The cover layout persists device-locally — never an op. The board
+   *  rides no card-flow preference: its columns are the property groupBy,
+   *  not a visual layout. */
+  const [coverLayout, setCoverLayout] = useCoverLayoutPreference("no-cover");
   /** Selection export — the same affordance the table toolbar has. */
   const selection = useViewSelection();
   // Hosted collections: the toolbar portals into the tab bar's right-hand

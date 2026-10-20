@@ -26,7 +26,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { NodeCollection } from "../src/features/collection/index.js";
-import { writeCardLayoutPref } from "../src/ui/viewPrefs.js";
+import { writeCoverLayoutPref } from "../src/ui/viewPrefs.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000e1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000e2";
@@ -84,7 +84,7 @@ describe("card cover lazy loading", () => {
   it("renders placeholders without fetching; the viewport gate starts the fetch once", async () => {
     vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
     MockIntersectionObserver.instances = [];
-    writeCardLayoutPref("cover-top");
+    writeCoverLayoutPref("cover-top");
 
     const client = await seedClient();
     const assets: string[] = [];
@@ -122,7 +122,7 @@ describe("card cover lazy loading", () => {
   it("the loaded cover clicks open the lightbox (download + fullscreen + close)", async () => {
     vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
     MockIntersectionObserver.instances = [];
-    writeCardLayoutPref("cover-top");
+    writeCoverLayoutPref("cover-top");
     Object.defineProperty(document, "fullscreenEnabled", {
       value: true,
       configurable: true,
@@ -154,7 +154,7 @@ describe("card cover lazy loading", () => {
   });
 
   it("without IntersectionObserver (the jsdom default) the eager fallback loads immediately", async () => {
-    writeCardLayoutPref("cover-top");
+    writeCoverLayoutPref("cover-top");
     const client = await seedClient();
     const asset = await client.createObject({ isEmbedded: false, name: "eager.png" });
     await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
@@ -198,7 +198,7 @@ describe("card cover lazy loading", () => {
     expect(fetchUrl).not.toHaveBeenCalled();
 
     // A cover layout brings the cover back: placeholder, then the lazy img.
-    act(() => writeCardLayoutPref("cover-top"));
+    act(() => writeCoverLayoutPref("cover-top"));
     expect(container.querySelectorAll(".node-card__cover--pending").length).toBe(1);
     for (const instance of MockIntersectionObserver.instances) instance.trigger();
     await act(async () => {});

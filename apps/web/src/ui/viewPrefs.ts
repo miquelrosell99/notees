@@ -9,6 +9,9 @@
  *   - a class's classed-nodes mode     → `viewMode.classMembers.<classId>`
  *   - the card cover layout (one       → `cards.coverLayout` (one global
  *     global preference per device)      preference per device)
+ *   - the flat cards flow (stack /     → `cards.flow` (one global preference
+ *     grid / masonry; one global         per device; the board ignores it —
+ *     preference per device)             its columns are the property groupBy)
  *
  * Values are validated against the modes the surface currently offers, so a
  * stale or hand-edited localStorage entry can never select a mode the
@@ -23,10 +26,11 @@ import {
   useDeviceSetting,
   writeDeviceSetting,
 } from "../features/settings/deviceSettings.js";
-import type { CardLayout, ViewMode } from "../features/collection/types.js";
+import type { CardFlow, CoverLayout, ViewMode } from "../features/collection/types.js";
 
 const VIEW_MODES: readonly ViewMode[] = ["outline", "prose", "cards", "table"];
-const CARD_LAYOUTS: readonly CardLayout[] = ["no-cover", "cover-top", "cover-left", "cover-right"];
+const COVER_LAYOUTS: readonly CoverLayout[] = ["no-cover", "cover-top", "cover-left", "cover-right"];
+const CARD_FLOWS: readonly CardFlow[] = ["stack", "grid", "masonry"];
 
 function sanitizeViewMode(value: unknown, allowed: readonly ViewMode[]): ViewMode | null {
   if (typeof value !== "string") return null;
@@ -69,28 +73,43 @@ export function useViewModePreference(
 }
 
 /** The device's card cover layout (null when unset/invalid). */
-export function readCardLayoutPref(): CardLayout | null {
+export function readCoverLayoutPref(): CoverLayout | null {
   const value = readDeviceSetting<unknown>("cards.coverLayout", null);
-  return typeof value === "string" && (CARD_LAYOUTS as readonly string[]).includes(value)
-    ? (value as CardLayout)
+  return typeof value === "string" && (COVER_LAYOUTS as readonly string[]).includes(value)
+    ? (value as CoverLayout)
     : null;
 }
 
-export function writeCardLayoutPref(layout: CardLayout): void {
+export function writeCoverLayoutPref(layout: CoverLayout): void {
   writeDeviceSetting("cards.coverLayout", layout);
 }
 
 /**
- * useCardLayoutPreference — the cover-layout toggle's persisted state.
+ * useCoverLayoutPreference — the cover-layout toggle's persisted state.
  * `fallback` keeps today's default ("no-cover") explicit at the call sites.
  */
-export function useCardLayoutPreference(fallback: CardLayout = "no-cover"): [CardLayout, (layout: CardLayout) => void] {
+export function useCoverLayoutPreference(fallback: CoverLayout = "no-cover"): [CoverLayout, (layout: CoverLayout) => void] {
   const [stored, setStored] = useDeviceSetting<unknown>("cards.coverLayout", null);
   const layout =
-    typeof stored === "string" && (CARD_LAYOUTS as readonly string[]).includes(stored)
-      ? (stored as CardLayout)
+    typeof stored === "string" && (COVER_LAYOUTS as readonly string[]).includes(stored)
+      ? (stored as CoverLayout)
       : fallback;
   return [layout, (next) => setStored(next)];
+}
+
+/**
+ * useCardFlowPreference — the flat-cards flow toggle's persisted state
+ * (`cards.flow`, one global preference per device). `fallback` names the
+ * surface default for a device with no choice yet ("masonry" everywhere
+ * today — the recovered original adaptive masonry).
+ */
+export function useCardFlowPreference(fallback: CardFlow = "masonry"): [CardFlow, (flow: CardFlow) => void] {
+  const [stored, setStored] = useDeviceSetting<unknown>("cards.flow", null);
+  const flow =
+    typeof stored === "string" && (CARD_FLOWS as readonly string[]).includes(stored)
+      ? (stored as CardFlow)
+      : fallback;
+  return [flow, (next) => setStored(next)];
 }
 
 // --- Condensed layer (the stretchtext view transform) -------------------------
