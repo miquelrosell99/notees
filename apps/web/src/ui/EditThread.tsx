@@ -19,13 +19,20 @@
  * client (a parent_id walk that stops at the page root or a standalone
  * node), and measures each path bullet box. One path is built top-down:
  * start at the top block bullet center, run down its column, a quadratic
- * rounded turn (RADIUS) into each deeper bullet center, ending at the
+ * rounded turn (RADIUS) into each deeper bullet near edge, ending at the
  * editing block dot. The overlay carries z-index 1: ABOVE the tree chrome
  * (the resting rail is a positioned button — without the explicit layer
  * it would strike over the thread by DOM order) and BELOW the bullets
  * and the hover chevron (both carry z-index: 2), so the dots sit on the
  * line, and it is pointer-events: none — it never eats clicks (the rail
- * fold gesture underneath keeps working).
+ * fold gesture underneath keeps working). Each arm ends at the path
+ * bullet NEAR EDGE: under a dot, a few px BEFORE a class icon or list
+ * marker (owner 2026-10-20 — the arm struck through glyphs and read as
+ * an overlap); at an INTERMEDIATE glyph the path jogs back to the center
+ * column under the opaque icon (hidden behind it — icons paint above the
+ * overlay) and the next vertical descends from there. The ancestor path
+ * dots and icons recolor through CSS (`:has` — app.css "path bullets"),
+ * not here.
  * Recomputed on edit changes, store notifications, host resizes, and any
  * scroll (the bullets move with the scroller); a missing bullet (prose
  * hides them, cards mode, a not-rendered ancestor, a top-level edit)
@@ -71,14 +78,14 @@ export function useEditThread(): EditThreadContextValue | null {
 /** Rounded-corner radius at each level change (px — a hairline-adjacent
  *  constant, the stroke is the 2px accent hairline). */
 const RADIUS = 5;
-/** The walk's depth guard — a pathological parent chain can never hang the
+/** The walk depth guard — a pathological parent chain can never hang the
  *  overlay. */
 const MAX_CHAIN = 1000;
 
 /**
- * Resolve the editing block's ancestor chain, editing-first: the walk
+ * Resolve the editing block ancestor chain, editing-first: the walk
  * stops at the page root (a top-level block), a parentless node, a
- * standalone (non-embedded) parent — a page's body never renders inside
+ * standalone (non-embedded) parent — the page body never renders inside
  * the tree — or a missing read.
  */
 function chainOf(client: WorkspaceClient | WorkerClient, rootId: string, editingId: string): string[] {
@@ -96,47 +103,74 @@ function chainOf(client: WorkspaceClient | WorkerClient, rootId: string, editing
   return chain;
 }
 
+/** The gap left before a glyph (class icon / list marker) when a thread
+ *  arm ends at one (px — a breathing gap, not a measured dimension). */
+const GLYPH_GAP = 3;
+
+interface PathPoint {
+  /** The bullet CENTER column — verticals ride it. */
+  cx: number;
+  /** Where a horizontal ARM ends — the center for a dot bullet, a few px
+   *  before the glyph for icon/marker bullets (owner 2026-10-20: the arm
+   *  ended mid-glyph and looked like it struck through the icon). */
+  ex: number;
+  y: number;
+}
+
 /** Measure the path bullets (top-level ancestor first) in host-relative
  *  coordinates. Returns null when any link is not rendered with a visible
  *  bullet (prose, cards, a collapsed/out-of-tree ancestor) — no thread. */
 function measureChain(
   host: HTMLElement,
   chainEditingFirst: string[],
-): Array<{ x: number; y: number }> | null {
+): PathPoint[] | null {
   const hostRect = host.getBoundingClientRect();
-  const points: Array<{ x: number; y: number }> = [];
+  const points: PathPoint[] = [];
   for (let i = chainEditingFirst.length - 1; i >= 0; i -= 1) {
     const block = host.querySelector(`[data-block-id="${chainEditingFirst[i]}"]`);
     const bullet = block?.querySelector(":scope > .nt-block-row .nt-bullet");
     if (bullet === null || bullet === undefined) return null;
     const rect = bullet.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return null; // hidden (prose)
-    points.push({ x: rect.left + rect.width / 2 - hostRect.left, y: rect.top + rect.height / 2 - hostRect.top });
+    const cx = rect.left + rect.width / 2 - hostRect.left;
+    let ex = cx;
+    const glyph = bullet.querySelector(":scope .nt-bullet-icon, :scope .nt-list-marker");
+    if (glyph !== null) {
+      const glyphRect = glyph.getBoundingClientRect();
+      if (glyphRect.width > 0) ex = glyphRect.left - hostRect.left - GLYPH_GAP;
+    }
+    points.push({ cx, ex, y: rect.top + rect.height / 2 - hostRect.top });
   }
   return points.length >= 2 ? points : null;
 }
 
-/** The thread polyline: down each bullet's column, a rounded right turn at
- *  each level change, ending at the editing bullet's center. The turn into
- *  a bullet sits under that bullet's dot (the overlay paints behind the
- *  rows), so only the rounded ┌ turns between levels read. */
-function threadPath(points: Array<{ x: number; y: number }>): string {
-  let d = `M ${points[0]!.x} ${points[0]!.y}`;
+/** The thread polyline: down each bullet column, a rounded right turn at
+ *  each level change. An arm ends at each link near edge (its `ex`) —
+ *  under a dot, before a glyph. At an INTERMEDIATE link the path then jogs
+ *  back to the center column (`cx`) under the glyph — hidden behind the
+ *  opaque icon, which paints above the overlay — and the next vertical
+ *  descends from there. Only the rounded ┌ turns between levels read. */
+function threadPath(points: PathPoint[]): string {
+  let d = `M ${points[0]!.cx} ${points[0]!.y}`;
   for (let i = 1; i < points.length; i += 1) {
     const from = points[i - 1]!;
     const to = points[i]!;
     if (to.y - RADIUS <= from.y) {
       // Degenerate spacing — a plain join (never expected, safe anyway).
-      d += ` L ${to.x} ${to.y}`;
+      d += ` L ${to.ex} ${to.y}`;
       continue;
     }
-    d += ` L ${from.x} ${to.y - RADIUS} Q ${from.x} ${to.y} ${from.x + RADIUS} ${to.y} L ${to.x} ${to.y}`;
+    d += ` L ${from.cx} ${to.y - RADIUS} Q ${from.cx} ${to.y} ${from.cx + RADIUS} ${to.y} L ${to.ex} ${to.y}`;
+    if (i < points.length - 1) {
+      // Intermediate link: duck back under the glyph for the next vertical.
+      d += ` L ${to.cx} ${to.y}`;
+    }
   }
   return d;
 }
 
 /**
- * The overlay itself — mounted by the page's select surface (the host).
+ * The overlay itself — mounted by the page select surface (the host).
  * Recomputes the path on edit changes, store notifications, host resizes,
  * and any scroll, rAF-throttled.
  */

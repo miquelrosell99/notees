@@ -1016,15 +1016,15 @@ select:focus-visible {
 }
 
 /* Collapse chevron: hidden at rest (the resting trail stays clean — a
-   collapsed block's ring is the persistent state signal), revealed on
-   bullet/gutter hover (the hover effect lives on the bullet),
-   and while the row has FOCUS — the focus-within is ROW-scoped (owner
-   2026-10-20): an editing block nests inside its ancestors, so a
-   descendant `.nt-block:focus-within` matched the whole ancestor chain
-   and pinned every parent's chevron open. Only the row holding the
-   focused editor reveals. */
-.nt-block-grip:hover > .nt-block-chevron,
-.nt-block:focus-within > .nt-block-row:focus-within .nt-block-chevron {
+   collapsed block's ring is the persistent state signal) and revealed on
+   bullet/gutter hover ONLY (owner ruling 2026-10-20): no focus reveal of
+   any kind — an EDITING block shows no chevron until the pointer hovers
+   the grip, like every other block. (The earlier row-scoped focus-within
+   reveal — added the same day to stop the whole ancestor chain pinning
+   open — retired: the reveal itself is gone, so the chain cannot light.)
+   A collapsed block keeps its persistent chevron — that one is the
+   collapsed indicator, not a focus signal. */
+.nt-block-grip:hover > .nt-block-chevron {
   opacity: 1;
 }
 
@@ -1668,6 +1668,24 @@ select:focus-visible {
   pointer-events: none;
 }
 
+/* Path bullets (owner 2026-10-20): while a block edits, every ANCESTOR
+   bullet on the thread wears the accent at RESTING SIZE — the thread
+   reads THROUGH the dots, like the active one, but only the editing dot
+   grows (the scale is the engaged-row signal and stays its alone).
+   Class icons and list markers on the path echo the same way:
+   recolored, never scaled. The `:has` chain matches exactly the editing
+   block's ancestors — non-path rows stay muted. */
+.nt-block:has(.nt-block--editing) > .nt-block-row .nt-bullet-dot {
+  opacity: 1;
+  background-color: var(--md-sys-color-primary);
+}
+
+.nt-block:has(.nt-block--editing) > .nt-block-row .nt-bullet-icon,
+.nt-block:has(.nt-block--editing) > .nt-block-row .nt-list-marker {
+  opacity: 1;
+  color: var(--md-sys-color-primary);
+}
+
 /* --- child-blocks view toolbar (outline / prose / cards switcher) ----------- */
 
 .nt-blocks-bar {
@@ -1700,9 +1718,10 @@ select:focus-visible {
   opacity: 0;
 }
 
-/* Row-hover reveal (prose has no bullet to hover — the row is the surface). */
-.nt-prose .nt-block-row:hover .nt-block-chevron,
-.nt-prose .nt-block:focus-within > .nt-block-row:focus-within .nt-block-chevron {
+/* Row-hover reveal (prose has no bullet to hover — the row is the
+   surface). Focus reveal stays out (owner ruling 2026-10-20, same as
+   outline): hover only, editing blocks included. */
+.nt-prose .nt-block-row:hover .nt-block-chevron {
   opacity: 1;
 }
 

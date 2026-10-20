@@ -1,23 +1,28 @@
 // Edit-thread probe (the measured overlay, owner 2026-10-20 pass 3): while
 // a block is in edit mode, the page body draws ONE SVG polyline
-// (EditThread.tsx) from the top-level ancestor's bullet to the editing
-// block's bullet — down each bullet's column, a rounded right turn at each
-// level change — a SEPARATE overlay, never the tree's own indent rail
+// (EditThread.tsx) from the top-level ancestor bullet to the editing
+// block bullet — down each bullet column, a rounded right turn at each
+// level change — a SEPARATE overlay, never the tree own indent rail
 // highlighted:
 //   1. editing a3 (chain A → a2 → a3): the overlay exists with a 2-turn
 //      path; the stroke is the accent; the svg is pointer-events: none.
-//   2. the tree chrome is untouched: every rail rests (A's rail reads as
-//      C's), the grip pseudos grow nothing.
-//   3. geometry: the path starts at A's bullet center, ends at a3's, and
+//   2. the tree chrome is untouched: every rail rests (A rail reads as
+//      C rail), the grip pseudos grow nothing.
+//   3. geometry: the path starts at A bullet center, ends at a3, and
 //      x strictly increases per level.
-//   4. the ANCESTORS' chevrons stay hidden while a descendant edits (the
-//      focus-within reveal is row-scoped).
+//   4. the ANCESTOR chevrons stay hidden while a descendant edits, and the
+//      PATH DOTS wear the accent at resting size (the non-path sibling
+//      stays muted).
 //   5. the thread follows the caret: editing a top-level block draws
 //      nothing; editing a2b draws A → a2b (one turn).
-//   6. the overlay passes clicks through — the rail's fold still fires
+//   6. the overlay passes clicks through — the rail fold still fires
 //      beneath it.
-//   7. editing chrome stays on the editing row: the subtree dots don't
-//      accent (the descendant-selector bug stays fixed).
+//   7. editing chrome stays on the editing row: the subtree dots do not
+//      accent, and the editing block own chevron stays hidden (hover-only
+//      reveal).
+//   8. glyph bullets (class icons): the arms end BEFORE the icon — the
+//      editing target and an intermediate link — never strike through it;
+//      an intermediate glyph gets the hidden jog back to its column.
 // TEST workspace; cleans up after itself.
 import { chromium } from "playwright";
 
@@ -119,6 +124,10 @@ try {
         const d = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet-dot`);
         return d === null ? null : getComputedStyle(d).opacity;
       };
+      const dotBg = (bid) => {
+        const d = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet-dot`);
+        return d === null ? null : getComputedStyle(d).backgroundColor;
+      };
       const gripArms = (bid) => {
         const g = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-block-grip`);
         return { before: getComputedStyle(g, "::before").content, after: getComputedStyle(g, "::after").content };
@@ -150,6 +159,8 @@ try {
         dotA3: dotOpacity(a3id),
         dotA2b: dotOpacity(a2bid),
         dotB: dotOpacity(bid),
+        dotBgA2: dotBg(a2id),
+        dotBgA2b: dotBg(a2bid),
         centerA: center(aid),
         centerA2: center(a2id),
         centerA3: center(a3id),
@@ -192,6 +203,8 @@ try {
   expect(s.svg.zIndex === "1", "the overlay rides z-index 1 — above the rails (a positioned button), below the dots");
   expect(s.bulletZ === "2" && s.chevronZ === "2", "the bullets and the hover chevron paint above the thread");
   expect(s.chevronA === "0" && s.chevronA2 === "0", "the ancestors' chevrons stay hidden while a descendant edits");
+  expect(s.dotBgA2 === s.path.stroke && s.dotBgA2b !== s.path.stroke,
+    "the path dots wear the accent at resting size; the non-path sibling stays muted");
 
   // ── 5a. the caret follows: a top-level edit draws nothing ──
   await pg.click(`[data-block-id="${B}"] .nt-block-content`);
@@ -248,6 +261,46 @@ try {
     expect(s.dotA2 === "1", "the editing block's own dot carries the accent (opacity 1)");
     expect(s.dotA3 !== "1", "the editing block's CHILD dot stays resting (the subtree-accent bug stays fixed)");
     expect(s.dotA2b !== "1", "the sibling row's dot stays resting");
+    expect(s.chevronA2 === "0", "the editing block's own chevron stays hidden — hover-only reveal (owner 2026-10-20)");
+  }
+
+  // ── 8. glyph bullets: the arms end BEFORE the icon (never strike through),
+  //      and an intermediate glyph gets the hidden jog back to its column ──
+  {
+    await pg.click(`[data-block-id="${a3}"] .nt-block-content`);
+    await pg.waitForSelector(`[data-block-id="${a3}"].nt-block--editing`, { timeout: 10_000 });
+    await api(`/api/objects/${a3}`, { method: "PATCH", body: { icon: "mdiFormatQuote" } });
+    await api(`/api/objects/${a2}`, { method: "PATCH", body: { icon: "mdiBookmarkOutline" } });
+    await pg.waitForSelector(`[data-block-id="${a3}"] > .nt-block-row .nt-bullet-icon`, { timeout: 15_000 });
+    await pg.waitForSelector(`[data-block-id="${a2}"] > .nt-block-row .nt-bullet-icon`, { timeout: 15_000 });
+    await pg.waitForTimeout(500); // the overlay recomputes on the store notification
+    const glyphGeom = await pg.evaluate(([a2id, a3id]) => {
+      const host = document.querySelector(".nt-edit-thread-host");
+      const h = host.getBoundingClientRect();
+      const read = (bid) => {
+        const icon = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet-icon`);
+        const bullet = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet`);
+        if (icon === null || bullet === null) return null;
+        const ir = icon.getBoundingClientRect();
+        const br = bullet.getBoundingClientRect();
+        return { glyphLeft: ir.left - h.left, cx: br.left + br.width / 2 - h.left, cy: br.top + br.height / 2 - h.top };
+      };
+      return { a2: read(a2id), a3: read(a3id) };
+    }, [a2, a3]);
+    s = await state([A, a2, a3, a2b, B, C]);
+    {
+      const end = s.path.pts[s.path.pts.length - 1];
+      expect(Math.abs(end.x - (glyphGeom.a3.glyphLeft - 3)) <= 1.5 && Math.abs(end.y - glyphGeom.a3.cy) <= 1.5,
+        "the arm ends BEFORE the editing block's icon (no strike-through)");
+      // Intermediate iconed link (a2): four pairs land at its row's y — the
+      // rounded turn's control + end, then the arm (before the glyph) and
+      // the jog back to the center column under the glyph.
+      const rowPairs = s.path.pts.filter((p) => Math.abs(p.y - glyphGeom.a2.cy) <= 1.5);
+      expect(rowPairs.length === 4, `an iconed intermediate link draws the turn, the arm, and the hidden jog (${rowPairs.length} pairs)`);
+      expect(Math.abs(rowPairs[2].x - (glyphGeom.a2.glyphLeft - 3)) <= 1.5, "the intermediate arm ends before its icon");
+      expect(Math.abs(rowPairs[3].x - glyphGeom.a2.cx) <= 1.5, "the jog returns to the center column under the icon");
+      expect(s.path.qCount === 2, "the turns stay rounded (2 turns)");
+    }
   }
 
   if (consoleErrors.length > 0) throw new Error("console errors: " + consoleErrors.join(" | "));

@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-20
 
+- **feat(web): chevrons reveal on hover only — no resting chevron on
+  editing blocks — the thread arms end before class icons, and the path
+  bullets wear the accent at resting size.** Owner feedback 2026-10-20.
+  **Chevrons:** the focus-within reveal (row-scoped earlier the same day)
+  retired entirely, outline and prose — an editing block shows its
+  chevron only when the pointer hovers the grip, like every other block;
+  a collapsed block's persistent chevron (the indicator) is untouched.
+  **Glyph endpoints:** the thread's horizontal arms ended mid-glyph on
+  icon/list-marker bullets and read as striking through them; each arm
+  now ends at the bullet's NEAR EDGE — under a dot, 3px before an icon or
+  marker — and at an intermediate glyph the path jogs back to the center
+  column under the opaque icon (hidden behind it) so the next vertical
+  still descends from the bullet column. The v1 icon-lift animation was
+  weighed and passed over: a floating chip above the row collides with
+  dense rows and fires on every arrow-key caret hand-off; the endpoint
+  solves the overlap with zero layout or motion cost (recorded as the
+  fallback if the flourish is missed). **Path bullets:** while a block
+  edits, every ancestor dot/class-icon/list-marker on the thread takes
+  the accent at RESTING SIZE via `:has` — the thread reads through the
+  bullets; only the editing bullet grows (the scale stays the
+  engaged-row signal). Probe: own-chevron-hidden, path-dot recolor
+  (path vs non-path), and glyph-endpoint assertions (arm-before-icon on
+  the editing target and an intermediate link, the hidden jog) join the
+  overlay suite; gate green.
+
 - **fix(web): the close/remove hover washes go back to the rounded square
   — the view-mode switcher's shape.** Owner preference 2026-10-20: the
   corner-full circle from the last round is reverted to `shape-medium`
