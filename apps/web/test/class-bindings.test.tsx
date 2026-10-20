@@ -156,7 +156,7 @@ describe("Class View class properties editor", () => {
     expect(client.getRegistryBindings(classId)[0]!.active).toBe(false);
   });
 
-  it("renames through the config header (update {name})", async () => {
+  it("renames through the definition modal (update {name})", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Task");
     const schemaId = await client.createPropertySchema({ name: "Priority", type: "select" });
@@ -165,6 +165,9 @@ describe("Class View class properties editor", () => {
     await expandDefinitions();
 
     fireEvent.click(screen.getByRole("button", { name: "Configure Priority" }));
+    // R7 (2026-10-20): rename left the inline panel — the panel's "Edit
+    // definition…" opens the S2 modal, whose Name field owns the rename.
+    fireEvent.click(screen.getByRole("button", { name: "Edit definition…" }));
     const nameInput = screen.getByLabelText("Property name");
     fireEvent.blur(nameInput, { target: { value: "Importance" } });
     await flushWrites();

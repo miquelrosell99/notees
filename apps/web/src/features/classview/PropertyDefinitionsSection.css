@@ -159,28 +159,6 @@
   min-width: 0;
 }
 
-.nt-propdef-iconpick {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  inline-size: 2em;
-  block-size: 2em;
-  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-small);
-  background: var(--md-sys-color-surface);
-  color: var(--md-sys-color-on-surface-variant);
-  cursor: pointer;
-}
-
-.nt-propdef-iconpick:hover {
-  background: var(--md-sys-color-hover-overlay);
-}
-
-.nt-propdef-iconpick:focus-visible {
-  box-shadow: var(--shadow-focus-ring);
-}
-
 .nt-propdef-input {
   font: inherit;
   font-size: var(--font-size-button);
@@ -215,14 +193,6 @@
   color: var(--md-sys-color-on-surface-variant);
 }
 
-.nt-propdef-field {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
 .nt-propdef-stack {
   display: flex;
   flex-direction: column;
@@ -233,13 +203,6 @@
 .nt-propdef-label {
   font: var(--font-label-medium);
   font-size: var(--font-size-xs);
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.nt-propdef-meta {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: var(--font-size-sm);
   color: var(--md-sys-color-on-surface-variant);
 }
 

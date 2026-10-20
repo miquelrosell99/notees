@@ -17,17 +17,17 @@
  * also reveals a ⋯ overflow ("Open property" / "Remove from class").
  *
  * Config panel (expanded, full section width, stacked groups that can
- * never overflow the sidebar): header (icon picker + rename →
- * propertySchema.update {name}); a "Definition" group (type read-only +
- * Convert… → PropertyConvertModal, the multi state, "Edit definition…" →
- * the S2 PropertyEditModal); a "For this class" group (typed default-value
- * editor → class.property.set {defaultValue}, Required checkbox, the
- * Enabled ToggleSwitch — binding `active` writes are live, the PC4
- * lockstep shipped); a type-specific group (target classes — EDITABLE
- * since the 3A wire, propertySchema.update {targetClassFilter}; date
- * precision for datetime; dateQualified for object); footer ("Remove from
- * class" behind a ConfirmationModal, disabled for system property
- * schemas — the fixed SYSTEM_PROPERTY_UUIDS in @notees/domain).
+ * never overflow the sidebar) — CLASS-LEVEL ONLY:
+ * a read-only header (icon + name — identity display, no rename); a
+ * "For this class" group (the default-value editor → class.property.set
+ * {defaultValue}, Required checkbox, the Enabled ToggleSwitch — the only
+ * class-by-class binding fields: defaultValue/required/sequence/active,
+ * sequence being the drag reorder on the collapsed row); footer (a quiet
+ * "Edit definition…" → the S2 PropertyEditModal — the class page's path
+ * to the definition-level editor (rename, type/Convert, multi, target
+ * classes, date settings all live there); "Remove from class" behind a
+ * ConfirmationModal, disabled for system property schemas — the fixed
+ * SYSTEM_PROPERTY_UUIDS in @notees/domain).
  *
  * Add property: the AddPill opens an anchored popover (SearchField,
  * keyboard-navigable listbox, rows = icon + name + type label) filtered
@@ -81,13 +81,9 @@ import { ContextMenu } from "../../components/ui/fleet/ContextMenu.js";
 import { SearchField } from "../../components/ui/fleet/SearchField.js";
 import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
-import { IconPickerPopup } from "../icon-picker/IconPickerPopup.js";
-import { PropertyConvertModal } from "../metadata/PropertyConvertModal.js";
 import { PropertyEditModal } from "../metadata/PropertySettingsModal.js";
 import { PropertyView } from "../metadata/PropertyView.js";
 import { requestPropertyCreate } from "../metadata/PropertyCreateHost.js";
-import { ClassMultiPickField } from "../metadata/ClassMultiPickField.js";
-import { resolveTargetClassIds } from "../metadata/shared.js";
 import { isSchemaEligibleForClass } from "../metadata/schemaEligibility.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import "./PropertyDefinitionsSection.css";
@@ -226,22 +222,7 @@ function BindingRow({
   const name = schema?.name ?? binding.name;
   const patch = (fields: Parameters<AnyClient["setClassProperty"]>[2]) =>
     void client.setClassProperty(classId, binding.propertySchemaId, fields);
-  const patchSchema = (fields: Parameters<AnyClient["updatePropertySchema"]>[1]) =>
-    void client.updatePropertySchema(binding.propertySchemaId, fields);
 
-  const [convertOpen, setConvertOpen] = useState(false);
-  const [iconPickerOpen, setIconPickerOpen] = useState(false);
-  const iconButtonRef = useRef<HTMLButtonElement | null>(null);
-
-  const targetIds = resolveTargetClassIds(client, binding.propertySchemaId, binding.targetClassFilter);
-  // Seed specs name their target classes; a name that resolves to no
-  // deployed class can't ride the id-based picker — surface it instead of
-  // silently dropping it (the stored entries keep until an edit replaces
-  // them).
-  const rawFilter = schema?.targetClassFilter ?? binding.targetClassFilter;
-  const unresolvedTargets = (rawFilter ?? []).filter(
-    (entry) => !client.listClasses().some((c) => c.id === entry || c.name === entry),
-  );
   const isSystem = isSystemSchema(binding.propertySchemaId);
 
   return (
@@ -291,61 +272,14 @@ function BindingRow({
       </div>
       {expanded && (
         <div className="nt-propdef-config">
+          {/* Identity display only (R7): no rename, no icon picker — the
+              definition-level fields live in the PropertyEditModal. */}
           <div className="nt-propdef-header">
-            <button
-              ref={iconButtonRef}
-              type="button"
-              className="nt-propdef-iconpick"
-              title="Choose icon"
-              aria-label={`Choose icon for ${name}`}
-              onClick={() => setIconPickerOpen((open) => !open)}
-            >
+            <span className="nt-propdef-icon" aria-hidden="true">
               <Icon path={schemaIconOf(schema, binding.type)} size={0.8} />
-            </button>
-            <input
-              key={`name:${binding.propertySchemaId}:${name}`}
-              type="text"
-              className="nt-propdef-input"
-              defaultValue={name}
-              aria-label="Property name"
-              onBlur={(event) => {
-                const next = event.target.value.trim();
-                if (next !== "" && next !== name) patchSchema({ name: next });
-              }}
-            />
-            {iconPickerOpen && (
-              <IconPickerPopup
-                value={schema?.icon ?? ""}
-                anchorEl={iconButtonRef.current}
-                onClose={() => setIconPickerOpen(false)}
-                onSelect={(value) => {
-                  patchSchema({ icon: value === "" ? null : value });
-                  setIconPickerOpen(false);
-                }}
-              />
-            )}
+            </span>
+            <span className="nt-propdef-name">{name}</span>
           </div>
-
-          <fieldset className="nt-propdef-group">
-            <legend>Definition</legend>
-            <div className="nt-propdef-field">
-              <span className="nt-propdef-label">Type</span>
-              <span className="nt-propdef-meta">
-                {binding.type}
-                {binding.multi ? " · multi" : ""}
-              </span>
-              <Button variant="ghost" size="sm" onClick={() => setConvertOpen(true)}>
-                Convert…
-              </Button>
-            </div>
-            <div className="nt-propdef-field">
-              <span className="nt-propdef-label">Values</span>
-              <span className="nt-propdef-meta">{binding.multi ? "Multiple values" : "Single value"}</span>
-            </div>
-            <Button variant="outline" size="sm" onClick={onOpenDefinition}>
-              Edit definition…
-            </Button>
-          </fieldset>
 
           <fieldset className="nt-propdef-group">
             <legend>For this class</legend>
@@ -384,59 +318,12 @@ function BindingRow({
             </div>
           </fieldset>
 
-          {(binding.type === "object" || binding.type === "asset" || binding.type === "datetime") && (
-            <fieldset className="nt-propdef-group">
-              <legend>{binding.type === "datetime" ? "Date settings" : "Target classes"}</legend>
-              {binding.type === "datetime" && (
-                <label className="nt-propdef-stack">
-                  <span className="nt-propdef-label">Precision</span>
-                  <select
-                    className="nt-propdef-input"
-                    aria-label={`Date precision for ${name}`}
-                    value={schema?.datePrecision ?? binding.datePrecision ?? "day"}
-                    onChange={(event) =>
-                      patchSchema({ datePrecision: event.target.value as "year" | "month" | "day" })
-                    }
-                  >
-                    <option value="day">day</option>
-                    <option value="month">month</option>
-                    <option value="year">year</option>
-                  </select>
-                </label>
-              )}
-              {(binding.type === "object" || binding.type === "asset") && (
-                <div className="nt-propdef-stack">
-                  <span className="nt-propdef-label">Target classes</span>
-                  <ClassMultiPickField
-                    client={client}
-                    classIds={targetIds ?? []}
-                    onChange={(classIds) => patchSchema({ targetClassFilter: classIds })}
-                    addLabel="Add target class"
-                    ariaLabel={`Target classes for ${name}`}
-                  />
-                  <span className="nt-propdef-hint">Values must link a node carrying one of these classes (empty = any node).</span>
-                  {unresolvedTargets.length > 0 && (
-                    <span className="nt-propdef-hint">
-                      Unresolved targets (kept until edited): {unresolvedTargets.join(", ")}
-                    </span>
-                  )}
-                </div>
-              )}
-            </fieldset>
-          )}
-          {binding.type === "object" && (
-            <label className="nt-propdef-check">
-              <Checkbox
-                size="sm"
-                checked={schema?.dateQualified === true}
-                onChange={(checked) => patchSchema({ dateQualified: checked })}
-                aria-label={`Date qualified for ${name}`}
-              />
-              <span>Date qualified</span>
-            </label>
-          )}
-
           <div className="nt-propdef-footer">
+            {/* The class page's path to the base-definition editor — rename,
+                type/Convert, multi, target classes, date settings, scope. */}
+            <Button variant="ghost" size="sm" onClick={onOpenDefinition}>
+              Edit definition…
+            </Button>
             <Button
               variant="danger"
               size="sm"
@@ -451,9 +338,6 @@ function BindingRow({
             {isSystem && <span className="nt-propdef-hint">System properties stay on their class.</span>}
           </div>
         </div>
-      )}
-      {convertOpen && schema !== undefined && (
-        <PropertyConvertModal client={client} schema={schema} onClose={() => setConvertOpen(false)} />
       )}
     </li>
   );
