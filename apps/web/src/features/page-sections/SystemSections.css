@@ -4,33 +4,33 @@
  * restyled for the card.
  */
 
-.nt-page-sections {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  /* Separator between the child blocks and the system sections — always
-     visible, even when the page has no blocks. The sections' own chrome
-     borders are suppressed here so the line appears exactly once. */
-  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  padding-top: var(--spacing-2);
+/* The page-flow section stack (owner ruling 2026-10-20): ONE chromeless
+   container hosts every section-mounted chrome below the body — the
+   variant's class sections, the date aggregations, Created, Extended by,
+   and the system sections. The container owns no hairline, no hide, no gap:
+   each section's own top border IS its separator (it renders iff the
+   section does — the "line only when something exists" question answers
+   itself), and this rule spaces the survivors — the margin rides the first
+   rendered section, so the ghost row to first section gap and the
+   section-to-section gap are the same spacing-4, margins collapsing
+   between siblings. The retired alternative — a group wrapper drawing a
+   single boundary hairline and suppressing the sections' borders — died
+   with the group: it forced an all-empty gate whose only job was
+   protecting the wrapper (2026-10-20). DayPageSections mounts a container
+   div around its Sections: the container rides the stack slot; its inner
+   sections keep their own rhythm (no stack margin inside it). Sections
+   elsewhere (side panel, graph cards) don't ride this stack and are
+   untouched. */
+.nt-page-section-stack > .node-view-section {
   margin-top: var(--spacing-4);
 }
 
-.nt-page-sections .node-view-section {
-  border-top: none;
+.nt-page-section-stack > .day-page-sections {
+  margin-top: var(--spacing-4);
+}
+
+.nt-page-section-stack > .day-page-sections > .node-view-section {
   margin-top: 0;
-  padding-top: 0;
-}
-
-/* The variant's section stack (class pages: Classed nodes — Class
-   properties and Templates when the compact layout folds the sidebar
-   sections into the content flow). The first section's own hairline is the
-   separator, so this wrapper adds ONLY the ghost-row clearance the
-   nt-page-sections stack owns (margin-top) — geometry identical to the
-   page view's first system section, without suppressing the per-section
-   borders the multi-section stack separates by. */
-.nt-variant-sections {
-  margin-top: var(--spacing-4);
 }
 
 .nt-section-list {

@@ -588,9 +588,11 @@ export function PageView({
         whiteboardTokenIndex >= 0 ? (
           <>
             <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
-            {!preview && !focusMode && variantSystemSections}
             {!preview && !focusMode && (
-              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} embedded={embedded} />
+              <div className="nt-page-section-stack">
+                {variantSystemSections}
+                <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} embedded={embedded} />
+              </div>
             )}
           </>
         ) : (
@@ -673,39 +675,43 @@ export function PageView({
                 )}
               </div>
             </SortableContext>
-            {/* The system sections join the same drag zone: the Child
-                pages section's read-only rows are droppable (zone-aware —
+            {/* The sections join the same drag zone: the Child pages
+                section's read-only rows are droppable (zone-aware —
                 a drop anchored on a main child promotes into the Pages
                 zone, see the host's drop resolution). The variant's
                 section stack (the class sections) inserts its descriptors
-                here — data, not a slot. The stack rides the
-                nt-variant-sections wrapper so its first section keeps the
-                same ghost-row separation the system-sections wrapper owns
-                (bare, the hairline sat tight under the body's ghost row). */}
-            {variantSections.length > 0 && (
-              <div className="nt-variant-sections">{variantSections}</div>
-            )}
-            {!preview && dayIso !== null && !embedded && (
-              <DayPageSections
-                client={client}
-                pageId={pageId}
-                iso={dayIso}
-                onOpenPage={onOpenPage}
-              />
-            )}
-            {!preview && createdPeriod !== null && !embedded && (
-              <CreatedSection
-                client={client}
-                pageId={pageId}
-                after={createdPeriod.after}
-                before={createdPeriod.before}
-                onOpenPage={onOpenPage}
-              />
-            )}
-            {!preview && !focusMode && variantSystemSections}
-            {!preview && !focusMode && (
-              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} embedded={embedded} />
-            )}
+                here — data, not a slot. Every section-mounted chrome rides
+                ONE chromeless stack container: it owns no hairline, no
+                margin, no hide — each section's own top border is its
+                separator (it exists iff the section does) and the stack
+                rule spaces the survivors (owner ruling 2026-10-20: the
+                per-section hairline retires the group's single boundary
+                line). The container is always mounted; its guards are the
+                per-family ones inside. */}
+            <div className="nt-page-section-stack">
+              {variantSections}
+              {!preview && dayIso !== null && !embedded && (
+                <DayPageSections
+                  client={client}
+                  pageId={pageId}
+                  iso={dayIso}
+                  onOpenPage={onOpenPage}
+                />
+              )}
+              {!preview && createdPeriod !== null && !embedded && (
+                <CreatedSection
+                  client={client}
+                  pageId={pageId}
+                  after={createdPeriod.after}
+                  before={createdPeriod.before}
+                  onOpenPage={onOpenPage}
+                />
+              )}
+              {!preview && !focusMode && variantSystemSections}
+              {!preview && !focusMode && (
+                <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} embedded={embedded} />
+              )}
+            </div>
           </EmbedBoundary>
         </>
       )}

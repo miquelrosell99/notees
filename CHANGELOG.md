@@ -8,6 +8,87 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **refactor(web): the section stack loses its group — one chromeless
+  container, a hairline per section, no group-level hiding (owner ruling
+  2026-10-20).** The page-bottom sections ran two visual systems: the
+  system sections (Child pages / Backlinks / Unlinked mentions) stacked
+  hairline-free inside the `.nt-page-sections` wrapper — one boundary
+  hairline, borders suppressed, an all-empty gate whose only job was
+  protecting that wrapper — while every other section (Classed nodes,
+  Created, the date aggregations, Extended by) rode bare with its own
+  hairline. The split forced duplicated separation chrome and already
+  shipped one bug (the class page's first section hugging the ghost row,
+  fixed this morning). The ruling: the group owns nothing. The sections now
+  mount inside a single `nt-page-section-stack` container that is pure
+  presentational anchor — no hairline, no margin of its own, no gap, no
+  hide. Each section's own top border IS its separator (it renders iff the
+  section does, so "is there anything to separate?" stops being a
+  question), and one CSS rule (`.nt-page-section-stack >
+  .node-view-section { margin-top: spacing-4 }`, margins collapsing
+  between siblings) spaces the survivors — ghost row to first section and
+  section to section read the same. The system sections' all-empty gate
+  and the `.nt-page-sections` wrapper are gone (an all-empty render is
+  visually nothing either way); the morning's `.nt-variant-sections`
+  wrapper is subsumed. DayPageSections' container div rides the stack slot
+  explicitly (its inner sections keep their own rhythm); the whiteboard
+  branch's sections ride a stack container too. Focus mode's ruling is
+  unchanged (Classed nodes stays, the system sections step aside — the
+  guards live inside the container, one per family). Sections outside the
+  page flow (side panel, graph cards) are untouched. `PageView.tsx` (the
+  stack mounts), `SystemSections.tsx` (gate + wrapper die; comments
+  re-anchored), `SystemSections.css` (wrapper chrome deleted, the stack
+  rule), `NodeViewSection.css` (the spacing comment re-anchored: spacing-2
+  is the header's under-hairline clearance; the hairline is the section's
+  own border), `focus-mode.test.tsx` (asserts no section renders inside
+  the always-mounted chromeless stack). Structural follow-up, deliberately
+  deferred while the parallel session's collection refactor is in flight:
+  descriptor-ize the three system sections out of `SystemSections.tsx`
+  into the variant's `systemSections` list (Extended by already rides it)
+  so the component itself can die by subtraction. (Gate note: the gate is
+  red from the parallel session's in-flight breaking property-scope slice —
+  `packages/store/src/appliers.ts:1918` on typecheck, `no such column:
+  cp.default_value` across ~15 web test files — unrelated and untouched;
+  every test exercising the changed files passes: `focus-mode` 7/7 with the
+  re-anchored assertion, `dates` 20/20.)
+- **feat(protocol+store+web)!: the binding's `required` retires outright and
+  `defaultValue` moves to the property schema — ONE global default per
+  property, the Logseq shape (owner ruling, the property-definition surfaces
+  batch).** `required`'s only render effect was hiding the icon-button's
+  "None" row — mild enforcement contradicting the render-contract law
+  (suggestion only, never enforcement), and the designed highlight/lint never
+  shipped — so it is gone outright; the strict `class.property.set` schema
+  rejects it like any retired key. `defaultValue` follows the 2026-10-05
+  render-contract precedent (binding → schema): `propertySchema.create/
+  update` gain it (PC2-typed at apply — create against the payload's type,
+  update against the stored type; keep/clear, the cleared spelling SQL NULL,
+  retiring the stored-`"null"`-string wart), the effective read derives the
+  schema's single default when a winning ACTIVE binding brings the property
+  into the node's context (per-class default conflicts no longer exist), and
+  the class-page inline editor is GONE with the move — the class page is now
+  just the list of assigned properties (row click opens the base-definition
+  modal, where the type-aware default editor lives, Logseq-style). A binding
+  is genuinely per-class mechanics ONLY: `class.property.set {classId,
+  propertySchemaId, sequence?, active?}`; store v24→v25 (class_property drops
+  `required`/`default_value`, property_schema gains `default_value`; the
+  v24→v25 rebuild + additive column, the v14/v24 precedent). The three
+  default-bearing fixtures re-encode the global semantics (gate stays 36);
+  the seeds' spec defaults (citekey's "") author on the schema create; the
+  unassignClass default-mirror sweep reads the schema default. Server: the
+  binding API echo is sequence/active only, the schema view carries
+  `defaultValue`, the OpenAPI summaries re-point. Web: the type-aware
+  `DefaultValueEditor` is shared by the S2 settings modal + the S1 create
+  modal (the default rides the create payload now — no longer class-context
+  only); PropertyConvertModal carries a type-valid default onto the new
+  schema; the undo journal snapshots/restores the schema default and the
+  binding inverse is sequence/active only. Live logs rewrite in place via
+  `scripts/migrate-drop-binding-required.mts` (Path B: retired-key strip +
+  per-schema `propertySchema.update` compensation + snapshot byte-patch +
+  restore-epoch bump; LOCKSTEP GATE: after the GTK/Flutter ports).
+  `docs/developers/migrations.md` + `releases.md` (current wire + batch row),
+  SCHEMA.md "Class properties" rewritten, `docs/ux.md` + `docs/usage.md`
+  re-pointed. BREAKING (owner-sole-user): the retired keys reject at the
+  strict envelope gate; no protocol-version bump (payload-key retirement with
+  fixture updates, the established convention).
 - **fix(web): outline view, grouped by page — page sources stand at the top
   level (owner ruling).** In the references grouping (Backlinks, Unlinked
   mentions, the block-level backlink gutter), an entry whose source IS the
