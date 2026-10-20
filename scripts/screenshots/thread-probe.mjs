@@ -28,6 +28,8 @@
 //   9. the context menu anchors to its block: while the node menu is open
 //      the block bullet carries the hover/active highlight, and Escape
 //      clears it.
+//  10. the focused block view threads from the FOCUSED block (the view
+//      root row, a real bullet) down to the editing child.
 // TEST workspace; cleans up after itself.
 import { chromium } from "playwright";
 const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL;
@@ -355,6 +357,45 @@ try {
       }
       expect(s.path.qCount === 4, "four rounded joins: the turn, the hug, the bottom-left wrap, the final turn");
     }
+  }
+
+  // ── 10. the focused block view threads from the focused block (the view
+  //      root row) down to the editing child ──
+  {
+    await pg.click(`[data-block-id="${A}"] .nt-bullet`); // zoom into A
+    await pg.waitForSelector(".nt-focused-block", { timeout: 10_000 });
+    await pg.click(`.nt-focused-block [data-block-id="${a2}"] .nt-block-content`);
+    await pg.waitForSelector(`.nt-focused-block [data-block-id="${a2}"].nt-block--editing`, { timeout: 10_000 });
+    await pg.waitForSelector(".nt-focused-block .nt-edit-thread-overlay path", { timeout: 10_000 });
+    await pg.waitForTimeout(250);
+    const focused = await pg.evaluate(([aid, a2id]) => {
+      const view = document.querySelector(".nt-focused-block");
+      const d = view.querySelector(".nt-edit-thread-overlay path").getAttribute("d");
+      const h = view.getBoundingClientRect();
+      const center = (bid) => {
+        const b = view.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet`);
+        const r = b.getBoundingClientRect();
+        return { x: r.left + r.width / 2 - h.left, y: r.top + r.height / 2 - h.top };
+      };
+      const glyph = view.querySelector(`[data-block-id="${a2id}"] > .nt-block-row .nt-bullet-icon`);
+      const gr = glyph.getBoundingClientRect();
+      const nums = d.match(/-?\d+(?:\.\d+)?/g).map(Number);
+      const pts = [];
+      for (let i = 0; i + 1 < nums.length; i += 2) pts.push({ x: nums[i], y: nums[i + 1] });
+      return {
+        start: pts[0],
+        end: pts[pts.length - 1],
+        cA: center(aid),
+        cA2: center(a2id),
+        a2GlyphLeft: gr.left - h.left,
+        qCount: (d.match(/Q/g) ?? []).length,
+      };
+    }, [A, a2]);
+    expect(Math.abs(focused.start.x - focused.cA.x) <= 2 && Math.abs(focused.start.y - focused.cA.y) <= 2,
+      "the focused view's thread starts at the FOCUSED block's bullet");
+    expect(Math.abs(focused.end.x - (focused.a2GlyphLeft - 3)) <= 1.5 && Math.abs(focused.end.y - focused.cA2.y) <= 1.5,
+      "the thread ends before the editing child's icon (the arm language, focused view included)");
+    expect(focused.qCount === 1, "one rounded turn (focused block → child)");
   }
 
   if (consoleErrors.length > 0) throw new Error("console errors: " + consoleErrors.join(" | "));
