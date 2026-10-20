@@ -350,13 +350,15 @@ describe("metadata pickers (ported popups)", () => {
     ]);
 
     // The single-value cell renders the selection dropdown (owner
-    // 2026-10-09): the selected node rides the content area as ONE compact
-    // pill — never the node's subtree — and the clear affordance unsets the
-    // slot.
+    // 2026-10-09; the value is PLAIN TEXT since 2026-10-20 — like a select
+    // option or a date value, never a pill chip): the selected node's name
+    // rides the content area directly — never the node's subtree — and the
+    // clear affordance unsets the slot.
     const rowAfter = screen.getByText("mentor").closest(".nt-props-sidebar__prop, .nt-property-object") as HTMLElement;
-    const pill = rowAfter.querySelector(".nt-property-select .pill");
-    expect(pill).not.toBeNull();
-    expect(pill!.textContent).toContain("Ada");
+    const content = rowAfter.querySelector(".nt-property-select__content");
+    expect(content).not.toBeNull();
+    expect(content!.textContent).toContain("Ada");
+    expect(rowAfter.querySelector(".nt-property-select .pill")).toBeNull();
     expect(rowAfter.querySelector(".nt-property-select .nt-refblock-tree")).toBeNull();
     expect(within(rowAfter).getByText("Ada")).not.toBeNull();
     fireEvent.click(within(rowAfter).getByRole("button", { name: "Clear mentor" }));

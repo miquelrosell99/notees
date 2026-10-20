@@ -1064,15 +1064,9 @@ export function TableView(props: NodeCollectionProps) {
     const node = row.item.node;
     if (column.kind === "name") {
       const icon = nodeIcon(node, iconMap);
-      // The row's trailing action (the Classed nodes member-remove ×) rides
-      // the name cell's hover cluster, pinned beside the Open button
-      // (owner 2026-10-20 — trailingAction was outline-only; cards already
-      // unassign through the card's classes row).
-      const trailing = props.trailingAction?.(row.item);
       return (
         <td key={column.id} className="nt-table-name">
           <NameCell node={node} icon={icon} props={props} onPeek={peekNode} />
-          {trailing !== undefined && <span className="nt-table-row-action">{trailing}</span>}
         </td>
       );
     }

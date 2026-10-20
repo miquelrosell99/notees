@@ -55,6 +55,23 @@ predating this file.
   bullet offset (≤1.2px) + z-index contract assertions join the overlay
   suite. Docs: the thread comments (app.css, EditThread.tsx, BlockRow.tsx)
   + `docs/ux.md`.
+- **feat(web): three owner refinements on the property-cell chrome.**
+  Owner 2026-10-20: **(1) the Classed nodes table shows no remove-from-class
+  button** — the table `trailingAction` consumption from the gap-fix round
+  is reverted (unassign stays outline-mode quick-action plus the cards
+  classes-row ×; the empty-cell half of that round stands). **(2) every
+  close/remove button's hover wash is corner-full** — the custom × buttons
+  predated the fleet's 2026-10-19 corner-full ruling and washed as rounded
+  SQUARES beside the circle-washing fleet buttons; eleven button classes
+  (`pill__right-button` fleet + metadata variants, the panel nav/clear,
+  the class-member/propdef/asset/dateslot/table-panel/filter/whiteboard
+  removes) now carry `border-radius: var(--shape-full)` — verified
+  computed 9999px == the fleet button's. **(3) the single-value node
+  property value is PLAIN TEXT, not a NodePill** — the
+  `PropertySelectCell` content names the node like a select option or a
+  date value (no chip, icon, or color tint); the pickers test's
+  pill assertion follows the new contract. (One stale-CSS build-cache
+  round on this host needed a `--no-cache` rebuild — bundle diff-verified.)
 - **fix(web): the two pre-existing gaps the navigate-button sweep exposed.**
   Owner 2026-10-20, "resolve them too": **(1) the empty date cell** — an
   unset datetime cell's trigger rendered EMPTY and collapsed to zero
