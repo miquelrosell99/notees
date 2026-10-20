@@ -8,6 +8,15 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **fix(web): the edit thread settles — one re-measure 220ms after the
+  last change lets transition-driven geometry settle into the path.**
+  Found by the live focused-view probe: the editing block's class icon
+  scales 1.2 over 120ms, a mutation-driven recompute measures the glyph
+  MID-TRANSITION, and the transform settles without touching the DOM — so
+  the arm could freeze ~2px off the settled glyph (borderline in the page
+  body, visible in the focused view). The overlay now schedules a single
+  settling pass 220ms after the last change (re-armed by any new change,
+  quiet afterwards) — same technique as the layout-settle probes.
 - **feat(web): the focused block view hosts the edit thread — from the
   focused block down to the editing child.** in
   the focused view (the bullet-zoom `rendersAsInlineBlock` branch of
