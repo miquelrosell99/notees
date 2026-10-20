@@ -3,8 +3,7 @@
  *
  *  - undoRedoKeyHandler (App.tsx): Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z (or
  *    Ctrl/Cmd+Y) redo, guarded from form fields AND the outliner editor
- *    (contentEditable) — the editor-interaction rule (docs/ux.md "Undo and
- *    redo"): text editing keeps its local behavior, everything else runs the
+ *    (contentEditable) — the editor-interaction rule (docs/features/undo.md): text editing keeps its local behavior, everything else runs the
  *    session journal. preventDefault fires only when the journal can act.
  *  - CommandPalette: the action registry gains Undo/Redo rows carrying the
  *    journal labels, present only when the journal has something to (re)apply.

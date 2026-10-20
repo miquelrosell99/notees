@@ -20,7 +20,7 @@ A prediction encoded as a default, when wrong, costs an empty list. The same pre
 
 ### The worked example: the seeded vocabulary that wasn't
 
-The model has a natural home for epistemic wiring — typed-link verbs like `supports`, `contradicts`, `refines` (see [ux.md](ux.md) for how typed links work). Early in the design, the proposal was to seed these as protocol-level vocabulary: predefined verb types shipped in the picker.
+The model has a natural home for epistemic wiring — typed-link verbs like `supports`, `contradicts`, `refines` (see [features/links.md](features/links.md) for how typed links work). Early in the design, the proposal was to seed these as protocol-level vocabulary: predefined verb types shipped in the picker.
 
 The proposal was caught before it shipped, and the reasoning is the law in miniature. Seeding `supports`/`contradicts`/`refines` is a usage prediction — "these are the discourse moves our users will make" — hardened into the protocol layer. If the prediction is right, a seed saves the user a one-time gesture. If it is wrong — and our own history says it will be, eventually — a protocol seed costs a deprecation cycle at best and a fork of the vocabulary at worst. The cost asymmetry is the whole argument: an unseeded vocabulary that users create as needed costs nothing when the prediction fails; a seeded one costs real structure.
 
@@ -112,6 +112,6 @@ Where they still beat us, honestly: day-one polish, ecosystem gravity, built-in 
 
 ## Where to next
 
-- [usage.md](usage.md) — what of this you can run today
-- [ux.md](ux.md) — how the ideas feel in the interface
+- [getting-started.md](getting-started.md) — install, run, and boot the app
+- [features/pages.md](features/pages.md) — how the ideas feel in the interface (one page per feature)
 - [README.md](../README.md) — the front door

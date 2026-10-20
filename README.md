@@ -20,7 +20,7 @@ Five design decisions no competitor makes, which together define what Notees is 
 
 ## Status: alpha
 
-The model is implemented; the product around it is a slice. We say exactly which is which in every document — [philosophy](docs/philosophy.md) for the ideas, [usage](docs/usage.md) for what you can run now, [ux](docs/ux.md) for the interaction model (each feature labeled Today or Designed).
+The model is implemented; the product around it is a slice. We say exactly which is which in every document — [philosophy](docs/philosophy.md) for the ideas, one page per feature under [docs/features/](docs/features/) for the interaction model, and [docs/feature-status.md](docs/feature-status.md) labeling each feature Today or Designed.
 
 **Works today**
 
@@ -50,13 +50,15 @@ export NOTEES_API_KEY=$(cat data/api_key.txt)   # generated on first boot, logge
 # pnpm dev -- object create --name "Hello Notees"
 ```
 
-The full walkthrough — server env, a real CLI session, the web app, the object API — is in [docs/usage.md](docs/usage.md).
+The full walkthrough — server env, a real CLI session, the web app — starts at [docs/getting-started.md](docs/getting-started.md); the feature pages live under [docs/features/](docs/features/), and the object API reference is [docs/api.md](docs/api.md).
 
 ## Docs
 
 - [docs/philosophy.md](docs/philosophy.md) — the ideas: op-log truth, the design law, single-sourcing, classes as nodes, UUID identity, and the wounds that became our rules
-- [docs/usage.md](docs/usage.md) — install, run, CLI tutorial, web app, object API reference
-- [docs/ux.md](docs/ux.md) — the interaction model: outliner, system sections, marks on words, whiteboards, promotion (Today vs Designed per feature)
+- [docs/README.md](docs/README.md) — the documentation front door: getting started, then one page per feature (outliner, links, properties, classes, queries, calendar, graph, …)
+- [docs/cli.md](docs/cli.md) — the CLI tutorial: configure, one real session, scripting use cases
+- [docs/api.md](docs/api.md) — the object API quick reference
+- [docs/feature-status.md](docs/feature-status.md) — every feature labeled Today vs Designed
 - [docs/developers/](docs/developers/) — runbooks for people developing and operating Notees: architecture, development, deployment, live data migrations, releases & client lockstep
 - [CHANGELOG.md](CHANGELOG.md) — the shipped-work record
 - [packages/protocol/SCHEMA.md](packages/protocol/SCHEMA.md) — content grammar, node structure, typed-link tokens, sections contract (normative)
