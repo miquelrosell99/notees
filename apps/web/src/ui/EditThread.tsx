@@ -28,9 +28,11 @@
  * fold gesture underneath keeps working). Each arm ends at the path
  * bullet NEAR EDGE: under a dot, a few px BEFORE a class icon or list
  * marker (owner 2026-10-20 — the arm struck through glyphs and read as
- * an overlap); at an INTERMEDIATE glyph the path jogs back to the center
- * column under the opaque icon (hidden behind it — icons paint above the
- * overlay) and the next vertical descends from there. The ancestor path
+ * an overlap); at an INTERMEDIATE glyph an INWARD rounded corner drops
+ * the next vertical into the gap column LEFT of the icon (owner:
+ * "circumvent in-path icons" — a line under a hollow quote glyph peeks
+ * through its strokes), and the path START sits just below a top-level
+ * glyph bottom edge for the same reason. The ancestor path
  * dots and icons recolor through CSS (`:has` — app.css "path bullets"),
  * not here.
  * Recomputed on edit changes, store notifications, host resizes, and any
@@ -112,9 +114,16 @@ interface PathPoint {
   cx: number;
   /** Where a horizontal ARM ends — the center for a dot bullet, a few px
    *  before the glyph for icon/marker bullets (owner 2026-10-20: the arm
-   *  ended mid-glyph and looked like it struck through the icon). */
+   *  ended mid-glyph and looked like it struck through the icon). For an
+   *  INTERMEDIATE glyph this is also the column the next vertical rides:
+   *  the inward corner drops into the gap left of the glyph, so the line
+   *  circumvents the icon entirely (owner: "circumvent in-path icons"). */
   ex: number;
   y: number;
+  /** The glyph bottom edge (host-relative) for icon/marker bullets, null
+   *  for dots — the path STARTS just below a top-level glyph instead of
+   *  under its (often transparent) strokes. */
+  glyphBottom: number | null;
 }
 
 /** Measure the path bullets (top-level ancestor first) in host-relative
@@ -134,37 +143,68 @@ function measureChain(
     if (rect.width === 0 || rect.height === 0) return null; // hidden (prose)
     const cx = rect.left + rect.width / 2 - hostRect.left;
     let ex = cx;
+    let glyphBottom: number | null = null;
     const glyph = bullet.querySelector(":scope .nt-bullet-icon, :scope .nt-list-marker");
     if (glyph !== null) {
       const glyphRect = glyph.getBoundingClientRect();
-      if (glyphRect.width > 0) ex = glyphRect.left - hostRect.left - GLYPH_GAP;
+      if (glyphRect.width > 0) {
+        ex = glyphRect.left - hostRect.left - GLYPH_GAP;
+        glyphBottom = glyphRect.bottom - hostRect.top;
+      }
     }
-    points.push({ cx, ex, y: rect.top + rect.height / 2 - hostRect.top });
+    points.push({ cx, ex, y: rect.top + rect.height / 2 - hostRect.top, glyphBottom });
   }
   return points.length >= 2 ? points : null;
 }
 
-/** The thread polyline: down each bullet column, a rounded right turn at
- *  each level change. An arm ends at each link near edge (its `ex`) —
- *  under a dot, before a glyph. At an INTERMEDIATE link the path then jogs
- *  back to the center column (`cx`) under the glyph — hidden behind the
- *  opaque icon, which paints above the overlay — and the next vertical
- *  descends from there. Only the rounded ┌ turns between levels read. */
+/** The thread polyline: down the gap or center column, a rounded right
+ *  turn at each level change. An arm ends at each link near edge (`ex`) —
+ *  under a dot, before a glyph. At an INTERMEDIATE GLYPH the arm stops a
+ *  radius early and an INWARD rounded corner drops the vertical into the
+ *  gap column left of the glyph — the line rides the gap to the next
+ *  level, never under the glyph (quote icons are hollow strokes; a line
+ *  behind them peeks through). Dot links cusp under the opaque dot and
+ *  continue in the same column. The path STARTS at the top bullet: at its
+ *  center for a dot, just below the glyph bottom edge for an icon. Only
+ *  the rounded turns between levels read. */
 function threadPath(points: PathPoint[]): string {
-  let d = `M ${points[0]!.cx} ${points[0]!.y}`;
+  const top = points[0]!;
+  const startY = top.glyphBottom === null ? top.y : top.glyphBottom + 1;
+  let d = `M ${top.cx} ${startY}`;
+  let curX = top.cx;
+  let curY = startY;
   for (let i = 1; i < points.length; i += 1) {
-    const from = points[i - 1]!;
     const to = points[i]!;
-    if (to.y - RADIUS <= from.y) {
+    if (to.y - RADIUS <= curY) {
       // Degenerate spacing — a plain join (never expected, safe anyway).
       d += ` L ${to.ex} ${to.y}`;
+      curX = to.ex;
+      curY = to.y;
       continue;
     }
-    d += ` L ${from.cx} ${to.y - RADIUS} Q ${from.cx} ${to.y} ${from.cx + RADIUS} ${to.y} L ${to.ex} ${to.y}`;
-    if (i < points.length - 1) {
-      // Intermediate link: duck back under the glyph for the next vertical.
+    // Vertical down to this row, then the rounded ┌ turn into the arm.
+    d += ` L ${curX} ${to.y - RADIUS} Q ${curX} ${to.y} ${curX + RADIUS} ${to.y}`;
+    if (to.glyphBottom === null) {
+      // Dot link: the arm ends under the dot; the next vertical continues
+      // in the same column (the cusp hides under the opaque dot).
       d += ` L ${to.cx} ${to.y}`;
+      curX = to.cx;
+      curY = to.y;
+      continue;
     }
+    if (i === points.length - 1) {
+      // Last link (the editing block): the arm simply ends before the
+      // glyph — the round linecap finishes it.
+      d += ` L ${to.ex} ${to.y}`;
+      curX = to.ex;
+      curY = to.y;
+      continue;
+    }
+    // Intermediate glyph: end the arm a radius early, then the INWARD
+    // corner — descend in the gap column left of the glyph.
+    d += ` L ${to.ex - RADIUS} ${to.y} Q ${to.ex} ${to.y} ${to.ex} ${to.y + RADIUS}`;
+    curX = to.ex;
+    curY = to.y + RADIUS;
   }
   return d;
 }
