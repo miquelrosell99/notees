@@ -232,7 +232,17 @@ export function ClassedNodesSection({
           defaultSort={quickTextActive ? undefined : { key: "name", direction: "asc" }}
           onNodeClick={(id) => {
             const member = client.getNode(id);
-            if (member !== undefined) openMember(member);
+            // The worker-client's cachedRead serves undefined on a key's
+            // first-ever read (the value lands a macrotask later) — a row
+            // the table rendered exists, so a miss is a read-cache artifact,
+            // not a missing node: open the id directly instead of dropping
+            // the click (the first-click-no-op found by the live probe
+            // 2026-10-20).
+            if (member === undefined) {
+              onOpenPage?.(id);
+              return;
+            }
+            openMember(member);
           }}
           trailingAction={unassignAction}
           emptyTitle="No classed nodes."
