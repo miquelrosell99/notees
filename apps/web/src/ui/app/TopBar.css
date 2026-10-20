@@ -3,8 +3,7 @@
  *
  * The header carries no surface fill; only a hairline bottom border
  * separates it from the workspace canvas (owner-approved shell design).
- * The icon-button primitive (.nt-icon-btn) stays in app.css because the
- * boot screens (ThemeToggle) use it too.
+ * Every icon button rides the fleet catalog Button (owner 2026-10-20).
  */
 
 .nt-topbar {
@@ -73,10 +72,8 @@
   margin-right: var(--spacing-1);
 }
 
-.nt-topbar-undo .nt-icon-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
+/* The journal cluster's disabled buttons ride the fleet register's own
+   disabled styling (opacity-50) since the 2026-10-20 catalog conversion. */
 
 /* Revealed chevron: tuck -1px against the undo button so the pair reads as
    a split button; --height-md matches the sibling icon buttons; the 18px
@@ -91,11 +88,8 @@
   opacity: var(--opacity-100);
 }
 
-.nt-icon-btn-active,
-.nt-icon-btn-active:hover {
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
-}
+/* The pressed toggles (focus/condensed/layout/calendar) ride the fleet
+   ghost button's active classes since the 2026-10-20 conversion. */
 
 .nt-wordmark {
   font-weight: var(--font-weight-semibold);

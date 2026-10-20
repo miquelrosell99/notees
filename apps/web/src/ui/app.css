@@ -430,33 +430,9 @@ select:focus-visible {
    Used by the shell components AND the boot screens (ThemeToggle), so it
    stays global; the topbar/sidebar chrome rules moved to components/. */
 
-.nt-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--height-md);
-  height: var(--height-md);
-  border: none;
-  border-radius: var(--shape-medium);
-  background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  flex-shrink: 0;
-}
-
-.nt-icon-btn:hover {
-  background: var(--md-sys-color-hover-overlay);
-  color: var(--md-sys-color-on-surface);
-}
-
-.nt-icon-btn:active {
-  background: var(--md-sys-color-pressed-overlay);
-  color: var(--md-sys-color-on-surface);
-}
-
-.nt-icon-btn:disabled {
-  opacity: var(--opacity-50);
-  cursor: not-allowed;
-}
+/* The ad-hoc .nt-icon-btn retired 2026-10-20 — every icon button composes
+   from the fleet catalog Button (ghost/sm/icon-only), the top bar's
+   conversion being the last call site. */
 
 /* --- page ------------------------------------------------------------------- */
 
@@ -1854,11 +1830,11 @@ select:focus-visible {
 
 /* The pinned cue (owner ruling 2026-10-15, refined same day): the pinned
    "…" is a SOLID-FILLED toggle chip in the app's active-toggle register —
-   the exact fill the focus-mode TopBar button's nt-icon-btn-active wears
+   the exact fill the fleet ghost button's active state wears
    (primary-container / on-primary-container, shape-medium radius), riding
    the mark's 22px hit zone. The contrast pair: muted mark = closed,
    filled chip = open. The fill holds through hover/pressed (the
-   nt-icon-btn-active precedent). No bullet indicator — the chip is the
+   fleet active-toggle precedent). No bullet indicator — the chip is the
    single cue in every mode. */
 .nt-block-excerpt__ellipsis--pinned {
   background: var(--md-sys-color-primary-container);
@@ -3828,11 +3804,6 @@ mark {
   .nt-side-star {
     /* No hover on touch: the favorite toggle stays visible and tappable. */
     display: inline-flex;
-    width: var(--height-button-lg);
-    height: var(--height-button-lg);
-  }
-
-  .nt-icon-btn {
     width: var(--height-button-lg);
     height: var(--height-button-lg);
   }

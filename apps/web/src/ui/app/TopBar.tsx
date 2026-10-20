@@ -158,27 +158,27 @@ export function TopBar({
           <span className="nt-wordmark">Notees</span>
         )}
         {onNewNode !== undefined && (
-          <button
+          <Button
             ref={newButtonRef}
             type="button"
-            className="nt-icon-btn"
+            variant="ghost"
+            size="sm"
+            icon="mdi mdi-plus"
             title="New (pick a class)"
             aria-label="New node"
             onClick={onNewNode}
-          >
-            <Icon path="mdi-plus" size={1} />
-          </button>
+          />
         )}
         {onRequestSearch !== undefined && (
-          <button
+          <Button
             type="button"
-            className="nt-icon-btn"
+            variant="ghost"
+            size="sm"
+            icon="mdi mdi-magnify"
             title="Search (Ctrl+K)"
             aria-label="Search"
             onClick={onRequestSearch}
-          >
-            <Icon path="mdi-magnify" size={1} />
-          </button>
+          />
         )}
       </div>
       <div className="nt-topbar-center">
@@ -187,76 +187,79 @@ export function TopBar({
       <div className="nt-topbar-right">
         {(onGoBack !== undefined || onGoForward !== undefined) && (
           <span className="nt-topbar-nav" role="group" aria-label="Back and forward">
-            <button
+            <Button
               type="button"
-              className="nt-icon-btn"
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-arrow-left"
               disabled={!canGoBack}
               title="Back (Alt+←)"
               aria-label="Back"
               onClick={onGoBack}
-            >
-              <Icon path="mdi-arrow-left" size={1} />
-            </button>
-            <button
+            />
+            <Button
               type="button"
-              className="nt-icon-btn"
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-arrow-right"
               disabled={!canGoForward}
               title="Forward (Alt+→)"
               aria-label="Forward"
               onClick={onGoForward}
-            >
-              <Icon path="mdi-arrow-right" size={1} />
-            </button>
+            />
           </span>
         )}
         {onToggleFocusMode !== undefined && (
-          <button
+          <Button
             type="button"
-            className={focusMode ? "nt-icon-btn nt-icon-btn-active" : "nt-icon-btn"}
+            variant="ghost"
+            size="sm"
+            icon="mdi mdi-crop-free"
+            active={focusMode}
             title={focusMode ? "Exit focus mode (Esc)" : "Focus mode (Ctrl+Alt+F)"}
             aria-label={focusMode ? "Exit focus mode" : "Focus mode"}
             aria-pressed={focusMode}
             onClick={onToggleFocusMode}
-          >
-            <Icon path="mdi-crop-free" size={1} />
-          </button>
+          />
         )}
         {onToggleCondensed !== undefined && (
-          <button
+          <Button
             type="button"
-            className={condensedActive ? "nt-icon-btn nt-icon-btn-active" : "nt-icon-btn"}
+            variant="ghost"
+            size="sm"
+            icon="mdi mdi-unfold-less-horizontal"
+            active={condensedActive}
             title={condensedActive ? "Condensed: exit" : "Condensed: enter"}
             aria-label={condensedActive ? "Exit condensed mode" : "Condensed mode"}
             aria-pressed={condensedActive}
             onClick={onToggleCondensed}
-          >
-            <Icon path="mdi-unfold-less-horizontal" size={1} />
-          </button>
+          />
         )}
         {onToggleLayout !== undefined && (
-          <button
+          <Button
             type="button"
-            className={sectionsLayout ? "nt-icon-btn nt-icon-btn-active" : "nt-icon-btn"}
+            variant="ghost"
+            size="sm"
+            icon={sectionsLayout ? "mdi mdi-view-agenda-outline" : "mdi mdi-view-split-vertical"}
+            active={sectionsLayout}
             title={sectionsLayout ? "Switch to sidebar layout" : "Switch to sections layout"}
             aria-label={sectionsLayout ? "Switch to sidebar layout" : "Switch to sections layout"}
             aria-pressed={!sectionsLayout}
             onClick={onToggleLayout}
-          >
-            <Icon path={sectionsLayout ? "mdi-view-agenda-outline" : "mdi-view-split-vertical"} size={1} />
-          </button>
+          />
         )}
         {undoState !== undefined && (
           <span className="nt-topbar-undo ui-hover-reveal-group" role="group" aria-label="Undo and redo">
-            <button
+            <Button
               type="button"
-              className="nt-icon-btn"
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-undo-variant"
               disabled={!undoState.canUndo}
               title={undoState.undoLabel ?? "Undo"}
               aria-label={undoState.undoLabel ?? "Undo"}
               onClick={onUndo}
-            >
-              <Icon path="mdi-undo-variant" size={1} />
-            </button>
+            />
             <HoverRevealButton
               ref={historyButtonRef}
               className="nt-topbar-undo__chevron"
@@ -267,30 +270,31 @@ export function TopBar({
             >
               <Icon path="mdi-chevron-down" size={0.8} />
             </HoverRevealButton>
-            <button
+            <Button
               type="button"
-              className="nt-icon-btn"
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-redo-variant"
               disabled={!undoState.canRedo}
               title={undoState.redoLabel ?? "Redo"}
               aria-label={undoState.redoLabel ?? "Redo"}
               onClick={onRedo}
-            >
-              <Icon path="mdi-redo-variant" size={1} />
-            </button>
+            />
           </span>
         )}
         {onToggleCalendar !== undefined && (
-          <button
+          <Button
             type="button"
             ref={calendarButtonRef}
-            className={calendarOpen ? "nt-icon-btn nt-icon-btn-active" : "nt-icon-btn"}
+            variant="ghost"
+            size="sm"
+            icon="mdi mdi-calendar-month-outline"
+            active={calendarOpen}
             title={calendarOpen ? "Close calendar" : "Open calendar"}
             aria-label="Toggle calendar"
             aria-expanded={calendarOpen}
             onClick={onToggleCalendar}
-          >
-            <Icon path="mdi-calendar-month-outline" size={1} />
-          </button>
+          />
         )}
         <Button
           type="button"

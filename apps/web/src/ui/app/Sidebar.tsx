@@ -43,6 +43,7 @@ import { untitledLabelOf } from "../renderStateLabel.js";
 import { openNodeLinkMenu } from "../../features/node-menu/NodeLinkContextMenu.js";
 import { useNodePrefs, toggleNodeFavorite, reorderNodeFavorites, removeSyncedRecent } from "../../features/settings/nodePrefs.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "../../features/node-menu/SidebarItemMenu.js";
+import { Button } from "../../components/ui/fleet/Button.js";
 import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
 import { Separator } from "../../components/ui/fleet/Separator.js";
 import { useDeviceSetting } from "../../features/settings/deviceSettings.js";
@@ -623,15 +624,15 @@ export function Sidebar({
           /* The quick-access gear (owner 2026-10-19 — restored after one
              popup-only day: the owner doesn't want a shortcut as the
              settings door). Same target as the popup's Settings entry. */
-          <button
+          <Button
             type="button"
-            className="nt-icon-btn"
+            variant="ghost"
+            size="sm"
+            icon="mdi mdi-cog-outline"
             title="Settings"
             aria-label="Settings"
             onClick={onOpenSettings}
-          >
-            <Icon path="mdi-cog-outline" size={1} />
-          </button>
+          />
         )}
         {accountMenu && (
           <div

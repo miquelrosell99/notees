@@ -47,12 +47,15 @@ describe("mobile layout (app.css responsive pass)", () => {
     // The drawer gets a real surface above the page beneath.
     expect(block).toContain(".nt-sidebar-open .nt-sidebar");
     expect(block).toContain("--md-sys-color-surface-container-low");
-    // Touch targets: sidebar rows, the favorite star, and the shell icon
-    // buttons all grow to the button height token (the sidebar is an
-    // exception surface — the 48dp touch floor does not apply there).
+    // Touch targets: sidebar rows and the favorite star grow to the button
+    // height token (the sidebar is an exception surface — the 48dp touch
+    // floor does not apply there). The shell icon buttons ride the fleet
+    // catalog Button since 2026-10-20 — their 48dp hit area is the
+    // invisible min-touch overlay inside every icon-only button, present
+    // at every width, so the responsive pass no longer enlarges them.
     expect(block).toContain("--height-button-lg");
     expect(block).toMatch(/\.nt-side-item\s*\{[^}]*min-height/s);
-    expect(block).toMatch(/\.nt-icon-btn\s*\{[^}]*height/s);
+    expect(block).toMatch(/\.nt-side-star\s*\{[^}]*height/s);
     // The wordmark yields its space in the topbar.
     expect(block).toContain(".nt-wordmark");
   });

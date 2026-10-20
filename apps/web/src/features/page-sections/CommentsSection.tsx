@@ -29,6 +29,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
+import { Button } from "../../components/ui/fleet/Button.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
@@ -142,17 +143,18 @@ function CommentComposer({
           if (text.trim() === "") onClose();
         }}
       />
-      <button
+      <Button
         type="button"
-        className="nt-icon-btn"
+        variant="ghost"
+        size="sm"
+        icon="mdi mdi-send"
+        iconSize={0.8}
         aria-label="Send comment"
         title="Send comment"
         disabled={text.trim() === "" || submitting}
         onMouseDown={(event) => event.preventDefault() /* keep the input focused */}
         onClick={submit}
-      >
-        <Icon path="mdi-send" size={0.8} />
-      </button>
+      />
       {submitError !== null && (
         <p className="nt-comments__error" role="alert">
           {submitError}

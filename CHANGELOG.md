@@ -36,6 +36,28 @@ predating this file.
   arm + inward-corner quartet and the gap-column descent (3 quadratic
   joins for an iconed chain). Docs: EditThread/BlockRow headers.
 
+- **feat(web): the top bar rides one register — and the ad-hoc icon button
+  retires app-wide.** Owner question 2026-10-20 ("the rest of the icons are
+  bigger and look out of place" next to the sidebar toggle). The mismatch:
+  the dock toggles are fleet catalog `Button`s (32px box, 17px icon), the
+  rest of the bar rode the legacy `.nt-icon-btn` with raw 24px glyphs.
+  Every top-bar control now composes from the fleet `Button` (ghost/sm/
+  icon-only — the quiet idiom for momentary actions; the dock pair stays
+  outline as the persistent-state toggles; the pressed focus/condensed/
+  layout/calendar states ride the ghost active classes). The owner then
+  asked why stop there — so the remaining `.nt-icon-btn` call sites
+  converted too (NodeMenuButton's "…", ThemeToggle, the Sidebar settings
+  gear, the CommentsSection send) and the class RETIRES: base/hover/active/
+  disabled blocks, the mobile touch-target compound (the fleet icon-only
+  overlay carries the 48dp floor at every width), the dead TopBar.css
+  rules, and the comment-only NodeMenuButton.css all go. Answers the
+  owner's other question too: the fleet Button IS the normalized shadcn
+  catalog button (cva + Radix Slot) with the app register on top — the
+  drift gate exists to keep chrome on exactly that primitive. Two stale
+  test assertions follow the new contract (the ghost active class; the
+  responsive-pass assertion moves to the star, the icon buttons' floor
+  being the overlay). Verified live: uniform 17px icons across the bar.
+  Full suite green (1810).
 - **fix(web): breathing room between the page title and the tags row.**
   Owner feedback 2026-10-20 (screenshot: the "Tags:" row sat flush under
   the multi-line page title). The page-header tags row gains a
