@@ -45,7 +45,7 @@ export async function ensureAliasProperty(client: AnyClient): Promise<void> {
     name: SYSTEM_PROPERTY_DISPLAY_NAMES.alias,
     type: "text",
     multi: true,
-    scope: "global",
+    // Global: absent scopeClassIds = any node may carry it.
   });
 }
 

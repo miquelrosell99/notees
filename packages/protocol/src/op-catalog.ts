@@ -112,13 +112,13 @@ export const OP_CATALOG: OpCatalogEntry[] = [
   },
   {
     opType: "propertySchema.create",
-    description: "Register a property schema (fixed id, type/multi/scope/options/targetClassFilter).",
-    example: { propertySchemaId: "<uuid>", name: "rating", type: "number", scope: "class" },
+    description: "Register a property schema (fixed id, type/multi/icon/scopeClassIds/options/targetClassFilter).",
+    example: { propertySchemaId: "<uuid>", name: "rating", type: "number", scopeClassIds: ["<class-uuid>"] },
     affected: "none",
   },
   {
     opType: "propertySchema.update",
-    description: "Patch a schema's registry fields (name/options/formats/display — partial, null clears).",
+    description: "Patch a schema's registry fields (name/icon/options/scopeClassIds/targetClassFilter/multi/validationRules/formats/display — partial, null clears).",
     example: { propertySchemaId: "<uuid>", name: "score", display: "bullet" },
     affected: "none",
   },

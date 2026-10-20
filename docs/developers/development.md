@@ -172,8 +172,9 @@ The single most important process rule:
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
 groups). The exact file set is the contract — the gate test below asserts it
-verbatim (31 files after the 2026-10-16 Revision-12 `object-is-embedded` fixture);
-the core scenarios:
+verbatim (35 files after the 2026-10-20 property-scope batch added
+`property-schema-scope.json` + `property-schema-update-fields.json`); the core
+scenarios:
 
 | Fixture | Scenario it pins |
 |---|---|
@@ -190,6 +191,8 @@ the core scenarios:
 | `object-wire-fields.json` | the cover/banner/alias wire fields set + clear through `object.update` |
 | `class-convert.json` | `class.create` on an existing node declares it a class (the retired class-class ruling) |
 | `property-asset-type.json` | the `asset` property type through `propertySchema.create` + a coexisting update |
+| `property-schema-scope.json` | the property-schema scope model: `scopeClassIds` create + R5 binding accept + R3 extends-aware eligibility + survival under a non-retroactive narrowing |
+| `property-schema-update-fields.json` | the update payload's new fields: icon/scopeClassIds/targetClassFilter/multi/validationRules set + cleared (the keep/clear contract) |
 | `trash-empty.json` | the `trash.empty` bulk op: apply-time permanent delete of every trashed root, a restore-before-empty survives |
 
 The gate is enforced by `packages/protocol/test/protocol.test.ts`:

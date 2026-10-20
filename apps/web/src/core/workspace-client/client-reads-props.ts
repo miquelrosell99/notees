@@ -204,7 +204,7 @@ export class WorkspaceClientReadsProps {
   listPropertySchemas(): ClientPropertySchema[] {
     const rows = this.ctx.store.database
       .prepare(
-        `SELECT id, name, type, multi, scope, options, target_class_filter, date_precision, date_qualified,
+        `SELECT id, name, type, multi, icon, scope_class_ids, options, target_class_filter, date_precision, date_qualified,
                 display, readonly, hide_when_empty
          FROM property_schema WHERE workspace_id = ? AND active = 1
          ORDER BY name, id`,
@@ -250,7 +250,8 @@ export class WorkspaceClientReadsProps {
         name: String(row.name),
         type: String(row.type),
         multi: row.multi === 1,
-        scope: String(row.scope),
+        icon: row.icon === null || row.icon === undefined ? null : String(row.icon),
+        scopeClassIds: parseJsonArray(row.scope_class_ids),
         options,
         targetClassFilter: parseJsonArray(row.target_class_filter),
         datePrecision:

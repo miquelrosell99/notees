@@ -133,7 +133,8 @@ export async function deploySystemClass(
         name: SYSTEM_PROPERTY_DISPLAY_NAMES[name],
         type: spec!.type,
         multi: spec!.multi ?? false,
-        scope: "class",
+        // Scoped to this class (the sole locality authority) — the binding rows below land on the same class.
+        scopeClassIds: [classId],
         ...(spec!.options !== undefined ? { options: spec!.options } : {}),
         ...(spec!.targetClassFilter !== undefined
           ? { targetClassFilter: spec!.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }

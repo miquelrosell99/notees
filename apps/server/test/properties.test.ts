@@ -26,15 +26,22 @@ function api(method: string, url: string, options: { payload?: unknown } = {}) {
   });
 }
 
-async function createObject(name: string): Promise<string> {
-  const res = await api("POST", "/api/objects", { payload: { isEmbedded: false, name } });
+async function createObject(name: string, classIds: string[] = []): Promise<string> {
+  const res = await api("POST", "/api/objects", { payload: { isEmbedded: false, name, classIds } });
   expect(res.statusCode).toBe(201);
   return res.json().id as string;
 }
 
+/** A source-classed node: the seeded bibliography schemas are scoped to the
+ *  source class (the sole locality authority), so
+ *  property writes against them need the class (R3 eligibility). */
+async function createSourceObject(name: string): Promise<string> {
+  return createObject(name, [SYSTEM_CLASS_UUIDS.source]);
+}
+
 describe("object property writes", () => {
   it("POST /objects/:id/properties sets a value (idx 0 default) returned on GET", async () => {
-    const id = await createObject("prop-target");
+    const id = await createSourceObject("prop-target");
     const res = await api("POST", `/api/objects/${id}/properties`, {
       payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey, value: "kuhn1962structure" },
     });
@@ -95,7 +102,7 @@ describe("object property writes", () => {
   });
 
   it("POST carries metadata qualifiers through to the stored value", async () => {
-    const id = await createObject("prop-meta");
+    const id = await createSourceObject("prop-meta");
     const res = await api("POST", `/api/objects/${id}/properties`, {
       payload: {
         propertySchemaId: SYSTEM_PROPERTY_UUIDS.publisher,
@@ -110,7 +117,7 @@ describe("object property writes", () => {
   });
 
   it("DELETE /objects/:id/properties/:schemaId unsets (default idx 0, explicit idx)", async () => {
-    const id = await createObject("prop-unset");
+    const id = await createSourceObject("prop-unset");
     await api("POST", `/api/objects/${id}/properties`, {
       payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.isbn, value: "one", idx: 0 },
     });
@@ -192,8 +199,8 @@ describe("property schema number formats", () => {
 
 describe("objects list property filter", () => {
   it("?property=<schemaId>:<value> matches the JSON-encoded scalar exactly", async () => {
-    const a = await createObject("filter-a");
-    const b = await createObject("filter-b");
+    const a = await createSourceObject("filter-a");
+    const b = await createSourceObject("filter-b");
     await api("POST", `/api/objects/${a}/properties`, {
       payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey, value: "kuhn1962structure" },
     });
@@ -267,14 +274,14 @@ describe("property schemas", () => {
   it("POST creates a schema with a caller-chosen (fixed) UUID through the pipeline", async () => {
     const schemaId = "10000000-0000-4000-8000-0000000000b5";
     const res = await api("POST", "/api/property-schemas", {
-      payload: { propertySchemaId: schemaId, name: "externalId", type: "text", multi: false, scope: "global" },
+      payload: { propertySchemaId: schemaId, name: "externalId", type: "text", multi: false },
     });
     expect(res.statusCode).toBe(201);
     expect(res.json().propertySchema).toMatchObject({ id: schemaId, name: "externalId", type: "text" });
 
     // Get-or-create convergence: re-POSTing the same UUID does not duplicate.
     const again = await api("POST", "/api/property-schemas", {
-      payload: { propertySchemaId: schemaId, name: "externalId", type: "text", multi: false, scope: "global" },
+      payload: { propertySchemaId: schemaId, name: "externalId", type: "text", multi: false },
     });
     expect(again.statusCode).toBe(201);
 
@@ -289,7 +296,7 @@ describe("property schema update/delete routes", () => {
   async function createSchema(name: string, extra: Record<string, unknown> = {}): Promise<string> {
     const schemaId = crypto.randomUUID();
     const res = await api("POST", "/api/property-schemas", {
-      payload: { propertySchemaId: schemaId, name, type: "text", multi: false, scope: "global", ...extra },
+      payload: { propertySchemaId: schemaId, name, type: "text", multi: false, ...extra },
     });
     expect(res.statusCode).toBe(201);
     return schemaId;
@@ -370,7 +377,7 @@ describe("class property binding routes", () => {
   async function createSchema(name: string, extra: Record<string, unknown> = {}): Promise<string> {
     const schemaId = crypto.randomUUID();
     const res = await api("POST", "/api/property-schemas", {
-      payload: { propertySchemaId: schemaId, name, type: "text", multi: false, scope: "class", ...extra },
+      payload: { propertySchemaId: schemaId, name, type: "text", multi: false, ...extra },
     });
     expect(res.statusCode).toBe(201);
     return schemaId;
@@ -378,7 +385,8 @@ describe("class property binding routes", () => {
 
   it("POST binds sequence/required/defaultValue and the effective read derives the default (the render contracts are schema-level)", async () => {
     const classId = await createClass("pg7-shelf");
-    const schemaId = await createSchema("pg7-code");
+    // Scoped to the binding class (the sole locality authority) — R5 accepts the binding below.
+    const schemaId = await createSchema("pg7-code", { scopeClassIds: [classId] });
 
     const bound = await api("POST", `/api/classes/${classId}/properties`, {
       payload: { propertySchemaId: schemaId, sequence: 2, required: true, defaultValue: "n/a" },
@@ -424,7 +432,7 @@ describe("class property binding routes", () => {
 
   it("POST fails loud on a wrong-typed defaultValue and on unknown class/schema", async () => {
     const classId = await createClass("pg7-shelf-2");
-    const schemaId = await createSchema("pg7-code-2");
+    const schemaId = await createSchema("pg7-code-2", { scopeClassIds: [classId] });
 
     const bad = await api("POST", `/api/classes/${classId}/properties`, {
       payload: { propertySchemaId: schemaId, defaultValue: 42 },
@@ -450,7 +458,7 @@ describe("class property binding routes", () => {
 
   it("DELETE unbinds: the default stops deriving, authored values survive", async () => {
     const classId = await createClass("pg7-shelf-3");
-    const schemaId = await createSchema("pg7-code-3");
+    const schemaId = await createSchema("pg7-code-3", { scopeClassIds: [classId] });
     await api("POST", `/api/classes/${classId}/properties`, {
       payload: { propertySchemaId: schemaId, sequence: 0, defaultValue: "def" },
     });

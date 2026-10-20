@@ -80,7 +80,7 @@ function retirementWorld(): Store {
         name: "Templates",
         type: "object",
         multi: true,
-        scope: "class",
+        scopeClassIds: [CLASS_CLASS_ID],
         targetClassFilter: [TEMPLATE_CLASS],
       },
       1001,
@@ -181,15 +181,19 @@ describe("migrate-retire-class-class envelopes", () => {
     // is the class title.
     expect(byOp("class.create").every((e) => Object.keys(e.payload).sort())).toBe(true);
     expect(byOp("class.create")[0]!.payload).toEqual({ classId: expect.any(String) });
-    // The re-scope carries the stored name (rename-safe) at global scope.
+    // The re-scope carries the stored name (rename-safe) at global scope
+    // (global is the ABSENT scopeClassIds — the
+    // retired `scope` key is rejected outright).
     expect(byOp("propertySchema.create")[0]!.payload).toMatchObject({
       propertySchemaId: HAS_TEMPLATE,
       name: "Templates",
       type: "object",
       multi: true,
-      scope: "global",
       targetClassFilter: [TEMPLATE_CLASS],
     });
+    expect(
+      (byOp("propertySchema.create")[0]!.payload as Record<string, unknown>).scopeClassIds,
+    ).toBeUndefined();
 
     for (const envelope of envelopes) store.apply(envelope);
 
@@ -214,12 +218,12 @@ describe("migrate-retire-class-class envelopes", () => {
         .prepare("SELECT COUNT(*) AS n FROM class_property WHERE property_schema_id = ?")
         .get(HAS_TEMPLATE),
     ).toMatchObject({ n: 0 });
-    // The schema is global-scope now.
+    // The schema is global-scope now (NULL scope_class_ids).
     expect(
-      (store.database.prepare("SELECT scope FROM property_schema WHERE id = ?").get(HAS_TEMPLATE) as {
-        scope: string;
-      }).scope,
-    ).toBe("global");
+      (store.database.prepare("SELECT scope_class_ids FROM property_schema WHERE id = ?").get(HAS_TEMPLATE) as {
+        scope_class_ids: string | null;
+      }).scope_class_ids,
+    ).toBeNull();
     // The class-class node is trashed (recoverable).
     expect(store.getNode(CLASS_CLASS_ID)).toMatchObject({ is_active: 0 });
     store.close();
