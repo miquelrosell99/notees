@@ -15,24 +15,23 @@
  * writes), the schema icon (the owner-2026-10-20 icon field, per-type
  * glyph fallback), and the name (min-width 0 + ellipsis). NOTHING else —
  * no chips, no row-level flag toggle, no ×. Inactive bindings dim the
- * name (the only disabled cue). The row click opens the config; hover
- * also reveals a ⋯ overflow ("Open property" / "Remove from class").
+ * name (the only disabled cue). The row click expands the config; hover
+ * also reveals a COG that opens the S2 base-definition modal directly
+ * (the ⋯ overflow menu is gone — its two items moved: "Open property" =
+ * the cog, "Remove from class" = the panel footer).
  *
- * Config panel (expanded, full section width, stacked groups that can
- * never overflow the sidebar) — CLASS-LEVEL ONLY (owner ruling R7,
- * 2026-10-20: the panel must not duplicate the base-definition modal):
- * a read-only header (icon + name — identity display, no rename); a
- * "For this class" group (the default-value editor → class.property.set
- * {defaultValue}, Required checkbox, the "Active on this class"
- * ToggleSwitch (PC4 `active` — off keeps the binding's settings but stops
- * applying them) — the only class-by-class binding fields:
- * defaultValue/required/sequence/active, sequence being the drag reorder
- * on the collapsed row); footer (a quiet "Edit definition…" → the S2
- * PropertyEditModal — the class page's path to the definition-level editor
- * (rename, type/Convert, multi, target classes, date settings all live
- * there); "Remove from class" behind a ConfirmationModal, HIDDEN for
- * system property schemas (and absent from the ⋯ overflow there too) —
- * the fixed SYSTEM_PROPERTY_UUIDS in @notees/domain).
+ * Config panel (expanded, full section width — CLASS-LEVEL ONLY, owner
+ * ruling R7 + the same-day amendment: a property applies to a class by
+ * being in this list, nothing more): a read-only header (icon + name —
+ * identity display, no rename), the default-value editor
+ * (class.property.set {defaultValue}) and the Required checkbox — no
+ * group labels, no "Active on this class" switch (the PC4 `active` flag
+ * stays wire-level; presence in the list IS the on/off, owner ruling).
+ * The footer holds only "Remove from class" (behind a ConfirmationModal,
+ * HIDDEN for system property schemas) — no "Edit definition…" button;
+ * the cog owns the definition path. Definition-level fields (rename,
+ * type/Convert, multi, target classes, date settings, scope) live
+ * exclusively in the S2 PropertyEditModal.
  *
  * Add property: the AddPill opens an anchored popover (SearchField,
  * keyboard-navigable listbox, rows = icon + name + type label) filtered
@@ -82,9 +81,7 @@ import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
 import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
-import { ContextMenu } from "../../components/ui/fleet/ContextMenu.js";
 import { SearchField } from "../../components/ui/fleet/SearchField.js";
-import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import { PropertyEditModal } from "../metadata/PropertySettingsModal.js";
 import { PropertyView } from "../metadata/PropertyView.js";
@@ -203,7 +200,6 @@ function BindingRow({
   schema,
   expanded,
   onToggleExpanded,
-  onMenu,
   onOpenDefinition,
   onRemoveRequest,
 }: {
@@ -213,9 +209,7 @@ function BindingRow({
   schema: ClientPropertySchema | undefined;
   expanded: boolean;
   onToggleExpanded: () => void;
-  /** The ⋯ overflow: "Open property" / "Remove from class". */
-  onMenu: (anchor: HTMLElement) => void;
-  /** "Edit definition…" — the S2 base-definition modal. */
+  /** The row's cog — opens the S2 base-definition modal directly. */
   onOpenDefinition: () => void;
   /** "Remove from class" — the section-level danger confirm. */
   onRemoveRequest: () => void;
@@ -266,13 +260,14 @@ function BindingRow({
         <button
           type="button"
           className="nt-propdef-more"
-          aria-label={`Options for ${name}`}
+          aria-label={`Definition settings for ${name}`}
+          title="Definition settings"
           onClick={(event) => {
             event.stopPropagation();
-            onMenu(event.currentTarget);
+            onOpenDefinition();
           }}
         >
-          <Icon path="mdi-dots-horizontal" size={0.7} />
+          <Icon path="mdi-cog-outline" size={0.7} />
         </button>
       </div>
       {expanded && (
@@ -286,8 +281,7 @@ function BindingRow({
             <span className="nt-propdef-name">{name}</span>
           </div>
 
-          <fieldset className="nt-propdef-group">
-            <legend>For this class</legend>
+          <div className="nt-propdef-group">
             <label className="nt-propdef-stack">
               <span className="nt-propdef-label">Default value</span>
               <input
@@ -312,30 +306,9 @@ function BindingRow({
               />
               <span>Required</span>
             </label>
-            <div className="nt-propdef-check">
-              <span className="nt-propdef-label" id={`active-label:${binding.propertySchemaId}`}>
-                Active on this class
-              </span>
-              <ToggleSwitch
-                size="sm"
-                leftLabel="Off"
-                rightLabel="On"
-                checked={binding.active}
-                onChange={(enabled) => patch({ active: enabled })}
-                aria-labelledby={`active-label:${binding.propertySchemaId}`}
-              />
-              <span className="nt-propdef-hint">
-                Off keeps this class's settings but stops applying them.
-              </span>
-            </div>
-          </fieldset>
+          </div>
 
           <div className="nt-propdef-footer">
-            {/* The class page's path to the base-definition editor — rename,
-                type/Convert, multi, target classes, date settings, scope. */}
-            <Button variant="ghost" size="sm" onClick={onOpenDefinition}>
-              Edit definition…
-            </Button>
             {!isSystem && (
               <Button variant="danger" size="sm" onClick={onRemoveRequest}>
                 Remove from class
@@ -358,7 +331,6 @@ export function PropertyDefinitionsSection({
   const { direct, inherited } = bindingAttributionOf(client, classId);
   /** Expanded config rows (property-schema ids). */
   const [expandedRows, setExpandedRows] = useState<ReadonlySet<string>>(new Set());
-  const [menuFor, setMenuFor] = useState<{ binding: ClassBinding; anchor: HTMLElement } | null>(null);
   const [editFor, setEditFor] = useState<string | null>(null);
   const [viewFor, setViewFor] = useState<string | null>(null);
   const [removeFor, setRemoveFor] = useState<ClassBinding | null>(null);
@@ -451,24 +423,6 @@ export function PropertyDefinitionsSection({
     }
   };
 
-  const menuItems = (binding: ClassBinding) => [
-    {
-      id: "open-property",
-      label: "Open property",
-      icon: "mdi-open-in-app",
-      onClick: () => setEditFor(binding.propertySchemaId),
-    },
-    // System properties have no remove entry — non-removable means absent.
-    ...(isSystemSchema(binding.propertySchemaId)
-      ? []
-      : [{
-          id: "remove-from-class",
-          label: "Remove from class",
-          icon: "mdi-close-circle-outline",
-          danger: true,
-          onClick: () => setRemoveFor(binding),
-        }]),
-  ];
 
   return (
     <>
@@ -499,7 +453,6 @@ export function PropertyDefinitionsSection({
                       .find((s) => s.id === binding.propertySchemaId)}
                     expanded={expandedRows.has(binding.propertySchemaId)}
                     onToggleExpanded={() => toggleRow(binding.propertySchemaId)}
-                    onMenu={(anchor) => setMenuFor({ binding, anchor })}
                     onOpenDefinition={() => setEditFor(binding.propertySchemaId)}
                     onRemoveRequest={() => setRemoveFor(binding)}
                   />
@@ -620,13 +573,6 @@ export function PropertyDefinitionsSection({
         </NodeViewSection>
       )}
 
-      {menuFor !== null && (
-        <ContextMenu
-          items={menuItems(menuFor.binding)}
-          anchorEl={menuFor.anchor}
-          onClose={() => setMenuFor(null)}
-        />
-      )}
       {editFor !== null && (
         <PropertyEditModal
           client={client}
