@@ -138,6 +138,9 @@ export default {
         /* The sub-item corners (skeleton rows, check chips). */
         "shape-xs": "var(--shape-extra-small)",
         "shape-sm": "var(--shape-small)",
+        /* The shared rounded-square: buttons and
+           checkboxes wear the switcher's shape-medium. */
+        "shape-md": "var(--shape-medium)",
       },
       boxShadow: {
         /* M3 elevation: level 1 static cards/rails, 2 menus/popovers,
