@@ -14,9 +14,15 @@
  * - edit mode: a click swaps in BlockTextEditor (contentEditable prose
  *   editing, the outliner keyboard contract). While a block is editing,
  *   the ancestor chain from the top-level block down to it wears the
- *   accent thread — the chain's indent rails and the per-link elbow
- *   connectors into each path bullet (app.css "the edit thread") — pure structural CSS over `.nt-block--editing`, no
- *   state threads the recursion.
+ *   accent thread — the chain's indent rails, plus the grip's two pseudo
+ *   arms per link: the elbow (::after) from the rail column into the path
+ *   bullet, and the ancestor's stud (::before) dropping from its own dot
+ *   into its rail, so the thread passes THROUGH every path bullet (├, the
+ *   owner's reference look; app.css "the edit thread")
+ *   — pure structural CSS over `.nt-block--editing`, no state threads the
+ *   recursion. The editing block's own bullet/marker/icon highlight is
+ *   direct-row scoped: a descendant selector lit the whole subtree
+ * (children must not read as active).
  *
  * A collapsed block (session-local display state from OutlinerContext) hides
  * its entire subtree — the children container is not rendered. The chevron
