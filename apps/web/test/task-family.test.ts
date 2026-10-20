@@ -102,6 +102,19 @@ describe("ensureTaskFamily", () => {
       schemas.get(SYSTEM_PROPERTY_UUIDS.taskPriority)?.options?.map((option) => option.label),
     ).toEqual([...TASK_PRIORITY_OPTIONS]);
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskRecurrence)?.type).toBe("select");
+    // the whole family is
+    // global-scope (Status "can be reused for other nodes") — the bindings
+    // below stay per-class config.
+    for (const id of [
+      SYSTEM_PROPERTY_UUIDS.taskStatus,
+      SYSTEM_PROPERTY_UUIDS.taskDeadline,
+      SYSTEM_PROPERTY_UUIDS.taskScheduled,
+      SYSTEM_PROPERTY_UUIDS.taskPriority,
+      SYSTEM_PROPERTY_UUIDS.taskClosedDate,
+      SYSTEM_PROPERTY_UUIDS.taskRecurrence,
+    ] as const) {
+      expect(schemas.get(id)?.scopeClassIds).toBeNull();
+    }
 
     const bound = client
       .getClassBindings(SYSTEM_CLASS_UUIDS.task)
