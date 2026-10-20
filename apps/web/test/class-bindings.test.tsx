@@ -150,8 +150,8 @@ describe("Class View class properties editor", () => {
     await flushWrites();
     expect(client.getRegistryBindings(classId)[0]!.required).toBe(true);
 
-    // PC4 lockstep shipped: the Enabled switch writes binding.active live.
-    fireEvent.click(screen.getByRole("switch", { name: "Disabled Enabled" }));
+    // PC4 lockstep shipped: the "Active on this class" switch writes binding.active live.
+    fireEvent.click(screen.getByRole("switch", { name: "Active on this class" }));
     await flushWrites();
     expect(client.getRegistryBindings(classId)[0]!.active).toBe(false);
   });
