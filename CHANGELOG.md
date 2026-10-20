@@ -8,6 +8,27 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **fix(web): the class page's first section keeps the page view's ghost-row
+  separation (owner report).** On a plain page the first system section
+  (Backlinks) sits a comfortable step below the body's trailing "+ Add block"
+  ghost — the `nt-page-sections` wrapper owns that clearance (margin-top:
+  spacing-4 above the hairline). On a class page the variant's section stack
+  (Classed nodes) rode BARE in the content flow, wearing only the section
+  chrome's tightened padding-top (spacing-2, the header's under-hairline
+  clearance per the owner 2026-10-13 ruling) — so the "Classed nodes"
+  hairline hugged the ghost row. The stack now rides an `nt-variant-sections`
+  wrapper that adds exactly the system stack's margin-top (the per-section
+  borders stay — the multi-section stack still separates by its own
+  hairlines, unlike `nt-page-sections`' single-line suppression); geometry
+  between ghost and first section is now identical in both views. Renders
+  only while the variant actually has sections (plain/date variants mount
+  no empty margin-carrying div). `PageView.tsx` (the wrapper), `SystemSections.
+  css` (the rule), `NodeViewSection.css` (the spacing-2 comment re-anchored:
+  under-hairline header clearance; the above-hairline room is the host
+  wrapper's job). Pure CSS/JSX geometry — no behavior, wire, or model touch.
+  (Gate note: `pnpm typecheck` is red at `packages/store/src/schema.ts:308` —
+  another in-flight session's uncommitted edit, untouched here; the changed
+  files pass a standalone syntax check.)
 - **feat(web): the binding default editor is type-gated — text/number/
   boolean/select only; node-typed schemas lose the default UI (owner
   ruling).** A class binding's "Default value" never made sense for

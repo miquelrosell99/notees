@@ -22,6 +22,17 @@
   padding-top: 0;
 }
 
+/* The variant's section stack (class pages: Classed nodes — Class
+   properties and Templates when the compact layout folds the sidebar
+   sections into the content flow). The first section's own hairline is the
+   separator, so this wrapper adds ONLY the ghost-row clearance the
+   nt-page-sections stack owns (margin-top) — geometry identical to the
+   page view's first system section, without suppressing the per-section
+   borders the multi-section stack separates by. */
+.nt-variant-sections {
+  margin-top: var(--spacing-4);
+}
+
 .nt-section-list {
   list-style: none;
   margin: 0;
