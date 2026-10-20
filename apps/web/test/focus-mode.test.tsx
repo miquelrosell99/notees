@@ -151,8 +151,9 @@ describe("focus mode page chrome (#12)", () => {
     expect(container.querySelector(".nt-tags-row")).toBeNull();
     expect(container.querySelector(".nt-page-footer")).toBeNull();
     expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
-    // No system sections (child pages) either.
-    expect(container.querySelector(".nt-page-sections")).toBeNull();
+    // No system sections (child pages) render inside the stack (the stack
+    // container itself is chromeless and always mounted: no group-level hiding).
+    expect(container.querySelector(".nt-page-section-stack .node-view-section")).toBeNull();
     // The header icon + picker are gone; the title is not.
     expect(container.querySelector(".page-icon-btn")).toBeNull();
 
