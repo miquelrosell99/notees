@@ -8,6 +8,11 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **chore(server): `SERVER_VERSION` rejoins the tag train — 3.2.0 → 4.4.0.**
+  The constant had been stuck since v3.2.0 while tags rode to v4.4.0 (flagged
+  by the CLI's v4.1.1 alignment — its `doctor` drift check compares against
+  the live server). Tests reference the symbolically, no assertions changed;
+  server suite 232 green.
 - **feat(protocol,store,web): the property-definition batch ships — lockstep
   complete, live-migrated, deployed (VERIFY-PASS).** The 2026-10-20
   property-definition effort lands end to end: `scopeClassIds` replaces the
