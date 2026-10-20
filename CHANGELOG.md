@@ -9,6 +9,51 @@ predating this file.
 
 ## 2026-10-20
 
+- **fix(web): the SPA stops serving stale app versions after a redeploy —
+  index.html is never cached, hashed assets are immutable.** 
+  2026-10-20: "I redeployed and still see the old checkbox" — the
+  deployed image WAS the new build (bundle verified: `rounded-shape-md`
+  present), but nginx served `index.html` with only Last-Modified/ETag,
+  so browsers heuristic-cached it for hours: a stale index pins the OLD
+  hashed CSS/JS URLs and the user runs the pre-deploy app no matter how
+  many redeploys ship. `nginx-spa.conf` now sends `Cache-Control:
+  no-cache` on the SPA shell (ETag 304s keep reloads cheap) and
+  `public, max-age=31536000, immutable` on `/assets/*` and the sprite
+  (content-hashed — a new build is a new URL). Verified on the running
+  container: all three headers correct. One hard refresh is needed now
+  to drop the already-cached shell; every future redeploy lands on a
+  plain reload. (Also that session's store refactor has since landed —
+  its changelog entry follows.)
+- **feat(protocol+store): property scope becomes `scopeClassIds` — the sole
+  locality authority — and the schema's base definition gains icon,
+  targetClassFilter/multi/validationRules on update.** (the property-definition surfaces batch, slices 1–2; web UI is
+  slice 3, not in this entry). The display-only `scope:
+  "global"|"class"|"object"` enum retires: the strict `propertySchema.create`
+  payload rejects the key outright, and `scopeClassIds` replaces it —
+  absent/null = global, a non-empty class-id list = local to those classes
+  AND their extends-ancestors (the empty array is rejected). Bindings
+  (`class_property`) keep zero availability semantics (per-class config
+  only). Enforcement: `property.set` on an ineligible node fails loud (R3,
+  extends-aware closure walk), `class.property.set` outside the scope fails
+  loud (R5, dead config), and `getEffectiveProperties` tags every row
+  `eligible: boolean` while never deriving a default for an ineligible node
+  (R4) — narrowing a scope is never retroactive (authored rows survive,
+  tagged). `propertySchema.update` gains `icon`, `scopeClassIds`,
+  `targetClassFilter`, `multi`, and `validationRules` (`{min?, max?,
+  pattern?}`, keep/clear; min/max on number schemas, pattern on
+  text/url/email, enforced at apply time). Store schema v24 rebuilds
+  `property_schema` (the `scope` column retires; `icon`/`scope_class_ids`/
+  `validation_rules` land). Seeds/self-heals (server seed, task/meeting/
+  template/alias/quick-create families) emit the list; the object-scope
+  audit found a single emitter (`generatedFrom`), demoted to global.
+  Fixtures: two new canonical files (`property-schema-scope.json`,
+  `property-schema-update-fields.json`; the exact-list gate 33 → 35) and the
+  retired-key fixtures re-encoded. `scripts/migrate-property-scope.mts`
+  (Path B, dry-run default) rewrites stored logs in place after the GTK/
+  Flutter lockstep. Verified: `pnpm typecheck` + `pnpm test` green (incl. the
+  fixture replay on both adapters); LOCKSTEP-PENDING on the GTK/Flutter
+  ports (`releases.md`).
+
 - **feat(web): checkboxes wear the same rounded square as the buttons.**
   (the task checkbox "looked weird" — a 4px
   corner against the bar's new register). Both checkbox primitives move
