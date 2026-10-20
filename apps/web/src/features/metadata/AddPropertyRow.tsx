@@ -1,11 +1,18 @@
 import { useRef, useState } from "react";
 
-import { todayIsoLocal } from "../calendar/calendarViewUtils.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
+import { PropertyCreateModal } from "./PropertyCreateModal.js";
+import { eligibleSchemasForNode } from "./schemaEligibility.js";
+import { initializePropertyValue } from "./propertyValueInit.js";
 import type { AnyClient } from "./shared.js";
 
 /** "+ Add property": pick an existing schema (or create one) and realize an
- *  initial value on the node so the row appears. */
+ *  initial value on the node so the row appears. The candidate list is
+ *  scope-gated (R1/R2 — a schema whose scopeClassIds excludes the node is
+ *  not offered; the write path would fail loud anyway). The "Create …" row
+ *  opens the S1 pre-creation modal (creation is a
+ *  modal, not an instant minimal create) with the typed query carried in;
+ *  after the create the placeholder value initializes the row as before. */
 export function AddPropertyRow({
   client,
   nodeId,
@@ -14,67 +21,32 @@ export function AddPropertyRow({
   nodeId: string;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
 
+  const node = client.getNode(nodeId);
   const schemas = client.listPropertySchemas();
+  // S4: the candidate set is eligibility-gated (extends-aware closure).
+  const candidates =
+    node === undefined ? schemas : eligibleSchemasForNode(client, schemas, node);
 
   async function initializeValue(schemaId: string, type: string): Promise<void> {
-    switch (type) {
-      case "boolean":
-        await client.setProperty(nodeId, schemaId, true, 0);
-        return;
-      case "number":
-        await client.setProperty(nodeId, schemaId, 0, 0);
-        return;
-      case "text": {
-        // Node-backed: a fresh carrier block child holds the text.
-        const carrier = await client.createObject({
-          parentId: nodeId,
-          contentAst: [{ type: "text", text: "" }],
-        });
-        await client.setProperty(nodeId, schemaId, { nodeId: carrier }, 0);
-        return;
-      }
-      case "datetime": {
-        // Local midnight, not UTC — the "today" default must match the
-        // user's calendar day. Full-day: the point carries no time.
-        const dayId = await client.ensureDateChain(todayIsoLocal());
-        await client.setProperty(nodeId, schemaId, { nodeId: dayId }, 0);
-        return;
-      }
-      default:
-        // url/email/select/multi_select/object/image: no sensible empty
-        // value — the row's own editor will prompt on first edit.
-        return;
-    }
-  }
-
-  async function pickSchema(schemaId: string, type: string): Promise<void> {
-    setError(null);
     try {
-      await initializeValue(schemaId, type);
+      await initializePropertyValue(client, nodeId, schemaId, type);
       setPickerOpen(false);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   }
 
-  async function createSchema(): Promise<void> {
-    const name = newName.trim();
-    if (name === "") return;
-    setError(null);
-    try {
-      const schemaId = await client.createPropertySchema({ name, type: "text" });
-      await initializeValue(schemaId, "text");
-      setCreating(false);
-      setNewName("");
-      setPickerOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
+  /** The create row hands off to the S1 modal: the popup closes, the modal
+   *  takes over (the typed query carries in as the name). */
+  function openCreateModal(): void {
+    setPickerOpen(false);
+    setCreateOpen(true);
   }
 
   return (
@@ -86,7 +58,7 @@ export function AddPropertyRow({
         onClick={(element) => {
           buttonRef.current = element;
           setPickerOpen((open) => !open);
-          setCreating(false);
+          setCreateOpen(false);
         }}
       />
       {pickerOpen && (
@@ -98,11 +70,11 @@ export function AddPropertyRow({
             onChange={(event) => setNewName(event.target.value)}
           />
           <ul>
-            {schemas
+            {candidates
               .filter((schema) => newName.trim() === "" || schema.name.toLowerCase().includes(newName.trim().toLowerCase()))
               .map((schema) => (
                 <li key={schema.id}>
-                  <button type="button" onClick={() => void pickSchema(schema.id, schema.type)}>
+                  <button type="button" onClick={() => void initializeValue(schema.id, schema.type)}>
                     <span className="nt-add-property-name">{schema.name}</span>
                     <span className="nt-add-property-type">{schema.type}</span>
                   </button>
@@ -110,12 +82,27 @@ export function AddPropertyRow({
               ))}
           </ul>
           {newName.trim() !== "" && !schemas.some((s) => s.name.toLowerCase() === newName.trim().toLowerCase()) && (
-            <button type="button" className="nt-add-property-create" onClick={() => void createSchema()}>
+            <button
+              type="button"
+              className="nt-add-property-create"
+              onClick={openCreateModal}
+            >
               Create property "{newName.trim()}"
             </button>
           )}
           {error !== null && <p className="nt-error">{error}</p>}
         </div>
+      )}
+      {createOpen && (
+        <PropertyCreateModal
+          isOpen
+          client={client}
+          initialName={newName.trim()}
+          onCreated={(schemaId, type) => {
+            void initializeValue(schemaId, type).then(() => setCreateOpen(false));
+          }}
+          onClose={() => setCreateOpen(false)}
+        />
       )}
     </div>
   );

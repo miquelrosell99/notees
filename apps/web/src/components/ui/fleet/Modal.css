@@ -33,7 +33,17 @@
   flex-direction: column;
   max-height: 90vh;
   max-height: 90dvh;
-  min-height: min-content;
+
+  /* Centered above the scrim: the card portals as the backdrop's SIBLING
+     (Radix renders Overlay + Content side by side), so it carries its own
+     viewport anchoring — `translate` (not `transform`) keeps the slide-in
+     keyframes and the sheet's drag transform composable. Without this the
+     card sat in body flow under the fixed backdrop: unclickable. */
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  z-index: var(--z-modal);
 
   /* Never shrink below the natural width of the header, content, or footer
      so buttons and other non-wrapping elements stay inside the modal —
@@ -48,8 +58,9 @@
 .modal.modal--sheet {
   width: 100%;
   max-width: 100%;
-  margin-top: auto;
-  margin-bottom: 0;
+  top: auto;
+  bottom: 0;
+  translate: -50% 0;
   max-height: calc(90vh - env(safe-area-inset-bottom));
   max-height: calc(90dvh - env(safe-area-inset-bottom));
   border-radius: var(--shape-sheet) var(--shape-sheet) 0 0;
@@ -108,7 +119,12 @@
 }
 
 .modal .modal__content {
+  /* The scroll region: flex's automatic minimum would keep the content at
+     its natural height and push the footer off a max-height-capped card —
+     min-height: 0 lets THIS region shrink and scroll instead. */
   overflow-y: auto;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 /* Modal sizes — use layout tokens where available, otherwise clamp to keep

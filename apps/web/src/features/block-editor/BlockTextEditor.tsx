@@ -235,6 +235,7 @@ import { DatePickerPopup } from "../date-pickers/DatePickerPopup.js";
 import { NodeLinkContextMenu } from "../node-menu/NodeLinkContextMenu.js";
 import { useLinkEditModalOpener } from "../../ui/editor-popups/LinkEditModal.js";
 import { requestQueryBuilderOpen } from "../../ui/QueryBlockView.js";
+import { requestPropertyCreate } from "../metadata/PropertyCreateHost.js";
 import { TemplateListPopup } from "../../ui/templates/TemplateListPopup.js";
 import { useTemplateInstantiator } from "../../ui/templates/useTemplateInstantiator.js";
 import { ensureTableFamily } from "../classview/tableFamily.js";
@@ -930,6 +931,21 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       onExitEdit();
       return;
     }
+    if (commandId === "property") {
+      // the slash
+      // "/property" command opens the pre-creation modal with the typed
+      // remainder carried in as the name, this block as the value context
+      // (the host initializes the placeholder after the create — the row
+      // appears as the panel's "+ Add property" flow). The trigger text is
+      // stripped from the block either way.
+      const trimmed = query.trim();
+      const remainder = /^property(\s+|$)/i.test(trimmed)
+        ? trimmed.replace(/^property(\s+|$)/i, "").trim()
+        : "";
+      applySplice(start, end, [], start);
+      requestPropertyCreate({ nodeId: nodeRef.current.id, initialName: remainder });
+      return;
+    }
     applySplice(start, end, [], start);
   };
 
@@ -1211,22 +1227,35 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   };
 
   /**
-   * PG1 create-and-bind: author the property schema at capture (typed
-   * `object`, multi, empty targetClassFilter — the Tana flagship gesture) and
-   * bind the mark to it. The modal stays open until the schema exists; a
-   * failure surfaces in the popover and leaves the selection untouched.
+   * PG1 create-and-bind, rerouted through the S1 pre-creation modal (creation opens a modal BEFORE any op is written; the
+   * instant object/multi create is retired). The typed verb carries in as
+   * the name with object/multi pre-selected; on confirm the new schema id
+   * binds the mark (the same writeVerbMark as the bind row). The promise
+   * settles on create OR cancel so the popover's pending state clears.
    */
-  const createAndBindVerb = async (verbStr: string, locator: string): Promise<void> => {
-    const state = verb;
-    if (state === null) return;
-    const schemaId = await client.createPropertySchema({
-      name: verbStr,
-      type: "object",
-      multi: true,
-      targetClassFilter: [],
+  const createAndBindVerb = (verbStr: string, locator: string): Promise<void> =>
+    new Promise<void>((resolve, reject) => {
+      const state = verb;
+      if (state === null) {
+        resolve();
+        return;
+      }
+      requestPropertyCreate({
+        initialName: verbStr,
+        initialType: "object",
+        initialMulti: true,
+        onCreated: (schemaId) => {
+          try {
+            writeVerbMark(state.start, state.end, { propertySchemaId: schemaId }, locator);
+            setVerb(null);
+            resolve();
+          } catch (error) {
+            reject(error instanceof Error ? error : new Error(String(error)));
+          }
+        },
+        onCancel: () => resolve(),
+      });
     });
-    writeVerbMark(state.start, state.end, { propertySchemaId: schemaId }, locator);
-  };
 
   const cancelVerb = () => {
     const state = verb;

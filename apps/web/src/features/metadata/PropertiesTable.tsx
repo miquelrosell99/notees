@@ -170,14 +170,16 @@ export function PropertiesTable({
             }
             const row = entry.row;
             const label = labelOf(row);
+            // R4 honest rendering: an authored row on an ineligible schema
+            // SURVIVES — dimmed + the ineligible affordance, never hidden.
+            const ineligible = row.eligible === false;
             return (
               <li
                 key={`${row.propertySchemaId}:${row.idx}`}
-                className={
-                  row.source === "default"
-                    ? "nt-property nt-property-default node-metadata-row"
-                    : "nt-property node-metadata-row"
-                }
+                className={`${row.source === "default" ? "nt-property nt-property-default" : "nt-property"} node-metadata-row${ineligible ? " nt-property-ineligible" : ""}`}
+                {...(ineligible
+                  ? { title: "This node isn’t eligible for this property (its scope excludes it)" }
+                  : {})}
               >
                 <span className="section-label nt-property-name" data-property-schema-id={row.propertySchemaId}>
                   {label}

@@ -36,6 +36,8 @@ export function ObjectPropertyRow({
   bare = false,
   /** Read-only projection: values render as static pills, no picker. */
   readOnly = false,
+  /** Extra li class (the R4 ineligible rendering — " nt-property-ineligible"). */
+  rowClassName = "",
 }: {
   client: AnyClient;
   nodeId: string;
@@ -48,6 +50,7 @@ export function ObjectPropertyRow({
   onOpenPage?: ((pageId: string) => void) | undefined;
   bare?: boolean;
   readOnly?: boolean | undefined;
+  rowClassName?: string;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,8 +174,8 @@ export function ObjectPropertyRow({
         <li
           className={
             allDefault
-              ? "nt-property nt-property-default nt-property-object node-metadata-row"
-              : "nt-property nt-property-object node-metadata-row"
+              ? `nt-property nt-property-default nt-property-object node-metadata-row${rowClassName}`
+              : `nt-property nt-property-object node-metadata-row${rowClassName}`
           }
         >
           {!bare && (
@@ -207,8 +210,8 @@ export function ObjectPropertyRow({
       <li
         className={
           allDefault
-            ? "nt-property nt-property-default nt-property-object node-metadata-row"
-            : "nt-property nt-property-object node-metadata-row"
+            ? `nt-property nt-property-default nt-property-object node-metadata-row${rowClassName}`
+            : `nt-property nt-property-object node-metadata-row${rowClassName}`
         }
       >
         {!bare && (
@@ -315,8 +318,8 @@ export function ObjectPropertyRow({
     <li
       className={
         allDefault
-          ? "nt-property nt-property-default nt-property-object node-metadata-row"
-          : "nt-property nt-property-object node-metadata-row"
+          ? `nt-property nt-property-default nt-property-object node-metadata-row${rowClassName}`
+          : `nt-property nt-property-object node-metadata-row${rowClassName}`
       }
     >
       {!bare && (

@@ -54,6 +54,8 @@ export function DatetimePropertyRow({
   bare = false,
   /** Read-only projection: values render as static pills, no picker. */
   readOnly = false,
+  /** Extra li class (the R4 ineligible rendering — " nt-property-ineligible"). */
+  rowClassName = "",
 }: {
   client: AnyClient;
   nodeId: string;
@@ -65,6 +67,7 @@ export function DatetimePropertyRow({
   onOpenPage?: ((pageId: string) => void) | undefined;
   bare?: boolean;
   readOnly?: boolean | undefined;
+  rowClassName?: string;
 }) {
   const [pickerFor, setPickerFor] = useState<number | "new" | null>(null);
   const anchorRef = useRef<HTMLElement | null>(null);
@@ -182,8 +185,8 @@ export function DatetimePropertyRow({
           <li
             className={
               allDefault
-                ? "nt-property nt-property-default nt-property-date node-metadata-row"
-                : "nt-property nt-property-date node-metadata-row"
+                ? `nt-property nt-property-default nt-property-date node-metadata-row${rowClassName}`
+                : `nt-property nt-property-date node-metadata-row${rowClassName}`
             }
           >
             {!bare && (
@@ -198,8 +201,8 @@ export function DatetimePropertyRow({
         <li
           className={
             allDefault
-              ? "nt-property nt-property-default nt-property-date node-metadata-row"
-              : "nt-property nt-property-date node-metadata-row"
+              ? `nt-property nt-property-default nt-property-date node-metadata-row${rowClassName}`
+              : `nt-property nt-property-date node-metadata-row${rowClassName}`
           }
         >
           {!bare && (
@@ -219,8 +222,8 @@ export function DatetimePropertyRow({
       <li
         className={
           allDefault
-            ? "nt-property nt-property-default nt-property-date node-metadata-row"
-            : "nt-property nt-property-date node-metadata-row"
+            ? `nt-property nt-property-default nt-property-date node-metadata-row${rowClassName}`
+            : `nt-property nt-property-date node-metadata-row${rowClassName}`
         }
       >
         {!bare && (
@@ -290,8 +293,8 @@ export function DatetimePropertyRow({
     <li
       className={
         allDefault
-          ? "nt-property nt-property-default nt-property-date node-metadata-row"
-          : "nt-property nt-property-date node-metadata-row"
+          ? `nt-property nt-property-default nt-property-date node-metadata-row${rowClassName}`
+          : `nt-property nt-property-date node-metadata-row${rowClassName}`
       }
     >
       {!bare && (

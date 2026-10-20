@@ -139,6 +139,8 @@ export function TextPropertyRow({
   /** Read-only projection: carriers render as read-only rows, scalars as
    *  text — no add affordance, no auto-unset pass. */
   readOnly = false,
+  /** Extra li class (the R4 ineligible rendering — " nt-property-ineligible"). */
+  rowClassName = "",
 }: {
   client: AnyClient;
   nodeId: string;
@@ -149,6 +151,7 @@ export function TextPropertyRow({
   onOpenPage?: ((pageId: string) => void) | undefined;
   bare?: boolean;
   readOnly?: boolean | undefined;
+  rowClassName?: string;
 }) {
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
@@ -280,8 +283,8 @@ export function TextPropertyRow({
       }}
       className={
         allDefault
-          ? "nt-property nt-property-default nt-property-text node-metadata-row"
-          : "nt-property nt-property-text node-metadata-row"
+          ? `nt-property nt-property-default nt-property-text node-metadata-row${rowClassName}`
+          : `nt-property nt-property-text node-metadata-row${rowClassName}`
       }
     >
       {!bare && (

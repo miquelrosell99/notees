@@ -16,6 +16,8 @@ export function BooleanPropertyRow({
   bare = false,
   /** Read-only projection: the checkbox renders disabled. */
   readOnly = false,
+  /** Extra li class (the R4 ineligible rendering — " nt-property-ineligible"). */
+  rowClassName = "",
 }: {
   client: AnyClient;
   nodeId: string;
@@ -24,6 +26,7 @@ export function BooleanPropertyRow({
   rows: EffectiveProperty[];
   bare?: boolean;
   readOnly?: boolean | undefined;
+  rowClassName?: string;
 }) {
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
@@ -36,8 +39,8 @@ export function BooleanPropertyRow({
           key={`${propertySchemaId}:${row.idx}`}
           className={
             allDefault
-              ? "nt-property nt-property-default nt-property-boolean node-metadata-row"
-              : "nt-property nt-property-boolean node-metadata-row"
+              ? `nt-property nt-property-default nt-property-boolean node-metadata-row${rowClassName}`
+              : `nt-property nt-property-boolean node-metadata-row${rowClassName}`
           }
         >
           {!bare && (
@@ -57,7 +60,7 @@ export function BooleanPropertyRow({
         </li>
       ))}
       {ordered.length === 0 && (
-        <li className="nt-property nt-property-boolean node-metadata-row">
+        <li className={`nt-property nt-property-boolean node-metadata-row${rowClassName}`}>
           {!bare && (
             <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
           )}

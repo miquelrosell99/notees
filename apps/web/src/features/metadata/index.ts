@@ -18,3 +18,18 @@ export { metadataRowCount } from "./propertyGroups.js";
 export { PropertiesTable } from "./PropertiesTable.js";
 export { PropertiesSection } from "./PropertiesSection.js";
 export { PropertiesSidebar } from "./PropertiesSidebar.js";
+// The property-definition surfaces: the S1
+// pre-creation modal + its app-level host (features open it with
+// initialName / initialType / contextClassId; the host owns the
+// module-level request queue the slash command, the Ctrl/Cmd+Alt+P chord,
+// and the verb create-and-bind fire), and the S4 client-side eligibility
+// walk (the add-property candidate gating).
+export { PropertyCreateModal } from "./PropertyCreateModal.js";
+export type { PropertyCreateModalProps } from "./PropertyCreateModal.js";
+export { PropertyCreateHost, requestPropertyCreate } from "./PropertyCreateHost.js";
+export type { PropertyCreateRequest } from "./PropertyCreateHost.js";
+export {
+  classClosureOf,
+  isSchemaEligibleForNode,
+  eligibleSchemasForNode,
+} from "./schemaEligibility.js";

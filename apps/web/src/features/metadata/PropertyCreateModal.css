@@ -1,0 +1,108 @@
+/* PropertyCreateModal (S1) — the pre-creation dialog. Token-only: every
+ * value resolves to a custom property from variables.css; adaptive spacing,
+ * state-layer hovers, focus-visible rings. The field register reuses the
+ * settings modal's `.nt-property-settings__*` classes (loaded through the
+ * metadata barrel's stylesheet). */
+
+.nt-property-create .modal__content {
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-property-create__name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+}
+
+.nt-property-create__name-row .nt-property-settings__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.nt-property-create__error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-error);
+}
+
+/* The type grid — the radiogroup (v1's card register). */
+.nt-property-create__type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5em, 1fr));
+  gap: var(--spacing-2);
+}
+
+.nt-property-create__type {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-0-5);
+  padding: var(--spacing-2) var(--spacing-2-5);
+  text-align: start;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+  transition:
+    background var(--motion-duration-short) var(--motion-easing-standard),
+    border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-property-create__type:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-property-create__type:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.nt-property-create__type--selected {
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.nt-property-create__type-label {
+  font: var(--font-label-large);
+}
+
+.nt-property-create__type-description {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-property-create__hint {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* The class multi-pick (target classes / scope classes). */
+.nt-class-pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.nt-class-pick__pills {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+/* The ineligible row register (R4 honest rendering) — dimmed value chrome,
+   the label carries a dashed affordance cue. */
+.nt-property-ineligible > .nt-property-name {
+  color: var(--md-sys-color-on-surface-variant);
+  text-decoration: underline dotted var(--md-sys-color-outline);
+  text-underline-offset: 0.15em;
+}
+
+.nt-property-ineligible .nt-property-value,
+.nt-property-ineligible .nt-property-chips {
+  opacity: 0.55;
+}
