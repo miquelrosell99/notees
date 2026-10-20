@@ -232,6 +232,16 @@ export function ObjectPropertyRow({
               ? () => void unlink(singleRow.idx)
               : undefined
           }
+          onNavigate={
+            singleRef !== null
+              ? () => onOpenPage?.(singleRef)
+              : undefined
+          }
+          navigateLabel={
+            singleRef !== null
+              ? `Open ${displayNameFromClient(client, singleRef) ?? singleRef}`
+              : undefined
+          }
           trailing={
             <>
               {singleRef !== null && annotationsToggle(singleRef)}

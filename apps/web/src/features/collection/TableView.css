@@ -451,49 +451,43 @@
   text-decoration: underline;
 }
 
-/* The open-arrow — a quiet navigate affordance beside cell content (the
-   link-target and day-page cells; the name cell rides the pinned Open
-   button below instead). */
-.nt-table-open {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  margin-left: 2px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  opacity: 0;
-  cursor: pointer;
-  vertical-align: middle;
-}
+/* The open-arrow retired with the pinned OpenButton —
+   navigation rides the button on every cell that offers it. */
 
-.nt-table-node:hover .nt-table-open,
-.nt-table-open:focus-visible {
-  opacity: 1;
-}
-
-.nt-table-open:hover {
-  background: var(--md-sys-color-hover-overlay);
-  color: var(--md-sys-color-primary);
-}
-
-/* The name cell hosts the pinned Open button: relative positioning makes
-   the cell the anchor. The button's lane is reserved ONLY while the cell
-   is engaged — at rest the label rides the full cell width; when the
-   button appears the cell padding grows and the wrapping label moves out
+/* The name cell and the single-value node/date property cells host the
+   pinned Open button: relative positioning makes the cell the anchor (the
+   property cells opt in via :has() — the td renders before the cell
+   decides a value exists). The button's lane is reserved ONLY while the
+   cell is engaged — at rest the text rides the full cell width; when the
+   button appears the cell padding grows and the (wrapping) text moves out
    of its way, the class-pill × idiom. */
-td.nt-table-name {
+td.nt-table-name,
+td:has(> .nt-table-node > .nt-table-open-btn) {
   position: relative;
   transition: padding-right var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 td.nt-table-name:hover,
-td.nt-table-name:focus-within {
+td.nt-table-name:focus-within,
+td:has(> .nt-table-node > .nt-table-open-btn):hover,
+td:has(> .nt-table-node > .nt-table-open-btn):focus-within {
   padding-right: calc(var(--button-icon-only-visible-sm) + var(--spacing-2));
+}
+
+/* The node/date cell content rides one flex row: the value button (the
+   picker trigger) takes the lane and wraps its target name; the button
+   pins at the cell edge above. */
+.nt-table-node {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.nt-table-node > .nt-table-date,
+.nt-table-node > .nt-dateslot__button {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 /* The Open button — the "Open workspace" twin (ghost sm, right arrow),
@@ -504,7 +498,8 @@ td.nt-table-name:focus-within {
    deliberate: the fleet Button's icon-only `relative` utility (same
    specificity, later source) would otherwise beat a bare class and keep
    the button in-flow (found by the live probe 2026-10-20). */
-td.nt-table-name .nt-table-open-btn {
+td.nt-table-name .nt-table-open-btn,
+td:has(> .nt-table-node > .nt-table-open-btn) .nt-table-open-btn {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -515,6 +510,9 @@ td.nt-table-name .nt-table-open-btn {
 
 td.nt-table-name:hover .nt-table-open-btn,
 td.nt-table-name:focus-within .nt-table-open-btn,
-td.nt-table-name .nt-table-open-btn:focus-visible {
+td.nt-table-name .nt-table-open-btn:focus-visible,
+td:has(> .nt-table-node > .nt-table-open-btn):hover .nt-table-open-btn,
+td:has(> .nt-table-node > .nt-table-open-btn):focus-within .nt-table-open-btn,
+td:has(> .nt-table-node > .nt-table-open-btn) .nt-table-open-btn:focus-visible {
   opacity: var(--opacity-100);
 }
