@@ -8,6 +8,7 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+
 - **feat(web): the thread SURROUNDS an in-path icon — a loop of inverted
   rounding wraps its lower-left, and the downward line keeps its original
   position.** ("keep the downward line in its
@@ -29,6 +30,17 @@ predating this file.
   asserts the hug, the bottom-left wrap, and the center-column rejoin
   (4 quadratic joins for an iconed chain). Docs: EditThread/BlockRow
   headers.
+- **feat(web): the sidebar dock toggles go ghost — inactive toggles read
+  like every other button.** the outline dock
+  pair wore a visible border at rest, setting them apart from the rest of
+  the (ghost) top bar; a toggle should only differ WHEN active. The
+  dock-left/dock-right buttons move `outline → ghost`: at rest they are
+  pixel-identical to the other buttons (transparent, borderless), and the
+  active/pressed state (sidebar open / right panel open) wears the same
+  ghost active fill as the focus/condensed/layout/calendar toggles — one
+  pressed register across the bar. Verified live: at rest only the active
+  toggle shows a fill; toggling the right panel moves the fill to its
+  dock button. `TopBar.tsx` (two words); full suite green (1810).
 - **feat(web): an open block context menu anchors to its block — the
   bullet carries the hover/active highlight while the menu floats.**
   the node menu renders free at the pointer, so
