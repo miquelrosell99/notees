@@ -31,16 +31,13 @@
  * class pages stay visually identical minus the deleted curated chrome.)
  */
 
-import { useRef } from "react";
-
 import { rendersAsInlineBlock } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { PageView, BLOCKS_VIEW_MODES } from "./PageView.js";
-import { EditThreadOverlay, EditThreadProvider } from "./EditThread.js";
-import { ReferenceSubtree } from "../features/block-editor/ReferenceSubtree.js";
+import { FocusedBlockView } from "./FocusedBlockView.js";
 import { NodeMenuButton, type ShareTarget } from "../features/node-menu/NodeMenuButton.js";
 import { parentRenderFacts } from "./renderStateLabel.js";
 import { ViewToolbar } from "../features/collection/ViewToolbar.js";
@@ -131,10 +128,6 @@ export function NodeView({
     "outline",
     BLOCKS_VIEW_MODES,
   );
-  // The focused block view's edit-thread host (the overlay measures the
-  // path against this wrapper: the focused view threads
-  // from the focused block down to the editing child).
-  const focusedHostRef = useRef<HTMLDivElement | null>(null);
   const node = client.getNode(nodeId);
   if (node === undefined) {
     return <div className="nt-page-missing">Page not found.</div>;
@@ -182,25 +175,21 @@ export function NodeView({
       </>
     ) : undefined;
   const view = rendersAsInlineBlock(node, parentFacts) ? (
-    /* Block mode: the body is the plain collection — the node itself as
-       the root row with its children under it (ReferenceSubtree builds the
-       minimal outliner + SortableContext and renders the real editable
-       BlockRow; the preview surface passes readOnly — the trampoline is
-       never an editor). The block view renders no drag scope, so rows are
-       editable but not draggable — the context-presence law. The wrapper
-       keeps the focused-block chrome class (nt-page nt-focused-block). */
-    <EditThreadProvider>
-      <div
-        ref={focusedHostRef}
-        className="nt-page nt-focused-block nt-edit-thread-host"
-      >
-        {/* The edit thread (EditThread.tsx): same measured overlay the page
-            body hosts — here it draws from the FOCUSED block row (the view
-            root, a real bullet) down to the editing child. */}
-        <EditThreadOverlay client={client} hostRef={focusedHostRef} rootId={nodeId} />
-        <ReferenceSubtree client={client} rootId={nodeId} onOpenNode={onOpenNode} readOnly={preview} />
-      </div>
-    </EditThreadProvider>
+    /* Block mode — the focused block view: the node is
+       the PARENT of a NodeCollection (the v1 "show parents" prop,
+       generalized) — each view mode decides the parent display (outline:
+       the root block row with children nested; prose: an editable
+       top-level header). FocusedBlockView hosts the outliner context, the
+       edit-thread overlay, and the trailing ghost; the preview surface
+       passes readOnly — the trampoline is never an editor. No drag scope:
+       rows are editable but not draggable — the context-presence law. */
+    <FocusedBlockView
+      client={client}
+      node={node}
+      viewMode={blocksMode}
+      readOnly={preview}
+      onOpenNode={onOpenNode}
+    />
   ) : (
     /* Page mode — plain, date (day/period), or class: PageView composes the
        chrome from the variant descriptor. A class node carries the
