@@ -334,15 +334,16 @@ class Compiler {
       `  WHERE pv.property_schema_id = ${authored} AND pv.node_id = f.id AND pv.idx = 0 AND ${tombstone}\n` +
       "  UNION ALL\n" +
       "  SELECT wb.node_id, wb.default_value FROM (\n" +
-      "    SELECT cms.node_id, cp.default_value,\n" +
+      "    SELECT cms.node_id, ps.default_value,\n" +
       "           ROW_NUMBER() OVER (\n" +
       "             PARTITION BY cms.node_id\n" +
       "             ORDER BY cms.hlc_physical, cms.hlc_logical, cms.class_id\n" +
       "           ) AS rn\n" +
       "    FROM class_member_set cms\n" +
       "    JOIN class_property cp ON cp.class_id = cms.class_id\n" +
+      "    JOIN property_schema ps ON ps.id = cp.property_schema_id\n" +
       `    WHERE cms.present = 1 AND cp.property_schema_id = ${binding} AND cp.active = 1\n` +
-      "      AND cp.default_value IS NOT NULL\n" +
+      "      AND ps.default_value IS NOT NULL\n" +
       "  ) wb\n" +
       "  WHERE wb.rn = 1 AND wb.node_id = f.id\n" +
       "    AND NOT EXISTS (\n" +
@@ -963,15 +964,16 @@ class Compiler {
         `,\nderived AS (\n` +
         `  SELECT wb.node_id AS node_id, wb.default_value AS value\n` +
         `  FROM (\n` +
-        `    SELECT cms.node_id, cp.default_value,\n` +
+        `    SELECT cms.node_id, ps.default_value,\n` +
         `           ROW_NUMBER() OVER (\n` +
         `             PARTITION BY cms.node_id\n` +
         `             ORDER BY cms.hlc_physical, cms.hlc_logical, cms.class_id\n` +
         `           ) AS rn\n` +
         `    FROM class_member_set cms\n` +
         `    JOIN class_property cp ON cp.class_id = cms.class_id\n` +
+        `    JOIN property_schema ps ON ps.id = cp.property_schema_id\n` +
         `    WHERE cms.present = 1 AND cp.property_schema_id = ${bindingSchemaId} AND cp.active = 1\n` +
-        `      AND cp.default_value IS NOT NULL\n` +
+        `      AND ps.default_value IS NOT NULL\n` +
         `  ) wb\n` +
         `  WHERE wb.rn = 1\n` +
         `    AND NOT EXISTS (\n` +

@@ -742,7 +742,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["not_found"],
   }],
   ["post", "/api/classes/:id/properties", {
-    summary: "Bind a property schema to a class (class.property.set: sequence, flags, defaultValue patch)",
+    summary: "Bind a property schema to a class (class.property.set: sequence/active patch — the binding's genuinely per-class mechanics; `required`/`defaultValue` retired or moved to the schema)",
     tags: ["Classes", "Properties"],
     requestBody: { type: "object", additionalProperties: true, description: "the class.property.set patch fields + propertySchemaId (protocol-pinned)" },
     requiredScope: "objects.write",

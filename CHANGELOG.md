@@ -84,10 +84,13 @@ predating this file.
   per-schema `propertySchema.update` compensation + snapshot byte-patch +
   restore-epoch bump; LOCKSTEP GATE: after the GTK/Flutter ports).
   `docs/developers/migrations.md` + `releases.md` (current wire + batch row),
-  SCHEMA.md "Class properties" rewritten, `docs/ux.md` + `docs/usage.md`
-  re-pointed. BREAKING (owner-sole-user): the retired keys reject at the
-  strict envelope gate; no protocol-version bump (payload-key retirement with
-  fixture updates, the established convention).
+  SCHEMA.md "Class properties" rewritten. BREAKING (owner-sole-user): the
+  retired keys reject at the strict envelope gate; no protocol-version bump
+  (payload-key retirement with fixture updates, the established convention).
+  (A parallel session's docs restructure retired `docs/usage.md`/`docs/ux.md`
+  mid-flight — the user-facing wording for the retired binding fields lands
+  in that session's new `docs/features/` tree; the `remap-reunion-evento.mts`
+  seed binds sequence-only.)
 - **fix(web): outline view, grouped by page — page sources stand at the top
   level.** In the references grouping (Backlinks, Unlinked
   mentions, the block-level backlink gutter), an entry whose source IS the
