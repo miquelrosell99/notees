@@ -86,7 +86,8 @@ describe("slash trigger popup", () => {
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "/");
     expect(slashPopup()).not.toBeNull();
-    // All slash commands (the breadth rows post-lockstep), Text first.
+    // All slash commands (the breadth rows post-lockstep + /property, the
+    // S1 creation-modal entry), Text first.
     const options = within(slashPopup()!).getAllByRole("option");
     expect(options.map((o) => o.textContent)).toEqual([
       "TextPlain text block",
@@ -100,6 +101,7 @@ describe("slash trigger popup", () => {
       "TableInsert a table — cells are blocks (e.g. /table 5)",
       "CodeConvert block to a code block (e.g. /code python)",
       "DividerInsert a horizontal rule",
+      "PropertyAdd property to this block (e.g. /property year)",
     ]);
 
     fireEvent.keyDown(editor, { key: "Enter" });

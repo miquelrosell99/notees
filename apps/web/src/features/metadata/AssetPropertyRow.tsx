@@ -32,6 +32,8 @@ export function AssetPropertyRow({
   bare = false,
   /** Read-only projection: the asset list renders without actions. */
   readOnly = false,
+  /** Extra li class (the R4 ineligible rendering — " nt-property-ineligible"). */
+  rowClassName = "",
 }: {
   client: AnyClient;
   nodeId: string;
@@ -41,6 +43,7 @@ export function AssetPropertyRow({
   rows: EffectiveProperty[];
   bare?: boolean;
   readOnly?: boolean | undefined;
+  rowClassName?: string;
 }) {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -83,8 +86,8 @@ export function AssetPropertyRow({
     <li
       className={
         allDefault
-          ? "nt-property nt-property-default nt-property-asset node-metadata-row"
-          : "nt-property nt-property-asset node-metadata-row"
+          ? `nt-property nt-property-default nt-property-asset node-metadata-row${rowClassName}`
+          : `nt-property nt-property-asset node-metadata-row${rowClassName}`
       }
     >
       {!bare && (

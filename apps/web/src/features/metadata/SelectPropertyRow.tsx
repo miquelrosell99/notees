@@ -21,6 +21,8 @@ export function SelectPropertyRow({
   bare = false,
   /** Read-only projection: values render as static pills, no picker. */
   readOnly = false,
+  /** Extra li class (the R4 ineligible rendering — " nt-property-ineligible"). */
+  rowClassName = "",
 }: {
   client: AnyClient;
   nodeId: string;
@@ -31,6 +33,7 @@ export function SelectPropertyRow({
   rows: EffectiveProperty[];
   bare?: boolean;
   readOnly?: boolean | undefined;
+  rowClassName?: string;
 }) {
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
@@ -56,8 +59,8 @@ export function SelectPropertyRow({
             key={`${propertySchemaId}:${row.idx}`}
             className={
               allDefault
-                ? "nt-property nt-property-default nt-property-select node-metadata-row"
-                : "nt-property nt-property-select node-metadata-row"
+                ? `nt-property nt-property-default nt-property-select node-metadata-row${rowClassName}`
+                : `nt-property nt-property-select node-metadata-row${rowClassName}`
             }
           >
             {!bare && (
@@ -113,8 +116,8 @@ export function SelectPropertyRow({
           key={`${propertySchemaId}:${row.idx}`}
           className={
             allDefault
-              ? "nt-property nt-property-default nt-property-select node-metadata-row"
-              : "nt-property nt-property-select node-metadata-row"
+              ? `nt-property nt-property-default nt-property-select node-metadata-row${rowClassName}`
+              : `nt-property nt-property-select node-metadata-row${rowClassName}`
           }
         >
           {!bare && (
@@ -138,7 +141,7 @@ export function SelectPropertyRow({
         </li>
       ))}
       {ordered.length === 0 && (
-        <li className="nt-property nt-property-select node-metadata-row">
+        <li className={`nt-property nt-property-select node-metadata-row${rowClassName}`}>
           {!bare && (
             <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
           )}

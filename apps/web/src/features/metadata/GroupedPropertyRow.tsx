@@ -45,6 +45,11 @@ export function GroupedPropertyRow({
   bare?: boolean;
   readOnly?: boolean | undefined;
 }) {
+  // R4 honest rendering: a grouped schema with an ineligible authored row
+  // renders dimmed (the whole group — the schema excludes this node).
+  const rowClassName = groupRows.some((row) => row.eligible === false)
+    ? " nt-property-ineligible"
+    : "";
   if (type === "datetime") {
     return (
       <DatetimePropertyRow
@@ -58,6 +63,7 @@ export function GroupedPropertyRow({
         onOpenPage={onOpenPage}
         bare={bare}
         readOnly={readOnly}
+        rowClassName={rowClassName}
       />
     );
   }
@@ -75,6 +81,7 @@ export function GroupedPropertyRow({
         rows={groupRows}
         bare={bare}
         readOnly={readOnly}
+        rowClassName={rowClassName}
       />
     );
   }
@@ -88,6 +95,7 @@ export function GroupedPropertyRow({
         rows={groupRows}
         bare={bare}
         readOnly={readOnly}
+        rowClassName={rowClassName}
       />
     );
   }
@@ -103,6 +111,7 @@ export function GroupedPropertyRow({
         onOpenPage={onOpenPage}
         bare={bare}
         readOnly={readOnly}
+        rowClassName={rowClassName}
       />
     );
   }
@@ -117,6 +126,7 @@ export function GroupedPropertyRow({
         rows={groupRows}
         bare={bare}
         readOnly={readOnly}
+        rowClassName={rowClassName}
       />
     );
   }
@@ -132,6 +142,7 @@ export function GroupedPropertyRow({
       onOpenPage={onOpenPage}
       bare={bare}
       readOnly={readOnly}
+      rowClassName={rowClassName}
     />
   );
 }
