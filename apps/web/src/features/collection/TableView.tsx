@@ -55,7 +55,7 @@
  */
 
 import { useContext, useMemo, useRef, useState, type ReactNode } from "react";
-import { isRangeDatetimeValue, isValidTimeOfDay, parseDateNodeId } from "@notees/domain";
+import { isRangeDatetimeValue, isValidTimeOfDay, parseDateNodeId, fullTitleOf } from "@notees/domain";
 import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
 import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu } from "../../components/ui/fleet/index.js";
@@ -107,15 +107,22 @@ function formatCreated(createdAt: string | null): string {
 }
 
 /**
- * The name-column text: the display-name excerpt with inline class chips
- * resolved to their class's current name (a title that
- * opens with a chip reads complete in the cell, the CSV projection, and
- * the sort key, all three riding this same text).
+ * The name-column text: the FULL title with inline class chips resolved to
+ * their class's current name (a title that opens with a
+ * chip reads complete in the cell, the CSV projection, and the sort key,
+ * all three riding this same text). The cell WRAPS long titles across
+ * multiple lines, so the dense-chrome 80-char budget
+ * doesn't apply — the cell reads fullTitleOf, the same uncapped derivation
+ * node links render (the links' whole-title ruling). Date nodes keep the
+ * settings-formatted displayNameForSettings branch: their titles are short
+ * (the cap never binds) and only that branch applies the user's dateFormat.
  */
 function nameCellText(client: AnyClient, node: ClientNode): string {
-  return (
-    displayNameForSettings(node, (classId) => client.getDisplayName(classId)) || "Untitled"
-  );
+  const resolve = (classId: string) => client.getDisplayName(classId);
+  if (parseDateNodeId(node.id) !== null) {
+    return displayNameForSettings(node, resolve) || "Untitled";
+  }
+  return fullTitleOf(node, resolve) || "Untitled";
 }
 
 /**
