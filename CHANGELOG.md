@@ -33,6 +33,34 @@ predating this file.
   Verification: `scripts/screenshots/thread-probe.mjs` (chain rails accent,
   elbows 31×2px into the path bullets only, click-through to the rail,
   caret-follow) against the live stack.
+- **fix(web): the pinned Open button's live-probe round — four findings from
+  driving the real stack.** The scratch playwright probe (test workspace,
+  click/hit-test/geometry instrumentation) verified the shipped button and
+  fixed what it caught, all in `TableView.tsx` / `TableView.css` /
+  `lassedNodesSection.tsx`: **(1) CSS specificity** — the fleet Button's
+  icon-only `relative` utility beat the bare `.nt-table-open-btn` position
+  rule (same specificity, later source), so the selector is now td-qualified.
+  **(2) The name cell blew out on long titles** — a percentage max-width on
+  an inline-flex inside a table cell resolves cyclically and is ignored, so a
+  long title grew the cell past the table, the label clipped without an
+  ellipsis, and the pinned button stranded under the context column
+  (`elementFromPoint` proof); `.nt-table-name-btn` is now block-level flex
+  (`width/max-width: 100%; min-width: 0`) and the label ellipsizes inside its
+  lane. **(3) The peek fallback** — the class page's Classed nodes section
+  never wired `onNodeShiftClick`, so the button's shift+click (and the name
+  cell's) silently no-op'd there; TableView now falls back to the enclosing
+  OutlinerContext's `openInSidebar` (CardsView's precedent), covering query
+  blocks too. **(4) The first-click no-op** — the section's onNodeClick
+  re-reads the node through the worker-client's cachedRead, which serves
+  `undefined` on a key's first-ever read (the value lands a macrotask
+  later); the click was dropped. A miss now opens the id directly (a
+  rendered row exists — the miss is a read-cache artifact, not a missing
+  node). Verified end-to-end on the running stack: pinned at the cell's
+  right edge on short and ellipsized rows, plain click opens (history push
+  on the row's own id), shift+click raises the right rail with the peeked
+  card. Pre-existing, left for a future slice: the class page's narrow
+  content column still clips a long-title table at its boundary (the old
+  in-flow arrow died there too).
 - **docs(deploy): the source/stack split lands in the runbooks — the
   compose-from-the-checkout trap is recorded.** The 2026-10-19 split (live
   stack = a thin Komodo-managed folder outside the checkout; the repo's

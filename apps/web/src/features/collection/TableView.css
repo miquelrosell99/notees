@@ -102,9 +102,17 @@
 }
 
 .nt-table-name-btn {
-  display: inline-flex;
+  /* Block-level flex (not inline-flex): a percentage max-width on an
+     inline-flex inside a table cell resolves cyclically (cell width depends
+     on content) and is ignored — a long title then grew the cell past the
+     table, the label clipped without an ellipsis, and the pinned Open
+     button stranded under the context column (live probe 2026-10-20). A
+     block flex's width/max-width resolve against the cell content box, so
+     the label ellipsizes inside its lane and the table keeps its width. */
+  display: flex;
   align-items: center;
   gap: var(--spacing-2);
+  width: 100%;
   max-width: 100%;
   min-width: 0;
   border: none;
@@ -480,8 +488,11 @@ td.nt-table-name {
 /* The Open button — the "Open workspace" twin (ghost sm, right arrow,
    always visible), pinned to the cell's right edge regardless of the
    text content. Centered without a transform so the press-scale utility
-   keeps working. */
-.nt-table-open-btn {
+   keeps working. The td-qualified selector is deliberate: the fleet
+   Button's icon-only `relative` utility (same specificity, later source)
+   would otherwise beat a bare class and keep the button in-flow (found
+   by the live probe 2026-10-20). */
+td.nt-table-name .nt-table-open-btn {
   position: absolute;
   top: 0;
   bottom: 0;
