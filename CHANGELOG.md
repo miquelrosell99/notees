@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-20
 
+- **docs(deploy): the source/stack split lands in the runbooks — the
+  compose-from-the-checkout trap is recorded.** The 2026-10-19 split (live
+  stack = a thin Komodo-managed folder outside the checkout; the repo's
+  compose is the fresh-deployment template) reached the docs after an
+  incident: a raw `docker compose up` from the checkout hijacked the live
+  containers (both files share the project name `notees`), recreated them
+  against the checkout's empty config path, and the sync server crash-looped
+  on an empty data dir until the stack was rebuilt and recreated from the
+  live stack folder (live data untouched; `VERIFY-PASS` after). Deployment
+  law now: build/up from the live stack folder on split hosts, never the
+  checkout. `docs/developers/deployment.md` (split paragraph + the retired
+  "no build: section by design" line corrected), the tracked
+  `compose.yaml` header, and the deploy lines of `AGENTS.md`.
 - **feat(web): the table's Open button — the name cell's inline open-arrow
   retires in favor of a pinned navigate button.** Owner 2026-10-20: the
   hover-revealed `↗` that trailed the name text is replaced by a
