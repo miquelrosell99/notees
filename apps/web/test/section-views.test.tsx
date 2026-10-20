@@ -803,12 +803,12 @@ describe("useSectionViewResolution hook", () => {
   it("serves the base rows with no view and the error with an invalid AST", () => {
     const rows = [item(node({}))];
     const client = resolveClient();
-    const { result } = renderHook(() => useSectionViewResolution(client, rows, undefined, null));
+    const { result } = renderHook(() => useSectionViewResolution(client, rows, undefined, undefined, null));
     expect(result.current.items).toBe(rows);
     expect(result.current.error).toBeNull();
 
     const badView = { id: "v", queryAst: { version: 2 } };
-    const { result: bad } = renderHook(() => useSectionViewResolution(client, rows, undefined, badView));
+    const { result: bad } = renderHook(() => useSectionViewResolution(client, rows, undefined, undefined, badView));
     expect(bad.current.error).not.toBeNull();
     expect(bad.current.items).toBe(rows);
   });
@@ -827,7 +827,7 @@ describe("useSectionViewResolution hook", () => {
     });
     const view = { id: "v", queryAst: astOf({ type: "linkedTo", nodeId: CLASS_B }) };
     const { result } = renderHook(() =>
-      useSectionViewResolution(client, [item(hit), item(miss)], undefined, view),
+      useSectionViewResolution(client, [item(hit), item(miss)], undefined, undefined, view),
     );
     await waitFor(() => expect(result.current.items.map((entry) => entry.node.id)).toEqual([hit.id]));
 

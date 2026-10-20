@@ -243,7 +243,7 @@ describe("the sort button on the collection views", () => {
       if (node === undefined) throw new Error("seed block missing");
       entries.push({ node, meta: { containingPageId: pageId } });
     }
-    const groups = groupByContainingPage(client, entries);
+    const { groups } = groupByContainingPage(client, entries);
     const { container } = render(
       <NodeCollection
         viewMode="outline"
@@ -263,6 +263,30 @@ describe("the sort button on the collection views", () => {
     fireEvent.click(sortButton);
     expect(screen.getByText("Dates first")).not.toBeNull();
     expect(screen.getByText("Default order")).not.toBeNull();
+  });
+
+  it("groupByContainingPage splits page sources into standalone — never a self-named group", async () => {
+    const client = await seedClient();
+    const targetId = await createTitledPage(client, "Zebra");
+    // A page whose own body mentions the target: source === containing page.
+    // (The mention rides an update — object.create flattens content to text.)
+    const directId = await client.createObject({ isEmbedded: false, name: "see " });
+    await client.updateObject(directId, {
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
+    });
+    // A block under another page: a normal containing-page group.
+    const blockSourceId = await createTitledPage(client, "Block Source");
+    const blockId = await client.createObject({ parentId: blockSourceId });
+    const items: NodeCollectionItem[] = [
+      { node: client.getNode(directId)!, meta: { containingPageId: directId } },
+      { node: client.getNode(blockId)!, meta: { containingPageId: blockSourceId } },
+    ];
+    const { standalone, groups } = groupByContainingPage(client, items);
+    // The page source stands alone; the block joins its containing page's
+    // group — no self-named one-row group exists.
+    expect(standalone.map((item) => item.node.id)).toEqual([directId]);
+    expect(groups.map((group) => group.id)).toEqual([blockSourceId]);
+    expect(groups[0]!.items.map((item) => item.node.id)).toEqual([blockId]);
   });
 
   it("a read-only tree (the Child pages shape) opens every sibling level A–Z", async () => {

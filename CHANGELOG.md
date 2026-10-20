@@ -8,6 +8,30 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **fix(web): outline view, grouped by page — page sources stand at the top
+  level.** In the references grouping (Backlinks, Unlinked
+  mentions, the block-level backlink gutter), an entry whose source IS the
+  containing page — a page mentioning the target from its own body or
+  carrying the target in its own property values — used to render inside a
+  self-named one-row group (a collapsible header naming the row's own page,
+  then the same page indented beneath it). Nonsense chrome: that entry now
+  rides the new `ungroupedItems` collection prop and renders as its own row
+  in a separated flat outline list BEFORE the group sections, sorted with
+  the rendering's sort mode like any flat list. `groupByContainingPage`
+  returns `{ standalone, groups }` (a `ContainingPageGrouping`); the hosted
+  custom tabs refine the ungrouped rows alongside the items/groups (same
+  predicate, container order kept — the groups' precedent). Files:
+  `grouping.ts` (the split + the return shape), `types.ts`
+  (`ungroupedItems`), `OutlineView.tsx` (the flat layer before
+  `GroupedFlat`), `NodeCollection.tsx` + `sectionViewResolve.ts` (the
+  resolution threading), `SystemSections.tsx` (the ReferenceList passes
+  its page sources); tests — the grouping-split unit, the mixed
+  page-source + group rendering (top-level row, DOM order before the
+  groups, bullet opens the source), the all-page flat rendering, the
+  bound-verb page-source row (verb badge rides the standalone row now).
+  Full web suite: 1835 passed; the 40 reds are all the in-flight
+  property-default migration's (class_binding `required` / `defaultValue`
+  half-done store work), untouched by this slice.
 - **fix(web): the class page's first section keeps the page view's ghost-row
   separation.** On a plain page the first system section
   (Backlinks) sits a comfortable step below the body's trailing "+ Add block"

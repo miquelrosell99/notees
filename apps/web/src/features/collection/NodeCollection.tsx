@@ -17,7 +17,8 @@
  * Hosted views (the `hostedViews` prop): the collection gains the
  * custom-tabs chrome (SectionViewTabs) — the default tab renders exactly
  * today's behavior (permanent, first), custom tabs refine the items/groups
- * with their stored query_ast (sectionViewResolve), and a custom tab's
+ * (and the ungrouped top-level rows) with their stored query_ast
+ * (sectionViewResolve), and a custom tab's
  * view_mode overrides the requested mode when the registry knows it.
  * `tabBarTrailing` rides the tab bar's far right — the
  * host section's filter/view chrome joins the tabs' row; it renders ONLY
@@ -83,6 +84,7 @@ export function NodeCollection({
     props.client,
     props.items ?? [],
     props.groups,
+    props.ungroupedItems,
     selectedView,
   );
   // A custom tab may pin a display mode (null = the container's own mode).
@@ -101,7 +103,8 @@ export function NodeCollection({
   const View = effectiveEntry.component;
   const resolvedItems = hosted !== null ? resolution.items : (props.items ?? []);
   const resolvedGroups = hosted !== null ? resolution.groups : props.groups;
-  const viewProps = { ...props, items: resolvedItems, groups: resolvedGroups };
+  const resolvedUngrouped = hosted !== null ? resolution.ungrouped : props.ungroupedItems;
+  const viewProps = { ...props, items: resolvedItems, groups: resolvedGroups, ungroupedItems: resolvedUngrouped };
   const showAdd = props.showAddButton === true && props.onAdd !== undefined;
   // A custom tab refined to empty answers for itself; the default tab (or an
   // unrefined collection) names the container's empty line.

@@ -139,6 +139,14 @@ export interface NodeCollectionProps {
    * function); the items prop stays the full un-grouped list.
    */
   groups?: CollectionGroup[] | undefined;
+  /**
+   * Rows that belong to NO group: the grouped outline rendering lists them
+   * first, as a flat outline, BEFORE the group sections. The references
+   * grouping uses it for page sources — a page mentioning the node from its
+   * own body renders as its own top-level row, never inside a self-named
+   * one-row group. Undefined unless `groups` is present.
+   */
+  ungroupedItems?: NodeCollectionItem[] | undefined;
   /** Zero-data chrome (kit EmptyState) — omitted renders nothing. */
   emptyTitle?: string | undefined;
   emptyHint?: string | undefined;

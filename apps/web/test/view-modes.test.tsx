@@ -846,6 +846,72 @@ describe("groupBy: references grouped by containing page", () => {
     expect(header.querySelector(".outline-group__name")?.textContent).toContain("Double Source");
     expect(header.querySelector(".outline-group__count")?.textContent).toContain("2");
   });
+
+  /**
+   *: a page referencing the target from its OWN
+   * body is not a group (a self-named one-row group names nothing) — it
+   * renders as its own top-level row, as a separated flat outline list,
+   * BEFORE the group sections.
+   */
+  it("a page source renders as a top-level row before the groups, not inside its own group", async () => {
+    const client = await seedClient();
+    const targetId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    // Direct Source mentions Zebra in its own body (the source IS the page).
+    // (The mention rides an update — object.create flattens content to text.)
+    const directId = await client.createObject({ isEmbedded: false, name: "see " });
+    await client.updateObject(directId, {
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
+    });
+    // Block Source mentions Zebra from a child block — a real group.
+    const blockSource = await client.createObject({ isEmbedded: false, name: "Block Source" });
+    await client.createObject({
+      parentId: blockSource,
+      contentAst: [{ type: "text", text: "via block " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
+    });
+    const onOpenPage = vi.fn();
+    render(<PageView client={client} pageId={targetId} onOpenPage={onOpenPage} />);
+
+    const linked = expandLinkedReferences();
+
+    // One group only — the block source's page. No self-named group for the
+    // direct page source.
+    const groupNames = [...linked.querySelectorAll(".outline-group__name")].map((el) => el.textContent);
+    expect(groupNames).toEqual(["Block Source"]);
+
+    // The page source rides its own top-level flat outline (a ul.outline-flat
+    // that is NOT a group's item list)…
+    const standaloneLists = [...linked.querySelectorAll("ul.outline-flat")].filter(
+      (el) => !el.classList.contains("outline-group__items"),
+    );
+    expect(standaloneLists.length).toBe(1);
+    expect(standaloneLists[0]!.textContent).toContain("see");
+    // …BEFORE the group sections in the document order.
+    const position = standaloneLists[0]!.compareDocumentPosition(linked.querySelector(".outline-groups")!);
+    expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // The standalone row's bullet opens the source page, like any row.
+    fireEvent.click(standaloneLists[0]!.querySelector(".nt-bullet")!);
+    expect(onOpenPage).toHaveBeenCalledWith(directId);
+  });
+
+  it("all-page references render flat with no group sections at all", async () => {
+    const client = await seedClient();
+    const targetId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    for (const name of ["Page One", "Page Two"]) {
+      const pageId = await client.createObject({ isEmbedded: false, name: `${name} ` });
+      await client.updateObject(pageId, {
+        contentAst: [{ type: "text", text: `${name} ` }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
+      });
+    }
+    render(<PageView client={client} pageId={targetId} onOpenPage={() => {}} />);
+
+    const linked = expandLinkedReferences();
+    expect(linked.querySelectorAll(".outline-group")).toHaveLength(0);
+    const rows = [...linked.querySelectorAll("ul.outline-flat > li")].map((el) => el.textContent ?? "");
+    expect(rows.length).toBe(2);
+    expect(rows.some((t) => t.includes("Page One"))).toBe(true);
+    expect(rows.some((t) => t.includes("Page Two"))).toBe(true);
+  });
 });
 
 describe("table polish: multi-sort, column selector, inline editing, selection", () => {
