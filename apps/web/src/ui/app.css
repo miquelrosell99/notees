@@ -975,14 +975,41 @@ select:focus-visible {
   gap: var(--spacing-1);
 }
 
+/* ── The outliner level grid ────────────────────────────
+   Every .nt-block is ONE grid whose template splits AT the bullet
+   centerline: [row gutter][grip half][grip half][content]. The two
+   half-tracks make the boundary between them the bullet center column —
+   the row places the grip across them (centered by construction), and
+   the children container spans from that boundary, so the indent rail
+   rides the bullet column with NO margin arithmetic (the 2026-10-20 fix
+   corrected the hand-derived 22px; this replaces the derivation with a
+   shared coordinate system). The constants live once here; the row
+   gutter and the grip width both re-express from them, so a grip resize
+   propagates to the rails and the thread column automatically. */
+.nt-block {
+  display: grid;
+  /* The layout constants live here — every consumer (the row gutter, the
+     grip width, the template below) is inside the block. */
+  --nt-row-gutter: 14px; /* the chevron gutter, left of the grip */
+  --nt-grip-half: 9px; /* half the 18px grip — the centerline split */
+  grid-template-columns: var(--nt-row-gutter) var(--nt-grip-half) var(--nt-grip-half) minmax(0, 1fr);
+}
+
+/* The grid children default to stacked full-width rows; the ONE indented
+   child — the children container — starts at the centerline track. */
+.nt-block > :not(.nt-block-children) {
+  grid-column: 1 / -1;
+}
+
 .nt-block-row {
   display: flex;
   align-items: baseline;
   gap: 8px;
   padding: 2px 0;
   /* Room for the hover-revealed collapse chevron, which sits in this gutter
-     (absolute, left of the bullet) so bullets stay aligned at every level. */
-  padding-left: 14px;
+     (absolute, left of the bullet) so bullets stay aligned at every level.
+     Rides the grid's first track — same var, single source. */
+  padding-left: var(--nt-row-gutter);
 }
 
 /* Collapse chevron: hidden at rest (the resting trail stays clean — a
@@ -1003,10 +1030,10 @@ select:focus-visible {
    primary ring (the "ripple"); hover deepens it. */
 .nt-bullet {
   position: relative;
-  /* Above the edit-thread overlay (app.css "the edit thread"): the thread
-     paints over the tree chrome but must pass UNDER the dot — the line
-     merges into the bullet, never strikes through it. */
-  z-index: 1;
+  /* Above the edit-thread overlay (z-index 1 — app.css "the edit
+     thread"): the thread paints over the tree chrome but must pass UNDER
+     the dot — the line merges into the bullet, never strikes through it. */
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1165,9 +1192,10 @@ select:focus-visible {
 
 .nt-block-chevron {
   position: absolute;
-  /* Above the edit-thread overlay (app.css "the edit thread"): the hover
-     chevron's glyph must not be crossed by the path hairline. */
-  z-index: 1;
+  /* Above the edit-thread overlay (z-index 1 — app.css "the edit
+     thread"): the hover chevron's glyph must not be crossed by the path
+     hairline. */
+  z-index: 2;
   right: calc(100% + 1px);
   top: 50%;
   transform: translateY(-50%);
@@ -1562,47 +1590,45 @@ select:focus-visible {
 
 .nt-block-children {
   position: relative;
-  /* The indent line rides the parent bullet's CENTER column. The real
-     geometry (revealed by the edit thread's
-     measured overlay): the bullet is CENTERED in the 18px grip (it
-     overflows 2px a side), so its center is the row's chevron gutter
-     (14px) + half the grip (9px) = 23px — not 25 (the 2026-10-15 fix
-     assumed the bullet started at the grip's left edge, leaving the line
-     ~2.5px right of the dot). The visible hairline is the 1px border at
-     [m, m+1] plus the rail's 1px gradient at [m+1, m+2] — a 2px line
-     centered at m+1 — so m = 22 lands it exactly on the bullet column. */
-  margin-left: 22px;
+  /* Grid child: spans from the CENTERLINE track — the container's left
+     edge IS the parent bullet column (the template splits at it), so the
+     rail rides the bullet by construction. No margin arithmetic (the outliner level grid replaces the hand-derived 22px);
+     the 8px padding is the children's breathing room, part of the indent
+     step, not the alignment. The container border retires — the rail
+     draws the only line, everywhere the border used to show. */
+  grid-column: 3 / -1;
   padding-left: 8px;
-  border-left: 1px solid var(--md-sys-color-outline-variant);
 }
 
 /* The indent rail: the vertical hairline is itself a control — one click
-   anywhere on it folds EACH direct child individually: the owner's own expansion stays untouched, the direct
-   children rows remain, their subtrees fold at once; when every collapsible
-   child is folded, the click unfolds them all. The rail rides the children
-   container's left border but its TOP extends across the block's metadata
-   sections up to the row's bottom edge (set inline by BlockRow's
-   extendRail), so the line reaches the bullet. The resting hairline is
-   drawn BY the rail, aligned with the border column (1px from the rail's
-   left edge), one continuous line from the row down; hover/focus
-   strengthens it to a 2px accent hairline on the same column. No child
-   content lives in the strip, so it never eats child clicks. */
+   anywhere on it folds EACH direct child individually: the owner expansion stays untouched, the direct children
+   rows remain, their subtrees fold at once; when every collapsible child
+   is folded, the click unfolds them all. The rail's TOP extends across
+   the block's metadata sections up to the row's bottom edge (set inline
+   by BlockRow's extendRail), so the line reaches the bullet. The button
+   is a 10px centered hit area straddling the container's left edge (the
+   bullet column); it draws a gradient-centered 2px hairline — resting
+   outline-variant, hover/focus a 2px accent — so the visible line is
+   centered on the column by construction, and no child content lives in
+   the strip, so it never eats child clicks. z stays auto: the edit-thread
+   overlay (z-index 1) paints OVER the rail where the columns coincide;
+   the rail paints over nothing it shouldn't. */
 .nt-block-children__rail {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -1px;
-  width: 9px;
+  left: -5px;
+  width: 10px;
   padding: 0;
   border: none;
   cursor: pointer;
   touch-action: manipulation;
-  background: linear-gradient(to right, transparent 0 1px, var(--md-sys-color-outline-variant) 1px 2px, transparent 2px);
+  background: linear-gradient(to right, transparent 0 calc(50% - 1px), var(--md-sys-color-outline-variant) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px));
 }
 
 .nt-block-children__rail:hover,
 .nt-block-children__rail:focus-visible {
-  background: linear-gradient(to right, transparent 0 1px, var(--md-sys-color-primary) 1px 3px, transparent 3px);
+  background: linear-gradient(to right, transparent 0 calc(50% - 1px), var(--md-sys-color-primary) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px));
   outline: none;
 }
 
@@ -1626,6 +1652,10 @@ select:focus-visible {
 .nt-edit-thread-overlay {
   position: absolute;
   inset: 0;
+  /* z-index 1: above the tree chrome (the resting rail is a positioned
+     button — without this it would strike over the thread by DOM order)
+     and below the z-indexed bullets/chevrons. */
+  z-index: 1;
   width: 100%;
   height: 100%;
   pointer-events: none;
@@ -1678,10 +1708,14 @@ select:focus-visible {
   display: none;
 }
 
+.nt-prose .nt-block {
+  /* Prose flattens the indents — no centerline to ride; simple stacking
+     replaces the level grid. */
+  display: block;
+}
+
 .nt-prose .nt-block-children {
-  margin-left: 0;
   padding-left: 0;
-  border-left: none;
 }
 
 .nt-prose .nt-block-row {
@@ -2190,7 +2224,9 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
+  /* The bullet is centered in the grip, so the grip spans the grid's two
+     half-tracks and the template's centerline IS the bullet column. */
+  width: calc(var(--nt-grip-half) * 2);
   flex-shrink: 0;
   cursor: grab;
   color: var(--md-sys-color-on-surface-variant);

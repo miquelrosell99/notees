@@ -20,11 +20,12 @@
  * node), and measures each path bullet box. One path is built top-down:
  * start at the top block bullet center, run down its column, a quadratic
  * rounded turn (RADIUS) into each deeper bullet center, ending at the
- * editing block dot. The overlay paints ABOVE the tree chrome (the
- * resting rails pass under the thread where the columns coincide) and
- * BELOW the bullets and the hover chevron (both carry z-index: 1), so
- * the dots sit on the line, and it is pointer-events: none — it never
- * eats clicks (the rail fold gesture underneath keeps working).
+ * editing block dot. The overlay carries z-index 1: ABOVE the tree chrome
+ * (the resting rail is a positioned button — without the explicit layer
+ * it would strike over the thread by DOM order) and BELOW the bullets
+ * and the hover chevron (both carry z-index: 2), so the dots sit on the
+ * line, and it is pointer-events: none — it never eats clicks (the rail
+ * fold gesture underneath keeps working).
  * Recomputed on edit changes, store notifications, host resizes, and any
  * scroll (the bullets move with the scroller); a missing bullet (prose
  * hides them, cards mode, a not-rendered ancestor, a top-level edit)
