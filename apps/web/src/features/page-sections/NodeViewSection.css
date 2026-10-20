@@ -9,11 +9,11 @@
 
 .node-view-section {
   border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  /* One step tight: the hairline sits directly at the
-     block surface's ghost row above, so spacing-3 here read as a void
-     between the child blocks and the first section (Created on date pages,
-     Classed nodes on class pages). spacing-2 keeps the header's clearance
-     without the float. */
+  /* One step tight: spacing-2 is the HEADER's clearance
+     under the hairline — the stack-level breathing room above the hairline
+     is the host's job (the nt-page-sections / nt-variant-sections wrappers
+     own margin-top: spacing-4 — Created on date pages, the system sections
+     on plain pages, Classed nodes on class pages). */
   padding-top: var(--spacing-2);
 }
 
