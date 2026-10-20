@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-20
 
+- **fix(web): the close/remove hover washes go back to the rounded square
+  — the view-mode switcher's shape.** Owner preference 2026-10-20: the
+  corner-full circle from the last round is reverted to `shape-medium`
+  (the `SelectionButton` option radius) on the eleven remove-button
+  classes. Careful net-diff sweep while reverting: six PRE-EXISTING
+  `shape-full` values the blanket replace had clobbered are restored
+  (`.pill--add`, `::-webkit-scrollbar-thumb`, `.nt-selection-bar` (+ its
+  buttons), `.nt-propdef-chip`, `.nt-property-hint`, `.nt-property-link`)
+  — the net tree diff now touches only the intended radius-sm/
+  shape-small→shape-medium flips. Verified live: the panel cluster nav +
+  clear computed radii equal the switcher option's (6px), screenshot
+  confirms the rounded-square wash. CSS-only; drift gate green.
 - **feat(web): the outliner level grid — the indent rail column derives
   from the bullet by construction, no hand-guessed margins.** Owner
   question 2026-10-20 ("why hand-guess the margin pixels — can't a grid /
