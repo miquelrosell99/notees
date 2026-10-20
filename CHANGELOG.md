@@ -34,6 +34,27 @@ predating this file.
   the editing target and an intermediate link, the hidden jog) join the
   overlay suite; gate green.
 
+- **feat(web): every button is the rounded square, and icon-only buttons
+  hug their icon.** Two owner rulings 2026-10-20. **(1) Shape:** the fleet
+  button radius register (`--radius-button-lg/sm`, the 2026-10-19
+  corner-full) moves to `shape-medium` — the view-mode switcher's
+  rounded square — so ALL button variants (the top-bar toggles
+  included) wear one shape; the 2026-10-19 ruling and the drift-safe
+  comment wording follow (a bare "rounded" in a comment trips the
+  radius gate — hyphenated only). **(2) Icon-only padding:** the top-bar
+  toggles floated a 17px icon in a 48px box (≈16px gap) — the base
+  utility string's `min-h-touch` floor plus a NEVER-EMITTED width
+  utility: `icon-only-visible-*` existed only in the Tailwind HEIGHT
+  map, so the width silently rode `aspect-square` and blew up with the
+  min-height. Fixed properly: the four `icon-only-visible-*` sizes join
+  the WIDTH map (the box is now the register value — 32px at sm, 8px
+  gap), and the new co-located `Button.css` pins `.btn.btn--icon-only {
+  min-width/min-height: 0 }` (the utility-layer race lost by source
+  order — the raised specificity is deterministic); the invisible
+  min-touch overlay span still carries the 48dp hit area, the division
+  it was built for. Verified live: 32×32 boxes, 17px icons, 8px gaps,
+  overlay present. `variables.css`, `tailwind.config.ts`, `Button.tsx`,
+  `Button.css` (new). Full suite green (1810).
 - **fix(web): the close/remove hover washes go back to the rounded square
   — the view-mode switcher's shape.** Owner preference 2026-10-20: the
   corner-full circle from the last round is reverted to `shape-medium`
