@@ -37,7 +37,7 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import { ClassedNodesSection } from "../classview/lassedNodesSection.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { ExtendedBySection } from "../classview/xtendedBySection.js";
-import { PropertyDefinitionsSection } from "../classview/ropertyDefinitionsSection.js";
+import { PropertyDefinitionsSection } from "../classview/PropertyDefinitionsSection.js";
 import { TemplatesSection } from "../classview/emplatesSection.js";
 import { createdPeriodBounds, isoOfDateParts } from "../calendar/calendarViewUtils.js";
 import type { SectionSpec } from "../collection/useSectionData.js";

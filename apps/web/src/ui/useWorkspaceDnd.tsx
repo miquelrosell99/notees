@@ -105,6 +105,11 @@ import type { OutlinePositionMap } from "@/editor/outline.js";
 
 import { displayNameFromClient } from "./dateDisplay.js";
 import {
+  executePropertyDrop,
+  planPropertyDrop,
+  workspacePropertyDropId,
+} from "./property-drop.js";
+import {
   DragSourcesContext,
   DropLineContext,
   blockCollisionDetection,
@@ -170,6 +175,17 @@ export interface WorkspaceRailCardFacts {
   client: AnyClient;
 }
 
+/** A text-property row's registered drop target (S5 block-to-property). */
+export interface WorkspacePropertyDropFacts {
+  /** The droppable id — the `workspacePropertyDropId` namespace. */
+  droppableId: string;
+  /** The property's owner node (the dragged block must be its child). */
+  ownerNodeId: string;
+  propertySchemaId: string;
+  /** The write client (the drop decision + the property.set ride it). */
+  client: AnyClient;
+}
+
 /** The edge of the target card a reorder lands on. */
 export type RailReorderPosition = "before" | "after";
 
@@ -188,6 +204,7 @@ export interface WorkspaceDndHostApi {
   registerZone: (facts: WorkspaceDndZoneFacts) => () => void;
   registerHeader: (facts: WorkspaceDndHeaderFacts) => () => void;
   registerRailCard: (facts: WorkspaceRailCardFacts) => () => void;
+  registerPropertyDrop: (facts: WorkspacePropertyDropFacts) => () => void;
   dragUi: WorkspaceDndDragUi;
 }
 
@@ -275,6 +292,7 @@ export function useWorkspaceDnd(opts: {
   const zonesRef = useRef(new Map<string, WorkspaceDndZoneFacts>());
   const headersRef = useRef(new Map<string, WorkspaceDndHeaderFacts>());
   const railCardsRef = useRef(new Map<string, WorkspaceRailCardFacts>());
+  const propertyDropsRef = useRef(new Map<string, WorkspacePropertyDropFacts>());
   const sessionRef = useRef<DragSession | null>(null);
   // Drag edge auto-scroll: the last live pointer (null for keyboard drags),
   // the session's scrollable containers (collected at drag start), and the
@@ -401,6 +419,13 @@ export function useWorkspaceDnd(opts: {
     };
   }, []);
 
+  const registerPropertyDrop = useCallback((facts: WorkspacePropertyDropFacts) => {
+    propertyDropsRef.current.set(facts.droppableId, facts);
+    return () => {
+      propertyDropsRef.current.delete(facts.droppableId);
+    };
+  }, []);
+
   /** The zone whose positions own the id (the dragged row's home zone
    *  first — the event-driven keyboard line reads the ACTIVE row's
    *  previous sibling; then the zone under the pointer). */
@@ -518,7 +543,15 @@ export function useWorkspaceDnd(opts: {
         });
         return;
       }
+      // S5: a block drag over a registered property slot — the slot owns
+      // the gesture (no zone drop line paints under the pointer, no
+      // transient header-expand state rides along).
       const overId = event.over === null ? null : String(event.over.id);
+      if (overId !== null && propertyDropsRef.current.has(overId)) {
+        setDropLine(null);
+        setDragUi((prev) => (prev.headerDropId === null ? prev : { ...prev, headerDropId: null }));
+        return;
+      }
       const header = overId === null ? undefined : headersRef.current.get(overId);
       if (header !== undefined) {
         // Header drop ≡ a child drop on the card node: the end-of-list line.
@@ -584,6 +617,26 @@ export function useWorkspaceDnd(opts: {
       const dragIds = session?.dragIds ?? [activeId];
       const pointer = dragPointerOf(event);
       const overId = event.over === null ? null : String(event.over.id);
+      // S5: a block drag released over a registered property slot makes the
+      // block the value's carrier — one property.set, never a move. The
+      // decision matrix re-checks every guard at drop time (same-owner,
+      // eligibility, occupancy); a refused drop is a silent no-op.
+      const propDrop = overId === null ? undefined : propertyDropsRef.current.get(overId);
+      if (propDrop !== undefined) {
+        const blockId = session?.activeId ?? activeId;
+        const args = {
+          blockId,
+          ownerNodeId: propDrop.ownerNodeId,
+          propertySchemaId: propDrop.propertySchemaId,
+        };
+        const plan = planPropertyDrop(propDrop.client, args);
+        if (plan.kind !== "noop") {
+          void executePropertyDrop(propDrop.client, args, plan).catch((err: unknown) => {
+            setMoveError(moveErrorMessage(err));
+          });
+        }
+        return;
+      }
       const header = overId === null ? undefined : headersRef.current.get(overId);
       let line: DropLine | null = null;
       let zone: WorkspaceDndZoneFacts | undefined;
@@ -701,8 +754,8 @@ export function useWorkspaceDnd(opts: {
   }, [stopEdgeScroll]);
 
   const hostApi = useMemo<WorkspaceDndHostApi>(
-    () => ({ registerZone, registerHeader, registerRailCard, dragUi }),
-    [registerZone, registerHeader, registerRailCard, dragUi],
+    () => ({ registerZone, registerHeader, registerRailCard, registerPropertyDrop, dragUi }),
+    [registerZone, registerHeader, registerRailCard, registerPropertyDrop, dragUi],
   );
 
   /**
@@ -897,4 +950,50 @@ export function useWorkspaceDndRailCard(facts: WorkspaceRailCardFacts): {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [host, facts.draggableId]);
   return { setGripRef: setNodeRef, attributes, listeners, isDragging };
+}
+
+/**
+ * A text-property row joins the workspace session as an S5 drop target:
+ * registers its drop facts with the host (no-op without one) and returns
+ * the droppable ref callback + the drop-over flag (inert without a host —
+ * the context-presence law). The row renders the offered/no-drop
+ * affordance off DragSourcesContext; the drop decision itself re-runs at
+ * release time in the host's handleDragEnd.
+ */
+export function useWorkspaceDndPropertyDrop(
+  facts: {
+    ownerNodeId: string;
+    propertySchemaId: string;
+    client: AnyClient;
+  },
+  opts: { disabled?: boolean } = {},
+): {
+  setNodeRef: (element: HTMLElement | null) => void;
+  isOver: boolean;
+  enabled: boolean;
+} {
+  const host = useContext(WorkspaceDndHostContext);
+  const droppableId = workspacePropertyDropId(facts.ownerNodeId, facts.propertySchemaId);
+  const disabled = host === null || opts.disabled === true;
+  const { setNodeRef, isOver } = useDroppable({ id: droppableId, disabled });
+  const factsRef = useRef<WorkspacePropertyDropFacts>({
+    droppableId,
+    ownerNodeId: facts.ownerNodeId,
+    propertySchemaId: facts.propertySchemaId,
+    client: facts.client,
+  });
+  factsRef.current = {
+    droppableId,
+    ownerNodeId: facts.ownerNodeId,
+    propertySchemaId: facts.propertySchemaId,
+    client: facts.client,
+  };
+  useEffect(() => {
+    if (host === null) return;
+    return host.registerPropertyDrop(factsRef.current);
+    // The facts object is rebuilt per render; registration is keyed on the
+    // stable droppable id (the host reads the client live).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [host, droppableId]);
+  return { setNodeRef, isOver, enabled: !disabled };
 }

@@ -279,9 +279,12 @@ describe("Class View", () => {
     // FINAL citations authorship (2026-09-27): authors is the node-typed,
     // agent-filtered property (linkedAuthors was withdrawn same day, …0025).
     const authorsRow = rows[1]!;
-    expect(authorsRow.querySelector(".nt-propdef-type")?.getAttribute("aria-label")).toBe(
-      "Type: object (multi)",
-    );
+    // The collapsed row is identity-only (S6): grip + icon + name, no type
+    // chip. The type and the target classes live in the expanded config.
+    fireEvent.click(within(authorsRow as HTMLElement).getByRole("button", { name: "Configure Authors" }));
+    await flushWrites();
+    expect(authorsRow.querySelector(".nt-propdef-meta")?.textContent).toContain("object");
+    expect(authorsRow.querySelector(".nt-propdef-meta")?.textContent).toContain("multi");
     expect(authorsRow.textContent).toContain("agent");
   });
 

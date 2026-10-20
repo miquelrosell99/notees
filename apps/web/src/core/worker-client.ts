@@ -756,8 +756,9 @@ export class WorkerClient {
     value: unknown,
     idx?: number,
     metadata?: Record<string, unknown>,
+    elementId?: string,
   ): Promise<void> {
-    await this.call("setProperty", [objectId, propertySchemaId, value, idx, metadata]);
+    await this.call("setProperty", [objectId, propertySchemaId, value, idx, metadata, elementId]);
   }
 
   /** Clear an authored property value (property.unset). */

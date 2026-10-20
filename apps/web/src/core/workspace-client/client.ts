@@ -585,8 +585,9 @@ export class WorkspaceClient {
     value: unknown,
     idx = 0,
     metadata?: Record<string, unknown>,
+    elementId?: string,
   ) {
-    return this.writes.setProperty(objectId, propertySchemaId, value, idx, metadata);
+    return this.writes.setProperty(objectId, propertySchemaId, value, idx, metadata, elementId);
   }
 
   unsetProperty(objectId: string, propertySchemaId: string, idx = 0) {

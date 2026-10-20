@@ -6,7 +6,7 @@ export * from "./taskCycle.js";
 export * from "./taskFamily.js";
 export * from "./emplatesSection.js";
 export * from "./lassedNodesSection.js";
-export * from "./ropertyDefinitionsSection.js";
+export * from "./PropertyDefinitionsSection.js";
 export * from "./TaskBuckets.js";
 export * from "./xtendedBySection.js";
 export * from "./xtendsRow.js";
