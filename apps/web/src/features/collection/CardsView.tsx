@@ -607,6 +607,10 @@ function FlatCards({
             />
           ))}
           <ShowMoreButton remaining={remaining} onShowMore={showMore} />
+          {/* The "+ Add card" ghost (the page body): the
+              grid's last cell — a dashed slot realizing into a new card.
+              Display state only, no selection/checkbox chrome. */}
+          {props.trailingGhost}
         </div>
       </OutlinerContext.Provider>
     </div>
@@ -623,7 +627,10 @@ export function CardsView(props: NodeCollectionProps) {
   const [cardFlow, setCardFlow] = useCardFlowPreference(props.defaultCardFlow ?? "masonry");
   // selection export — flat node sets only (tree contexts stay chrome-less).
   const selection = useViewSelection();
-  if (items.length === 0) return null;
+  // An empty collection renders nothing — UNLESS the container trails the
+  // "+ Add card" ghost (the page body): the ghost is the sole add affordance
+  // on an empty cards body, so the grid mounts around it alone.
+  if (items.length === 0 && props.trailingGhost === undefined) return null;
   // The grouped board IS cards mode with a property-dimension groupBy: the
   // container passes a usable select schema → the same cards render as board
   // columns with between-column drops; otherwise the flat grid. ONE card

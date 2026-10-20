@@ -749,7 +749,7 @@ describe("ghost block rows (the add affordance)", () => {
     expect(document.activeElement).toBe(editor);
   });
 
-  it("prose keeps the ghost with its bullet dropped; cards renders none", async () => {
+  it("prose keeps the ghost with its bullet dropped; cards wears the ghost card", async () => {
     const client = await seedClient();
     const { pageId } = await seedNestedPage(client);
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -765,13 +765,34 @@ describe("ghost block rows (the add affordance)", () => {
     expect(ghost()).not.toBeNull();
     expect(ghost()!.classList.contains("nt-ghost-row--prose")).toBe(true);
 
+    // Cards: the add affordance is the GRID'S ghost card — a dashed slot in the grid's last cell, not a row
+    // after the grid. The row ghost unmounts with the mode.
     act(() => writeViewModePref(`nodeBlocks.${pageId}`, "cards"));
-    expect(container.querySelectorAll("[data-ghost]")).toHaveLength(0);
+    expect(container.querySelectorAll(".nt-ghost-row")).toHaveLength(0);
+    const cardGhost = container.querySelector<HTMLElement>(".nt-ghost-card");
+    expect(cardGhost).not.toBeNull();
+    expect(cardGhost!.dataset.ghost).toBe(`__ghost-${pageId}`);
+    expect(cardGhost!.closest(".cards-grid")).not.toBeNull();
 
-    // Back to outline: the affordance returns, gutter and all.
+    // The click realizes the slot into a real empty child block — a new
+    // card after the last one. (The card IS the button — the row ghost's
+    // wrapper + inner button shape doesn't apply to the card slot.)
+    const before = client.getChildren(pageId).length;
+    await act(async () => {
+      fireEvent.click(cardGhost!);
+    });
+    const children = client.getChildren(pageId);
+    expect(children).toHaveLength(before + 1);
+    expect(children[children.length - 1]!.contentAst).toEqual([]);
+    // The ghost card survives the realize — the affordance is always-on.
+    expect(container.querySelector(".nt-ghost-card")).not.toBeNull();
+
+    // Back to outline: the row affordance returns, gutter and all, and the
+    // card slot is gone.
     act(() => writeViewModePref(`nodeBlocks.${pageId}`, "outline"));
     expect(ghost()).not.toBeNull();
     expect(ghost()!.classList.contains("nt-ghost-row--prose")).toBe(false);
+    expect(container.querySelector(".nt-ghost-card")).toBeNull();
   });
 
   it("ghost ids never enter the sortable row id space", async () => {

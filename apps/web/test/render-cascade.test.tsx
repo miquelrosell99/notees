@@ -12,7 +12,7 @@
 import { useState } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
@@ -20,6 +20,7 @@ import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client/index.js";
 import { NodeView } from "../src/ui/App.js";
 import { NodeContextMenu } from "../src/features/node-menu/NodeContextMenu.js";
+import { writeViewModePref } from "../src/ui/viewPrefs.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -135,6 +136,28 @@ describe("NodeView render cascade (Revision 11)", () => {
     expect(document.activeElement).toBe(createdRow?.querySelector(".nt-block-text"));
     // The ghost itself survives the realize — the affordance is always-on.
     expect(container.querySelectorAll("[data-ghost]")).toHaveLength(1);
+  });
+
+  it("the focused view's prose ghost drops its bullet like every prose bullet", async () => {
+    const client = await seedClient();
+    const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
+    const blockId = await client.createObject({
+      parentId,
+      contentAst: [{ type: "text", text: "focused" }],
+    });
+
+    const { container } = render(<NodeView client={client} nodeId={blockId} onOpenNode={() => {}} />);
+    const ghost = () => container.querySelector<HTMLElement>("[data-ghost]");
+    // Outline: the affordance wears the row register (gutter + bullet).
+    expect(ghost()).not.toBeNull();
+    expect(ghost()!.classList.contains("nt-ghost-row--prose")).toBe(false);
+
+    // Prose: the prose modifier mounts (GhostRow.css drops the gutter under
+    // it — the bullet would read as a stray dot among the paragraphs); the
+    // affordance itself stays — exactly one.
+    act(() => writeViewModePref(`nodeBlocks.${blockId}`, "prose"));
+    expect(container.querySelectorAll("[data-ghost]")).toHaveLength(1);
+    expect(ghost()!.classList.contains("nt-ghost-row--prose")).toBe(true);
   });
 
   it("class node → the class page variant regardless of placement facts", async () => {

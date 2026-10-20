@@ -67,3 +67,42 @@
 .nt-ghost-row--prose .nt-ghost-row__gutter {
   display: none;
 }
+
+/* GhostCard — the cards-mode ghost: the grid's last cell. The card
+   corner shape and the grid's cell behavior (no masonry split), but a
+   dashed hairline instead of the real card's solid border and no surface
+   fill — an empty slot waiting for a card, never a card itself. The label
+   stays faint until the slot is reached for (the row ghost's register). */
+.nt-ghost-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+  min-block-size: var(--layout-size-3xl);
+  padding: var(--spacing-4);
+  box-sizing: border-box;
+  break-inside: avoid;
+  cursor: pointer;
+  border: var(--border-width-default) dashed
+    color-mix(in srgb, var(--md-sys-color-outline) 50%, var(--md-sys-color-outline-variant));
+  border-radius: var(--shape-extra-large);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--font-body-small);
+  opacity: var(--opacity-30);
+  transition:
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-ghost-card:hover,
+.nt-ghost-card:focus-visible {
+  opacity: var(--opacity-100);
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) var(--opacity-5, 5%), transparent);
+}
+
+.nt-ghost-card__label {
+  white-space: nowrap;
+}
