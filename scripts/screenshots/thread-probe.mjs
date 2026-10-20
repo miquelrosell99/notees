@@ -22,7 +22,11 @@
 //      reveal).
 //   8. glyph bullets (class icons): the arms end BEFORE the icon — the
 //      editing target and an intermediate link — never strike through it;
-//      an intermediate glyph gets the hidden jog back to its column.
+//      an intermediate glyph gets the INWARD corner: the next vertical
+//      descends in the gap column left of the icon, circumventing it.
+//   9. the context menu anchors to its block: while the node menu is open
+//      the block bullet carries the hover/active highlight, and Escape
+//      clears it.
 // TEST workspace; cleans up after itself.
 import { chromium } from "playwright";
 const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL;
@@ -208,6 +212,38 @@ try {
   expect(s.dotBgA2 === s.path.stroke && s.dotBgA2b !== s.path.stroke,
     "the path dots wear the accent at resting size; the non-path sibling stays muted");
 
+  // ── 4b. the context menu anchors to its block: the bullet highlights ──
+  {
+    await pg.click(`[data-block-id="${a2b}"] .nt-block-content`, { button: "right" });
+    await pg.waitForSelector(".nt-block--menu-open", { timeout: 10_000 });
+    await pg.waitForTimeout(250); // the highlight rides a short transition
+    const menuState = await pg.evaluate((bid) => {
+      const block = document.querySelector(`[data-block-id="${bid}"]`);
+      const dot = block.querySelector(":scope > .nt-block-row .nt-bullet-dot");
+      const cs = getComputedStyle(dot);
+      return {
+        anchored: block.classList.contains("nt-block--menu-open"),
+        editing: block.classList.contains("nt-block--editing"),
+        opacity: cs.opacity,
+        bg: cs.backgroundColor,
+      };
+    }, a2b);
+    const accentBg = await pg.evaluate(() => {
+      const editing = document.querySelector(".nt-block--editing > .nt-block-row .nt-bullet-dot");
+      return editing === null ? null : getComputedStyle(editing).backgroundColor;
+    });
+    expect(menuState.anchored && !menuState.editing, "the menu-open block wears the anchor class");
+    expect(menuState.opacity === "1" && accentBg !== null && menuState.bg === accentBg,
+      "the anchored bullet carries the hover/active highlight");
+    await pg.keyboard.press("Escape");
+    await pg.waitForTimeout(300);
+    const cleared = await pg.evaluate((bid) => {
+      const block = document.querySelector(`[data-block-id="${bid}"]`);
+      return !block.classList.contains("nt-block--menu-open");
+    }, a2b);
+    expect(cleared, "Escape closes the menu — the highlight clears");
+  }
+
   // ── 5a. the caret follows: a top-level edit draws nothing ──
   await pg.click(`[data-block-id="${B}"] .nt-block-content`);
   await pg.waitForSelector(`[data-block-id="${B}"].nt-block--editing`, { timeout: 10_000 });
@@ -299,13 +335,19 @@ try {
       expect(Math.abs(end.x - (glyphGeom.a3.glyphLeft - 3)) <= 1.5 && Math.abs(end.y - glyphGeom.a3.cy) <= 1.5,
         "the arm ends BEFORE the editing block's icon (no strike-through)");
       // Intermediate iconed link (a2): four pairs land at its row's y — the
-      // rounded turn's control + end, then the arm (before the glyph) and
-      // the jog back to the center column under the glyph.
+      // rounded turn's control + end, the arm inset by a radius, and the
+      // inward corner's control (the gap column). The next pair descends
+      // FROM the gap — the line circumvents the icon entirely.
       const rowPairs = s.path.pts.filter((p) => Math.abs(p.y - glyphGeom.a2.cy) <= 1.5);
-      expect(rowPairs.length === 4, `an iconed intermediate link draws the turn, the arm, and the hidden jog (${rowPairs.length} pairs)`);
-      expect(Math.abs(rowPairs[2].x - (glyphGeom.a2.glyphLeft - 3)) <= 1.5, "the intermediate arm ends before its icon");
-      expect(Math.abs(rowPairs[3].x - glyphGeom.a2.cx) <= 1.5, "the jog returns to the center column under the icon");
-      expect(s.path.qCount === 2, "the turns stay rounded (2 turns)");
+      expect(rowPairs.length === 4, `an iconed intermediate link draws the turn, the arm, and the inward corner (${rowPairs.length} pairs)`);
+      expect(Math.abs(rowPairs[2].x - (glyphGeom.a2.glyphLeft - 3 - 5)) <= 1.5, "the arm stops a radius before the gap");
+      expect(Math.abs(rowPairs[3].x - (glyphGeom.a2.glyphLeft - 3)) <= 1.5, "the inward corner reaches the gap column left of the icon");
+      {
+        const after = s.path.pts[s.path.pts.indexOf(rowPairs[3]) + 1];
+        expect(after !== undefined && Math.abs(after.x - (glyphGeom.a2.glyphLeft - 3)) <= 1.5 && Math.abs(after.y - (glyphGeom.a2.cy + 5)) <= 1.5,
+          "the next vertical descends in the gap — never under the glyph");
+      }
+      expect(s.path.qCount === 3, "three rounded joins: the turn, the inward corner, the final turn");
     }
   }
 
