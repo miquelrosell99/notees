@@ -412,9 +412,14 @@ export class WorkspaceClientWrites {
     value: unknown,
     idx = 0,
     metadata?: Record<string, unknown>,
+    /** PG5 multi-value element ADD: a writer-minted UUIDv7 (uuidv7) — the
+     *  applier keys the new property_value row on it (the OR-Set add;
+     *  absent = the legacy positional carrier). */
+    elementId?: string,
   ): Promise<void> {
     const payload: Record<string, unknown> = { objectId, propertySchemaId, value, idx };
     if (metadata !== undefined) payload.metadata = metadata;
+    if (elementId !== undefined) payload.elementId = elementId;
     this.ctx.enqueueLocal(this.ctx.buildEnvelope("property.set", payload, [objectId]));
   }
 

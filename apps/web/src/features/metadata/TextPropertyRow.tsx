@@ -31,9 +31,18 @@
  * leaves the row; a carrier is skipped while focus is inside the row (an
  * Add/Enter just minted an empty value the user may be about to type into)
  * and unsetting trashes the carrier — "Unset deletes the carrier".
+ *
+ * Block-to-property drop (S5): the row registers
+ * as a drop target of the ONE workspace drag session — dragging a
+ * same-owner body block onto the row makes the block the value's carrier
+ * (single empty slot: one property.set; occupied single: never an
+ * overwrite; multi: an append with a fresh PG5 elementId). The affordance
+ * (empty-slot ring / drop-over state-layer / no-drop cursor) renders off
+ * the shared decision matrix while a block drag is live; the plan re-runs
+ * at release time in the drag host (ui/property-drop.ts).
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { plainTextExcerpt, rendersAsInlineBlock } from "@notees/domain";
 
@@ -45,6 +54,9 @@ import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { CarrierEnterContext, type CarrierInfo } from "../../ui/textCarrier.js";
+import { DragSourcesContext } from "../../ui/block-dnd.js";
+import { useWorkspaceDndPropertyDrop } from "../../ui/useWorkspaceDnd.js";
+import { propertyDropVerdict } from "../../ui/property-drop.js";
 
 /** Cycle-protection depth cap, mirroring the client's getBlockTree default. */
 const CARRIER_TREE_DEPTH_CAP = 64;
@@ -194,6 +206,31 @@ export function TextPropertyRow({
     else fallbackInputsRef.current.set(key, el);
   };
 
+  // S5 block-to-property drop: the row is a drop target of the ONE
+  // workspace drag session. While a block drag is live (DragSourcesContext)
+  // the row reads the shared decision matrix for its affordance — offered
+  // (empty slots ring) vs refused (no-drop cursor); the plan re-runs at
+  // release time in the host, so nothing here writes.
+  const dragSources = useContext(DragSourcesContext);
+  const dragBlockId =
+    dragSources === null || dragSources.size === 0 ? null : [...dragSources][0]!;
+  const propertyDrop = useWorkspaceDndPropertyDrop(
+    { ownerNodeId: nodeId, propertySchemaId, client },
+    { disabled: readOnly },
+  );
+  const dropVerdict =
+    dragBlockId !== null && propertyDrop.enabled
+      ? propertyDropVerdict(client, {
+          blockId: dragBlockId,
+          ownerNodeId: nodeId,
+          propertySchemaId,
+        })
+      : "noop";
+  const setRowRef = (el: HTMLLIElement | null) => {
+    rootRef.current = el;
+    propertyDrop.setNodeRef(el);
+  };
+
   /**
    * Auto-unset pass (header contract): unset every authored value that is
    * contentless — a scalar empty string, a dead carrier ref, or a carrier
@@ -271,7 +308,7 @@ export function TextPropertyRow({
 
   return (
     <li
-      ref={rootRef}
+      ref={setRowRef}
       onBlur={(event) => {
         // Focus truly left the row (React's onBlur is the bubbling focusout —
         // it also fires on carrier-to-carrier hops, so filter those): re-run
@@ -282,9 +319,14 @@ export function TextPropertyRow({
         cleanupEmptyValues();
       }}
       className={
-        allDefault
+        (allDefault
           ? `nt-property nt-property-default nt-property-text node-metadata-row${rowClassName}`
-          : `nt-property nt-property-text node-metadata-row${rowClassName}`
+          : `nt-property nt-property-text node-metadata-row${rowClassName}`) +
+        (dropVerdict !== "noop" ? " nt-property--droppable" : "") +
+        (propertyDrop.isOver && dropVerdict !== "noop" ? " nt-property--drop-over" : "") +
+        (dragBlockId !== null && propertyDrop.enabled && dropVerdict === "noop"
+          ? " nt-property--no-drop"
+          : "")
       }
     >
       {!bare && (
