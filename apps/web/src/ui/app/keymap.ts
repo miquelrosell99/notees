@@ -121,8 +121,8 @@ export function keymapChordHandler(opts: {
 
 /**
  * Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z (or Ctrl/Cmd+Y) redo — the session
- * journal chords. The editor-interaction rule (docs/ux.md "Undo and
- * redo"): while a text field or the outliner editor (contentEditable) owns
+ * journal chords. The editor-interaction rule (docs/features/undo.md): while
+ * a text field or the outliner editor (contentEditable) owns
  * the focus, the local text behavior keeps the keystroke and the global
  * journal stays out of the way; every other focus runs the journal. The
  * guard therefore yields to ALL contenteditables — the outliner editor's
