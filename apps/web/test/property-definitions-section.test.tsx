@@ -2,7 +2,9 @@
  * S6 section-level tests (PropertyDefinitionsSection, rendered directly):
  * the add popover's class-context eligibility (R1/R2 — global + schemas
  * scoped to this class or its extends-ancestors), the config panel's
- * editable target classes (update {targetClassFilter} — the 3A wire), the
+ * class-level-only scope (owner ruling R7, 2026-10-20 — identity header +
+ * "For this class" group + the "Edit definition…" path to the S2 modal,
+ * where target-class editing and the unresolved-targets hint live), the
  * system-schema remove lock, and the keyboard-navigable popover. jsdom
  * over the in-process WorkspaceClient.
  */
@@ -137,7 +139,7 @@ describe("S6 PropertyDefinitionsSection", () => {
     expect(screen.queryByRole("dialog", { name: "Add property" })).toBeNull();
   });
 
-  it("edits target classes through update {targetClassFilter}", async () => {
+  it("edits target classes through the definition modal (update {targetClassFilter})", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "A");
     const target = await createTitledClass(client, "Target");
@@ -147,8 +149,13 @@ describe("S6 PropertyDefinitionsSection", () => {
     await expandSection();
 
     fireEvent.click(screen.getByRole("button", { name: "Configure link" }));
+    // R7: target-class editing left the inline panel — the panel's "Edit
+    // definition…" opens the S2 modal, whose Target classes field writes
+    // update {targetClassFilter}.
+    fireEvent.click(screen.getByRole("button", { name: "Edit definition…" }));
+    const dialog = screen.getByRole("dialog");
     // The ClassMultiPickField's SelectTrigger adds the class.
-    fireEvent.click(screen.getByRole("button", { name: "Target classes for link" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Target classes" }));
     await flushWrites();
     fireEvent.click(screen.getByText("Target"));
     await flushWrites();
@@ -156,6 +163,52 @@ describe("S6 PropertyDefinitionsSection", () => {
     expect(client.listPropertySchemas().find((s) => s.id === schemaId)?.targetClassFilter).toEqual([
       target,
     ]);
+  });
+
+  it("surfaces unresolved target classes in the definition modal", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "A");
+    // A filter entry naming a class this workspace never deployed (a
+    // dangling id — the stored rows are id-keyed) — the hint moved here
+    // from the inline panel (R7).
+    const GHOST = "0192a000-0000-7000-8000-000000000099";
+    const schemaId = await client.createPropertySchema({
+      name: "link",
+      type: "object",
+      targetClassFilter: [GHOST],
+    });
+    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    renderSection(client, classId);
+    await expandSection();
+
+    fireEvent.click(screen.getByRole("button", { name: "Configure link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit definition…" }));
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByText(`Unresolved targets (kept until edited): ${GHOST}`),
+    ).not.toBeNull();
+  });
+
+  it("keeps the expanded panel class-level only (R7)", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "A");
+    const schemaId = await client.createPropertySchema({ name: "link", type: "object" });
+    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    const { container } = renderSection(client, classId);
+    await expandSection();
+
+    fireEvent.click(screen.getByRole("button", { name: "Configure link" }));
+    await flushWrites();
+    const row = container.querySelector(".nt-propdef") as HTMLElement;
+    // Stays: identity header, the "For this class" group, the modal path.
+    expect(within(row).getByText("For this class")).not.toBeNull();
+    expect(within(row).getByRole("button", { name: "Edit definition…" })).not.toBeNull();
+    // Gone (definition-level, the modal's home): rename, type/Convert,
+    // multi/Values, target classes, the duplicated group label.
+    expect(within(row).queryByText("Definition")).toBeNull();
+    expect(within(row).queryByText("Target classes")).toBeNull();
+    expect(within(row).queryByRole("button", { name: "Convert…" })).toBeNull();
+    expect(within(row).queryByLabelText("Property name")).toBeNull();
   });
 
   it("disables Remove from class for system property schemas", async () => {

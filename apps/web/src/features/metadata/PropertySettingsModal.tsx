@@ -34,11 +34,14 @@ import type { AnyClient } from "./shared.js";
  *    anywhere shows v1's danger confirm — the UI owns the warning, the
  *    applier does not police existing values);
  *  - options editor (select/multi_select: add/remove/reorder, icon+color);
- *  - targetClassFilter editing (update {targetClassFilter} — now writable);
+ *  - targetClassFilter editing (update {targetClassFilter} — now writable;
+ *    the unresolved-targets hint rides here — seed specs may name classes
+ *    no workspace deployed yet);
  *  - scope control (update {scopeClassIds}, null = global — the sole
  *    locality authority, R1);
  *  - number formats (pad/decimals/rounding, display-only);
- *  - date precision + dateQualified;
+ *  - date precision (datetime) + dateQualified (datetime AND object links —
+ *    the class-page panel's object-type "Date qualified" moved here, R7);
  *  - the render contracts (display/readonly/hideWhenEmpty — moved in from
  *    the original settings modal, unchanged);
  *  - validationRules editors (v1 parity: number min/max, text/url/email
@@ -78,6 +81,15 @@ export function PropertySettingsModal({
 
   const patch = (fields: Parameters<AnyClient["updatePropertySchema"]>[1]) =>
     void client.updatePropertySchema(propertySchemaId, fields);
+
+  // Seed specs name their target classes; a name that resolves to no
+  // deployed class can't ride the id-based picker — surface it instead of
+  // silently dropping it (the stored entries keep until an edit replaces
+  // them). Moved here from the class page's inline panel (owner ruling R7,
+  // 2026-10-20 — this editor is the targetClassFilter's home).
+  const unresolvedTargets = (schema.targetClassFilter ?? []).filter(
+    (entry) => !client.listClasses().some((c) => c.id === entry || c.name === entry),
+  );
 
   const hasValues = client.getPropertyReferences(propertySchemaId).length > 0;
 
@@ -351,31 +363,34 @@ export function PropertySettingsModal({
         )}
 
         {schema.type === "datetime" && (
-          <>
-            <PropertyField label="Precision">
-              <select
-                className="nt-property-settings__input"
-                aria-label="Date precision"
-                value={schema.datePrecision ?? "day"}
-                onChange={(event) =>
-                  patch({ datePrecision: event.target.value as DatePrecision })
-                }
-              >
-                <option value="day">Day</option>
-                <option value="month">Month</option>
-                <option value="year">Year</option>
-              </select>
-            </PropertyField>
-            <label className="nt-property-settings__check">
-              <input
-                type="checkbox"
-                checked={schema.dateQualified ?? false}
-                onChange={(event) => patch({ dateQualified: event.target.checked })}
-                aria-label="Date range qualifiers"
-              />
-              <span>Allow start/end qualifiers</span>
-            </label>
-          </>
+          <PropertyField label="Precision">
+            <select
+              className="nt-property-settings__input"
+              aria-label="Date precision"
+              value={schema.datePrecision ?? "day"}
+              onChange={(event) =>
+                patch({ datePrecision: event.target.value as DatePrecision })
+              }
+            >
+              <option value="day">Day</option>
+              <option value="month">Month</option>
+              <option value="year">Year</option>
+            </select>
+          </PropertyField>
+        )}
+        {/* Qualifiers ride BOTH date-bearing families (SCHEMA.md "Dates"):
+            datetime values and object links (the panel's object-type "Date
+            qualified" moved here, owner ruling R7 2026-10-20). */}
+        {(schema.type === "datetime" || schema.type === "object") && (
+          <label className="nt-property-settings__check">
+            <input
+              type="checkbox"
+              checked={schema.dateQualified ?? false}
+              onChange={(event) => patch({ dateQualified: event.target.checked })}
+              aria-label="Date range qualifiers"
+            />
+            <span>Allow start/end qualifiers</span>
+          </label>
         )}
 
         {/* Options (the selection family). */}
@@ -399,6 +414,11 @@ export function PropertySettingsModal({
             <span className="nt-property-create__hint">
               Values must link a node carrying one of these classes (empty = any node).
             </span>
+            {unresolvedTargets.length > 0 && (
+              <span className="nt-property-create__hint">
+                Unresolved targets (kept until edited): {unresolvedTargets.join(", ")}
+              </span>
+            )}
           </PropertyField>
         )}
 

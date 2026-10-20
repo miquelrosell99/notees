@@ -8,6 +8,29 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **refactor(web): the class-page property config panel is class-level only
+  (owner ruling R7).** The expanded panel duplicated the base-definition
+  modal (rename, type/Convert, multi, target classes, date settings); it now
+  carries exactly the class-by-class binding fields: a read-only identity
+  header (icon + name), the "For this class" group (default value, Required,
+  the Enabled switch — `defaultValue`/`required`/`active`, with `sequence`
+  staying the drag reorder on the collapsed row), and a footer with the quiet
+  "Edit definition…" (the panel's path to the S2 PropertyEditModal) plus
+  "Remove from class" behind the existing confirm. The Definition group, the
+  editable Target classes group (and its duplicated group label), the
+  datetime precision/qualified fields, and the header rename/icon picker
+  left the panel — all definition-level, all in the modal. Two modal
+  gains in the same pass: the "Unresolved targets" hint moved into the
+  modal's targetClassFilter editor (the class-view seed test's `agent`
+  assertion moved with it), and the "Allow start/end qualifiers" checkbox
+  now also renders for **object**-typed schemas (it was datetime-only,
+  leaving the panel's retired object-type "Date qualified" without a home).
+  Tests: the section suite gained a class-level-only structural test and a
+  modal-context unresolved-targets test; the target-class, rename, and
+  date-precision/qualified tests now drive the modal via "Edit definition…".
+  Gate green (typecheck + 165 web files / 1865 tests); visual QA via the r7
+  probe (offline dev server, panel at 1440 + 390 with zero horizontal
+  overflow, the modal's target-classes editor).
 - **chore(server): `SERVER_VERSION` rejoins the tag train — 3.2.0 → 4.4.0.**
   The constant had been stuck since v3.2.0 while tags rode to v4.4.0 (flagged
   by the CLI's v4.1.1 alignment — its `doctor` drift check compares against
