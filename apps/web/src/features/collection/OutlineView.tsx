@@ -248,7 +248,35 @@ export function OutlineView(props: NodeCollectionProps) {
     return [...groups].sort(compareGroupsByMode(sortMode));
   }, [groups, sortMode]);
 
-  if (items.length === 0) return null;
+  if (items.length === 0 && props.parent === undefined) return null;
+
+  // The focused-block view (the v1 "show parents" concern):
+  // the parent renders as the ROOT block row — the items nested inside it,
+  // the exact zoom grammar (parent row + rail + indented children), the
+  // parentTrailing affordance riding the children container (the focused
+  // view's "+ Add block" ghost). Rendered even with zero items — an empty
+  // focused block still owns its row and the ghost.
+  if (props.parent !== undefined) {
+    const resolveName = (id: string) => displayNameFromClient(client, id);
+    return (
+      <div className={`nt-block-tree ${editable ? "" : "nt-block-tree--readonly"}`.trim()}>
+        {/* The parent row is sortable (the grip drag) — the rows live in
+            their own SortableContext like TreeRows, the nested children
+            bring their own per-row contexts. */}
+        <SortableContext items={[props.parent.id]} strategy={verticalListSortingStrategy}>
+          <BlockRow
+            tree={{ node: props.parent, children: items.map(toBlockTree) }}
+            client={client}
+            resolveName={resolveName}
+            readOnly={!editable}
+            hideBacklinks={props.hideBacklinkCount}
+            condensed={props.condensed}
+            trailingGhost={props.parentTrailing}
+          />
+        </SortableContext>
+      </div>
+    );
+  }
 
   // The sort button rides the read-only projections only: an editable
   // surface is the live editing/ordering surface (the outliner, the task

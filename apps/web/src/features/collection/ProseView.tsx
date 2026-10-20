@@ -31,10 +31,26 @@ export function ProseView(props: NodeCollectionProps) {
   const { client, items = [], editable = false, condensed = false } = props;
   const readOnly = !editable;
   const resolveName = (id: string) => displayNameFromClient(client, id);
-  if (items.length === 0) return null;
+  if (items.length === 0 && props.parent === undefined) return null;
   return (
     <SortableContext items={items.map((t) => t.node.id)} strategy={verticalListSortingStrategy}>
       <div className="nt-block-tree nt-prose">
+        {/* The focused-block view: the parent renders as
+            an editable TOP-LEVEL HEADER — the title-variant row (bullet-less,
+            chrome-less, Newsreader display type). Title-is-content: the
+            block's own text IS the header; the children render below,
+            flattened by the prose transform like the page body. */}
+        {props.parent !== undefined && (
+          <div className="nt-prose-parent">
+            <BlockRow
+              tree={{ node: props.parent, children: [] }}
+              client={client}
+              resolveName={resolveName}
+              readOnly={readOnly}
+              variant="title"
+            />
+          </div>
+        )}
         {items.map((item) => (
           <BlockRow
             key={item.node.id}
@@ -46,6 +62,10 @@ export function ProseView(props: NodeCollectionProps) {
             condensed={condensed}
           />
         ))}
+        {/* The focused view's "+ Add block" ghost trails the flattened
+            list (prose has no children container to ride inside — the end
+            of the list IS the child indent level here). */}
+        {props.parent !== undefined && props.parentTrailing}
       </div>
     </SortableContext>
   );

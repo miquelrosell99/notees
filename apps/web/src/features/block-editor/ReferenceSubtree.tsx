@@ -18,10 +18,9 @@
  * view's DndContext owns every row, so blocks drag across lists (page body
  * ↔ linked references) within one drag session.
  *
- * The edit thread: the focused-block host (NodeView
- * inline-block branch) wraps this subtree in the EditThread provider +
- * overlay — the thread runs from the FOCUSED block row (the view root)
- * down to the editing child, same measured overlay as the page body.
+ * The edit thread: the focused view is a NodeCollection
+ * parent now (FocusedBlockView) — ReferenceSubtree keeps the genuine
+ * subtree renders (linked references, the hover-preview trampoline).
  */
 
 import { useEffect, useState } from "react";
