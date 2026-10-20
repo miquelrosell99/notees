@@ -8,6 +8,16 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **fix(web): useDeviceSetting re-reads when its key changes — the focused
+  view zoom no longer inherits the previous node's view mode.** The prose
+  focused view rendering outline after an in-app zoom exposed it: the
+  hook's `useState` initializer never re-runs when the same instance gets
+  a new key (`viewMode.nodeBlocks.<id>` moves with the zoomed node), and
+  the effect only re-subscribed — serving the previous key's value until
+  an unrelated settings event. The effect now re-reads the new key
+  immediately (the standard derived-state-from-key pattern). Probe: step
+  11 drives the zoom SPA path (pref set, bullet click, no reload) — the
+  prose header assertion catches the stale read.
 - **refactor(web): removal is a row action — the hover × next to the cog
 .** The expanded panel's Remove footer is gone; the collapsed
   row now carries TWO hover-revealed icon actions — the definition-settings

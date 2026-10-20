@@ -60,6 +60,14 @@ export function useDeviceSetting<T>(
   const [value, setValue] = useState<T>(() => readDeviceSetting(settingKey, defaultValue));
 
   useEffect(() => {
+    // The key CHANGED on the same instance (the focused view zoom swaps
+    // nodeId, so viewMode.nodeBlocks.<id> moves with it): the useState
+    // initializer never re-runs, so re-read the new key here — without it
+    // the hook serves the previous key's value until some later settings
+    // event (found via the prose focused view rendering outline after an
+    // in-app zoom). The listeners below only cover
+    // LATER writes, same as before.
+    setValue(readDeviceSetting(settingKey, defaultRef.current));
     const sync = () => setValue(readDeviceSetting(settingKey, defaultRef.current));
     window.addEventListener(SETTINGS_CHANGED_EVENT, sync);
     window.addEventListener("storage", sync);
