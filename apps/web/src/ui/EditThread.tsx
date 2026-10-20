@@ -1,32 +1,34 @@
 /**
  * EditThread — the edit-mode thread: a separate MEASURED overlay (one SVG
- * polyline) that connects the top-level ancestor's bullet to the editing
- * block's bullet, taking a turn to the right at every level change, with
+ * polyline) that connects the top-level ancestor bullet to the editing
+ * block bullet, taking a turn to the right at every level change, with
  * rounded corners at the turns (owner 2026-10-20, third pass).
  *
- * Why an overlay: the two earlier takes styled the tree's own indent rail
+ * Why an overlay: the two earlier takes styled the tree indent rail
  * (`:has()` accents + pseudo arms) — that highlighted the whole subtree
  * column at each level and could only ride full-height rails, not the
- * path. The owner's reference look is one continuous line anchored AT the
+ * path. The owner reference look is one continuous line anchored AT the
  * bullets — a different shape from the tree chrome, so it is drawn as its
  * own layer, measured from the rendered bullets.
  *
  * Mechanics: BlockRow reports its editing state through EditThreadContext
  * (reportEditing on enter, clearEditing on exit/unmount — the guard only
- * clears the id it set, so a hand-off between blocks can't tear the new
- * thread down). The overlay mounts inside the page's select surface (the
+ * clears the id it set, so a hand-off between blocks cannot tear the new
+ * thread down). The overlay mounts inside the page select surface (the
  * host); it consumes the editing id, resolves the ancestor chain via the
  * client (a parent_id walk that stops at the page root or a standalone
- * node), and measures each path bullet's box. One path is built top-down:
- * start at the top block's bullet center, run down its column, a quadratic
- * rounded turn (RADIUS) into each deeper bullet's center, ending at the
- * editing block's dot. The overlay paints BEHIND the rows (z-index −1
- * inside the host's isolated stacking context) so the bullets sit on the
- * line, and it is pointer-events: none — it never eats clicks (the rail's
- * fold gesture underneath keeps working). Recomputed on edit changes,
- * store notifications, host resizes, and any scroll (the bullets move
- * with the scroller); a missing bullet (prose hides them, cards mode, a
- * not-rendered ancestor, a top-level edit) renders no thread.
+ * node), and measures each path bullet box. One path is built top-down:
+ * start at the top block bullet center, run down its column, a quadratic
+ * rounded turn (RADIUS) into each deeper bullet center, ending at the
+ * editing block dot. The overlay paints ABOVE the tree chrome (the
+ * resting rails pass under the thread where the columns coincide) and
+ * BELOW the bullets and the hover chevron (both carry z-index: 1), so
+ * the dots sit on the line, and it is pointer-events: none — it never
+ * eats clicks (the rail fold gesture underneath keeps working).
+ * Recomputed on edit changes, store notifications, host resizes, and any
+ * scroll (the bullets move with the scroller); a missing bullet (prose
+ * hides them, cards mode, a not-rendered ancestor, a top-level edit)
+ * renders no thread.
  */
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";

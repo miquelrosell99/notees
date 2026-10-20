@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-20
 
+- **feat(web): the indent rails ride the parent bullet's center column —
+  the 2026-10-15 alignment math was 2px off — and the edit thread paints
+  above the rails, under the dots.** Owner feedback 2026-10-20, revealed by
+  the measured overlay. **The alignment:** the resting hairline is the 1px
+  container border + the rail's 1px gradient — a 2px line whose center sat
+  at bullet+2.5px, because the 2026-10-15 fix assumed the 22px bullet
+  started at the 18px grip's left edge (center at 14+11=25); the bullet is
+  CENTERED in the grip (justify-center), overflowing 2px a side, so its
+  true center is 14+9=23. `.nt-block-children` margin-left 24 → 22 lands
+  the composite line exactly on the column (comment math corrected).
+  **The paint order:** the overlay's z-index −1 (behind the rows, from the
+  third pass) let the resting rails strike OVER the thread where the
+  columns coincide; the overlay is now positioned-z-auto (above the static
+  tree chrome) and the bullets + the hover chevron carry z-index: 1 — the
+  thread passes over the rails but under the dots and glyphs. The
+  `isolation: isolate` host trick retires with the −1. Probe: rail-vs-
+  bullet offset (≤1.2px) + z-index contract assertions join the overlay
+  suite. Docs: the thread comments (app.css, EditThread.tsx, BlockRow.tsx)
+  + `docs/ux.md`.
 - **fix(web): the two pre-existing gaps the navigate-button sweep exposed.**
   Owner 2026-10-20, "resolve them too": **(1) the empty date cell** — an
   unset datetime cell's trigger rendered EMPTY and collapsed to zero

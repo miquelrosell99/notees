@@ -21,8 +21,13 @@
  *   pass — the two `:has()` takes styled the tree rails and lit whole
  *   subtree columns; the reference look is one line anchored at the
  *   bullets, a shape the tree chrome cannot draw). The overlay paints
- *   behind the rows and passes clicks through; no thread for a top-level
- *   edit, in prose, or in cards. The editing bullet highlight stays
+ *   above the tree chrome (the resting rails pass under it where the
+ *   columns coincide) and below the bullets and the hover chevron, and
+ *   passes clicks through; no thread for a top-level edit, in prose, or
+ *   in cards. The indent rails ride the parent bullet's center column
+ *   (the 2026-10-15 margin math assumed the bullet started at the grip
+ *   edge; centered in the 18px grip its true center is 2px left). The
+ *   editing bullet highlight stays
  *   direct-row scoped (a descendant selector lit the whole subtree —
  *   owner 2026-10-20: children must not read as active), and the
  *   collapse chevron focus reveal is row-scoped the same way — while a

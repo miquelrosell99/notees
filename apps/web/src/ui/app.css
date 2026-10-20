@@ -1007,6 +1007,10 @@ select:focus-visible {
    primary ring (the "ripple"); hover deepens it. */
 .nt-bullet {
   position: relative;
+  /* Above the edit-thread overlay (app.css "the edit thread"): the thread
+     paints over the tree chrome but must pass UNDER the dot — the line
+     merges into the bullet, never strikes through it. */
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1165,6 +1169,9 @@ select:focus-visible {
 
 .nt-block-chevron {
   position: absolute;
+  /* Above the edit-thread overlay (app.css "the edit thread"): the hover
+     chevron's glyph must not be crossed by the path hairline. */
+  z-index: 1;
   right: calc(100% + 1px);
   top: 50%;
   transform: translateY(-50%);
@@ -1559,11 +1566,16 @@ select:focus-visible {
 
 .nt-block-children {
   position: relative;
-  /* The indent line rides the parent bullet's center: the row's chevron
-     gutter (14px) + half the 22px bullet = 25px, so the 1px border lands
-     one half-step left of it (owner 2026-10-15: the line sat a noticeable
-     step left of the bullet). */
-  margin-left: 24px;
+  /* The indent line rides the parent bullet's CENTER column. The real
+     geometry (owner correction 2026-10-20, revealed by the edit thread's
+     measured overlay): the bullet is CENTERED in the 18px grip (it
+     overflows 2px a side), so its center is the row's chevron gutter
+     (14px) + half the grip (9px) = 23px — not 25 (the 2026-10-15 fix
+     assumed the bullet started at the grip's left edge, leaving the line
+     ~2.5px right of the dot). The visible hairline is the 1px border at
+     [m, m+1] plus the rail's 1px gradient at [m+1, m+2] — a 2px line
+     centered at m+1 — so m = 22 lands it exactly on the bullet column. */
+  margin-left: 22px;
   padding-left: 8px;
   border-left: 1px solid var(--md-sys-color-outline-variant);
 }
@@ -1602,24 +1614,24 @@ select:focus-visible {
 /* --- the edit thread (owner 2026-10-20) -------------------------------------
    A separate MEASURED overlay (EditThread.tsx draws one SVG polyline) —
    NOT the tree's own indent rail highlighted. The line starts at the
-   top-level ancestor's bullet, runs down its column, and takes a rounded
-   right turn at each level change, ending at the editing block's dot (the
-   owner's reference look, third pass: the earlier `:has()` take styled
-   the rails and lit whole subtree columns). The host is the page's select
-   surface; `isolation: isolate` + the overlay's z-index −1 paint the line
-   BEHIND the rows, so the bullets sit on it; pointer-events: none keeps
-   every click (the rail's fold gesture included) working. No thread when
-   no block is editing, in prose (bullets hidden — nothing to measure),
-   or when the edit sits at the top level (no ancestors above). */
+   top-level ancestor's bullet, runs down its column (the SAME column the
+   aligned indent rail rides), and takes a rounded right turn at each
+   level change, ending at the editing block's dot (the owner's reference
+   look, third pass: the earlier `:has()` take styled the rails and lit
+   whole subtree columns). The overlay paints ABOVE the tree chrome (the
+   rails pass UNDER the thread where the columns coincide — owner
+   2026-10-20) but BELOW the bullets and the hover chevron, which carry
+   z-index: 1 so the dots and glyphs sit on the line. pointer-events: none
+   keeps every click (the rail's fold gesture included) working. No thread
+   when no block is editing, in prose (bullets hidden — nothing to
+   measure), or when the edit sits at the top level (no ancestors above). */
 .nt-edit-thread-host {
   position: relative;
-  isolation: isolate;
 }
 
 .nt-edit-thread-overlay {
   position: absolute;
   inset: 0;
-  z-index: -1;
   width: 100%;
   height: 100%;
   pointer-events: none;
