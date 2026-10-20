@@ -45,9 +45,9 @@ export interface CheckboxProps
 }
 
 const BOX_CLASSES: Record<CheckboxSize, string> = {
-  sm: 'h-xs w-xs rounded-shape-sm',
-  md: 'h-sm w-sm rounded-shape-sm',
-  lg: 'h-md w-md rounded-shape-sm',
+  sm: 'h-xs w-xs rounded-shape-md',
+  md: 'h-sm w-sm rounded-shape-md',
+  lg: 'h-md w-md rounded-shape-md',
 };
 
 export const Checkbox = forwardRef<HTMLButtonElement, CheckboxProps>(function Checkbox(
