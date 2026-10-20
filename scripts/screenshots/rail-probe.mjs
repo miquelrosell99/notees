@@ -25,7 +25,9 @@ const api = async (path, init) => {
 const block = (parentId, text) =>
   api("/api/objects", { method: "POST", body: { parentId, contentAst: [{ type: "text", text }] } }).then((r) => r.id);
 
-const pageId = (await api("/api/objects", { method: "POST", body: { name: "Rail probe scratch", presentAsMain: true } })).id;
+// A parentless create is a Page (Revision 12: standalone by definition;
+// `presentAsMain` retired).
+const pageId = (await api("/api/objects", { method: "POST", body: { name: "Rail probe scratch" } })).id;
 let A, a2, a2a;
 try {
   A = await block(pageId, "once");
