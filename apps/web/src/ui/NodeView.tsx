@@ -31,12 +31,15 @@
  * class pages stay visually identical minus the deleted curated chrome.)
  */
 
+import { useRef } from "react";
+
 import { rendersAsInlineBlock } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { PageView, BLOCKS_VIEW_MODES } from "./PageView.js";
+import { EditThreadOverlay, EditThreadProvider } from "./EditThread.js";
 import { ReferenceSubtree } from "../features/block-editor/ReferenceSubtree.js";
 import { NodeMenuButton, type ShareTarget } from "../features/node-menu/NodeMenuButton.js";
 import { parentRenderFacts } from "./renderStateLabel.js";
@@ -128,6 +131,10 @@ export function NodeView({
     "outline",
     BLOCKS_VIEW_MODES,
   );
+  // The focused block view's edit-thread host (the overlay measures the
+  // path against this wrapper: the focused view threads
+  // from the focused block down to the editing child).
+  const focusedHostRef = useRef<HTMLDivElement | null>(null);
   const node = client.getNode(nodeId);
   if (node === undefined) {
     return <div className="nt-page-missing">Page not found.</div>;
@@ -182,9 +189,18 @@ export function NodeView({
        never an editor). The block view renders no drag scope, so rows are
        editable but not draggable — the context-presence law. The wrapper
        keeps the focused-block chrome class (nt-page nt-focused-block). */
-    <div className="nt-page nt-focused-block">
-      <ReferenceSubtree client={client} rootId={nodeId} onOpenNode={onOpenNode} readOnly={preview} />
-    </div>
+    <EditThreadProvider>
+      <div
+        ref={focusedHostRef}
+        className="nt-page nt-focused-block nt-edit-thread-host"
+      >
+        {/* The edit thread (EditThread.tsx): same measured overlay the page
+            body hosts — here it draws from the FOCUSED block row (the view
+            root, a real bullet) down to the editing child. */}
+        <EditThreadOverlay client={client} hostRef={focusedHostRef} rootId={nodeId} />
+        <ReferenceSubtree client={client} rootId={nodeId} onOpenNode={onOpenNode} readOnly={preview} />
+      </div>
+    </EditThreadProvider>
   ) : (
     /* Page mode — plain, date (day/period), or class: PageView composes the
        chrome from the variant descriptor. A class node carries the
