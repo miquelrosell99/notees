@@ -45,11 +45,10 @@
 }
 
 /* ONE hover surface: hover reveals only the right-side
-   action cluster (cog + × — the STANDARD fleet ghost icon buttons; these
-   classes are reveal hooks only) — no row background tint, no grip
-   chrome. The row itself is the drag handle (grab cursor; dnd-kit's 4px
-   activation keeps plain clicks expanding the row). */
-.nt-propdef-more,
+   REMOVE × (the STANDARD fleet ghost icon button; the class is a reveal
+   hook only) — no row background tint, no grip chrome. The row itself is
+   the drag handle (grab cursor; dnd-kit's 4px activation keeps plain
+   clicks opening the definition modal). */
 .nt-propdef-remove {
   opacity: 0;
 }
@@ -64,25 +63,9 @@
   cursor: grabbing;
 }
 
-.nt-propdef-row:hover .nt-propdef-more,
 .nt-propdef-row:hover .nt-propdef-remove,
-.nt-propdef-more:focus-visible,
 .nt-propdef-remove:focus-visible {
   opacity: 1;
-}
-
-.nt-propdef-toggle {
-  display: inline-flex;
-  flex-shrink: 0;
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.nt-propdef-chevron {
-  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.nt-propdef--expanded .nt-propdef-chevron {
-  transform: rotate(90deg);
 }
 
 /* The main click target: icon + name, flexing to fill and truncating. */
@@ -131,60 +114,6 @@
 .nt-propdef--inactive .nt-propdef-name,
 .nt-propdef--inactive .nt-propdef-icon {
   opacity: 0.55;
-}
-
-/* The expanded row IS the card (the inline editor integrated
-   into its property header — one continuous surface, the chevron row as
-   the card's header). */
-.nt-propdef--expanded {
-  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-medium);
-  background: var(--md-sys-color-surface-container-high);
-}
-
-/* The fields stack under the row header, inside the same surface. */
-.nt-propdef-config {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
-  min-width: 0;
-  padding: 0 var(--spacing-2) var(--spacing-3);
-}
-
-.nt-propdef-input {
-  font: inherit;
-  font-size: var(--font-size-button);
-  padding: 3px 8px;
-  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-small);
-  background: var(--md-sys-color-surface);
-  color: var(--md-sys-color-on-surface);
-  min-width: 0;
-  width: 100%;
-}
-
-.nt-propdef-input:focus-visible {
-  box-shadow: var(--shadow-focus-ring);
-}
-
-.nt-propdef-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
-  min-width: 0;
-}
-
-.nt-propdef-stack {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  min-width: 0;
-}
-
-.nt-propdef-label {
-  font: var(--font-label-medium);
-  font-size: var(--font-size-xs);
-  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* The add-property popover: anchored under the AddPill, clamped to the

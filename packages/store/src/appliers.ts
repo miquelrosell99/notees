@@ -1607,13 +1607,16 @@ function applyClassSetExtends(db: StoreDatabase, env: Envelope): ChangeSummary {
 // --- class.property.* ---------------------------------------------------------
 //
 // Binding rows on `class_property` (SCHEMA.md "Class properties"): the
-// genuinely per-class mechanics ONLY (sequence, defaultValue, active) —
-// the render contracts (required/readonly/hideWhenEmpty/display) moved
-// to the property schema. Row-level LWW by envelope HLC; on update the
-// payload PATCHES the row — omitted fields keep their existing values.
-// Defaults are never materialized into property_value; the effective-values
-// read model (effective.ts) derives them at query time — and skips INACTIVE
-// rows entirely (PC4: soft-unbind, the row survives).
+// genuinely per-class mechanics ONLY (sequence, active) — the render
+// contracts (readonly/hideWhenEmpty/display) moved to the property schema
+// and `required`/`defaultValue` left the binding
+// entirely: `required` retired outright,
+// `defaultValue` moved to the schema (one global default per property).
+// Row-level LWW by envelope HLC; on update the payload PATCHES the row —
+// omitted fields keep their existing values. Defaults are never
+// materialized into property_value; the effective-values read model
+// (effective.ts) derives the schema's default at query time — and skips
+// INACTIVE rows entirely (PC4: soft-unbind, the row survives).
 
 function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "class.property.set";
@@ -1652,42 +1655,18 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
     }
   }
 
-  // PC2: defaultValue is typed per the schema type — a wrong-typed
-  // default fails loud here instead of deriving silently on every read.
-  // Omitted defaultValue (patch keeps the stored one) skips the check; a
-  // stored default that drifts out of match (schema delete+recreate with a
-  // different type) is dropped defensively at the effective read instead.
-  if (p.defaultValue !== undefined) {
-    const schemaType = propertySchemaTypeOf(db, p.propertySchemaId);
-    if (schemaType !== null && !isValidDefaultForType(schemaType, p.defaultValue)) {
-      throw new PropertyValueShapeError(
-        `${opType}: defaultValue for ${schemaType} schema ` +
-          (schemaType === "datetime" || schemaType === "object" || schemaType === "asset"
-            ? "must be null — node-typed defaults are not supported"
-            : `must be typed ${schemaType}`) +
-          ` — got ${JSON.stringify(p.defaultValue)}`,
-        opType,
-      );
-    }
-  }
-
-  const required = p.required === undefined ? null : p.required ? 1 : 0;
-  const defaultValue = p.defaultValue !== undefined ? JSON.stringify(p.defaultValue) : null;
-  // PC4: the soft-unbind flag rides the row LWW (absent payload = keep).
   const active = p.active === undefined ? null : p.active ? 1 : 0;
 
   if (!existing) {
     db.prepare(
       `INSERT INTO class_property
-         (class_id, property_schema_id, sequence, required, default_value, active,
+         (class_id, property_schema_id, sequence, active,
           hlc_physical, hlc_logical, actor_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       p.classId,
       p.propertySchemaId,
       p.sequence ?? 0,
-      required,
-      defaultValue,
       active ?? 1,
       env.hlc.physical,
       env.hlc.logical,
@@ -1695,19 +1674,15 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
     );
   } else {
     // Partial update: COALESCE keeps the stored value for omitted fields
-    // (present fields update, including explicit false / JSON null).
+    // (present fields update, including explicit false).
     db.prepare(
       `UPDATE class_property SET
          sequence = COALESCE(?, sequence),
-         required = COALESCE(?, required),
-         default_value = COALESCE(?, default_value),
          active = COALESCE(?, active),
          hlc_physical = ?, hlc_logical = ?, actor_id = ?
        WHERE class_id = ? AND property_schema_id = ?`,
     ).run(
       p.sequence ?? null,
-      required,
-      defaultValue,
       active,
       env.hlc.physical,
       env.hlc.logical,
@@ -1739,13 +1714,28 @@ function applyClassPropertyUnset(db: StoreDatabase, env: Envelope): ChangeSummar
 function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "propertySchema.create";
   const p = env.payload as OpPayload<"propertySchema.create">;
+  // PC2 (moved from the binding): the default is
+  // typed per the schema's (payload) type — a wrong-typed default fails loud
+  // here instead of deriving silently on every read. Node-typed schemas
+  // (datetime/object/asset) accept only JSON null — a default that links a
+  // node is meaningless. Absent = no default (NULL column).
+  if (p.defaultValue !== undefined && p.defaultValue !== null && !isValidDefaultForType(p.type, p.defaultValue)) {
+    throw new PropertyValueShapeError(
+      `${opType}: defaultValue for ${p.type} schema ` +
+        (p.type === "datetime" || p.type === "object" || p.type === "asset"
+          ? "must be null — node-typed defaults are not supported"
+          : `must be typed ${p.type}`) +
+        ` — got ${JSON.stringify(p.defaultValue)}`,
+      opType,
+    );
+  }
   db.prepare(
     `INSERT INTO property_schema
        (id, workspace_id, name, type, multi, icon, scope_class_ids, options, target_class_filter,
         date_precision, date_qualified, number_pad, number_decimals, number_rounding,
-        display, readonly, hide_when_empty,
+        display, readonly, hide_when_empty, default_value,
         active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name = excluded.name, type = excluded.type, multi = excluded.multi, icon = excluded.icon,
        scope_class_ids = excluded.scope_class_ids,
@@ -1755,6 +1745,7 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
        number_rounding = excluded.number_rounding,
        display = excluded.display, readonly = excluded.readonly,
        hide_when_empty = excluded.hide_when_empty,
+       default_value = excluded.default_value,
        active = 1, updated_at = excluded.updated_at`,
   ).run(
     p.propertySchemaId,
@@ -1774,6 +1765,7 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
     p.display ?? null,
     p.readonly !== undefined ? (p.readonly ? 1 : 0) : null,
     p.hideWhenEmpty !== undefined ? (p.hideWhenEmpty ? 1 : 0) : null,
+    p.defaultValue !== undefined && p.defaultValue !== null ? JSON.stringify(p.defaultValue) : null,
     env.timestamp,
     env.timestamp,
   );
@@ -1902,9 +1894,31 @@ function applyPropertySchemaUpdate(db: StoreDatabase, env: Envelope): ChangeSumm
     sets.push("number_rounding = ?");
     values.push(p.numberRounding);
   }
+  // The default value: absent keeps,
+  // present-null clears. PC2 runs against the schema's STORED type, exactly
+  // like validationRules applicability (a schema-less update stores
+  // unchecked).
+  if (p.defaultValue !== undefined) {
+    if (p.defaultValue !== null) {
+      const schemaType = propertySchemaTypeOf(db, p.propertySchemaId);
+      if (schemaType !== null && !isValidDefaultForType(schemaType, p.defaultValue)) {
+        throw new PropertyValueShapeError(
+          `${opType}: defaultValue for ${schemaType} schema ` +
+            (schemaType === "datetime" || schemaType === "object" || schemaType === "asset"
+              ? "must be null — node-typed defaults are not supported"
+              : `must be typed ${schemaType}`) +
+            ` — got ${JSON.stringify(p.defaultValue)}`,
+          opType,
+        );
+      }
+    }
+    sets.push("default_value = ?");
+    values.push(p.defaultValue === null ? null : JSON.stringify(p.defaultValue));
+  }
   // Render contracts (PROPERTY-level): absent keeps the stored value,
   // present-null clears (the same keep-vs-clear contract as the number
-  // formats — `required` is NOT here; it stays on the class binding).
+  // formats — `required`/`defaultValue` left the binding entirely under the
+  // the default lives here).
   if (p.display !== undefined) {
     sets.push("display = ?");
     values.push(p.display);
@@ -2541,9 +2555,9 @@ function ensureTaskFamilyRows(db: StoreDatabase, env: Envelope): void {
     );
     db.prepare(
       `INSERT OR IGNORE INTO class_property
-         (class_id, property_schema_id, sequence, required, default_value,
+         (class_id, property_schema_id, sequence,
           hlc_physical, hlc_logical, actor_id)
-       VALUES (?, ?, ?, NULL, NULL, 0, 0, NULL)`,
+       VALUES (?, ?, ?, 0, 0, NULL)`,
     ).run(classId, schemaId, entry.sequence);
   }
   reindexNode(db, classId);

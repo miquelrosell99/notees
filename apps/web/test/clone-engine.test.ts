@@ -82,7 +82,6 @@ function authoredProp(
     source: "authored",
     boundBy: null,
     eligible: true,
-    required: null,
     readonly: null,
     hideWhenEmpty: null,
     sequence: null,
@@ -500,13 +499,15 @@ describe("instantiateTemplate (real client)", () => {
     const meetingId = await client.createClass("meeting");
     const personId = await client.createObject({ isEmbedded: false, name: "Alice" });
 
-    // Two bound schemas on the meeting class: Priority has a binding default
-    // AND a template-authored value (template must win); Venue has only a
-    // binding default (must stay derived on the instance).
+    // Two schemas bound on the meeting class: Priority has a SCHEMA-level
+    // default AND a template-authored value (template must win); Venue has
+    // only the schema default (must stay derived on the instance).
     const prioId = await client.createPropertySchema({ name: "Priority", type: "select" });
     const venueId = await client.createPropertySchema({ name: "Venue", type: "text" });
-    await client.setClassProperty(meetingId, prioId, { defaultValue: "low" });
-    await client.setClassProperty(meetingId, venueId, { defaultValue: "room-1" });
+    await client.setClassProperty(meetingId, prioId, { sequence: 0 });
+    await client.setClassProperty(meetingId, venueId, { sequence: 1 });
+    await client.updatePropertySchema(prioId, { defaultValue: "low" });
+    await client.updatePropertySchema(venueId, { defaultValue: "room-1" });
 
     // Template: meeting-classed root (plus the marker), two children, an
     // authored Priority value, a mention of the person.

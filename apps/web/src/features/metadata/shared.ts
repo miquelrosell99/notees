@@ -6,7 +6,7 @@
  * the historical `MetadataSection.tsx`.
  */
 
-import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_DISPLAY_NAMES, SYSTEM_PROPERTY_SPECS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
@@ -25,6 +25,38 @@ export type AnyClient = WorkspaceClient | WorkerClient;
  */
 export function defaultCapable(type: string): boolean {
   return ["text", "number", "boolean", "select"].includes(type);
+}
+
+/**
+ * The domain-seed self-heal for a MISSING system schema row (the
+ * ensure-cover-property precedent): a workspace whose registry never
+ * materialized a system property schema (pre-seed era; a test workspace
+ * riding the read-synthesized fallback) gets the row authored idempotently
+ * at the reserved id when the definition modal opens for it — the modal
+ * edits the ROW (writes against a missing row would no-op). No-op when the
+ * row exists or the id is not a system property uuid.
+ */
+export async function ensureSeedSchemaRow(client: AnyClient, schemaId: string): Promise<void> {
+  if (client.listPropertySchemas().some((schema) => schema.id === schemaId)) return;
+  const entry = (
+    Object.entries(SYSTEM_PROPERTY_UUIDS) as Array<[string, string]>
+  ).find(([, id]) => id === schemaId);
+  if (entry === undefined) return;
+  const [name, id] = entry;
+  const spec = SYSTEM_PROPERTY_SPECS[name as keyof typeof SYSTEM_PROPERTY_SPECS];
+  if (spec === undefined) return;
+  await client.createPropertySchema({
+    id,
+    name: SYSTEM_PROPERTY_DISPLAY_NAMES[name as keyof typeof SYSTEM_PROPERTY_DISPLAY_NAMES],
+    type: spec.type,
+    multi: spec.multi ?? false,
+    ...(spec.global === true ? {} : { scopeClassIds: [SYSTEM_CLASS_UUIDS[spec.bindTo!]] }),
+    ...(spec.defaultValue !== undefined ? { defaultValue: spec.defaultValue } : {}),
+    ...(spec.options !== undefined ? { options: spec.options } : {}),
+    ...(spec.targetClassFilter !== undefined
+      ? { targetClassFilter: spec.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
+      : {}),
+  });
 }
 
 /** Text-round-trip of an authored/default value for the minimal editor. */

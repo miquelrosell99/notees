@@ -306,6 +306,7 @@ async function main(): Promise<void> {
         targetClassFilter: (schema.targetClassFilter ?? null) as string[] | null,
         datePrecision: schema.datePrecision as ClientPropertySchema["datePrecision"],
         dateQualified: schema.dateQualified as boolean | null,
+        defaultValue: (schema as { defaultValue?: unknown }).defaultValue ?? null,
       }));
     },
     // The REST surface exposes no class-binding read; ensureMeetingFamily

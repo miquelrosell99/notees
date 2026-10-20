@@ -347,7 +347,14 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       );
       for (const [i, classId] of bindOn.entries()) {
         store.apply(
-          env("class.property.set", { classId, propertySchemaId: SCHEMA, sequence: i, defaultValue: `dft-${i}` }, 1727200001600 + i),
+          env("class.property.set", { classId, propertySchemaId: SCHEMA, sequence: i }, 1727200001600 + i),
+        );
+      }
+      // The default is SCHEMA-level — one global
+      // default per property, whatever class binds it.
+      if (bindOn.length > 0) {
+        store.apply(
+          env("propertySchema.update", { propertySchemaId: SCHEMA, defaultValue: "dft" }, 1727200001700),
         );
       }
       return store;
@@ -366,7 +373,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(effective).toEqual([
         expect.objectContaining({
           propertySchemaId: SCHEMA,
-          value: "dft-0",
+          value: "dft",
           source: "default",
           boundBy: BASE,
         }),
@@ -377,15 +384,17 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const store = chainStore([BASE, MID]);
       assignClass(store, LEAF, 1727200002000);
       const winner = store.getEffectiveProperties(OWNER).find((r) => r.propertySchemaId === SCHEMA);
-      expect(winner).toMatchObject({ value: "dft-1", source: "default", boundBy: MID });
+      // The VALUE is the schema's single global default; the WINNING BINDING (boundBy) is what varies.
+      expect(winner).toMatchObject({ value: "dft", source: "default", boundBy: MID });
     });
 
     it("shortest extends-path wins: MID's binding beats BASE's for a LEAF node", () => {
       const store = chainStore([BASE, MID]);
       assignClass(store, LEAF, 1727200002000);
       const winner = store.getEffectiveProperties(OWNER).find((r) => r.propertySchemaId === SCHEMA);
-      // MID is distance 1 from LEAF, BASE is distance 2 — MID supplies the default.
-      expect(winner).toMatchObject({ value: "dft-1", boundBy: MID });
+      // MID is distance 1 from LEAF, BASE is distance 2 — MID supplies the
+      // binding (and boundBy); the value is the schema's global default.
+      expect(winner).toMatchObject({ value: "dft", boundBy: MID });
     });
 
     it("diamond tie at equal distance resolves by earliest class-assignment HLC", () => {
@@ -402,13 +411,15 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(env("class.setExtends", { classId: LEAF, parentClassIds: [MID] }, 1727200001300));
       store.apply(env("class.setExtends", { classId: LEAF_B, parentClassIds: [MID_B] }, 1727200001300));
       store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA, name: "genre", type: "text" }, 1727200001400));
-      store.apply(env("class.property.set", { classId: MID, propertySchemaId: SCHEMA, sequence: 0, defaultValue: "from-A" }, 1727200001500));
-      store.apply(env("class.property.set", { classId: MID_B, propertySchemaId: SCHEMA, sequence: 0, defaultValue: "from-B" }, 1727200001500));
+      store.apply(env("class.property.set", { classId: MID, propertySchemaId: SCHEMA, sequence: 0 }, 1727200001500));
+      store.apply(env("class.property.set", { classId: MID_B, propertySchemaId: SCHEMA, sequence: 0 }, 1727200001500));
+      // The default is the schema's single global value — only the WINNING BINDING varies per node.
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA, defaultValue: "dft" }, 1727200001550));
       // LEAF assigned first (earliest add HLC) — its path to MID wins the tie.
       assignClass(store, LEAF, 1727200002000);
       assignClass(store, LEAF_B, 1727200002100);
       expect(store.getEffectiveProperties(OWNER).find((r) => r.propertySchemaId === SCHEMA)).toMatchObject({
-        value: "from-A",
+        value: "dft",
         boundBy: MID,
       });
       // Reversed assignment order on another node flips the winner.
@@ -417,17 +428,17 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(env("object.create", { objectId: other, contentAst: text("Other"), classIds: [LEAF_B] }, 1727200002000));
       store.apply(env("object.create", { objectId: other, contentAst: text("Other"), classIds: [LEAF] }, 1727200002100));
       expect(store.getEffectiveProperties(other).find((r) => r.propertySchemaId === SCHEMA)).toMatchObject({
-        value: "from-B",
+        value: "dft",
         boundBy: MID_B,
       });
     });
 
-    it("inherited binding metadata (required from the binding, readonly from the schema) surfaces on authored rows", () => {
+    it("inherited binding attribution (boundBy from the winning binding, readonly from the schema) surfaces on authored rows", () => {
       const store = chainStore([BASE]);
-      // Required rides the BINDING (per-class); readonly rides the
+      // boundBy rides the winning BINDING (per-class); readonly rides the
       // SCHEMA (per-property) — both surface on the subclass's authored row.
       store.apply(
-        env("class.property.set", { classId: BASE, propertySchemaId: SCHEMA, required: true }, 1727200001700),
+        env("class.property.set", { classId: BASE, propertySchemaId: SCHEMA }, 1727200001700),
       );
       store.apply(
         env("propertySchema.update", { propertySchemaId: SCHEMA, readonly: true }, 1727200001750),
@@ -439,7 +450,6 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         value: "mine",
         source: "authored",
         boundBy: BASE,
-        required: true,
         readonly: true,
       });
     });
@@ -457,32 +467,34 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       return store;
     }
 
-    it("class.property.set fails loud on a wrong-typed default", () => {
+    it("propertySchema.update fails loud on a wrong-typed default", () => {
       const store = boundStore("text", SCHEMA_TEXT);
       expect(() =>
-        store.apply(env("class.property.set", { classId: CLS, propertySchemaId: SCHEMA_TEXT, defaultValue: true }, 1727200001200)),
+        store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_TEXT, defaultValue: true }, 1727200001200)),
       ).toThrow(PropertyValueShapeError);
       expect(() =>
-        store.apply(env("class.property.set", { classId: CLS, propertySchemaId: SCHEMA_TEXT, defaultValue: { nodeId: OWNER } }, 1727200001200)),
+        store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_TEXT, defaultValue: { nodeId: OWNER } }, 1727200001200)),
       ).toThrow(PropertyValueShapeError);
     });
 
     it("node-typed schemas reject non-null defaults", () => {
       const store = boundStore("object", SCHEMA_OBJECT);
       expect(() =>
-        store.apply(env("class.property.set", { classId: CLS, propertySchemaId: SCHEMA_OBJECT, defaultValue: { nodeId: OWNER } }, 1727200001200)),
+        store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_OBJECT, defaultValue: { nodeId: OWNER } }, 1727200001200)),
       ).toThrow(PropertyValueShapeError);
-      // JSON null IS a real default for any type.
-      store.apply(env("class.property.set", { classId: CLS, propertySchemaId: SCHEMA_OBJECT, defaultValue: null }, 1727200001200));
+      // An explicit null CLEARS (the keep/clear contract — SQL NULL, the
+      // canonical "no default" spelling).
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_OBJECT, defaultValue: null }, 1727200001200));
       const row = store.database
-        .prepare("SELECT default_value FROM class_property WHERE class_id = ? AND property_schema_id = ?")
-        .get(CLS, SCHEMA_OBJECT) as { default_value: string };
-      expect(row.default_value).toBe("null");
+        .prepare("SELECT default_value FROM property_schema WHERE id = ?")
+        .get(SCHEMA_OBJECT) as { default_value: string | null };
+      expect(row.default_value).toBeNull();
     });
 
     it("typed defaults store: string for text/select, number for number, boolean for boolean", () => {
       const store = boundStore("number", SCHEMA_NUMBER);
-      store.apply(env("class.property.set", { classId: CLS, propertySchemaId: SCHEMA_NUMBER, defaultValue: 7 }, 1727200001200));
+      store.apply(env("class.property.set", { classId: CLS, propertySchemaId: SCHEMA_NUMBER, sequence: 0 }, 1727200001150));
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_NUMBER, defaultValue: 7 }, 1727200001200));
       const owner2 = "0192a000-0000-7000-8000-0000000000e2";
       store.apply(env("object.create", { objectId: owner2, contentAst: text("N"), classIds: [CLS] }, 1727200002000));
       expect(store.getEffectiveProperties(owner2)).toEqual([
@@ -490,9 +502,22 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ]);
     });
 
+    it("a create-time default validates against the create payload's type", () => {
+      const store = seededStore();
+      expect(() =>
+        store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_TEXT, name: "slot", type: "text", defaultValue: 42 }, 1727200001100)),
+      ).toThrow(PropertyValueShapeError);
+      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_TEXT, name: "slot", type: "text", defaultValue: "from-create" }, 1727200001100));
+      const row = store.database
+        .prepare("SELECT default_value FROM property_schema WHERE id = ?")
+        .get(SCHEMA_TEXT) as { default_value: string };
+      expect(row.default_value).toBe('"from-create"');
+    });
+
     it("a default that drifted out of match with the schema type yields no default at read", () => {
       const store = boundStore("number", SCHEMA_NUMBER);
-      store.apply(env("class.property.set", { classId: CLS, propertySchemaId: SCHEMA_NUMBER, defaultValue: 7 }, 1727200001200));
+      store.apply(env("class.property.set", { classId: CLS, propertySchemaId: SCHEMA_NUMBER, sequence: 0 }, 1727200001150));
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_NUMBER, defaultValue: 7 }, 1727200001200));
       // PG3-style drift: delete + recreate the schema under the SAME id as text.
       store.apply(env("propertySchema.delete", { propertySchemaId: SCHEMA_NUMBER }, 1727200001300));
       store.apply(
@@ -506,10 +531,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
     it("unknown schema id skips default validation (no schema FK)", () => {
       const store = seededStore();
-      store.apply(env("class.create", { classId: CLS, contentAst: text("C") }, 1727200001000));
       const loose = "0192a000-0000-7000-8000-0000000000c9";
       expect(() =>
-        store.apply(env("class.property.set", { classId: CLS, propertySchemaId: loose, defaultValue: { anything: true } }, 1727200001200)),
+        store.apply(env("propertySchema.update", { propertySchemaId: loose, defaultValue: { anything: true } }, 1727200001200)),
       ).not.toThrow();
     });
   });
