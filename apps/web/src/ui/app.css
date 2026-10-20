@@ -867,6 +867,10 @@ select:focus-visible {
 
 .nt-page-header .nt-tags-row {
   margin-bottom: var(--spacing-2);
+  /* Breathing room between the page title and the tags row — the identity
+     pills read as a separate hierarchy tier, not a continuation of the
+     title line. */
+  margin-top: var(--spacing-3);
 }
 
 .page-header__title-row {

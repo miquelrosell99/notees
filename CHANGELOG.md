@@ -9,6 +9,15 @@ predating this file.
 
 ## 2026-10-20
 
+- **fix(web): breathing room between the page title and the tags row.**
+  Owner feedback 2026-10-20 (screenshot: the "Tags:" row sat flush under
+  the multi-line page title). The page-header tags row gains a
+  `margin-top: var(--spacing-3)` (it had only the bottom margin) — the
+  identity pills read as a separate hierarchy tier, not a continuation of
+  the title line. Token-only, header-scoped (`.nt-page-header
+  .nt-tags-row`); block-level tags rows untouched. Gate green
+  (typecheck + 1810 tests).
+
 - **feat(web): chevrons reveal on hover only — no resting chevron on
   editing blocks — the thread arms end before class icons, and the path
   bullets wear the accent at resting size.** Owner feedback 2026-10-20.
