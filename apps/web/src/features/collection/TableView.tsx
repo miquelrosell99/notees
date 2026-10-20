@@ -817,7 +817,7 @@ function SortPanel({
             aria-label={`Remove ${columns.find((c) => c.id === spec.key)?.label ?? spec.key} sort`}
             onClick={() => onChange(sort.filter((s) => s.key !== spec.key))}
           >
-            ×
+            <Icon path="mdi-close" size={0.7} />
           </button>
         </div>
       ))}

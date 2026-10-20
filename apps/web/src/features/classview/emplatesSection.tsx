@@ -125,7 +125,7 @@ export function TemplatesSection({
                     )
                   }
                 >
-                  ×
+                  <Icon path="mdi-close" size={0.7} />
                 </button>
               </li>
             );

@@ -53,9 +53,7 @@ export function PropertySettingsModal({
     <Modal isOpen onClose={onClose} size="sm" showCloseButton={false} className="nt-property-settings">
       <div className="modal__header">
         <h2 className="modal__title">Property settings</h2>
-        <button type="button" aria-label="Close modal" className="btn btn--ghost btn--sm btn--icon-only modal__close" onClick={onClose}>
-          ×
-        </button>
+        <Button icon="mdi mdi-close" aria-label="Close modal" className="modal__close" onClick={onClose} size="sm" variant="ghost" />
       </div>
       <div className="modal__content">
         <label className="nt-property-settings__field">
@@ -216,7 +214,7 @@ export function PropertySettingsModal({
                       })
                     }
                   >
-                    ×
+                    <Icon path="mdi-close" size={0.6} />
                   </button>
                 </li>
               ))}

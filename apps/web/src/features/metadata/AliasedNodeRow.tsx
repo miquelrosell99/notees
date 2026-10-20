@@ -127,7 +127,7 @@ export function AliasedNodeRow({
                 title="Clear"
                 onClick={() => void clear()}
               >
-                ×
+                <Icon path="mdi-close" size={0.6} />
               </button>
             </>
           )}

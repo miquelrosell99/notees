@@ -644,7 +644,7 @@ function NodeMultiPick({
               title="Remove"
               onClick={() => onChange(nodeIds.filter((id) => id !== nodeId))}
             >
-              ×
+              <Icon path="mdi-close" size={0.7} />
             </button>
           </span>
         );
