@@ -403,14 +403,18 @@ export function SystemSections({
   // retired — a childless page shows no Child pages section; the create
   // gesture lives in the "…" menu and the New button). AFTER every hook:
   // the component flips between null and rendered as counts change, so the
-  // hook order must stay unconditional.
+  // hook order must stay unconditional. There is deliberately NO all-empty
+  // gate and NO wrapper chrome: the host mounts
+  // the sections inside the chromeless nt-page-section-stack, each
+  // section's own top border is its separator, and an all-empty render is
+  // visually nothing either way — a group-level gate only ever existed to
+  // protect a wrapper's boundary hairline, and the wrapper is gone.
   const showChildPages = childPageCount > 0;
   const showBacklinks = backlinkCount > 0;
   const showUnlinked = !isDatePage && unlinkedCount > 0;
-  if (!showChildPages && !showBacklinks && !showUnlinked) return null;
 
   return (
-    <div className="nt-page-sections">
+    <>
       {/* Child pages: hide-when-empty like every system section; the header action still creates a child page when the
           section renders. */}
       {showChildPages && (
@@ -489,6 +493,6 @@ export function SystemSections({
           onOpenPage={onOpenPage}
         />
       )}
-    </div>
+    </>
   );
 }

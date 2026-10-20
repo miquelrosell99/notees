@@ -10,10 +10,11 @@
 .node-view-section {
   border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   /* One step tight: spacing-2 is the HEADER's clearance
-     under the hairline — the stack-level breathing room above the hairline
-     is the host's job (the nt-page-sections / nt-variant-sections wrappers
-     own margin-top: spacing-4 — Created on date pages, the system sections
-     on plain pages, Classed nodes on class pages). */
+     under the hairline — the hairline is THIS section's own top border (its
+     separator; it renders iff the section does), and the breathing room
+     above the hairline is the stack's job: the host's chromeless
+     nt-page-section-stack container spaces its section children
+     (margin-top: spacing-4, collapsing between siblings). */
   padding-top: var(--spacing-2);
 }
 
