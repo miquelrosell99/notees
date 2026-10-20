@@ -24,6 +24,7 @@ import {
   SYSTEM_PROPERTY_UUIDS,
   systemClassAncestors,
   stringifyContentAst,
+  type SystemPropertyName,
 } from "../src/index.js";
 import type { ContentAst } from "@notees/protocol";
 
@@ -75,6 +76,29 @@ describe("system seeds (ported)", () => {
     for (const binding of SYSTEM_EXTRA_CLASS_BINDINGS) {
       expect(SYSTEM_PROPERTY_UUIDS).toHaveProperty(binding.property);
       expect(SYSTEM_CLASS_UUIDS).toHaveProperty(binding.bindTo);
+    }
+  });
+
+  it("the seed-scope audit flips: weblink's url is global; citekey stays local; the task family is global", async () => {
+    const { TASK_FAMILY_SEED } = await import("../src/index.js");
+    // The url spec is bound (the weblink binding row lands) but explicitly
+    // global — a url is generically reusable.
+    expect(SYSTEM_PROPERTY_SPECS.url).toMatchObject({ bindTo: "weblink", global: true });
+    // citekey is the counter-precedent: explicitly ruled local to source +
+    // extensions — no `global` flag.
+    expect(SYSTEM_PROPERTY_SPECS.citekey).toMatchObject({ bindTo: "source" });
+    expect(SYSTEM_PROPERTY_SPECS.citekey?.global).toBeUndefined();
+    // The task family (TASK_FAMILY_SEED, authored by the applier ensure +
+    // the web self-heal) is global by ruling — the manifest seeds no scope.
+    expect(TASK_FAMILY_SEED.map((entry) => entry.property)).toContain("taskStatus");
+    // Every OTHER bound spec stays local (family-identity fields: the source
+    // bibliographic family, the meeting identity trio, eventDate,
+    // birthdayPerson, the person split, the asset/highlight fields).
+    const flipped = new Set<SystemPropertyName>(["url"]);
+    for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
+      if (spec === undefined || spec.bindTo === undefined) continue;
+      if (flipped.has(name as SystemPropertyName)) continue;
+      expect(spec.global, `spec ${name} must stay local (no global flag)`).toBeUndefined();
     }
   });
 

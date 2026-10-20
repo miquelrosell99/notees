@@ -8,6 +8,47 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **feat(domain,web,server,store): seed-scope audit — the reusable seeds flip
+  to global scope; family-identity seeds stay local.**
+  Commit b8548e0e mechanically mapped every old `scope:"class"` seed to
+  `scopeClassIds:[<its bind class>]`; the audit found that over-scoped the
+  genuinely reusable properties. FLIPPED to global (absent/null
+  `scopeClassIds`; binding rows untouched — bindings stay per-class config
+  with zero availability semantics): the ENTIRE task family (Status —
+  explicitly ruled "can be reused for other nodes" — plus Scheduled,
+  Deadline, Priority, Closed, Recurrence) in every emitter (`TASK_FAMILY_SEED`
+  consumers: the store applier's `ensureTaskFamilyRows`, the web
+  `ensureTaskFamily`, and the schema/seed path), and weblink's `url` (a url
+  is generically reusable — new `global` flag on `SystemPropertySpec`,
+  honored by the server seed and the web `deploySystemClass`). KEPT LOCAL as
+  family-identity fields: the whole source bibliographic family (citekey —
+  explicitly ruled "local to the source class and its extensions" — plus
+  attachments, authors, ISBN, DOI, publication date, publisher), the meeting
+  identity trio (meetingDate, location, agenda), eventDate, birthdayPerson,
+  the person given/family split, and the asset/highlight fields (role,
+  provenance, highlightAsset); aliases/has-template/generated-from were
+  already global. LIVE CONVERGENCE for existing workspaces: the new
+  `scripts/migrate-seed-scope-flips.mts` (Path A per migrations.md, the
+  `migrate-task-status-styles.mts` precedent — the immutable log is never
+  edited) appends one protocol-validated `propertySchema.update
+  {scopeClassIds: null}` per still-local flipped schema, planned from a
+  scratch snapshot+tail store, `--workspace`/`--all`, dry-run default,
+  `--apply` through `RelayStorage.ingest` + read-back/full-replay verify.
+  NOT RUN against the live stack in this slice (deployment is later; same
+  GTK/Flutter lockstep gate as `migrate-property-scope.mts`). No fixture
+  changes — the flip set is seed envelopes only; the `scopeClassIds: null`
+  update shape is already pinned by `property-schema-update-fields.json` /
+  `property-schema-scope.json` (gate stays at 36). Tests: the store
+  tasks-enable suite + the web task-family suite pin the six schemas at
+  NULL scope; the domain suite pins the audit's flip set (url global,
+  citekey local, every other bound spec local); the deploy suite gains the
+  weblink-url-global case. Docs: SCHEMA.md (seed manifest + the tasks-enable
+  + source-family bullets), migrations.md catalog row. Verified: `pnpm
+  typecheck` + `pnpm test` green; a live-data audit (the relay's 2 workspaces
+  × the derived DBs — the script's own dry-run correctly BLOCKS until
+  `migrate-property-scope.mts` has run, the shared lockstep gate) shows 13
+  envelopes to append: 7/7 flipped schemas in the owner workspace, 6/7 in
+  the test workspace (url not authored there).
 - **fix(web): an unbound text property added from "+ Add property" no longer
   self-unsets the instant its row appears.**
   The panel add flow (`initializePropertyValue`, the placeholder+init
