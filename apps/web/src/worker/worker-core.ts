@@ -797,6 +797,7 @@ export class WorkerCore {
           args[2] as unknown,
           args[3] as number | undefined,
           args[4] as Record<string, unknown> | undefined,
+          args[5] as string | undefined,
         );
       case "unsetProperty":
         return this.client.unsetProperty(
