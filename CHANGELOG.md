@@ -8,6 +8,20 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **fix(web): the class-property row actions are the standard fleet buttons,
+  and the expanded card is integrated into its row (owner review).** The
+  cog + × are now the catalog `Button` (ghost, sm, icon-only — the
+  hand-rolled bare buttons are gone; the nt-propdef classes are reveal
+  hooks only). The expanded state is ONE surface: the chevron row is the
+  card's header (border/background/radius moved from the inner panel to
+  the expanded row; the fields stack beneath the header, no repeated
+  identity, no separated box). Probe caught a real side effect at 390:
+  the fleet buttons' law-mandated 48px touch-floor slop extended ~8px
+  past the section edge and made it horizontally scrollable — the section
+  content now clips the invisible horizontal excess (`overflow-x: clip`,
+  no scroll container, the add popover and the card's vertical overflow
+  untouched). Tests 29 green; probe PROBE-PASS (zero overflow at 390,
+  integrated-card capture).
 - **refactor(web): the class-property row gets the section-collapse
   treatment — one hover surface, the catalog checkbox, no repeated identity
   (owner rulings, third pass).** The row is now: a collapse CHEVRON

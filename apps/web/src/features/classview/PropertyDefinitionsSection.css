@@ -1,12 +1,22 @@
 /* PropertyDefinitionsSection — the class's schema editor (the Capacities
-   type-panel analogue). Collapsed rows are identity-only (grip + icon +
-   name) and truncate; the expanded config stacks full-width groups that
-   can never overflow the sidebar. Token-only CSS, adaptive values. */
+   type-panel analogue). Collapsed rows are identity-only (chevron + icon +
+   name) and truncate; the expanded row IS the card (header + fields on one
+   surface). Token-only CSS, adaptive values. */
 
 .nt-propdefs-empty {
   color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-button);
   padding: 4px 8px 4px 20px;
+}
+
+/* The row's fleet icon buttons carry the law-mandated 48px touch floor as
+   an invisible centered slop span; at 390px the slop of the rightmost
+   button extends a few invisible px past the section edge and would make
+   the section horizontally scrollable. Clip the horizontal excess at the
+   section boundary (clip, not hidden — no scroll container, vertical
+   overflow like the add popover and the expanded card stays visible). */
+.nt-propdefs .node-view-section__content {
+  overflow-x: clip;
 }
 
 .nt-propdefs-list {
@@ -35,9 +45,15 @@
 }
 
 /* ONE hover surface (owner ruling): hover reveals only the right-side
-   action cluster (cog + ×) — no row background tint, no grip chrome. The
-   row itself is the drag handle (grab cursor; dnd-kit's 4px activation
-   keeps plain clicks expanding the row). */
+   action cluster (cog + × — the STANDARD fleet ghost icon buttons; these
+   classes are reveal hooks only) — no row background tint, no grip
+   chrome. The row itself is the drag handle (grab cursor; dnd-kit's 4px
+   activation keeps plain clicks expanding the row). */
+.nt-propdef-more,
+.nt-propdef-remove {
+  opacity: 0;
+}
+
 .nt-propdef-row:active {
   cursor: grabbing;
 }
@@ -53,16 +69,6 @@
 .nt-propdef-more:focus-visible,
 .nt-propdef-remove:focus-visible {
   opacity: 1;
-}
-
-.nt-propdef-more:hover,
-.nt-propdef-remove:hover {
-  background: var(--md-sys-color-hover-overlay);
-}
-
-.nt-propdef-more:focus-visible,
-.nt-propdef-remove:focus-visible {
-  box-shadow: var(--shadow-focus-ring);
 }
 
 .nt-propdef-toggle {
@@ -127,17 +133,22 @@
   opacity: 0.55;
 }
 
-/* The expanded config panel: full section width, stacked groups. */
+/* The expanded row IS the card (owner ruling: the inline editor integrated
+   into its property header — one continuous surface, the chevron row as
+   the card's header). */
+.nt-propdef--expanded {
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--md-sys-color-surface-container-high);
+}
+
+/* The fields stack under the row header, inside the same surface. */
 .nt-propdef-config {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
   min-width: 0;
-  margin: 2px 0 var(--spacing-2);
-  padding: var(--spacing-3);
-  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-medium);
-  background: var(--md-sys-color-surface-container-high);
+  padding: 0 var(--spacing-2) var(--spacing-3);
 }
 
 .nt-propdef-input {
