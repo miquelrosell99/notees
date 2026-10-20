@@ -52,6 +52,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 import { displayNameFromClient } from "../dateDisplay.js";
 import { parentRenderFacts } from "../renderStateLabel.js";
 import { NodeSelector } from "../../features/pickers/NodeSelector.js";
+import { requestPropertyCreate } from "../../features/metadata/PropertyCreateHost.js";
 import { Button, Checkbox, Modal, SelectTrigger, SelectionButton } from "../../components/ui/fleet/index.js";
 import { notificationStore } from "../../components/ui/fleet/notificationStore.js";
 import "./LinkEditModal.css";
@@ -143,7 +144,6 @@ export function LinkEditModal({
   /** Verb mode (PG1): the mark's verb + optional locator. */
   const [verb, setVerb] = useState("");
   const [verbLocator, setVerbLocator] = useState("");
-  const [verbPending, setVerbPending] = useState(false);
   const [verbError, setVerbError] = useState<string | null>(null);
   /** Newly picked destination (node/block modes); null = keep the current target. */
   const [pickedNode, setPickedNode] = useState<ClientNode | null>(null);
@@ -184,7 +184,6 @@ export function LinkEditModal({
       setTargetPickerOpen(false);
       setVerb(currentVerb ?? "");
       setVerbLocator(currentLocator ?? "");
-      setVerbPending(false);
       setVerbError(null);
     }
   }, [isOpen, currentLabel, initialMode, currentVerb, currentLocator]);
@@ -208,24 +207,20 @@ export function LinkEditModal({
           .find((schema) => schema.name.toLowerCase() === verbTrimmed.toLowerCase()) ?? null);
 
   const runCreateAndBind = () => {
-    if (verbTrimmed === "" || verbMatch !== null || verbPending) return;
-    setVerbError(null);
-    setVerbPending(true);
-    void client
-      .createPropertySchema({
-        name: verbTrimmed,
-        type: "object",
-        multi: true,
-        targetClassFilter: [],
-      })
-      .then((schemaId) => {
+    if (verbTrimmed === "" || verbMatch !== null) return;
+    // Owner ruling 2026-10-20 (S1): creation opens the pre-creation modal
+    // (no instant minimal create) — the typed verb carries in as the name,
+    // object/multi pre-select. After the create lands, the typed-link mark
+    // binds the new schema id (the same save the direct bind row produces).
+    requestPropertyCreate({
+      initialName: verbTrimmed,
+      initialType: "object",
+      initialMulti: true,
+      onCreated: (schemaId) => {
         onSave({ mode: "verb", verb: { propertySchemaId: schemaId }, locator: verbLocator.trim(), label: null });
         onClose();
-      })
-      .catch((error: unknown) => {
-        setVerbError(error instanceof Error ? error.message : String(error));
-        setVerbPending(false);
-      });
+      },
+    });
   };
 
   const handleSave = useCallback(() => {
@@ -364,12 +359,9 @@ export function LinkEditModal({
                       <Button
                         variant="primary"
                         size="sm"
-                        disabled={verbPending}
                         onClick={runCreateAndBind}
                       >
-                        {verbPending
-                          ? `Creating property "${verbTrimmed}"…`
-                          : `Create property "${verbTrimmed}" and bind`}
+                        Create property "{verbTrimmed}" and bind
                       </Button>
                     )}
                   </div>

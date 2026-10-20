@@ -22,6 +22,14 @@
  *      applier's reason — the flow never half-writes silently.
  *
  * Result state reports created/copied/dropped; the modal closes on Done.
+ *
+ * R6 GATE (owner ruling 2026-10-20): type conversion is gated by USAGE — a
+ * property with a value on ANY node renders a BLOCKED state (the type is
+ * locked; the plan/convert UI and the drop-values confirm are not
+ * reachable). A value-free property converts freely. The with-values
+ * easy-conversion matrix stays parked until the owner rules on it — to
+ * change a used property's type, create the new property (the S1 modal)
+ * and move values manually.
  */
 
 import { useMemo, useState } from "react";
@@ -224,10 +232,14 @@ export function PropertyConvertModal({
 }) {
   const [targetType, setTargetType] = useState<string | null>(null);
   const [carryOptions, setCarryOptions] = useState(true);
-  const [confirmDrop, setConfirmDrop] = useState(false);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<{ createdId: string; copied: number; dropped: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // R6: values ANYWHERE lock the type — the gate renders before anything
+  // else and the plan/convert UI is unreachable in that state.
+  const usageCount = client.getPropertyReferences(schema.id).length;
+  const blocked = usageCount > 0;
 
   const plan = useMemo(
     () =>
@@ -334,13 +346,27 @@ export function PropertyConvertModal({
         />
       </div>
       <div className="modal__content">
-        {result === null && (
+        {result === null && blocked && (
+          /* R6 blocked state: values anywhere lock the type (owner ruling
+             2026-10-20) — the plan/convert UI is unreachable here. */
+          <div className="nt-property-convert__blocked">
+            <p>
+              <strong>{schema.name}</strong> has values on {usageCount} node
+              {usageCount === 1 ? "" : "s"}, so its type can’t change.
+            </p>
+            <p className="nt-property-convert__blocked-hint">
+              To use a different type, create a new property with it and move
+              the values over — conversion of a property with values is
+              parked until the owner rules on the compatibility matrix.
+            </p>
+          </div>
+        )}
+        {result === null && !blocked && (
           <>
             <p className="nt-property-convert__intro">
               Conversion creates a new {schema.multi ? "multi " : ""}
               <strong>{schema.type}</strong> schema in place of this one: mappable values copy over,
-              class bindings re-point, then the old schema is deleted. Unmappable values are listed
-              below and dropped only with your confirmation.
+              class bindings re-point, then the old schema is deleted.
             </p>
             <label className="nt-property-settings__field">
               <span className="nt-property-settings__label">New type</span>
@@ -350,7 +376,6 @@ export function PropertyConvertModal({
                 value={targetType ?? ""}
                 onChange={(event) => {
                   setTargetType(event.target.value === "" ? null : event.target.value);
-                  setConfirmDrop(false);
                 }}
               >
                 <option value="">Choose a type…</option>
@@ -377,31 +402,6 @@ export function PropertyConvertModal({
                   <strong>{plan.copied.length}</strong> value{plan.copied.length === 1 ? "" : "s"}{" "}
                   will copy to the new schema.
                 </p>
-                {plan.dropped.length > 0 && (
-                  <div className="nt-property-convert__dropped">
-                    <p>
-                      <strong>{plan.dropped.length}</strong> value
-                      {plan.dropped.length === 1 ? "" : "s"} cannot be converted and will be{" "}
-                      <strong>dropped</strong>:
-                    </p>
-                    <ul>
-                      {plan.dropped.map((entry, index) => (
-                        <li key={index}>
-                          <span className="nt-property-convert__dropped-node">{entry.nodeLabel}</span>{" "}
-                          <code>{entry.preview}</code> — {entry.reason}
-                        </li>
-                      ))}
-                    </ul>
-                    <label className="nt-property-settings__check">
-                      <Checkbox
-                        checked={confirmDrop}
-                        onChange={(checked) => setConfirmDrop(checked)}
-                        aria-label="Confirm dropping unmappable values"
-                      />
-                      <span>I understand these values will be dropped</span>
-                    </label>
-                  </div>
-                )}
               </div>
             )}
             {error !== null && (
@@ -423,18 +423,18 @@ export function PropertyConvertModal({
         )}
       </div>
       <div className="modal__footer">
-        {result === null ? (
+        {result === null && blocked ? (
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        ) : result === null ? (
           <>
             <Button variant="ghost" onClick={onClose}>
               Cancel
             </Button>
             <Button
               variant="primary"
-              disabled={
-                targetType === null ||
-                running ||
-                (plan !== null && plan.dropped.length > 0 && !confirmDrop)
-              }
+              disabled={targetType === null || running}
               onClick={() => void runConversion()}
             >
               {running ? "Converting…" : "Convert"}

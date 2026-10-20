@@ -204,8 +204,8 @@ export class WorkspaceClientReadsProps {
   listPropertySchemas(): ClientPropertySchema[] {
     const rows = this.ctx.store.database
       .prepare(
-        `SELECT id, name, type, multi, icon, scope_class_ids, options, target_class_filter, date_precision, date_qualified,
-                display, readonly, hide_when_empty
+        `SELECT id, name, type, multi, icon, scope_class_ids, validation_rules, options, target_class_filter, date_precision, date_qualified,
+                number_pad, number_decimals, number_rounding, display, readonly, hide_when_empty
          FROM property_schema WHERE workspace_id = ? AND active = 1
          ORDER BY name, id`,
       )
@@ -276,6 +276,23 @@ export class WorkspaceClientReadsProps {
           row.hide_when_empty === null || row.hide_when_empty === undefined
             ? null
             : row.hide_when_empty === 1,
+        // Value-validation rules (owner 2026-10-20): JSON object or null.
+        validationRules: (() => {
+          const raw = row.validation_rules as string | null;
+          if (raw === null || raw === undefined) return null;
+          try {
+            const parsed: unknown = JSON.parse(raw);
+            if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
+            const rules = parsed as Record<string, unknown>;
+            return {
+              ...(typeof rules.min === "number" ? { min: rules.min } : {}),
+              ...(typeof rules.max === "number" ? { max: rules.max } : {}),
+              ...(typeof rules.pattern === "string" ? { pattern: rules.pattern } : {}),
+            };
+          } catch {
+            return null;
+          }
+        })(),
       };
     });
   }

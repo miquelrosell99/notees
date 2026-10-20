@@ -67,7 +67,7 @@ Full file map: `docs/developers/architecture.md` · normative model & wire: `pac
 
 ## UI primitives
 
-All chrome MUST compose from `apps/web/src/ui/components/ui/` — one element per file, co-located CSS, barrel-exported, token-only CSS (`variables.css`). No ad-hoc styled controls in feature code. Values that track type metrics or layout take the adaptive form (`1lh`/`em`/`ch`/`%`, `clamp()`, spacing/radius/motion tokens), not fixed px numbers — hard-coded px only where the dimension is genuinely constant (hairlines, tap-target floors). **Catalog, the popup-dismissal seam, the drift classes, and the adaptive-values law: `docs/developers/ui-primitives.md`.**
+All chrome MUST compose from `apps/web/src/components/ui/fleet/` — one element per file, co-located CSS, barrel-exported, token-only CSS (`variables.css`). No ad-hoc styled controls in feature code. Values that track type metrics or layout take the adaptive form (`1lh`/`em`/`ch`/`%`, `clamp()`, spacing/radius/motion tokens), not fixed px numbers — hard-coded px only where the dimension is genuinely constant (hairlines, tap-target floors). **Catalog, the popup-dismissal seam, the drift classes, and the adaptive-values law: `docs/developers/ui-primitives.md`.**
 
 ## Working rules (owner)
 

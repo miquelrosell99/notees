@@ -294,6 +294,19 @@ export function mapClassBindingRow(row: Record<string, unknown>): ClassBinding {
 /** Where a select/multi_select (or boolean) value renders on a block row. */
 export type PropertyDisplay = "panel" | "bullet" | "inline";
 
+/**
+ * The schema's value-validation rules (SCHEMA.md "Class properties",
+ * owner ruling 2026-10-20 — the v1 min/max/pattern port): `min`/`max` apply
+ * to `number` schemas only, `pattern` to `text`/`url`/`email` only
+ * (enforced at apply time against the stored type; values validate at
+ * property.set). All members optional — an empty object is not written.
+ */
+export interface ClientValidationRules {
+  min?: number;
+  max?: number;
+  pattern?: string;
+}
+
 /** Editable fields of a class.property.set write (all optional — patch). */
 export interface SetClassPropertyInput {
   sequence?: number;
@@ -338,9 +351,21 @@ export interface TrashedEntry {
   deletedAt: string;
 }
 
-/** Editable fields of a propertySchema.update write (all optional — patch). */
+/** Editable fields of a propertySchema.update write (all optional — patch).
+ *  The owner-2026-10-20 fields ride the keep/clear contract: absent keeps
+ *  the stored value, present-null clears (SCHEMA.md "Class properties"). */
 export interface UpdatePropertySchemaInput {
   name?: string;
+  /** The schema's icon (nullable MDI name); null clears. */
+  icon?: string | null;
+  /** The locality authority: null clears back to global (empty rejected). */
+  scopeClassIds?: string[] | null;
+  /** Node-typed target classes; null clears the filter. */
+  targetClassFilter?: string[] | null;
+  /** Values single/multiple; null clears back to single. */
+  multi?: boolean | null;
+  /** Value-validation rules; null clears. */
+  validationRules?: ClientValidationRules | null;
   options?: ClientPropertyOption[];
   datePrecision?: DatePrecision;
   dateQualified?: boolean;
@@ -379,6 +404,8 @@ export interface ClientPropertySchema {
   display?: PropertyDisplay | null;
   readonly?: boolean | null;
   hideWhenEmpty?: boolean | null;
+  /** Value-validation rules (null = none). */
+  validationRules?: ClientValidationRules | null;
 }
 
 /**
@@ -449,6 +476,11 @@ export interface EffectiveProperty {
   metadata: Record<string, unknown> | null;
   source: "authored" | "default";
   boundBy: string | null;
+  /** R4 (owner ruling 2026-10-20): false on authored rows whose schema's
+   *  scopeClassIds excludes the node — the row SURVIVES (never retroactive)
+   *  and callers render it honestly; derived defaults never materialize for
+   *  ineligible nodes, so they always read true. */
+  eligible: boolean;
   /** Per-CLASS: the winning binding's required flag. */
   required: boolean | null;
   /** PROPERTY-level: the schema's render contracts — the same for

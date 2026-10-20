@@ -45,3 +45,18 @@
   font: var(--font-body-medium);
   color: var(--md-sys-color-on-surface);
 }
+
+/* R6 blocked state (owner ruling 2026-10-20): values anywhere lock the
+   type — the explanation replaces the plan/convert UI. */
+.nt-property-convert__blocked {
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-property-convert__blocked p {
+  margin: 0 0 var(--spacing-3);
+}
+
+.nt-property-convert__blocked-hint {
+  color: var(--md-sys-color-on-surface-variant);
+}

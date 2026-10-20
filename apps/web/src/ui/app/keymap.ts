@@ -264,6 +264,33 @@ export function focusModeExitHandler(opts: {
 }
 
 /**
+ * Ctrl/Cmd+Alt+P — the global "Add property" chord (owner ruling
+ * 2026-10-20: the Capacities chord ships in this batch). The chord was
+ * reserved in the keymap row all along (the present-chrome comment names
+ * it); the same guard as the other global chords: text fields and the
+ * outliner editor keep the keystroke. Opens the S1 creation modal without
+ * context (the app-level host). Exported for the keymap tests.
+ */
+export function addPropertyKeyHandler(opts: {
+  onOpen: () => void;
+}): (event: KeyboardEvent) => void {
+  return (event) => {
+    const mod = event.ctrlKey || event.metaKey;
+    if (!mod || !event.altKey || event.shiftKey) return;
+    if (event.key.toLowerCase() !== "p") return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("input, textarea, select, [contenteditable]")
+    ) {
+      return;
+    }
+    event.preventDefault();
+    opts.onOpen();
+  };
+}
+
+/**
  * Tap-outside drawer dismissal: at narrow
  * widths the sidebar is a floating drawer — a pointer press that lands
  * outside the drawer AND outside the topbar (the hamburger toggle lives

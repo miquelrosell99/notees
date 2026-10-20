@@ -8,6 +8,73 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-20
+- **feat(web): property-definition surfaces — the S1 pre-creation modal, the
+  S2 base-definition editor, R6 convert gating, and the S4 eligibility
+  surfaces (the property-definition batch, slices 1+2 = commit b8548e0e).**
+  Owner ruling 2026-10-20 (the property-definition proposal, this phase:
+  S1/S2/S2b/S4 + the PropertyView footer; S5 drag + the S6 class-section
+  redesign are the next phase). S1 `PropertyCreateModal` (v1 PropertyCreateModal 1:1, adapted):
+  name with a live duplicate check, the icon picker, the 11-type radiogroup
+  grid, single/multi, the options editor (add/remove/reorder, per-option
+  icon+color), targetClassFilter class multi-pick, the scope control (global
+  default / local-to-classes), and a default-value field in class context
+  only (defaults are binding-level — the field writes the class binding after
+  the create); one `createPropertySchema` on confirm, followed by
+  `setClassProperty(classId, id, { sequence, defaultValue? })` when
+  `contextClassId` is given. Entry points route their typed query in: the
+  panel's "+ Add property" create row (AddPropertyRow), the VerbPopover
+  create-and-bind (LinkEditModal, object/multi pre-selected, the typed-link
+  mark binds the new schema), the editor slash `/property`, and the reserved
+  Ctrl/Cmd+Alt+P global chord — all through the app-level
+  `PropertyCreateHost` (a module-level request queue, the
+  requestQueryBuilderOpen idiom); a `nodeId` request initializes the
+  placeholder value after the create. S2 grows the settings modal into the
+  base-definition editor (the per-label entry stays): rename, icon, the
+  read-only type + Convert…, multi (v1's danger confirm on multi→single with
+  values anywhere), options, targetClassFilter (now writable), scope
+  (update {scopeClassIds}, null = global), number formats, date
+  precision/qualified, the render contracts, validationRules editors (number
+  min/max; text/url/email pattern — the regex must compile), and a
+  standalone Delete flow (v1's confirmation copy; PropertyDeleteModal shared
+  with the PropertyView footer, which gains Edit…/Delete…). S2b (R6):
+  PropertyConvertModal checks `getPropertyReferences` first — values on any
+  node render a blocked state ("has values on N nodes, so its type can't
+  change"); the plan/convert UI and the drop-values confirm are unreachable.
+  S4: `schemaEligibility.ts` (classClosureOf / isSchemaEligibleForNode /
+  eligibleSchemasForNode — the extends-aware walk over getClassParents, R2)
+  gates the AddPropertyRow candidate list, and effective rows tagged
+  `eligible: false` render dimmed with an ineligible affordance (R4 honest
+  rendering, never hidden) across the scalar + grouped row components. Web
+  client layer: `UpdatePropertySchemaInput` gains icon/scopeClassIds/
+  targetClassFilter/multi/validationRules (keep/clear), the writes pass
+  them through, `listPropertySchemas` maps `validation_rules` — and now the
+  number-format columns too (pre-existing gap: the SELECT never carried
+   them, so the formats always read null). AGENTS.md + the ui-primitives
+  runbook's primitive path corrected to `apps/web/src/components/ui/fleet/`
+  (the tree realignment moved them; `ui/components/ui/` now holds only
+  `calendar`). Two defects the capture loop surfaced, fixed in the same
+  pass: the kit Modal card had lost its viewport anchoring (it portals as
+  the Radix backdrop's SIBLING and carried no position/z-index — it rendered
+  in body flow UNDER the fixed scrim, unclickable; restored `position:
+  fixed` + `translate` centering + `z-modal`, and the sheet variant's
+  bottom anchoring, plus a `min-height: 0` flex fix so a tall modal scrolls
+  its content instead of losing the footer off-screen), and the create
+  host's placeholder init re-read the schema type through the worker's
+  cached listPropertySchemas (stale → wrong placeholder shape) — the modal
+  now passes the created type to onCreated explicitly; AddPropertyRow also
+  closes its popup when the modal takes over. Verified: `pnpm typecheck` +
+  the web suite green (new
+  property-create-modal / property-edit-modal / schema-eligibility suites;
+  the PG3 convert tests reworked to the R6 ruling; the slash-command list
+  test gains the /property row; the verb create-and-bind suites drive the
+  modal flow). Visual QA via the capture loop against a throwaway dev
+  instance (offline store mode): the S1/S2/S2b/S4 surfaces at 1440/768/390
+  — the modals ride the bottom-sheet register at narrow widths, the blocked
+  convert state reads clean, no console errors beyond the honest
+  offline-mode transport notice. Known gap (packages frozen this phase):
+  the store enforces validationRules APPLICABILITY only — value validation
+  at property.set (SCHEMA.md's statement) is not implemented yet, reported
+  as a follow-up.
 - **fix(web): the edit thread settles — one re-measure 220ms after the
   last change lets transition-driven geometry settle into the path.**
   Found by the live focused-view probe: the editing block's class icon

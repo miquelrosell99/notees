@@ -25,6 +25,8 @@ import { NodeCollection } from "../collection/index.js";
 import type { TableColumn } from "../collection/index.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { PropertyConvertModal } from "./PropertyConvertModal.js";
+import { PropertyDeleteModal } from "./PropertyDeleteModal.js";
+import { PropertySettingsModal } from "./PropertySettingsModal.js";
 import "./PropertyView.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -70,6 +72,8 @@ export function PropertyView({
 }) {
   const schema = client.listPropertySchemas().find((s) => s.id === propertySchemaId);
   const [convertOpen, setConvertOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   if (schema === undefined) return null;
 
   const boundClasses = client
@@ -201,8 +205,16 @@ export function PropertyView({
         </NodeViewSection>
 
         <div className="nt-property-view__actions">
+          {/* The base-definition surfaces (owner 2026-10-20, S2): Edit opens
+              the definition editor; Delete the standalone delete flow. */}
+          <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)}>
+            Edit…
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteOpen(true)}>
+            Delete…
+          </Button>
           {/* PG3: the blessed delete+recreate conversion flow (same modal as
-              the settings modal's entry point). */}
+              the settings modal's entry point; R6-gated inside). */}
           <Button variant="ghost" size="sm" onClick={() => setConvertOpen(true)}>
             Convert…
           </Button>
@@ -211,6 +223,22 @@ export function PropertyView({
           </Button>
         </div>
       </div>
+      {editOpen && (
+        <PropertySettingsModal
+          client={client}
+          propertySchemaId={propertySchemaId}
+          onClose={() => setEditOpen(false)}
+          onOpenView={() => setEditOpen(false)}
+        />
+      )}
+      {deleteOpen && (
+        <PropertyDeleteModal
+          client={client}
+          schema={schema}
+          onClose={() => setDeleteOpen(false)}
+          onDeleted={onClose}
+        />
+      )}
       {convertOpen && (
         <PropertyConvertModal client={client} schema={schema} onClose={() => setConvertOpen(false)} />
       )}

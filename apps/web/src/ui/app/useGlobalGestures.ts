@@ -1,18 +1,21 @@
 /**
  * useGlobalGestures — the App's document-level gesture wiring: the global
  * key chords (quick add, present, today, search, history back/forward, the
- * keymap-breadth chords, undo/redo, history popup, focus mode + Esc exit)
- * and the narrow-width tap-outside drawer dismissal. The handler factories
- * live in keymap.ts (unit-tested); this hook just wires them to the App's
- * state and unwires on cleanup. Effect deps are the originals.
+ * keymap-breadth chords, undo/redo, history popup, focus mode + Esc exit,
+ * Ctrl/Cmd+Alt+P add-property) and the narrow-width tap-outside drawer
+ * dismissal. The handler factories live in keymap.ts (unit-tested); this
+ * hook just wires them to the App's state and unwires on cleanup. Effect
+ * deps are the originals.
  */
 
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import type { UndoUiState } from "@/core/undo-journal.js";
 import { toggleFocusMode } from "../../features/settings/deviceSettings.js";
+import { requestPropertyCreate } from "../../features/metadata/PropertyCreateHost.js";
 import { rendersWithDocumentChrome } from "@notees/domain";
 import {
+  addPropertyKeyHandler,
   drawerDismissHandler,
   focusModeExitHandler,
   focusModeKeyHandler,
@@ -212,4 +215,15 @@ export function useGlobalGestures(deps: GlobalGestureDeps): void {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [focusMode, setFocusMode]);
+
+  // Ctrl/Cmd+Alt+P — the global "Add property" chord (owner ruling
+  // 2026-10-20): the S1 creation modal opens without context via the
+  // app-level host's module-level request.
+  useEffect(() => {
+    const handler = addPropertyKeyHandler({
+      onOpen: () => requestPropertyCreate({}),
+    });
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 }

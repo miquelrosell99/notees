@@ -1,15 +1,18 @@
 /**
  * Schema-at-capture tests — the Tana flagship gesture: the verb
- * popover's create-and-bind row authors a property schema at capture
- * (propertySchema.create typed object/multi, empty targetClassFilter) and
- * binds the typed_link mark to it (`verb: { propertySchemaId }`); an exact
- * name hit binds to the EXISTING schema instead; the plain Link submit keeps
- * the free-string verb untouched; the bound verb renders the schema's name
- * (not the raw id); the mark's schema id flows into the derived edge index
- * (verb = propertySchemaId). Also the LinkEditModal verb field: the same
- * create-and-bind row, opened from a right-click on a typed-link word.
- * Harness: PageView over the in-process WorkspaceClient + MemoryRelay
- * (same as editor-popups.test.tsx); the modal row uses a direct render.
+ * popover's create-and-bind row routes through the S1 pre-creation modal
+ * (owner ruling 2026-10-20: creation opens a modal BEFORE any op is
+ * written; the typed verb pre-fills the name, object/multi pre-select) and
+ * binds the typed_link mark to the new schema (`verb: { propertySchemaId }`);
+ * an exact name hit binds to the EXISTING schema instead; the plain Link
+ * submit keeps the free-string verb untouched; the bound verb renders the
+ * schema's name (not the raw id); the mark's schema id flows into the
+ * derived edge index (verb = propertySchemaId). Also the LinkEditModal verb
+ * field: the same create-and-bind row, opened from a right-click on a
+ * typed-link word. Harness: PageView over the in-process WorkspaceClient +
+ * MemoryRelay (same as editor-popups.test.tsx); the S1 host renders next to
+ * the surface under test (in-app it lives in AppModals); the modal row uses
+ * a direct render.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -22,6 +25,7 @@ import type { ContentAst } from "@notees/protocol";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { LinkEditModal } from "../src/ui/editor-popups/LinkEditModal.js";
+import { PropertyCreateHost } from "../src/features/metadata/PropertyCreateHost.js";
 import type { AnyClient } from "../src/ui/app/Sidebar.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -107,7 +111,12 @@ describe("verb create-and-bind", () => {
       parentId: pageId,
       contentAst: [{ type: "text", text: "As Smith argues" }],
     });
-    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const { container } = render(
+      <>
+        <PropertyCreateHost client={client} />
+        <PageView client={client} pageId={pageId} />
+      </>,
+    );
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "As Smith argues");
@@ -120,11 +129,19 @@ describe("verb create-and-bind", () => {
     expect(verbPopover()).not.toBeNull();
 
     fireEvent.change(within(verbPopover()!).getByLabelText("Verb"), { target: { value: "supports" } });
-    // No existing schema named "supports" → the create-and-bind row shows.
+    // No existing schema named "supports" → the create-and-bind row shows;
+    // it now opens the S1 pre-creation modal (owner ruling 2026-10-20).
     const createRow = within(verbPopover()!).getByRole("button", {
       name: 'Create property "supports" and bind',
     });
     fireEvent.click(createRow);
+
+    // The modal: typed verb pre-filled, object/multi pre-selected.
+    await screen.findByText("Create property", { selector: ".modal__title" });
+    expect((screen.getByLabelText("Property name") as HTMLInputElement).value).toBe("supports");
+    expect(screen.getByRole("radio", { name: /^Object/ }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: "Multiple values" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Create Property" }));
 
     await waitFor(() => {
       const ast = client.getNode(blockId)?.contentAst as ContentAst;
@@ -305,20 +322,23 @@ describe("LinkEditModal verb field (PG1 modal row)", () => {
     } as unknown as AnyClient;
     const onSave = vi.fn(overrides.onSave ?? (() => {}));
     render(
-      <LinkEditModal
-        isOpen
-        client={client}
-        initialMode="verb"
-        currentVerb=""
-        currentLocator=""
-        onSave={onSave}
-        onClose={() => {}}
-      />,
+      <>
+        <PropertyCreateHost client={client} />
+        <LinkEditModal
+          isOpen
+          client={client}
+          initialMode="verb"
+          currentVerb=""
+          currentLocator=""
+          onSave={onSave}
+          onClose={() => {}}
+        />
+      </>,
     );
     return { onSave, created };
   }
 
-  it("offers 'Create property … and bind' for an unknown verb and saves the bound shape", async () => {
+  it("offers 'Create property … and bind' for an unknown verb — the S1 modal confirms, then the bound shape saves", async () => {
     const { onSave, created } = renderVerbModal();
     const dialog = screen.getByRole("dialog", { name: "Edit Link" });
     fireEvent.change(within(dialog).getByLabelText("Verb"), { target: { value: "extends" } });
@@ -326,9 +346,17 @@ describe("LinkEditModal verb field (PG1 modal row)", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: 'Create property "extends" and bind' }),
     );
+    // Owner ruling 2026-10-20: the row opens the S1 pre-creation modal
+    // (the app-level host owns it; the mock client's request is drained by
+    // the test-rendered host below).
+    const modal = await screen.findByText("Create property", { selector: ".modal__title" });
+    expect(modal).not.toBeNull();
+    expect((screen.getByLabelText("Property name") as HTMLInputElement).value).toBe("extends");
+    expect(screen.getByRole("radio", { name: /^Object/ }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Create Property" }));
     await waitFor(() => {
       expect(created).toEqual([
-        { name: "extends", type: "object", multi: true, targetClassFilter: [] },
+        expect.objectContaining({ name: "extends", type: "object", multi: true }),
       ]);
       expect(onSave).toHaveBeenCalledWith({
         mode: "verb",

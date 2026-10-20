@@ -370,6 +370,14 @@ export class WorkspaceClientWrites {
   async updatePropertySchema(propertySchemaId: string, fields: UpdatePropertySchemaInput): Promise<void> {
     const payload: Record<string, unknown> = { propertySchemaId };
     if (fields.name !== undefined) payload.name = fields.name;
+    // The owner-2026-10-20 fields ride the wire verbatim — the strict
+    // payload enforces applicability (empty scopeClassIds rejected,
+    // min/max on number schemas, pattern on text/url/email).
+    if (fields.icon !== undefined) payload.icon = fields.icon;
+    if (fields.scopeClassIds !== undefined) payload.scopeClassIds = fields.scopeClassIds;
+    if (fields.targetClassFilter !== undefined) payload.targetClassFilter = fields.targetClassFilter;
+    if (fields.multi !== undefined) payload.multi = fields.multi;
+    if (fields.validationRules !== undefined) payload.validationRules = fields.validationRules;
     if (fields.options !== undefined) payload.options = fields.options;
     if (fields.datePrecision !== undefined) payload.datePrecision = fields.datePrecision;
     if (fields.dateQualified !== undefined) payload.dateQualified = fields.dateQualified;
