@@ -8,8 +8,9 @@
  * renders a dimmed hollow circle so a fresh task can be given a value in
  * place. Clicking opens a small popover listing every option (icon + label +
  * checkmark) to change the value; multi_select toggles per click,
- * single-select and boolean replace, and a "None" row clears when the
- * binding is not required. Booleans carry two synthetic options (the
+ * single-select and boolean replace, and a "None" row clears (always —
+ * the "required" binding flag retired outright, owner ruling 2026-10-20).
+ * Booleans carry two synthetic options (the
  * owner-specified glyphs): true = check-circle tinted green, false = hollow
  * circle tinted gray.
  *
@@ -95,7 +96,6 @@ export interface PropertyIconButtonProps {
    *  the multi toggles (multi_select values are separate rows per element). */
   rows: ReadonlyArray<EffectiveProperty>;
   multi: boolean;
-  required: boolean;
   /** Boolean mode: the value is the JSON boolean at idx 0, rendered/written
    *  through the synthetic check-circle / hollow-circle options. */
   boolean?: boolean;
@@ -111,7 +111,6 @@ export function PropertyIconButton({
   options,
   rows,
   multi,
-  required,
   boolean = false,
   disabled = false,
 }: PropertyIconButtonProps) {
@@ -287,7 +286,9 @@ export function PropertyIconButton({
               </button>
             );
           })}
-          {!required && selectedIds.length > 0 && (
+          {/* "None" always clears (the "required" binding flag retired
+              outright, owner ruling 2026-10-20). */}
+          {selectedIds.length > 0 && (
             <button
               type="button"
               role="menuitem"

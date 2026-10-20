@@ -280,24 +280,25 @@ describe("Class View", () => {
     // FINAL citations authorship (2026-09-27): authors is the node-typed,
     // agent-filtered property (linkedAuthors was withdrawn same day, …0025).
     const authorsRow = rows[1]!;
-    // The collapsed row is identity-only (S6): grip + icon + name, no type
-    // chip. R7 + the same-day amendment: the expanded panel is class-level
-    // only too — identity header, the type-gated default value + Required,
-    // no group labels,
-    // no active switch; the row's COG is the path to the modal (the
-    // unresolved-targets hint for the undeployed "agent" class lives there).
-    fireEvent.click(within(authorsRow as HTMLElement).getByRole("button", { name: "Configure Authors" }));
-    await flushWrites();
-    // Authors is object-typed: the owner ruling (2026-10-20) gives node-typed
-    // bindings NO default editor — Required is the inline field.
+    // The row is identity-only (S6) and IS the whole surface (owner ruling
+    // 2026-10-20): no chevron, no cog, no inline fields — the click opens the
+    // S2 definition modal (the unresolved-targets hint for the undeployed
+    // "agent" class lives there).
     expect(within(authorsRow as HTMLElement).queryByLabelText("Default for Authors")).toBeNull();
-    expect(within(authorsRow as HTMLElement).getByRole("checkbox", { name: "Required" })).not.toBeNull();
+    expect(within(authorsRow as HTMLElement).queryByRole("checkbox", { name: "Required" })).toBeNull();
     expect(
-      within(authorsRow as HTMLElement).getByRole("button", { name: "Definition settings for Authors" }),
-    ).not.toBeNull();
+      within(authorsRow as HTMLElement).queryByRole("button", { name: "Definition settings for Authors" }),
+    ).toBeNull();
     expect(within(authorsRow as HTMLElement).queryByText("For this class")).toBeNull();
     expect(within(authorsRow as HTMLElement).queryByText("Definition")).toBeNull();
     expect(within(authorsRow as HTMLElement).queryByText("Target classes")).toBeNull();
+    fireEvent.click(within(authorsRow as HTMLElement).getByRole("button", { name: "Open property Authors" }));
+    await flushWrites();
+    // Authors is object-typed: the definition modal carries NO default editor
+    // for node-typed schemas (the owner ruling, 2026-10-20).
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Property settings" })).not.toBeNull();
+    expect(within(dialog).queryByLabelText("Default value")).toBeNull();
   });
 
   it("renders the class's children as the editable body — a class has no child pages", async () => {

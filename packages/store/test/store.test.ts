@@ -902,6 +902,11 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(env("class.create", { classId: id, contentAst: [{ type: "text", text: name }] }, physical));
     }
 
+    /**
+     * Bind a schema to a class (sequence-only row) and set the schema's
+     * GLOBAL default (owner ruling 2026-10-20 — defaults are schema-level,
+     * one per property; the last default write wins across classes).
+     */
     function bind(
       store: Store,
       classId: string,
@@ -909,13 +914,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       defaultValue: string,
       physical: number,
     ): void {
-      store.apply(
-        env(
-          "class.property.set",
-          { classId, propertySchemaId: schemaId, sequence: 0, defaultValue },
-          physical,
-        ),
-      );
+      store.apply(env("class.property.set", { classId, propertySchemaId: schemaId, sequence: 0 }, physical));
+      store.apply(env("propertySchema.update", { propertySchemaId: schemaId, defaultValue }, physical + 1));
     }
 
     it("class.property.set upserts the binding row; a patch keeps omitted fields and a stale set is dropped", () => {
@@ -925,33 +925,35 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         store.database
           .prepare("SELECT * FROM class_property WHERE class_id = ? AND property_schema_id = ?")
           .get(TASK, PRIORITY) as Record<string, unknown>;
-      expect(row()).toMatchObject({ sequence: 0, default_value: '"medium"' });
+      const schemaDefault = () =>
+        (
+          store.database
+            .prepare("SELECT default_value FROM property_schema WHERE id = ?")
+            .get(PRIORITY) as { default_value: string | null }
+        ).default_value;
+      expect(row()).toMatchObject({ sequence: 0, active: 1 });
+      // The fixture's default rides the SCHEMA row now (the global-default move).
+      expect(schemaDefault()).toBe('"medium"');
 
-      // Patch only the default + required: sequence survives the update.
+      // Patch only the sequence: the default survives on the schema row.
       store.apply(
-        env(
-          "class.property.set",
-          { classId: TASK, propertySchemaId: PRIORITY, defaultValue: "low", required: true },
-          1727200012000,
-        ),
+        env("class.property.set", { classId: TASK, propertySchemaId: PRIORITY, sequence: 2 }, 1727200012000),
       );
-      expect(row()).toMatchObject({
-        sequence: 0,
-        required: 1,
-        default_value: '"low"',
-        hlc_physical: 1727200012000,
-      });
+      expect(row()).toMatchObject({ sequence: 2, active: 1, hlc_physical: 1727200012000 });
+      expect(schemaDefault()).toBe('"medium"');
+
+      // The schema default is keep/clear typed (PC2): an update patches it.
+      store.apply(
+        env("propertySchema.update", { propertySchemaId: PRIORITY, defaultValue: "low" }, 1727200012100),
+      );
+      expect(schemaDefault()).toBe('"low"');
 
       // A lower-HLC set is dropped by row LWW (state unchanged).
       const stale = store.apply(
-        env(
-          "class.property.set",
-          { classId: TASK, propertySchemaId: PRIORITY, defaultValue: "stale" },
-          1727200010500,
-        ),
+        env("class.property.set", { classId: TASK, propertySchemaId: PRIORITY, sequence: 9 }, 1727200010500),
       );
       expect(stale.ignored).toBe(true);
-      expect(row()).toMatchObject({ default_value: '"low"', hlc_physical: 1727200012000 });
+      expect(row()).toMatchObject({ sequence: 2, hlc_physical: 1727200012000 });
     });
 
     it("class.property.unset deletes the binding row", () => {
@@ -970,12 +972,12 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBeUndefined();
     });
 
-    it("fixture: default applies; multi-class conflict resolves first-applied-wins; unset flips the winner", () => {
+    it("fixture: the schema default applies; it survives binding churn; no binding — no default", () => {
       const store = makeStore();
       const fixture = loadFixture("class-property-defaults.json");
       const priorityOf = () => store.getEffectiveProperties(ITEM);
 
-      store.applyMany(fixture.slice(0, 5)); // schema, classes, node (Task), Task binding
+      store.applyMany(fixture.slice(0, 5)); // schema (default 'medium'), classes, node (Task), Task binding
       expect(priorityOf()).toEqual([
         {
           propertySchemaId: PRIORITY,
@@ -1003,7 +1005,6 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           metadata: null,
           source: "default",
           boundBy: TASK,
-          required: null,
           readonly: null,
           hideWhenEmpty: null,
           sequence: 0,
@@ -1021,8 +1022,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBe(0);
 
       store.applyMany(fixture.slice(5, 7)); // Project binding + Project assignment
-      // Task's membership add HLC (fixture envelope 4) precedes Project's
-      // (envelope 7): Task's 'medium' wins the default conflict over 'high'.
+      // The default is the SCHEMA's single global value — Project's binding
+      // adds presence (Task still wins boundBy, earliest assignment HLC), not
+      // a competing default.
       expect(priorityOf()).toEqual([
         expect.objectContaining({ value: "medium", source: "default", boundBy: TASK }),
       ]);
@@ -1030,10 +1032,13 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         JSON.parse(store.getNode(ITEM)?.class_ids ?? "[]").sort(),
       ).toEqual([TASK, PROJECT].sort());
 
-      store.apply(fixture[7]!); // unset Task's binding
+      store.apply(fixture[7]!); // unset Task's binding — Project still binds: same global default
       expect(priorityOf()).toEqual([
-        expect.objectContaining({ value: "high", source: "default", boundBy: PROJECT }),
+        expect.objectContaining({ value: "medium", source: "default", boundBy: PROJECT }),
       ]);
+
+      store.apply(fixture[8]!); // unset Project's binding too — no binding, no derived default
+      expect(priorityOf()).toEqual([]);
     });
 
     it("aggregates the union of bindings across ALL of the node's classes", () => {
@@ -1056,13 +1061,15 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ]);
     });
 
-    it("conflict resolution follows assignment HLC (earliest first), not class id or write order", () => {
+    it("binding-conflict resolution follows assignment HLC (earliest first), not class id or write order", () => {
       const store = makeStore();
       makeSchema(store, EFFORT, "effort", 1727200011000);
       makeClass(store, CLASS_X, "X", 1727200011100);
       makeClass(store, CLASS_Y, "Y", 1727200011200);
-      // Write order is the reverse of assignment order, and the binding
-      // defaults are written in between.
+      // Write order is the reverse of assignment order; the DEFAULT is
+      // schema-global (owner ruling 2026-10-20) — the last write ('x') wins
+      // for every node, so the conflict these tests resolve is the WINNING
+      // BINDING (boundBy/sequence), not the value.
       bind(store, CLASS_Y, EFFORT, "y", 1727200012500);
       bind(store, CLASS_X, EFFORT, "x", 1727200012600);
 
@@ -1080,7 +1087,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         expect.objectContaining({ value: "x", boundBy: CLASS_X }),
       ]);
       expect(store.getEffectiveProperties(node2)).toEqual([
-        expect.objectContaining({ value: "y", boundBy: CLASS_Y }),
+        expect.objectContaining({ value: "x", boundBy: CLASS_Y }),
       ]);
     });
 
@@ -1126,7 +1133,6 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           value: "authored",
           source: "authored",
           boundBy: null,
-          required: null,
           sequence: null,
         }),
       ]);
@@ -2671,8 +2677,9 @@ for (const adapter of adapters) {
         "00000000-0000-0000-0003-000000000006",
       ]);
       // The Status SCHEMA carries display 'bullet' (property-level);
-      // the binding rows stay flag-free (sequence/required/default/active
-      // only — the rebuild dropped the render-contract columns).
+      // the binding rows stay flag-free (sequence + active only — the
+      // rebuilds dropped the render contracts (v14) and required/default_value
+      // (v25)).
       const statusSchema = store.database
         .prepare("SELECT display FROM property_schema WHERE id = ?")
         .get("00000000-0000-0000-0003-000000000001") as { display: string | null };
@@ -2682,7 +2689,8 @@ for (const adapter of adapters) {
       ).map((c) => c.name);
       expect(bindingColumns).not.toContain("display");
       expect(bindingColumns).not.toContain("hide_when_empty");
-      expect(bindingColumns).toContain("required");
+      expect(bindingColumns).not.toContain("required");
+      expect(bindingColumns).not.toContain("default_value");
       // Idempotent: replaying the SAME envelope is skipped wholesale
       // (applied_envelope), and a stale re-enable loses the LWW row.
       const before = dumpDb(store);
@@ -4058,8 +4066,8 @@ describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) =>
     expect(() =>
       store.apply(
         env(
-          "class.property.set",
-          { classId: SOURCE_CLASS, propertySchemaId: SCHEMA, defaultValue: { nodeId: ASSET_NODE } },
+          "propertySchema.update",
+          { propertySchemaId: SCHEMA, defaultValue: { nodeId: ASSET_NODE } },
           1727200001100,
         ),
       ),
@@ -4240,7 +4248,10 @@ describe.each(adapters)("$name: property-schema scope + update fields", ({ makeB
     ).toThrow(/would be inert/);
     // B extends A (in scope): the binding is live — it must be accepted.
     store.apply(
-      env("class.property.set", { classId: CLASS_B, propertySchemaId: SCHEMA, sequence: 0, defaultValue: "inherited" }, 1727200002200),
+      env("class.property.set", { classId: CLASS_B, propertySchemaId: SCHEMA, sequence: 0 }, 1727200002200),
+    );
+    store.apply(
+      env("propertySchema.update", { propertySchemaId: SCHEMA, defaultValue: "inherited" }, 1727200002250),
     );
     // R4 arm: NODE_X carries no scope class — B's binding with a default
     // derives NOTHING for it; NODE_B (via the A ancestor) reads the default.
@@ -4255,11 +4266,10 @@ describe.each(adapters)("$name: property-schema scope + update fields", ({ makeB
     const store = Store.open(makeBackend());
     scopedWorld(store);
     store.apply(
-      env(
-        "class.property.set",
-        { classId: CLASS_A, propertySchemaId: SCHEMA, sequence: 0, defaultValue: "defaulted" },
-        1727200002000,
-      ),
+      env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA, sequence: 0 }, 1727200002000),
+    );
+    store.apply(
+      env("propertySchema.update", { propertySchemaId: SCHEMA, defaultValue: "defaulted" }, 1727200002050),
     );
     const rows = (nodeId: string) =>
       store.getEffectiveProperties(nodeId).filter((row) => row.propertySchemaId === SCHEMA);

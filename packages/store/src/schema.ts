@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 24;
+export const SCHEMA_VERSION = 25;
 
 /**
  * The render-path list-reads index: composite for the
@@ -281,12 +281,17 @@ CREATE TABLE IF NOT EXISTS property_schema (
     -- The render contracts are PROPERTY-level (owner review
     -- 2026-10-05) — display (panel|bullet|inline; NULL = panel) and the
     -- readonly/hide-when-empty tri-state flags, wherever the property
-    -- appears (class-bound or not). ('required' deliberately stays on the
-    -- class binding — a property may be mandatory for one class, optional
-    -- for another.)
+    -- appears (class-bound or not).
     display TEXT,
     readonly INTEGER,
     hide_when_empty INTEGER,
+    -- The property's DEFAULT VALUE (owner ruling 2026-10-20, store v25 —
+    -- moved from the class binding to the schema, the Logseq shape): ONE
+    -- global default per property, JSON-encoded, typed per the schema type
+    -- (PC2, validated at apply; node-typed schemas carry JSON null only).
+    -- NULL = no default. The derived-read law: the applier never writes
+    -- property_value rows for it; the effective read derives it.
+    default_value TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT,
     updated_at TEXT
@@ -295,24 +300,21 @@ CREATE TABLE IF NOT EXISTS property_schema (
 CREATE INDEX IF NOT EXISTS idx_property_schema_workspace
     ON property_schema (workspace_id);
 
--- Class -> property binding rows (sequence, default), authored by
+-- Class -> property binding rows (sequence), authored by
 -- class.property.set / class.property.unset (SCHEMA.md "Class properties").
 -- Row-level LWW by (hlc, actor): the winning write's causality is stored on
--- the row, so a stale set replayed after a newer one is dropped. Defaults
--- here are configuration only — the applier never writes property_value rows
--- for them; the effective-values read model derives them at query time.
--- (owner review 2026-10-05): the row carries ONLY the genuinely
--- per-class mechanics (sequence, required, default_value, active). The
--- render contracts (readonly/hide_when_empty/display) are PROPERTY-level
--- and live on property_schema.
+-- the row, so a stale set replayed after a newer one is dropped.
+-- (owner ruling 2026-10-20, store v25): the row carries ONLY the genuinely
+-- per-class mechanics — sequence + the soft-unbind flag. 'required' retired
+-- outright and 'default_value' MOVED to property_schema (one global default
+-- per property, the Logseq shape); the live log rewrite is
+-- scripts/migrate-drop-binding-required.mts (Path B).
 -- 'active' (PC4): the soft-unbind flag — an inactive row stops contributing
--- to the effective read (no default, no sequence); authored values survive.
+-- to the effective read (no sequence); authored values survive.
 CREATE TABLE IF NOT EXISTS class_property (
     class_id TEXT NOT NULL,
     property_schema_id TEXT NOT NULL,
     sequence INTEGER NOT NULL DEFAULT 0,
-    required INTEGER,
-    default_value TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     hlc_physical INTEGER NOT NULL DEFAULT 0,
     hlc_logical INTEGER NOT NULL DEFAULT 0,
@@ -733,11 +735,15 @@ export function migrate(
   //     (readonly/hide_when_empty from the original shape, display from the
   //     v13 experiment — the v11 property_value rebuild precedent:
   //     same surviving columns, rows copy verbatim, indexes recreated).
-  //     `required` survives on the row (the owner's per-class exception).
+  //     `required` survived the v14 rebuild then (the owner's per-class
+  //     exception) and retired with `default_value` at v25.
   const classPropertyColumnsV14 = db.prepare("PRAGMA table_info(class_property)").all() as {
     name: string;
   }[];
-  if (classPropertyColumnsV14.some((c) => c.name === "display" || c.name === "hide_when_empty")) {
+  if (
+    classPropertyColumnsV14.some((c) => c.name === "display" || c.name === "hide_when_empty") &&
+    classPropertyColumnsV14.some((c) => c.name === "required")
+  ) {
     db.exec(`
       PRAGMA foreign_keys = OFF;
       CREATE TABLE class_property_v14 (
@@ -761,6 +767,33 @@ export function migrate(
       FROM class_property;
       DROP TABLE class_property;
       ALTER TABLE class_property_v14 RENAME TO class_property;
+      CREATE INDEX IF NOT EXISTS idx_class_property_class ON class_property (class_id);
+      PRAGMA foreign_keys = ON;
+    `);
+  } else if (classPropertyColumnsV14.some((c) => c.name === "display" || c.name === "hide_when_empty")) {
+    // The v25 shape already dropped required/default_value but the table
+    // still carries the pre-v14 render columns (a current-shape database
+    // downgraded past v14 — the migration tests exercise exactly that) —
+    // rebuild straight to the current column set.
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      CREATE TABLE class_property_v25pre (
+          class_id TEXT NOT NULL,
+          property_schema_id TEXT NOT NULL,
+          sequence INTEGER NOT NULL DEFAULT 0,
+          active INTEGER NOT NULL DEFAULT 1,
+          hlc_physical INTEGER NOT NULL DEFAULT 0,
+          hlc_logical INTEGER NOT NULL DEFAULT 0,
+          actor_id TEXT,
+          PRIMARY KEY (class_id, property_schema_id)
+      );
+      INSERT INTO class_property_v25pre (
+          class_id, property_schema_id, sequence, active, hlc_physical, hlc_logical, actor_id
+      )
+      SELECT class_id, property_schema_id, sequence, active, hlc_physical, hlc_logical, actor_id
+      FROM class_property;
+      DROP TABLE class_property;
+      ALTER TABLE class_property_v25pre RENAME TO class_property;
       CREATE INDEX IF NOT EXISTS idx_class_property_class ON class_property (class_id);
       PRAGMA foreign_keys = ON;
     `);
@@ -1072,6 +1105,49 @@ export function migrate(
           ALTER TABLE property_schema ADD COLUMN validation_rules TEXT;
         `);
       }
+    }
+  }
+  // v24 -> v25 (owner ruling 2026-10-20 — the property-definition surfaces
+  // batch, the binding-flags v14 precedent again): `required` retires
+  // outright and `default_value` MOVES from class_property to
+  // property_schema (one global default per property, the Logseq shape).
+  // The binding table REBUILDS without both columns (SQLite cannot drop a
+  // column on old builds); the schema gains `default_value` additively (NULL
+  // = no default). The moved values arrive from the live log rewrite
+  // (scripts/migrate-drop-binding-required.mts, Path B — appended
+  // propertySchema.update compensation per affected schema) + the epoch
+  // bump, so this backfill is deliberately NULL. Guarded on the old columns
+  // so the step is a no-op for databases already carrying the new shape.
+  {
+    const bindingColsV25 = db.prepare("PRAGMA table_info(class_property)").all() as { name: string }[];
+    if (bindingColsV25.some((c) => c.name === "required") || bindingColsV25.some((c) => c.name === "default_value")) {
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE class_property_v25 (
+            class_id TEXT NOT NULL,
+            property_schema_id TEXT NOT NULL,
+            sequence INTEGER NOT NULL DEFAULT 0,
+            active INTEGER NOT NULL DEFAULT 1,
+            hlc_physical INTEGER NOT NULL DEFAULT 0,
+            hlc_logical INTEGER NOT NULL DEFAULT 0,
+            actor_id TEXT,
+            PRIMARY KEY (class_id, property_schema_id)
+        );
+        INSERT INTO class_property_v25 (
+            class_id, property_schema_id, sequence, active, hlc_physical, hlc_logical, actor_id
+        )
+        SELECT class_id, property_schema_id, sequence, active, hlc_physical, hlc_logical, actor_id
+        FROM class_property;
+        DROP TABLE class_property;
+        ALTER TABLE class_property_v25 RENAME TO class_property;
+        CREATE INDEX IF NOT EXISTS idx_class_property_class
+            ON class_property (class_id);
+        PRAGMA foreign_keys = ON;
+      `);
+    }
+    const schemaColsV25 = db.prepare("PRAGMA table_info(property_schema)").all() as { name: string }[];
+    if (!schemaColsV25.some((c) => c.name === "default_value")) {
+      db.exec("ALTER TABLE property_schema ADD COLUMN default_value TEXT;");
     }
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

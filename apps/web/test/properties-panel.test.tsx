@@ -71,8 +71,11 @@ async function seedPriorityClasses(client: WorkspaceClient) {
   // the applier is fixed.
   await client.updateObject(taskId, { contentAst: [{ type: "text", text: "Task" }] });
   await client.updateObject(projectId, { contentAst: [{ type: "text", text: "Project" }] });
-  await client.setClassProperty(taskId, schemaId, { sequence: 0, defaultValue: "medium" });
-  await client.setClassProperty(projectId, schemaId, { sequence: 0, defaultValue: "high" });
+  await client.setClassProperty(taskId, schemaId, { sequence: 0 });
+  await client.setClassProperty(projectId, schemaId, { sequence: 0 });
+  // The default is SCHEMA-level (owner ruling 2026-10-20 — one global default
+  // per property).
+  await client.updatePropertySchema(schemaId, { defaultValue: "medium" });
   return { schemaId, taskId, projectId };
 }
 
@@ -153,11 +156,13 @@ describe("Properties panel (effective values)", () => {
     ]);
   });
 
-  it("multi-class conflict shows the first-applied class's value", async () => {
+  it("the schema's single global default derives whichever class binds first", async () => {
     const client = await seedClient();
     const { schemaId, taskId, projectId } = await seedPriorityClasses(client);
     const pageId = await client.createObject({ isEmbedded: false, name: "Ship it" });
-    // Task is assigned first: its 'medium' beats Project's 'high'.
+    // Task is assigned first: it wins boundBy; the VALUE is the schema's one
+    // global default (owner ruling 2026-10-20 — per-class default conflicts
+    // no longer exist).
     await client.assignClass(pageId, taskId);
     await client.assignClass(pageId, projectId);
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -170,12 +175,13 @@ describe("Properties panel (effective values)", () => {
     // owner 2026-10-13 — "C" replaces the old "default" hint).
     expect(sidebar.querySelector(`[data-property-schema-id="${schemaId}"]`)!.textContent).toContain("C");
 
-    // On a page where Project was applied first, Project's default wins.
+    // On a page where Project was applied first, Project wins boundBy — the
+    // default value is the same global one.
     const otherId = await client.createObject({ isEmbedded: false, name: "Other" });
     await client.assignClass(otherId, projectId);
     await client.assignClass(otherId, taskId);
     expect(client.getEffectiveProperties(otherId)).toEqual([
-      expect.objectContaining({ value: "high", source: "default", boundBy: projectId }),
+      expect.objectContaining({ value: "medium", source: "default", boundBy: projectId }),
     ]);
   });
 
@@ -185,7 +191,7 @@ describe("Properties panel (effective values)", () => {
     // 'effort' is bound ONLY on Task: its authored value must survive the
     // unassign with boundBy null (no remaining class binds it).
     const effortSchemaId = await client.createPropertySchema({ name: "effort", type: "text" });
-    await client.setClassProperty(taskId, effortSchemaId, { sequence: 1, defaultValue: "xs" });
+    await client.setClassProperty(taskId, effortSchemaId, { sequence: 1 });
 
     const pageId = await client.createObject({ isEmbedded: false, name: "Ship it" });
     await client.assignClass(pageId, taskId);
@@ -208,11 +214,11 @@ describe("Properties panel (effective values)", () => {
     expect(container.querySelectorAll(".nt-classes-row .pill:not(.pill--add)").length).toBe(1);
     expect(screen.queryByRole("button", { name: "Remove class Task" })).toBeNull();
 
-    // The read model: Task's derived defaults are gone; Project's 'high'
-    // resurfaces for priority (still bound), and the authored effort value
-    // survives marked unbound (boundBy null).
+    // The read model: Task's derived defaults are gone; the schema's single
+    // global 'medium' still derives via Project (still bound), and the
+    // authored effort value survives marked unbound (boundBy null).
     expect(client.getEffectiveProperties(pageId)).toEqual([
-      expect.objectContaining({ propertySchemaId: schemaId, value: "high", source: "default", boundBy: projectId }),
+      expect.objectContaining({ propertySchemaId: schemaId, value: "medium", source: "default", boundBy: projectId }),
       expect.objectContaining({ propertySchemaId: effortSchemaId, value: "authored", source: "authored", boundBy: null }),
     ]);
     // Manual (unbound) properties carry NO badge under the owner 2026-10-13
@@ -453,7 +459,7 @@ describe("dead carrier in the value cell (owner bug 2026-10-04; auto-unset owner
 describe("default-mirror sweep on class removal (owner rule)", () => {
   it("unassigning a class removes authored values that merely mirror its defaults; differing values survive", async () => {
     const client = await seedClient();
-    // A task-like class: status bound with defaultValue "pending".
+    // A task-like class: status with a SCHEMA-level default "pending".
     const statusSchema = await client.createPropertySchema({
       name: "status",
       type: "select",
@@ -463,10 +469,8 @@ describe("default-mirror sweep on class removal (owner rule)", () => {
       ],
     });
     const taskClass = await client.createClass("taskish");
-    await client.setClassProperty(taskClass, statusSchema, {
-      sequence: 0,
-      defaultValue: "opt-pending",
-    });
+    await client.setClassProperty(taskClass, statusSchema, { sequence: 0 });
+    await client.updatePropertySchema(statusSchema, { defaultValue: "opt-pending" });
 
     // Node A: authored value == the default (materialized legacy data).
     const nodeA = await client.createObject({ isEmbedded: false, name: "A" });
@@ -526,10 +530,8 @@ describe("the provenance flag (owner directive)", () => {
       ],
     });
     const klass = await client.createClass("taskish");
-    await client.setClassProperty(klass, statusSchema, {
-      sequence: 0,
-      defaultValue: "opt-pending",
-    });
+    await client.setClassProperty(klass, statusSchema, { sequence: 0 });
+    await client.updatePropertySchema(statusSchema, { defaultValue: "opt-pending" });
 
     // Node U: the user EXPLICITLY chose the default — provenance "user" pins it.
     const nodeU = await client.createObject({ isEmbedded: false, name: "U" });

@@ -277,24 +277,27 @@ export const classSetExtendsPayload = z
 
 /**
  * Class → property-schema binding upsert (SCHEMA.md "Class properties"):
- * a configuration row on `class_property` (sequence, defaultValue, active —
- * the genuinely PER-CLASS mechanics: panel order, the class's own default,
- * the class's soft-unbind). Row-level LWW by envelope HLC; on update, omitted
- * fields KEEP their existing values. `defaultValue` is any JSON value
- * (JSON-null is a real default; absent = keep).
+ * a configuration row on `class_property` (sequence + active — the genuinely
+ * PER-CLASS mechanics: panel order, the class's soft-unbind). Row-level LWW
+ * by envelope HLC; on update, omitted fields KEEP their existing values.
  *
- * (owner review 2026-10-05): the render contracts readonly,
- * hideWhenEmpty, display are PROPERTY-level characteristics and live on the
- * property schema (`propertySchema.create/update`) — the strict schema
- * rejects them here like any retired key. `required` is the exception the
- * owner kept at the binding: a property may be mandatory for one class and
- * optional for another. A binding answers "does THIS class use the property,
- * in what order, required or not, with what default"; a schema answers "what
- * the property is and how it behaves everywhere" (class-bound or not).
+ * (owner ruling 2026-10-20, the property-definition surfaces batch):
+ * `required` and `defaultValue` RETIRE from the binding. `required` is gone
+ * outright (its only render effect — hiding the icon-button's "None" row —
+ * was mild enforcement, contradicting the render-contract law: suggestion
+ * only, never enforcement). `defaultValue` MOVED to the property schema
+ * (propertySchema.create/update) — ONE global default per property, the
+ * Logseq shape; a per-class default was configuration creep the class page
+ * never needed. The strict schema rejects both keys like any retired key;
+ * live logs rewrite in place via scripts/migrate-drop-binding-required.mts
+ * (required strip + a defaultValue compensation per affected schema).
+ * A binding answers "does THIS class list the property, in what order"; a
+ * schema answers "what the property is, how it behaves, and what value it
+ * starts with everywhere" (class-bound or not).
  *
  * `active` (PC4, LOCKSTEP-PENDING): the soft-unbind flag — an
  * inactive binding row stops contributing to the effective-properties read
- * (no derived default, no sequence metadata) while AUTHORED property values
+ * (no sequence metadata) while AUTHORED property values
  * always survive (the row is kept, never deleted). Omitted = keep the stored
  * flag.
  */
@@ -303,8 +306,6 @@ export const classPropertySetPayload = z
     classId: uuid,
     propertySchemaId: uuid,
     sequence: z.number().int().optional(),
-    required: z.boolean().nullable().optional(),
-    defaultValue: z.unknown().optional(),
     active: z.boolean().optional(),
   })
   .strict();
@@ -420,6 +421,17 @@ export const propertySchemaCreatePayload = z
     numberDecimals: z.number().int().min(0).max(10).nullable().optional(),
     numberRounding: z.enum(["round", "floor", "ceil", "truncate"]).nullable().optional(),
     /**
+     * The property's DEFAULT VALUE (owner ruling 2026-10-20 — moved from the
+     * class binding to the schema, the Logseq shape): ONE global default per
+     * property, not per class. Typed per the schema type (PC2, validated at
+     * apply — node-typed schemas (datetime/object/asset) accept only JSON
+     * null, "a default that links a node is meaningless"). Absent = no
+     * default. Editing a default in the UI writes an authored property.set
+     * on the node, which from then on shadows the default (the derived-read
+     * law is unchanged).
+     */
+    defaultValue: z.unknown().nullable().optional(),
+    /**
      * (supersedes the binding-level field — owner correction
      * 2026-10-05: the position is a PROPERTY-level characteristic, like name
      * and options; bindings come and go, schemas are the surface): where a
@@ -434,12 +446,13 @@ export const propertySchemaCreatePayload = z
     /**
      * (owner review 2026-10-05): the render contracts are PROPERTY-level
      * — a property is readonly/hidden-when-empty everywhere it appears,
-     * whatever class binds it (or none). (`required` is the deliberate
-     * exception: it stays on the class binding — a property may be mandatory
-     * for one class, optional for another.) Keep/clear contract like the
-     * number formats: absent keeps, null clears. Clients: readonly
-     * dims/disables the editors (never blocks a write — PC1); hideWhenEmpty
-     * hides the row unless a value or derived default exists.
+     * whatever class binds it (or none). (`required` was the deliberate
+     * binding-level exception until the owner ruling 2026-10-20 retired it
+     * outright — the strict binding schema rejects it like any retired key.)
+     * Keep/clear contract like the number formats: absent keeps, null clears.
+     * Clients: readonly dims/disables the editors (never blocks a write —
+     * PC1); hideWhenEmpty hides the row unless a value or derived default
+     * exists.
      */
     readonly: z.boolean().nullable().optional(),
     hideWhenEmpty: z.boolean().nullable().optional(),
@@ -494,6 +507,11 @@ export const propertySchemaUpdatePayload = z
     numberPad: z.number().int().min(1).max(20).nullable().optional(),
     numberDecimals: z.number().int().min(0).max(10).nullable().optional(),
     numberRounding: z.enum(["round", "floor", "ceil", "truncate"]).nullable().optional(),
+    /** The default value (create-side doc above): absent keeps the stored
+     *  value, present-null clears it (the same keep/clear contract as the
+     *  number formats). Applicability + PC2 type-check run at apply time
+     *  against the schema's STORED type, exactly like validationRules. */
+    defaultValue: z.unknown().nullable().optional(),
     /**
      * The value-display position (create-side doc above). Update-side
      * keep/clear contract like the number formats: absent keeps the stored

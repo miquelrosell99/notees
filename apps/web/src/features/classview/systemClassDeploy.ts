@@ -137,6 +137,9 @@ export async function deploySystemClass(
         // ruling 2026-10-20, the seed-scope audit — weblink's url) — the
         // binding rows below land either way (bindings are per-class config).
         ...(spec!.global === true ? {} : { scopeClassIds: [classId] }),
+        // The spec's default is SCHEMA-level (owner ruling 2026-10-20 — one
+        // global default per property, the Logseq shape).
+        ...(spec!.defaultValue !== undefined ? { defaultValue: spec!.defaultValue } : {}),
         ...(spec!.options !== undefined ? { options: spec!.options } : {}),
         ...(spec!.targetClassFilter !== undefined
           ? { targetClassFilter: spec!.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
@@ -149,10 +152,7 @@ export async function deploySystemClass(
     for (const [name, spec] of family) {
       const schemaId = SYSTEM_PROPERTY_UUIDS[name];
       if (bound.has(schemaId)) continue;
-      await client.setClassProperty(classId, schemaId, {
-        sequence: sequence++,
-        ...(spec!.defaultValue !== undefined ? { defaultValue: spec!.defaultValue } : {}),
-      });
+      await client.setClassProperty(classId, schemaId, { sequence: sequence++ });
     }
   }
 

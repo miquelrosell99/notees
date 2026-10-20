@@ -223,10 +223,6 @@ export interface ClassBinding {
   /** Bound target class names (seed spec), null when unconstrained. */
   targetClassFilter: string[] | null;
   sequence: number;
-  /** Per-CLASS: the binding's required flag — a property may be
-   *  mandatory for one class, optional for another. */
-  required: boolean | null;
-  defaultValue: string | null;
   /** SCHEMA.md "Dates": schema-row date behavior (null = day / not qualified). */
   datePrecision: DatePrecision | null;
   dateQualified: boolean | null;
@@ -243,21 +239,12 @@ export interface ClassBinding {
  * by the extends-aware getClassBindings read and the own-rows-only
  * getRegistryBindings read. Title-is-content: the schema ROW is the naming
  * authority (renames and user edits ride it); only a missing row falls back
- * to a synthesized label at the call site.
+ * to a synthesized label at the call site. The binding carries the genuinely
+ * PER-CLASS mechanics ONLY (sequence + active — owner ruling 2026-10-20:
+ * `required` retired outright, `defaultValue` moved to the schema, one
+ * global default per property, the Logseq shape).
  */
 export function mapClassBindingRow(row: Record<string, unknown>): ClassBinding {
-  const decodeDefault = (raw: string | null): string | null => {
-    if (raw === null) return null;
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      // A cleared default (explicit JSON null) reads back as no default —
-      // never as the string "null" (the old decode artifact).
-      if (parsed === null) return null;
-      return typeof parsed === "string" ? parsed : JSON.stringify(parsed);
-    } catch {
-      return raw;
-    }
-  };
   const parsePrecision = (raw: unknown): DatePrecision | null =>
     raw === "year" || raw === "month" || raw === "day" ? raw : null;
   let targetClassFilter: string[] | null = null;
@@ -276,8 +263,6 @@ export function mapClassBindingRow(row: Record<string, unknown>): ClassBinding {
     multi: row.multi === 1,
     targetClassFilter,
     sequence: (row.sequence as number) ?? 0,
-    required: row.required === null || row.required === undefined ? null : row.required === 1,
-    defaultValue: decodeDefault((row.default_value as string | null) ?? null),
     datePrecision: parsePrecision(row.date_precision),
     dateQualified:
       row.date_qualified === null || row.date_qualified === undefined
@@ -313,8 +298,6 @@ export interface ClientValidationRules {
 /** Editable fields of a class.property.set write (all optional — patch). */
 export interface SetClassPropertyInput {
   sequence?: number;
-  required?: boolean | null;
-  defaultValue?: unknown;
   active?: boolean;
 }
 
@@ -376,6 +359,9 @@ export interface UpdatePropertySchemaInput {
   numberPad?: number | null;
   numberDecimals?: number | null;
   numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
+  /** The GLOBAL default (owner ruling 2026-10-20): absent keeps, null
+   *  clears (PC2-typed at apply against the schema's stored type). */
+  defaultValue?: unknown;
   /** The render contracts (PROPERTY-level): absent keeps, null clears. */
   display?: PropertyDisplay | null;
   readonly?: boolean | null;
@@ -409,6 +395,8 @@ export interface ClientPropertySchema {
   hideWhenEmpty?: boolean | null;
   /** Value-validation rules (null = none). */
   validationRules?: ClientValidationRules | null;
+  /** The GLOBAL default (owner ruling 2026-10-20): parsed JSON, null = none. */
+  defaultValue: unknown | null;
 }
 
 /**
@@ -445,6 +433,9 @@ export interface CreatePropertySchemaInput {
   targetClassFilter?: string[];
   datePrecision?: DatePrecision;
   dateQualified?: boolean;
+  /** The GLOBAL default (owner ruling 2026-10-20 — one default per
+   *  property; PC2-typed at apply against the create payload's type). */
+  defaultValue?: unknown;
 }
 
 /**
@@ -484,8 +475,6 @@ export interface EffectiveProperty {
    *  and callers render it honestly; derived defaults never materialize for
    *  ineligible nodes, so they always read true. */
   eligible: boolean;
-  /** Per-CLASS: the winning binding's required flag. */
-  required: boolean | null;
   /** PROPERTY-level: the schema's render contracts — the same for
    *  every carrier, class-bound or not. */
   readonly: boolean | null;

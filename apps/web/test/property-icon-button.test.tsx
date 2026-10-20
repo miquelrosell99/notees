@@ -3,8 +3,9 @@
  * bullet/inline display position rides the block row as an icon button —
  * the current option's MDI icon tinted with its color (the at-a-glance state
  * read), or a subdued hollow circle when unset. Clicking opens the options
- * popover (checkmark on the selected; multi toggles; a None clear row when
- * not required). Writes go through setProperty/unsetProperty; the disabled
+ * popover (checkmark on the selected; multi toggles; a None clear row —
+ * always offered, the "required" binding flag retired outright, owner
+ * ruling 2026-10-20). Writes go through setProperty/unsetProperty; the disabled
  * projection renders the icon without the popover. jsdom over the
  * in-process WorkspaceClient, mounted through PageView (the block-metadata
  * mounting style).
@@ -116,7 +117,7 @@ describe("PropertyIconButton", () => {
     // The other options render without a check.
     expect(within(menu).getByRole("menuitem", { name: "Done" }).querySelector(".nt-propicon-option__check")).toBeNull();
     expect(within(menu).getByRole("menuitem", { name: "Plain" })).not.toBeNull();
-    // Value set + not required → the None clear row.
+    // Value set → the None clear row (always — "required" retired outright).
     expect(within(menu).getByRole("menuitem", { name: "None" })).not.toBeNull();
   });
 
@@ -226,7 +227,6 @@ describe("PropertyIconButton", () => {
         options={options}
         rows={rows}
         multi={false}
-        required={false}
         disabled
       />,
     );
@@ -271,7 +271,7 @@ describe("PropertyIconButton boolean mode", () => {
     const falseRow = within(menu).getByRole("menuitem", { name: "False" });
     expect(falseRow.querySelector(".nt-propicon-option__check")).toBeNull();
     expect(falseRow.querySelector("svg")!.style.color).toContain("--md-sys-color-preset-gray");
-    // Value set + not required → the None clear row.
+    // Value set → the None clear row (always — "required" retired outright).
     expect(within(menu).getByRole("menuitem", { name: "None" })).not.toBeNull();
   });
 

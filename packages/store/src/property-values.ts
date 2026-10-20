@@ -174,13 +174,14 @@ export function assertValueShapeForType(type: string, value: unknown, opType: st
 }
 
 /**
- * PC2: a class-binding defaultValue must be typed per the schema type.
+ * PC2: a schema defaultValue must be typed per the schema type.
  * Node-typed schemas (datetime/object) accept only JSON null — a default
  * that links a node is meaningless; the citations family binds
  * text/number/select defaults, never links.
  * `text` accepts scalar strings (the raw-text default editor's shape), not
  * carrier references. Returns false instead of throwing so the read model
- * can drop silently; the write path (class.property.set) fails loud.
+ * can drop silently; the write path (propertySchema.create/update) fails
+ * loud.
  */
 export function isValidDefaultForType(type: string, value: unknown): boolean {
   if (value === null) return true;

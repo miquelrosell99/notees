@@ -728,17 +728,10 @@ describe("datetime (SCHEMA.md)", () => {
     fireEvent.click(screen.getByRole("button", { name: /class properties/i }));
     await flushWrites();
 
-    // R7 (2026-10-20): precision/qualified are definition-level — the
-    // row's cog ("Definition settings for …") opens the S2 modal where
-    // they live (the in-row expansion holds class-level fields only).
-    // Row-scoped: expanded rows stay expanded, so both panels can be open.
-    const publishedRow = screen
-      .getByRole("button", { name: "Configure published" })
-      .closest("li") as HTMLElement;
-    fireEvent.click(within(publishedRow).getByRole("button", { name: "Configure published" }));
-    fireEvent.click(
-      within(publishedRow).getByRole("button", { name: "Definition settings for published" }),
-    );
+    // R7 + the same-day amendment (owner ruling 2026-10-20): precision/
+    // qualified are definition-level — the row click opens the S2 modal
+    // where they live (the class-level inline editor is gone).
+    fireEvent.click(screen.getByRole("button", { name: "Open property published" }));
     fireEvent.change(screen.getByLabelText("Date precision"), {
       target: { value: "year" },
     });
@@ -749,13 +742,7 @@ describe("datetime (SCHEMA.md)", () => {
     fireEvent.click(screen.getByLabelText("Close modal"));
     await flushWrites();
 
-    const memberRow = screen
-      .getByRole("button", { name: "Configure member" })
-      .closest("li") as HTMLElement;
-    fireEvent.click(within(memberRow).getByRole("button", { name: "Configure member" }));
-    fireEvent.click(
-      within(memberRow).getByRole("button", { name: "Definition settings for member" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Open property member" }));
     fireEvent.click(screen.getByLabelText("Date range qualifiers"));
     await flushWrites();
     expect(

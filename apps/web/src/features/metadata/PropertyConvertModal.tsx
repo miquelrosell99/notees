@@ -288,6 +288,15 @@ export function PropertyConvertModal({
           ...(schema.hideWhenEmpty != null ? { hideWhenEmpty: schema.hideWhenEmpty } : {}),
         });
       }
+      // The GLOBAL default carries over when it type-checks against the new
+      // type (owner ruling 2026-10-20 — defaults are schema-level); an
+      // incompatible default is dropped (the new schema starts defaultless;
+      // the old schema is deleted below anyway).
+      if (schema.defaultValue !== null && schema.defaultValue !== undefined) {
+        if (isValidDefaultForType(targetType, schema.defaultValue)) {
+          await client.updatePropertySchema(createdId, { defaultValue: schema.defaultValue });
+        }
+      }
       // Copy mappable values at their slot idx; a PG6 validation failure
       // lands in the dropped list with the applier's reason.
       let copied = 0;
@@ -313,13 +322,11 @@ export function PropertyConvertModal({
           .getClassBindings(klass.id)
           .find((b) => b.propertySchemaId === schema.id);
         if (binding === undefined) continue;
+        // The binding is sequence-only (required/defaultValue retired or
+        // moved to the schema — owner ruling 2026-10-20); the default
+        // carried over onto the new schema above.
         await client.setClassProperty(klass.id, createdId, {
           sequence: binding.sequence,
-          ...(binding.required !== null ? { required: binding.required } : {}),
-          ...(binding.defaultValue !== null && binding.defaultValue !== undefined &&
-          isValidDefaultForType(targetType, binding.defaultValue)
-            ? { defaultValue: binding.defaultValue }
-            : {}),
         });
         await client.unsetClassProperty(klass.id, schema.id);
       }

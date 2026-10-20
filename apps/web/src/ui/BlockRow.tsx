@@ -498,7 +498,6 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     options: SelectionOption[];
     rows: EffectiveProperty[];
     multi: boolean;
-    required: boolean;
     boolean: boolean;
     display: "bullet" | "inline";
     sequence: number;
@@ -509,7 +508,6 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     options: SelectionOption[];
     rows: EffectiveProperty[];
     multi: boolean;
-    required: boolean;
     boolean: boolean;
     display: "bullet" | "inline";
     sequence: number;
@@ -538,7 +536,6 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
           options: schemasById.get(row.propertySchemaId)?.options ?? [],
           rows: groupRows,
           multi: row.schema?.multi ?? type === "multi_select",
-          required: groupRows.some((r) => r.required === true),
           boolean: type === "boolean",
           display,
           sequence: row.sequence ?? Number.MAX_SAFE_INTEGER,
@@ -568,7 +565,6 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
             options,
             rows: [],
             multi: binding.multi,
-            required: binding.required === true,
             boolean: isBoolean,
             display,
             sequence: binding.sequence,
@@ -840,7 +836,6 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                 options={group.options}
                 rows={group.rows}
                 multi={group.multi}
-                required={group.required}
                 boolean={group.boolean}
                 disabled={readOnly}
               />
@@ -859,7 +854,6 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                 options={group.options}
                 rows={group.rows}
                 multi={group.multi}
-                required={group.required}
                 boolean={group.boolean}
                 disabled={readOnly}
               />

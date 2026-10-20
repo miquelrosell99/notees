@@ -3,12 +3,16 @@
  * property view the panel and queries read through.
  *
  *   effective(node, schema, idx) = authored property_value
- *                                  ?? winning binding's defaultValue
+ *                                  ?? the SCHEMA's defaultValue
  *
  * Authored rows always win and survive class removal (design law); derived
  * defaults are computed HERE, never materialized — the applier writes no
  * property_value rows for them, which gives convergence and cleanup for free.
- * Authored rows come through the PG5 visible-set derivation
+ * The default is SCHEMA-level (owner ruling 2026-10-20 — one global default
+ * per property, the Logseq shape): a winning ACTIVE binding still decides
+ * WHICH properties a class's nodes carry (and supplies sequence/boundBy),
+ * but the default VALUE comes from the schema row. Authored rows come
+ * through the PG5 visible-set derivation
  * (property-values.ts: slot tombstones + element tombstones) and carry their
  * stable element id. Binding conflicts resolve per the SCHEMA.md diamond rule
  * (PG4): OWN bindings first (first-class-applied-wins — the class
@@ -16,7 +20,7 @@
  * id), then INHERITED bindings by shortest extends-path (BFS over
  * class_extends; the class itself is distance 0), ties by the same assignment
  * order — and only ACTIVE rows are candidates (PC4: an inactive binding stops
- * contributing defaults + metadata while authored values survive, read as
+ * contributing metadata while authored values survive, read as
  * unbound). Deterministic on every replica — a pure read over derived tables,
  * no writes, no clocks.
  */
@@ -71,9 +75,6 @@ export interface EffectiveProperty {
   metadata: Record<string, unknown> | null;
   source: "authored" | "default";
   boundBy: string | null;
-  /** Per-CLASS: the winning binding's required flag — a property
-   *  may be mandatory for one class, optional for another. */
-  required: boolean | null;
   /** PROPERTY-level: the schema's render contracts — the same for
    *  every carrier, class-bound or not. */
   readonly: boolean | null;
@@ -160,8 +161,6 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
   interface BindingRow {
     property_schema_id: string;
     sequence: number;
-    required: number | null;
-    default_value: string | null;
   }
   interface BindingCandidate {
     distance: number;
@@ -194,7 +193,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     return reach;
   };
   const bindingStmt = db.prepare(
-    `SELECT property_schema_id, sequence, required, default_value
+    `SELECT property_schema_id, sequence
      FROM class_property WHERE class_id = ? AND active = 1`,
   );
   const candidatesBySchema = new Map<string, BindingCandidate[]>();
@@ -235,6 +234,8 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     ...winnerBySchema.keys(),
   ]);
   const schemas = new Map<string, EffectivePropertySchema>();
+  /** The schema's stored default (parsed JSON; undefined = no default). */
+  const schemaDefault = new Map<string, unknown>();
   if (schemaIds.size > 0) {
     const placeholders = [...schemaIds].map(() => "?").join(",");
     const rows = db
@@ -242,7 +243,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
         `SELECT id, name, type, multi, icon, scope_class_ids, validation_rules,
                 date_precision, date_qualified,
                 number_pad, number_decimals, number_rounding,
-                display, readonly, hide_when_empty
+                display, readonly, hide_when_empty, default_value
          FROM property_schema WHERE id IN (${placeholders})`,
       )
       .all(...schemaIds) as Array<{
@@ -261,8 +262,10 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       display: string | null;
       readonly: number | null;
       hide_when_empty: number | null;
+      default_value: string | null;
     }>;
     for (const row of rows) {
+      if (row.default_value !== null) schemaDefault.set(row.id, parseJson(row.default_value));
       schemas.set(row.id, {
         id: row.id,
         name: row.name,
@@ -338,10 +341,9 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       metadata: authored.metadata !== null ? (parseJson(authored.metadata) as Record<string, unknown>) : null,
       source: "authored",
       boundBy: winner?.classId ?? null,
-      // Required is per-CLASS (the winning binding); readonly/
-      // hideWhenEmpty/display are per-PROPERTY (the schema — unbound values
-      // included, the owner's multi-class/unbound cases).
-      required: winner ? flag(winner.binding.required) : null,
+      // Readonly/hideWhenEmpty/display are per-PROPERTY (the schema — unbound
+      // values included, the owner's multi-class/unbound cases); sequence is
+      // per-CLASS (the winning binding).
       readonly: schema?.readonly ?? null,
       hideWhenEmpty: schema?.hideWhenEmpty ?? null,
       sequence: winner ? winner.binding.sequence : null,
@@ -354,7 +356,11 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
 
   for (const [schemaId, winner] of winnerBySchema) {
     const { binding, classId } = winner;
-    if (binding.default_value === null) continue; // bound without a default
+    // The default VALUE is schema-level (owner ruling 2026-10-20): the
+    // winning binding decides the property is present (and supplies
+    // sequence/boundBy), the schema row supplies the value.
+    if (!schemaDefault.has(schemaId)) continue; // schema without a default
+    const defaultValue = schemaDefault.get(schemaId);
     // R4 (owner ruling 2026-10-20): an ineligible node shows NEITHER the
     // property NOR a derived default from an out-of-scope binding — a stray
     // binding must not render a value for a property the node can't have.
@@ -364,18 +370,17 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     // type (written before validation, or after a delete+recreate changed
     // the type) yields no default rather than a wrong-typed value.
     const schema = schemaForEligibility;
-    if (schema && !isValidDefaultForType(schema.type, parseJson(binding.default_value))) continue;
+    if (schema && !isValidDefaultForType(schema.type, defaultValue)) continue;
     if (shadowedDefaultSchemas.has(schemaId)) continue; // authored at idx 0 shadows the default
     push(`${schemaId}:0:default`, {
       propertySchemaId: schemaId,
       idx: 0,
       elementId: `default:${schemaId}:0`,
       schema: schema ?? null,
-      value: parseJson(binding.default_value),
+      value: defaultValue,
       metadata: null,
       source: "default",
       boundBy: classId,
-      required: flag(binding.required),
       readonly: schema?.readonly ?? null,
       hideWhenEmpty: schema?.hideWhenEmpty ?? null,
       sequence: binding.sequence,

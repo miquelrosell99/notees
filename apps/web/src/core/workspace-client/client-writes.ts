@@ -208,16 +208,21 @@ export class WorkspaceClientWrites {
     const bindings = this.reads.getClassBindings(classId);
     if (bindings.length > 0) {
       const authored = this.props.getEffectiveProperties(id).filter((row) => row.source === "authored");
+      // The default is SCHEMA-level (owner ruling 2026-10-20) — one global
+      // default per property, whatever class binds it.
+      const schemas = this.props.listPropertySchemas();
       for (const binding of bindings) {
-        const defaultJson = JSON.stringify(binding.defaultValue ?? null);
+        const defaultValue =
+          schemas.find((schema) => schema.id === binding.propertySchemaId)?.defaultValue ?? null;
+        const defaultJson = JSON.stringify(defaultValue ?? null);
         for (const row of authored) {
           if (row.propertySchemaId !== binding.propertySchemaId) continue;
           const provenance =
             typeof row.metadata?.provenance === "string" ? row.metadata.provenance : null;
           const mirrorsDefault =
             JSON.stringify(row.value) === defaultJson &&
-            binding.defaultValue !== null &&
-            binding.defaultValue !== undefined;
+            defaultValue !== null &&
+            defaultValue !== undefined;
           const sweep =
             provenance === "system" ? true : provenance === "user" ? false : mirrorsDefault;
           if (!sweep) continue;
@@ -313,8 +318,10 @@ export class WorkspaceClientWrites {
 
   /**
    * Upsert a class → property-schema binding (class.property.set). The
-   * payload PATCHES the row: omitted fields keep their existing values.
-   * Applied locally, push kicked off.
+   * payload PATCHES the row: omitted fields keep their existing values. The
+   * binding carries the genuinely per-class mechanics ONLY (sequence +
+   * active — owner ruling 2026-10-20 retired `required` and moved
+   * `defaultValue` to the schema; see updatePropertySchema).
    */
   async setClassProperty(
     classId: string,
@@ -323,8 +330,6 @@ export class WorkspaceClientWrites {
   ): Promise<void> {
     const payload: Record<string, unknown> = { classId, propertySchemaId };
     if (fields.sequence !== undefined) payload.sequence = fields.sequence;
-    if (fields.required !== undefined) payload.required = fields.required;
-    if (fields.defaultValue !== undefined) payload.defaultValue = fields.defaultValue;
     if (fields.active !== undefined) payload.active = fields.active;
     this.ctx.enqueueLocal(this.ctx.buildEnvelope("class.property.set", payload, [classId]));
   }
@@ -358,6 +363,7 @@ export class WorkspaceClientWrites {
     if (input.targetClassFilter !== undefined) payload.targetClassFilter = input.targetClassFilter;
     if (input.datePrecision !== undefined) payload.datePrecision = input.datePrecision;
     if (input.dateQualified !== undefined) payload.dateQualified = input.dateQualified;
+    if (input.defaultValue !== undefined) payload.defaultValue = input.defaultValue;
     this.ctx.enqueueLocal(this.ctx.buildEnvelope("propertySchema.create", payload, []));
     return id;
   }
@@ -384,6 +390,9 @@ export class WorkspaceClientWrites {
     if (fields.numberPad !== undefined) payload.numberPad = fields.numberPad;
     if (fields.numberDecimals !== undefined) payload.numberDecimals = fields.numberDecimals;
     if (fields.numberRounding !== undefined) payload.numberRounding = fields.numberRounding;
+    // The global default (owner ruling 2026-10-20): keep/clear — absent
+    // keeps, present-null clears; PC2 type-check runs at apply.
+    if (fields.defaultValue !== undefined) payload.defaultValue = fields.defaultValue;
     if (fields.display !== undefined) payload.display = fields.display;
     if (fields.readonly !== undefined) payload.readonly = fields.readonly;
     if (fields.hideWhenEmpty !== undefined) payload.hideWhenEmpty = fields.hideWhenEmpty;

@@ -383,36 +383,48 @@ describe("class property binding routes", () => {
     return schemaId;
   }
 
-  it("POST binds sequence/required/defaultValue and the effective read derives the default (the render contracts are schema-level)", async () => {
+  it("POST binds sequence/active and the schema's global default derives (the render contracts + default are schema-level)", async () => {
     const classId = await createClass("pg7-shelf");
     // Scoped to the binding class (the sole locality authority, owner ruling
     // 2026-10-20) — R5 accepts the binding below.
     const schemaId = await createSchema("pg7-code", { scopeClassIds: [classId] });
 
     const bound = await api("POST", `/api/classes/${classId}/properties`, {
-      payload: { propertySchemaId: schemaId, sequence: 2, required: true, defaultValue: "n/a" },
+      payload: { propertySchemaId: schemaId, sequence: 2 },
     });
     expect(bound.statusCode).toBe(200);
     // The binding echo carries ONLY the per-class mechanics.
     expect(bound.json()).toMatchObject({
       classId,
       propertySchemaId: schemaId,
-      binding: { propertySchemaId: schemaId, sequence: 2, required: true, defaultValue: "n/a" },
+      binding: { propertySchemaId: schemaId, sequence: 2 },
     });
     expect(bound.json().binding).not.toHaveProperty("readonly");
     expect(bound.json().binding).not.toHaveProperty("hideWhenEmpty");
 
+    // The retired binding keys fail loud (owner ruling 2026-10-20).
+    const retired = await api("POST", `/api/classes/${classId}/properties`, {
+      payload: { propertySchemaId: schemaId, required: true },
+    });
+    expect(retired.statusCode).toBe(422);
+    const retiredDefault = await api("POST", `/api/classes/${classId}/properties`, {
+      payload: { propertySchemaId: schemaId, defaultValue: "n/a" },
+    });
+    expect(retiredDefault.statusCode).toBe(422);
+
     // The patch contract: omitted fields keep their values.
     const patched = await api("POST", `/api/classes/${classId}/properties`, {
-      payload: { propertySchemaId: schemaId, required: false },
+      payload: { propertySchemaId: schemaId, sequence: 3 },
     });
-    expect(patched.json().binding).toMatchObject({ sequence: 2, required: false });
+    expect(patched.json().binding).toMatchObject({ sequence: 3 });
 
-    // The render contracts live on the SCHEMA (required stays per-class).
+    // The render contracts AND the default live on the SCHEMA (owner ruling
+    // 2026-10-20 — one global default per property, the Logseq shape).
     const schemaPatched = await api("PATCH", `/api/property-schemas/${schemaId}`, {
-      payload: { readonly: true, hideWhenEmpty: true },
+      payload: { readonly: true, hideWhenEmpty: true, defaultValue: "n/a" },
     });
     expect(schemaPatched.statusCode).toBe(200);
+    expect(schemaPatched.json().propertySchema).toMatchObject({ defaultValue: "n/a" });
 
     const member = (
       await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "pg7-book", classIds: [classId] } })
@@ -425,18 +437,17 @@ describe("class property binding routes", () => {
       value: "n/a",
       source: "default",
       boundBy: classId,
-      required: false,
       readonly: true,
       hideWhenEmpty: true,
     });
   });
 
-  it("POST fails loud on a wrong-typed defaultValue and on unknown class/schema", async () => {
+  it("PATCH fails loud on a wrong-typed schema defaultValue and POST fails loud on unknown class/schema", async () => {
     const classId = await createClass("pg7-shelf-2");
     const schemaId = await createSchema("pg7-code-2", { scopeClassIds: [classId] });
 
-    const bad = await api("POST", `/api/classes/${classId}/properties`, {
-      payload: { propertySchemaId: schemaId, defaultValue: 42 },
+    const bad = await api("PATCH", `/api/property-schemas/${schemaId}`, {
+      payload: { defaultValue: 42 },
     });
     expect(bad.statusCode).toBe(422);
     expect(bad.json().error.code).toBe("validation_failed");
@@ -460,8 +471,11 @@ describe("class property binding routes", () => {
   it("DELETE unbinds: the default stops deriving, authored values survive", async () => {
     const classId = await createClass("pg7-shelf-3");
     const schemaId = await createSchema("pg7-code-3", { scopeClassIds: [classId] });
+    await api("PATCH", `/api/property-schemas/${schemaId}`, {
+      payload: { defaultValue: "def" },
+    });
     await api("POST", `/api/classes/${classId}/properties`, {
-      payload: { propertySchemaId: schemaId, sequence: 0, defaultValue: "def" },
+      payload: { propertySchemaId: schemaId, sequence: 0 },
     });
     const member = (
       await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "pg7-member", classIds: [classId] } })
@@ -502,32 +516,50 @@ describe("effective-properties endpoint", () => {
     expect(created.statusCode).toBe(201);
     const id = created.json().id as string;
 
-    // Bind a default onto the seeded source class via the relay batch.
-    const envelope = {
-      id: "0192a000-0000-7000-8000-000000000601",
-      protocolVersion: 3,
-      workspaceId: server!.ctx.defaultWorkspace,
-      actorId: "0192a000-0000-7000-8000-000000000002",
-      deviceId: "test-device",
-      hlc: { physical: 9999999999999, logical: 0 },
-      affectedNodeIds: [SYSTEM_CLASS_UUIDS.source],
-      opType: "class.property.set",
-      timestamp: "2026-09-27T10:00:00.000Z",
-      payload: {
-        classId: SYSTEM_CLASS_UUIDS.source,
-        propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey,
-        sequence: 40,
-        defaultValue: "default-key",
+    // Bind the seeded source class's citekey and give the SCHEMA its global
+    // default via the relay batch (owner ruling 2026-10-20 — defaults are
+    // schema-level).
+    const envelopes = [
+      {
+        id: "0192a000-0000-7000-8000-000000000601",
+        protocolVersion: 3,
+        workspaceId: server!.ctx.defaultWorkspace,
+        actorId: "0192a000-0000-7000-8000-000000000002",
+        deviceId: "test-device",
+        hlc: { physical: 9999999999999, logical: 0 },
+        affectedNodeIds: [SYSTEM_CLASS_UUIDS.source],
+        opType: "propertySchema.update",
+        timestamp: "2026-09-27T10:00:00.000Z",
+        payload: {
+          propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey,
+          defaultValue: "default-key",
+        },
       },
-    };
+      {
+        id: "0192a000-0000-7000-8000-000000000602",
+        protocolVersion: 3,
+        workspaceId: server!.ctx.defaultWorkspace,
+        actorId: "0192a000-0000-7000-8000-000000000002",
+        deviceId: "test-device",
+        hlc: { physical: 9999999999999, logical: 1 },
+        affectedNodeIds: [SYSTEM_CLASS_UUIDS.source],
+        opType: "class.property.set",
+        timestamp: "2026-09-27T10:00:00.100Z",
+        payload: {
+          classId: SYSTEM_CLASS_UUIDS.source,
+          propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey,
+          sequence: 40,
+        },
+      },
+    ];
     const batch = await server!.app.inject({
       method: "POST",
       url: "/api/relay/v2/batch",
       headers: { ...server!.authHeaders, "content-type": "application/json" },
-      payload: { envelopes: [envelope] },
+      payload: { envelopes },
     });
     expect(batch.statusCode).toBe(200);
-    expect(batch.json().savedCount).toBe(1);
+    expect(batch.json().savedCount).toBe(2);
 
     const res = await api("GET", `/api/objects/${id}/effective-properties`);
     expect(res.statusCode).toBe(200);
