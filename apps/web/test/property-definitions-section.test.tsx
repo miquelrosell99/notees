@@ -147,10 +147,10 @@ describe("S6 PropertyDefinitionsSection", () => {
     await expandSection();
 
     fireEvent.click(screen.getByRole("button", { name: "Configure link" }));
-    // R7: target-class editing left the inline panel — the panel's "Edit
-    // definition…" opens the S2 modal, whose Target classes field writes
+    // R7: target-class editing left the inline panel — the row's COG opens
+    // the S2 modal directly, whose Target classes field writes
     // update {targetClassFilter}.
-    fireEvent.click(screen.getByRole("button", { name: "Edit definition…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Definition settings for link" }));
     const dialog = screen.getByRole("dialog");
     // The ClassMultiPickField's SelectTrigger adds the class.
     fireEvent.click(within(dialog).getByRole("button", { name: "Target classes" }));
@@ -180,7 +180,7 @@ describe("S6 PropertyDefinitionsSection", () => {
     await expandSection();
 
     fireEvent.click(screen.getByRole("button", { name: "Configure link" }));
-    fireEvent.click(screen.getByRole("button", { name: "Edit definition…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Definition settings for link" }));
     const dialog = screen.getByRole("dialog");
     expect(
       within(dialog).getByText(`Unresolved targets (kept until edited): ${GHOST}`),
@@ -198,11 +198,18 @@ describe("S6 PropertyDefinitionsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Configure link" }));
     await flushWrites();
     const row = container.querySelector(".nt-propdef") as HTMLElement;
-    // Stays: identity header, the "For this class" group, the modal path.
-    expect(within(row).getByText("For this class")).not.toBeNull();
-    expect(within(row).getByRole("button", { name: "Edit definition…" })).not.toBeNull();
+    // Stays (class-level, the only inline fields): default value + Required
+    // + the Remove action. The definition path is the row's COG, not a
+    // panel button (owner amendment: no "Edit definition…" in the panel).
+    expect(within(row).getByLabelText("Default for link")).not.toBeNull();
+    expect(within(row).getByRole("checkbox", { name: "Required for link" })).not.toBeNull();
+    expect(within(row).getByRole("button", { name: "Remove from class" })).not.toBeNull();
+    // Gone: group labels, the active switch, the panel's modal path.
+    expect(within(row).queryByText("For this class")).toBeNull();
+    expect(within(row).queryByRole("switch")).toBeNull();
+    expect(within(row).queryByRole("button", { name: "Edit definition…" })).toBeNull();
     // Gone (definition-level, the modal's home): rename, type/Convert,
-    // multi/Values, target classes, the duplicated group label.
+    // multi/Values, target classes.
     expect(within(row).queryByText("Definition")).toBeNull();
     expect(within(row).queryByText("Target classes")).toBeNull();
     expect(within(row).queryByRole("button", { name: "Convert…" })).toBeNull();
