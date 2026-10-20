@@ -32,7 +32,10 @@
  *   button — the workspace card's "Open workspace" twin (ghost/sm,
  *   right arrow) — rides the cell's right edge
  *   regardless of the text: click opens, shift+click peeks the node in
- *   the sidebar card.
+ *   the sidebar card. The peek rides the container's `onNodeShiftClick`,
+ *   falling back to the enclosing OutlinerContext's `openInSidebar`
+ *   (CardsView's precedent) so un-wired hosts (the class page's Classed
+ *   nodes section, query blocks) peek too.
  * - CSV export: the toolbar "…" menu's "Export CSV"
  *   downloads the CURRENT view — the visible columns × the full sorted
  *   result set (the window is display-only, never an export cut) — through
@@ -51,7 +54,7 @@
  *   next to the Columns/Sort configurators.
  */
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { isRangeDatetimeValue, isValidTimeOfDay, parseDateNodeId } from "@notees/domain";
 import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
@@ -68,6 +71,7 @@ import { ImportTableModal } from "../modals/ImportTableModal.js";
 import { downloadBlob } from "../modals/download.js";
 import { exportTimestamp } from "../export/exportSubtree.js";
 import { nodeIcon } from "../../ui/iconFor.js";
+import { OutlinerContext } from "../../ui/outliner-context.js";
 import { displayNameForSettings, displayNameFromClient, datetimeValueText, formatIsoDate } from "../../ui/dateDisplay.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
@@ -485,10 +489,14 @@ function NameCell({
   node,
   icon,
   props,
+  onPeek,
 }: {
   node: ClientNode;
   icon: string | null;
   props: NodeCollectionProps;
+  /** The peek target — the container's onNodeShiftClick or the enclosing
+      context's openInSidebar fallback (TableView computes it). */
+  onPeek: (id: string) => void;
 }) {
   const { client } = props;
   const [editing, setEditing] = useState(false);
@@ -517,7 +525,7 @@ function NameCell({
         <OpenButton
           label={label}
           onOpen={() => props.onNodeClick?.(node.id)}
-          onPeek={() => props.onNodeShiftClick?.(node.id)}
+          onPeek={() => onPeek(node.id)}
         />
       </span>
     );
@@ -529,7 +537,7 @@ function NameCell({
         className="nt-table-name-btn"
         title={simple ? `${label} (click to edit)` : label}
         onClick={(event) => {
-          if (event.shiftKey) props.onNodeShiftClick?.(node.id);
+          if (event.shiftKey) onPeek(node.id);
           else if (simple) setEditing(true);
           else props.onNodeClick?.(node.id);
         }}
@@ -540,7 +548,7 @@ function NameCell({
       <OpenButton
         label={label}
         onOpen={() => props.onNodeClick?.(node.id)}
-        onPeek={() => props.onNodeShiftClick?.(node.id)}
+        onPeek={() => onPeek(node.id)}
       />
     </span>
   );
@@ -777,6 +785,15 @@ function SortPanel({
 export function TableView(props: NodeCollectionProps) {
   const { client, items = [], tableColumns, propertiesOf, onNodeClick, onNodeShiftClick, defaultSort } = props;
   const columns = tableColumns ?? DEFAULT_COLUMNS;
+  /**
+   * The peek fallback (CardsView's openInSidebar precedent): a container
+   * that doesn't pass onNodeShiftClick (the class page's Classed nodes
+   * section, query blocks) still peeks into the right-sidebar cards when the
+   * table rides inside a page's OutlinerContext; the shell hubs pass the
+   * prop explicitly and never reach the fallback.
+   */
+  const outer = useContext(OutlinerContext);
+  const peekNode = (id: string) => (onNodeShiftClick ?? outer?.openInSidebar)?.(id);
   // Hosted collections: the toolbar portals into the tab bar's right-hand
   // cluster; un-hosted it rides the body top.
   const chromeTarget = useViewChromeTarget();
@@ -969,7 +986,7 @@ export function TableView(props: NodeCollectionProps) {
       const icon = nodeIcon(node, iconMap);
       return (
         <td key={column.id} className="nt-table-name">
-          <NameCell node={node} icon={icon} props={props} />
+          <NameCell node={node} icon={icon} props={props} onPeek={peekNode} />
         </td>
       );
     }
