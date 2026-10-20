@@ -112,7 +112,7 @@ try {
   await longRow.getByRole("button", { name: /Configure A genuinely long/ }).click();
   await pg.waitForTimeout(400);
   await longRow.getByLabel(/Default for A genuinely long/).fill("Nothing to say");
-  await longRow.getByRole("checkbox", { name: /Required for A genuinely long/ }).click();
+  await longRow.getByRole("checkbox", { name: "Required" }).click();
   await pg.locator(".nt-page-header").first().click();
   await pg.waitForTimeout(700);
   console.log("STAGE flags written");

@@ -9,27 +9,29 @@
  * nothing binding-level is editable there).
  *
  * Collapsed row (the 99% state, the Notion database-property-row
- * pattern): hover-revealed drag grip (dnd-kit, reorder → sequence
- * writes), the schema icon (the owner-2026-10-20 icon field, per-type
- * glyph fallback), and the name (min-width 0 + ellipsis). NOTHING else —
- * no chips, no row-level flag toggle. Inactive bindings dim the name (the
- * only disabled cue). The row click expands the config; hover also reveals
- * the row's two icon actions — a COG opening the S2 base-definition modal
- * and a REMOVE × (the section-level danger confirm; hidden for system
- * property schemas — non-removable means absent). Removal
- * never requires opening the config.
+ * pattern): a section-style COLLAPSE CHEVRON (NodeViewSection parity —
+ * mdi-chevron-right rotating open), the schema icon (the
+ * owner-2026-10-20 icon field, per-type glyph fallback), and the name
+ * (min-width 0 + ellipsis). NOTHING else. Inactive bindings dim the name
+ * (the only disabled cue). The row click expands the card; the whole row
+ * is the drag handle (grab cursor, dnd-kit PointerSensor 4px — a plain
+ * click still expands; no grip chrome). Hover reveals exactly ONE surface
+ * (no row tint, no grip): the right-side action cluster —
+ * a COG opening the S2 base-definition modal and a REMOVE × (the
+ * section-level danger confirm; hidden for system property schemas —
+ * non-removable means absent). Removal never requires opening the card.
  *
- * Config panel (expanded, full section width — CLASS-LEVEL ONLY, owner
- * ruling R7 + the same-day amendments: a property applies to a class by
- * being in this list, nothing more): a read-only header (icon + name —
- * identity display, no rename) and exactly two fields — the
- * default-value editor (class.property.set {defaultValue}) and the
- * Required checkbox. No group labels, no "Active on this class" switch
- * (the PC4 `active` flag stays wire-level; presence IS the on/off), no
- * footer (Remove left for the row's ×), no "Edit definition…" button (the
- * cog owns the definition path). Definition-level fields (rename,
- * type/Convert, multi, target classes, date settings, scope) live
- * exclusively in the S2 PropertyEditModal.
+ * Expanded card (CLASS-LEVEL ONLY, ruling R7 + the same-day
+ * amendments: a property applies to a class by being in this list,
+ * nothing more): the row's own expansion — NO repeated icon/name header.
+ * Exactly two fields: the default-value editor (class.property.set
+ * {defaultValue}) and the catalog Checkbox (its composed `label` prop —
+ * no hand-rolled label wrappers). No group labels, no "Active on this
+ * class" switch (the PC4 `active` flag stays wire-level; presence IS the
+ * on/off), no footer (Remove is the row's ×), no "Edit definition…"
+ * button (the cog owns the definition path). Definition-level fields
+ * (rename, type/Convert, multi, target classes, date settings, scope)
+ * live exclusively in the S2 PropertyEditModal.
  *
  * Add property: the AddPill opens an anchored popover (SearchField,
  * keyboard-navigable listbox, rows = icon + name + type label) filtered
@@ -211,7 +213,7 @@ function BindingRow({
   /** "Remove from class" — the section-level danger confirm. */
   onRemoveRequest: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: binding.propertySchemaId,
   });
 
@@ -232,16 +234,7 @@ function BindingRow({
       }
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
-      <div className="nt-propdef-row">
-        <button
-          type="button"
-          className="nt-propdef-grip"
-          aria-label={`Reorder ${name}`}
-          {...attributes}
-          {...listeners}
-        >
-          <Icon path="mdi-drag-vertical" size={0.7} />
-        </button>
+      <div className="nt-propdef-row" {...listeners}>
         <button
           type="button"
           className="nt-propdef-main"
@@ -249,6 +242,11 @@ function BindingRow({
           aria-label={`Configure ${name}`}
           onClick={onToggleExpanded}
         >
+          {/* The section-collapse affordance (NodeViewSection parity):
+              chevron left of the icon, rotating open like the sections. */}
+          <span className="nt-propdef-toggle" aria-hidden="true">
+            <Icon path="mdi-chevron-right" size={0.7} className="nt-propdef-chevron" />
+          </span>
           <span className="nt-propdef-icon" aria-hidden="true">
             <Icon path={schemaIconOf(schema, binding.type)} size={0.8} />
           </span>
@@ -283,15 +281,9 @@ function BindingRow({
       </div>
       {expanded && (
         <div className="nt-propdef-config">
-          {/* Identity display only (R7): no rename, no icon picker — the
-              definition-level fields live in the PropertyEditModal. */}
-          <div className="nt-propdef-header">
-            <span className="nt-propdef-icon" aria-hidden="true">
-              <Icon path={schemaIconOf(schema, binding.type)} size={0.8} />
-            </span>
-            <span className="nt-propdef-name">{name}</span>
-          </div>
-
+          {/* No repeated identity: the card under the row IS
+              the row's expansion — the icon + name live on the row above.
+              Class-level fields only: the default editor + Required. */}
           <div className="nt-propdef-group">
             <label className="nt-propdef-stack">
               <span className="nt-propdef-label">Default value</span>
@@ -308,15 +300,12 @@ function BindingRow({
                 }}
               />
             </label>
-            <label className="nt-propdef-check">
-              <Checkbox
-                size="sm"
-                checked={binding.required === true}
-                onChange={(checked) => patch({ required: checked })}
-                aria-label={`Required for ${name}`}
-              />
-              <span>Required</span>
-            </label>
+            <Checkbox
+              size="sm"
+              label="Required"
+              checked={binding.required === true}
+              onChange={(checked) => patch({ required: checked })}
+            />
           </div>
         </div>
       )}
