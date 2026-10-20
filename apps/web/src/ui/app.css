@@ -991,9 +991,13 @@ select:focus-visible {
 /* Collapse chevron: hidden at rest (the resting trail stays clean — a
    collapsed block's ring is the persistent state signal), revealed on
    bullet/gutter hover (the hover effect lives on the bullet),
-   and while the row has focus. */
+   and while the row has FOCUS — the focus-within is ROW-scoped (owner
+   2026-10-20): an editing block nests inside its ancestors, so a
+   descendant `.nt-block:focus-within` matched the whole ancestor chain
+   and pinned every parent's chevron open. Only the row holding the
+   focused editor reveals. */
 .nt-block-grip:hover > .nt-block-chevron,
-.nt-block:focus-within > .nt-block-row .nt-block-chevron {
+.nt-block:focus-within > .nt-block-row:focus-within .nt-block-chevron {
   opacity: 1;
 }
 
@@ -1161,9 +1165,6 @@ select:focus-visible {
 
 .nt-block-chevron {
   position: absolute;
-  /* Above the edit-thread elbow (app.css edit-thread block): the hover
-     chevron's glyph must not be crossed by the path hairline. */
-  z-index: 1;
   right: calc(100% + 1px);
   top: 50%;
   transform: translateY(-50%);
@@ -1599,73 +1600,29 @@ select:focus-visible {
 }
 
 /* --- the edit thread (owner 2026-10-20) -------------------------------------
-   While a block is in edit mode, the ancestor chain from the top-level
-   block down to the editing block wears an accent thread, so the eye can
-   follow the path from the root block to the caret. Purely structural
-   CSS: `:has()` matches the true ancestor chain (every block that contains
-   the editing block), so no JS state threads the recursion and the thread
-   composes with every surface BlockRow renders on. The chain's indent
-   rails take the hover-weight accent hairline (the thread reads as a
-   persistent hover along the path). Each link on the path wears the grip's
-   two pseudo arms — the horizontal ELBOW (::after) runs from the rail
-   column into the link's bullet, and the ANCESTOR's vertical STUD (::before)
-   drops from its own bullet into its children rail below (the rail reaches
-   the row's bottom edge — BlockRow's extendRail). An intermediate path
-   link thus carries BOTH arms and the thread passes THROUGH its dot (├,
-   the owner's reference look); the top block grows only the stud (the
-   thread starts at its dot), the editing block only the elbow (it ends at
-   its dot). The stud is scoped to ancestors that actually render a
-   `.nt-block-children` rail — a table container's grid gets no dangling
-   stud. Both arms are pointer-events: none: they paint over the rail's
-   column but must not eat the rail's fold clicks nor widen the grip's
-   drag target. The thread ends AT the editing block: its own subtree
-   stays on the resting hairline. */
-.nt-block:has(.nt-block--editing) > .nt-block-children > .nt-block-children__rail {
-  background: linear-gradient(to right, transparent 0 1px, var(--md-sys-color-primary) 1px 3px, transparent 3px);
+   A separate MEASURED overlay (EditThread.tsx draws one SVG polyline) —
+   NOT the tree's own indent rail highlighted. The line starts at the
+   top-level ancestor's bullet, runs down its column, and takes a rounded
+   right turn at each level change, ending at the editing block's dot (the
+   owner's reference look, third pass: the earlier `:has()` take styled
+   the rails and lit whole subtree columns). The host is the page's select
+   surface; `isolation: isolate` + the overlay's z-index −1 paint the line
+   BEHIND the rows, so the bullets sit on it; pointer-events: none keeps
+   every click (the rail's fold gesture included) working. No thread when
+   no block is editing, in prose (bullets hidden — nothing to measure),
+   or when the edit sits at the top level (no ancestors above). */
+.nt-edit-thread-host {
+  position: relative;
+  isolation: isolate;
 }
 
-.nt-block:has(.nt-block--editing) > .nt-block-children > .nt-block:is(.nt-block--editing, :has(.nt-block--editing)) > .nt-block-row .nt-block-grip::after {
-  content: "";
+.nt-edit-thread-overlay {
   position: absolute;
-  /* From the rail hairline column (-22px: 8px children padding + 1px border
-     + the rail's 1px inset, measured from the grip's left edge, which sits
-     14px into the row) to the grip's center — the bullet is centered in
-     the 18px grip, so the line merges into the dot's middle. */
-  left: -22px;
-  width: 31px;
-  /* The bullet rides translateY(-2px) inside the grip (its optical
-     alignment), so the line centers on the bullet, not the grip box. */
-  top: calc(50% - 2px);
-  height: 2px;
-  transform: translateY(-50%);
-  background: var(--md-sys-color-primary);
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-}
-
-/* The ancestor's stud: from just below the 6px dot (its bottom edge sits
-   1px under the grip's midline — the dot's 3px half-height minus the
-   bullet's 2px optical offset) down past the row's bottom edge into the
-   rail's top (the row is a half line-height plus its 2px padding below
-   the bullet's center). */
-.nt-block:has(.nt-block--editing):has(> .nt-block-children) > .nt-block-row .nt-block-grip::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  width: 2px;
-  top: calc(50% + 1px);
-  height: calc(0.5lh + 6px);
-  transform: translateX(-50%);
-  background: var(--md-sys-color-primary);
-  pointer-events: none;
-}
-
-/* Prose flattens the indents — the thread stays outline-only. No rail
-   renders there (BlockRow skips it), and the grip-level arms must not
-   dangle in the flattened layout either (the grip renders even though
-   the bullet inside it is hidden). */
-.nt-prose .nt-block-grip::before,
-.nt-prose .nt-block-grip::after {
-  content: none;
 }
 
 /* --- child-blocks view toolbar (outline / prose / cards switcher) ----------- */
@@ -1702,7 +1659,7 @@ select:focus-visible {
 
 /* Row-hover reveal (prose has no bullet to hover — the row is the surface). */
 .nt-prose .nt-block-row:hover .nt-block-chevron,
-.nt-prose .nt-block:focus-within > .nt-block-row .nt-block-chevron {
+.nt-prose .nt-block:focus-within > .nt-block-row:focus-within .nt-block-chevron {
   opacity: 1;
 }
 

@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-20
 
+- **feat(web): the edit thread becomes a separate measured overlay — one
+  SVG polyline with rounded turns at each level change — and the ancestor
+  chevrons stop pinning open during edit.** Owner correction 2026-10-20,
+  third pass. The two `:has()` takes (rail accents + grip pseudo arms)
+  highlighted the tree's own vertical bar — full-height subtree columns —
+  where the reference look is one continuous line anchored AT the bullets,
+  turning right on each level change with rounded corners, a shape the
+  tree chrome cannot draw. **The overlay** (`EditThread.tsx`): BlockRow
+  reports its edit state through a new `EditThreadContext` (guarded clear —
+  a caret hand-off can't tear the new thread down); the select surface
+  hosts the SVG, resolves the ancestor chain via the client, measures the
+  path bullets, and draws `M … L … Q …` (quadratic turns, RADIUS 5) from
+  the top-level bullet to the editing dot — recomputed on edit changes,
+  store notifications, host resizes, and any scroll, rAF-throttled. It
+  paints BEHIND the rows (the host isolates its stacking context,
+  `z-index: −1`) so the bullets sit on the line, and is pointer-events:
+  none — the rail's fold click still fires beneath it (probe-asserted).
+  No thread for a top-level edit (no ancestors), in prose (bullets hidden,
+  nothing to measure), or in cards. The rail-accent/elbow/stud CSS and
+  the chevron's thread z-index retire. **The chevrons:** the focus-within
+  reveal matched every ancestor of the focused editor (all contain the
+  focus), pinning the chain's chevrons open during edit — row-scoped now
+  (`.nt-block-row:focus-within`, prose variant too). The round-2
+  direct-row accent fix stays. Docs: `BlockRow.tsx` header + `docs/ux.md`.
+  Verification: `thread-probe.mjs` rewritten for the overlay (path turns,
+  start/end at the path bullets, rails resting, pointer-events, click-
+  through fold, caret-follow, chevron + subtree-accent regressions);
+  gate green.
 - **feat(web): the page-header action row's pills carry per-action icons
   instead of the generic "+".** Owner 2026-10-20. The Capacities action row
   ("Add icon" / "Add description" / "Add aliases") rendered the same `+`

@@ -13,16 +13,20 @@
  *   click dead — the bullet element is the only open gesture.
  * - edit mode: a click swaps in BlockTextEditor (contentEditable prose
  *   editing, the outliner keyboard contract). While a block is editing,
- *   the ancestor chain from the top-level block down to it wears the
- *   accent thread — the chain's indent rails, plus the grip's two pseudo
- *   arms per link: the elbow (::after) from the rail column into the path
- *   bullet, and the ancestor's stud (::before) dropping from its own dot
- *   into its rail, so the thread passes THROUGH every path bullet (├, the
- *   owner's reference look; app.css "the edit thread", owner 2026-10-20)
- *   — pure structural CSS over `.nt-block--editing`, no state threads the
- *   recursion. The editing block's own bullet/marker/icon highlight is
- *   direct-row scoped: a descendant selector lit the whole subtree
- *   (owner 2026-10-20: children must not read as active).
+ *   the row reports its state through EditThreadContext and the page
+ *   body select surface draws the edit thread — a separate MEASURED
+ *   overlay (EditThread.tsx): one SVG polyline from the top-level
+ *   ancestor bullet down to the editing block bullet, turning right
+ *   with a rounded corner at each level change (owner 2026-10-20, third
+ *   pass — the two `:has()` takes styled the tree rails and lit whole
+ *   subtree columns; the reference look is one line anchored at the
+ *   bullets, a shape the tree chrome cannot draw). The overlay paints
+ *   behind the rows and passes clicks through; no thread for a top-level
+ *   edit, in prose, or in cards. The editing bullet highlight stays
+ *   direct-row scoped (a descendant selector lit the whole subtree —
+ *   owner 2026-10-20: children must not read as active), and the
+ *   collapse chevron focus reveal is row-scoped the same way — while a
+ *   block edits, the ancestor chevrons stay hidden.
  *
  * A collapsed block (session-local display state from OutlinerContext) hides
  * its entire subtree — the children container is not rendered. The chevron
@@ -114,6 +118,7 @@ import { QueryBlockView } from "./QueryBlockView.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { DragSourcesContext, DropLineContext, WorkspaceDragScopeContext } from "./block-dnd.js";
 import { useOutliner } from "./outliner-context.js";
+import { useEditThread } from "./EditThread.js";
 import { Button } from "../components/ui/fleet/index.js";
 import { Badge } from "../components/ui/fleet/Badge.js";
 import { CondensedLinksPopup } from "../features/node-menu/CondensedLinksPopup.js";
@@ -327,6 +332,17 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     setCaret(focusRequest.caret);
     setEditing(true);
   }, [focusRequest, node.id, acknowledgeFocus, readOnly]);
+
+  // The edit thread (EditThread.tsx): report this row's edit state so the
+  // page body's measured overlay can draw the ancestor path. The clear is
+  // guarded in the provider (only the current owner clears) so a caret
+  // hand-off between blocks can't tear the new thread down.
+  const editThread = useEditThread();
+  useEffect(() => {
+    if (editThread === null || !editing) return;
+    editThread.reportEditing(node.id);
+    return () => editThread.clearEditing(node.id);
+  }, [editThread, editing, node.id]);
 
   // Selection and edit mode are mutually exclusive (owner 2026-10-14):
   // whichever block is editing hands back to read mode the moment a
