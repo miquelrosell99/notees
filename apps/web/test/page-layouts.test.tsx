@@ -29,10 +29,10 @@ import { Breadcrumbs } from "../src/features/node-menu/Breadcrumbs.js";
 import { TocSection } from "../src/ui/app/sidebarSections.js";
 import { headingLabelOf, tocEntriesOf } from "../src/ui/app/sidebarToc.js";
 import {
-  readCardLayoutPref,
+  readCoverLayoutPref,
   readIgnoredUnlinkedRefs,
   readViewModePref,
-  writeCardLayoutPref,
+  writeCoverLayoutPref,
   writeViewModePref,
 } from "../src/ui/viewPrefs.js";
 import { DEVICE_SETTINGS_PREFIX } from "../src/features/settings/deviceSettings.js";
@@ -172,14 +172,14 @@ describe("L1 view-mode persistence (deviceSettings)", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Cover left" }));
     first.unmount();
 
-    expect(readCardLayoutPref()).toBe("cover-left");
+    expect(readCoverLayoutPref()).toBe("cover-left");
     render(<HubView client={client} nav="assets" onOpenNode={() => {}} />);
     const cover = await screen.findByAltText("");
     expect(cover.closest(".node-card")!.className).toContain("node-card--cover-left");
 
     // And the device setting round-trips on its own.
-    writeCardLayoutPref("no-cover");
-    expect(readCardLayoutPref()).toBe("no-cover");
+    writeCoverLayoutPref("no-cover");
+    expect(readCoverLayoutPref()).toBe("no-cover");
   });
 });
 

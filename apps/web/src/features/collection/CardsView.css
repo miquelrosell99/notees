@@ -3,7 +3,10 @@
  *
  * The card look recovery. The original card mode ("looks great", owner)
  * registered: an adaptive CSS-columns masonry on a RAISED container panel
- * (surface-container-high mat, spacing-4 padding, shape-large radius);
+ * (surface-container-high mat, spacing-4 padding, shape-large radius) —
+ * today the panel hosts three FLOW arrangements (owner 2026-10-20): the
+ * masonry is that original multicol; the stack lays one full-width card per
+ * row; the grid aligns rows (cards stretch to the row height);
  * surface-level cards with a subtle-but-visible blended border
  * (outline at 50% over outline-variant), the 12px --shape-extra-large
  * radius (owner 2026-10-13: roundness stepped down from the 20px
@@ -20,18 +23,15 @@
  * CoverLayoutToggle, useLazyInView covers (the 16:9 cover slot
  * stays so the pending placeholder and the empty Add-cover affordance
  * keep its size before bytes arrive),
- * content-visibility skipping, and NodeCard shared with the grouped board.
+ * content-visibility skipping, and NodeCard shared with the grouped board
+ * (which rides no flow — its columns are the property groupBy).
  */
 
-/* ─── The grid — the original adaptive masonry on a raised panel ─── */
+/* ─── The grid — the raised panel every flow rides on ─── */
 
 .cards-grid {
-  /* The column count derives from available space and the card min width —
-     no fixed column counts. */
-  column-width: var(--layout-size-6xl);
-  column-gap: var(--spacing-4);
-  /* The ungrouped grid rides on a raised container panel so the
-     surface-level cards read against the page surface. */
+  /* The raised container panel so the surface-level cards read against the
+     page surface; the flow modifiers below arrange the cards inside it. */
   background: var(--md-sys-color-surface-container-high);
   padding: var(--spacing-4);
   border-radius: var(--shape-large);
@@ -39,18 +39,51 @@
   box-sizing: border-box;
 }
 
+/* The masonry flow (the default): the recovered original adaptive masonry —
+   CSS columns derive the column count from available space and the card min
+   width; cards keep their natural height and pack vertically. */
+.cards-grid--masonry {
+  column-width: var(--layout-size-6xl);
+  column-gap: var(--spacing-4);
+}
+
 /* Horizontal-cover cards are wider per column. NO min(..., 100%) here — a
    percentage inside column-width resolves against the multicol box itself
    (circular), computing to FULL WIDTH and collapsing the grid to ONE column
    (measured in a playwright repro, owner 2026-10-13). column-width alone
    degrades gracefully: below two columns' worth of space it yields one. */
-.cards-grid:has(.node-card--cover-left, .node-card--cover-right) {
+.cards-grid--masonry:has(.node-card--cover-left, .node-card--cover-right) {
   column-width: var(--layout-size-9xl);
 }
 
-/* The affordance spans every column (a masonry item otherwise). */
+/* The stack flow: one full-width card per row. */
+.cards-grid--stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+/* The grid flow: row-aligned columns (cards stretch to the row height).
+   The min track derives from available space like the masonry column-width;
+   below one track's worth of space the single column fills the width. */
+.cards-grid--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--layout-size-6xl), 1fr));
+  gap: var(--spacing-4);
+}
+
+.cards-grid--grid:has(.node-card--cover-left, .node-card--cover-right) {
+  grid-template-columns: repeat(auto-fill, minmax(var(--layout-size-9xl), 1fr));
+}
+
+/* The affordance spans every column (a masonry item otherwise; the grid row
+   it lands in otherwise). */
 .cards-grid > .nt-window-more {
   column-span: all;
+}
+
+.cards-grid--grid > .nt-window-more {
+  grid-column: 1 / -1;
 }
 
 /* ─── The card — the original chrome ─────────────────────────────── */

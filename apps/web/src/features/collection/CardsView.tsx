@@ -61,6 +61,18 @@
  * re-narrows the window. Tree contexts and the grouped board hide the
  * button — the content order and the property columns respectively own
  * their order there.
+ *
+ * FLOW + COVER POSITION (owner 2026-10-20): two independent device-global
+ * card parameters ride the flat grid's toolbar — the cover-position picker
+ * (no-cover / top / left / right: WHERE a card's cover sits, renamed from
+ * the old "card layout" — the values were always cover placements) and the
+ * flow picker (stack / grid / masonry: HOW the card set arranges into
+ * columns — `CardFlow` in types.ts; one enum, not a multi-column × grid
+ * pair: the boolean decomposition creates a meaningless single-column-grid
+ * combination). Both persist device-locally (`cards.coverLayout`,
+ * `cards.flow`); surfaces shape only the unset fallbacks. The grouped board
+ * renders neither toggle's effect on its own column structure — its columns
+ * are the property groupBy, not a visual layout.
  */
 
 import { useEffect, useMemo, useState, useContext } from "react";
@@ -91,10 +103,10 @@ import { NodePills } from "../metadata/NodePills.js";
 import { NodeContextMenu } from "../node-menu/NodeContextMenu.js";
 import { PropertiesTable, TagsRow } from "../metadata/index.js";
 import { childQuery } from "./childQuery.js";
-import { useCardLayoutPreference } from "../../ui/viewPrefs.js";
+import { useCoverLayoutPreference, useCardFlowPreference } from "../../ui/viewPrefs.js";
 import { CardsBoard } from "./CardsBoard.js";
 import { useViewSelection, SelectionExportControls } from "./selectionExport.js";
-import type { CardLayout, NodeCollectionItem, NodeCollectionProps, SortMode } from "./types.js";
+import type { CardFlow, CoverLayout, NodeCollectionItem, NodeCollectionProps, SortMode } from "./types.js";
 import "./CardsView.css";
 
 function toBlockTree(item: NodeCollectionItem): import("@/core/workspace-client/index.js").BlockTreeNode {
@@ -120,7 +132,7 @@ function toBlockTree(item: NodeCollectionItem): import("@/core/workspace-client/
  * cover (setNodeCover — the coverAssetId wire field). Asset-classed nodes
  * never hit it: their imagery is their own bytes.
  */
-function CardCover({ item, props, layout }: { item: NodeCollectionItem; props: NodeCollectionProps; layout: CardLayout }) {
+function CardCover({ item, props, layout }: { item: NodeCollectionItem; props: NodeCollectionProps; layout: CoverLayout }) {
   const client = props.client;
   const assetId = cardImageAssetId(item.node);
   const [sentinelRef, inView] = useLazyInView<HTMLElement>();
@@ -233,7 +245,7 @@ export function NodeCard({
 }: {
   item: NodeCollectionItem;
   props: NodeCollectionProps;
-  coverLayout?: CardLayout;
+  coverLayout?: CoverLayout;
   /**
    * selection export: when present, a checkbox rides the card's top
    * corner and the card highlights while checked. Absent = no selection
@@ -438,24 +450,50 @@ export function NodeCard({
   );
 }
 
-const COVER_LAYOUT_OPTIONS: Array<{ value: CardLayout; icon: string; label: string }> = [
+const COVER_LAYOUT_OPTIONS: Array<{ value: CoverLayout; icon: string; label: string }> = [
   { value: "no-cover", icon: "mdi-card-outline", label: "No cover" },
   { value: "cover-left", icon: "mdi-dock-left", label: "Cover left" },
   { value: "cover-right", icon: "mdi-dock-right", label: "Cover right" },
   { value: "cover-top", icon: "mdi-dock-top", label: "Cover top" },
 ];
 
-/** The cover-layout picker (the four original layouts); the choice persists per device. */
-export function CoverLayoutToggle({ value, onChange }: { value: CardLayout; onChange: (layout: CardLayout) => void }) {
+/** The cover-position picker (the four placements); the choice persists per device. */
+export function CoverLayoutToggle({ value, onChange }: { value: CoverLayout; onChange: (layout: CoverLayout) => void }) {
   return (
     <SelectionButton
       options={COVER_LAYOUT_OPTIONS}
       value={value}
-      onChange={(val) => onChange(val as CardLayout)}
+      onChange={(val) => onChange(val as CoverLayout)}
       size="sm"
       maxVisibleOptions={4}
-      aria-label="Card layout"
+      aria-label="Cover position"
       className="cover-layout-toggle"
+    />
+  );
+}
+
+const CARD_FLOW_OPTIONS: Array<{ value: CardFlow; icon: string; label: string }> = [
+  { value: "stack", icon: "mdi-view-sequential-outline", label: "Single column" },
+  { value: "grid", icon: "mdi-view-grid-outline", label: "Grid" },
+  { value: "masonry", icon: "mdi-view-dashboard-outline", label: "Masonry" },
+];
+
+/**
+ * The flat-cards flow picker: single column (a full-width stack), grid
+ * (row-aligned columns), masonry (natural heights, packed vertically). The
+ * choice persists per device; the grouped board rides no flow toggle — its
+ * columns are the property groupBy, not a visual layout.
+ */
+export function CardFlowToggle({ value, onChange }: { value: CardFlow; onChange: (flow: CardFlow) => void }) {
+  return (
+    <SelectionButton
+      options={CARD_FLOW_OPTIONS}
+      value={value}
+      onChange={(val) => onChange(val as CardFlow)}
+      size="sm"
+      maxVisibleOptions={3}
+      aria-label="Card layout"
+      className="card-flow-toggle"
     />
   );
 }
@@ -472,12 +510,16 @@ function FlatCards({
   props,
   coverLayout,
   onCoverLayout,
+  cardFlow,
+  onCardFlow,
   selection,
 }: {
   items: NodeCollectionItem[];
   props: NodeCollectionProps;
-  coverLayout: CardLayout;
-  onCoverLayout: (layout: CardLayout) => void;
+  coverLayout: CoverLayout;
+  onCoverLayout: (layout: CoverLayout) => void;
+  cardFlow: CardFlow;
+  onCardFlow: (flow: CardFlow) => void;
   selection: ReturnType<typeof useViewSelection>;
 }) {
   /**
@@ -543,6 +585,7 @@ function FlatCards({
       {sortable && (
         <SortMenuButton value={sortMode} options={CARDS_SORT_OPTIONS} onChange={(mode) => setSortChoice(mode as SortMode)} />
       )}
+      <CardFlowToggle value={cardFlow} onChange={onCardFlow} />
       <CoverLayoutToggle value={coverLayout} onChange={onCoverLayout} />
     </div>
   );
@@ -550,7 +593,7 @@ function FlatCards({
     <div>
       {chromeTarget !== null ? createPortal(toolbar, chromeTarget) : toolbar}
       <OutlinerContext.Provider value={outliner}>
-        <div className="cards-grid">
+        <div className={`cards-grid cards-grid--${cardFlow}`}>
           {visible.map((item) => (
             <NodeCard
               key={item.node.id}
@@ -576,11 +619,12 @@ function FlatCards({
 
 export function CardsView(props: NodeCollectionProps) {
   const { client, items = [], groupByProperty } = props;
-  // The cover layout persists device-locally — one preference
-  // per device shared by every cards surface; never an op.
-  // A surface may only shape the unset fallback (defaultCoverLayout);
-  // a persisted choice wins everywhere.
-  const [coverLayout, setCoverLayout] = useCardLayoutPreference(props.defaultCoverLayout ?? "no-cover");
+  // The cover layout and the flat-cards flow persist device-locally — one
+  // preference per device each, shared by every cards surface; never an op.
+  // A surface may only shape the unset fallbacks (defaultCoverLayout /
+  // defaultCardFlow); a persisted choice wins everywhere.
+  const [coverLayout, setCoverLayout] = useCoverLayoutPreference(props.defaultCoverLayout ?? "no-cover");
+  const [cardFlow, setCardFlow] = useCardFlowPreference(props.defaultCardFlow ?? "masonry");
   // selection export — flat node sets only (tree contexts stay chrome-less).
   const selection = useViewSelection();
   if (items.length === 0) return null;
@@ -602,6 +646,8 @@ export function CardsView(props: NodeCollectionProps) {
       props={props}
       coverLayout={coverLayout}
       onCoverLayout={setCoverLayout}
+      cardFlow={cardFlow}
+      onCardFlow={setCardFlow}
       selection={selection}
     />
   );
@@ -612,5 +658,5 @@ registerView({
   label: "Cards",
   icon: "mdi-view-grid-outline",
   component: CardsView,
-  capabilities: { sorting: true, cardLayout: true, groupBy: true },
+  capabilities: { sorting: true, coverLayout: true, groupBy: true },
 });

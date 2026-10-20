@@ -1386,4 +1386,65 @@ describe("card covers and asset thumbnails", () => {
     // the cover-top default is the Assets hub's alone.
     expect(document.querySelector(".node-card__cover")).toBeNull();
   });
+
+  it("the flat cards flow: masonry by default, the toggle switches stack / grid / masonry, the choice persists device-locally", async () => {
+    const client = await seedClient();
+    const host = await client.createObject({ isEmbedded: false, name: "Attachments" });
+    const asset = await client.createObject({
+      parentId: host,
+      contentAst: [{ type: "text", text: "photo.png" }],
+    });
+    await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
+
+    render(
+      <CollectionHub
+        client={client}
+        icon="mdi-folder-multiple-image"
+        title="Loose assets"
+        items={client.getClassMembers(SYSTEM_CLASS_UUIDS.asset).map((node) => ({ node }))}
+        modes={["cards"]}
+        defaultMode="cards"
+        onOpenNode={() => {}}
+      />,
+    );
+
+    // No persisted choice: the grid rides the recovered original — masonry.
+    expect(document.querySelector(".cards-grid--masonry")).not.toBeNull();
+    expect(document.querySelector(".cards-grid--grid")).toBeNull();
+    expect(document.querySelector(".cards-grid--stack")).toBeNull();
+
+    // The flow picker switches the arrangement; the write lands on the
+    // device-local seam (never an op).
+    fireEvent.click(screen.getByRole("radio", { name: "Grid" }));
+    expect(document.querySelector(".cards-grid--grid")).not.toBeNull();
+    expect(localStorage.getItem("notees.settings.cards.flow")).toBe('"grid"');
+
+    fireEvent.click(screen.getByRole("radio", { name: "Single column" }));
+    expect(document.querySelector(".cards-grid--stack")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Masonry" }));
+    expect(document.querySelector(".cards-grid--masonry")).not.toBeNull();
+
+    // A stale/hand-edited value falls back to the surface default instead of
+    // resurrecting a dead arrangement.
+    localStorage.setItem("notees.settings.cards.flow", '"diagonal"');
+    window.dispatchEvent(new Event("storage"));
+    expect(document.querySelector(".cards-grid--masonry")).not.toBeNull();
+  });
+
+  it("the grouped board ignores the flow — its columns are the property groupBy", async () => {
+    const client = await seedClient();
+    const task = await client.createObject({ isEmbedded: false, name: "Board Task" });
+    await client.assignClass(task, SYSTEM_CLASS_UUIDS.task);
+    await ensureTaskFamily(client);
+
+    render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
+    expect(document.querySelector(".board")).not.toBeNull();
+
+    // No flow toggle on the board toolbar (the flat grid's toolbar only).
+    expect(screen.queryByRole("radiogroup", { name: "Card layout" })).toBeNull();
+    // And the flow class family never reaches the board's column lists.
+    expect(document.querySelector(".cards-grid")).toBeNull();
+  });
 });

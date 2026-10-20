@@ -81,7 +81,23 @@ export interface TableColumn {
 }
 
 /** Card cover placement (the four placements). */
-export type CardLayout = "no-cover" | "cover-top" | "cover-left" | "cover-right";
+export type CoverLayout = "no-cover" | "cover-top" | "cover-left" | "cover-right";
+
+/**
+ * The flat cards flow — how the card set arranges into columns:
+ *
+ * - `stack`: one full-width card per row (a vertical stack).
+ * - `grid`: visual columns with ROW alignment — cards in a row stretch to the
+ *   row's height (`display: grid`).
+ * - `masonry`: visual columns with NATURAL card heights, packed vertically
+ *   (CSS multicol — the recovered original card mode, the default).
+ *
+ * ONE enum, not a multi-column × grid pair: the boolean decomposition
+ * creates a meaningless combination (single-column-and-grid), and grid vs
+ * masonry only differ in multi-column. The grouped board ignores the flow —
+ * its columns are semantic (the property groupBy), not visual.
+ */
+export type CardFlow = "stack" | "grid" | "masonry";
 
 export interface NodeCollectionItem {
   node: ClientNode;
@@ -250,7 +266,15 @@ export interface NodeCollectionProps {
    * Assets hub passes "cover-top" — its cards read as an image gallery).
    * A persisted choice wins on every surface — the preference stays global.
    */
-  defaultCoverLayout?: CardLayout | undefined;
+  defaultCoverLayout?: CoverLayout | undefined;
+  /**
+   * Cards: the flat-card flow this surface falls back to when the device
+   * has no persisted `cards.flow` choice yet (default "masonry"). Like the
+   * cover layout, a persisted choice wins on every surface — one global
+   * preference per device. The grouped board ignores the flow (its columns
+   * are the property groupBy, not a visual layout).
+   */
+  defaultCardFlow?: CardFlow | undefined;
   /**
    * Cards board: the select property schema whose options seed the board
    * columns (the property-dimension groupBy; single- or multi-select). The
@@ -321,7 +345,7 @@ export interface ViewCapabilities {
   /** Supports groupBy (containing-page groups / the cards-board property columns). */
   groupBy?: boolean;
   /** Supports cover layouts (cards surfaces; the choice persists device-locally). */
-  cardLayout?: boolean;
+  coverLayout?: boolean;
   /** Wrap in the ErrorBoundary when rendered inside chrome. */
   errorBoundary?: boolean;
 }
