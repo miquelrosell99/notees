@@ -15,6 +15,27 @@ import { todayIsoLocal } from "../calendar/calendarViewUtils.js";
 
 import type { AnyClient } from "./shared.js";
 
+/**
+ * Carrier ids minted by THIS placeholder init and not yet "settled". The
+ * panel's "+ Add property" flow never moves focus into the text row, so
+ * TextPropertyRow's focus-guarded auto-unset pass cannot see that the
+ * contentless placeholder was just created for the user to type into — the
+ * row consults this set and skips a pending carrier until content lands or
+ * the user leaves the row (the row's blur pass clears the marks and unsets
+ * an abandoned empty placeholder). Session-local, never an op.
+ */
+const pendingTextCarriers = new Set<string>();
+
+/** The pass's read: is this carrier a placeholder awaiting first content? */
+export function isPendingTextCarrier(carrierId: string): boolean {
+  return pendingTextCarriers.has(carrierId);
+}
+
+/** Settled (content landed, or the row blur pass is about to re-judge it). */
+export function clearPendingTextCarrier(carrierId: string): void {
+  pendingTextCarriers.delete(carrierId);
+}
+
 export async function initializePropertyValue(
   client: AnyClient,
   nodeId: string,
@@ -29,11 +50,14 @@ export async function initializePropertyValue(
       await client.setProperty(nodeId, schemaId, 0, 0);
       return;
     case "text": {
-      // Node-backed: a fresh carrier block child holds the text.
+      // Node-backed: a fresh carrier block child holds the text. Mark it
+      // pending — the panel add flow leaves focus outside the row, so the
+      // auto-unset pass needs this to tell the placeholder from a dead one.
       const carrier = await client.createObject({
         parentId: nodeId,
         contentAst: [{ type: "text", text: "" }],
       });
+      pendingTextCarriers.add(carrier);
       await client.setProperty(nodeId, schemaId, { nodeId: carrier }, 0);
       return;
     }
