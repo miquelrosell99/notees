@@ -81,7 +81,7 @@ async function seedClass(client: WorkspaceClient, title: string): Promise<string
 
 /** The classed-nodes table's rendered row count. */
 function tableRowCount(): number {
-  return screen.getAllByRole("table")[0]!.querySelectorAll(".nt-table-name-label").length;
+  return screen.getAllByRole("table")[0]!.querySelectorAll("td.nt-table-name").length;
 }
 
 /** The classed-nodes section wrapper (a class page renders the backlinks
@@ -172,7 +172,7 @@ describe("the classed-nodes filter bar", () => {
 
     expect(within(section).getByText("4 of 4")).not.toBeNull();
     const labels = Array.from(
-      screen.getAllByRole("table")[0]!.querySelectorAll(".nt-table-name-label"),
+      screen.getAllByRole("table")[0]!.querySelectorAll("td.nt-table-name .nt-title-content"),
       (el) => el.textContent,
     );
     // The search's tiers: the whole-query title match, then the ordered-
@@ -198,7 +198,7 @@ describe("the classed-nodes filter bar", () => {
 
     expect(within(section).getByText("2 of 2")).not.toBeNull();
     const labels = Array.from(
-      screen.getAllByRole("table")[0]!.querySelectorAll(".nt-table-name-label"),
+      screen.getAllByRole("table")[0]!.querySelectorAll("td.nt-table-name .nt-title-content"),
       (el) => el.textContent,
     );
     // The exact-title match leads; the single-term partial follows. Plain
