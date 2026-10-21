@@ -14,8 +14,9 @@
  * read as a modal): the builder rides a HEAD row (both switches on ONE
  * line — the root Match ALL/ANY logic toggle left, the blocks ⇄ raw AST
  * toggle right, owner ruling 2026-10-21), a bare column of condition rows,
- * and a FOOT row ("Add condition" left, the caller's count line + "Save as
- * tab" right); nested groups indent under a left hairline with their own
+ * and a FOOT row ("Add condition" left, the caller's extras right — today
+ * the "Save as tab" escape; the count moved to the hosted tab bar's
+ * active-tab badge, owner ruling 2026-10-21); nested groups indent under a left hairline with their own
  * header/footer, and condition rows are list rows — transparent with a
  * hover fill. The two card surfaces are the transient add-menu popover and
  * the DYNAMIC mode's nested-query subgroup (owner ruling 2026-10-21 — the
@@ -124,9 +125,9 @@ export interface FilterBlockBuilderProps {
   config?: FilterBarConfig | undefined;
   /**
    * Right-aligned content in the builder's foot row, beside the "Add
-   * condition" menu (the FilterBar rides it with the count line + the
-   * "Save as tab" button — owner ruling 2026-10-21 puts both on the
-   * bottom row).
+   * condition" menu (the FilterBar rides it with the "Save as tab" button —
+   * the count line moved to the hosted tab bar's active-tab badge, owner
+   * ruling 2026-10-21).
    */
   footExtra?: ReactNode | undefined;
 }
@@ -359,7 +360,8 @@ export function FilterBlockBuilder({ client, group, onChange, config, footExtra 
       )}
       {/* The foot row: the "Add condition" menu (left — the ONE group
           constructor at the root too) and the caller's right-aligned
-          cluster (the count line + "Save as tab"). In raw mode there are
+          cluster (today the "Save as tab" button — the count moved to the
+          hosted tab bar's active-tab badge). In raw mode there are
           no blocks to add, but the caller's content still rides. */}
       <div className="nt-fb__foot">
         {view === "blocks" && (

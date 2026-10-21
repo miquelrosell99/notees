@@ -7,6 +7,29 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(web): the hosted tab bar's active tab carries a total-count badge —
+  the filter panel's "N of M nodes match" foot line is gone.** Owner ruling
+  (2026-10-21): instead of the "109 of 109 nodes match" line on the
+  structured-filter panel's foot row, the count shows as a small badge beside
+  the currently open tab's name. `NodeCollection` computes the open tab's
+  displayed row count (post-refinement — grouped rendering sums the groups'
+  rows plus the ungrouped ones) and hands it to `SectionViewTabs`, which
+  renders it as an `aria-hidden` pill next to the active tab's label (the
+  tab's accessible name stays the bare label). The FilterBar's panel foot now
+  carries only the "Save as tab" escape; the bar row's honest "N of M" chip
+  while a transient filter is active is unchanged.
+  - **Files**: `apps/web/src/features/collection/SectionViewTabs.tsx` (the
+    `activeCount` prop + badge), `apps/web/src/features/collection/
+    SectionViewTabs.css` (the pill register), `apps/web/src/features/
+    collection/NodeCollection.tsx` (the post-refinement count), `apps/web/
+    src/features/collection/FilterBar.tsx` + `FilterBar.css` (the foot line
+    removed), `apps/web/src/features/collection/FilterBlockBuilder.tsx`
+    (comments follow), `apps/web/test/filter-builder.test.tsx` + `section-
+    views.test.tsx` (assertions follow the badge), `docs/features/queries.md`
+    + `docs/developers/architecture.md` (the count's new home).
+  - **Verification**: `pnpm typecheck` green; `pnpm test` green (web suite:
+    filter-builder, section-views, filter-layer among them).
+
 - **fix(web): the bullet register grows ≥50% (46px box, 40px ring, 9px
   dot), and the group-items separation deepens to match.** Owner report
   (2026-10-21): "the bullet element could be even larger — at least 50%
