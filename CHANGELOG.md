@@ -12,8 +12,7 @@ predating this file.
   bold-uppercase AND/OR text segments "look terrible" — the control returns
   to the v1 register (`mdi-set-all` AND / `mdi-set-center` OR, the
   overlapping-circles pair) inside the bordered SelectionButton. The
-  SelectionButton `text` segment register, trialed three ways this session,
-n  retires unused — the primitive is restored to its pre-experiment form.
+  SelectionButton `text` segment register, trialed three ways this session, retires unused — the primitive is restored to its pre-experiment form.
   - **Files**: `apps/web/src/features/collection/FilterBlockBuilder.tsx`
     (LOGIC_OPTIONS back to set-all/set-center), `apps/web/src/components/ui/fleet/SelectionButton.tsx`
     + `.css` (restored).
