@@ -834,6 +834,28 @@ describe("outline list: rows with children default collapsed", () => {
     fireEvent.click(chevron);
     expect(row.textContent).toContain("the folded context");
   });
+
+  it("a collapsed class-icon bullet wears an outline ring ABOVE the glyph", () => {
+    // jsdom has no layout: the regression is CSS — the icon glyph is a
+    // solid plate that covers the soft background halo, so the ring must
+    // become a border circle painted over the glyph (z-index) to read.
+    const process_ = globalThis.process as unknown as {
+      getBuiltinModule(name: string): { readFileSync(path: unknown, enc: string): string };
+    };
+    const css = process_.getBuiltinModule("node:fs").readFileSync(
+      new URL("../src/ui/app.css", import.meta.url),
+      "utf8",
+    );
+    const rule = /\.nt-bullet:has\(\.nt-bullet-icon\) \.nt-bullet-ring \{[^}]*\}/.exec(css);
+    expect(rule).not.toBeNull();
+    expect(rule![0]).toContain("border:");
+    expect(rule![0]).toContain("z-index: 1");
+    expect(
+      /\.nt-bullet--collapsed:hover:has\(\.nt-bullet-icon\) \.nt-bullet-ring \{[^}]*border-color/.test(
+        css,
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("groupBy: references grouped by containing page", () => {

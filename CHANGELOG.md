@@ -96,6 +96,45 @@ predating this file.
   - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
     `pnpm --filter @notees/web test` — 1937 passed (167 files).
 
+- **fix(web): the reference sections render as ordinary outline sections,
+  and a collapsed class-icon bullet wears its ring again.** Two
+  owner reports from reviewing the collapse work (2026-10-21).
+  (1) "Backlinks section should be like any other section, wtf": the
+  Backlinks/Unlinked-mentions rows were a snowflake — a bespoke renderItem
+  drawing a breadcrumb trail plus an inline EDITABLE subtree per row (the
+  Logseq-era rendering), next to every other section's shared inert rows.
+  `ReferenceList` now renders the standard collection rows like any other
+  section — one inert row per referencing block, children folded behind
+  the chevron (the collapse ruling applies as-is), the bullet opening the
+  source via the container's onNodeClick. The grouping by containing page,
+  the ungrouped-page-sources-first ruling, the hosted tabs, the sort
+  button, and the transient filter layer were the shared machinery
+  already. What a row still owns rides the shared trailing-action seam:
+  the bound-verb pill and, on Unlinked mentions only, the Promote/Ignore
+  pair (labels and writes unchanged). The dead breadcrumb CSS and the
+  Breadcrumbs/ReferenceSubtree imports go with the rendering; ReferenceSubtree
+  itself stays (the property carrier cell).
+  (2) "Collapsed pages don't have the collapsed bullet outer circle —
+  maybe because of the icon": right — the ring is a soft background halo,
+  and a class-icon bullet's glyph is a solid plate that paints over it.
+  The ring on icon bullets is now an outline circle (1.5px primary-border)
+  painted ABOVE the glyph (`:has(.nt-bullet-icon)`, z-index 1, 19px), with
+  the hover deepening the border the way the halo deepens behind the dot.
+  Docs: `docs/features/links.md` (the reference-sections ruling).
+  - **Files**: `apps/web/src/features/page-sections/SystemSections.tsx`
+    (the renderItem retired — trailingAction + onNodeClick; the ReferenceList
+    doc rewritten), `…/SystemSections.css` (the dead breadcrumb rule
+    removed; the verb/actions ride the trailing seam), `apps/web/src/ui/
+    app.css` (the icon-bullet outline ring), `apps/web/test/system-sections.
+    test.tsx` (the row selector follows the standard rows), `apps/web/test/
+    view-modes.test.tsx` (a CSS regression spec for the icon ring).
+  - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
+    `pnpm --filter @notees/web test` — 1936 passed; two failures, both
+    resolved: the CSS spec's fs read switched to `process.getBuiltinModule`
+    (the jsdom builtin seam, the condensed precedent — view-modes then
+    passes whole), and the known intermittent block-dnd preview-count flake
+    (27/27 in isolation).
+
 - **fix(web): text buttons render at their size tokens fleet-wide — the
   48dp floor moves to the invisible hit-area overlay.**"the add condition button also has too much top and bottom
   padding, so the problem is global" — the fleet Button's base carried

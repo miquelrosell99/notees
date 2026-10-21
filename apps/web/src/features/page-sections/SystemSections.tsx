@@ -65,8 +65,6 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { Breadcrumbs } from "../node-menu/Breadcrumbs.js";
-import { ReferenceSubtree } from "../block-editor/ReferenceSubtree.js";
 import { Section } from "../../ui/Section.js";
 import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { untitledLabelOf } from "../../ui/renderStateLabel.js";
@@ -107,14 +105,19 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
 }
 
 /**
- * Logseq-style references: entries grouped by their containing page (the
- * shared groupBy capability — collapsible group headers, click to open the
- * page); each row renders the referencing block's content (the block/editor
- * view), and clicking it opens the source — the block itself in focused view
- * when the edge is direct, otherwise the containing page. A page referencing
- * the target from its OWN body is no group at all (a self-named one-row
- * group names nothing): it rides `ungroupedItems` and renders as its own
- * top-level row, before the groups.
+ * ReferenceList — the page's references as an ORDINARY outline collection
+ * ("Backlinks should be like any other section"):
+ * the shared inert block rows over the referencing nodes — one row per
+ * entry, children folded behind the chevron like every other collection
+ * list, the bullet opening the source (the block itself in focused view
+ * when the edge is direct, otherwise the containing page). The Logseq-era
+ * bespoke row (a breadcrumb trail + an inline editable subtree per row) is
+ * retired; the grouping by containing page, the ungrouped-page-sources-first
+ * ruling, the hosted tabs, the sort button, and the
+ * transient filter layer are the shared machinery already. What a row still
+ * owns rides the shared trailing-action seam: the bound-verb badge
+ * (bound-property backlinks name the schema the edge arrived through, never
+ * the raw id) and, on the unlinked section only, the Promote/Ignore pair.
  *
  * `unlinkedPageId` enables the promote/ignore action pair on every row (the
  * unlinked section only): Promote converts the literal match into a mention;
@@ -197,28 +200,20 @@ export function ReferenceList({
       groups={groups}
       ungroupedItems={standalone}
       defaultSortMode={defaultSortMode}
+      onNodeClick={(id) => onOpenPage?.(id)}
       {...(hostedViews !== undefined ? { hostedViews } : {})}
       {...(trailing !== undefined ? { tabBarTrailing: trailing } : {})}
       {...(emptyText !== undefined ? { emptyText } : {})}
-      renderItem={(item) => {
-        const containingPageId =
-          typeof item.meta?.containingPageId === "string" ? item.meta.containingPageId : undefined;
+      trailingAction={(item) => {
         const verb = typeof item.meta?.verb === "string" ? item.meta.verb : null;
+        if (verb === null && unlinkedPageId === undefined) return null;
         return (
           <>
-            <Breadcrumbs
-              client={client}
-              nodeId={item.node.id}
-              onOpenNode={onOpenPage}
-              stopAfterId={containingPageId}
-              excludeIds={containingPageId !== undefined ? [containingPageId] : undefined}
-            />
             {verb !== null && (
               <span className="nt-ref-verb" title={`via ${schemaNameById.get(verb) ?? verb}`}>
                 {schemaNameById.get(verb) ?? verb}
               </span>
             )}
-            <ReferenceSubtree client={client} rootId={item.node.id} onOpenNode={onOpenPage} />
             {unlinkedPageId !== undefined && (
               <span className="nt-ref-actions">
                 <button
