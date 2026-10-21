@@ -7,6 +7,14 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **chore(compose): the redeploy instruction is plain docker compose — the
+  Komodo-enforcement comment is gone.** Owner ruling (2026-10-21), zero
+  runtime effect. The template header no longer routes updates through a
+  Komodo Redeploy; the live-stack split warning stays (build/up from the stack
+  folder, never the checkout), as does the update procedure itself (`docker
+  compose build <services> && docker compose up -d` from the stack folder).
+  The fleet host's live compose copy carries the same edit.
+
 - **feat(web): the sidebar's Favorites/Recents lists move to
   `features/sidebar/` — and their row labels go plain-text.** Owner asks
   (2026-10-21), one slice.
