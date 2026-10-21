@@ -5,9 +5,11 @@
  *
  * `applyMarkToRange` / `removeMarkFromRange` take a prose-offset range
  * (the same projection `proseFromAst` builds: hard_break counts 1, mentions
- * and typed_links count their captured text length) and split/splice the
- * covered text runs, leaving hard_breaks and rich tokens (mentions, chips,
- * links, quotes) untouched — marks apply to text runs in this slice.
+ * and typed_links count their prose contribution — the captured text, or
+ * the re-resolved label when the caller threads `resolveMentionName`) and
+ * split/splice the covered text runs, leaving hard_breaks and rich tokens
+ * (mentions, chips, links, quotes) untouched — marks apply to text runs in
+ * this slice.
  * Adjacent runs with equal marks merge back, so removing a mark restores
  * the run shape the apply started from. Mark order is canonicalized to the
  * MARKS declaration order so results are deterministic.
@@ -16,7 +18,7 @@
 import type { ContentAst, ContentToken, Mark } from "@notees/protocol";
 import { MARKS } from "@notees/protocol";
 
-import { proseSpans, type ClassNameResolver } from "@/editor/prose.js";
+import { proseSpans, type ClassNameResolver, type MentionNameResolver } from "@/editor/prose.js";
 
 const markRank = (mark: Mark): number => MARKS.indexOf(mark);
 
@@ -76,6 +78,7 @@ export function applyMarkToRange(
   end: number,
   mark: Mark,
   resolveClassName?: ClassNameResolver,
+  resolveMentionName?: MentionNameResolver,
 ): ContentAst {
   return mapRange(
     ast,
@@ -83,6 +86,7 @@ export function applyMarkToRange(
     end,
     (text, marks) => textRun(text, marks.includes(mark) ? marks : [...marks, mark]),
     resolveClassName,
+    resolveMentionName,
   );
 }
 
@@ -93,6 +97,7 @@ export function removeMarkFromRange(
   end: number,
   mark: Mark,
   resolveClassName?: ClassNameResolver,
+  resolveMentionName?: MentionNameResolver,
 ): ContentAst {
   return mapRange(
     ast,
@@ -100,6 +105,7 @@ export function removeMarkFromRange(
     end,
     (text, marks) => textRun(text, marks.filter((m) => m !== mark)),
     resolveClassName,
+    resolveMentionName,
   );
 }
 
@@ -109,9 +115,10 @@ function mapRange(
   end: number,
   cover: (text: string, marks: Mark[]) => ContentToken,
   resolveClassName?: ClassNameResolver,
+  resolveMentionName?: MentionNameResolver,
 ): ContentAst {
   if (start >= end) return ast as ContentAst;
-  const spans = proseSpans(ast, resolveClassName);
+  const spans = proseSpans(ast, resolveClassName, resolveMentionName);
   const out: ContentToken[] = [];
   let changed = false;
   ast.forEach((token, index) => {
@@ -144,13 +151,14 @@ export function marksOnRange(
   start: number,
   end: number,
   resolveClassName?: ClassNameResolver,
+  resolveMentionName?: MentionNameResolver,
 ): Set<Mark> {
   const shared = new Set<Mark>(MARKS);
   if (start >= end) {
     shared.clear();
     return shared;
   }
-  const spans = proseSpans(ast, resolveClassName);
+  const spans = proseSpans(ast, resolveClassName, resolveMentionName);
   let coveredAny = false;
   ast.forEach((token, index) => {
     const span = spans[index]!;
