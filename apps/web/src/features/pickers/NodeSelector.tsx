@@ -31,7 +31,10 @@
  * through a "changed" notify — the picker subscribes (search hits render
  * the moment they land, no retype needed) and renders a "Searching…" state
  * while the current query's read is pending (the client's `searchPending`
- * seam) instead of a lying "No matches found". A create that returns an id
+ * seam) instead of a lying "No matches found". Keystrokes coalesce through
+ * a short debounce before the query hits the ranked index (async clients
+ * only — one worker round-trip per query, not per keystroke), so the input
+ * leads the list by at most the debounce. A create that returns an id
  * resolves through `waitForNode` — the fresh node is not readable until the
  * create's sync push lands, and picking must wait for it or the mention
  * never inserts.
@@ -143,6 +146,15 @@ export interface NodePickContext {
 const PICKER_EDGE_PADDING = 8;
 /** Default number of results shown before "Show more results". */
 const DEFAULT_DISPLAY_LIMIT = 10;
+/**
+ * Async-client keystroke coalescing: the query that actually hits the
+ * ranked index lags the input by this much, so typing a 10-character query
+ * costs ONE worker round-trip instead of ten (the FTS itself is fast; the
+ * per-keystroke postMessage + reindex on a huge workspace is not). Sync
+ * clients (no `searchPending`) answer in microseconds and search every
+ * keystroke — debouncing them would only add latency.
+ */
+const SEARCH_DEBOUNCE_MS = 150;
 
 interface NodeSelectorProps {
   /** The nodes to display as pills ('pill-row' mode) or exclude as assigned. */
@@ -284,6 +296,14 @@ export function NodeSelector({
   const isAnchored = anchorEl != null || anchorRect != null;
   const [isPickerOpen, setIsPickerOpen] = useState(isAnchored);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+  /**
+   * The query the search pipeline actually runs — `searchQuery` coalesced
+   * through the debounce below on async clients. The input shows
+   * `searchQuery` (every keystroke); results, the create row, and the
+   * filter prefixes all answer THIS value, so the list, the create label,
+   * and the searched text never disagree.
+   */
+  const [debouncedQuery, setDebouncedQuery] = useState(initialSearchQuery);
   const [displayLimit, setDisplayLimit] = useState(DEFAULT_DISPLAY_LIMIT);
   /** Active scope-tab filter (only rendered when scopeTabs is set). */
   const [scope, setScope] = useState<"main" | "blocks">("main");
@@ -393,14 +413,15 @@ export function NodeSelector({
   // filter family): `daily:` (bare = daily pages only), `is_daily:`,
   // `is_page:` and `is_class:` booleans refine any non-classes search. The
   // tokens are stripped from the search text before FTS/name matching (and
-  // before the create row, so a filter never becomes a page title).
+  // before the create row, so a filter never becomes a page title). Runs on
+  // the debounced query — the prefixes coalesce with the rest of the input.
   const inlineFilters = useMemo(() => {
     const filters: { daily: boolean | null; page: boolean | null; cls: boolean | null } = {
       daily: null,
       page: null,
       cls: null,
     };
-    const stripped = searchQuery
+    const stripped = debouncedQuery
       .replace(/\b(is_daily|is_page|is_class)\s*:\s*(true|false)\b/gi, (_match, prefix: string, value: string) => {
         const bool = value.toLowerCase() === "true";
         const which = prefix.toLowerCase();
@@ -414,7 +435,7 @@ export function NodeSelector({
         return " ";
       });
     return { filters, query: stripped };
-  }, [searchQuery]);
+  }, [debouncedQuery]);
 
   /** The filter predicates over one candidate node (daily reads the deterministic date id). */
   const matchesInlineFilters = (node: ClientNode): boolean => {
@@ -647,6 +668,20 @@ export function NodeSelector({
     return sub.subscribe(() => setDataVersion((v) => v + 1));
   }, [client]);
 
+  // Coalesce keystrokes before the query hits the ranked index — async
+  // clients only (see SEARCH_DEBOUNCE_MS). Sync clients mirror immediately:
+  // their search is a local call, and tests + small workspaces expect the
+  // results to track the input synchronously.
+  const isAsyncSearch = client.searchPending !== undefined;
+  useEffect(() => {
+    if (!isAsyncSearch) {
+      setDebouncedQuery(searchQuery);
+      return;
+    }
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchQuery, isAsyncSearch]);
+
   // Search results through the client. Classes are matched by name over the
   // class list (name filtering is the better picker behavior for short
   // queries); object/block hits go through the ranked FTS index — the
@@ -725,8 +760,8 @@ export function NodeSelector({
         return true;
       })
       .filter(matchesScopeTab);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesInlineFilters derives from inlineFilters (searchQuery); matchesScopeTab derives from scope/scopeTabs/searchMode.
-  }, [client, searchQuery, searchMode, classRefine, effectiveClassIds, scopeTabs, scope, dataVersion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesInlineFilters derives from inlineFilters (debouncedQuery); matchesScopeTab derives from scope/scopeTabs/searchMode.
+  }, [client, debouncedQuery, searchMode, classRefine, effectiveClassIds, scopeTabs, scope, dataVersion]);
 
   // "Searching…" state: on an async client the current query's read may be
   // in flight while the memo already returned the empty default — without
@@ -737,6 +772,10 @@ export function NodeSelector({
     searchText !== "" &&
     searchMode !== "classes" &&
     (client.searchPending?.(searchText) ?? false);
+  // The empty state speaks for the SETTLED query only: while keystrokes are
+  // still coalescing (async clients) the memo answers the previous query,
+  // and "No matches found" for a search that hasn't run yet is a lie.
+  const querySettled = debouncedQuery === searchQuery;
 
   const filteredResults = useMemo(
     () =>
@@ -1003,7 +1042,7 @@ export function NodeSelector({
           <Spinner size="sm" label="Searching…" centered />
         </div>
       )}
-      {totalItems === 0 && !searching && (
+      {totalItems === 0 && !searching && querySettled && (
         <div className={emptyClassName}>
           {searchQuery ? "No matches found" : "Start typing to search"}
         </div>
