@@ -1153,9 +1153,12 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
-    // [0] is the column header sort button; [1] is Alpha's cell — the empty
-    // cell names its action ("Add Owner").
-    fireEvent.click(screen.getAllByRole("button", { name: "Add Owner" })[0]!);
+    // [0] is Alpha's cell (the header sort button is named "Owner", not
+    // "Add Owner"). The empty cell READS "Empty" while
+    // the accessible name names the action.
+    const ownerCell = screen.getAllByRole("button", { name: "Add Owner" })[0]!;
+    expect(ownerCell.textContent).toBe("Empty");
+    fireEvent.click(ownerCell);
     fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Paris" } });
     await flushWrites();
     fireEvent.click(document.querySelector(".node-result-item:not(.node-result-item--create):not(.node-result-item--date)")!);
@@ -1255,6 +1258,49 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
 
     // The "+ Add Files" picker's create row IS the upload action.
     fireEvent.click(within(row).getByRole("button", { name: "Add Files" }));
+    fireEvent.click(document.querySelector(".node-result-item--create")!);
+    expect(screen.getByRole("dialog", { name: /upload/i })).toBeTruthy();
+  });
+
+  it("empty multi-value node and asset cells read Empty and open the picker from the placeholder — no separate add affordance", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "blank paper");
+    const authorsId = await client.createPropertySchema({ name: "Authors", type: "object", multi: true });
+    const filesId = await client.createPropertySchema({
+      name: "Files",
+      type: "asset",
+      multi: true,
+      targetClassFilter: [SYSTEM_CLASS_UUIDS.asset],
+    });
+    await client.setClassProperty(classId, authorsId, {});
+    await client.setClassProperty(classId, filesId, {});
+    await createTitledClass(client, "asset", SYSTEM_CLASS_UUIDS.asset);
+    const blank = await client.createObject({ isEmbedded: false, name: "Blank paper" });
+    await client.assignClass(blank, classId);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    await expandClassedNodes();
+
+    const row = screen.getByRole("table").querySelector(`tr[data-node-id="${blank}"]`) as HTMLElement;
+    // Both empty cells read "Empty" (the unified empty-state idiom) and no
+    // add pill renders before the first value.
+    const authorsCell = within(row).getByRole("button", { name: "Add Authors" });
+    const filesCell = within(row).getByRole("button", { name: "Add Files" });
+    expect(authorsCell.textContent).toBe("Empty");
+    expect(filesCell.textContent).toBe("Empty");
+    expect(row.querySelector(".pill--add")).toBeNull();
+
+    // The node cell's click opens the picker; the create row appends.
+    fireEvent.click(authorsCell);
+    fireEvent.change(screen.getByLabelText("Search Authors"), { target: { value: "Ada Lovelace" } });
+    await flushWrites();
+    fireEvent.click(document.querySelector(".node-result-item--create")!);
+    await flushWrites();
+    const authors = client.getEffectiveProperties(blank).filter((p) => p.propertySchemaId === authorsId);
+    expect(authors).toHaveLength(1);
+    expect(client.getDisplayName((authors[0]!.value as { nodeId: string }).nodeId)).toBe("Ada Lovelace");
+
+    // The asset cell's click opens the picker whose create row is the upload.
+    fireEvent.click(filesCell);
     fireEvent.click(document.querySelector(".node-result-item--create")!);
     expect(screen.getByRole("dialog", { name: /upload/i })).toBeTruthy();
   });

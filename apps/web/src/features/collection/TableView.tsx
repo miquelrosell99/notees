@@ -58,11 +58,12 @@
  *   navigation is the button's alone). The VALUE click owns the picker
  *   (unless read-only), the button owns navigation (target node / day
  *   page), hover-revealed like the name cell.
- * - The empty-state placeholders: an empty PICKER cell
- *   (node/date/asset) names its action — "Add <name>" (the muted placeholder
- *   idiom); an empty text cell says "Empty" (its click creates-and-edits, so
- *   the state, not the action, is the honest label); an empty scalar input
- *   (url/email/number) rides the same "Add <name>" as its input placeholder.
+ * - The empty-state placeholders: an
+ *   empty VALUE cell reads "Empty" — the muted state placeholder idiom —
+ *   across text, node, date, asset, and scalar cells (the click on a picker
+ *   cell names its action "Add <name>" for assistive tech). The pill
+ *   clusters' "+ Add <name>" pills keep the action label — they are the add
+ *   affordance itself, the metadata row's idiom.
  * - Name cell: the node's title IS a block row — the
  *   page header's title projection (BlockRow variant="title"): inline
  *   tokens render read mode (markdown links render as links, class chips
@@ -332,8 +333,8 @@ function ClassChips({ item, props }: { item: NodeCollectionItem; props: NodeColl
 }
 
 /** Click-to-edit inline input: commit on blur/Enter, cancel on Escape. The
- *  empty cell names its action — "Add <name>" rides as the input
- *  placeholder (the empty-picker-cell idiom). */
+ *  empty cell reads "Empty" (the muted state placeholder
+ *  idiom; the input's aria-label already names the field). */
 function InlineInput({
   value,
   inputType = "text",
@@ -353,7 +354,7 @@ function InlineInput({
       type={inputType}
       className="nt-table-input"
       aria-label={ariaLabel}
-      placeholder={value === "" ? `Add ${ariaLabel}` : undefined}
+      placeholder={value === "" ? "Empty" : undefined}
       value={draft}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => onCommit(draft)}
@@ -505,7 +506,10 @@ function TextCell({
  * its own idx slot; a broken ref renders the dashed raw-id honest state),
  * and the "+ Add" pill opens the anchored NodeSelector appending at the
  * next free idx. The schema's targetClassFilter scopes the search AND the
- * create row (the created node carries the filter classes).
+ * create row (the created node carries the filter classes). The empty cell
+ * reads "Empty" like every other property cell — one
+ * click opens the picker; the "+ Add <name>" pill rides the VALUED cells
+ * only.
  */
 function MultiNodeCell({
   row,
@@ -533,6 +537,41 @@ function MultiNodeCell({
   // the highest authored slot.
   const nextIdx = authoredIdx.length > 0 ? Math.max(...authoredIdx) + 1 : 0;
   const targetClassIds = resolveTargetClassIds(client, schemaId, null);
+  const picker = open ? (
+    <NodeSelector
+      client={client}
+      searchMode="pages"
+      classFilters={targetClassIds ?? undefined}
+      excludeNodeId={row.item.node.id}
+      canAdd={(node) => !linkedIds.has(node.id)}
+      anchorEl={addRef.current}
+      onClose={() => setOpen(false)}
+      searchPlaceholder={`Search ${schemaName}`}
+      onAdd={(node) => {
+        setOpen(false);
+        void client.setProperty(row.item.node.id, schemaId, { nodeId: node.id }, nextIdx);
+      }}
+    />
+  ) : null;
+  if (pills.length === 0) {
+    // The empty cell reads "Empty" like every other property cell: one click opens the picker; the
+    // "+ Add" pill rides the VALUED cells only. The picker anchors at the
+    // placeholder button.
+    return (
+      <>
+        <button
+          type="button"
+          ref={addRef}
+          className="nt-table-text-empty"
+          aria-label={`Add ${schemaName}`}
+          onClick={() => setOpen(true)}
+        >
+          <span className="nt-table-date-placeholder">Empty</span>
+        </button>
+        {picker}
+      </>
+    );
+  }
   return (
     <span className="nt-table-chips">
       {pills.map(({ row: pillRow, ref }) => {
@@ -577,22 +616,7 @@ function MultiNodeCell({
           setOpen((cur) => !cur);
         }}
       />
-      {open && (
-        <NodeSelector
-          client={client}
-          searchMode="pages"
-          classFilters={targetClassIds ?? undefined}
-          excludeNodeId={row.item.node.id}
-          canAdd={(node) => !linkedIds.has(node.id)}
-          anchorEl={addRef.current}
-          onClose={() => setOpen(false)}
-          searchPlaceholder={`Search ${schemaName}`}
-          onAdd={(node) => {
-            setOpen(false);
-            void client.setProperty(row.item.node.id, schemaId, { nodeId: node.id }, nextIdx);
-          }}
-        />
-      )}
+      {picker}
     </span>
   );
 }
@@ -604,11 +628,12 @@ function MultiNodeCell({
  * original filename labels the pill), with the ❝ annotations toggle opening
  * the annotations panel anchored under the cell (the node-pills overflow
  * popup pattern) and the hover-reveal × unsetting its own idx slot. The
- * "+ Add <name>" pill opens the anchored NodeSelector (searchMode "all")
- * whose create row IS the upload action — "Upload file…" opens the
- * AssetUploadModal and the uploaded asset links at the next free idx; a
- * single-value schema replaces its authored slot instead (the
- * ObjectPropertyRow write pattern, cover values included).
+ * empty cell reads "Empty" like every other property cell — one click opens
+ * the anchored NodeSelector (searchMode "all") whose create row IS the
+ * upload action — "Upload file…" opens the AssetUploadModal and the
+ * uploaded asset links at the next free idx; a single-value schema replaces
+ * its authored slot instead (the ObjectPropertyRow write pattern, cover
+ * values included). Valued cells wear the "+ Add <name>" pill for appends.
  */
 function AssetCell({
   row,
@@ -672,6 +697,69 @@ function AssetCell({
     if (info !== undefined) void client.downloadAsset(info.assetId);
   };
 
+  const picker = pickerOpen ? (
+    <NodeSelector
+      client={client}
+      searchMode="all"
+      classFilters={targetClassIds ?? undefined}
+      excludeNodeId={row.item.node.id}
+      anchorEl={addRef.current}
+      onClose={() => setPickerOpen(false)}
+      searchPlaceholder={`Search ${schemaName}`}
+      onAdd={(node) => {
+        setPickerOpen(false);
+        void linkAsset(node.id, writeIdx);
+      }}
+      // Asset targets: the create row IS the upload action (the
+      // ObjectPropertyRow precedent) — "Upload file…" opens the modal,
+      // never a bare create. Unresolvable filter: plain create.
+      alwaysShowCreate={isAssetTarget}
+      createLabel={isAssetTarget ? "Upload file…" : undefined}
+      onCreateNew={
+        isAssetTarget
+          ? () => {
+              setPickerOpen(false);
+              setUploadOpen(true);
+            }
+          : (name) =>
+              client.createObject({
+                isEmbedded: false,
+                name,
+                ...(targetClassIds !== null ? { classIds: targetClassIds } : {}),
+              })
+      }
+    />
+  ) : null;
+
+  if (pills.length === 0) {
+    // The empty cell reads "Empty" like every other property cell: one click opens the picker (whose
+    // create row is the upload action); the "+ Add" pill rides the VALUED
+    // cells only.
+    return (
+      <>
+        <button
+          type="button"
+          ref={addRef}
+          className="nt-table-text-empty"
+          aria-label={`Add ${schemaName}`}
+          onClick={() => setPickerOpen(true)}
+        >
+          <span className="nt-table-date-placeholder">Empty</span>
+        </button>
+        {picker}
+        {uploadOpen && assetClassId !== undefined && (
+          <AssetUploadModal
+            isOpen
+            client={client}
+            assetClassId={assetClassId}
+            onClose={() => setUploadOpen(false)}
+            onUploaded={(assetNodeId) => void linkAsset(assetNodeId, writeIdx)}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
     <span className="nt-table-chips">
       {pills.map(({ row: pillRow, ref }) => {
@@ -734,39 +822,7 @@ function AssetCell({
           setPickerOpen((cur) => !cur);
         }}
       />
-      {pickerOpen && (
-        <NodeSelector
-          client={client}
-          searchMode="all"
-          classFilters={targetClassIds ?? undefined}
-          excludeNodeId={row.item.node.id}
-          anchorEl={addRef.current}
-          onClose={() => setPickerOpen(false)}
-          searchPlaceholder={`Search ${schemaName}`}
-          onAdd={(node) => {
-            setPickerOpen(false);
-            void linkAsset(node.id, writeIdx);
-          }}
-          // Asset targets: the create row IS the upload action (the
-          // ObjectPropertyRow precedent) — "Upload file…" opens the modal,
-          // never a bare create. Unresolvable filter: plain create.
-          alwaysShowCreate={isAssetTarget}
-          createLabel={isAssetTarget ? "Upload file…" : undefined}
-          onCreateNew={
-            isAssetTarget
-              ? () => {
-                  setPickerOpen(false);
-                  setUploadOpen(true);
-                }
-              : (name) =>
-                  client.createObject({
-                    isEmbedded: false,
-                    name,
-                    ...(targetClassIds !== null ? { classIds: targetClassIds } : {}),
-                  })
-          }
-        />
-      )}
+      {picker}
       {uploadOpen && assetClassId !== undefined && (
         <AssetUploadModal
           isOpen
@@ -853,11 +909,11 @@ function DateCell({ row, schemaId, props, schemaName, peek }: { row: TableRow; s
         aria-expanded={open}
         onClick={() => setOpen((cur) => !cur)}
       >
-        {/* The empty cell names its action — "Add <name>" in the muted
-            placeholder idiom.
-            An empty button collapsed to zero height and was near-unclickable
+        {/* The empty cell reads "Empty" (the muted
+            state placeholder; the accessible name names the action). An
+            empty button collapsed to zero height and was near-unclickable
 . */}
-        {display === "" ? <span className="nt-table-date-placeholder">Add {schemaName}</span> : display}
+        {display === "" ? <span className="nt-table-date-placeholder">Empty</span> : display}
       </button>
       {open && (
         <DatePickerPopup
@@ -1006,14 +1062,15 @@ function NodeCell({ row, schemaId, props, schemaName, peek }: { row: TableRow; s
         type="button"
         ref={anchorRef}
         className="nt-table-date"
+        // The empty cell reads "Empty" (the muted state
+        // placeholder idiom); the accessible name names the action.
+        aria-label={targetId !== null ? undefined : `Add ${schemaName}`}
         onClick={() => setOpen(true)}
       >
-        {/* The empty cell names its action — "Add <name>" in the muted
-            placeholder idiom. */}
         {targetId !== null ? (
           displayNameFromClient(props.client, targetId) ?? targetId
         ) : (
-          <span className="nt-table-date-placeholder">Add {schemaName}</span>
+          <span className="nt-table-date-placeholder">Empty</span>
         )}
       </button>
       {targetId !== null && (
@@ -1601,7 +1658,7 @@ export function TableView(props: NodeCollectionProps) {
             "—"
           ) : (
             <span className="nt-table-node">
-              {createdIso}
+              <span className="nt-table-stamp">{createdIso}</span>
               <OpenButton
                 label={`the ${createdIso} day page`}
                 onOpen={() => {
@@ -1627,7 +1684,7 @@ export function TableView(props: NodeCollectionProps) {
             "—"
           ) : (
             <span className="nt-table-node">
-              {formatCreated(node.updatedAt)}
+              <span className="nt-table-stamp">{formatCreated(node.updatedAt)}</span>
               <OpenButton
                 label={`the ${editedIso} day page`}
                 onOpen={() => {

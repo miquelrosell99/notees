@@ -556,6 +556,20 @@ td:has(> .nt-table-node > .nt-table-open-btn):focus-within {
   overflow-wrap: break-word;
 }
 
+/* The Created/Edited stamp rides the flex lane as a nowrap ellipsis span:
+   when the hover state reserves the Open button's lane (the td padding
+   grows), a stamp too long for the remaining width ellipsizes instead of
+   overflowing into the button — the bare-text nowrap overflow the owner
+   caught on hover ("navigation button spacing is wrong,
+   it overlaps"). */
+.nt-table-stamp {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* The Open button — the "Open workspace" twin (ghost sm, right arrow),
    pinned to the cell's right edge regardless of the text content. Hidden
    at rest like the pill's ×, revealed on cell hover / focus-within /
@@ -584,7 +598,7 @@ td:has(> .nt-table-node > .nt-table-open-btn) .nt-table-open-btn:focus-visible {
 }
 
 /* The empty scalar cell's placeholder rides the muted italic idiom (the
-   picker-cell "Add <name>" placeholder). */
+   "Empty" state placeholder). */
 .nt-table-input::placeholder {
   color: var(--md-sys-color-on-surface-variant);
   font-style: italic;
