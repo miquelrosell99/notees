@@ -27,13 +27,6 @@ export interface SectionProps<T> {
   client: WorkspaceClient | WorkerClient;
   title: string;
   icon?: ReactNode;
-  /**
-   * Materialized count badge — renders unconditionally and is exempt from
-   * the lazy-loading contract (reading it is reading a stored number).
-   * Omit for no badge: unlinked references never shows an eager count (and
-   * an empty child-pages section suppresses the zero).
-   */
-  badge?: number | undefined;
   /** The header's far-right icon-only action (the section-scoped create). */
   action?: NodeViewSectionAction | undefined;
   /** Collapsed on first render unless overridden. */
@@ -59,7 +52,6 @@ export function Section<T>({
   client,
   title,
   icon,
-  badge,
   action,
   defaultCollapsed = true,
   load,
@@ -75,7 +67,6 @@ export function Section<T>({
     <NodeViewSection
       title={title}
       icon={icon}
-      count={badge}
       action={action}
       className="nt-section"
       expanded={expanded}

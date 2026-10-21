@@ -196,7 +196,7 @@ describe("the context column (three-column panelled layout)", () => {
     // default — it renders the linked references on mount). No rail-style
     // references section anywhere in the composition.
     expect(container.querySelector(".nt-rail-ref__list")).toBeNull();
-    expect(screen.getByRole("button", { name: "Backlinks 1" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Backlinks" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: /^References/ })).toBeNull();
   });
 });

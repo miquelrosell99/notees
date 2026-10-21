@@ -99,8 +99,6 @@ describe("ExtendedBySection", () => {
     expect(section!.querySelectorAll("[data-block-id]")).toHaveLength(2);
     // The direct extender is a top-level tree row.
     expect(midRow!.parentElement!.classList.contains("nt-block-tree")).toBe(true);
-    // The badge counts the DIRECT extenders only.
-    expect(section!.textContent).toContain("Extended by1");
     // Sanity: the leaf renders under its direct parent's own section too.
     view.rerender(<NodeView client={client} nodeId={midId} onOpenNode={() => {}} />);
     const midSection = screen.getByText("Extended by").closest(".nt-section");

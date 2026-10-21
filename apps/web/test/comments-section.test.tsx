@@ -76,22 +76,20 @@ function commentChildrenOf(client: WorkspaceClient, nodeId: string) {
 }
 
 describe("CommentsSection", () => {
-  it("always renders — an empty thread starts expanded with the icon-only quick-add; the count follows", async () => {
+  it("always renders — an empty thread starts expanded with the icon-only quick-add", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
 
     render(<CommentsSection client={client} nodeId={pageId} onOpenNode={() => {}} />);
     // Zero comments: the section still renders, expanded, with the quick-add
-    // visible without a prior expand.
+    // visible without a prior expand (no header count anywhere).
     const header = screen.getByRole("button", { name: /Comments/ });
     expect(header.getAttribute("aria-expanded")).toBe("true");
-    expect(within(header).getByText("0")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Add comment" })).not.toBeNull();
 
     await act(async () => {
       await createComment(client, pageId, "First!");
     });
-    expect(within(screen.getByRole("button", { name: /Comments/ })).getByText("1")).not.toBeNull();
     expect(screen.getByRole("button", { name: "First!" })).not.toBeNull();
   });
 
@@ -101,7 +99,7 @@ describe("CommentsSection", () => {
     await createComment(client, pageId, "Hello there");
 
     render(<CommentsSection client={client} nodeId={pageId} onOpenNode={() => {}} />);
-    // Collapsed: the chrome + count render, the rows do not.
+    // Collapsed: the chrome renders, the rows do not.
     expect(screen.queryByRole("button", { name: "Hello there" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Comments/ }));
     expect(screen.getByRole("button", { name: "Hello there" })).not.toBeNull();
@@ -111,7 +109,6 @@ describe("CommentsSection", () => {
       await createComment(client, pageId, "Second");
     });
     expect(screen.getByRole("button", { name: "Second" })).not.toBeNull();
-    expect(within(screen.getByRole("button", { name: /Comments/ })).getByText("2")).not.toBeNull();
   });
 
   it("the quick-add composer creates a child block classed comment with the text as its content", async () => {
@@ -200,12 +197,9 @@ describe("CommentsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete comment Open me" }));
     await flushWrites();
     expect(client.getNodeRaw(commentId)!.isActive).toBe(false);
-    // The section re-derived: the row is gone, the count reads 0 — and the
+    // The section re-derived: the row is gone — and the
     // section stays (always rendered).
     expect(screen.queryByRole("button", { name: "Open me" })).toBeNull();
     expect(screen.getByRole("button", { name: /Comments/ })).not.toBeNull();
-    expect(
-      within(screen.getByRole("button", { name: /Comments/ })).getByText("0"),
-    ).not.toBeNull();
   });
 });

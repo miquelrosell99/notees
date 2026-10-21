@@ -15,10 +15,11 @@
  * body top for an UN-hosted collection; as the hosted tab bar's far-right
  * `tabBarTrailing` (inline, the collapsible quick search) when the collection props carry `hostedViews` — and applies
  * its FilterQuery through the hook — post-resolution, pre-windowing. The
- * count badge stays UNFILTERED (the hook's `total` is the pre-filter
- * resolved count): an active filter shows "0 of N" in the bar and never
- * hides the section. The query is this component's state — one skin
- * instance per section view, lost on reload, nothing persisted.
+ * count rides the hosted tab bar's active-tab badge (displayed rows), never
+ * a section-header number; the gate below stays UNFILTERED (the hook's `total` is
+ * the pre-filter resolved count): an active filter shows "0 of N" in the bar
+ * and never hides the section. The query is this component's state — one
+ * skin instance per section view, lost on reload, nothing persisted.
  */
 
 import { useMemo, useState, type ReactNode } from "react";
@@ -44,10 +45,11 @@ export interface CollectionSectionProps {
   title: string;
   icon?: ReactNode | undefined;
   /**
-   * Eager count badge (a materialized read, exempt from the lazy contract).
-   * Omit to show the resolved row count instead (undefined until the first
-   * resolution). Either way the badge stays UNFILTERED — an active
-   * transient filter narrows the rows, never the count.
+   * Eager count for the hide-when-empty gate (a materialized read, exempt
+   * from the lazy contract). Omit to gate on the resolved row count instead
+   * (undefined until the first resolution). Either way the gate stays
+   * UNFILTERED — an active transient filter narrows the rows, never the
+   * gate (and no count displays on the header).
    */
   count?: number | undefined;
   /** Collapsed on first render unless overridden. */
@@ -122,7 +124,6 @@ export function CollectionSection({
     <NodeViewSection
       title={title}
       icon={icon}
-      count={resolvedCount}
       className="nt-collection-section"
       expanded={expanded}
       onExpandedChange={setExpanded}

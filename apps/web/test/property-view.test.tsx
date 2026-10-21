@@ -94,12 +94,12 @@ describe("PropertyView", () => {
     expect(screen.getByText("text · global")).not.toBeNull();
 
     // Bound classes: the one class binding the schema.
-    const boundSection = screen.getByRole("button", { name: /^Bound classes / }).closest(".node-view-section")!;
+    const boundSection = screen.getByRole("button", { name: /^Bound classes/ }).closest(".node-view-section")!;
     expect(boundSection.textContent).toContain("Shelf");
 
     // References: exactly the two carriers — Gamma (bound but unvalued)
     // never lists.
-    const refsSection = screen.getByRole("button", { name: /^References / }).closest(".node-view-section")!;
+    const refsSection = screen.getByRole("button", { name: /^References/ }).closest(".node-view-section")!;
     const table = within(refsSection as HTMLElement);
     expect(table.getByText("Alpha")).not.toBeNull();
     expect(table.getByText("Beta")).not.toBeNull();
@@ -121,7 +121,7 @@ describe("PropertyView", () => {
     await client.setProperty(hostId, schemaId, "mine", 0);
 
     render(<PageView client={client} pageId={hostId} />);
-    const header = screen.queryByRole("button", { name: /^Properties / });
+    const header = screen.queryByRole("button", { name: /^Properties/ });
     if (header !== null && header.getAttribute("aria-expanded") === "false") {
       fireEvent.click(header);
     }
@@ -134,7 +134,7 @@ describe("PropertyView", () => {
     // The inspector replaced the settings modal.
     expect(screen.queryByRole("heading", { name: "Property settings" })).toBeNull();
     expect(screen.getByRole("heading", { name: "code" })).not.toBeNull();
-    const refsSection = screen.getByRole("button", { name: /^References / }).closest(".node-view-section")!;
+    const refsSection = screen.getByRole("button", { name: /^References/ }).closest(".node-view-section")!;
     expect(within(refsSection as HTMLElement).getByText("Host")).not.toBeNull();
   });
 });
