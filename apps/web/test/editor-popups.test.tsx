@@ -1,9 +1,11 @@
 /**
  * Editor chrome popup tests: the ported FloatingToolbar's slash TriggerPopup
  * (quote / task / hard-break / text / Add URL), the find & replace widget
- * over the block tree, and the LinkEditModal for NODE links (* the modal is node-only — opened via a mention's "Edit link…", mode set
+ * over the block tree, and the LinkEditModal for NODE links (
+ * the modal is node-only — opened via a mention's "Edit link…", mode set
  * Page/Block/Verb; external links navigate and never open it, and the slash
- * "Add URL" flow authors the external_link token directly). Same harness as
+ * "Add URL" flow authors a markdown [href](href) text token directly). Same
+ * harness as
  * capture.test.tsx: PageView over the in-process WorkspaceClient +
  * MemoryRelay (jsdom).
  */
@@ -194,7 +196,7 @@ describe("slash trigger popup", () => {
     expect(editor.textContent).toBe("\nab");
   });
 
-  it("Add URL strips the trigger and authors the external_link token directly (no modal)", async () => {
+  it("Add URL strips the trigger and authors linked markdown prose (no modal)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
@@ -205,12 +207,13 @@ describe("slash trigger popup", () => {
     typeWithCaret(editor, "/url https://example.com");
     fireEvent.keyDown(editor, { key: "Enter" });
 
-    // The node-link modal never opens — the token is authored at the caret.
+    // The node-link modal never opens — the markdown text token is authored
+    // at the caret.
     expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
     expect(client.getNode(blockId)?.contentAst).toEqual([
-      { type: "external_link", href: "https://example.com", text: "https://example.com" },
+      { type: "text", text: "[https://example.com](https://example.com)" },
     ]);
-    // Read mode renders it as a plain hyperlink (no chip chrome).
+    // Read mode renders the markdown span as a plain hyperlink (no chip chrome).
     fireEvent.blur(editor);
     const anchor = container.querySelector("a.nt-hyperlink");
     expect(anchor).not.toBeNull();
@@ -330,10 +333,7 @@ describe("link edit modal (node links only)", () => {
     const pageId = await client.createObject({ isEmbedded: false, name: "Links" });
     await client.createObject({
       parentId: pageId,
-      contentAst: [
-        { type: "text", text: "see " },
-        { type: "external_link", href: "https://a.example", text: "Alpha" },
-      ],
+      contentAst: [{ type: "text", text: "see [Alpha](https://a.example)" }],
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 

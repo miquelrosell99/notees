@@ -16,7 +16,7 @@
  *   (typing at the end of a bold run stays bold — contentEditable behavior),
  *   the last run inherits the marks abutting the splice end.
  *
- * Rich tokens (mention, typed_link, class_link, external_link, math, quote)
+ * Rich tokens (mention, typed_link, class_link, math, quote)
  * are prose-visible but not structurally editable: a change strictly before
  * or after them leaves them intact (a mention's captured text may go stale
  * when text is inserted next to it — display resolves the target name, so

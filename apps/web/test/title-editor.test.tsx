@@ -202,7 +202,7 @@ describe("page title row", () => {
     expect(client.getNode(pageId)!.isActive).toBe(true);
   });
 
-  it("typing a URL through the slash Add URL flow authors the token directly (no modal)", async () => {
+  it("typing a URL through the slash Add URL flow authors linked markdown prose (no modal)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({
       isEmbedded: false,
@@ -216,12 +216,12 @@ describe("page title row", () => {
     fireEvent.keyDown(editor, { key: "Enter" });
     await flushWrites();
 
-    // The trigger consumed; the token lands directly — the node-link modal
-    // (node-only) never opens for a URL.
+    // The trigger consumed; the markdown text lands directly — the node-link
+    // modal (node-only) never opens for a URL. The splice merges the new text
+    // run into the abutting title run (edit-apply's text-merge invariant).
     expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
     expect(client.getNode(pageId)!.contentAst).toEqual([
-      { type: "text", text: "Reading list " },
-      { type: "external_link", href: "https://example.com", text: "https://example.com" },
+      { type: "text", text: "Reading list [https://example.com](https://example.com)" },
     ]);
     // Blur returns the row to display mode (the body-block contract,
     // unchanged)…

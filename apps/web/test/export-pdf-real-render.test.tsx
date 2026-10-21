@@ -58,7 +58,7 @@ function doc(): ExportDocument {
           { kind: "mention", targetNodeId: "n2", name: "Mention" },
           { kind: "classLink", classId: "c1", name: "chip" },
           { kind: "typedLink", verb: "by", text: "Author", locator: "p. 1" },
-          { kind: "externalLink", text: "link", href: "https://example.com" },
+          { kind: "text", text: "[link](https://example.com)", marks: [] },
           { kind: "math", expression: "x^2" },
         ],
       },

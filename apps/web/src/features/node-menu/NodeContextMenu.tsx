@@ -106,7 +106,6 @@ const FLATTEN_TOKEN_LABELS: Record<string, string> = {
   mention: "mentions",
   class_link: "class chips",
   typed_link: "typed links",
-  external_link: "external links",
   math: "math",
   asset_ref: "asset attachments",
   embed_ref: "embeds",

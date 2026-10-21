@@ -173,7 +173,7 @@ describe("PageView rendering", () => {
         { type: "query", queryAst: { all: true } },
         { type: "whiteboard", layout: {} },
         { type: "math", expression: "E = mc^2" },
-        { type: "external_link", href: "https://example.com", text: "Example" },
+        { type: "text", text: "[Example](https://example.com)" },
       ],
     });
 
@@ -195,8 +195,8 @@ describe("PageView rendering", () => {
     const link = screen.getByText("Example");
     expect(link.tagName).toBe("A");
     expect(link.getAttribute("href")).toBe("https://example.com");
-    // An external link is a plain hyperlink, not a chip: the hyperlink class
-    // and none of the chip chrome.
+    // A markdown link span is a plain hyperlink, not a chip: the hyperlink
+    // class and none of the chip chrome.
     expect(link.classList.contains("nt-hyperlink")).toBe(true);
     expect(link.classList.contains("nt-chip")).toBe(false);
   });
