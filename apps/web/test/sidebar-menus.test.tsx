@@ -502,6 +502,18 @@ describe("sidebar row labels render as plain text", () => {
     expect(row.querySelector(".nt-side-item-label")!.textContent).toBe("Ver Informe 2024 hoy");
   });
 
+  it("a long href cannot crowd the label out — the strip lands before the 80-char cap", () => {
+    const longHref = `https://example.com/${"x".repeat(120)}`;
+    const linked = stubNode({
+      id: "md-2",
+      contentAst: [{ type: "text", text: `[Corto](${longHref})` }],
+    });
+    localStorage.setItem("notees.favorites", JSON.stringify([linked.id]));
+    renderSidebar(stubSidebarClient([linked]));
+    const row = screen.getAllByRole("button", { name: "Corto" })[0] as HTMLElement;
+    expect(row.querySelector(".nt-side-item-label")!.textContent).toBe("Corto");
+  });
+
   it("the row is the only clickable surface — clicking it opens the row's page", () => {
     const onOpenPage = vi.fn();
     const { row } = renderRichRow({ onOpenPage });

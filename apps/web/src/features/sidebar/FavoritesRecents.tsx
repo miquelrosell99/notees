@@ -157,16 +157,22 @@ export function FavoritesRecents({
    * branch; empty content falls back to the untitled label.
    */
   const renderRowLabel = (node: ClientNode) => {
-    const text = displayNameForSettings(node, (classId) => client.getDisplayName(classId));
-    // A markdown link span reduces to its LABEL — the href is chrome noise
-    // in a plain-text row (splitMarkdownLinks is the canonical render
-    // grammar); the cap lands first, so a truncated href may leave raw
-    // brackets, which stays honest plain text.
-    const labelText = splitMarkdownLinks(text)
-      .map((segment) => segment.text)
-      .join("");
+    // Markdown link spans reduce to their LABEL — the href is chrome noise
+    // in a plain-text row. The strip runs PER TEXT TOKEN before the display
+    // name's 80-char cap (splitMarkdownLinks is the canonical render
+    // grammar), so a long URL can never crowd the label out; a bracketed
+    // span that fails the grammar stays literal, honestly.
+    const strippedAst = node.contentAst.map((token) =>
+      token.type === "text"
+        ? { ...token, text: splitMarkdownLinks(token.text).map((segment) => segment.text).join("") }
+        : token,
+    );
+    const text = displayNameForSettings(
+      { ...node, contentAst: strippedAst },
+      (classId) => client.getDisplayName(classId),
+    );
     return (
-      <span className="nt-side-item-label">{labelText === "" ? untitledLabelOf(node) : labelText}</span>
+      <span className="nt-side-item-label">{text === "" ? untitledLabelOf(node) : text}</span>
     );
   };
 
