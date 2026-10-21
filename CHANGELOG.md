@@ -7,6 +7,19 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **refine(web): the table column default IS the minimum.** one
+  register instead of two — a column renders at its default share and a
+  drag widens it from there, never narrows below it; the separate 72px
+  clamp retires. The ch-unit defaults resolve to px through a measured
+  10ch probe (the drag works in px).
+  - **Files**: `TableView.tsx` (`MIN_COLUMN_WIDTH` gone; `columnMinimumWidth`
+    = the column's default ch share × the measured ch width; the drag ref
+    carries the floor).
+  - **Verification**: live probe (`colresize-probe.mjs`): the far-left drag
+    now clamps at 162px (the property column's 18ch default) instead of
+    72px; widening and the 30px search field unchanged. `verify-min.mjs`
+    VERIFY-PASS.
+
 - **feat(web): table columns have default + minimum sizes and draggable
   dividers; the hosted tab bar's search field rides the sm height.**
  . The table switched to **fixed layout with a
