@@ -7,6 +7,23 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): the checkbox box is a square again — the width scale registers
+  xs/sm/md.** The fleet Checkbox and Radio size their boxes `h-xs w-xs` (the
+  sm/md/lg scale rides the `--height-xs/sm/md` tokens, the height register's
+  square-box twins). But the Tailwind config's `width` scale never registered
+  xs/sm/md — so `w-xs` generated no CSS, and because `cn` merges with
+  tailwind-merge, the caller's `w-xs` also *stripped* the catalog checkbox's
+  fallback `w-icon-md`. The box was left with a token height and a
+  content-driven width — a rectangle instead of the rounded square the
+  buttons wear (same `--shape-medium` corners, owner ruling 2026-10-20). The
+  width scale now carries `xs/sm/md → var(--height-xs/sm/md)`, mirroring the
+  `minWidth` register the Badge already relied on.
+  - **Files**: `apps/web/tailwind.config.ts` (the `width` scale).
+  - **Verification**: production build emits `.w-xs{width:var(--height-xs)}`
+    alongside `.h-xs{height:var(--height-xs)}` (the table view's selection
+    checkbox now renders a 24×24px rounded square at size sm); web `tsc` and
+    the css-token-drift gate green.
+
 - **refine(web): the table column default IS the minimum.** Owner ruling
   (2026-10-21, same-day correction on the resizable-columns slice): one
   register instead of two — a column renders at its default share and a
