@@ -5,7 +5,7 @@
  * with its own family (meetingDate/location/agenda). A fresh/offline
  * workspace authors BOTH classes + schemas + bindings + the extends edge at
  * their reserved ids on first call; the call is a complete no-op once
- * present. The server-seed shape (same ids, key names, sequences, edge) is
+ * present. The server-seed shape (same ids, key names, edge) is
  * recognized without re-authoring, so a server-seeded workspace and a
  * self-healed one converge. Calendar breadth: after ensure, the Calendar
  * view's exact chip-qualification call (listClasses + displayNameFromClient
@@ -91,7 +91,7 @@ function classSeedEnvelopes(
       [classId],
     ),
   ];
-  family.forEach((spec, index) => {
+  family.forEach((spec) => {
     envelopes.push(
       seedEnvelope(
         "propertySchema.create",
@@ -109,7 +109,7 @@ function classSeedEnvelopes(
       ),
       seedEnvelope(
         "class.property.set",
-        { classId, propertySchemaId: spec.id, sequence: index },
+        { classId, propertySchemaId: spec.id },
         [classId],
       ),
     );
@@ -138,7 +138,7 @@ function serverSeededRelay(): MemoryRelay {
     // birthday (the chip-eligibility row).
     seedEnvelope(
       "class.property.set",
-      { classId: BIRTHDAY_CLASS_ID, propertySchemaId: SYSTEM_PROPERTY_UUIDS.eventDate, sequence: 0 },
+      { classId: BIRTHDAY_CLASS_ID, propertySchemaId: SYSTEM_PROPERTY_UUIDS.eventDate },
       [BIRTHDAY_CLASS_ID],
     ),
   ]);
@@ -197,11 +197,10 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     const bindings = client.getClassBindings(MEETING_CLASS_ID);
     // The meeting family rides the seed-spec fallback (read-synthesized at
     // the reserved ids — the ensure's bound-check sees them and authors no
-    // duplicate rows).
+    // duplicate rows). The list is ALPHABETICAL by property name.
     expect(bindings.map((binding) => binding.propertySchemaId)).toEqual(
-      MEETING_FAMILY.map((spec) => spec.id),
+      [...MEETING_FAMILY].sort((a, b) => a.name.localeCompare(b.name)).map((spec) => spec.id),
     );
-    expect(bindings.map((binding) => binding.sequence)).toEqual([0, 1, 2]);
     expect(client.getClassParents(MEETING_CLASS_ID)).toContain(EVENT_CLASS_ID);
 
     expect(await meetingFamilyPresent(client)).toBe(true);

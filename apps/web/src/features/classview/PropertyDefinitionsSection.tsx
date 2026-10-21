@@ -2,25 +2,26 @@
  * PropertyDefinitionsSection — the class page's schema list (the Capacities
  * type-panel analogue, the class-level inline
  * editor is GONE — the default moved to the property schema (one global
- * default per property, the Logseq shape) and `required` retired outright,
- * so a binding has nothing left to edit. The class page is now JUST the
- * list of assigned properties).
+ * default per property, the Logseq shape) and `required` retired outright;
+ * retired `sequence` too, so a binding is a
+ * presence row + the soft-unbind flag ONLY. The class page is now JUST the
+ * list of assigned properties, rendered PURE ALPHABETICALLY by property
+ * name — display-only ordering, nothing to sort).
  *
  * Section level: two groups — "Class properties" (the class's DIRECT
- * bindings, drag-sortable) and "Inherited" (read-only rows attributed to
- * the NEAREST extends-ancestor that binds each schema; clicking one opens
- * the base-definition editor).
+ * bindings) and "Inherited" (read-only rows attributed to the NEAREST
+ * extends-ancestor that binds each schema; clicking one opens the
+ * base-definition editor).
  *
  * The row (the Notion database-property-row pattern, now the WHOLE
  * surface): the schema icon (the owner-2026-10-20 icon field, per-type
  * glyph fallback) and the name (min-width 0 + ellipsis). NOTHING else —
- * no chevron, no expansion, no inline fields. Inactive bindings dim the
- * name (the only disabled cue). The whole row is ONE action: it opens the
- * S2 base-definition modal (PropertyEditModal — the default editor lives
- * there now, at the schema level), and the whole row is also the drag
- * handle (grab cursor, dnd-kit PointerSensor 4px — a plain click still
- * opens; no grip chrome). Hover reveals exactly ONE surface (no row tint, no grip): the right-side REMOVE × (the
- * section-level danger confirm; hidden for system property schemas —
+ * no chevron, no expansion, no inline fields, no drag. Inactive bindings
+ * dim the name (the only disabled cue). The whole row is ONE action: it
+ * opens the S2 base-definition modal (PropertyEditModal — the default
+ * editor lives there now, at the schema level). Hover reveals exactly ONE
+ * surface (no row tint, no grip): the right-side REMOVE ×
+ * (the section-level danger confirm; hidden for system property schemas —
  * non-removable means absent). Removal never requires opening anything.
  *
  * Add property: the AddPill opens an anchored popover (SearchField,
@@ -36,21 +37,11 @@
  * getClassBindings applies, so a fresh seeded system class keeps showing
  * its designed bindings); everything else inherited, attributed to the
  * nearest ancestor binding it (BFS over getClassParents, the
- * schemaEligibility closure pattern).
+ * schemaEligibility closure pattern). getClassBindings already returns
+ * the alphabetical order both groups render.
  */
 
 import { useRef, useState } from "react";
-
-import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 
 import {
   SYSTEM_CLASS_UUIDS,
@@ -170,16 +161,12 @@ function bindingAttributionOf(client: AnyClient, classId: string): {
       else inherited.push({ binding, sourceClassId: level });
     }
   }
+  // PURE ALPHABETICAL by property name (binding
+  // sequence retired; both groups are display-only lists).
+  const byName = (a: ClassBinding, b: ClassBinding) => a.name.localeCompare(b.name);
+  direct.sort(byName);
+  inherited.sort((a, b) => byName(a.binding, b.binding));
   return { direct, inherited };
-}
-
-function reorderIds(ids: string[], activeId: string, overId: string): string[] {
-  const next = ids.slice();
-  const from = next.indexOf(activeId);
-  const to = next.indexOf(overId);
-  if (from === -1 || to === -1 || from === to) return ids;
-  next.splice(to, 0, ...next.splice(from, 1));
-  return next;
 }
 
 function BindingRow({
@@ -195,30 +182,18 @@ function BindingRow({
   /** "Remove from class" — the section-level danger confirm. */
   onRemoveRequest: () => void;
 }) {
-  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: binding.propertySchemaId,
-  });
-
   const name = schema?.name ?? binding.name;
   const isSystem = isSystemSchema(binding.propertySchemaId);
 
   return (
     <li
-      ref={setNodeRef}
       data-property-schema-id={binding.propertySchemaId}
-      className={
-        `nt-propdef` +
-        (isDragging ? " nt-propdef--dragging" : "") +
-        (binding.active ? "" : " nt-propdef--inactive")
-      }
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`nt-propdef` + (binding.active ? "" : " nt-propdef--inactive")}
     >
-      <div className="nt-propdef-row" {...listeners}>
+      <div className="nt-propdef-row">
         {/* The whole row is ONE action: it opens the base-definition modal
             (the default editor lives there now, at the schema level — the
-            class-level inline editor is gone). A
-            plain click still wins over the row's drag-handle role
-            (PointerSensor 4px). */}
+            class-level inline editor is gone). */}
         <button
           type="button"
           className="nt-propdef-main"
@@ -268,25 +243,12 @@ export function PropertyDefinitionsSection({
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
   const pickerRef = useRef<HTMLDivElement | null>(null);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
-
   usePopupDismissal({
     popupRef: pickerRef,
     anchorRefs: [addButtonRef],
     isOpen: pickerOpen,
     onClose: () => setPickerOpen(false),
   });
-
-  /** Drag reorder: rewrite every row's sequence in the dropped order. */
-  const onDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (over === null || active.id === over.id) return;
-    const ids = direct.map((binding) => binding.propertySchemaId);
-    const ordered = reorderIds(ids, String(active.id), String(over.id));
-    ordered.forEach((schemaId, index) => {
-      void client.setClassProperty(classId, schemaId, { sequence: index });
-    });
-  };
 
   // The add-property popover: existing schemas not bound directly here,
   // filtered by query AND class-context eligibility (R1/R2 — global +
@@ -307,7 +269,9 @@ export function PropertyDefinitionsSection({
   const optionCount = candidates.length + (canCreate ? 1 : 0);
 
   const addBinding = async (schemaId: string) => {
-    await client.setClassProperty(classId, schemaId, { sequence: direct.length });
+    // A binding is a presence row + the soft-unbind flag — no order to
+    // allocate (class panels render alphabetically).
+    await client.setClassProperty(classId, schemaId, {});
     setPickerOpen(false);
     setQuery("");
   };
@@ -355,26 +319,19 @@ export function PropertyDefinitionsSection({
         {direct.length === 0 ? (
           <span className="nt-propdefs-empty">No property bindings.</span>
         ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-            <SortableContext
-              items={direct.map((binding) => binding.propertySchemaId)}
-              strategy={verticalListSortingStrategy}
-            >
-              <ul className="nt-propdefs-list">
-                {direct.map((binding) => (
-                  <BindingRow
-                    key={binding.propertySchemaId}
-                    binding={binding}
-                    schema={client
-                      .listPropertySchemas()
-                      .find((s) => s.id === binding.propertySchemaId)}
-                    onOpenDefinition={() => setEditFor(binding.propertySchemaId)}
-                    onRemoveRequest={() => setRemoveFor(binding)}
-                  />
-                ))}
-              </ul>
-            </SortableContext>
-          </DndContext>
+          <ul className="nt-propdefs-list">
+            {direct.map((binding) => (
+              <BindingRow
+                key={binding.propertySchemaId}
+                binding={binding}
+                schema={client
+                  .listPropertySchemas()
+                  .find((s) => s.id === binding.propertySchemaId)}
+                onOpenDefinition={() => setEditFor(binding.propertySchemaId)}
+                onRemoveRequest={() => setRemoveFor(binding)}
+              />
+            ))}
+          </ul>
         )}
         <div className="nt-propdefs-add">
           <AddPill

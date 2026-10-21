@@ -172,9 +172,7 @@ describe("weblink→source extension heal (existing workspaces)", () => {
       type: "url",
       scopeClassIds: [SYSTEM_CLASS_UUIDS.weblink],
     });
-    await client.setClassProperty(SYSTEM_CLASS_UUIDS.weblink, SYSTEM_PROPERTY_UUIDS.url, {
-      sequence: 0,
-    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.weblink, SYSTEM_PROPERTY_UUIDS.url, {});
     await flushSync();
     expect(client.getClassParents(SYSTEM_CLASS_UUIDS.weblink)).toEqual([]);
 

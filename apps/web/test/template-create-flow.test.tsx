@@ -97,9 +97,9 @@ async function seedClient(relay: MemoryRelay = seededRelay()): Promise<Workspace
 async function setupMeetingWithTemplate(client: WorkspaceClient) {
   const meetingId = await client.createClass("gathering");
   const whenId = await client.createPropertySchema({ name: "When", type: "datetime" });
-  await client.setClassProperty(meetingId, whenId, { sequence: 0 });
+  await client.setClassProperty(meetingId, whenId, {});
   const prioId = await client.createPropertySchema({ name: "Priority", type: "select" });
-  await client.setClassProperty(meetingId, prioId, { sequence: 1 });
+  await client.setClassProperty(meetingId, prioId, {});
   await client.updatePropertySchema(prioId, { defaultValue: "low" });
 
   const templateId = await client.createObject({
@@ -121,7 +121,7 @@ async function setupMeetingWithTemplate(client: WorkspaceClient) {
 async function setupPlainClass(client: WorkspaceClient) {
   const plainId = await client.createClass("plain");
   const whenId = await client.createPropertySchema({ name: "Dated", type: "datetime" });
-  await client.setClassProperty(plainId, whenId, { sequence: 0 });
+  await client.setClassProperty(plainId, whenId, {});
   return { plainId, whenId };
 }
 

@@ -489,7 +489,7 @@ describe("Asset attachments (the asset property row)", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "hero", type: "asset", multi: false });
     const heroClass = await client.createClass("heroed");
-    await client.setClassProperty(heroClass, schemaId, { sequence: 0 });
+    await client.setClassProperty(heroClass, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Heroed page" });
     await client.assignClass(pageId, heroClass);
     const assetId = await client.createObject({ isEmbedded: false, name: "hero.png", classIds: [ASSET_CLASS] });
@@ -521,7 +521,7 @@ describe("Asset attachments (the asset property row)", () => {
       targetClassFilter: [personClass],
     });
     const teamClass = await client.createClass("Team");
-    await client.setClassProperty(teamClass, mentorSchema, { sequence: 0 });
+    await client.setClassProperty(teamClass, mentorSchema, {});
     const teamId = await client.createObject({ isEmbedded: false, name: "Crew" });
     await client.assignClass(teamId, teamClass);
     await client.createObject({ isEmbedded: false, name: "Ada Lovelace", classIds: [personClass] });

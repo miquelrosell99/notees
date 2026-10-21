@@ -144,11 +144,11 @@ export interface UndoPropertyValueSnapshot {
 }
 
 /** One class_property binding row, decoded. A binding carries the genuinely
- *  per-class mechanics ONLY (sequence + active —
- *  the render contracts left for the schema earlier; `required` retired
- *  outright and `defaultValue` moved to the property schema). */
+ *  per-class mechanic ONLY — the active soft-unbind flag (the render contracts left for the schema earlier;
+ *  `required` retired outright, `defaultValue` moved to the property
+ *  schema, `sequence` retired outright — class panels render alphabetically
+ *  by property name). */
 export interface UndoBindingSnapshot {
-  sequence: number;
   active: boolean;
 }
 
@@ -437,10 +437,12 @@ export function invertEnvelope(
       const classId = asString(p.classId);
       const propertySchemaId = asString(p.propertySchemaId);
       if (classId === null || propertySchemaId === null) return null;
-      // The binding carries sequence + active only.
-      const BINDING_FIELDS = ["sequence", "active"] as const;
+      // The binding carries active only. A fieldless set is
+      // legal (a pure causality bump — the app's bind gesture writes one),
+      // so the first-bind unset inverse keys off the CAPTURE, not the
+      // touched fields.
+      const BINDING_FIELDS = ["active"] as const;
       const touched = BINDING_FIELDS.filter((field) => hasOwn(p, field));
-      if (touched.length === 0) return null;
       const prior = capture.classBinding(classId, propertySchemaId);
       if (prior === null) {
         // First bind — remove it again.
@@ -452,6 +454,7 @@ export function invertEnvelope(
           },
         ];
       }
+      if (touched.length === 0) return null; // causality bump — nothing to restore
       const restore: Record<string, unknown> = { classId, propertySchemaId };
       for (const field of touched) {
         restore[field] = prior[field as keyof UndoBindingSnapshot];
@@ -467,7 +470,6 @@ export function invertEnvelope(
       const payload: Record<string, unknown> = {
         classId,
         propertySchemaId,
-        sequence: prior.sequence,
         active: prior.active,
       };
       return [{ opType: "class.property.set", payload, affected: [classId] }];

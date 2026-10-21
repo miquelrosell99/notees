@@ -228,7 +228,7 @@ describe("datetime (SCHEMA.md)", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "published", type: "datetime" });
     const classId = await client.createClass("Dated");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Note" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
@@ -287,7 +287,7 @@ describe("datetime (SCHEMA.md)", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "published", type: "datetime" });
     const classId = await client.createClass("Dated");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Note" });
     await client.assignClass(pageId, classId);
     await client.setDatetimeProperty(pageId, schemaId, { iso: "2026-09-27", time: "09:30" });
@@ -309,7 +309,7 @@ describe("datetime (SCHEMA.md)", () => {
       multi: true,
     });
     const classId = await client.createClass("Trip");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
     await client.assignClass(pageId, classId);
     await client.setDatetimeProperty(pageId, schemaId, {
@@ -342,7 +342,7 @@ describe("datetime (SCHEMA.md)", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "span", type: "datetime" });
     const classId = await client.createClass("Trip");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
     await client.assignClass(pageId, classId);
     await client.setDatetimeProperty(pageId, schemaId, {
@@ -385,7 +385,7 @@ describe("datetime (SCHEMA.md)", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "span", type: "datetime" });
     const classId = await client.createClass("Trip");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
     await client.assignClass(pageId, classId);
     await client.setDatetimeProperty(pageId, schemaId, { iso: "2026-09-27" });
@@ -417,7 +417,7 @@ describe("datetime (SCHEMA.md)", () => {
       datePrecision: "year",
     });
     const classId = await client.createClass("Org");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Org" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
@@ -442,7 +442,7 @@ describe("datetime (SCHEMA.md)", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "published", type: "datetime" });
     const classId = await client.createClass("Dated");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Note" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
@@ -478,7 +478,7 @@ describe("datetime (SCHEMA.md)", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "published", type: "datetime" });
     const classId = await client.createClass("Dated");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Note" });
     await client.assignClass(pageId, classId);
     await client.setDatetimeProperty(pageId, schemaId, { iso: "2026-09-27" });
@@ -529,7 +529,7 @@ describe("datetime (SCHEMA.md)", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "published", type: "datetime" });
     const classId = await client.createClass("Dated");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Note" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
@@ -561,7 +561,7 @@ describe("datetime (SCHEMA.md)", () => {
       datePrecision: "year",
     });
     const classId = await client.createClass("Org");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Org" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
@@ -582,7 +582,7 @@ describe("datetime (SCHEMA.md)", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
     const classId = await client.createClass("Event");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Review" });
     await client.assignClass(pageId, classId);
     await client.setDatetimeProperty(pageId, schemaId, { iso: "2026-10-11" });
@@ -609,7 +609,7 @@ describe("datetime (SCHEMA.md)", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "published", type: "datetime" });
     const classId = await client.createClass("Dated");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Note" });
     await client.assignClass(pageId, classId);
     await client.setDatetimeProperty(pageId, schemaId, { iso: "2026-09-27" });
@@ -631,7 +631,7 @@ describe("datetime (SCHEMA.md)", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
     const classId = await client.createClass("Dated");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Note" });
     await client.assignClass(pageId, classId);
     await client.setDatetimeProperty(pageId, schemaId, { iso: "2026-10-02", time: "14:15" });
@@ -679,7 +679,7 @@ describe("datetime (SCHEMA.md)", () => {
       dateQualified: true,
     });
     const classId = await client.createClass("Team");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Team" });
     const aliceId = await client.createObject({ isEmbedded: false, name: "Alice" });
     await client.assignClass(pageId, classId);
@@ -720,8 +720,8 @@ describe("datetime (SCHEMA.md)", () => {
     const dateSchema = await client.createPropertySchema({ name: "published", type: "datetime" });
     const linkSchema = await client.createPropertySchema({ name: "member", type: "object" });
     const classId = await client.createClass("Dated");
-    await client.setClassProperty(classId, dateSchema, { sequence: 0 });
-    await client.setClassProperty(classId, linkSchema, { sequence: 1 });
+    await client.setClassProperty(classId, dateSchema, {});
+    await client.setClassProperty(classId, linkSchema, {});
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
     // Non-empty schema: expand the section, then each row's config panel.

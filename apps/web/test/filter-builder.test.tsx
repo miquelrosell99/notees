@@ -346,7 +346,7 @@ describe("the block query builder", () => {
     // The TARGET family: a person class with an age property.
     const personId = await seedClass(client, "person");
     const ageId = await client.createPropertySchema({ name: "age", type: "number" });
-    await client.setClassProperty(personId, ageId, { sequence: 0 });
+    await client.setClassProperty(personId, ageId, {});
     const elder = await client.createObject({ isEmbedded: false, name: "Elder", classIds: [personId] });
     await client.setProperty(elder, ageId, 60, 0);
     // The row side: Linker (classed, links to Elder) and Plain (classed, no link).
@@ -774,7 +774,7 @@ describe("the block query builder", () => {
       const client = await seedClient();
       const classId = await seedClass(client, "task");
       const schemaId = await client.createPropertySchema({ name: "impact", type: "number" });
-      await client.setClassProperty(classId, schemaId, { sequence: 0 });
+      await client.setClassProperty(classId, schemaId, {});
       const low = await client.createObject({ isEmbedded: false, name: "Low impact" });
       await client.assignClass(low, classId);
       await client.setProperty(low, schemaId, 1, 0);

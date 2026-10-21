@@ -104,10 +104,10 @@ describe("S6 PropertyDefinitionsSection", () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "A");
     const schemaId = await client.createPropertySchema({ name: "bound-here", type: "text" });
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const schemaInherited = await client.createPropertySchema({ name: "bound-elsewhere", type: "text" });
     const other = await createTitledClass(client, "B");
-    await client.setClassProperty(other, schemaInherited, { sequence: 0 });
+    await client.setClassProperty(other, schemaInherited, {});
     renderSection(client, classId);
 
     const dialog = await openPopover();
@@ -145,7 +145,7 @@ describe("S6 PropertyDefinitionsSection", () => {
     const classId = await createTitledClass(client, "A");
     const target = await createTitledClass(client, "Target");
     const schemaId = await client.createPropertySchema({ name: "link", type: "object" });
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     renderSection(client, classId);
     await expandSection();
 
@@ -177,7 +177,7 @@ describe("S6 PropertyDefinitionsSection", () => {
       type: "object",
       targetClassFilter: [GHOST],
     });
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     renderSection(client, classId);
     await expandSection();
 
@@ -192,7 +192,7 @@ describe("S6 PropertyDefinitionsSection", () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "A");
     const schemaId = await client.createPropertySchema({ name: "link", type: "object" });
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     renderSection(client, classId);
     await expandSection();
 
@@ -228,7 +228,7 @@ describe("S6 PropertyDefinitionsSection", () => {
       type: "text",
       multi: true,
     });
-    await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS.alias, { sequence: 0 });
+    await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS.alias, {});
     renderSection(client, classId);
     await expandSection();
 
@@ -244,7 +244,7 @@ describe("S6 PropertyDefinitionsSection", () => {
     const child = await createTitledClass(client, "Child");
     await client.setClassExtends(child, [parent]);
     const schemaId = await client.createPropertySchema({ name: "inherited-one", type: "text" });
-    await client.setClassProperty(parent, schemaId, { sequence: 0 });
+    await client.setClassProperty(parent, schemaId, {});
     renderSection(client, child);
 
     fireEvent.click(screen.getByRole("button", { name: /inherited/i }));

@@ -247,7 +247,7 @@ describe("Class View", () => {
     expect(within(classedNodesSection).queryByText("No classed nodes.")).toBeNull();
   });
 
-  it("renders the seeded property definitions in sequence order", async () => {
+  it("renders the seeded property definitions in alphabetical order", async () => {
     const client = await seedClient();
     // The reserved system id makes the class a SYSTEM class: the seed-spec
     // fallback synthesizes the source family (read-side, id-keyed) with the
@@ -263,17 +263,17 @@ describe("Class View", () => {
     const names = [...container.querySelectorAll(".nt-propdef-name")].map(
       (el) => el.textContent,
     );
+    // PURE ALPHABETICAL by property name (binding
+    // sequence retired; the seeded class panel has no configurable order).
     expect(names).toEqual([
       "Attachments",
       "Authors",
-      "ISBN",
+      "Citekey",
       "DOI",
+      "ISBN",
       "Publication date",
       "Publisher",
-      "Citekey",
     ]);
-    // Sequence order is explicit: Authors (seq 2) before ISBN (seq 3).
-    expect(names.indexOf("Authors")).toBeLessThan(names.indexOf("ISBN"));
 
     const rows = [...container.querySelectorAll(".nt-propdef")];
     // FINAL citations authorship (2026-09-27): authors is the node-typed,

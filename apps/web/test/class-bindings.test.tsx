@@ -85,7 +85,7 @@ describe("Class View class properties editor", () => {
 
     const bindings = client.getRegistryBindings(classId);
     expect(bindings).toHaveLength(1);
-    expect(bindings[0]).toMatchObject({ name: "priority", sequence: 0 });
+    expect(bindings[0]).toMatchObject({ name: "priority" });
     // The popover no longer lists the bound schema.
     fireEvent.click(screen.getByRole("button", { name: "Add property" }));
     const again = screen.getByRole("dialog", { name: "Add property" });
@@ -122,7 +122,7 @@ describe("Class View class properties editor", () => {
 
     const bindings = client.getRegistryBindings(classId);
     expect(bindings).toHaveLength(1);
-    expect(bindings[0]).toMatchObject({ name: "impact", type: "text", sequence: 0 });
+    expect(bindings[0]).toMatchObject({ name: "impact", type: "text" });
   });
 
   it("edits the schema's global default through the row-opened definition modal (a dropdown of the select's options)", async () => {
@@ -137,7 +137,7 @@ describe("Class View class properties editor", () => {
         { id: "opt-high", label: "High" },
       ],
     });
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     await client.updatePropertySchema(schemaId, { defaultValue: "opt-medium" });
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
@@ -151,8 +151,8 @@ describe("Class View class properties editor", () => {
     fireEvent.change(defaultSelect, { target: { value: "opt-high" } });
     await flushWrites();
     expect(client.listPropertySchemas().find((s) => s.id === schemaId)?.defaultValue).toBe("opt-high");
-    // The binding is untouched (sequence-only — the default is schema config).
-    expect(client.getRegistryBindings(classId)[0]).toMatchObject({ sequence: 0 });
+    // The binding is untouched (active-only — the default is schema config).
+    expect(client.getRegistryBindings(classId)[0]).toMatchObject({ name: "priority", active: true });
 
     // Back to None clears the default (present-null — the keep/clear contract).
     fireEvent.change(within(dialog).getByLabelText("Default value"), { target: { value: "" } });
@@ -164,7 +164,7 @@ describe("Class View class properties editor", () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Task");
     const schemaId = await client.createPropertySchema({ name: "done", type: "boolean" });
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
 
@@ -185,7 +185,7 @@ describe("Class View class properties editor", () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Task");
     const schemaId = await client.createPropertySchema({ name: "estimate", type: "number" });
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
 
@@ -202,7 +202,7 @@ describe("Class View class properties editor", () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Task");
     const schemaId = await client.createPropertySchema({ name: "link", type: "object" });
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
 
@@ -218,7 +218,7 @@ describe("Class View class properties editor", () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Task");
     const schemaId = await client.createPropertySchema({ name: "Priority", type: "select" });
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
 
@@ -238,7 +238,7 @@ describe("Class View class properties editor", () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Task");
     const schemaId = await client.createPropertySchema({ name: "priority", type: "select" });
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     await client.updatePropertySchema(schemaId, { defaultValue: "medium" });
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
@@ -268,10 +268,10 @@ describe("Class View class properties editor", () => {
     const classB = await createTitledClass(client, "SourceB");
     const schemaX = await client.createPropertySchema({ name: "shared-x", type: "text" });
     const schemaY = await client.createPropertySchema({ name: "own-y", type: "text" });
-    await client.setClassProperty(classA, schemaX, { sequence: 0 });
-    await client.setClassProperty(classB, schemaX, { sequence: 0 });
+    await client.setClassProperty(classA, schemaX, {});
+    await client.setClassProperty(classB, schemaX, {});
     const classC = await createTitledClass(client, "ChildC");
-    await client.setClassProperty(classC, schemaY, { sequence: 0 });
+    await client.setClassProperty(classC, schemaY, {});
     await client.setClassExtends(classC, [classB]);
 
     render(<NodeView client={client} nodeId={classC} onOpenNode={() => {}} />);

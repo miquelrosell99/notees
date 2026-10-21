@@ -197,7 +197,7 @@ describe("PG3: conversion via blessed delete+recreate", () => {
     const schemaId = await client.createPropertySchema({ name: "Flag", type: "boolean" });
     const classId = await client.createClass("Graded");
     await client.updateObject(classId, { contentAst: [{ type: "text", text: "Graded" }] });
-    await client.setClassProperty(classId, schemaId, { sequence: 2 });
+    await client.setClassProperty(classId, schemaId, {});
     const page = await client.createObject({ isEmbedded: false, name: "Exam", classIds: [classId] });
 
     render(<PageView client={client} pageId={page} />);
@@ -225,7 +225,7 @@ describe("PG3: conversion via blessed delete+recreate", () => {
     expect(created).toBeDefined();
     // The class binding re-pointed at the new schema.
     expect(
-      client.getClassBindings(classId).some((b) => b.propertySchemaId === created!.id && b.sequence === 2),
+      client.getClassBindings(classId).some((b) => b.propertySchemaId === created!.id),
     ).toBe(true);
     expect(client.getClassBindings(classId).some((b) => b.propertySchemaId === schemaId)).toBe(false);
   });
