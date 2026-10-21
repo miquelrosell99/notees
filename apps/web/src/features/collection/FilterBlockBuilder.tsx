@@ -630,7 +630,11 @@ function BlockRow({
           dynamic subgroup can go dynamic again). */}
       {dynamic && (
         <div className="nt-fb-block__nested">
-          <Card padding paddingSize="sm" variant="filled" className="nt-fb-card">
+          {/* The `default` variant (surface fill + the outline-variant
+              hairline): the `filled` variant is border-less and the subgroup
+              blended into the panel — the boundary must read (owner
+              2026-10-21). */}
+          <Card padding paddingSize="sm" variant="default" className="nt-fb-card">
             <GroupBlock
               group={condition.root}
               onChange={(root) =>
