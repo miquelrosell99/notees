@@ -7,6 +7,18 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): the collapsed ring settles back at 28px — the 40px circle read
+  too big; the grown bullet element stays.**"the outer circle was fine, now it's too big." The
+  ring returns to the 28px the owner had approved, riding the 46px bullet
+  box and the 9px dot from the register growth (which stays — only the
+  circle's size walked back). `--bullet-wrapper-size` unchanged at 46px;
+  the grouped rendering's spacing-3 separation stays (the grown bullet
+  box still overhangs its row even with the smaller ring).
+  - **Files**: `apps/web/src/ui/app.css` (`.nt-bullet-ring` 40 → 28px),
+    `apps/web/test/view-modes.test.tsx` (the CSS spec follows).
+  - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
+    `pnpm --filter @notees/web test` — 1938 passed (167 files).
+
 - **feat(web): the hosted tab bar's active tab carries a total-count badge —
   the filter panel's "N of M nodes match" foot line is gone.** instead of the "109 of 109 nodes match" line on the
   structured-filter panel's foot row, the count shows as a small badge beside
