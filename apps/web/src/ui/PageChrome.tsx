@@ -346,9 +346,13 @@ export function PageHeaderChrome({
                     <Icon path={headerIcon} size={1.4} className="page-icon-large" />
                   </span>
             )}
-            {/* Right-click anywhere on the title (not just the icon) opens the
-                page's node context menu — the browser menu is never the
-                honest surface for a node. The preview surface suppresses
+            {/* The whole title row is the click-to-edit target, like a block
+                row: the CSS stretches .nt-page-title-wrap over the row's free
+                width, so .nt-title-content's click handler covers the words
+                AND the empty space beside them (the icon keeps its picker
+                click). Right-click anywhere on the title (not just the icon)
+                opens the page's node context menu — the browser menu is never
+                the honest surface for a node. The preview surface suppresses
                 the menu (no machinery in a trampoline). */}
             <span
               className="nt-page-title-wrap"

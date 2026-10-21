@@ -272,8 +272,30 @@ describe("page title row", () => {
     expect(client.getDisplayName(pageId)).toBe("see Target Page");
   });
 
-  it("right-click on the title area opens the page's node context menu", async () => {
-    const client = await seedClient();
+  // The whole-row click target is a CSS contract (jsdom has no layout): the
+  // title wrap must stretch across the header row, so the .nt-title-content
+  // click handler (its own flex:1) covers the row's empty space beside the
+  // words, not just the text width — a bare inline span shrink-wraps and the
+  // row's dead zone never reaches enterEdit.
+  it("CSS spec: the title wrap stretches over the whole header row", () => {
+    const process_ = globalThis.process as unknown as {
+      getBuiltinModule(name: string): { readFileSync(path: unknown, enc: string): string };
+      cwd(): string;
+    };
+    const path = process_.getBuiltinModule("node:path") as unknown as {
+      join(...parts: string[]): string;
+    };
+    const css = process_.getBuiltinModule("node:fs").readFileSync(
+      path.join(process_.cwd(), "src", "ui", "app.css"),
+      "utf8",
+    );
+    const wrap = /\.page-header__title-row > \.nt-page-title-wrap \{[^}]*\}/.exec(css);
+    expect(wrap).not.toBeNull();
+    expect(wrap![0]).toContain("flex: 1");
+    expect(wrap![0]).toContain("min-width: 0");
+  });
+
+  it("right-click on the title area opens the page's node context menu", async () => {    const client = await seedClient();
     const pageId = await client.createObject({
       isEmbedded: false,
       contentAst: [{ type: "text", text: "Menu Page" }],

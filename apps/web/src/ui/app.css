@@ -852,6 +852,19 @@ select:focus-visible {
   gap: var(--spacing-3);
 }
 
+/* The header title's click-to-edit target is the WHOLE title row, like a
+   block's content: the title wrap is a bare inline span and shrink-wraps its
+   content, so .nt-title-content's flex:1 filled only the text width and the
+   row's empty space was a dead click zone. Stretching the wrap stretches
+   everything beneath it (the title BlockRow fills it by its own flex:1), so
+   a click anywhere in the row — the words or the space beside them — enters
+   edit. The header icon keeps its own click (the picker), the block-bullet
+   analog. */
+.page-header__title-row > .nt-page-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
 .page-icon-btn {
   display: flex;
   align-items: center;
@@ -1018,12 +1031,13 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 46px: the
-     class-icon glyph is 19.2px and the collapsed ring is 40px — the
-     bullet box stays on par with both so the ring reads around the icon
-     instead of hiding behind the solid glyph. */
-  width: 46px;
-  height: 46px;
+  /* 22px — the original register: the wrapper
+     is a flex item whose height SETS THE ROW HEIGHT, so growing it for
+     the collapsed ring inflated every row of every surface, the page
+     body included. The ring is absolutely positioned and sizes itself
+     (16px dot / 28px icon) — it does not need a bigger box. */
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
   cursor: pointer;
   user-select: none;
