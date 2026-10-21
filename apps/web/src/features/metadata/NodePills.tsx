@@ -18,7 +18,10 @@
  * `sortable` is false (extends order is deterministic); drops commit through
  * `actions.reorder` (user-defined order, display-only LWW).
  * `overflow` (the block column) renders only the FIRST pill plus a "+N"
- * button; clicking it opens a popup with the full sortable list.
+ * button; clicking it opens a popup with the full sortable list. The block
+ * column also passes `addAtStart`: the "+" picker rides LEFT of the pills
+ * there — the right-pinned row-end group grows leftward on hover-reveal, so
+ * the pills never shift.
  */
 
 import { useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
@@ -324,6 +327,14 @@ export function NodePills({
   overflow = false,
   /** Icon-only add pill (Pill.css reveals it on chips-container hover). */
   iconOnlyAdd = false,
+  /**
+   * Block-row mode: render the "+" picker FIRST, left of the pills. The
+   * block row-end group is right-pinned, so a hover-revealed add pill at
+   * the END would shove the pills (and the backlink toggle) sideways;
+   * at the START the group grows leftward over the flexible text column
+   * and the pills never move.
+   */
+  addAtStart = false,
   /** Drag-sortable pills + grip (false for deterministic orders, e.g. extends). */
   sortable = true,
   /** Write-path overrides; defaults are the class-membership ops on `nodeId`. */
@@ -348,6 +359,7 @@ export function NodePills({
   onOpenPage?: ((pageId: string) => void) | undefined;
   overflow?: boolean | undefined;
   iconOnlyAdd?: boolean | undefined;
+  addAtStart?: boolean | undefined;
   sortable?: boolean | undefined;
   actions?: NodePillsActions | undefined;
   removeLabel?: ((label: string) => string) | undefined;
@@ -451,8 +463,24 @@ export function NodePills({
     readOnly,
   };
 
+  const addPill = !readOnly ? (
+    <span className="nt-class-add-anchor">
+      <AddPill
+        ref={addButtonRef}
+        className={iconOnlyAdd || displayClassIds.length > 0 ? "pill--icon-only" : ""}
+        label={addLabel}
+        aria-expanded={pickerOpen}
+        onClick={(element) => {
+          addButtonRef.current = element;
+          setPickerOpen((open) => !open);
+        }}
+      />
+    </span>
+  ) : null;
+
   const chips = (
     <div className="nt-property-chips node-metadata-pills">
+      {addAtStart && addPill}
       {visible.map((classId) =>
         sortable && !readOnly ? (
           <SortablePill key={classId} classId={classId} {...pillProps} />
@@ -475,20 +503,7 @@ export function NodePills({
           +{extraCount}
         </button>
       )}
-      {!readOnly && (
-        <span className="nt-class-add-anchor">
-          <AddPill
-            ref={addButtonRef}
-            className={iconOnlyAdd || displayClassIds.length > 0 ? "pill--icon-only" : ""}
-            label={addLabel}
-            aria-expanded={pickerOpen}
-            onClick={(element) => {
-              addButtonRef.current = element;
-              setPickerOpen((open) => !open);
-            }}
-          />
-        </span>
-      )}
+      {!addAtStart && addPill}
     </div>
   );
 
