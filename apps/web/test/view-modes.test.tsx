@@ -867,11 +867,14 @@ describe("outline list: rows with children default collapsed", () => {
     expect(iconRing![0]).not.toContain("border");
     const bullet = /\.nt-bullet \{[^}]*\}/.exec(css);
     expect(bullet).not.toBeNull();
-    expect(bullet![0]).toContain("width: 46px");
-    expect(bullet![0]).toContain("height: 46px");
+    expect(bullet![0]).toContain("width: 22px");
+    expect(bullet![0]).toContain("height: 22px");
     const dot = /\.nt-bullet-dot \{[^}]*\}/.exec(css);
     expect(dot).not.toBeNull();
     expect(dot![0]).toContain("width: 6px");
+    // The wrapper is layout, not indicator chrome: a flex item whose
+    // height sets the row height — growing it inflated every row.
+    expect(bullet![0]).not.toContain("46px");
     // The grouped rendering separates its rows from the group header —
     // the overhanging ring of the first row used to crowd the title.
     const outlineCss = process_.getBuiltinModule("node:fs").readFileSync(
@@ -880,7 +883,7 @@ describe("outline list: rows with children default collapsed", () => {
     );
     const items = /\.outline-group__items \{[^}]*\}/.exec(outlineCss);
     expect(items).not.toBeNull();
-    expect(items![0]).toContain("padding: var(--spacing-3) 0 0 var(--spacing-3)");
+    expect(items![0]).toContain("padding: var(--spacing-2) 0 0 var(--spacing-3)");
   });
 });
 
