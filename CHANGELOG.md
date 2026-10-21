@@ -7,6 +7,18 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): the dynamic subgroup's card shows its boundary.** the nested query builder's limits must read. The subgroup
+  rode the kit Card's `filled` variant (`bg-surface-variant`, border-less)
+  and blended into the dark structured-filters panel — "1 condition" and
+  its rows looked like panel chrome. The card now rides the `default`
+  variant (surface fill + the outline-variant hairline), one contained
+  elevation that nests cleanly at any depth.
+  - **Files**: `apps/web/src/features/collection/FilterBlockBuilder.tsx`
+    (the Card variant; a comment records why `filled` lost).
+  - **Verification**: live probe (`scripts/screenshots/pills-probe.mjs`):
+    the nested card computes a 1px `outline-variant` border; web `tsc` and
+    the filter suites (58 tests) green.
+
 - **feat(web): the filter builder's class "is" inherits class extends, and
   parent/page/root carry single-value is/is-not.** Two. (1) With classes, BOTH operators ride the extends-aware
   closure membership — "class is fuente" now matches a node classed book
