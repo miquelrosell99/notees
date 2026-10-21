@@ -53,9 +53,12 @@ the pointer and the law.
 ## Catalog
 
 Inputs & buttons: `Button`, `Pill`/`AddPill`, `Chip` (the single-toggle
-pill — filter families, group toggles), `TextField`, `SearchField`,
-`Input` (the boxed text field — the SelectTrigger register applied to a
-native `<input>`; pairs with `Dropdown` in dense condition/toolbar rows),
+pill — filter families, group toggles), `TextField`, `SearchField` (`md`
+by default on full surfaces; `size="sm"` on compact chrome rows and
+anchored picker popovers — NodeSelector, the bind-property picker, and the
+template-list popup), `Input` (the boxed text field — the SelectTrigger
+register applied to a native `<input>`; pairs with `Dropdown` in dense
+condition/toolbar rows),
 `Dropdown`, `SelectTrigger`, `Checkbox`, `Radio` (the checkbox variant's
 single-selection sibling — groups compose by sharing a `name`),
 `ToggleSwitch` (enabling/disabling a SETTING

@@ -95,6 +95,8 @@ describe("S6 PropertyDefinitionsSection", () => {
     renderSection(client, classC);
 
     const dialog = await openPopover();
+    const search = within(dialog).getByLabelText("Search or create property");
+    expect(search.closest(".search-field")).toHaveClass("search-field--sm");
     expect(within(dialog).getByText("global-prop")).not.toBeNull();
     // scoped-b rides through the extends edge (R2).
     expect(within(dialog).getByText("scoped-b")).not.toBeNull();
