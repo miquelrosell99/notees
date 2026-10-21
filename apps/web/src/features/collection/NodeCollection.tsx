@@ -63,7 +63,14 @@ export function NodeCollection({
     hosted?.nodeId ?? "",
     hosted?.sectionKey ?? "linked-references",
   );
-  const [tab, setTab] = useState<string>(SECTION_DEFAULT_TAB);
+  const [internalTab, setInternalTab] = useState<string>(SECTION_DEFAULT_TAB);
+  // The hosted tab is OPTIONALLY CONTROLLED (owner ruling 2026-10-21 — the
+  // "Save as tab" flow lives in the host section, which owns the tab state
+  // and selects the freshly saved view): both props set → controlled;
+  // otherwise the internal useState stands (every other call site).
+  const controlledTab = hosted?.selected !== undefined && hosted?.onSelectTab !== undefined;
+  const tab = controlledTab ? hosted!.selected! : internalTab;
+  const setTab = controlledTab ? hosted!.onSelectTab! : setInternalTab;
   // The hosted view-chrome slot (ref-callback state) — declared with the
   // other hooks, above the entry guard's early return.
   const [chromeSlot, setChromeSlot] = useState<HTMLSpanElement | null>(null);

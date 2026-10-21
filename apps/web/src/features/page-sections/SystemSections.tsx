@@ -83,6 +83,7 @@ import {
 } from "../collection/filterQuery.js";
 import { NodeCollection, groupByContainingPage } from "../collection/index.js";
 import type { HostedViewsConfig, NodeCollectionItem, SortMode } from "../collection/index.js";
+import { SECTION_DEFAULT_TAB } from "../collection/SectionViewTabs.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { useSectionData, type SectionRowFilter } from "../collection/useSectionData.js";
 import "./SystemSections.css";
@@ -301,6 +302,14 @@ function ReferenceSection({
 }) {
   /** The transient filter layer: this section's own FilterQuery (component state, lost on reload). */
   const [filterQuery, setFilterQuery] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
+  /**
+   * The hosted tab state, lifted (owner ruling 2026-10-21): "Save as tab"
+   * persists the draft as a section view and must SELECT the new tab — the
+   * tab state lives here now, handed to the collection as a controlled
+   * hostedViews (NodeCollection falls back to its internal state when the
+   * control props are absent).
+   */
+  const [tab, setTab] = useState<string>(SECTION_DEFAULT_TAB);
   const rowFilter = useMemo<SectionRowFilter<ReferenceEntry> | undefined>(() => {
     if (isFilterInactive(filterQuery)) return undefined;
     // The quick text narrows the pool by the ranked search before the
@@ -336,7 +345,7 @@ function ReferenceSection({
           client={client}
           onOpenPage={onOpenPage}
           {...(unlinkedPageId !== undefined ? { unlinkedPageId } : {})}
-          hostedViews={{ nodeId: pageId, sectionKey }}
+          hostedViews={{ nodeId: pageId, sectionKey, selected: tab, onSelectTab: setTab }}
           defaultSortMode={quickTextOf(filterQuery) === "" ? "dates-first" : "position"}
           trailing={
             <FilterBar
@@ -346,6 +355,7 @@ function ReferenceSection({
               onChange={setFilterQuery}
               matchCount={rows.length}
               totalCount={total}
+              viewSaver={{ client, nodeId: pageId, sectionKey, onSaved: setTab }}
             />
           }
           emptyText={emptyText}

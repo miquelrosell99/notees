@@ -31,6 +31,8 @@ beforeAll(async () => {
 const clients: WorkspaceClient[] = [];
 
 afterEach(() => {
+  vi.unstubAllGlobals();
+  localStorage.clear();
   while (clients.length > 0) clients.pop()!.close();
 });
 
@@ -39,6 +41,75 @@ async function seedClient(): Promise<WorkspaceClient> {
     transport: new MemoryTransport(new MemoryRelay()),
     actorId: ACTOR,
     sqlJs: sqlModule,
+  });
+  clients.push(client);
+  await client.bootstrapWorkspace(WS);
+  return client;
+}
+
+/**
+ * A client with REST credentials — the section-view writes ("Save as tab")
+ * ride the views REST channel. The fetch stub answers the views endpoints
+ * (in-memory server rows, the create call recorded for the assertion).
+ */
+const SERVER = "https://notees.example.com";
+const CREDENTIAL = "nt_testsession";
+let serverViews: Array<Record<string, unknown>>;
+let restCalls: Array<{ method: string; url: string; body?: unknown }>;
+
+function stubViewsFetch(): void {
+  serverViews = [];
+  restCalls = [];
+  const viewsPath = /\/api\/me\/nodes\/([^/]+)\/sections\/([^/]+)\/views(?:\/([^/]+)|\/order)?$/;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      const match = viewsPath.exec(url);
+      if (match === null) return new Response("not found", { status: 404 });
+      const method = init?.method ?? "GET";
+      const body = typeof init?.body === "string" ? (JSON.parse(init.body) as unknown) : undefined;
+      restCalls.push({ method, url, body });
+      const scoped = () =>
+        serverViews.filter(
+          (view) => `${view.nodeId}|${view.sectionKey}` === `${match[1]}|${match[2]}`,
+        );
+      if (method === "GET" && match[3] === undefined) {
+        return Response.json({
+          views: [...scoped()].sort((a, b) => Number(a.sequence) - Number(b.sequence)),
+        });
+      }
+      if (method === "POST" && match[3] === undefined) {
+        const input = body as { name: string; queryAst: unknown; viewMode?: string | null };
+        const existing = scoped();
+        if (existing.some((view) => view.name === input.name)) {
+          return Response.json({ error: { code: "conflict" } }, { status: 409 });
+        }
+        const view = {
+          id: crypto.randomUUID(),
+          nodeId: match[1]!,
+          sectionKey: match[2]!,
+          name: input.name,
+          sequence: existing.reduce((max, entry) => Math.max(max, Number(entry.sequence)), -1) + 1,
+          queryAst: input.queryAst,
+          viewMode: input.viewMode ?? null,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        serverViews.push(view);
+        return Response.json({ view }, { status: 201 });
+      }
+      return new Response("not found", { status: 404 });
+    }),
+  );
+}
+
+async function seedRestClient(): Promise<WorkspaceClient> {
+  const client = await WorkspaceClient.create({
+    transport: new MemoryTransport(new MemoryRelay()),
+    actorId: ACTOR,
+    sqlJs: sqlModule,
+    serverUrl: SERVER,
+    apiKey: CREDENTIAL,
   });
   clients.push(client);
   await client.bootstrapWorkspace(WS);
@@ -861,6 +932,131 @@ describe("the block query builder", () => {
       fireEvent.change(within(panel).getByLabelText("To"), { target: { value: "10" } });
       expect(tableRowCount()).toBe(1);
       expect(within(section).getByText("High impact")).not.toBeNull();
+    });
+  });
+
+  describe("the escapes from transience (owner 2026-10-21)", () => {
+    it("the blocks ⇄ raw AST toggle: the composed query round-trips through JSON", async () => {
+      const client = await seedClient();
+      const classId = await seedMembers(client);
+      render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Class/);
+      addNodeViaPicker(panel, "Add class", "project");
+
+      // Switch to the raw register: the COMPOSED draft serializes into the
+      // textarea (the pruned group — half-typed rows drop by design).
+      fireEvent.click(within(panel).getByRole("radio", { name: "Raw AST" }));
+      const raw = within(panel).getByLabelText("Query AST (JSON)") as HTMLTextAreaElement;
+      expect(raw.value).toContain('"type": "classAny"');
+
+      // Paste an edited query — a second condition joins — and apply.
+      fireEvent.change(raw, {
+        target: {
+          value: JSON.stringify({
+            type: "group",
+            logic: "and",
+            children: [
+              { type: "classAny", classIds: [classId] },
+              { type: "content", op: "contains", value: "Alpha" },
+            ],
+          }),
+        },
+      });
+      fireEvent.click(within(panel).getByRole("button", { name: "Apply" }));
+      // The apply landed: the normalized JSON re-serialized into the textarea.
+      expect(
+        (within(panel).getByLabelText("Query AST (JSON)") as HTMLTextAreaElement).value,
+      ).toContain('"value": "Alpha"');
+      // …and the blocks reflect it.
+      fireEvent.click(within(panel).getByRole("radio", { name: "Blocks" }));
+      expect((within(panel).getByLabelText("Content") as HTMLInputElement).value).toBe("Alpha");
+      expect(tableRowCount()).toBe(1);
+
+      // Invalid JSON: the error line names the issue, the draft stays.
+      fireEvent.click(within(panel).getByRole("radio", { name: "Raw AST" }));
+      fireEvent.change(within(panel).getByLabelText("Query AST (JSON)"), {
+        target: { value: "{ not json" },
+      });
+      fireEvent.click(within(panel).getByRole("button", { name: "Apply" }));
+      expect(within(panel).getByRole("alert").textContent).toContain("Invalid JSON");
+
+      // Schema-valid JSON that is not a query group: rejected too.
+      fireEvent.change(within(panel).getByLabelText("Query AST (JSON)"), {
+        target: {
+          value: JSON.stringify({
+            type: "group",
+            logic: "and",
+            children: [{ type: "classAny", classIds: [] }],
+          }),
+        },
+      });
+      fireEvent.click(within(panel).getByRole("button", { name: "Apply" }));
+      expect(within(panel).getByRole("alert").textContent).toContain("Not a query group");
+
+      // The draft never moved: back in blocks the Content row still reads.
+      fireEvent.click(within(panel).getByRole("radio", { name: "Blocks" }));
+      expect((within(panel).getByLabelText("Content") as HTMLInputElement).value).toBe("Alpha");
+      expect(tableRowCount()).toBe(1);
+    });
+
+    it("Save as tab persists the composed draft as a new section view and selects it", async () => {
+      stubViewsFetch();
+      const client = await seedRestClient();
+      const classId = await seedMembers(client);
+      render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Class/);
+      addNodeViaPicker(panel, "Add class", "project");
+      addCondition(panel, /^Content/);
+      fireEvent.change(within(panel).getByLabelText("Content"), { target: { value: "Alpha" } });
+      expect(tableRowCount()).toBe(1);
+      expect(within(panel).getByText("1 of 3 rows match")).not.toBeNull();
+      // Let the section's initial views load land before the write — a late
+      // GET resolution would otherwise overwrite the optimistic row.
+      await act(async () => {});
+
+      fireEvent.click(within(panel).getByRole("button", { name: "Save as tab" }));
+
+      // The tab strip gained an auto-named tab, SELECTED, and it owns the
+      // query now — the refined row set renders and the transient filter
+      // (panel + bar count) cleared. The save lands a tick after the click
+      // (the create round-trips the REST channel); the tab re-queries inside
+      // the wait — the optimistic row unmounts when the server row replaces
+      // it (a fresh DOM node).
+      await waitFor(() => {
+        expect(screen.getByRole("tab", { name: "View 1" }).getAttribute("aria-selected")).toBe("true");
+      });
+      expect(tableRowCount()).toBe(1);
+      expect(within(section).queryByText("1 of 3 rows match")).toBeNull();
+      expect(within(section).queryByText("1 of 3")).toBeNull();
+
+      // The persisted envelope: the composed group rides a full QueryAst
+      // (version + scope + root) under the auto label.
+      const create = restCalls.find((call) => call.method === "POST");
+      expect(create).toBeDefined();
+      expect(new URL(create!.url).pathname).toBe(
+        `/api/me/nodes/${classId}/sections/classed-nodes/views`,
+      );
+      expect(create!.body).toEqual({
+        name: "View 1",
+        queryAst: {
+          version: 1,
+          scope: { type: "entire_workspace" },
+          root: {
+            type: "group",
+            logic: "and",
+            children: [
+              { type: "classAny", classIds: [classId] },
+              { type: "content", op: "contains", value: "Alpha" },
+            ],
+          },
+        },
+      });
     });
   });
 });
