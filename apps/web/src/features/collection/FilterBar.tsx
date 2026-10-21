@@ -12,10 +12,10 @@
  * (one instance per section view/tab, lost on reload — nothing persisted),
  * the hook applies its composed group post-resolution/pre-windowing, and
  * the eager count stays unfiltered — while the query is active the bar names
- * the match against it ("0 of N"), it never hides the section. The panel's
- * "N of M nodes match" line rides the builder's foot row and updates live
- * because the filter applies on every change (the v1 ViewBuilder
- * result-preview pattern).
+ * the match against it ("0 of N"), it never hides the section. The live
+ * count moved OFF this panel's foot to the hosted tab bar's active-tab
+ * badge; the panel's foot row now carries only
+ * the caller's extras (the "Save as tab" escape).
  *
  * The quick search is a PERMANENT field on wide viewports; at narrow widths
  * (≤768px) it folds into a magnifier button whose popup carries the field
@@ -113,10 +113,9 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
   );
   /** The composed draft — the save button rides only while it survives pruning. */
   const composedGroup = viewSaver !== undefined ? filterQueryToGroup(value) : null;
-  /** The foot-row cluster: the count line and the
-   *  "Save as tab" button ride the builder's bottom row, beside "Add
-   *  condition" — right-aligned, "nodes" wording. */
-  const hasCountLine = matchCount !== null && totalCount !== null;
+  /** The foot-row cluster: only the caller's extras ride the builder's
+   *  bottom row now (the "Save as tab" button) — the count moved to the
+   *  hosted tab bar's active-tab badge. */
   const canSaveAsTab = viewSaver !== undefined && composedGroup !== null;
 
   const saveAsTab = async (): Promise<void> => {
@@ -228,25 +227,16 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
             config={config}
             onChange={(group) => onChange({ ...value, group })}
             footExtra={
-              hasCountLine || canSaveAsTab ? (
-                <>
-                  {hasCountLine && (
-                    <span className="nt-filter-bar__result">
-                      {matchCount} of {totalCount} nodes match
-                    </span>
-                  )}
-                  {canSaveAsTab && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      icon="mdi mdi-tab-plus"
-                      aria-label="Save as tab"
-                      title="Save this filter as a new tab"
-                      onClick={() => void saveAsTab()}
-                    />
-                  )}
-                </>
+              canSaveAsTab ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  icon="mdi mdi-tab-plus"
+                  aria-label="Save as tab"
+                  title="Save this filter as a new tab"
+                  onClick={() => void saveAsTab()}
+                />
               ) : undefined
             }
           />

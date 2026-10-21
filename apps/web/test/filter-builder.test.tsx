@@ -2,8 +2,9 @@
  * The block query builder end to end (jsdom over the in-process
  * WorkspaceClient + MemoryRelay): the FilterBar's structured panel is the
  * v1 builder ported over the query AST — conditions append from the add
- * menu and filter live (the "N of M nodes match" line updates on every
- * change), nested Match ALL/ANY groups and NOT wrappers compose, the
+ * menu and filter live (the active hosted tab's count badge updates on
+ * every change — the count moved off the panel's foot to the tab name,
+ *), nested Match ALL/ANY groups and NOT wrappers compose, the
  * reorder chevrons swap rows within the parent, deletes and Clear filter
  * restore the set. The section-level contract (post-resolution counts,
  * per-tab isolation) lives in filter-layer.test.tsx; the pure data prune
@@ -144,6 +145,13 @@ function structuredPanel(): HTMLElement {
   return panel as HTMLElement;
 }
 
+/** The active hosted tab's total-count badge. */
+function activeTabBadge(scope: HTMLElement): HTMLElement {
+  const badge = scope.querySelector(".nt-section-views__tab-count");
+  if (badge === null) throw new Error("no active-tab count badge");
+  return badge as HTMLElement;
+}
+
 /** Open the builder's structured panel. */
 function openPanel(section: HTMLElement): HTMLElement {
   fireEvent.click(within(section).getByRole("button", { name: "Structured filters" }));
@@ -213,10 +221,10 @@ describe("the block query builder", () => {
     addCondition(panel, /^Content/);
     fireEvent.change(within(panel).getByLabelText("Content"), { target: { value: "Alpha" } });
 
-    // …filters live: the table, the bar count and the panel's result line.
+    // …filters live: the table, the bar count and the active tab's badge.
     expect(tableRowCount()).toBe(1);
     expect(within(section).getByText("1 of 3")).not.toBeNull();
-    expect(within(panel).getByText("1 of 3 nodes match")).not.toBeNull();
+    expect(activeTabBadge(section).textContent).toBe("1");
     // The head-row logic control is the BORDERED button switcher: gate-and/gate-or symbols, radios by their
     // accessible names — the ToggleSwitch was the wrong idiom.
     expect(within(panel).getByRole("radio", { name: "Match ALL conditions" })).not.toBeNull();
@@ -231,7 +239,7 @@ describe("the block query builder", () => {
     const inputs = within(panel).getAllByLabelText("Content");
     fireEvent.change(inputs[1]!, { target: { value: "Beta" } });
     expect(within(section).getByText("No classed nodes.")).not.toBeNull();
-    expect(within(panel).getByText("0 of 3 nodes match")).not.toBeNull();
+    expect(activeTabBadge(section).textContent).toBe("0");
   });
 
   it("nested Match ANY groups OR their children", async () => {
@@ -253,7 +261,7 @@ describe("the block query builder", () => {
 
     // Alpha OR Beta — Gamma drops.
     expect(tableRowCount()).toBe(2);
-    expect(within(panel).getByText("2 of 3 nodes match")).not.toBeNull();
+    expect(activeTabBadge(section).textContent).toBe("2");
     const table = screen.getAllByRole("table")[0]!;
     expect(within(table).getByText("Alpha")).not.toBeNull();
     expect(within(table).getByText("Beta")).not.toBeNull();
@@ -328,9 +336,10 @@ describe("the block query builder", () => {
     fireEvent.click(within(panel).getByRole("button", { name: "Remove Content condition" }));
     expect(within(panel).queryByText("No conditions in this group")).toBeNull();
     expect(tableRowCount()).toBe(3);
-    // The whole query went inactive — the bar row's count is gone (the
-    // panel's "3 of 3 nodes match" preview line stays while the panel is open).
+    // The whole query went inactive — the bar row's count is gone; the
+    // active tab's badge keeps naming the full set.
     expect(within(section).queryByText("3 of 3")).toBeNull();
+    expect(activeTabBadge(section).textContent).toBe("3");
 
     // …and through the bar's Clear filter after a fresh condition.
     addCondition(panel, /^Content/);
@@ -370,7 +379,7 @@ describe("the block query builder", () => {
     // Flip the root group to Match ANY: Alpha (the content hit) joins Gamma.
     fireEvent.click(within(panel).getByRole("radio", { name: "Match ANY condition" }));
     expect(tableRowCount()).toBe(2);
-    expect(within(panel).getByText("2 of 3 nodes match")).not.toBeNull();
+    expect(activeTabBadge(section).textContent).toBe("2");
     const table = screen.getAllByRole("table")[0]!;
     expect(within(table).getByText("Alpha")).not.toBeNull();
     expect(within(table).getByText("Gamma")).not.toBeNull();
@@ -1021,9 +1030,9 @@ describe("the block query builder", () => {
       addCondition(panel, /^Content/);
       fireEvent.change(within(panel).getByLabelText("Content"), { target: { value: "Alpha" } });
       expect(tableRowCount()).toBe(1);
-      expect(within(panel).getByText("1 of 3 nodes match")).not.toBeNull();
-      // The count line rides the builder's FOOT row.
-      expect(panel.querySelector(".nt-fb__foot")?.textContent).toContain("1 of 3 nodes match");
+      expect(activeTabBadge(section).textContent).toBe("1");
+      // The count rides the ACTIVE TAB's name as a badge — the panel's foot row no longer names it.
+      expect(panel.querySelector(".nt-fb__foot")?.textContent).not.toContain("1 of 3");
       // Let the section's initial views load land before the write — a late
       // GET resolution would otherwise overwrite the optimistic row.
       await act(async () => {});
@@ -1040,7 +1049,11 @@ describe("the block query builder", () => {
         expect(screen.getByRole("tab", { name: "View 1" }).getAttribute("aria-selected")).toBe("true");
       });
       expect(tableRowCount()).toBe(1);
-      expect(within(section).queryByText("1 of 3 nodes match")).toBeNull();
+      // The count followed the query to its new tab — the badge rides
+      // "View 1" naming its single row (the transient bar count is gone).
+      expect(
+        within(screen.getByRole("tab", { name: "View 1" })).getByText("1"),
+      ).not.toBeNull();
       expect(within(section).queryByText("1 of 3")).toBeNull();
 
       // The persisted envelope: the composed group rides a full QueryAst
