@@ -400,7 +400,7 @@ describe("entry points", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
-  it("footer opens Manage workspaces instead of signing out", async () => {
+  it("search-row manage icon opens Manage workspaces instead of signing out", async () => {
     stubFetch({
       "/api/workspaces": () => ({ workspaces: [WS] }),
     });
