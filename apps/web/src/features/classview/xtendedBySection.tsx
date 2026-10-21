@@ -44,12 +44,12 @@ export function ExtendedBySection({
   onOpenClass?: ((classId: string) => void) | undefined;
 }) {
   // Eager read: the hide-when-empty rule needs the count before the section's
-  // lazy contract starts (same pattern as SystemSections' count badges).
+  // lazy contract starts (same pattern as SystemSections' gates).
   const children = client.getDirectClassChildren(classId);
   // No memo: the tree is rebuilt per render from the eager read. The old
   // [client, classId] memo cached the FIRST sync-window read forever — the
-  // badge re-read 34 on the parent's notification while the rows stayed the
-  // mount-time [] ("No subclasses" under a 34 badge, owner-caught 2026-10-12).
+  // gate re-read 34 on the parent's notification while the rows stayed the
+  // mount-time [] ("No subclasses" under a gate of 34, owner-caught 2026-10-12).
   const items = buildTree(client, classId);
 
   if (children.length === 0) return null;
@@ -59,7 +59,6 @@ export function ExtendedBySection({
       client={client}
       title="Extended by"
       icon={<Icon path="mdi-file-tree" size={0.9} />}
-      badge={children.length}
       defaultCollapsed={false}
       load={() => items}
       emptyText="No subclasses."

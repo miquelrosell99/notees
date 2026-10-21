@@ -152,8 +152,8 @@ describe("the classed-nodes filter bar", () => {
     // only) falls behind every literal match — out of the first window.
     expect(within(table).queryByText("Row 000")).toBeNull();
 
-    // The eager badge stays UNFILTERED.
-    expect(screen.getByRole("button", { name: /classed nodes 120/i })).not.toBeNull();
+    // The section never vanishes behind the emptied filter.
+    expect(screen.getByRole("button", { name: /classed nodes/i })).not.toBeNull();
     expect(within(section).getByText("120 of 120")).not.toBeNull();
   });
 
@@ -208,7 +208,7 @@ describe("the classed-nodes filter bar", () => {
     expect(labels).toEqual(["GMI Dental Implantology", "GMI Ecuador"]);
   });
 
-  it("an emptying filter reads 0 of N, keeps the count badge and the section, and clears back", async () => {
+  it("an emptying filter reads 0 of N, keeps the section, and clears back", async () => {
     const client = await seedClient();
     const classId = await seedBigClass(client);
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
@@ -221,7 +221,7 @@ describe("the classed-nodes filter bar", () => {
 
     // 0 of N — the count unfiltered; the section never vanishes.
     expect(within(section).getByText("0 of 120")).not.toBeNull();
-    expect(screen.getByRole("button", { name: /classed nodes 120/i })).not.toBeNull();
+    expect(screen.getByRole("button", { name: /classed nodes/i })).not.toBeNull();
     expect(within(section).getByText("No classed nodes.")).not.toBeNull();
     // The create affordance survives the emptied filter (the container owns
     // its empty state).
@@ -462,8 +462,8 @@ describe("the reference sections' filter bars", () => {
     });
     expect(within(backlinks).getByText("0 of 1")).not.toBeNull();
     expect(within(backlinks).getByText("No backlinks.")).not.toBeNull();
-    // The eager badge stays unfiltered.
-    expect(screen.getByRole("button", { name: "Backlinks 1" })).not.toBeNull();
+    // The section stays (the gate reads the unfiltered count).
+    expect(screen.getByRole("button", { name: "Backlinks" })).not.toBeNull();
 
     // The Unlinked section owns a DIFFERENT instance: its field reads the
     // untouched query — the rows are live.

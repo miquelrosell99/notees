@@ -9,7 +9,8 @@
  * every level, so this section is their only surface.
  *
  * The section chrome is NodeViewSection ("Comments" + the direct-child
- * count), ALWAYS rendered (owner 2026-10-09) — an empty thread shows the
+ * eager read driving the empty-starts-expanded state), ALWAYS rendered
+ * (owner 2026-10-09) — an empty thread shows the
  * section with its icon-only quick-add riding the header's trailing action
  * (the shared section-action slot), and starts expanded so the composer is
  * one click away; the quick-add/reply composer pair creates a
@@ -19,7 +20,7 @@
  * (object.delete). A row click opens the comment node. Lazy per the section
  * contract: the thread resolution rides useSectionData (no read runs until
  * the first expand; a client notification re-derives while expanded; the
- * eager count that rides the header is the cheap direct-child read).
+ * eager direct-child read drives the empty-starts-expanded state).
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -244,7 +245,7 @@ export function CommentsSection({
   /** Row click / navigation funnel (the page's onOpenPage). */
   onOpenNode?: ((nodeId: string) => void) | undefined;
 }) {
-  /** Eager count riding the header: the direct comment children (cheap read). */
+  /** Eager direct-child read: drives the empty-starts-expanded state. */
   const count = commentChildrenOf(client, nodeId).length;
 
   /**
@@ -270,7 +271,6 @@ export function CommentsSection({
     <NodeViewSection
       title="Comments"
       icon={<Icon path="mdi-comment-outline" size={0.9} />}
-      count={count}
       className="nt-section"
       expanded={expanded}
       onExpandedChange={setExpanded}

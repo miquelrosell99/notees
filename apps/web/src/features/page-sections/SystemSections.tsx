@@ -13,8 +13,12 @@
  * NodeCollection sections (owner 2026-10-09, the tab strip's retirement):
  * Backlinks and Unlinked mentions each ride the shared collapsible-section
  * chrome — the NodeViewSection header IS the section header, the tab row is
- * gone — with the eager count badge, the hosted view chrome, the transient
+ * gone — with the hosted view chrome, the transient
  * FilterBar, and the lazy useSectionData contract every other section has.
+ * No section header carries a count badge (owner ruling 2026-10-21): the
+ * gates below still read eager counts ("is there ANYTHING" — never
+ * displayed), and hosted sections name the number dynamically on the
+ * active tab — one count semantics everywhere (displayed nodes).
  * Each section owns its hook instances and its FilterQuery (the per-view
  * rule). The date-page ruling stands with a cleaner mechanism: the
  * deterministic day/month/year family's descriptor OMITS the unlinked
@@ -41,9 +45,8 @@
  * hosted tab bar's FAR RIGHT as the collection's `tabBarTrailing` (the
  * collapsible quick search + the structured-filters toggle — one row with
  * the tabs): one FilterQuery per section (the per-view rule, component
- * state — nothing persisted), applied post-resolution/pre-windowing; the
- * eager count badge stays UNFILTERED — an active filter reads "0 of N" in
- * the bar and never hides the section.
+ * state — nothing persisted), applied post-resolution/pre-windowing; an
+ * active filter reads "0 of N" in the bar and never hides the section.
  *
  * The Child pages section renders only while the page has main children
  * (owner 2026-10-12 — the "always renders on the main surface" exception
@@ -253,10 +256,11 @@ function displayNameOf(node: ClientNode): string {
 /**
  * ReferenceSection — ONE of the page's reference sections (Backlinks /
  * Unlinked mentions) as a normal collapsible NodeCollection section: the
- * shared NodeViewSection chrome (title + icon + eager UNFILTERED count
- * badge) and the ReferenceList collection beneath — its hosted view chrome
- * included, the transient FilterBar riding the hosted tab bar's FAR RIGHT
- * as the collection's `trailing` (owner 2026-10-12). The lazy contract
+ * shared NodeViewSection chrome (title + icon — NO count badge, owner
+ * ruling 2026-10-21) and the ReferenceList collection beneath — its hosted
+ * view chrome included, the transient FilterBar riding the hosted tab bar's
+ * FAR RIGHT as the collection's `trailing` (owner 2026-10-12), the active
+ * tab's badge naming the displayed row count. The lazy contract
  * lives in useSectionData — one instance per section (the per-view rule):
  * no query while collapsed, cached rows across a silent collapse/expand,
  * a re-derive per client notification while expanded. `refreshKey` carries
@@ -268,7 +272,6 @@ function ReferenceSection({
   pageId,
   title,
   icon,
-  count,
   load,
   refreshKey,
   unlinkedPageId,
@@ -281,8 +284,6 @@ function ReferenceSection({
   pageId: string;
   title: string;
   icon: ReactNode;
-  /** The eager UNFILTERED count (a materialized read, exempt from the lazy contract). */
-  count: number;
   load: () => ReferenceEntry[];
   /** Values the read closes over that change without a client notification. */
   refreshKey?: unknown;
@@ -329,7 +330,6 @@ function ReferenceSection({
     <NodeViewSection
       title={title}
       icon={icon}
-      count={count}
       className="nt-section"
       expanded={expanded}
       onExpandedChange={setExpanded}
@@ -393,7 +393,6 @@ export function ChildPagesSection({
       client={client}
       title="Child pages"
       icon={<Icon path="mdi-file-tree-outline" size={0.9} />}
-      badge={childPageCount}
       defaultCollapsed={false}
       action={
         embedded
@@ -430,7 +429,9 @@ export function ChildPagesSection({
  * BacklinksSection — the incoming direction, expanded by default (its read
  * is cheap; the old tab strip's selected tab resolved on mount). Self-gates
  * on the eager materialized count (null while 0 — the hide-when-empty
- * ruling covers every reference section).
+ * ruling covers every reference section); the count itself no longer
+ * displays anywhere (owner ruling 2026-10-21) — the active tab's badge
+ * names the displayed rows.
  */
 export function BacklinksSection({
   client,
@@ -451,7 +452,6 @@ export function BacklinksSection({
       pageId={pageId}
       title="Backlinks"
       icon={<Icon path="mdi-link-variant" size={0.9} />}
-      count={backlinkCount}
       load={loadLinkedRefs}
       sectionKey="linked-references"
       emptyText="No backlinks."
@@ -504,7 +504,6 @@ export function UnlinkedMentionsSection({
       pageId={pageId}
       title="Unlinked mentions"
       icon={<Icon path="mdi-text-search" size={0.9} />}
-      count={unlinkedCount}
       load={loadUnlinkedRefs}
       refreshKey={ignoredKey}
       unlinkedPageId={pageId}

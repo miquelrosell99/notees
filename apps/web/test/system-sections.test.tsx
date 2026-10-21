@@ -10,7 +10,9 @@
  * on mount (the old selected tab's contract); Unlinked mentions starts
  * COLLAPSED — its query (the expensive FTS pass) stays lazy behind the
  * first expand and its rows cache across a silent collapse/expand. The
- * eager counts ride the header badges ("Backlinks 2"); a live client
+ * eager counts gate the sections but never display (owner ruling
+ * 2026-10-21 — no header counts anywhere; the hosted tab bar's active-tab
+ * badge names the number); a live client
  * notification re-runs the expanded section's query. An expanded section
  * with zero rows (a filter emptied it) shows its empty text ("No
  * backlinks." / "No unlinked mentions."). Unlinked rows carry the
@@ -137,7 +139,7 @@ describe("PageView system sections", () => {
     second.unmount();
   });
 
-  it("renders the two reference sections: eager counts ride the badges, Backlinks expanded (query on mount), Unlinked mentions collapsed (no query yet)", async () => {
+  it("renders the two reference sections: eager counts gate them (never displayed), Backlinks expanded (query on mount), Unlinked mentions collapsed (no query yet)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });
     // One mention backlink (Backlinks count 1) and one literal mention
@@ -164,8 +166,8 @@ describe("PageView system sections", () => {
     // entirely — the hide-when-empty ruling covers every system section,
     // Child pages included since owner 2026-10-12.) This page has no
     // children, so no Child pages section — and its list query never runs.
-    expect(screen.getByRole("button", { name: "Backlinks 1" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Unlinked mentions 1" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Backlinks" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Unlinked mentions" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
 
     // Lazy per the SCHEMA.md contract: Backlinks starts expanded, so its
@@ -178,7 +180,7 @@ describe("PageView system sections", () => {
     expect(childSpy).not.toHaveBeenCalled();
   });
 
-  it("zero backlinks: no Backlinks section at all — hide-when-empty is per-section; the Unlinked mentions section renders collapsed with its count", async () => {
+  it("zero backlinks: no Backlinks section at all — hide-when-empty is per-section; the Unlinked mentions section renders collapsed", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Quiet Page" });
     const plainSource = await client.createObject({ isEmbedded: false, name: "Plain Source" });
@@ -198,7 +200,7 @@ describe("PageView system sections", () => {
     expect(linkedSpy).not.toHaveBeenCalled();
     // The unlinked count is 1: the section renders, collapsed — its query
     // stays lazy.
-    expect(screen.getByRole("button", { name: "Unlinked mentions 1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unlinked mentions" })).toBeInTheDocument();
     expect(unlinkedSpy).not.toHaveBeenCalled();
   });
 
@@ -230,7 +232,7 @@ describe("PageView system sections", () => {
 
     // The count re-ran on the write notification: the expanded section
     // appears with the count badge; its rows resolve in the same beat.
-    const header = await screen.findByRole("button", { name: "Backlinks 1" });
+    const header = await screen.findByRole("button", { name: "Backlinks" });
     expect(header).not.toBeNull();
     expect(await screen.findByText("Stripped Source")).not.toBeNull();
     // No unlinked mentions on this page: the collapsed section never
@@ -318,7 +320,7 @@ describe("PageView system sections", () => {
     expect(client.getUnlinkedReferenceCount(pageId)).toBe(0);
     expect(client.getBacklinkCount(pageId)).toBe(2);
     expect(screen.queryByRole("button", { name: /Unlinked mentions/ })).toBeNull();
-    expect(screen.getByRole("button", { name: "Backlinks 2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Backlinks" })).toBeInTheDocument();
 
     // The expanded Backlinks section re-queried on the notification: the
     // promoted source now rides it alongside the original.
@@ -420,9 +422,6 @@ describe("PageView system sections", () => {
 
     // The count read re-runs on the write notification: the row appears.
     expect(await screen.findByText("First Kid")).not.toBeNull();
-    expect(
-      within(screen.getByRole("button", { name: /Child pages/ })).getByText("2"),
-    ).not.toBeNull();
   });
 
   it("a childless page without onOpenPage hides the section like any childless page — the ruling does not depend on a navigation target", async () => {
@@ -461,10 +460,10 @@ describe("PageView system sections", () => {
     const { container } = render(<PageView client={client} pageId={pageId} onOpenPage={() => {}} />);
 
     const childSection = section(/Child pages/);
-    // Both direct main children are rows; the count badge reads 2. The
-    // recursive tree shows the grandchild nested under its own parent.
+    // Both direct main children are rows (no header count anywhere, owner
+    // ruling 2026-10-21). The recursive tree shows the grandchild nested
+    // under its own parent.
     expect(within(childSection).getByText("Named Main Child")).not.toBeNull();
-    expect(childSection.querySelector(".node-view-section__count")?.textContent).toBe("2");
     expect(within(childSection).getByText("Grandchild")).not.toBeNull();
     // Two top-level rows + the nested grandchild row.
     expect(childSection.querySelectorAll(".nt-block").length).toBe(3);
@@ -495,25 +494,26 @@ describe("PageView system sections", () => {
     expect(client.getBacklinkCount(targetId)).toBe(2);
 
     render(<PageView client={client} pageId={targetId} />);
-    // The eager count rides the section header badge; a zero count hides
-    // the section (the hide-when-empty ruling) — no unlinked mentions
-    // here, so no Unlinked mentions section.
-    expect(screen.getByRole("button", { name: "Backlinks 2" })).toBeInTheDocument();
+    // The eager count gates the section (hide-when-empty) — it never
+    // displays (owner ruling 2026-10-21); a zero count hides the section,
+    // so no unlinked mentions here means no Unlinked mentions section.
+    expect(screen.getByRole("button", { name: "Backlinks" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Unlinked mentions/ })).toBeNull();
   });
 
-  it("child-pages badge counts the page-typed children", async () => {
+  it("child-pages gate counts the page-typed children", async () => {
     const client = await seedClient();
     const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
     await client.createObject({ isEmbedded: false, name: "Kid One", parentId });
     await client.createObject({ isEmbedded: false, name: "Kid Two", parentId });
 
-    // Sanity: the stat the badge reads.
+    // Sanity: the stat the gate reads.
     expect(client.getChildPageCount(parentId)).toBe(2);
 
     render(<PageView client={client} pageId={parentId} />);
-    const childHeader = screen.getByRole("button", { name: /Child pages/ });
-    expect(within(childHeader).getByText("2")).toBeInTheDocument();
+    const childSection = screen.getByRole("button", { name: /Child pages/ });
+    expect(within(childSection.closest("section")!).getByText("Kid One")).toBeInTheDocument();
+    expect(within(childSection.closest("section")!).getByText("Kid Two")).toBeInTheDocument();
   });
 
   it("own-subtree links are hidden from a page's linked references; other pages still see them (direct)", async () => {
@@ -553,7 +553,7 @@ describe("PageView system sections", () => {
       source: r.source.id,
       kind: r.kind,
     }))).toEqual([{ source: notesBlockId, kind: "direct" }]);
-    expect(screen.getByRole("button", { name: "Backlinks 1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Backlinks" })).toBeInTheDocument();
 
     // …and the expanded section's list re-queried on the notification:
     // exactly one row renders (the own-subtree roll-up stays hidden by the
@@ -588,7 +588,7 @@ describe("PageView system sections", () => {
     // materialized count (1 — the local source).
     const backlinks = backlinksSection();
     within(backlinks).getAllByText("Local Source");
-    expect(screen.getByRole("button", { name: "Backlinks 1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Backlinks" })).toBeInTheDocument();
 
     // A second client adds a backlink; the relay frame notifies client A
     // and the expanded section's query re-runs.
@@ -602,7 +602,7 @@ describe("PageView system sections", () => {
     });
 
     await within(backlinks).findAllByText("Remote Source");
-    expect(screen.getByRole("button", { name: "Backlinks 2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Backlinks" })).toBeInTheDocument();
   });
 });
 

@@ -54,7 +54,7 @@ async function flushWrites(): Promise<void> {
  * where the collapsible section still hosts the table.
  */
 function expandProperties(): void {
-  const header = screen.queryByRole("button", { name: /^Properties / });
+  const header = screen.queryByRole("button", { name: /^Properties/ });
   if (header !== null && header.getAttribute("aria-expanded") === "false") {
     fireEvent.click(header);
   }
@@ -112,15 +112,14 @@ describe("Properties panel (effective values)", () => {
     expect(panel).not.toBeNull();
     expect(panel!.querySelector(".nt-props-sidebar")).not.toBeNull();
     // The column names itself: the collapsible section header (dotted-list
-    // icon + "Properties" + the effective count), expanded by default. A
-    // plain node carries no property rows — the retired aliasOf carrier is
-    // gone (node aliases ride the aliasedNodeId wire field, never a property
-    // row).
-    const header = within(panel as HTMLElement).getByRole("button", { name: /^Properties / });
+    // icon + "Properties"), expanded by default — no header count anywhere
+    // (owner ruling 2026-10-21). A plain node carries no property rows — the
+    // retired aliasOf carrier is gone (node aliases ride the aliasedNodeId
+    // wire field, never a property row).
+    const header = within(panel as HTMLElement).getByRole("button", { name: /^Properties/ });
     expect(header.getAttribute("aria-expanded")).toBe("true");
     expect(header.textContent).toContain("Properties");
     const rowCount = panel!.querySelectorAll(".nt-props-sidebar__prop").length;
-    expect(header.textContent).toContain(String(rowCount));
     expect(rowCount).toBe(0);
     // The empty panel still hosts the "Add property" affordance.
     expect(screen.getByRole("button", { name: /Add property/ })).not.toBeNull();
