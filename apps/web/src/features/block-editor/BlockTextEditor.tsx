@@ -224,6 +224,7 @@ import type { ClientNode } from "@/core/workspace-client/index.js";
 import { VerbPopover } from "../../ui/VerbPopover.js";
 import { useOutliner } from "../../ui/outliner-context.js";
 import { nodeLinkUrl, parseNodeLink } from "../../ui/nodeLink.js";
+import { fullTitleFromClient } from "../../ui/dateDisplay.js";
 import { CarrierEnterContext, registerCarrierValue } from "../../ui/textCarrier.js";
 import { copyToClipboard } from "../modals/clipboard.js";
 import { readDeviceSetting } from "../settings/deviceSettings.js";
@@ -298,6 +299,21 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     (classId: string): string => captureApi.displayName(classId) ?? "",
     [captureApi],
   );
+  // Mention pill labels ride the SAME re-resolution ruling as read mode
+  // (BlockRow's InlineTokens): the label is the target's CURRENT FULL
+  // TITLE — read mode's uncapped funnel (fullTitleFromClient), never the
+  // capped displayName —, so a stale import-era captured text (nested-link
+  // UUIDs baked in) never surfaces in edit mode. Null for a broken target:
+  // the editor layer then falls back to the captured text, else the raw id
+  // (read-mode parity: a dead link shows its id, never silent retargeting).
+  // Re-resolved at every build, exactly like the chip labels above; the
+  // prose projection, the DOM build, and the atom list all thread THIS
+  // resolver, so a label's length is consistent across all three (the
+  // single coordinate system — a mismatch would splice at wrong offsets).
+  const resolveMentionName = useCallback(
+    (targetId: string): string | null => fullTitleFromClient(client, targetId),
+    [client],
+  );
   // The chip atom's wavy underline tint: the class's effective color — the
   // read-mode nt-link--class look (owner 2026-10-13).
   const resolveClassColor = useCallback(
@@ -311,7 +327,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     (classId: string): boolean => nodeRef.current.classIds.includes(classId),
     [],
   );
-  const draftRef = useRef(proseFromAst(node.contentAst, resolveClassName));
+  const draftRef = useRef(proseFromAst(node.contentAst, resolveClassName, resolveMentionName));
   const dirtyRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Range captured by the first "*" of the `**`-over-selection shortcut. */
@@ -415,21 +431,21 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     draftRef.current = draft;
     const current = nodeRef.current.contentAst;
     // Prose unchanged: leave rich tokens (mentions/chips/marks) untouched.
-    if (draft === proseFromAst(current, resolveClassName)) return;
+    if (draft === proseFromAst(current, resolveClassName, resolveMentionName)) return;
     // Structural apply (untouched runs keep marks/identity) + fresh
     // candidateSpans on every typed_link mark (record-don't-resolve).
-    const next = withCandidateSpans(applyTextEdit(current, draft, resolveClassName));
+    const next = withCandidateSpans(applyTextEdit(current, draft, resolveClassName, resolveMentionName));
     if (JSON.stringify(next) === JSON.stringify(current)) return;
     void client.updateObject(nodeRef.current.id, { contentAst: next });
-  }, [client, resolveClassName]);
+  }, [client, resolveClassName, resolveMentionName]);
 
   // --- atomic pills (node links render as single units) -----------------------
 
   /** The pill selected by click/arrow, validated against the freshest draft. */
   const currentAtom = (): EditableAtom | null => {
     if (selectedAtomKey === null) return null;
-    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName);
-    return atomFromKey(editableAtoms(base, resolveClassName), selectedAtomKey);
+    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+    return atomFromKey(editableAtoms(base, resolveClassName, resolveMentionName), selectedAtomKey);
   };
 
   /** Delete a pill's token wholesale (Backspace/Delete, selected or adjacent). */
@@ -467,11 +483,11 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       timerRef.current = null;
     }
     dirtyRef.current = false;
-    const sourceText = applyTextEdit(node.contentAst, draftRef.current, resolveClassName);
-    const caretAt = proseFromAst(target.contentAst, resolveClassName).length;
+    const sourceText = applyTextEdit(node.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+    const caretAt = proseFromAst(target.contentAst, resolveClassName, resolveMentionName).length;
     // Splice at the target's end so adjacent text runs coalesce.
     const merged = withCandidateSpans(
-      spliceTokens(target.contentAst, caretAt, caretAt, sourceText, resolveClassName),
+      spliceTokens(target.contentAst, caretAt, caretAt, sourceText, resolveClassName, resolveMentionName),
     );
     void client.updateObject(targetId, { contentAst: merged }).then(() => {
       // The only-child case can still leave children on the source — they
@@ -499,9 +515,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     const next = index >= 0 ? siblings[index + 1] : undefined;
     if (next === undefined) return;
     if (client.getChildren(next.id).length > 0) return;
-    const base = applyTextEdit(node.contentAst, draftRef.current, resolveClassName);
-    const caretAt = proseFromAst(base, resolveClassName).length;
-    const merged = withCandidateSpans(spliceTokens(base, caretAt, caretAt, next.contentAst, resolveClassName));
+    const base = applyTextEdit(node.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+    const caretAt = proseFromAst(base, resolveClassName, resolveMentionName).length;
+    const merged = withCandidateSpans(spliceTokens(base, caretAt, caretAt, next.contentAst, resolveClassName, resolveMentionName));
     commitAst(merged, caretAt);
     void client.deleteObject(next.id);
   };
@@ -516,8 +532,8 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       setActiveMarks([]);
       return;
     }
-    setActiveMarks([...marksOnRange(nodeRef.current.contentAst, range.start, range.end, resolveClassName)]);
-  }, [resolveClassName]);
+    setActiveMarks([...marksOnRange(nodeRef.current.contentAst, range.start, range.end, resolveClassName, resolveMentionName)]);
+  }, [resolveClassName, resolveMentionName]);
 
   // Toggle a mark over the current selection: remove when every covered run
   // already carries it, apply otherwise. Writes go straight to the client —
@@ -530,17 +546,17 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       const range = selectionOffsets(el);
       if (range === null || range.start === range.end) return;
       const current = nodeRef.current.contentAst;
-      const next = marksOnRange(current, range.start, range.end, resolveClassName).has(mark)
-        ? removeMarkFromRange(current, range.start, range.end, mark, resolveClassName)
-        : applyMarkToRange(current, range.start, range.end, mark, resolveClassName);
+      const next = marksOnRange(current, range.start, range.end, resolveClassName, resolveMentionName).has(mark)
+        ? removeMarkFromRange(current, range.start, range.end, mark, resolveClassName, resolveMentionName)
+        : applyMarkToRange(current, range.start, range.end, mark, resolveClassName, resolveMentionName);
       if (JSON.stringify(next) !== JSON.stringify(current)) {
         void client.updateObject(nodeRef.current.id, { contentAst: next });
       }
       // Reflect the toggle immediately: nodeRef still holds the pre-write
       // AST until the client notification re-renders.
-      setActiveMarks([...marksOnRange(next, range.start, range.end, resolveClassName)]);
+      setActiveMarks([...marksOnRange(next, range.start, range.end, resolveClassName, resolveMentionName)]);
     },
-    [client, resolveClassName],
+    [client, resolveClassName, resolveMentionName],
   );
 
   useEffect(() => {
@@ -555,7 +571,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   useEffect(() => {
     const el = spanRef.current;
     if (el === null) return;
-    buildEditableDom(el, nodeRef.current.contentAst, resolveClassName, resolveClassColor, resolveClassAssigned);
+    buildEditableDom(el, nodeRef.current.contentAst, resolveClassName, resolveClassColor, resolveClassAssigned, resolveMentionName);
     if (typeof caret === "object") focusAtPoint(el, caret.x, caret.y);
     else focusWithCaret(el, caret);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -571,10 +587,10 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     const el = spanRef.current;
     if (el === null || document.activeElement === el || dirtyRef.current) return;
     const domSignature = `${el.textContent ?? ""}#${el.querySelectorAll("[data-atom-key]").length}`;
-    if (domSignature !== editableDomSignature(node.contentAst, resolveClassName)) {
-      buildEditableDom(el, node.contentAst, resolveClassName, resolveClassColor, resolveClassAssigned);
+    if (domSignature !== editableDomSignature(node.contentAst, resolveClassName, resolveMentionName)) {
+      buildEditableDom(el, node.contentAst, resolveClassName, resolveClassColor, resolveClassAssigned, resolveMentionName);
     }
-  }, [node.contentAst, resolveClassName, resolveClassColor]);
+  }, [node.contentAst, resolveClassName, resolveClassColor, resolveMentionName]);
 
   // Pill selection chrome: pills are DOM-built, so the selected class is
   // applied imperatively (re-applied after every rebuild replaces elements).
@@ -674,8 +690,8 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    const prose = proseFromAst(next, resolveClassName);
-    buildEditableDom(el, next, resolveClassName, resolveClassColor, resolveClassAssigned);
+    const prose = proseFromAst(next, resolveClassName, resolveMentionName);
+    buildEditableDom(el, next, resolveClassName, resolveClassColor, resolveClassAssigned, resolveMentionName);
     draftRef.current = prose;
     dirtyRef.current = false;
     setSelectedAtomKey(null);
@@ -697,8 +713,8 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     tokens: readonly unknown[],
     caretAfter: number,
   ) => {
-    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName);
-    commitAst(withCandidateSpans(spliceTokens(base, start, end, tokens, resolveClassName)), caretAfter);
+    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+    commitAst(withCandidateSpans(spliceTokens(base, start, end, tokens, resolveClassName, resolveMentionName)), caretAfter);
   };
 
   /**
@@ -737,8 +753,8 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       return;
     }
     if (commandId === "quote") {
-      const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName);
-      const stripped = spliceTokens(base, start, end, [], resolveClassName);
+      const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName, resolveMentionName);
+      const stripped = spliceTokens(base, start, end, [], resolveClassName, resolveMentionName);
       const children = stripped.filter(
         (token): token is ContentAst[number] =>
           QUOTE_CHILD_TYPES.has(String((token as { type?: string }).type)),
@@ -786,9 +802,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       // Insert a live query token at the caret, then hand the
       // token's read-mode view an open-builder request (it mounts when this
       // editor exits — see QueryBlockView's module queue).
-      const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName);
+      const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName, resolveMentionName);
       const token = { type: "query", queryAst: STARTER_QUERY_AST } as ContentAst[number];
-      const next = spliceTokens(base, start, end, [token], resolveClassName);
+      const next = spliceTokens(base, start, end, [token], resolveClassName, resolveMentionName);
       const tokenIndex = next.findIndex((entry) => entry === token);
       commitAst(withCandidateSpans(next), start);
       requestQueryBuilderOpen(nodeRef.current.id, tokenIndex);
@@ -888,9 +904,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       // → body "print(x)"); text outside the consumed trigger range (written
       // before the slash) rides in front.
       const bodyFromHint = remainder.split(/\s+/).slice(1).join(" ").trim();
-      const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName);
-      const stripped = spliceTokens(base, start, end, [], resolveClassName);
-      const existing = proseFromAst(stripped, resolveClassName).trim();
+      const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName, resolveMentionName);
+      const stripped = spliceTokens(base, start, end, [], resolveClassName, resolveMentionName);
+      const existing = proseFromAst(stripped, resolveClassName, resolveMentionName).trim();
       const text =
         bodyFromHint !== ""
           ? existing !== ""
@@ -1098,11 +1114,12 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     // (applyTextEdit keeps unflushed typing), so the draft stays the single
     // source of truth.
     const base = spliceTokens(
-      applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName),
+      applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName),
       state.start,
       end,
       [],
       resolveClassName,
+      resolveMentionName,
     );
     const dissolved = dissolveClassLinksInAst(base, picked.id, (id) => resolveClassName(id) || id);
     // The unassign MUST land after the strip's local apply — the applier
@@ -1219,13 +1236,13 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     verbValue: string | { propertySchemaId: string },
     locator: string,
   ) => {
-    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName);
-    const covered = proseFromAst(base, resolveClassName).slice(start, end);
+    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+    const covered = proseFromAst(base, resolveClassName, resolveMentionName).slice(start, end);
     if (covered === "") return;
     const metadata: Record<string, unknown> = {};
     if (locator !== "") metadata.locator = locator;
     const token = { type: "typed_link", verb: verbValue, text: covered, metadata };
-    const next = withCandidateSpans(spliceTokens(base, start, end, [token], resolveClassName));
+    const next = withCandidateSpans(spliceTokens(base, start, end, [token], resolveClassName, resolveMentionName));
     const el = spanRef.current;
     commitAst(next, start + covered.length);
     el?.focus();
@@ -1323,8 +1340,8 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     if (el === null) return;
     const pill = (event.target as HTMLElement).closest?.("[data-atom-key]");
     if (pill === null || pill === undefined || !el.contains(pill)) return;
-    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName);
-    const atom = atomFromKey(editableAtoms(base, resolveClassName), (pill as HTMLElement).dataset.atomKey);
+    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+    const atom = atomFromKey(editableAtoms(base, resolveClassName, resolveMentionName), (pill as HTMLElement).dataset.atomKey);
     if (atom === null) return;
     event.preventDefault();
     setSelectedAtomKey(null);
@@ -1339,8 +1356,8 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   const handleContextMenu = (event: MouseEvent<HTMLSpanElement>) => {
     const el = spanRef.current;
     if (el === null || linkMenu !== null) return;
-    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName);
-    const atoms = editableAtoms(base, resolveClassName);
+    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+    const atoms = editableAtoms(base, resolveClassName, resolveMentionName);
     const pill = (event.target as HTMLElement).closest?.("[data-atom-key]");
     let atom: EditableAtom | null = null;
     if (pill !== null && pill !== undefined && el.contains(pill)) {
@@ -1348,7 +1365,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     } else {
       const offset = proseOffsetFromPoint(el, event.clientX, event.clientY);
       if (offset === null) return;
-      const span = proseSpans(base, resolveClassName).find((s) => s.start <= offset && offset < s.end);
+      const span = proseSpans(base, resolveClassName, resolveMentionName).find((s) => s.start <= offset && offset < s.end);
       if (span === undefined) return;
       atom = atoms.find((a) => a.tokenIndex === span.tokenIndex) ?? null;
       // PG1: a right-click on a typed-link word opens the verb editor modal
@@ -1410,7 +1427,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   const currentLinkMenuMention = (): { menu: LinkMenuState; token: MentionToken } | null => {
     const menu = linkMenu;
     if (menu === null) return null;
-    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName);
+    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
     const token = base[menu.tokenIndex];
     if (
       typeof token !== "object" ||
@@ -1611,8 +1628,8 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
         const el = spanRef.current;
         const caret = el === null ? null : caretOffset(el);
         if (el !== null && caret !== null) {
-          const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName);
-          const atoms = editableAtoms(base, resolveClassName);
+          const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+          const atoms = editableAtoms(base, resolveClassName, resolveMentionName);
           if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
             const hit =
               event.key === "ArrowRight"
@@ -1806,7 +1823,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       const draft = draftRef.current;
       const parentId = nodeRef.current.parentId;
       const currentId = nodeRef.current.id;
-      const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName);
+      const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName, resolveMentionName);
       // Text-property carriers: multi Enter registers the new
       // sibling as the next VALUE; single Enter nests the new block as a
       // CHILD of the carrier (the value's lines). Ordinary blocks: the
@@ -1826,8 +1843,8 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
           timerRef.current = null;
         }
         dirtyRef.current = false;
-        const head = spliceTokens(base, caret, draft.length, [], resolveClassName);
-        const tail = spliceTokens(base, 0, caret, [], resolveClassName);
+        const head = spliceTokens(base, caret, draft.length, [], resolveClassName, resolveMentionName);
+        const tail = spliceTokens(base, 0, caret, [], resolveClassName, resolveMentionName);
         void client.updateObject(currentId, { contentAst: withCandidateSpans(head) });
         void client
           .createObject({

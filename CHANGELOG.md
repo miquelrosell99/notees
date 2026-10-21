@@ -715,6 +715,54 @@ predating this file.
     redeploy + verify-min smoke — VERIFY-PASS. Lockstep: GTK b73a08e (854
     tests) + Flutter f086dd4 (668 tests).
 ## 2026-10-21
+- **fix(web): edit mode re-resolves mention labels — a stale captured text
+  (import-era nested-link UUIDs baked in) never surfaces in the editor.**
+  Read mode always rendered mentions from the label chain (the one-off
+  `displayText`, else the target's CURRENT full title, else the captured
+  text, else the raw id for a broken target); edit mode keyed its prose
+  projection, atom list, and pill DOM off the captured `text` verbatim, so
+  entering edit mode on legacy/import-era data showed raw UUIDs. The block
+  editor now threads a `MentionNameResolver` through the editor layer —
+  the same wiring pattern the class-chip label re-resolution already
+  used — resolving the target's UNCAPPED full title (`fullTitleFromClient`,
+  read mode's exact funnel; the capped `displayName` would truncate what
+  read mode renders). Precedence: `displayText` → resolved live full title
+  → captured `t.text` → raw target id. The resolver rides `proseFromAst` /
+  `proseSpans` (one prose coordinate system, kept in sync), `editableAtoms`,
+  `buildEditableDom`, `editableDomSignature`, `applyTextEdit`,
+  `spliceTokens`, and the mark commands — a re-resolved label's length
+  differs from the captured text's, so every prose-offset consumer must see
+  the same projection or splices land wrong. Without a resolver the
+  functions behave exactly as before (non-editor consumers keep the
+  captured-text projection). No wire/store/domain change — display-only.
+  - **Files**: `apps/web/src/editor/prose.ts` (`MentionNameResolver`,
+    exported `mentionProse`, resolver params), `…/editable-dom.ts`
+    (atoms/DOM/signature), `…/edit-apply.ts` (`applyTextEdit`,
+    `spliceTokens`), `…/marks.ts` (the three mark commands),
+    `apps/web/src/features/block-editor/BlockTextEditor.tsx` (the resolver,
+    `fullTitleFromClient`-based, threaded through every prose call site),
+    `apps/web/test/editable-dom.test.ts` (five label-chain unit tests),
+    `apps/web/test/editor-atoms.test.tsx` (five edit-mode integration
+    tests: resolved pill, atom-offset keyboard gestures on a re-resolved
+    label, the touch-without-flatten flush guard, `displayText` precedence,
+    broken-target fallback), `docs/features/links.md` (the mention
+    contract: edit mode re-resolves too).
+  - **Verification**: `pnpm --filter @notees/web typecheck`; the web suites
+    editable-dom (8), editor-atoms (24), suggestion-popup (18) green.
+- **feat(web): the node-picker result rows carry a hover tooltip with the
+  full node title.** The rows crop long names (CSS ellipsis); resting the
+  pointer on a row now raises the native `title` tooltip — the same idiom
+  the row's own breadcrumb crumbs and the rest of the chrome already ride —
+  showing the SAME string uncropped: the UNCAPPED full title
+  (`fullTitleForSettings`, the read-mode link derivation; byte-identical to
+  the capped display name inside the 80-char budget, past it the whole
+  title instead of a cut). The create/date rows (label-only pseudo-nodes)
+  tooltip their label.
+  - **Files**: `apps/web/src/features/pickers/NodeResultItem.tsx` (the
+    `title` on `.node-result-item__name`), `apps/web/test/suggestion-popup.test.tsx`
+    (two tests: a 105-char title — the capped line + the full-title tooltip
+    — and the create row's label tooltip).
+  - **Verification**: the suggestion-popup suite (18 tests) green.
 - **feat(protocol)!: the `external_link` content token retires — links are
   markdown spans in `text` tokens, parsed at render time.** Owner ruling
   (2026-10-21): the token was invisible in the web editor (zero-length prose

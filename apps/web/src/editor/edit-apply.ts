@@ -26,6 +26,12 @@
  * runs built from the span's prose — while everything outside the span is
  * preserved.
  *
+ * Mention labels ride the same re-resolution the DOM build uses: pass
+ * `resolveMentionName` (the editor threads it) so the prose projection the
+ * diff brackets matches the projection the caller's DOM/textContent rides
+ * — a re-resolved label's length differs from the captured text's, and a
+ * mismatch here would splice at wrong offsets.
+ *
  * Class chips are the exception to the cover-flatten rule: the chip is an
  * ATOMIC display token (its label is re-resolved, never stored), so a chip
  * the splice touches is never cut and never flattened away — a boundary
@@ -37,7 +43,12 @@
 
 import type { ContentAst, Mark } from "@notees/protocol";
 
-import { proseFromAst, proseSpans, type ClassNameResolver } from "@/editor/prose.js";
+import {
+  proseFromAst,
+  proseSpans,
+  type ClassNameResolver,
+  type MentionNameResolver,
+} from "@/editor/prose.js";
 
 /** A location in the token stream, from a prose offset. */
 interface StreamLoc {
@@ -154,14 +165,16 @@ function followingMarks(
  * `astFromProse`). Returns `previous` untouched when the prose is identical.
  * `resolveClassName` keeps chip label lengths consistent with the caller's
  * prose projection (the editor threads it; omitting it makes chips
- * prose-invisible).
+ * prose-invisible). `resolveMentionName` does the same for mention labels
+ * (the editor threads it; omitting it keeps captured-text lengths).
  */
 export function applyTextEdit(
   previous: readonly unknown[],
   draft: string,
   resolveClassName?: ClassNameResolver,
+  resolveMentionName?: MentionNameResolver,
 ): ContentAst {
-  const prose = proseFromAst(previous, resolveClassName);
+  const prose = proseFromAst(previous, resolveClassName, resolveMentionName);
   const next = draft.replace(/\r\n?/g, "\n");
   if (next === prose) return previous as ContentAst;
 
@@ -180,7 +193,7 @@ export function applyTextEdit(
     newEnd -= 1;
   }
 
-  const spans = proseSpans(previous, resolveClassName);
+  const spans = proseSpans(previous, resolveClassName, resolveMentionName);
   let from = locate(spans, start);
   let to = locate(spans, oldEnd);
   const inserted = next.slice(start, newEnd);
@@ -320,7 +333,8 @@ function sliceBoundaryToken(token: unknown, from: number, to: number | undefined
  * type with their captured text trimmed (it may go stale — display resolves).
  * A class chip the range touches is kept whole (atomic — see
  * sliceBoundaryToken). `resolveClassName` keeps chip label lengths consistent
- * with the caller's prose projection.
+ * with the caller's prose projection; `resolveMentionName` does the same for
+ * mention labels (the re-resolved full title, never the captured text).
  */
 export function spliceTokens(
   previous: readonly unknown[],
@@ -328,8 +342,9 @@ export function spliceTokens(
   end: number,
   tokens: readonly unknown[],
   resolveClassName?: ClassNameResolver,
+  resolveMentionName?: MentionNameResolver,
 ): ContentAst {
-  const spans = proseSpans(previous, resolveClassName);
+  const spans = proseSpans(previous, resolveClassName, resolveMentionName);
   const from = locate(spans, start);
   const to = locate(spans, end);
   const out: unknown[] = previous.slice(0, from.tokenIndex);

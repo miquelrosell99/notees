@@ -3,27 +3,34 @@
  * node-link pills, mirroring the archived editor's inline model (and the
  * read-mode rendering): a mention is a `contenteditable="false"` span, one
  * caret unit, visually identical to the read-mode dashed-underline link.
- * Class chips render the same way (their label is re-resolved at build
- * time through `resolveClassName` — the wire token stores no text), with
- * the read-mode class-link look: a wavy underline tinted by the class's
- * effective color through `resolveClassColor`.
- *
- * Prose offsets stay the single coordinate system (editor/selection.ts):
- * a pill contributes its captured `text` (or the chip's resolved label)
- * length, so `el.textContent` equals `proseFromAst(ast)` and every
- * prose-based operation (capture triggers, splices, mark ranges) works
- * unchanged. Only the DOM build and the DOM⇄prose mapping know about the
- * pill elements.
+ * A mention's pill text is its LABEL (`mentionProse`: the one-off
+ * displayText, else the target's re-resolved CURRENT full title — the same
+ * chain read mode renders —, else the captured text, else the raw target
+ * id for a broken reference), so a stale import-era capture (nested-link
+ * UUIDs baked into the wire text) never surfaces in edit mode. The label
+ * length is what the pill contributes to the prose offsets, keeping
+ * `el.textContent === proseFromAst(ast)` — the single coordinate system
+ * every prose-based operation rides. Class chips render the same way
+ * (their label is re-resolved at build time through `resolveClassName` —
+ * the wire token stores no text), with the read-mode class-link look: a
+ * wavy underline tinted by the class's effective color through
+ * `resolveClassColor`.
  *
  * Quote children render FLAT into the editable (a quote is plain text in
- * edit mode, as before); their mention children become pills too. Keyboard
- * atom selection/deletion enumerates TOP-LEVEL mentions and chips only — a
- * prose range inside a quote cannot be spliced structurally (spliceTokens
- * would drop the whole quote token), so quote-nested pills stay
- * point-and-menu only.
+ * edit mode, as before); their mention children become pills too.
+ * Keyboard atom selection/deletion enumerates TOP-LEVEL mentions and chips
+ * only — a prose range inside a quote cannot be spliced structurally
+ * (spliceTokens would drop the whole quote token), so quote-nested pills
+ * stay point-and-menu only.
  */
 
-import { proseFromAst, proseSpans, type ClassNameResolver } from "@/editor/prose.js";
+import {
+  proseFromAst,
+  proseSpans,
+  mentionProse,
+  type ClassNameResolver,
+  type MentionNameResolver,
+} from "@/editor/prose.js";
 import { cssColorFor } from "@/components/ui/fleet/colorPresets.js";
 
 /** CSS class of the atomic pill element (also the click/hit-test hook). */
@@ -57,15 +64,14 @@ export interface EditableAtom {
 
 function isMention(token: unknown): token is Record<string, unknown> & {
   targetNodeId: string;
-  text: string;
+  text?: string;
   displayText?: string;
 } {
   return (
     typeof token === "object" &&
     token !== null &&
     (token as Record<string, unknown>).type === "mention" &&
-    typeof (token as Record<string, unknown>).targetNodeId === "string" &&
-    typeof (token as Record<string, unknown>).text === "string"
+    typeof (token as Record<string, unknown>).targetNodeId === "string"
   );
 }
 
@@ -88,9 +94,13 @@ function chipText(token: Record<string, unknown>, resolveClassName?: ClassNameRe
 }
 
 /** Top-level pill spans (prose order) — the keyboard-addressable atoms. */
-export function editableAtoms(ast: readonly unknown[], resolveClassName?: ClassNameResolver): EditableAtom[] {
+export function editableAtoms(
+  ast: readonly unknown[],
+  resolveClassName?: ClassNameResolver,
+  resolveMentionName?: MentionNameResolver,
+): EditableAtom[] {
   const atoms: EditableAtom[] = [];
-  for (const span of proseSpans(ast, resolveClassName)) {
+  for (const span of proseSpans(ast, resolveClassName, resolveMentionName)) {
     if (span.end <= span.start) continue;
     const token = ast[span.tokenIndex];
     if (isMention(token)) {
@@ -99,7 +109,11 @@ export function editableAtoms(ast: readonly unknown[], resolveClassName?: ClassN
         start: span.start,
         end: span.end,
         targetNodeId: token.targetNodeId,
-        text: token.text,
+        // The pill's surface text — the same label precedence the prose
+        // projection and the DOM build use (displayText → re-resolved full
+        // title → captured text → raw id), so atoms, spans, and the DOM
+        // never disagree about a pill's length.
+        text: mentionProse(token, resolveMentionName),
         kind: "mention",
         ...(token.displayText !== undefined ? { displayText: token.displayText } : {}),
       });
@@ -142,6 +156,8 @@ export function atomFromKey(
  * `resolveClassName` renders class chip labels (re-resolved per build);
  * `resolveClassColor` tints the chip's wavy underline with the class's
  * effective color (the read-mode nt-link--class parity, owner 2026-10-13).
+ * `resolveMentionName` renders mention pill labels (re-resolved per build —
+ * the read-mode full-title chain; a stale captured text never surfaces).
  */
 export function buildEditableDom(
   el: HTMLElement,
@@ -149,6 +165,7 @@ export function buildEditableDom(
   resolveClassName?: ClassNameResolver,
   resolveClassColor?: ClassColorResolver,
   resolveClassAssigned?: (classId: string) => boolean,
+  resolveMentionName?: MentionNameResolver,
 ): void {
   el.replaceChildren();
   let offset = 0;
@@ -165,14 +182,18 @@ export function buildEditableDom(
           }
           break;
         case "mention": {
-          if (typeof t.text !== "string") break;
+          // The pill renders the LABEL (displayText → re-resolved full
+          // title → captured text → raw id), never the captured text
+          // verbatim — read-mode parity; a stale import-era capture must
+          // not surface in edit mode.
+          const label = mentionProse(t, resolveMentionName);
           const pill = document.createElement("span");
           pill.className = ATOM_CLASS;
           pill.contentEditable = "false";
           pill.spellcheck = false;
-          pill.textContent = t.text;
-          pill.dataset.atomKey = `${offset}:${offset + t.text.length}`;
-          offset += t.text.length;
+          pill.textContent = label;
+          pill.dataset.atomKey = `${offset}:${offset + label.length}`;
+          offset += label.length;
           el.appendChild(pill);
           break;
         }
@@ -224,13 +245,17 @@ export function buildEditableDom(
 }
 
 /** Structural signature: prose text + pill count — for rehydrate comparisons. */
-export function editableDomSignature(ast: readonly unknown[], resolveClassName?: ClassNameResolver): string {
+export function editableDomSignature(
+  ast: readonly unknown[],
+  resolveClassName?: ClassNameResolver,
+  resolveMentionName?: MentionNameResolver,
+): string {
   let pills = 0;
   const walk = (tokens: readonly unknown[]): void => {
     for (const token of tokens) {
       if (typeof token !== "object" || token === null) continue;
       const t = token as Record<string, unknown>;
-      if (t.type === "mention" && typeof t.text === "string") pills += 1;
+      if (t.type === "mention" && typeof t.targetNodeId === "string") pills += 1;
       else if (t.type === "class_link") pills += 1;
       else if (t.type === "quote" && Array.isArray(t.children))
         walk(t.children as readonly unknown[]);
@@ -239,5 +264,5 @@ export function editableDomSignature(ast: readonly unknown[], resolveClassName?:
     }
   };
   walk(ast);
-  return `${proseFromAst(ast, resolveClassName)}#${pills}`;
+  return `${proseFromAst(ast, resolveClassName, resolveMentionName)}#${pills}`;
 }
