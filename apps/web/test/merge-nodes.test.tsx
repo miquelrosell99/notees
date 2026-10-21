@@ -67,7 +67,7 @@ async function seedSource(client: WorkspaceClient): Promise<{
 }> {
   const cls = await client.createClass("Topic");
   const schema = await client.createPropertySchema({ name: "Note", type: "text" });
-  await client.setClassProperty(cls, schema, { sequence: 0 });
+  await client.setClassProperty(cls, schema, {});
   const source = await client.createObject({ isEmbedded: false, name: "Source" });
   await client.assignClass(source, cls);
   await client.setProperty(source, schema, "authored note");

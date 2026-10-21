@@ -195,8 +195,9 @@ describe("S1 in class context — the create binds (+ the optional schema defaul
     expect(schema?.defaultValue).toBe("978-");
     const binding = client.getClassBindings(fiction).find((b) => b.propertySchemaId === schema!.id);
     expect(binding).toBeDefined();
-    // The binding is sequence-only — no default/required fields anymore.
-    expect(binding).toMatchObject({ sequence: 0 });
+    // The binding carries no default/required/sequence fields anymore — a
+    // presence row + the soft-unbind flag only.
+    expect(binding).toMatchObject({ name: "ISBN", active: true });
   });
 
   it("the default field is type-gated: text/number/boolean/select only", async () => {

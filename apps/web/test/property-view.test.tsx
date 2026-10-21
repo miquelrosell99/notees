@@ -61,7 +61,7 @@ async function seedInspector(client: WorkspaceClient): Promise<{
   // WORKAROUND(store applier): class.create's contentAst never lands — seed
   // the title through object.update (same pattern as pickers.test.tsx).
   await client.updateObject(classId, { contentAst: [{ type: "text", text: "Shelf" }] });
-  await client.setClassProperty(classId, schemaId, { sequence: 0 });
+  await client.setClassProperty(classId, schemaId, {});
   const carriers: string[] = [];
   for (const name of ["Alpha", "Beta"]) {
     const id = await client.createObject({ isEmbedded: false, name });

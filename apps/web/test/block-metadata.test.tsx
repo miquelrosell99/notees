@@ -188,7 +188,7 @@ describe("BlockRow value-display buttons", () => {
       options: [{ id: "opt-1", label: "Doing", icon: "mdiCircleHalfFull", color: "orange" }],
     });
     const classId = await client.createClass("Taskish");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     if (display !== "panel") {
       await client.updatePropertySchema(schemaId, { display });
     }
@@ -249,7 +249,7 @@ describe("BlockRow value-display buttons", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "reviewed", type: "boolean" });
     const classId = await client.createClass("Reviewable");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     await client.updatePropertySchema(schemaId, { display: "bullet" });
     const pageId = await client.createObject({ isEmbedded: false, name: "Review" });
     const blockId = await client.createObject({

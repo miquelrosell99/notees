@@ -221,7 +221,6 @@ export interface ClassBinding {
   multi: boolean;
   /** Bound target class names (seed spec), null when unconstrained. */
   targetClassFilter: string[] | null;
-  sequence: number;
   /** SCHEMA.md "Dates": schema-row date behavior (null = day / not qualified). */
   datePrecision: DatePrecision | null;
   dateQualified: boolean | null;
@@ -239,9 +238,9 @@ export interface ClassBinding {
  * getRegistryBindings read. Title-is-content: the schema ROW is the naming
  * authority (renames and user edits ride it); only a missing row falls back
  * to a synthesized label at the call site. The binding carries the genuinely
- * PER-CLASS mechanics ONLY (sequence + active —
- * `required` retired outright, `defaultValue` moved to the schema, one
- * global default per property, the Logseq shape).
+ * PER-CLASS mechanic ONLY — the active soft-unbind flag (`required` retired outright, `defaultValue` moved to the
+ * schema, `sequence` retired outright — class panels render alphabetically
+ * by property name).
  */
 export function mapClassBindingRow(row: Record<string, unknown>): ClassBinding {
   const parsePrecision = (raw: unknown): DatePrecision | null =>
@@ -261,7 +260,6 @@ export function mapClassBindingRow(row: Record<string, unknown>): ClassBinding {
     type: (row.type as string | null) ?? "",
     multi: row.multi === 1,
     targetClassFilter,
-    sequence: (row.sequence as number) ?? 0,
     datePrecision: parsePrecision(row.date_precision),
     dateQualified:
       row.date_qualified === null || row.date_qualified === undefined
@@ -294,9 +292,14 @@ export interface ClientValidationRules {
   pattern?: string;
 }
 
-/** Editable fields of a class.property.set write (all optional — patch). */
+/**
+ * Editable fields of a class.property.set write (all optional — patch).
+ * `active` is the only field left: the binding is a presence row + the
+ * soft-unbind flag (`required` retired,
+ * `defaultValue` moved to the schema, `sequence` retired: class panels
+ * render alphabetically by property name).
+ */
 export interface SetClassPropertyInput {
-  sequence?: number;
   active?: boolean;
 }
 
@@ -478,7 +481,6 @@ export interface EffectiveProperty {
    *  every carrier, class-bound or not. */
   readonly: boolean | null;
   hideWhenEmpty: boolean | null;
-  sequence: number | null;
   display: PropertyDisplay | null;
 }
 

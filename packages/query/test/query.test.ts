@@ -103,8 +103,8 @@ function worldEnvelopes(): Envelope[] {
         { id: "high", label: "high" },
       ],
     }, t(3)),
-    env("class.property.set", { classId: PLACE, propertySchemaId: PRIORITY, sequence: 0 }, t(4)),
-    env("class.property.set", { classId: CITY, propertySchemaId: PRIORITY, sequence: 0 }, t(5)),
+    env("class.property.set", { classId: PLACE, propertySchemaId: PRIORITY }, t(4)),
+    env("class.property.set", { classId: CITY, propertySchemaId: PRIORITY }, t(5)),
     // The default is SCHEMA-level.
     env("propertySchema.update", { propertySchemaId: PRIORITY, defaultValue: "medium" }, t(5) + 1),
     env("object.create", { objectId: FRANCE, contentAst: text("France"), classIds: [PLACE] }, t(6)),
@@ -134,7 +134,7 @@ function worldEnvelopes(): Envelope[] {
     }, t(12)),
     env("property.set", { objectId: LONE, propertySchemaId: PRIORITY, value: "low" }, t(13)),
     env("propertySchema.create", { propertySchemaId: RATING, name: "rating", type: "number" }, t(14)),
-    env("class.property.set", { classId: PLACE, propertySchemaId: RATING, sequence: 0 }, t(15)),
+    env("class.property.set", { classId: PLACE, propertySchemaId: RATING }, t(15)),
     env("propertySchema.update", { propertySchemaId: RATING, defaultValue: 1 }, t(15) + 1),
     env("property.set", { objectId: PARIS, propertySchemaId: RATING, value: 3 }, t(16)),
     // Comparison-operator fixture (offset range keeps HLC clear of later tests):
