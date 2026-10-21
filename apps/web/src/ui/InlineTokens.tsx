@@ -226,7 +226,24 @@ function renderToken(
         <span key={key}>
           {segments.map((segment, index) =>
             segment.kind === "link" ? (
-              <a key={index} className="nt-hyperlink" href={segment.href} target="_blank" rel="noreferrer">
+              // Click gesture (owner ruling): a plain click must not follow
+              // the href — the block row owns the click (edit mode, or
+              // openNode read-only), and the event bubbles there on purpose;
+              // a Ctrl/Cmd/Shift-modified click keeps the browser default
+              // (target=_blank opens a new tab).
+              <a
+                key={index}
+                className="nt-hyperlink"
+                href={segment.href}
+                target="_blank"
+                rel="noreferrer"
+                title="Ctrl+click to open link"
+                onClick={(event) => {
+                  if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
+                    event.preventDefault();
+                  }
+                }}
+              >
                 {renderMarkedText(segment.text, marks)}
               </a>
             ) : (
