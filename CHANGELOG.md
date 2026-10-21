@@ -7,6 +7,39 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(web): the filter builder's class "is" inherits class extends, and
+  parent/page/root carry single-value is/is-not.** Two. (1) With classes, BOTH operators ride the extends-aware
+  closure membership — "class is fuente" now matches a node classed book
+  when book extends fuente, the same reading "contains" already had: the
+  class family's "is" / "is not" bind the `class` closure-membership
+  condition (single-pill form; "contains" stays the list form), and
+  `classExact` (exact set equality, the 2026-10-16 register) becomes
+  UI-unreachable — the wire type stays valid: stored ASTs still parse and
+  evaluate as exact equality (compiler + local evaluator arms untouched).
+  (2) The functionally single-target container families — Parent (the
+  direct parent), Page (the containing page), Root (the workspace-root
+  ancestor) — carry is / is not (+ the set bits where they mean something;
+  Root's set bit stays vacuous): the wire types stay the list shapes
+  (`parentOf`/`pageOf`/`rootIn` carry nodeIds[]) binding 0/1 elements, and
+  the value pill cluster hides its "+ Add" pill while the single slot is
+  filled (clear via the pill's × first — no silent replace). The genuinely
+  set-valued families keep their registers: referencePath (is any of),
+  child (contains any of), childPath (contains), parentPath (includes).
+  - **Files**: `apps/web/src/features/collection/filterBlockModel.ts`
+    (`applyClassOperator` "is" → `class`; `operatorOf`/`operatorOptions` for
+    the class + parent/page/root families; the container morph's is/is-not
+    cases; the parent pick-set op strings), `…/filterBlockValueControls.tsx`
+    (`NodePillsPick` + `ClassPillsPick` single-slot prop, bound on
+    `class`/`classExact`/`parentOf`/`pageOf`/`rootIn`),
+    `apps/web/test/filter-builder.test.tsx` (the class "is" test now asserts
+    extends-inheriting membership with the hidden AddPill; the
+    Parent/Page/Root tests ride the is/is-not single-slot flow),
+    `apps/web/test/filter-layer.test.tsx` (the extends-closure test pins
+    "is project" keeping the node classed client, + the "is not" negation).
+  - **Verification**: `npx tsc --noEmit` (apps/web) and
+    `npx vitest run test/filter-builder.test.tsx test/filter-query.test.ts
+    test/filter-layer.test.tsx` — 58 tests green.
+
 - **fix(web): the nested filter groups' Add-condition menu opens at a real
   width — the dynamic subgroup's menu was an invisible 0-width popup.**
   Live-only bug (jsdom has no layout, so the gate never saw it): nested

@@ -132,11 +132,15 @@ export function operatorOptions(
 ): readonly OperatorOption[] {
   switch (family) {
     case "class":
-      // The class set (the multi-value register):
-      // is/is not ride the EXACT set equality (the single-pill register),
-      // contains/does not contain ride closure ANY-of membership over the
-      // picked LIST (the "one of" operator collapsed into contains — the
-      // identical semantics), is set/is not set test the set's emptiness.
+      // The class set: BOTH class operators ride
+      // the extends-aware closure membership — "is fuente" matches a node
+      // classed book when book extends fuente. is/is not are the SINGLE-PILL
+      // form (binds the `class` closure-membership condition), contains/
+      // does not contain the LIST form (the "one of" operator collapsed into
+      // contains — the identical ANY-of semantics), is set/is not set test
+      // the set's emptiness. (Exact set equality — classExact — is
+      // legacy-wire-only: stored ASTs still parse/evaluate it, the UI no
+      // longer binds it.)
       return [
         { value: "is", label: "is" },
         { value: "is-not", label: "is not" },
@@ -179,11 +183,12 @@ export function operatorOptions(
         { value: "is-not-any-of", label: "is not any of" },
       ];
     case "parent":
-      // v1's PARENT: the direct parent is any of the picked nodes (or the
-      // subquery's matches) — plus the has-a-parent set bit.
+      // v1's PARENT (single-value): the DIRECT
+      // PARENT is one node — is/is not bind a single slot (the wire list
+      // carries 0/1 elements), is set/is not set the has-a-parent bit.
       return [
-        { value: "is-any-of", label: "is any of" },
-        { value: "is-not-any-of", label: "is not any of" },
+        { value: "is", label: "is" },
+        { value: "is-not", label: "is not" },
         { value: "set", label: "is set" },
         { value: "not-set", label: "is not set" },
       ];
@@ -215,11 +220,12 @@ export function operatorOptions(
         { value: "is-not", label: "is not" },
       ];
     case "page":
-      // v1's Page block: the containing page is any of the picked nodes (or
-      // the subquery's matches) — plus the lives-inside-a-page set bit.
+      // v1's Page block (single-value): the
+      // CONTAINING PAGE is one node — is/is not bind a single slot, is set/
+      // is not set the lives-inside-a-page bit.
       return [
-        { value: "is-any-of", label: "is any of" },
-        { value: "is-not-any-of", label: "is not any of" },
+        { value: "is", label: "is" },
+        { value: "is-not", label: "is not" },
         { value: "set", label: "is set" },
         { value: "not-set", label: "is not set" },
       ];
@@ -233,12 +239,13 @@ export function operatorOptions(
         { value: "not-set", label: "is not set" },
       ];
     case "root":
-      // The root walk: the workspace-root ancestor is any of the picked
-      // nodes (or the subquery's matches). The set bit is vacuous — every
-      // node's root exists (a parentless row is its own root).
+      // The root walk (single-value): the
+      // workspace-root ancestor is one node — is/is not bind a single slot.
+      // The set bit is vacuous — every node's root exists (a parentless row
+      // is its own root).
       return [
-        { value: "is-any-of", label: "is any of" },
-        { value: "is-not-any-of", label: "is not any of" },
+        { value: "is", label: "is" },
+        { value: "is-not", label: "is not" },
       ];
     case "property":
       return propertyOperatorOptions(condition, facts);
@@ -346,9 +353,10 @@ export function propertyOperatorOptions(
 export function operatorOf(condition: Condition, negated: boolean): string {
   switch (condition.type) {
     case "class":
-      // Closure membership (the plain `class` condition rides contains).
-      return negated ? "not-contains" : "contains";
+      // The single-pill closure register.
+      return negated ? "is-not" : "is";
     case "classExact":
+      // Legacy-wire-only (exact set equality): rows still render their "is".
       return negated ? "is-not" : "is";
     case "classAny":
     case "classAnyQuery":
@@ -391,7 +399,8 @@ export function operatorOf(condition: Condition, negated: boolean): string {
       return negated ? "not-set" : "set";
     case "parentOf":
     case "parentOfQuery":
-      return negated ? "is-not-any-of" : "is-any-of";
+      // The single-value register.
+      return negated ? "is-not" : "is";
     case "parentSet":
       return negated ? "not-set" : "set";
     case "childOf":
@@ -404,7 +413,8 @@ export function operatorOf(condition: Condition, negated: boolean): string {
       return negated ? "is-not-any-of" : "is-any-of";
     case "pageOf":
     case "pageOfQuery":
-      return negated ? "is-not-any-of" : "is-any-of";
+      // The single-value register.
+      return negated ? "is-not" : "is";
     case "pageSet":
       return negated ? "not-set" : "set";
     case "ancestorIn":
@@ -412,7 +422,8 @@ export function operatorOf(condition: Condition, negated: boolean): string {
       return negated ? "not-includes" : "includes";
     case "rootIn":
     case "rootInQuery":
-      return negated ? "is-not-any-of" : "is-any-of";
+      // The single-value register.
+      return negated ? "is-not" : "is";
     case "isClass":
       return condition.isClass ? "is" : "is-not";
     case "isEmbedded":
@@ -460,12 +471,15 @@ export function operatorOf(condition: Condition, negated: boolean): string {
 }
 
 /**
- * The class family's operator application (the multi-value
- * register): is / is not → EXACT set equality (the single-pill register, the
- * first carried id), contains / does not contain → closure ANY-of membership
- * over the picked LIST (the collapsed "one of"), is set / is not set →
- * emptiness. The picked ids carry across the morphs so switching operators
- * keeps the selection.
+ * The class family's operator application: BOTH
+ * class operators ride the extends-aware closure membership — "is fuente"
+ * matches a node classed book when book extends fuente. is / is not → the
+ * SINGLE-PILL form (binds the `class` closure-membership condition, the
+ * first carried id), contains / does not contain → the LIST form (closure
+ * ANY-of over the picked ids, the collapsed "one of"), is set / is not set →
+ * emptiness. Exact set equality (classExact) is legacy-wire-only — still
+ * parsed/evaluated, no longer bound here. The picked ids carry across the
+ * morphs so switching operators keeps the selection.
  */
 function applyClassOperator(condition: Condition, op: string): Child {
   const carried: string[] =
@@ -477,9 +491,9 @@ function applyClassOperator(condition: Condition, op: string): Child {
   const neg = (next: Condition): Child => ({ type: "not", child: next });
   switch (op) {
     case "is":
-      return { type: "classExact", classId: carried[0] ?? "" };
+      return { type: "class", classId: carried[0] ?? "" };
     case "is-not":
-      return neg({ type: "classExact", classId: carried[0] ?? "" });
+      return neg({ type: "class", classId: carried[0] ?? "" });
     case "contains":
       return { type: "classAny", classIds: carried };
     case "not-contains":
@@ -546,11 +560,13 @@ function applyNodeTargetOperator(
 }
 
 /**
- * The node-container morph (v1's Page / Parent path / Root blocks): the
- * static pick and the dynamic subquery share one operator pair (is any of /
- * is not any of — "includes" on the parent path), plus the set bits where
- * they mean something (Page is set = lives inside a page; Parent path is
- * set = has an ancestor at all; Root's set bit is vacuous — never offered).
+ * The node-container morph (v1's Page / Parent path / Root blocks). Page and
+ * Root are single-target: is / is not bind the
+ * picked id into a 0/1-element wire list (the set bits where they mean
+ * something — Page is set = lives inside a page; Root's set bit is vacuous —
+ * never offered). The parent path is genuinely set-valued and keeps its own
+ * pair (includes / does not include). The dynamic subquery re-enters through
+ * the same operators.
  */
 function applyContainerNodeOperator(
   condition: Condition,
@@ -573,9 +589,11 @@ function applyContainerNodeOperator(
     kind === "page" ? { type: "pageSet" } : kind === "path" ? { type: "parentSet" } : condition;
   const neg = (next: Condition): Child => ({ type: "not", child: next });
   switch (op) {
+    case "is":
     case "is-any-of":
     case "includes":
       return single(carried);
+    case "is-not":
     case "is-not-any-of":
     case "not-includes":
       return neg(single(carried));
@@ -780,11 +798,13 @@ export function applyOperator(condition: Condition, op: string): Child {
       );
     case "parentOf":
     case "parentOfQuery":
+      // The single-value register: is / is not
+      // bind the picked id (the wire list carries 0/1 elements).
       return applyPickSetOperator(
         condition,
         op,
-        "is-any-of",
-        "is-not-any-of",
+        "is",
+        "is-not",
         (nodeIds) => ({ type: "parentOf", nodeIds }),
         { type: "parentSet" },
       );
