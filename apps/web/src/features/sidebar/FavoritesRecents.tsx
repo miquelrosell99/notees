@@ -10,9 +10,10 @@
  * confirmation-gated Delete, and the shared row markup.
  *
  * Row labels are PLAIN TEXT (owner ruling 2026-10-21): the row is chrome,
- * not content — the title flattens through nodeDisplayName (the same
- * text-only derivation as tab titles and table cells), so mentions, class
- * chips and marks fold into their captured text, markdown links reduce to
+ * not content — the label is plainTitleOf (the shared chrome-label
+ * derivation: nodeDisplayName + class chips resolved + markdown links
+ * reduced to their labels), so mentions, class chips and marks fold into
+ * their captured text, markdown links reduce to
  * their label (no hrefs in a row), and nothing inside the label is
  * individually clickable or styled. The row is one
  * button: click opens the node, Shift+click peeks it in the right sidebar,
@@ -25,12 +26,12 @@
 
 import { useEffect, useState } from "react";
 
-import { SYSTEM_CLASS_UUIDS, splitMarkdownLinks } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { plainTitleOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -147,30 +148,21 @@ export function FavoritesRecents({
     .slice(0, 12);
 
   /**
-   * Row label: PLAIN TEXT (owner ruling 2026-10-21) — the flatten is
-   * nodeDisplayName, the same text-only derivation the tab title and
-   * table cells use: mentions fold to their captured text, class chips to
-   * the class's current name, marks to their words; markdown link spans
-   * reduce to their label (the href never reaches a row). The label carries
-   * no interactive or styled elements, so the row is one button. Date pages
-   * keep the setting-aware display name through the same helper's date
-   * branch; empty content falls back to the untitled label.
+   * Row label: PLAIN TEXT (owner ruling 2026-10-21) — plainTitleOf, the
+   * shared chrome-label derivation: mentions fold to their captured text,
+   * class chips to the class's current name, marks to their words; markdown
+   * link spans reduce to their label (the href never reaches a row). The
+   * label carries no interactive or styled elements, so the row is one
+   * button. Date pages keep the setting-aware display name through the same
+   * helper's date branch; empty content falls back to the untitled label.
    */
   const renderRowLabel = (node: ClientNode) => {
-    // Markdown link spans reduce to their LABEL — the href is chrome noise
-    // in a plain-text row. The strip runs PER TEXT TOKEN before the display
-    // name's 80-char cap (splitMarkdownLinks is the canonical render
-    // grammar), so a long URL can never crowd the label out; a bracketed
-    // span that fails the grammar stays literal, honestly.
-    const strippedAst = node.contentAst.map((token) =>
-      token.type === "text"
-        ? { ...token, text: splitMarkdownLinks(token.text).map((segment) => segment.text).join("") }
-        : token,
-    );
-    const text = nodeDisplayName(
-      { ...node, contentAst: strippedAst },
-      (classId) => client.getDisplayName(classId),
-    );
+    // The plain-text chrome label (owner ruling 2026-10-21): mentions, class
+    // chips and marks fold into their words, markdown links reduce to their
+    // label, nothing inside the label is clickable or styled — the row is
+    // one button. Date pages keep the setting-aware name via the same
+    // derivation; empty content falls back to the untitled label.
+    const text = plainTitleOf(node, (classId) => client.getDisplayName(classId));
     return (
       <span className="nt-side-item-label">{text === "" ? untitledLabelOf(node) : text}</span>
     );

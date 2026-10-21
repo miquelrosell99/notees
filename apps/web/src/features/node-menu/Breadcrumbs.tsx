@@ -30,7 +30,7 @@ import { parseDateNodeId } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { plainTitleOf } from "../../ui/dateDisplay.js";
 import { untitledLabelOf } from "../../ui/renderStateLabel.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
@@ -68,21 +68,15 @@ function isDateLocked(node: ClientNode | undefined): boolean {
   return node !== undefined && parseDateNodeId(node.id) !== null;
 }
 
-/** Human crumb label: display name, never a raw uuid; per-crumb capped.
- *  A title that IS only a class chip excerpts to "" at the domain layer (the
- *  chip's label is graph state) — fall back to the chip's resolved class
- *  display name so the crumb never reads "Untitled". */
+/** Human crumb label: the plain-text chrome title (owner ruling
+ *  2026-10-21): markdown link spans reduce to their label (no raw
+ *  `[label](href)` in a crumb, no href crowding the 28-char clip) and
+ *  inline class chips resolve to the class's current name — both via
+ *  plainTitleOf, the same derivation the sidebar rows use. Never a raw
+ *  uuid; per-crumb capped. */
 function crumbNameOf(client: AnyClient, node: ClientNode): string {
-  const excerpt = nodeDisplayName(node);
-  if (excerpt !== "") return clipCrumbName(excerpt);
-  const chip = node.contentAst.find(
-    (token) => token.type === "class_link",
-  ) as { classId?: string } | undefined;
-  if (chip !== undefined && typeof chip.classId === "string") {
-    const resolved = client.getDisplayName(chip.classId);
-    if (resolved !== null && resolved !== "") return clipCrumbName(resolved);
-  }
-  return clipCrumbName(untitledLabelOf(node));
+  const excerpt = plainTitleOf(node, (classId) => client.getDisplayName(classId));
+  return clipCrumbName(excerpt === "" ? untitledLabelOf(node) : excerpt);
 }
 
 function ancestryOf(client: AnyClient, nodeId: string): Crumb[] {

@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   nodeDisplayName,
+  plainTitleOf,
   displayNameFromClient,
   formatDateName,
   isDatePageNode,
@@ -68,6 +69,62 @@ describe("nodeDisplayName", () => {
       contentAst: [{ type: "text", text: "Derived from content" } as const],
     };
     expect(nodeDisplayName(node)).toBe("Derived from content");
+  });
+});
+
+describe("plainTitleOf — the chrome-label derivation", () => {
+  it("reduces markdown link spans to their label (no href)", () => {
+    const node = {
+      id: "p1",
+      isClass: false as const, isEmbedded: false as const,
+      name: null,
+      contentAst: [
+        { type: "text", text: "Ver [Informe 2024](https://example.com/informe) hoy" } as const,
+      ],
+    };
+    expect(plainTitleOf(node)).toBe("Ver Informe 2024 hoy");
+  });
+
+  it("strips before the cap — a long href cannot crowd the label out", () => {
+    const node = {
+      id: "p1",
+      isClass: false as const, isEmbedded: false as const,
+      name: null,
+      contentAst: [
+        {
+          type: "text",
+          text: `[Corto](https://example.com/${"x".repeat(120)})`,
+        } as const,
+      ],
+    };
+    expect(plainTitleOf(node)).toBe("Corto");
+  });
+
+  it("resolves inline class chips via resolveClassName (nothing without it)", () => {
+    const node = {
+      id: "p1",
+      isClass: false as const, isEmbedded: false as const,
+      name: null,
+      contentAst: [
+        { type: "text", text: "Reunión con " } as const,
+        { type: "class_link", classId: "c1" } as const,
+      ],
+    };
+    // Chrome passes the resolver: the chip's current name folds in.
+    expect(plainTitleOf(node, () => "persona")).toBe("Reunión con persona");
+    // Domain-pure default: a bare chip contributes nothing.
+    expect(plainTitleOf(node)).toBe("Reunión con");
+  });
+
+  it("keeps the date formatting branch", () => {
+    localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY/MM/DD"));
+    const node = {
+      id: DAY_ID,
+      isClass: false as const, isEmbedded: false as const,
+      name: null,
+      contentAst: [{ type: "text", text: "20290627" } as const],
+    };
+    expect(plainTitleOf(node)).toBe("2029/06/27");
   });
 });
 
