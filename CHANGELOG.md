@@ -7,6 +7,28 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **perf(web): the node picker's search coalesces keystrokes on async
+  clients — one ranked-index query per pause, not per keystroke.** Owner
+  ruling (2026-10-21) on a huge workspace: the FTS itself is fast, but each
+  keystroke cost a worker round-trip over the full index. The query that
+  hits the index now lags the input by 150ms (`SEARCH_DEBOUNCE_MS`), so a
+  10-character query costs ONE search instead of ten; the input still shows
+  every keystroke, while results, the create row, and the filter prefixes
+  all answer the coalesced query (list, create label, and searched text can
+  never disagree). Debounce applies to async clients only — the
+  `searchPending` seam doubles as the marker — because the in-process
+  client answers in microseconds and its consumers (tests, small
+  workspaces) rely on synchronous results. The empty state also learns
+  "settled": while keystrokes are still coalescing, the previous query's
+  results stay up and "No matches found" stays hidden — a no-match verdict
+  only renders for a query that actually ran.
+  - **Files**: `apps/web/src/features/pickers/NodeSelector.tsx`
+    (`SEARCH_DEBOUNCE_MS`, the `debouncedQuery` state + effect, the pipeline
+    and the empty state on the coalesced query), `apps/web/test/capture.test.tsx`
+    (the coalescing regression test over the worker-shaped shim).
+  - **Verification**: web `tsc` green; full gate `pnpm typecheck && pnpm
+    test` green; `verify-min.mjs` VERIFY-PASS after the web image rebuild.
+
 - **fix(web): every dropdown menu item wears the disabled look — and none of
   them click.** The cmdk rebuild (2026-10-19, the catalog-combobox Dropdown)
   inherited the shadcn `CommandItem` classes `data-[disabled]:opacity-50

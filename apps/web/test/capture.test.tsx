@@ -952,6 +952,56 @@ describe("node picker over an async client (worker-shaped reads)", () => {
     await act(async () => {});
   });
 
+  it("keystrokes coalesce through the debounce before hitting the ranked index — one search per pause, not per keystroke", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    await client.createObject({ isEmbedded: false, name: "Target" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const queries: string[] = [];
+    const listeners: Array<() => void> = [];
+    vi.spyOn(client, "search").mockImplementation(((query: string) => {
+      queries.push(query);
+      return [];
+    }) as never);
+    vi.spyOn(client, "subscribe").mockImplementation(((listener: () => void) => {
+      listeners.push(listener);
+      return () => {};
+    }) as never);
+    // The async-client seam — its presence is what switches the picker into
+    // the debounced mode (sync clients search every keystroke).
+    (client as unknown as { searchPending: (query: string) => boolean }).searchPending = () => false;
+
+    const flushDebounce = async () => {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 170));
+      });
+    };
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "see @");
+    await flushDebounce(); // the empty-query recents settle
+    queries.length = 0;
+
+    // Three quick keystrokes: the index must not see the first two, and the
+    // empty state must not lie while they coalesce.
+    typeInPicker("T");
+    typeInPicker("Ta");
+    typeInPicker("Tar");
+    expect(queries).toEqual([]);
+    await flushDebounce();
+    expect(queries).toEqual(["Tar"]);
+
+    // Blur flushes the pending draft (and clears the save debounce) before
+    // teardown.
+    fireEvent.blur(editor);
+    await act(async () => {});
+  });
+
   it("while a search read is pending the picker shows 'Searching…' instead of 'No matches found'", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
