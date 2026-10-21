@@ -113,12 +113,11 @@ export const BIRTHDAY_FAMILY: ReadonlyArray<{
 ];
 
 /**
- * The meeting family in seed order (the binding sequence is the array index,
- * exactly what the server seed's per-class binding counter produces on a
- * fresh class). Schema names ride SYSTEM_PROPERTY_DISPLAY_NAMES (normal
- * wording), so an offline-first workspace that self-heals converges
- * name-for-name with a server-seeded one (the system-names pass,
- * 2026-10-05).
+ * The meeting family in seed order (binding rows carry no order — sequence
+ * retired 2026-10-21; the array order is authoring order only). Schema names
+ * ride SYSTEM_PROPERTY_DISPLAY_NAMES (normal wording), so an offline-first
+ * workspace that self-heals converges name-for-name with a server-seeded
+ * one (the system-names pass, 2026-10-05).
  */
 export const MEETING_FAMILY: ReadonlyArray<{ id: string; name: string; type: "datetime" | "text" }> = [
   { id: SYSTEM_PROPERTY_UUIDS.meetingDate, name: SYSTEM_PROPERTY_DISPLAY_NAMES.meetingDate, type: "datetime" },
@@ -185,9 +184,9 @@ async function ensureFamilySchemas(
   const bound = new Set(
     (await surface.getClassBindings(classId)).map((binding) => binding.propertySchemaId),
   );
-  for (const [index, spec] of family.entries()) {
+  for (const spec of family) {
     if (bound.has(spec.id)) continue;
-    await surface.setClassProperty(classId, spec.id, { sequence: index });
+    await surface.setClassProperty(classId, spec.id, {});
   }
 }
 
@@ -260,20 +259,18 @@ export async function ensureBirthdayFamily(surface: MeetingFamilySurface): Promi
   if (!parents.includes(EVENT_CLASS_ID)) {
     await surface.setClassExtends(BIRTHDAY_CLASS_ID, [EVENT_CLASS_ID]);
   }
-  // The chip-eligibility row: eventDate re-bound on birthday, sequence 0
-  // exactly as the server seed emits it (SYSTEM_EXTRA_CLASS_BINDINGS).
-  // The binding lands AFTER the extends edge: eventDate is scoped to event
-  // (the sole locality authority, owner ruling 2026-10-20) and R5 rejects a
-  // binding whose class cannot reach the scope — only the edge makes
-  // birthday eligible.
+  // The chip-eligibility row: eventDate re-bound on birthday, exactly as
+  // the server seed emits it (SYSTEM_EXTRA_CLASS_BINDINGS). The binding
+  // lands AFTER the extends edge: eventDate is scoped to event (the sole
+  // locality authority, owner ruling 2026-10-20) and R5 rejects a binding
+  // whose class cannot reach the scope — only the edge makes birthday
+  // eligible.
   const bound = new Set(
     (await surface.getClassBindings(BIRTHDAY_CLASS_ID)).map(
       (binding) => binding.propertySchemaId,
     ),
   );
   if (!bound.has(SYSTEM_PROPERTY_UUIDS.eventDate)) {
-    await surface.setClassProperty(BIRTHDAY_CLASS_ID, SYSTEM_PROPERTY_UUIDS.eventDate, {
-      sequence: 0,
-    });
+    await surface.setClassProperty(BIRTHDAY_CLASS_ID, SYSTEM_PROPERTY_UUIDS.eventDate, {});
   }
 }

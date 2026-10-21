@@ -10,8 +10,11 @@
  * property_value rows for them, which gives convergence and cleanup for free.
  * The default is SCHEMA-level (owner ruling 2026-10-20 — one global default
  * per property, the Logseq shape): a winning ACTIVE binding still decides
- * WHICH properties a class's nodes carry (and supplies sequence/boundBy),
- * but the default VALUE comes from the schema row. Authored rows come
+ * WHICH properties a class's nodes carry (and supplies boundBy),
+ * but the default VALUE comes from the schema row. Presentation order is
+ * PURE ALPHABETICAL by property name (owner ruling 2026-10-21 — `sequence`
+ * retired from the binding; class panels have no configurable order).
+ * Authored rows come
  * through the PG5 visible-set derivation
  * (property-values.ts: slot tombstones + element tombstones) and carry their
  * stable element id. Binding conflicts resolve per the SCHEMA.md diamond rule
@@ -79,7 +82,6 @@ export interface EffectiveProperty {
    *  every carrier, class-bound or not. */
   readonly: boolean | null;
   hideWhenEmpty: boolean | null;
-  sequence: number | null;
   display: "panel" | "bullet" | "inline" | null;
   /**
    * R3 eligibility (owner ruling 2026-10-20): false when the schema's
@@ -160,7 +162,6 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
   //    first-class-applied-wins over own bindings.
   interface BindingRow {
     property_schema_id: string;
-    sequence: number;
   }
   interface BindingCandidate {
     distance: number;
@@ -193,7 +194,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     return reach;
   };
   const bindingStmt = db.prepare(
-    `SELECT property_schema_id, sequence
+    `SELECT property_schema_id
      FROM class_property WHERE class_id = ? AND active = 1`,
   );
   const candidatesBySchema = new Map<string, BindingCandidate[]>();
@@ -342,11 +343,9 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       source: "authored",
       boundBy: winner?.classId ?? null,
       // Readonly/hideWhenEmpty/display are per-PROPERTY (the schema — unbound
-      // values included, the owner's multi-class/unbound cases); sequence is
-      // per-CLASS (the winning binding).
+      // values included, the owner's multi-class/unbound cases).
       readonly: schema?.readonly ?? null,
       hideWhenEmpty: schema?.hideWhenEmpty ?? null,
-      sequence: winner ? winner.binding.sequence : null,
       display: schema?.display ?? null,
       // Authored rows SURVIVE scope narrowing (never retroactive) — the
       // read tags them; callers decide how an ineligible row renders.
@@ -355,10 +354,10 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
   }
 
   for (const [schemaId, winner] of winnerBySchema) {
-    const { binding, classId } = winner;
+    const { classId } = winner;
     // The default VALUE is schema-level (owner ruling 2026-10-20): the
     // winning binding decides the property is present (and supplies
-    // sequence/boundBy), the schema row supplies the value.
+    // boundBy), the schema row supplies the value.
     if (!schemaDefault.has(schemaId)) continue; // schema without a default
     const defaultValue = schemaDefault.get(schemaId);
     // R4 (owner ruling 2026-10-20): an ineligible node shows NEITHER the
@@ -383,22 +382,20 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       boundBy: classId,
       readonly: schema?.readonly ?? null,
       hideWhenEmpty: schema?.hideWhenEmpty ?? null,
-      sequence: binding.sequence,
       display: schema?.display ?? null,
       eligible: true,
     });
   }
 
-  // 6. Deterministic presentation order: bound rows by binding sequence,
-  //    unbound authored rows last; schema name then (idx, element id) as the
-  //    tiebreak (PG5: concurrent adds may share an idx — the element id
-  //    orders them identically on every replica).
+  // 6. Deterministic presentation order: PURE ALPHABETICAL by property
+  //    name (owner ruling 2026-10-21 — binding `sequence` retired; class
+  //    panels have no configurable order), unbound authored rows last;
+  //    (idx, element id) as the tiebreak (PG5: concurrent adds may share an
+  //    idx — the element id orders them identically on every replica).
   const nameOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
   return [...rows.values()].sort((a, b) => {
     const boundDelta = (a.boundBy === null ? 1 : 0) - (b.boundBy === null ? 1 : 0);
     if (boundDelta !== 0) return boundDelta;
-    const seqDelta = (a.sequence ?? Number.MAX_SAFE_INTEGER) - (b.sequence ?? Number.MAX_SAFE_INTEGER);
-    if (seqDelta !== 0) return seqDelta;
     const nameDelta = nameOf(a).localeCompare(nameOf(b));
     if (nameDelta !== 0) return nameDelta;
     const idxDelta = a.idx - b.idx;

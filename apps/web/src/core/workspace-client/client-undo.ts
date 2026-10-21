@@ -100,18 +100,16 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
     classBinding: (classId, propertySchemaId) => {
       const row = db()
         .prepare(
-          `SELECT sequence, active
+          `SELECT active
            FROM class_property WHERE class_id = ? AND property_schema_id = ?`,
         )
         .get(classId, propertySchemaId) as
         | {
-            sequence: number;
             active: number;
           }
         | undefined;
       if (row === undefined) return null;
       return {
-        sequence: row.sequence,
         active: row.active !== 0,
       };
     },

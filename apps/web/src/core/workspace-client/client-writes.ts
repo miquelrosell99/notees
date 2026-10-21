@@ -319,9 +319,10 @@ export class WorkspaceClientWrites {
   /**
    * Upsert a class → property-schema binding (class.property.set). The
    * payload PATCHES the row: omitted fields keep their existing values. The
-   * binding carries the genuinely per-class mechanics ONLY (sequence +
-   * active — owner ruling 2026-10-20 retired `required` and moved
-   * `defaultValue` to the schema; see updatePropertySchema).
+   * binding carries the genuinely per-class mechanic ONLY — the active
+   * soft-unbind flag (owner rulings 2026-10-20/21 retired `required` and
+   * `sequence` and moved `defaultValue` to the schema; see
+   * updatePropertySchema).
    */
   async setClassProperty(
     classId: string,
@@ -329,7 +330,6 @@ export class WorkspaceClientWrites {
     fields: SetClassPropertyInput,
   ): Promise<void> {
     const payload: Record<string, unknown> = { classId, propertySchemaId };
-    if (fields.sequence !== undefined) payload.sequence = fields.sequence;
     if (fields.active !== undefined) payload.active = fields.active;
     this.ctx.enqueueLocal(this.ctx.buildEnvelope("class.property.set", payload, [classId]));
   }

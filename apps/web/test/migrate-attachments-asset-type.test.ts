@@ -82,7 +82,7 @@ function attachmentsWorld(): Store {
     ),
     env(
       "class.property.set",
-      { classId: SOURCE_CLASS, propertySchemaId: ATTACHMENTS_SCHEMA_ID, sequence: 0 },
+      { classId: SOURCE_CLASS, propertySchemaId: ATTACHMENTS_SCHEMA_ID },
       1002,
     ),
     // The page carries the source class: the scoped schema requires it (R3).

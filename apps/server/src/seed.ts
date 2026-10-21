@@ -61,7 +61,6 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
       }),
     );
   }
-  const bindingSequence = new Map<string, number>();
   for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
     if (spec === undefined) continue;
     const propertySchemaId = SYSTEM_PROPERTY_UUIDS[name as SystemPropertyName];
@@ -99,11 +98,10 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
     );
     if (spec.bindTo === undefined) continue;
     // The binding is a configuration ROW (class.property.*) carrying the
-    // genuinely per-class mechanics ONLY (sequence — effective-properties
-    // derives boundBy from rows; the default rides the schema).
+    // genuinely per-class mechanic ONLY — the active soft-unbind flag
+    // (sequence retired 2026-10-21: effective-properties derives boundBy
+    // from rows; panels sort alphabetically; the default rides the schema).
     const classId = SYSTEM_CLASS_UUIDS[spec.bindTo];
-    const sequence = bindingSequence.get(classId) ?? 0;
-    bindingSequence.set(classId, sequence + 1);
     envelopes.push(
       factory.make({
         workspaceId,
@@ -111,7 +109,6 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
         payload: {
           classId,
           propertySchemaId,
-          sequence,
         },
         affectedNodeIds: [classId],
         client: "seed",
@@ -133,7 +130,6 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
         payload: {
           classId,
           propertySchemaId: SYSTEM_PROPERTY_UUIDS[extra.property],
-          sequence: extra.sequence,
         },
         affectedNodeIds: [classId],
         client: "seed",

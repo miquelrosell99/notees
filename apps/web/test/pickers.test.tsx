@@ -191,7 +191,7 @@ describe("metadata pickers (ported popups)", () => {
       ],
     });
     const classId = await client.createClass("Task");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Ship it" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
@@ -227,7 +227,7 @@ describe("metadata pickers (ported popups)", () => {
       ],
     });
     const classId = await createTitledClass(client, "Shelf");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Novel" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
@@ -283,7 +283,7 @@ describe("metadata pickers (ported popups)", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "archived", type: "boolean" });
     const classId = await client.createClass("Record");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "File" });
     await client.assignClass(pageId, classId);
 
@@ -323,7 +323,7 @@ describe("metadata pickers (ported popups)", () => {
       targetClassFilter: [personClass],
     });
     const teamClass = await client.createClass("Team");
-    await client.setClassProperty(teamClass, mentorSchema, { sequence: 0 });
+    await client.setClassProperty(teamClass, mentorSchema, {});
     const teamId = await client.createObject({ isEmbedded: false, name: "Crew" });
     await client.assignClass(teamId, teamClass);
     render(<PageView client={client} pageId={teamId} />);
@@ -376,7 +376,7 @@ describe("metadata pickers (ported popups)", () => {
       targetClassFilter: [personClass],
     });
     const filmClass = await client.createClass("Film");
-    await client.setClassProperty(filmClass, castSchema, { sequence: 0 });
+    await client.setClassProperty(filmClass, castSchema, {});
     const filmId = await client.createObject({ isEmbedded: false, name: "Arrival" });
     await client.assignClass(filmId, filmClass);
     // Amy carries her OWN color; Bob is person-classed (the write-time filter)

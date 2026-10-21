@@ -352,12 +352,12 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const store = seededStore();
       let ts = 1727200020000;
       store.apply(env("object.create", { objectId: PAGE, classIds: [CLASS_A] }, ts)); // re-issue: OR-Set add
-      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, sequence: 3 }, (ts += 100)));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT }, (ts += 100)));
       // The default is SCHEMA-level (owner ruling 2026-10-20).
       store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SINGLE_TEXT, defaultValue: "fallback" }, (ts += 50)));
       const before = store.getEffectiveProperties(PAGE).filter((r) => r.propertySchemaId === SCHEMA_SINGLE_TEXT);
       expect(before).toEqual([
-        expect.objectContaining({ source: "default", value: "fallback", boundBy: CLASS_A, sequence: 3 }),
+        expect.objectContaining({ source: "default", value: "fallback", boundBy: CLASS_A }),
       ]);
       store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, active: false }, (ts += 100)));
       expect(store.getEffectiveProperties(PAGE).filter((r) => r.propertySchemaId === SCHEMA_SINGLE_TEXT)).toEqual([]);
@@ -425,10 +425,13 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const store = seededStore();
       let ts = 1727200024000;
       store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, active: false }, (ts += 100)));
-      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, sequence: 9 }, (ts += 100)));
+      // A fieldless patch still rides the row LWW: causality updates, the
+      // stored flag survives (sequence retired 2026-10-21 — active is the
+      // only binding field left).
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT }, (ts += 100)));
       expect(
-        store.database.prepare("SELECT active, sequence FROM class_property WHERE class_id = ? AND property_schema_id = ?").get(CLASS_A, SCHEMA_SINGLE_TEXT),
-      ).toEqual({ active: 0, sequence: 9 });
+        store.database.prepare("SELECT active FROM class_property WHERE class_id = ? AND property_schema_id = ?").get(CLASS_A, SCHEMA_SINGLE_TEXT),
+      ).toEqual({ active: 0 });
     });
 
     it("concurrent active flips at the same HLC converge under EITHER delivery order", () => {
@@ -463,7 +466,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       let ts = 1727200030000;
       store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select", options: [{ id: "opt-a", label: "A", icon: "mdiCircle", color: "yellow" }] }, (ts += 100)));
       store.apply(env("object.create", { objectId: PAGE, classIds: [CLASS_A] }, (ts += 100)));
-      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, sequence: 1 }, (ts += 100)));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT }, (ts += 100)));
       store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SELECT, defaultValue: "opt-a" }, (ts += 50)));
       // Absent display = the NULL 'panel' default.
       expect(
@@ -492,18 +495,24 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBeNull();
     });
 
-    it("the binding carries sequence/active only — every retired key fails loud at apply", () => {
+    it("the binding carries active only — every retired key fails loud at apply", () => {
       const store = seededStore();
       let ts = 1727200030500;
       store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select" }, (ts += 100)));
       store.apply(env("object.create", { objectId: PAGE, classIds: [CLASS_A] }, (ts += 100)));
-      // Display/readonly/hideWhenEmpty/required/defaultValue are retired on
-      // the binding op — the store validates envelopes at apply and rejects
-      // them loud (the strict-wire law, same as nodeType; owner ruling
-      // 2026-10-20 for required/defaultValue).
+      // Display/readonly/hideWhenEmpty/required/defaultValue/sequence are
+      // retired on the binding op — the store validates envelopes at apply
+      // and rejects them loud (the strict-wire law, same as nodeType;
+      // owner ruling 2026-10-20 for required/defaultValue, 2026-10-21 for
+      // sequence — class panels render alphabetically by property name).
       expect(() =>
         store.apply(
-          env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, sequence: 3, display: "bullet" } as unknown as Record<string, unknown>, (ts += 100)),
+          env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, sequence: 3 } as unknown as Record<string, unknown>, (ts += 100)),
+        ),
+      ).toThrow(/invalid class\.property\.set payload/);
+      expect(() =>
+        store.apply(
+          env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, display: "bullet" } as unknown as Record<string, unknown>, (ts += 100)),
         ),
       ).toThrow(/display/);
       expect(() =>
@@ -516,13 +525,13 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, defaultValue: "opt-a" } as unknown as Record<string, unknown>, (ts += 100)),
         ),
       ).toThrow(/invalid class\.property\.set payload/);
-      // The legal binding fields ride the row.
-      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, sequence: 3 }, (ts += 100)));
+      // The legal binding field rides the row.
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT }, (ts += 100)));
       store.apply(env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA_SELECT, value: "opt-a", idx: 0 }, (ts += 100)));
       const row = store.database
-        .prepare("SELECT sequence, active FROM class_property WHERE class_id = ? AND property_schema_id = ?")
-        .get(CLASS_A, SCHEMA_SELECT) as { sequence: number; active: number };
-      expect(row).toEqual({ sequence: 3, active: 1 });
+        .prepare("SELECT active FROM class_property WHERE class_id = ? AND property_schema_id = ?")
+        .get(CLASS_A, SCHEMA_SELECT) as { active: number };
+      expect(row).toEqual({ active: 1 });
       // The schema-level render contracts read from the schema, not the row.
       expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBeNull();
     });
@@ -542,7 +551,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(cleared?.hideWhenEmpty).toBeNull();
     });
 
-    it("a v13 database upgrades through v25: the schema gains the columns, the binding rebuild drops every retired one", () => {
+    it("a v13 database upgrades through v26: the schema gains the columns, the binding rebuild drops every retired one", () => {
       // A dedicated FILE-backed store: close + reopen exercises migrate()
       // against the on-disk v13 shape (the sqljs/in-memory adapters cannot).
       const dir = mkdtempSync(join(tmpdir(), "notees-v25-migration-test-"));
@@ -553,7 +562,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       let ts = 1727200031500;
       store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select" }, (ts += 100)));
       store.apply(env("object.create", { objectId: PAGE, classIds: [CLASS_A] }, (ts += 100)));
-      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, sequence: 2 }, (ts += 100)));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT }, (ts += 100)));
       // Downgrade to the v3.3.0 shape: binding carries display, schema lacks
       // the render columns, user_version back to 13.
       store.database.exec("ALTER TABLE class_property ADD COLUMN display TEXT;");
@@ -569,14 +578,16 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // 2026-10-20, store v25).
       expect(columns).not.toContain("required");
       expect(columns).not.toContain("default_value");
+      // sequence retired outright (owner ruling 2026-10-21, store v26).
+      expect(columns).not.toContain("sequence");
       const schemaCols = (reopened.database.prepare("PRAGMA table_info(property_schema)").all() as Array<{ name: string }>).map((c) => c.name);
       for (const col of ["display", "readonly", "hide_when_empty", "default_value"]) expect(schemaCols).toContain(col);
-      // The surviving binding row (sequence) is intact across the rebuild;
-      // new writes land on the new shape.
+      // The surviving binding row is intact across the rebuild; new writes
+      // land on the new shape.
       const row = reopened.database
-        .prepare("SELECT sequence, active FROM class_property WHERE class_id = ? AND property_schema_id = ?")
-        .get(CLASS_A, SCHEMA_SELECT) as { sequence: number; active: number };
-      expect(row).toEqual({ sequence: 2, active: 1 });
+        .prepare("SELECT active FROM class_property WHERE class_id = ? AND property_schema_id = ?")
+        .get(CLASS_A, SCHEMA_SELECT) as { active: number };
+      expect(row).toEqual({ active: 1 });
       reopened.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SELECT, display: "bullet" }, (ts += 100)));
       reopened.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SELECT, defaultValue: "opt-a" }, (ts += 100)));
       reopened.apply(env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA_SELECT, value: "opt-a", idx: 0 }, (ts += 100)));

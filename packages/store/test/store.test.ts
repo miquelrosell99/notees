@@ -903,9 +903,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     }
 
     /**
-     * Bind a schema to a class (sequence-only row) and set the schema's
-     * GLOBAL default (owner ruling 2026-10-20 — defaults are schema-level,
-     * one per property; the last default write wins across classes).
+     * Bind a schema to a class (active-only row — sequence retired 2026-10-21)
+     * and set the schema's GLOBAL default (owner ruling 2026-10-20 — defaults
+     * are schema-level, one per property; the last default write wins across
+     * classes).
      */
     function bind(
       store: Store,
@@ -914,7 +915,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       defaultValue: string,
       physical: number,
     ): void {
-      store.apply(env("class.property.set", { classId, propertySchemaId: schemaId, sequence: 0 }, physical));
+      store.apply(env("class.property.set", { classId, propertySchemaId: schemaId }, physical));
       store.apply(env("propertySchema.update", { propertySchemaId: schemaId, defaultValue }, physical + 1));
     }
 
@@ -931,16 +932,21 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
             .prepare("SELECT default_value FROM property_schema WHERE id = ?")
             .get(PRIORITY) as { default_value: string | null }
         ).default_value;
-      expect(row()).toMatchObject({ sequence: 0, active: 1 });
+      expect(row()).toMatchObject({ active: 1 });
       // The fixture's default rides the SCHEMA row now (the global-default move).
       expect(schemaDefault()).toBe('"medium"');
 
-      // Patch only the sequence: the default survives on the schema row.
+      // Patch only the active flag: the default survives on the schema row.
       store.apply(
-        env("class.property.set", { classId: TASK, propertySchemaId: PRIORITY, sequence: 2 }, 1727200012000),
+        env("class.property.set", { classId: TASK, propertySchemaId: PRIORITY, active: false }, 1727200012000),
       );
-      expect(row()).toMatchObject({ sequence: 2, active: 1, hlc_physical: 1727200012000 });
+      expect(row()).toMatchObject({ active: 0, hlc_physical: 1727200012000 });
       expect(schemaDefault()).toBe('"medium"');
+      // Re-enable rides the same patch path.
+      store.apply(
+        env("class.property.set", { classId: TASK, propertySchemaId: PRIORITY, active: true }, 1727200012050),
+      );
+      expect(row()).toMatchObject({ active: 1, hlc_physical: 1727200012050 });
 
       // The schema default is keep/clear typed (PC2): an update patches it.
       store.apply(
@@ -950,10 +956,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
       // A lower-HLC set is dropped by row LWW (state unchanged).
       const stale = store.apply(
-        env("class.property.set", { classId: TASK, propertySchemaId: PRIORITY, sequence: 9 }, 1727200010500),
+        env("class.property.set", { classId: TASK, propertySchemaId: PRIORITY }, 1727200010500),
       );
       expect(stale.ignored).toBe(true);
-      expect(row()).toMatchObject({ sequence: 2, hlc_physical: 1727200012000 });
+      expect(row()).toMatchObject({ active: 1, hlc_physical: 1727200012050 });
     });
 
     it("class.property.unset deletes the binding row", () => {
@@ -1007,7 +1013,6 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           boundBy: TASK,
           readonly: null,
           hideWhenEmpty: null,
-          sequence: 0,
           display: null,
           eligible: true,
         },
@@ -1069,7 +1074,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // Write order is the reverse of assignment order; the DEFAULT is
       // schema-global (owner ruling 2026-10-20) — the last write ('x') wins
       // for every node, so the conflict these tests resolve is the WINNING
-      // BINDING (boundBy/sequence), not the value.
+      // BINDING (boundBy), not the value.
       bind(store, CLASS_Y, EFFORT, "y", 1727200012500);
       bind(store, CLASS_X, EFFORT, "x", 1727200012600);
 
@@ -1133,7 +1138,6 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           value: "authored",
           source: "authored",
           boundBy: null,
-          sequence: null,
         }),
       ]);
     });
@@ -2665,21 +2669,24 @@ for (const adapter of adapters) {
         ["mdiCheckCircle", "green"],
         ["mdiCloseCircle", "red"],
       ]);
+      // The six binding rows carry no order (sequence retired 2026-10-21,
+      // store v26 — panels sort alphabetically at read time); the id order
+      // asserts the full family is bound.
       const bindings = store.database
-        .prepare("SELECT property_schema_id FROM class_property WHERE class_id = ? ORDER BY sequence")
+        .prepare("SELECT property_schema_id FROM class_property WHERE class_id = ? ORDER BY property_schema_id")
         .all(TASK_CLASS) as Array<{ property_schema_id: string }>;
       expect(bindings.map((binding) => binding.property_schema_id)).toEqual([
         "00000000-0000-0000-0003-000000000001",
-        "00000000-0000-0000-0003-000000000003",
         "00000000-0000-0000-0003-000000000002",
+        "00000000-0000-0000-0003-000000000003",
         "00000000-0000-0000-0003-000000000004",
         "00000000-0000-0000-0003-000000000005",
         "00000000-0000-0000-0003-000000000006",
       ]);
       // The Status SCHEMA carries display 'bullet' (property-level);
-      // the binding rows stay flag-free (sequence + active only — the
-      // rebuilds dropped the render contracts (v14) and required/default_value
-      // (v25)).
+      // the binding rows stay flag-free (active only — the rebuilds dropped
+      // the render contracts (v14), required/default_value (v25) and
+      // sequence (v26)).
       const statusSchema = store.database
         .prepare("SELECT display FROM property_schema WHERE id = ?")
         .get("00000000-0000-0000-0003-000000000001") as { display: string | null };
@@ -4020,7 +4027,7 @@ describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) =>
         { propertySchemaId: SCHEMA, name: "Attachment", type: "asset", multi: true, scopeClassIds: [SOURCE_CLASS] },
         1727200001000,
       ),
-      env("class.property.set", { classId: SOURCE_CLASS, propertySchemaId: SCHEMA, sequence: 0 }, 1727200001100),
+      env("class.property.set", { classId: SOURCE_CLASS, propertySchemaId: SCHEMA }, 1727200001100),
       // A legacy bare-uuid carrier normalizes to {nodeId}.
       env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA, value: ASSET_NODE }, 1727200001200),
     ]);
@@ -4091,7 +4098,7 @@ describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) =>
         },
         1727200001000,
       ),
-      env("class.property.set", { classId: SOURCE_CLASS, propertySchemaId: ATTACHMENTS, sequence: 0 }, 1727200001100),
+      env("class.property.set", { classId: SOURCE_CLASS, propertySchemaId: ATTACHMENTS }, 1727200001100),
       env("property.set", { objectId: PAGE, propertySchemaId: ATTACHMENTS, value: { nodeId: ASSET_NODE } }, 1727200001200),
       // A user-set render contract the retype must not clobber.
       env("propertySchema.update", { propertySchemaId: ATTACHMENTS, display: "inline" }, 1727200001300),
@@ -4238,17 +4245,17 @@ describe.each(adapters)("$name: property-schema scope + update fields", ({ makeB
     );
     expect(() =>
       store.apply(
-        env("class.property.set", { classId: foreign, propertySchemaId: SCHEMA, sequence: 0 }, 1727200002100),
+        env("class.property.set", { classId: foreign, propertySchemaId: SCHEMA }, 1727200002100),
       ),
     ).toThrow(MoveGuardError);
     expect(() =>
       store.apply(
-        env("class.property.set", { classId: foreign, propertySchemaId: SCHEMA, sequence: 0 }, 1727200002100),
+        env("class.property.set", { classId: foreign, propertySchemaId: SCHEMA }, 1727200002100),
       ),
     ).toThrow(/would be inert/);
     // B extends A (in scope): the binding is live — it must be accepted.
     store.apply(
-      env("class.property.set", { classId: CLASS_B, propertySchemaId: SCHEMA, sequence: 0 }, 1727200002200),
+      env("class.property.set", { classId: CLASS_B, propertySchemaId: SCHEMA }, 1727200002200),
     );
     store.apply(
       env("propertySchema.update", { propertySchemaId: SCHEMA, defaultValue: "inherited" }, 1727200002250),
@@ -4266,7 +4273,7 @@ describe.each(adapters)("$name: property-schema scope + update fields", ({ makeB
     const store = Store.open(makeBackend());
     scopedWorld(store);
     store.apply(
-      env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA, sequence: 0 }, 1727200002000),
+      env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA }, 1727200002000),
     );
     store.apply(
       env("propertySchema.update", { propertySchemaId: SCHEMA, defaultValue: "defaulted" }, 1727200002050),

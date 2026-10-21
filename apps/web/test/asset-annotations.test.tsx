@@ -104,7 +104,7 @@ function seedRelay(): MemoryRelay {
     ),
     seedEnvelope(
       "class.property.set",
-      { classId: HIGHLIGHT_CLASS, propertySchemaId: HIGHLIGHT_ASSET, sequence: 0 },
+      { classId: HIGHLIGHT_CLASS, propertySchemaId: HIGHLIGHT_ASSET },
       [HIGHLIGHT_CLASS],
     ),
     seedEnvelope(
@@ -120,7 +120,7 @@ function seedRelay(): MemoryRelay {
     ),
     seedEnvelope(
       "class.property.set",
-      { classId: HIGHLIGHT_CLASS, propertySchemaId: PROVENANCE, sequence: 1 },
+      { classId: HIGHLIGHT_CLASS, propertySchemaId: PROVENANCE },
       [HIGHLIGHT_CLASS],
     ),
   ]);

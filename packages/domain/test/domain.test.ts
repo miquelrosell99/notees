@@ -248,7 +248,7 @@ describe("system seeds (ported)", () => {
     const extra = SYSTEM_EXTRA_CLASS_BINDINGS.filter(
       (binding) => binding.property === "eventDate" && binding.bindTo === "birthday",
     );
-    expect(extra).toEqual([{ property: "eventDate", bindTo: "birthday", sequence: 0 }]);
+    expect(extra).toEqual([{ property: "eventDate", bindTo: "birthday" }]);
   });
 
   it("cover is not bound to source anywhere in the seed manifest (owner ruling 2026-10-05: a cover makes no sense on sources)", () => {
@@ -761,7 +761,8 @@ describe("workspace feature map", () => {
     }
     for (const entry of TASK_FAMILY_SEED) {
       expect(SYSTEM_PROPERTY_UUIDS).toHaveProperty(entry.property);
-      expect(entry.sequence).toBeGreaterThan(0);
+      // Binding rows carry no order (sequence retired 2026-10-21).
+      expect(entry).not.toHaveProperty("sequence");
     }
     // Status/priority option labels match the original option vocabulary.
     expect(TASK_FAMILY_SEED[0]!.options!.map((o) => o.label)).toEqual([

@@ -29,8 +29,10 @@
   min-width: 0;
 }
 
-/* The collapsed row: identity only. Everything truncates — the row can
-   never force the sidebar wider. */
+/* The collapsed row: identity only, display-only ordering (alphabetical
+   by property name at render time — binding sequence retired, owner ruling
+   2026-10-21). Everything truncates — the row can never force the sidebar
+   wider. */
 .nt-propdef-row {
   display: flex;
   align-items: center;
@@ -40,27 +42,11 @@
   min-width: 0;
 }
 
-.nt-propdef-row {
-  cursor: grab;
-}
-
 /* ONE hover surface (owner ruling): hover reveals only the right-side
    REMOVE × (the STANDARD fleet ghost icon button; the class is a reveal
-   hook only) — no row background tint, no grip chrome. The row itself is
-   the drag handle (grab cursor; dnd-kit's 4px activation keeps plain
-   clicks opening the definition modal). */
+   hook only) — no row background tint, no grip chrome. */
 .nt-propdef-remove {
   opacity: 0;
-}
-
-.nt-propdef-row:active {
-  cursor: grabbing;
-}
-
-.nt-propdef--dragging {
-  z-index: var(--z-sticky);
-  box-shadow: var(--shadow-elevation-1);
-  cursor: grabbing;
 }
 
 .nt-propdef-row:hover .nt-propdef-remove,

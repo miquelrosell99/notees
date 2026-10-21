@@ -285,11 +285,11 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Pokemon");
     const schemaId = await client.createPropertySchema({ name: "Level", type: "number" });
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     // A second binding with NO value on the member: the table shows it as an
     // empty row (owner 2026-10-13 — the class's full column set).
     const noteId = await client.createPropertySchema({ name: "Note", type: "text" });
-    await client.setClassProperty(classId, noteId, { sequence: 1 });
+    await client.setClassProperty(classId, noteId, {});
     const tag = await client.createObject({ isEmbedded: false, name: "favorites" });
     // A BLOCK member (parented — inline-block render state): document-chrome
     // nodes carry text-only titles (the store's flatten invariant), so the
@@ -653,7 +653,7 @@ describe("cards board (property-dimension groupBy)", () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "project");
     const schemaId = await seedStatusSchema(client);
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const member = await seedTask(client, "Member");
     await client.assignClass(member, classId);
 
@@ -944,14 +944,8 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     const effortId = await client.createPropertySchema({ name: "Effort", type: "number" });
     const dueId = await client.createPropertySchema({ name: "Due", type: "datetime" });
     const ownerId = await client.createPropertySchema({ name: "Owner", type: "object" });
-    for (const [schema, sequence] of [
-      [statusId, 0],
-      [noteId, 1],
-      [effortId, 2],
-      [dueId, 3],
-      [ownerId, 4],
-    ] as const) {
-      await client.setClassProperty(classId, schema, { sequence });
+    for (const schema of [statusId, noteId, effortId, dueId, ownerId]) {
+      await client.setClassProperty(classId, schema, {});
     }
     const alpha = await client.createObject({ isEmbedded: false, name: "Alpha" });
     const beta = await client.createObject({ isEmbedded: false, name: "Beta" });
@@ -1209,11 +1203,8 @@ describe("table export: CSV view export + selection-scoped export", () => {
       ],
     });
     const noteId = await client.createPropertySchema({ name: "Note", type: "text" });
-    for (const [schema, sequence] of [
-      [statusId, 0],
-      [noteId, 1],
-    ] as const) {
-      await client.setClassProperty(classId, schema, { sequence });
+    for (const schema of [statusId, noteId]) {
+      await client.setClassProperty(classId, schema, {});
     }
     const alpha = await client.createObject({ isEmbedded: false, name: "Alpha" });
     const beta = await client.createObject({ isEmbedded: false, name: "Beta" });
@@ -1257,13 +1248,15 @@ describe("table export: CSV view export + selection-scoped export", () => {
     const csv = new TextDecoder().decode(bytes.slice(3));
     // Excel BOM + RFC-4180 CRLF records.
     const records = parseCsv(csv);
-    expect(records[0]).toEqual(["Name", "Status", "Note", "Created"]);
+    // Property columns are ALPHABETICAL by property name (owner ruling
+    // 2026-10-21 — binding sequence retired): Note before Status.
+    expect(records[0]).toEqual(["Name", "Note", "Status", "Created"]);
     expect(records).toHaveLength(4); // header + 3 members
     // WYSIWYG rows in table order; the comma value round-trips quoted; the
     // locale created date renders non-empty (display-shaped, like the cell).
-    expect(records[1]).toEqual(["Alpha", "Backlog", "needs, quotes", records[1]![3]!]);
+    expect(records[1]).toEqual(["Alpha", "needs, quotes", "Backlog", records[1]![3]!]);
     expect(records[1]![3]).not.toBe("");
-    expect(records[2]!.slice(0, 3)).toEqual(["Beta", "Doing", ""]);
+    expect(records[2]!.slice(0, 3)).toEqual(["Beta", "", "Doing"]);
     expect(records[2]![3]).not.toBe("");
     expect(records[3]![0]).toBe("Gamma");
     expect(csv).toContain('"needs, quotes"');
@@ -1283,7 +1276,7 @@ describe("table export: CSV view export + selection-scoped export", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Export CSV" }));
 
     const records = parseCsv(await readBlobText(download.blob!));
-    expect(records[0]).toEqual(["Name", "Status", "Note"]);
+    expect(records[0]).toEqual(["Name", "Note", "Status"]);
     download.restore();
   });
 

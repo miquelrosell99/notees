@@ -276,7 +276,7 @@ describe("the classed-nodes filter bar", () => {
     const client = await seedClient();
     const classId = await seedClass(client, "task");
     const schemaId = await client.createPropertySchema({ name: "impact", type: "number" });
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const low = await client.createObject({ isEmbedded: false, name: "Low impact" });
     await client.assignClass(low, classId);
     await client.setProperty(low, schemaId, 1, 0);

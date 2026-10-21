@@ -19,9 +19,11 @@
  *    default-capable types only, text/number/boolean/select);
  *
  * Emits client.createPropertySchema ONCE, on confirm. In class context the
- * create is followed by setClassProperty(classId, id, { sequence }) — the
- * binding is sequence-only (the default/required binding fields retired or
- * moved, owner ruling 2026-10-20). Footer: Cancel / Create Property.
+ * create is followed by setClassProperty(classId, id, {}) — the binding is
+ * a presence row + the soft-unbind flag (the default/required binding
+ * fields retired or moved, owner ruling 2026-10-20; `sequence` retired
+ * 2026-10-21 — class panels render alphabetically). Footer: Cancel /
+ * Create Property.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -191,13 +193,9 @@ export function PropertyCreateModal({
       }
       const schemaId = await client.createPropertySchema(payload);
       if (contextClassId !== undefined) {
-        // Class context: bind the schema to the class — the binding is
-        // sequence-only (the default/required binding fields retired or
-        // moved to the schema).
-        const bindings = client.getClassBindings(contextClassId);
-        await client.setClassProperty(contextClassId, schemaId, {
-          sequence: bindings.length,
-        });
+        // Class context: bind the schema to the class — the binding carries
+        // no order (panels render alphabetically, owner ruling 2026-10-21).
+        await client.setClassProperty(contextClassId, schemaId, {});
       }
       onCreated?.(schemaId, type);
       onClose();

@@ -109,10 +109,9 @@ export async function deploySystemClass(
     return classId;
   }
 
-  // Generic family: the manifest's specs bound to this class, in manifest
-  // order (sequences continue after any existing binding rows, exactly
-  // what the server seed's per-class counter does on a fresh class).
-  // The existence check reads the REGISTRY only (getRegistryBindings):
+  // Generic family: the manifest's specs bound to this class (binding rows
+  // carry no order — sequence retired 2026-10-21). The existence check reads
+  // the REGISTRY only (getRegistryBindings):
   // getClassBindings read-synthesizes the seed-spec fallback rows, so a
   // workspace whose binding rows were never authored would LOOK bound
   // through that read and the self-heal would author nothing — the ClassView
@@ -148,11 +147,10 @@ export async function deploySystemClass(
     }
     const registry = client.getRegistryBindings(classId);
     const bound = new Set(registry.map((binding) => binding.propertySchemaId));
-    let sequence = registry.length;
     for (const [name, spec] of family) {
       const schemaId = SYSTEM_PROPERTY_UUIDS[name];
       if (bound.has(schemaId)) continue;
-      await client.setClassProperty(classId, schemaId, { sequence: sequence++ });
+      await client.setClassProperty(classId, schemaId, {});
     }
   }
 
@@ -168,9 +166,7 @@ export async function deploySystemClass(
       .getRegistryBindings(classId)
       .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[extra.property]);
     if (bound) continue;
-    await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[extra.property], {
-      sequence: extra.sequence,
-    });
+    await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[extra.property], {});
   }
 
   return classId;

@@ -71,8 +71,8 @@ async function seedPriorityClasses(client: WorkspaceClient) {
   // the applier is fixed.
   await client.updateObject(taskId, { contentAst: [{ type: "text", text: "Task" }] });
   await client.updateObject(projectId, { contentAst: [{ type: "text", text: "Project" }] });
-  await client.setClassProperty(taskId, schemaId, { sequence: 0 });
-  await client.setClassProperty(projectId, schemaId, { sequence: 0 });
+  await client.setClassProperty(taskId, schemaId, {});
+  await client.setClassProperty(projectId, schemaId, {});
   // The default is SCHEMA-level (owner ruling 2026-10-20 — one global default
   // per property).
   await client.updatePropertySchema(schemaId, { defaultValue: "medium" });
@@ -191,7 +191,7 @@ describe("Properties panel (effective values)", () => {
     // 'effort' is bound ONLY on Task: its authored value must survive the
     // unassign with boundBy null (no remaining class binds it).
     const effortSchemaId = await client.createPropertySchema({ name: "effort", type: "text" });
-    await client.setClassProperty(taskId, effortSchemaId, { sequence: 1 });
+    await client.setClassProperty(taskId, effortSchemaId, {});
 
     const pageId = await client.createObject({ isEmbedded: false, name: "Ship it" });
     await client.assignClass(pageId, taskId);
@@ -436,7 +436,7 @@ describe("dead carrier in the value cell (owner bug 2026-10-04; auto-unset owner
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "Blurb", type: "text" });
     const classId = await client.createClass("Thing");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     const pageId = await client.createObject({ isEmbedded: false, name: "Note" });
     await client.assignClass(pageId, classId);
 
@@ -469,7 +469,7 @@ describe("default-mirror sweep on class removal (owner rule)", () => {
       ],
     });
     const taskClass = await client.createClass("taskish");
-    await client.setClassProperty(taskClass, statusSchema, { sequence: 0 });
+    await client.setClassProperty(taskClass, statusSchema, {});
     await client.updatePropertySchema(statusSchema, { defaultValue: "opt-pending" });
 
     // Node A: authored value == the default (materialized legacy data).
@@ -504,7 +504,7 @@ describe("default-mirror sweep on class removal (owner rule)", () => {
     const client = await seedClient();
     const notes = await client.createPropertySchema({ name: "notes", type: "text" });
     const klass = await client.createClass("plainish");
-    await client.setClassProperty(klass, notes, { sequence: 0 });
+    await client.setClassProperty(klass, notes, {});
     const node = await client.createObject({ isEmbedded: false, name: "N" });
     await client.assignClass(node, klass);
     await client.setProperty(node, notes, "user wrote this", 0);
@@ -530,7 +530,7 @@ describe("the provenance flag (owner directive)", () => {
       ],
     });
     const klass = await client.createClass("taskish");
-    await client.setClassProperty(klass, statusSchema, { sequence: 0 });
+    await client.setClassProperty(klass, statusSchema, {});
     await client.updatePropertySchema(statusSchema, { defaultValue: "opt-pending" });
 
     // Node U: the user EXPLICITLY chose the default — provenance "user" pins it.
@@ -580,12 +580,8 @@ describe("weblink extends source — inherited bindings + own-first resolution",
       // (R5 rejects it), and the own-first resolution rule under test is
       // orthogonal to locality.
     });
-    await client.setClassProperty(SYSTEM_CLASS_UUIDS.source, SYSTEM_PROPERTY_UUIDS.doi, {
-      sequence: 0,
-    });
-    await client.setClassProperty(SYSTEM_CLASS_UUIDS.weblink, SYSTEM_PROPERTY_UUIDS.url, {
-      sequence: 0,
-    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.source, SYSTEM_PROPERTY_UUIDS.doi, {});
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.weblink, SYSTEM_PROPERTY_UUIDS.url, {});
     await client.setClassExtends(SYSTEM_CLASS_UUIDS.weblink, [SYSTEM_CLASS_UUIDS.source]);
     await flushWrites();
 
@@ -595,7 +591,7 @@ describe("weblink extends source — inherited bindings + own-first resolution",
     // Sharpening of the seeded reality for the resolution rule: source
     // ALSO binds url — a weblink node's own url row must still win
     // (binding resolution is own-first: distance 0 beats distance 1).
-    await client.setClassProperty(sourceId, SYSTEM_PROPERTY_UUIDS.url, { sequence: 9 });
+    await client.setClassProperty(sourceId, SYSTEM_PROPERTY_UUIDS.url, {});
 
     const pageId = await client.createObject({ isEmbedded: false, name: "A bookmark" });
     await client.assignClass(pageId, weblinkId);

@@ -25,7 +25,7 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call 
 | `POST /api/property-schemas` | Create a schema (`propertySchema.create`; caller-chosen uuid) |
 | `PATCH /api/property-schemas/:id` | Patch a schema (`propertySchema.update`: name, options, datePrecision, dateQualified) |
 | `DELETE /api/property-schemas/:id` | Soft-delete a schema (authored values survive; recreate under the same uuid reactivates) |
-| `POST /api/classes/:id/properties` | Bind a schema to a class (`class.property.set`: sequence/active patch — the binding's genuinely per-class mechanics; `required`/`defaultValue` retired or moved to the schema, owner ruling 2026-10-20) |
+| `POST /api/classes/:id/properties` | Bind a schema to a class (`class.property.set`: the active soft-unbind patch — the binding's only per-class mechanic; `required`/`defaultValue`/`sequence` retired, owner rulings 2026-10-20/21; class bindings list alphabetically by property name) |
 | `DELETE /api/classes/:id/properties/:propertySchemaId` | Remove the binding (authored property values survive) |
 | `GET /api/properties/:id/values` | Values asserted for a property schema (each entry carries the value's `elementId`) |
 | `POST /api/assets` (multipart) · `GET /api/assets/:id` · `GET /api/assets/:id/info` | Upload (sniffed), download, metadata |

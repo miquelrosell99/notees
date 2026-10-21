@@ -238,12 +238,14 @@ export class WorkspaceClientReads {
   }
 
   /**
-   * The class's property bindings in sequence order. Registry rows
-   * (`class_property` joined to `property_schema`, authored by
-   * class.property.set) win; the designed system seeds (@notees/domain,
-   * keyed by the class's stored name) fill the schemas the registry does not
-   * bind yet — so a seeded class keeps its designed bindings, and user
-   * classes (no seed spec) show exactly their registry rows.
+   * The class's property bindings in ALPHABETICAL order (by property name —
+   * owner ruling 2026-10-21: binding `sequence` retired, class panels are a
+   * pure alphabetical list). Registry rows (`class_property` joined to
+   * `property_schema`, authored by class.property.set) win; the designed
+   * system seeds (@notees/domain, keyed by the class's stored name) fill the
+   * schemas the registry does not bind yet — so a seeded class keeps its
+   * designed bindings, and user classes (no seed spec) show exactly their
+   * registry rows.
    */
   getClassBindings(classId: string): ClassBinding[] {
     const node = this.getNode(classId);
@@ -252,21 +254,20 @@ export class WorkspaceClientReads {
     }
     // Extends-aware (owner fix): a class's bindings include its ancestors'
     // — book extends source, so source's bound properties are book's class
-    // properties too. Own rows first, then
-    // ancestors' by sequence; the first binding for a schema wins.
+    // properties too. Own rows first; the first binding for a schema wins.
     // class_hierarchy rows are (class_id, ancestor_id): the ancestor set of
     // `classId` is `SELECT ancestor_id … WHERE class_id = classId` (the
     // transpose — `class_id … WHERE ancestor_id` — selected the DESCENDANTS,
     // leaking children's rows into the parent read).
     const rows = this.ctx.store.database
       .prepare(
-        `SELECT cp.property_schema_id, cp.sequence,
+        `SELECT cp.property_schema_id,
                 cp.active AS binding_active, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
          LEFT JOIN property_schema ps ON ps.id = cp.property_schema_id
          WHERE cp.class_id IN (SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?)
-         ORDER BY (cp.class_id = ?) DESC, cp.sequence, cp.property_schema_id`,
+         ORDER BY (cp.class_id = ?) DESC, ps.name, cp.property_schema_id`,
       )
       .all(classId, classId) as Array<Record<string, unknown>>;
     const seenSchemas = new Set<string>();
@@ -278,6 +279,7 @@ export class WorkspaceClientReads {
     });
     const bindings: ClassBinding[] = dedupedRows.map((row) => mapClassBindingRow(row));
     const bound = new Set(bindings.map((b) => b.propertySchemaId));
+    const byName = (a: ClassBinding, b: ClassBinding) => a.name.localeCompare(b.name);
     // Seed-spec fallback: a system class whose binding rows were never
     // authored still exposes its spec's schemas (read-synthesized — the
     // PG14 seed-spec lookup). Keyed on the RESERVED SYSTEM ID, not the
@@ -292,7 +294,6 @@ export class WorkspaceClientReads {
     const schemaNameStmt = this.ctx.store.database.prepare(
       "SELECT name FROM property_schema WHERE id = ?",
     );
-    let fallbackSeq = bindings.length;
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
       // bindTo-less specs (the global alias schema) are never class-bound —
       // skip them explicitly (undefined === systemClassName would otherwise
@@ -311,26 +312,26 @@ export class WorkspaceClientReads {
         type: spec.type,
         multi: spec.multi ?? false,
         targetClassFilter: spec.targetClassFilter ?? null,
-        sequence: fallbackSeq++,
         datePrecision: null,
         dateQualified: null,
         active: true,
       });
     }
-    return bindings.sort((a, b) => a.sequence - b.sequence || a.name.localeCompare(b.name));
+    return bindings.sort(byName);
   }
 
   /**
-   * The class's OWN registry rows (class_property ⋈ property_schema) —
-   * no extends inheritance, no seed-spec fallback synthesis. This is the
-   * honest existence read for write-path self-heals (deploySystemClass's
-   * binding step): getClassBindings read-synthesizes the designed system
-   * seeds for system classes, so a workspace whose registry rows were never
-   * authored still LOOKS bound through that read while the registry-only
-   * effective-properties read (store effective.ts) sees nothing. Reads that
-   * deliberately rely on the fallback (the meetingFamily present gates, the
-   * calendar chip eligibility walk, the ClassView) keep using
-   * getClassBindings.
+   * The class's OWN registry rows (class_property ⋈ property_schema),
+   * ALPHABETICAL by property name (owner ruling 2026-10-21 — binding
+   * `sequence` retired) — no extends inheritance, no seed-spec fallback
+   * synthesis. This is the honest existence read for write-path self-heals
+   * (deploySystemClass's binding step): getClassBindings read-synthesizes
+   * the designed system seeds for system classes, so a workspace whose
+   * registry rows were never authored still LOOKS bound through that read
+   * while the registry-only effective-properties read (store effective.ts)
+   * sees nothing. Reads that deliberately rely on the fallback (the
+   * meetingFamily present gates, the calendar chip eligibility walk, the
+   * ClassView) keep using getClassBindings.
    */
   getRegistryBindings(classId: string): ClassBinding[] {
     const node = this.getNode(classId);
@@ -339,13 +340,13 @@ export class WorkspaceClientReads {
     }
     const rows = this.ctx.store.database
       .prepare(
-        `SELECT cp.property_schema_id, cp.sequence,
+        `SELECT cp.property_schema_id,
                 cp.active AS binding_active, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
          LEFT JOIN property_schema ps ON ps.id = cp.property_schema_id
          WHERE cp.class_id = ?
-         ORDER BY cp.sequence, cp.property_schema_id`,
+         ORDER BY ps.name, cp.property_schema_id`,
       )
       .all(classId) as Array<Record<string, unknown>>;
     return rows.map((row) => mapClassBindingRow(row));

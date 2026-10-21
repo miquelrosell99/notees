@@ -277,8 +277,8 @@ export const classSetExtendsPayload = z
 
 /**
  * Class → property-schema binding upsert (SCHEMA.md "Class properties"):
- * a configuration row on `class_property` (sequence + active — the genuinely
- * PER-CLASS mechanics: panel order, the class's soft-unbind). Row-level LWW
+ * a configuration row on `class_property` (active only — the genuinely
+ * PER-CLASS mechanic left: the class's soft-unbind). Row-level LWW
  * by envelope HLC; on update, omitted fields KEEP their existing values.
  *
  * (owner ruling 2026-10-20, the property-definition surfaces batch):
@@ -291,13 +291,20 @@ export const classSetExtendsPayload = z
  * never needed. The strict schema rejects both keys like any retired key;
  * live logs rewrite in place via scripts/migrate-drop-binding-required.mts
  * (required strip + a defaultValue compensation per affected schema).
- * A binding answers "does THIS class list the property, in what order"; a
+ * A binding answers "does THIS class list the property"; a
  * schema answers "what the property is, how it behaves, and what value it
  * starts with everywhere" (class-bound or not).
  *
+ * (owner ruling 2026-10-21): `sequence` RETIRES too — class properties
+ * render as a PURE ALPHABETICAL list everywhere (by property name, at read
+ * time), so panel order no longer exists to configure. The strict schema
+ * rejects the key outright; live logs rewrite in place via
+ * scripts/migrate-drop-binding-sequence.mts (a plain in-place strip — no
+ * compensation, alphabetical order is pure derivation).
+ *
  * `active` (PC4, LOCKSTEP-PENDING): the soft-unbind flag — an
  * inactive binding row stops contributing to the effective-properties read
- * (no sequence metadata) while AUTHORED property values
+ * while AUTHORED property values
  * always survive (the row is kept, never deleted). Omitted = keep the stored
  * flag.
  */
@@ -305,7 +312,6 @@ export const classPropertySetPayload = z
   .object({
     classId: uuid,
     propertySchemaId: uuid,
-    sequence: z.number().int().optional(),
     active: z.boolean().optional(),
   })
   .strict();

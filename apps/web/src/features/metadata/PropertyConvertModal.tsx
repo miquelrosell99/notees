@@ -14,9 +14,9 @@
  *   3. on confirm: create the new schema (fresh UUIDv7 — delete+recreate
  *      under the SAME id would keep the dead type's values visible), copy
  *      the mappable values at their slot idx, rebind every class binding
- *      (sequence/flags; a defaultValue copies only when it type-checks per
- *      PC2), then delete the old schema (soft-delete — the blessed path,
- *      values under it survive in the log);
+ *      (a presence row + the soft-unbind flag; a defaultValue copies only
+ *      when it type-checks per PC2), then delete the old schema
+ *      (soft-delete — the blessed path, values under it survive in the log);
  *   4. a copy that fails the apply-time validation (PG6: class filter,
  *      target existence, precision) is recorded as dropped with the
  *      applier's reason — the flow never half-writes silently.
@@ -322,12 +322,11 @@ export function PropertyConvertModal({
           .getClassBindings(klass.id)
           .find((b) => b.propertySchemaId === schema.id);
         if (binding === undefined) continue;
-        // The binding is sequence-only (required/defaultValue retired or
-        // moved to the schema — owner ruling 2026-10-20); the default
-        // carried over onto the new schema above.
-        await client.setClassProperty(klass.id, createdId, {
-          sequence: binding.sequence,
-        });
+        // The binding is a presence row + the soft-unbind flag
+        // (required/defaultValue/sequence retired or moved to the schema —
+        // owner rulings 2026-10-20/21); the default carried over onto the
+        // new schema above.
+        await client.setClassProperty(klass.id, createdId, {});
         await client.unsetClassProperty(klass.id, schema.id);
       }
       await client.deletePropertySchema(schema.id);

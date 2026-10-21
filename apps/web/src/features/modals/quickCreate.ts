@@ -234,7 +234,7 @@ export async function ensureCitationFamily(client: AnyClient): Promise<void> {
       ...(spec.multi !== undefined ? { multi: spec.multi } : {}),
       ...(spec.targetClassFilter !== undefined ? { targetClassFilter: spec.targetClassFilter } : {}),
     });
-    await client.setClassProperty(spec.bindTo, spec.id, { sequence: 0 });
+    await client.setClassProperty(spec.bindTo, spec.id, {});
   }
 }
 

@@ -68,7 +68,7 @@ async function seedStatusBlock(display: "bullet" | "inline" | "panel") {
     options: STATUS_OPTIONS,
   });
   const classId = await client.createClass("Taskish");
-  await client.setClassProperty(classId, schemaId, { sequence: 0 });
+  await client.setClassProperty(classId, schemaId, {});
   if (display !== "panel") {
     await client.updatePropertySchema(schemaId, { display });
   }
@@ -178,7 +178,7 @@ describe("PropertyIconButton", () => {
       ],
     });
     const classId = await client.createClass("Tagged");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     await client.updatePropertySchema(schemaId, { display: "bullet" });
     const pageId = await client.createObject({ isEmbedded: false, name: "Tags" });
     const blockId = await client.createObject({
@@ -244,7 +244,7 @@ describe("PropertyIconButton boolean mode", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "flag", type: "boolean" });
     const classId = await client.createClass("Flagged");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     await client.updatePropertySchema(schemaId, { display: "bullet" });
     const pageId = await client.createObject({ isEmbedded: false, name: "Flags" });
     const blockId = await client.createObject({

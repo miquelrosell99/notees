@@ -61,7 +61,6 @@ function fakeCapture(overrides: {
     metadata: Record<string, unknown> | null;
   } | null;
   binding?: {
-    sequence: number;
     active: boolean;
   } | null;
   parents?: string[];
@@ -317,26 +316,25 @@ describe("invertEnvelope — the inversion matrix", () => {
     ]);
   });
 
-  it("class.property.set restores the touched fields (sequence/active only — owner ruling 2026-10-20); a first bind inverts as unset", () => {
+  it("class.property.set restores the touched fields (active only — owner ruling 2026-10-20/21); a first bind inverts as unset", () => {
     const binding = {
-      sequence: 2,
       active: true,
     };
     expect(
       invertEnvelope(
-        env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA, active: false, sequence: 5 }),
+        env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA, active: false }),
         fakeCapture({ binding }),
       ),
     ).toEqual([
       {
         opType: "class.property.set",
-        payload: { classId: CLASS_A, propertySchemaId: SCHEMA, active: true, sequence: 2 },
+        payload: { classId: CLASS_A, propertySchemaId: SCHEMA, active: true },
         affected: [CLASS_A],
       },
     ]);
     expect(
       invertEnvelope(
-        env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA, sequence: 5 }),
+        env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA }),
         fakeCapture({ binding: null }),
       ),
     ).toEqual([
@@ -350,7 +348,6 @@ describe("invertEnvelope — the inversion matrix", () => {
 
   it("class.property.unset restores the full captured row; an empty unset is a no-op", () => {
     const binding = {
-      sequence: 3,
       active: false,
     };
     expect(
@@ -364,7 +361,6 @@ describe("invertEnvelope — the inversion matrix", () => {
         payload: {
           classId: CLASS_A,
           propertySchemaId: SCHEMA,
-          sequence: 3,
           active: false,
         },
         affected: [CLASS_A],
@@ -921,19 +917,17 @@ describe("WorkspaceClient undo/redo — integration over the outbox path", () =>
     const cls = await client.createClass("Bound");
     const schema = await client.createPropertySchema({ name: "S", type: "text" });
 
-    await client.setClassProperty(cls, schema, { sequence: 7, active: false });
+    await client.setClassProperty(cls, schema, { active: false });
     let binding = client.getClassBindings(cls).find((b) => b.propertySchemaId === schema);
-    expect(binding?.sequence).toBe(7);
     expect(binding?.active).toBe(false);
     await client.undo();
     binding = client.getClassBindings(cls).find((b) => b.propertySchemaId === schema);
     expect(binding).toBeUndefined(); // first bind → inverse was unset
 
-    await client.setClassProperty(cls, schema, { sequence: 1 });
-    await client.setClassProperty(cls, schema, { sequence: 9, active: false });
+    await client.setClassProperty(cls, schema, {});
+    await client.setClassProperty(cls, schema, { active: false });
     await client.undo();
     binding = client.getClassBindings(cls).find((b) => b.propertySchemaId === schema);
-    expect(binding?.sequence).toBe(1);
     // The prior flag was active (the default) — the restore lands it back.
     expect(binding?.active).toBe(true);
 
@@ -941,7 +935,7 @@ describe("WorkspaceClient undo/redo — integration over the outbox path", () =>
     expect(client.getClassBindings(cls).find((b) => b.propertySchemaId === schema)).toBeUndefined();
     await client.undo();
     binding = client.getClassBindings(cls).find((b) => b.propertySchemaId === schema);
-    expect(binding?.sequence).toBe(1);
+    expect(binding).toBeDefined();
   });
 
   it("multi-tab honesty: a second client on the same relay has its own empty journal", async () => {

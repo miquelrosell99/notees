@@ -383,22 +383,24 @@ describe("class property binding routes", () => {
     return schemaId;
   }
 
-  it("POST binds sequence/active and the schema's global default derives (the render contracts + default are schema-level)", async () => {
+  it("POST binds active and the schema's global default derives (the render contracts + default are schema-level)", async () => {
     const classId = await createClass("pg7-shelf");
     // Scoped to the binding class (the sole locality authority, owner ruling
     // 2026-10-20) — R5 accepts the binding below.
     const schemaId = await createSchema("pg7-code", { scopeClassIds: [classId] });
 
     const bound = await api("POST", `/api/classes/${classId}/properties`, {
-      payload: { propertySchemaId: schemaId, sequence: 2 },
+      payload: { propertySchemaId: schemaId, active: true },
     });
     expect(bound.statusCode).toBe(200);
-    // The binding echo carries ONLY the per-class mechanics.
+    // The binding echo carries ONLY the per-class mechanic (the soft-unbind
+    // flag — sequence retired 2026-10-21, panels render alphabetically).
     expect(bound.json()).toMatchObject({
       classId,
       propertySchemaId: schemaId,
-      binding: { propertySchemaId: schemaId, sequence: 2 },
+      binding: { propertySchemaId: schemaId, active: true },
     });
+    expect(bound.json().binding).not.toHaveProperty("sequence");
     expect(bound.json().binding).not.toHaveProperty("readonly");
     expect(bound.json().binding).not.toHaveProperty("hideWhenEmpty");
 
@@ -411,12 +413,20 @@ describe("class property binding routes", () => {
       payload: { propertySchemaId: schemaId, defaultValue: "n/a" },
     });
     expect(retiredDefault.statusCode).toBe(422);
+    const retiredSequence = await api("POST", `/api/classes/${classId}/properties`, {
+      payload: { propertySchemaId: schemaId, sequence: 1 },
+    });
+    expect(retiredSequence.statusCode).toBe(422);
 
     // The patch contract: omitted fields keep their values.
     const patched = await api("POST", `/api/classes/${classId}/properties`, {
-      payload: { propertySchemaId: schemaId, sequence: 3 },
+      payload: { propertySchemaId: schemaId, active: false },
     });
-    expect(patched.json().binding).toMatchObject({ sequence: 3 });
+    expect(patched.json().binding).toMatchObject({ active: false });
+    const reEnabled = await api("POST", `/api/classes/${classId}/properties`, {
+      payload: { propertySchemaId: schemaId, active: true },
+    });
+    expect(reEnabled.json().binding).toMatchObject({ active: true });
 
     // The render contracts AND the default live on the SCHEMA (owner ruling
     // 2026-10-20 — one global default per property, the Logseq shape).
@@ -453,12 +463,12 @@ describe("class property binding routes", () => {
     expect(bad.json().error.code).toBe("validation_failed");
 
     const noClass = await api("POST", `/api/classes/${crypto.randomUUID()}/properties`, {
-      payload: { propertySchemaId: schemaId, sequence: 0 },
+      payload: { propertySchemaId: schemaId, active: true },
     });
     expect(noClass.statusCode).toBe(404);
 
     const noSchema = await api("POST", `/api/classes/${classId}/properties`, {
-      payload: { propertySchemaId: crypto.randomUUID(), sequence: 0 },
+      payload: { propertySchemaId: crypto.randomUUID(), active: true },
     });
     expect(noSchema.statusCode).toBe(404);
 
@@ -475,7 +485,7 @@ describe("class property binding routes", () => {
       payload: { defaultValue: "def" },
     });
     await api("POST", `/api/classes/${classId}/properties`, {
-      payload: { propertySchemaId: schemaId, sequence: 0 },
+      payload: { propertySchemaId: schemaId, active: true },
     });
     const member = (
       await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "pg7-member", classIds: [classId] } })
@@ -548,7 +558,6 @@ describe("effective-properties endpoint", () => {
         payload: {
           classId: SYSTEM_CLASS_UUIDS.source,
           propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey,
-          sequence: 40,
         },
       },
     ];

@@ -514,8 +514,8 @@ export function systemPropertyDisplayName(name: SystemPropertyName): string {
  * live workspaces by the system-names migration,
  * scripts/migrate-system-names.mts.)
  */
-export const SYSTEM_EXTRA_CLASS_BINDINGS: { property: SystemPropertyName; bindTo: SystemClassName; sequence: number }[] = [
-  { property: "eventDate", bindTo: "birthday", sequence: 0 },
+export const SYSTEM_EXTRA_CLASS_BINDINGS: { property: SystemPropertyName; bindTo: SystemClassName }[] = [
+  { property: "eventDate", bindTo: "birthday" },
 ];
 
 /**
@@ -571,11 +571,12 @@ export const TASK_PRIORITY_OPTION_UUIDS = {
  * bindings, authored idempotently by the store applier when the `tasks`
  * feature enables (constraint 5 — closes the "task property schemas
  * never authored" row). Fixed ids end to end (schema + option uuids
- * above); `sequence` is the task-panel display order. `display`
- * (property-LEVEL after the owner review) rides the SCHEMA entry — the Status
- * schema defaults to "bullet" (its value rides the block bullet as an icon
- * button, the Logseq-DB "beginning of the block" behavior); the rest stay in
- * the properties panel.
+ * above). `display` (property-LEVEL after the owner review) rides the
+ * SCHEMA entry — the Status schema defaults to "bullet" (its value rides
+ * the block bullet as an icon button, the Logseq-DB "beginning of the
+ * block" behavior); the rest stay in the properties panel. Binding rows
+ * carry NO order: class panels render alphabetically by property name
+ * (owner ruling 2026-10-21 — `sequence` retired from the binding).
  *
  * Owner ruling 2026-10-20 (the seed-scope audit): the SIX SCHEMAS seed at
  * GLOBAL scope (scopeClassIds absent — Status "can be reused for other
@@ -589,7 +590,6 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
   type: "select" | "datetime";
   options?: ReadonlyArray<{ id: string; label: string; icon?: string; color?: string }>;
   display?: "panel" | "bullet" | "inline";
-  sequence: number;
 }> = [
   {
     property: "taskStatus",
@@ -604,10 +604,9 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
       { id: TASK_STATUS_OPTION_UUIDS.cancelled, label: "Cancelled", icon: "mdiCloseCircle", color: "red" },
     ],
     display: "bullet",
-    sequence: 1,
   },
-  { property: "taskScheduled", name: "Scheduled", type: "datetime", sequence: 2 },
-  { property: "taskDeadline", name: "Deadline", type: "datetime", sequence: 3 },
+  { property: "taskScheduled", name: "Scheduled", type: "datetime" },
+  { property: "taskDeadline", name: "Deadline", type: "datetime" },
   {
     property: "taskPriority",
     name: "Priority",
@@ -618,12 +617,11 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
       { id: TASK_PRIORITY_OPTION_UUIDS.high, label: "High" },
       { id: TASK_PRIORITY_OPTION_UUIDS.urgent, label: "Urgent" },
     ],
-    sequence: 4,
   },
-  { property: "taskClosedDate", name: "Closed", type: "datetime", sequence: 5 },
+  { property: "taskClosedDate", name: "Closed", type: "datetime" },
   // Migrated workspaces carry recurrence as a plain select (no engine
   // executes it); authored optionless until the recurrence spec lands.
-  { property: "taskRecurrence", name: "Recurrence", type: "select", options: [], sequence: 6 },
+  { property: "taskRecurrence", name: "Recurrence", type: "select", options: [] },
 ];
 
 /**

@@ -71,7 +71,9 @@ const TASK_PRIORITY_OPTION_IDS: Record<(typeof TASK_PRIORITY_OPTIONS)[number], s
   Urgent: TASK_PRIORITY_OPTION_UUIDS.urgent,
 };
 
-/** The six schemas in task-panel display order (sequence rides authoring order). */
+/** The six schemas in authoring order (binding rows carry no order — the
+ * task panel renders alphabetically by property name, owner ruling
+ * 2026-10-21). */
 const TASK_FAMILY: Array<{
   id: string;
   name: string;
@@ -174,12 +176,9 @@ export async function ensureTaskFamily(client: TaskFamilyClient): Promise<void> 
     const bound = new Set(
       client.getClassBindings(SYSTEM_CLASS_UUIDS.task).map((binding) => binding.propertySchemaId),
     );
-    // Sequences run after any existing rows' authored values; the read model
-    // sorts by (sequence, schema id), so ties order deterministically.
-    let sequence = client.getClassBindings(SYSTEM_CLASS_UUIDS.task).length;
     for (const spec of TASK_FAMILY) {
       if (bound.has(spec.id)) continue;
-      await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, spec.id, { sequence: sequence++ });
+      await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, spec.id, {});
     }
   }
   // Upgrade pass: restyle the status options with the designed

@@ -350,11 +350,13 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     expect(node!.opType).toBe("object.create");
     expect(assignProject!.opType).toBe("object.create");
     expect(assignProject!.payload).toMatchObject({ objectId: nodePayload.objectId });
-    // Both bindings are sequence-only rows (no default/required — retired or
-    // moved); Task's unset lands first, Project's second (no binding → the
-    // schema default derives nothing).
-    expect(taskBinding!.payload).toMatchObject({ propertySchemaId: priority, sequence: 0 });
-    expect(projectBinding!.payload).toMatchObject({ propertySchemaId: priority, sequence: 0 });
+    // Both bindings are active-only rows (no sequence/default/required —
+    // retired or moved); Task's unset lands first, Project's second (no
+    // binding → the schema default derives nothing).
+    expect(taskBinding!.payload).toMatchObject({ propertySchemaId: priority });
+    expect(taskBinding!.payload).not.toHaveProperty("sequence");
+    expect(projectBinding!.payload).toMatchObject({ propertySchemaId: priority });
+    expect(projectBinding!.payload).not.toHaveProperty("sequence");
     expect(unsetTask!.opType).toBe("class.property.unset");
     expect(unsetTask!.payload).toMatchObject({
       classId: taskPayload.classId,
@@ -380,20 +382,20 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     expect(effort!.payload).toMatchObject({ propertySchemaId: effortSchema, defaultValue: "xs" });
     expect(impact!.payload).toMatchObject({ propertySchemaId: impactSchema, defaultValue: "xl" });
     // The node is created classed with Task; Task binds 'effort' and 'impact'
-    // (sequence-only rows); impact is then AUTHORED at idx 0 (shadowing the
+    // (active-only rows); impact is then AUTHORED at idx 0 (shadowing the
     // default) so the unassign can pin both read outcomes on one node.
     expect(node!.opType).toBe("object.create");
     expect(node!.payload).toMatchObject({ objectId: nodeId, classIds: [taskId] });
     expect(effortBinding!.payload).toMatchObject({
       classId: taskId,
       propertySchemaId: effortSchema,
-      sequence: 0,
     });
+    expect(effortBinding!.payload).not.toHaveProperty("sequence");
     expect(impactBinding!.payload).toMatchObject({
       classId: taskId,
       propertySchemaId: impactSchema,
-      sequence: 1,
     });
+    expect(impactBinding!.payload).not.toHaveProperty("sequence");
     expect(authored!.opType).toBe("property.set");
     expect(authored!.payload).toMatchObject({
       objectId: nodeId,
@@ -643,6 +645,16 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
         classId: "0192a000-0000-7000-8000-000000000742",
         propertySchemaId: "0192a000-0000-7000-8000-000000000741",
         active: "yes",
+      }).success,
+    ).toBe(false);
+    // Strict schema: the retired sequence key is rejected outright (owner
+    // ruling 2026-10-21 — class panels render alphabetically; live logs
+    // rewrite via scripts/migrate-drop-binding-sequence.mts).
+    expect(
+      payloadSchemaFor("class.property.set")!.safeParse({
+        classId: "0192a000-0000-7000-8000-000000000742",
+        propertySchemaId: "0192a000-0000-7000-8000-000000000741",
+        sequence: 1,
       }).success,
     ).toBe(false);
     // Display moved OFF the binding — it is a retired key there,
