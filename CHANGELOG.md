@@ -7,6 +7,31 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): anchored picker search bars ride the compact sm register — the
+  New-node class picker stops wearing the oversized md pill.** Owner report
+  (2026-10-21, the class-picker screenshot): the sibling `SearchField
+  size="sm"` fix had only reached the collection filter bar, so every
+  node-picker search still inherited the full-height default. Both
+  `NodeSelector` render branches now pass `size="sm"` — covering the
+  New-node class picker, Add-class/property pickers, page/block/link
+  pickers, and the graph rail's inline search-to-select — alongside the
+  bind-property popover and the slash-menu template-list popup. The sweep
+  deliberately leaves full surfaces and roomy modals at `md` (Search page,
+  command palette, template gallery, class-create catalog) and keeps the
+  narrow filter popup's field `md` per the preceding ruling.
+  - **Files**: `apps/web/src/features/pickers/NodeSelector.tsx`,
+    `apps/web/src/features/classview/PropertyDefinitionsSection.tsx`,
+    `apps/web/src/ui/templates/TemplateListPopup.tsx`,
+    `apps/web/src/components/ui/fleet/SearchField.tsx` + `.css` (the sm
+    register's contract comment), `apps/web/test/pickers.test.tsx`,
+    `property-definitions-section.test.tsx`, `popup-dismissal.test.tsx`,
+    `docs/developers/ui-primitives.md`.
+  - **Verification**: `pnpm --filter @notees/web typecheck`; the three
+    affected suites (49 tests); the FULL web suite — 1939 passed (167
+    files); an offline Vite visual probe at 1440/768/390 measured the
+    New-node class-picker field at 30px with the `search-field--sm`
+    register and the create row intact.
+
 - **fix(web): two ring sizes, one style — the classic 16px halo returns on
   dot bullets; icon bullets keep the 28px circle.** Owner question
   (2026-10-21): "would having the old ring size for non-icon bullets look
