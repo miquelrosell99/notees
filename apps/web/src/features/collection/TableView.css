@@ -21,6 +21,12 @@
 
 .nt-table {
   width: 100%;
+  /* Fixed layout: the colgroup's widths are the columns'
+     exact shares — resizable and default-sized by construction; cell
+     content wraps inside its lane instead of renegotiating the table
+     (auto layout fought the drag by re-expanding from content). A crowded
+     table overflows the wrap horizontally (overflow-x below). */
+  table-layout: fixed;
   /* Separate borders + zero spacing — the boxed grid renders from
      per-cell hairlines, and the rounded corners clip. */
   border-collapse: separate;
@@ -32,8 +38,17 @@
   overflow: hidden;
 }
 
+/* The resize drag: the col-resize cursor rides the whole table and text
+   selection drops, so the live-reflowing column reads as the feedback. */
+.nt-table--resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
 /* The header register: the surface-variant wash, sticky, 600-weight muted
-   labels, cell hairlines forming the grid's top edge. */
+   labels, cell hairlines forming the grid's top edge. Fixed layout clips
+   at the lane (a column dragged narrower than its nowrap label cuts at the
+   divider; the sort button's title carries the full name). */
 .nt-table thead th {
   position: sticky;
   top: 0;
@@ -46,19 +61,23 @@
   border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   padding: var(--spacing-2) var(--spacing-3);
   white-space: nowrap;
+  overflow: hidden;
 }
 
 .nt-table thead th:last-child {
   border-right: none;
 }
 
-/* Body cells: the surface wash + the grid hairlines. */
+/* Body cells: the surface wash + the grid hairlines. Fixed layout: content
+   wraps inside its lane (break-word catches words longer than the share)
+   instead of renegotiating the column. */
 .nt-table td {
   background: var(--md-sys-color-surface);
   border-right: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   padding: var(--spacing-2) var(--spacing-3);
   vertical-align: middle;
+  overflow-wrap: break-word;
 }
 
 .nt-table td:last-child {
@@ -92,6 +111,27 @@
 
 .nt-table-sort--active {
   color: var(--md-sys-color-primary);
+}
+
+/* The column-resize divider: an 8px hit area straddling
+   the header's right edge (the th is the positioning context — sticky
+   already establishes one). At rest it shows a hairline on hover/focus
+   only; the drag itself is live (the column reflows under the pointer). */
+.nt-table-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(-1 * var(--spacing-1));
+  width: var(--spacing-2);
+  cursor: col-resize;
+  touch-action: none;
+  z-index: var(--z-20);
+}
+
+.nt-table-resize:hover,
+.nt-table-resize:focus-visible {
+  background: var(--md-sys-color-primary);
+  outline: none;
 }
 
 /* Multi-sort: the priority index rides the sort icon. */
