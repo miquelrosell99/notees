@@ -101,6 +101,19 @@ describe("TemplateGalleryModal", () => {
     expect(generatedFrom?.value).toMatchObject({ nodeId: expect.stringMatching(/.+/) });
   });
 
+  it("the search folds diacritics (unaccented query, accented template name)", async () => {
+    const client = await seedClient();
+    await createTemplate(client, "Reunión semanal");
+    await createTemplate(client, "Reading template");
+    render(<TemplateGalleryModal isOpen onClose={() => {}} client={client} onOpenPage={vi.fn()} />);
+
+    const list = await screen.findByRole("listbox", { name: "Templates" });
+    const search = screen.getByRole("textbox", { name: "Search templates" });
+    fireEvent.change(search, { target: { value: "reunion" } });
+    expect(within(list).getByText("Reunión semanal")).toBeInTheDocument();
+    expect(within(list).queryByText("Reading template")).toBeNull();
+  });
+
   it("the row click opens the template; 'Use template' instantiates; 'New template' authors a classed page", async () => {
     const client = await seedClient();
     const templateId = await createTemplate(client, "Base template");

@@ -142,6 +142,22 @@ describe("S6 PropertyDefinitionsSection", () => {
     expect(screen.queryByRole("dialog", { name: "Bind property" })).toBeNull();
   });
 
+  it("the search folds diacritics on both sides (unaccented query, accented schema name)", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "A");
+    await client.createPropertySchema({ name: "año", type: "text" });
+    await client.createPropertySchema({ name: "autor", type: "text" });
+    renderSection(client, classId);
+
+    const dialog = await openPopover();
+    const search = within(dialog).getByLabelText("Search or create property");
+    fireEvent.change(search, { target: { value: "ano" } });
+    expect(within(dialog).getByRole("option", { name: /año/ })).not.toBeNull();
+    expect(within(dialog).queryByRole("option", { name: /autor/ })).toBeNull();
+    // The exact-match duplicate check folds too: no create row for "ano".
+    expect(within(dialog).queryByText(/Create "ano"/)).toBeNull();
+  });
+
   it("edits target classes through the definition modal (update {targetClassFilter})", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "A");

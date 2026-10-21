@@ -46,6 +46,8 @@
 
 import { useRef, useState } from "react";
 
+import { foldSearchText } from "@notees/store";
+
 import {
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_SPECS,
@@ -269,17 +271,18 @@ export function PropertyDefinitionsSection({
   // schemas scoped to this class or its extends-ancestors).
   const directIds = new Set(direct.map((binding) => binding.propertySchemaId));
   const queryTrimmed = query.trim();
+  const queryFolded = foldSearchText(query.trim().toLowerCase());
   const candidates = client
     .listPropertySchemas()
     .filter((schema) => !directIds.has(schema.id))
     .filter((schema) => isSchemaEligibleForClass(client, schema, classId))
     .filter(
       (schema) =>
-        queryTrimmed === "" || schema.name.toLowerCase().includes(queryTrimmed.toLowerCase()),
+        queryFolded === "" || foldSearchText(schema.name.toLowerCase()).includes(queryFolded),
     );
   const canCreate =
     queryTrimmed !== "" &&
-    !client.listPropertySchemas().some((s) => s.name.toLowerCase() === queryTrimmed.toLowerCase());
+    !client.listPropertySchemas().some((s) => foldSearchText(s.name.toLowerCase()) === queryFolded);
   const optionCount = candidates.length + (canCreate ? 1 : 0);
 
   const addBinding = async (schemaId: string) => {

@@ -7,6 +7,26 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): client-side name search folds diacritics — `video` finds the
+  class "Vídeo".** The ranked FTS index has folded diacritics since store
+  schema v19, but the pickers' client-side name filters compared raw
+  lowercased strings, so an unaccented query missed accented names wherever
+  a picker filters by name instead of riding the FTS index: the node
+  picker's classes tab, the `class:` refine prefix resolution, the
+  classes-picker exact-name create-row suppression, the template gallery
+  and template list popups, the bind-property popovers (class view +
+  metadata row, including their exact-name duplicate checks), and the
+  outliner context's mention-candidate filter. Every comparison now folds
+  both sides through the store's exported `foldSearchText` (NFD + combining-
+  mark strip — the same mirror pair the index uses), so picker name matching
+  behaves exactly like full-text search. The `class:` refine slices the raw
+  query by the class's RAW name length (folded length can differ — the DŽ
+  canonical decompositions). Verification: new jsdom tests (classes tab,
+  create suppression, `class:` refine, bind-property popover, template
+  gallery — unaccented query vs accented name, both directions) plus the
+  full `pnpm typecheck` + `pnpm test` gate green. Docs: `docs/features/
+  links.md`'s picker paragraph states the folding rule. Web-only slice —
+  redeploy `notees-web`.
 - **feat(web): class-property rows — the name-hover tint is gone, and hover
   now reveals a COG beside the REMOVE ×.**. The
   direct-bindings row of the class page's "Class properties" section lost

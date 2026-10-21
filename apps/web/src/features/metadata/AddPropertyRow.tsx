@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 
+import { foldSearchText } from "@notees/store";
+
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { PropertyCreateModal } from "./PropertyCreateModal.js";
 import { eligibleSchemasForNode } from "./schemaEligibility.js";
@@ -31,6 +33,9 @@ export function AddPropertyRow({
   // S4: the candidate set is eligibility-gated (extends-aware closure).
   const candidates =
     node === undefined ? schemas : eligibleSchemasForNode(client, schemas, node);
+  // Diacritics fold on both sides (the store search mirror): "ano" finds
+  // the schema "año".
+  const nameQuery = foldSearchText(newName.trim().toLowerCase());
 
   async function initializeValue(schemaId: string, type: string): Promise<void> {
     try {
@@ -71,7 +76,7 @@ export function AddPropertyRow({
           />
           <ul>
             {candidates
-              .filter((schema) => newName.trim() === "" || schema.name.toLowerCase().includes(newName.trim().toLowerCase()))
+              .filter((schema) => nameQuery === "" || foldSearchText(schema.name.toLowerCase()).includes(nameQuery))
               .map((schema) => (
                 <li key={schema.id}>
                   <button type="button" onClick={() => void initializeValue(schema.id, schema.type)}>
@@ -81,7 +86,7 @@ export function AddPropertyRow({
                 </li>
               ))}
           </ul>
-          {newName.trim() !== "" && !schemas.some((s) => s.name.toLowerCase() === newName.trim().toLowerCase()) && (
+          {newName.trim() !== "" && !schemas.some((s) => foldSearchText(s.name.toLowerCase()) === nameQuery) && (
             <button
               type="button"
               className="nt-add-property-create"
