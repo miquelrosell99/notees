@@ -55,10 +55,10 @@
   background: transparent;
 }
 
-/* The sm pill rides compact chrome rows at the sm button height
-   (--height-button-sm): the input swaps h-button-md for h-button-sm
-   (twMerge) and the pill's block padding zeroes — the compound selector
-   beats the px-3/py-2 utilities, which stay for the inline axis. */
+/* The sm pill rides compact chrome rows and anchored picker popovers at the
+   sm button height (--height-button-sm): the input swaps h-button-md for
+   h-button-sm (twMerge) and the pill's block padding zeroes — the compound
+   selector beats the px-3/py-2 utilities, which stay for the inline axis. */
 .search-field.search-field--sm {
   padding-top: 0;
   padding-bottom: 0;

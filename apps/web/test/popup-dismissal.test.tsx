@@ -450,6 +450,8 @@ describe("regression: TemplateListPopup keeps dismissal when focus left the filt
       />,
     );
     expect(screen.getByRole("listbox", { name: "Templates" })).toBeInTheDocument();
+    const search = screen.getByLabelText("Filter templates");
+    expect(search.closest(".search-field")).toHaveClass("search-field--sm");
 
     fireEvent.keyDown(document.body, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);

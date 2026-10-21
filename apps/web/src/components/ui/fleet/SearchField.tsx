@@ -30,9 +30,9 @@ export interface SearchFieldProps extends Omit<InputHTMLAttributes<HTMLInputElem
   icon?: ReactNode;
   /** Visible label text (also used as accessible name when visible) */
   label?: string;
-  /** Pill size — "md" (default) stands 36px-class rows; "sm" (30px) rides
-   * compact chrome rows like the hosted tab bar, matching the sm buttons
-   * beside it. */
+  /** Pill size — "md" (default) stands full surfaces and roomy chrome rows;
+   * "sm" (30px) rides compact rows and anchored picker popovers, matching
+   * the sm controls beside those lists. */
   size?: 'md' | 'sm' | undefined;
   /** Additional CSS class on the wrapper */
   className?: string;

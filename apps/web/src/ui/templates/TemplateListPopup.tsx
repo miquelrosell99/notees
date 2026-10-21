@@ -202,6 +202,7 @@ export function TemplateListPopup({
       <div className="template-list-popup__search">
         <SearchField
           ref={inputRef}
+          size="sm"
           aria-label="Filter templates"
           placeholder="Filter templates…"
           value={query}
