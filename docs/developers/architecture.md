@@ -567,7 +567,9 @@ quick search is a PERMANENT field, and the structured panel drops a wrapped
 full-width line beneath the tab row — the FilterBar renders LAST in the
 cluster (and the views' own toolbars portal into a slot before it, see
 views/viewChrome.tsx), so the wrap never moves the row's other controls.
-The live "N of M nodes match" preview rides the builder's foot row in the panel.
+The live count moved OFF the panel: the ACTIVE hosted tab carries a total-count
+badge beside its name (NodeCollection computes the open tab's displayed row
+count post-refinement and hands it to SectionViewTabs;, replacing the "N of M nodes match" foot line).
 
 **GTK / Flutter** (sibling repos `notees-gtk`, `notees-flutter`, branches `protocol-v2`). Lockstep clients: strict payload validators + local appliers mirroring `packages/store` (same OR-Set gating, same LWW rules). Current with the TS reference as of the 2026-10-01 batch (tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged `v2.0.0-m1` with CI-published releases. Any new op requires the same three-way lockstep.
 
