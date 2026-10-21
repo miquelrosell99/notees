@@ -592,3 +592,50 @@ describe("node-link context menu (read mode)", () => {
     expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: otherId, text: "Elsewhere" });
   });
 });
+
+describe("content hyperlink clicks (edit mode)", () => {
+  async function seededLinkBlock(text: string) {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text }] });
+    return { client, pageId };
+  }
+
+  it("a plain click on a hyperlink does NOT navigate and enters edit mode (the event bubbles)", async () => {
+    const { client, pageId } = await seededLinkBlock("[site](https://example.com/x)");
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const anchor = container.querySelector<HTMLElement>("a.nt-hyperlink");
+    if (anchor === null) throw new Error("no hyperlink rendered");
+    const openSpy = vi.spyOn(window, "open");
+
+    // fireEvent returns false when the event was canceled — the anchor
+    // canceled the navigation default…
+    expect(fireEvent.click(anchor)).toBe(false);
+    expect(openSpy).not.toHaveBeenCalled();
+    // …and the bubbled click entered edit mode (the editor mounted).
+    expect(container.querySelector(".nt-block-content .nt-block-text")).not.toBeNull();
+  });
+
+  it("a plain click on a bare-URL autolink also enters edit mode without navigating", async () => {
+    const { client, pageId } = await seededLinkBlock("see https://example.com/page.");
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const anchor = container.querySelector<HTMLElement>("a.nt-hyperlink");
+    if (anchor === null) throw new Error("no hyperlink rendered");
+    expect(anchor.getAttribute("href")).toBe("https://example.com/page");
+
+    expect(fireEvent.click(anchor)).toBe(false);
+    expect(container.querySelector(".nt-block-content .nt-block-text")).not.toBeNull();
+  });
+
+  it("a ctrl+click keeps the default and does NOT enter edit mode", async () => {
+    const { client, pageId } = await seededLinkBlock("[site](https://example.com/x)");
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const anchor = container.querySelector<HTMLElement>("a.nt-hyperlink");
+    if (anchor === null) throw new Error("no hyperlink rendered");
+
+    // Uncanceled — the browser default (new tab via target=_blank) stands;
+    // the row's ctrl+click branch does not edit either (selection gesture).
+    expect(fireEvent.click(anchor, { ctrlKey: true })).toBe(true);
+    expect(container.querySelector(".nt-block-content .nt-block-text")).toBeNull();
+  });
+});
