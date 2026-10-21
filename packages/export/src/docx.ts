@@ -42,7 +42,7 @@
  *  | mention        | resolved name (plain text — no relationships)              |
  *  | class_link     | `#name`                                                     |
  *  | typed_link     | runs: verb (bold) + " " + text + " (locator)"               |
- *  | external_link  | runs: text + " (href)"                                      |
+ *  | [text](href)   | markdown link spans in text runs print verbatim           |
  *  | math           | `$expression$`                                              |
  *  | quote          | Paragraph style "Quote" (custom: italics + left indent)     |
  *  | asset_ref      | bordered placeholder paragraph, `Asset:` label + id [+ path]|
@@ -135,10 +135,6 @@ function renderSpan(span: ExportSpan): TextRun[] {
       if (span.locator !== null) runs.push(new TextRun({ text: ` (${span.locator})` }));
       return runs;
     }
-    case "externalLink":
-      // The link convention: the text followed by the href in parentheses
-      // (a real Hyperlink would need a relationship id per target).
-      return [new TextRun({ text: `${span.text} (${span.href})` })];
     case "math":
       return [new TextRun({ text: `$${span.expression}$` })];
   }

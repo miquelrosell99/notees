@@ -276,14 +276,14 @@ describe("inline spans", () => {
     expect(document).toContain('<w:t xml:space="preserve"> (p. 42)</w:t>');
   });
 
-  it("maps external links to text followed by the href in parentheses", async () => {
+  it("prints markdown link spans in text verbatim (the docx link convention)", async () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000027", "link", [
-      { type: "external_link", href: "https://example.com/a?b=1&c=2", text: "a site" },
+      { type: "text", text: "[a site](https://example.com/a?b=1&c=2)" },
     ]);
     const { document } = await toDocx(node, makeCtx());
-    // The link convention: plain text + (href) — a real docx Hyperlink would
-    // need a relationship id; the & rides as &amp; character data.
-    expect(document).toContain("a site (https://example.com/a?b=1&amp;c=2)");
+    // docx text nodes are plain character data — the markdown link rides
+    // verbatim (a real docx Hyperlink would need a relationship id).
+    expect(document).toContain("[a site](https://example.com/a?b=1&amp;c=2)");
   });
 
   it("maps math to the $expression$ text", async () => {

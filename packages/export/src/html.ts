@@ -47,7 +47,7 @@
  *  |                |   <p class="embed-ref"> — <a href="path">name</a> when      |
  *  |                |   ctx.linkTarget resolved the file (E5), else the raw       |
  *  |                |   `![[uuid]]` text                                          |
- *  | external_link  | <a href="escaped">escaped text</a>                          |
+ *  | [text](href)   | markdown link spans in text runs → <a href> anchors       |
  *  | math           | <code class="math">$expression$</code>                      |
  *  | quote          | <blockquote> with inline children                           |
  *  | rule           | <hr> — a block whose content is exactly "---" (the display- |
@@ -70,6 +70,8 @@
  * Print: @page margins, break-inside avoidance on every block, full-width
  * column, and external-link hrefs printed after their text.
  */
+
+import { splitMarkdownLinks } from "@notees/domain";
 
 import type {
   ExportBlock,
@@ -322,8 +324,22 @@ function renderMarkedText(text: string, marks: readonly string[]): string {
 
 function renderSpan(span: ExportSpan): string {
   switch (span.kind) {
-    case "text":
-      return renderMarkedText(span.text, span.marks);
+    case "text": {
+      // Markdown links live INSIDE text runs (SCHEMA.md render grammar):
+      // link segments become real anchors; the stylesheet already prints
+      // http(s) hrefs after their text.
+      const segments = splitMarkdownLinks(span.text);
+      if (segments.length === 1 && segments[0]?.kind === "text") {
+        return renderMarkedText(span.text, span.marks);
+      }
+      return segments
+        .map((segment) =>
+          segment.kind === "link"
+            ? `<a href="${escapeHtml(segment.href)}">${renderMarkedText(segment.text, span.marks)}</a>`
+            : renderMarkedText(segment.text, span.marks),
+        )
+        .join("");
+    }
     case "hardBreak":
       return "<br>";
     case "mention":
@@ -338,8 +354,6 @@ function renderSpan(span: ExportSpan): string {
       const locator = span.locator === null ? "" : ` (${escapeHtml(span.locator)})`;
       return `<strong class="verb">${escapeHtml(span.verb)}</strong> ${escapeHtml(span.text)}${locator}`;
     }
-    case "externalLink":
-      return `<a href="${escapeHtml(span.href)}">${escapeHtml(span.text)}</a>`;
     case "math":
       return `<code class="math">$${escapeHtml(span.expression)}$</code>`;
   }

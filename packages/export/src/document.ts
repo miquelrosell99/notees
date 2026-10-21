@@ -181,7 +181,6 @@ export type ExportSpan =
     }
   | { kind: "classLink"; classId: string; name: string }
   | { kind: "typedLink"; verb: string; text: string; locator: string | null }
-  | { kind: "externalLink"; text: string; href: string }
   | { kind: "math"; expression: string };
 
 /**
@@ -702,8 +701,6 @@ function buildSpan(token: InlineToken, ctx: ExportContext): ExportSpan {
         locator: locator === undefined ? null : normalizeInlineName(String(locator)),
       };
     }
-    case "external_link":
-      return { kind: "externalLink", text: token.text, href: token.href };
     case "math":
       return { kind: "math", expression: token.expression };
   }

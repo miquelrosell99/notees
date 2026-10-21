@@ -94,14 +94,6 @@ export const textTokenSchema = z
   })
   .strict();
 
-export const externalLinkTokenSchema = z
-  .object({
-    type: z.literal("external_link"),
-    href: z.string().min(1).max(4096),
-    text: z.string().min(1),
-  })
-  .strict();
-
 export const mathTokenSchema = z
   .object({
     type: z.literal("math"),
@@ -207,7 +199,6 @@ export const inlineTokenSchema = z.discriminatedUnion("type", [
   typedLinkMarkSchema,
   mentionTokenSchema,
   classLinkTokenSchema,
-  externalLinkTokenSchema,
   mathTokenSchema,
   hardBreakTokenSchema,
 ]);
@@ -240,7 +231,6 @@ export const contentTokenSchema = z.discriminatedUnion("type", [
   typedLinkMarkSchema,
   mentionTokenSchema,
   classLinkTokenSchema,
-  externalLinkTokenSchema,
   mathTokenSchema,
   hardBreakTokenSchema,
   assetRefTokenSchema,
