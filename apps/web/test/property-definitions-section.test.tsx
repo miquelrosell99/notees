@@ -5,8 +5,10 @@
  * (the class-level inline editor is gone — the
  * identity-only row click opens the S2 modal, where the schema-level default
  * (type-gated, no editor for node-typed schemas) + target-class editing and
- * the unresolved-targets hint live; no chevron, no cog, no Required), the
- * system-schema remove lock, and the keyboard-navigable popover. jsdom
+ * the unresolved-targets hint live; no chevron, no inline fields, no
+ * Required — the hover-revealed row affordances are the COG, definition
+ * settings, and the REMOVE ×), the system-schema
+ * remove lock, and the keyboard-navigable popover. jsdom
  * over the in-process WorkspaceClient.
  */
 
@@ -197,13 +199,13 @@ describe("S6 PropertyDefinitionsSection", () => {
     await expandSection();
 
     const row = screen.getByRole("button", { name: "Open property link" });
-    // Identity-only row: no chevron/expansion, no cog, no inline fields.
+    // Identity-only main button: no chevron/expansion, no inline fields.
     expect(within(row).queryByLabelText("Default for link")).toBeNull();
     expect(within(row).queryByLabelText("Default value")).toBeNull();
     expect(within(row).queryByRole("checkbox", { name: "Required" })).toBeNull();
-    expect(within(row).queryByRole("button", { name: "Definition settings for link" })).toBeNull();
-    // Removal is the row's hover ×.
+    // The row's hover affordances: the COG (definition settings) + the ×.
     const item = row.closest(".nt-propdef") as HTMLElement;
+    expect(within(item).getByRole("button", { name: "Definition settings for link" })).not.toBeNull();
     expect(within(item).getByRole("button", { name: "Remove link from class" })).not.toBeNull();
 
     // The click opens the S2 definition modal (object-typed → no default
@@ -213,6 +215,23 @@ describe("S6 PropertyDefinitionsSection", () => {
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByRole("heading", { name: "Property settings" })).not.toBeNull();
     expect(within(dialog).queryByLabelText("Default value")).toBeNull();
+  });
+
+  it("the hover-revealed cog opens the same definition modal as the row click", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "A");
+    const schemaId = await client.createPropertySchema({ name: "link", type: "object" });
+    await client.setClassProperty(classId, schemaId, {});
+    renderSection(client, classId);
+    await expandSection();
+
+    const item = screen
+      .getByRole("button", { name: "Open property link" })
+      .closest(".nt-propdef") as HTMLElement;
+    fireEvent.click(within(item).getByRole("button", { name: "Definition settings for link" }));
+    await flushWrites();
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Property settings" })).not.toBeNull();
   });
 
   it("hides Remove from class for system property schemas", async () => {
@@ -232,9 +251,12 @@ describe("S6 PropertyDefinitionsSection", () => {
     renderSection(client, classId);
     await expandSection();
 
-    // Neither a panel footer action nor the row's hover × exists.
+    // Neither a panel footer action nor the row's hover × exists; the
+    // definition-settings cog rides even system rows (only REMOVE is
+    // system-locked).
     expect(screen.queryByRole("button", { name: "Remove from class" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Remove Aliases from class" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Definition settings for Aliases" })).not.toBeNull();
     expect(screen.queryByText(/System properties stay/)).toBeNull();
   });
 
