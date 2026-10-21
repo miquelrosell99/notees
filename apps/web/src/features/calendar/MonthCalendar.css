@@ -17,27 +17,6 @@
   gap: var(--spacing-1);
 }
 
-.month-calendar__nav {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: var(--button-icon-only-sm);
-  height: var(--button-icon-only-sm);
-  aspect-ratio: 1;
-  background: none;
-  border: none;
-  font-size: var(--font-size-lg);
-  cursor: pointer;
-  border-radius: var(--shape-small);
-  color: var(--md-sys-color-on-surface);
-  transition: background var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.month-calendar__nav:hover {
-  background: var(--md-sys-color-hover-overlay);
-}
-
 .month-calendar__title {
   flex: 1;
   min-width: 0;
