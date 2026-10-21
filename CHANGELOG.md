@@ -7,6 +7,23 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): the nested filter groups' Add-condition menu opens at a real
+  width — the dynamic subgroup's menu was an invisible 0-width popup.**
+  Live-only bug (jsdom has no layout, so the gate never saw it): nested
+  `GroupBlock`s arrived with `menuWidth={0}` (the root builder measures its
+  container; the nested builders never did), and the add-menu popup took
+  that 0 literally — the popup rendered in the DOM but invisible, so
+  "Add condition" inside a dynamic subgroup (now the Class/Tags dynamic
+  cards too) opened a menu nobody could see or hit. Nested groups now
+  measure their own container (ResizeObserver) and fall back to a 280px
+  floor; the root keeps the builder-container width.
+  - **Files**: `apps/web/src/features/collection/FilterBlockBuilder.tsx`
+    (the self-measure in `GroupBlock`, `addMenuWidth`).
+  - **Verification**: live probe (`scripts/screenshots/pills-probe.mjs`):
+    inside the Class dynamic card, Add condition opens the visible menu,
+    Links inserts, flips dynamic — two nested cards. `filter-builder` 27/27;
+    web `tsc` green.
+
 - **feat(web): the filter block builder's node-target values ride pill
   clusters, the single-target families go multi-value, and Class/Tags gain
   the static/dynamic mode.** Owner asks (2026-10-21): node-target filter
