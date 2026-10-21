@@ -7,6 +7,20 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): the add pills wear one cursor — the label rides the button's
+  pointer.** Hovering an `AddPill` ("+ Add class/tag/property/alias…") split
+  the cursor: pointer over the button's padding, the default arrow over the
+  label text. Feature styles reset `span.pill__text` to `cursor: default`
+  (plain chip labels must not look clickable), and the AddPill's label IS a
+  span inside the button — so the reset beat the button's `cursor: pointer`
+  exactly where the text sits. The primitive now sets
+  `.pill--add .pill__text { cursor: inherit }` (higher specificity, order-independent), so the label rides the button's cursor across the whole hit area.
+  - **Files**: `apps/web/src/components/ui/fleet/Pill.css` (the override next
+    to the `.pill--add` block).
+  - **Verification**: CSS-only change; specificity check
+    (`.pill--add .pill__text` 0-2-0 beats `span.pill__text` 0-1-1 regardless
+    of stylesheet load order); web `tsc` green.
+
 - **fix(web): the checkbox box is a square again — the width scale registers
   xs/sm/md.** The fleet Checkbox and Radio size their boxes `h-xs w-xs` (the
   sm/md/lg scale rides the `--height-xs/sm/md` tokens, the height register's
