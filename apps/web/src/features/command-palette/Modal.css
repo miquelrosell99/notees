@@ -20,7 +20,7 @@
 }
 
 .nt-modal {
-  background: var(--md-sys-color-surface);
+  background: var(--md-sys-color-surface-container-low);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   /* Dialog register: 28px, per the 2026-10-15 ruling (was 12px). */
   border-radius: var(--shape-sheet);
