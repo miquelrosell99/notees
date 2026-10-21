@@ -1112,13 +1112,13 @@ select:focus-visible {
 }
 
 /* Soft ring behind a collapsed-with-children bullet (collapse UI).
-   40px: one outer circle for both bullet kinds, big enough
-   to clear the 19.2px class-icon glyph by ~10px and to read at a glance
-   beside the row text. */
+   28px (settled after the live-size review: the 16px
+   halo hid behind the 19.2px class-icon plate, 40px read too big): one
+   outer circle for both bullet kinds, riding the grown 46px bullet box. */
 .nt-bullet-ring {
   position: absolute;
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background-color: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
   opacity: 0;

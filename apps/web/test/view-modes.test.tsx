@@ -854,8 +854,8 @@ describe("outline list: rows with children default collapsed", () => {
     );
     const ring = /\.nt-bullet-ring \{[^}]*\}/.exec(css);
     expect(ring).not.toBeNull();
-    expect(ring![0]).toContain("width: 40px");
-    expect(ring![0]).toContain("height: 40px");
+    expect(ring![0]).toContain("width: 28px");
+    expect(ring![0]).toContain("height: 28px");
     expect(ring![0]).toContain("background-color");
     // One circle for dot and icon alike — no icon-specific variant.
     expect(css).not.toContain(":has(.nt-bullet-icon) .nt-bullet-ring");
