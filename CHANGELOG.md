@@ -7,6 +7,14 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-21
+- **fix(web): the workspace-switcher popup no longer shrinks to the trigger's
+  width.** The panel was stretched to the sidebar trigger (`left: 0; right:
+  0`), so on a narrow sidebar the search input, the badge + per-row gear, and
+  the "Manage workspaces" footer cramped or wrapped. It now carries
+  `min-width: 16rem` (the same floor `TemplateListPopup` uses) and grows past
+  the trigger when needed. Verification: `pnpm build` in `apps/web`.
+
 ## 2026-10-20
 - **docs: the person-facing docs split from two monoliths into a
   feature-centric structure (the Capacities-docs precedent).** `docs/usage.md`
