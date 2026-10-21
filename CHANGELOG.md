@@ -7,6 +7,48 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(web): the structured-filters panel gains "Save as tab" and a
+  blocks ⇄ raw AST toggle.** Two the escapes from
+  the transient filter's transience. (1) **Save as tab**: a quiet button on
+  the panel's result line (visible while the composed draft is non-empty)
+  persists the pruned draft as a new hosted section view — the full QueryAst
+  envelope (`{ version: 1, scope: { type: "entire_workspace" }, root:
+  <composed group> }`, the same shape the tab bar's "+" and the query modal
+  persist), auto-named "View N" (autoViewName), and the new tab is SELECTED
+  on save while the transient draft clears (the new tab owns the query, the
+  modal's Run behavior). The hosted tab is now OPTIONALLY CONTROLLED:
+  `HostedViewsConfig` gains `selected` + `onSelectTab`, NodeCollection uses
+  them when both are set and keeps its internal state otherwise (every other
+  call site unchanged); the two sections with the identity at hand — the
+  reference sections (pageId + sectionKey) and the class page's classed
+  nodes (classId + "classed-nodes") — lift their tab state and wire the
+  `viewSaver` prop. The quick-search text deliberately never rides the
+  saved view (it is the ranked search's input, not AST). (2) **Raw AST
+  toggle**: a right-aligned kit SelectionButton on the ROOT builder only
+  switches between the blocks and a fleet CodeTextarea holding the COMPOSED
+  query as JSON (switching serializes the pruned draft — half-typed rows
+  drop; the exchange format is never partial); Apply validates against the
+  wire `groupSchema` (invalid JSON and schema violations get an inline
+  error line, nothing applies) and replaces the whole draft on success, the
+  normalized JSON re-serializing into the textarea as the landed feedback.
+  Rides FilterBlockBuilder, so it appears in the FilterBar's panel AND the
+  graph view's color-group editor.
+  - **Files**: `apps/web/src/features/collection/types.ts` (HostedViewsConfig
+    control props), `…/NodeCollection.tsx` (the controlled-tab resolution),
+    `…/FilterBar.tsx` (`FilterViewSaver` + the save button + the draft
+    prune/persist/select/clear flow), `…/FilterBar.css` (the panel-head
+    row), `…/FilterBlockBuilder.tsx` + `…FilterBlockBuilder.css` (the
+    viewbar + raw editor), `apps/web/src/features/page-sections/SystemSections.tsx`
+    + `apps/web/src/features/classview/lassedNodesSection.tsx` (the two
+    hosts: lifted tab state, controlled hostedViews, the viewSaver wiring),
+    `apps/web/test/filter-builder.test.tsx` (the fetch-stubbed REST harness +
+    the round-trip and save-as-tab tests), `docs/features/queries.md` (the
+    two affordances, one sentence each).
+  - **Verification**: `npx tsc --noEmit` (apps/web) and
+    `npx vitest run test/filter-builder.test.tsx test/filter-query.test.ts
+    test/filter-layer.test.tsx` — 60 tests green; the section-views,
+    graph-view and view-modes suites stay green.
+
 - **fix(web): the dynamic subgroup's card shows its boundary.** the nested query builder's limits must read. The subgroup
   rode the kit Card's `filled` variant (`bg-surface-variant`, border-less)
   and blended into the dark structured-filters panel — "1 condition" and
