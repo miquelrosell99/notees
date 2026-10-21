@@ -10,7 +10,7 @@ import { Button } from "../../components/ui/fleet/Button.js";
 import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
-import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { uuidv7 } from "uuidv7";
 import "./CreatePageWithUuidModal.css";
 
@@ -218,7 +218,7 @@ export function CreatePageWithUuidModal({
               <option value="">Select a parent page…</option>
               {pages.map((page) => (
                 <option key={page.id} value={page.id}>
-                  {displayNameForSettings(page) || "Untitled page"}
+                  {nodeDisplayName(page) || "Untitled page"}
                 </option>
               ))}
             </select>

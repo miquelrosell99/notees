@@ -61,7 +61,7 @@ import {
 } from "@notees/export";
 import { rendersAsInlineBlock } from "@notees/domain";
 
-import { displayNameForSettings, displayNameFromClient } from "../../ui/dateDisplay.js";
+import { nodeDisplayName, displayNameFromClient } from "../../ui/dateDisplay.js";
 import { resolveCssColor } from "../../components/ui/fleet/colorPresets.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 
@@ -117,7 +117,7 @@ export function toExportNode(client: ExportReadSurface, id: string): ExportNode 
     parentId: node.parentId,
     // Export DTO name = the node's resolved display name (title-is-content:
     // derived from its content, rename-free).
-    name: displayNameForSettings(node) || null,
+    name: nodeDisplayName(node) || null,
     contentAst: node.contentAst,
     classIds: node.classIds,
     properties,
@@ -286,7 +286,7 @@ export function exportSubtreeMarkdown(
 
   const ordered = collectSubtree(client, rootId, options.includeChildPages ?? true);
   const bundle = bundleMarkdown(ordered, makeExportContext(client), engineOptions(options));
-  const title = displayNameForSettings(root).trim();
+  const title = nodeDisplayName(root).trim();
   const filename = exportFileSlugName(title, rootId, "md");
   return { markdown: concatBundleMarkdown(bundle), filename };
 }
@@ -365,7 +365,7 @@ export function exportSubtreeJsonArchive(
   };
   const archive = buildJsonArchive(ordered, ctx);
   const firstRoot = client.getNode(rootIds[0]!);
-  const title = firstRoot === undefined ? "" : displayNameForSettings(firstRoot).trim();
+  const title = firstRoot === undefined ? "" : nodeDisplayName(firstRoot).trim();
   return {
     blob: new Blob([renderJsonArchive(archive)], { type: "application/json" }),
     filename: exportFileSlugName(title, rootIds[0]!, "json"),
@@ -481,7 +481,7 @@ export function zipExportBundle(
 /** Batch-zip download name: the first root's title slug (E5's `<slug>.zip`). */
 export function exportZipFileName(client: ExportClient, firstRootId: string, date: Date = new Date()): string {
   const root = client.getNode(firstRootId);
-  const title = root === undefined ? "" : displayNameForSettings(root).trim();
+  const title = root === undefined ? "" : nodeDisplayName(root).trim();
   const slug = title.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
   return `${slug.length > 0 ? slug : "export"}-${exportTimestamp(date)}.zip`;
 }
@@ -596,7 +596,7 @@ export async function exportSubtreeFile(
   const root = client.getNode(rootId);
   if (root === undefined) throw new Error("exportSubtreeFile: node not found");
   const { document, resolved } = buildSubtreeDocument(client, rootId, options);
-  const filename = exportFileSlugName(displayNameForSettings(root).trim(), rootId, delivery.extension);
+  const filename = exportFileSlugName(nodeDisplayName(root).trim(), rootId, delivery.extension);
   switch (options.format) {
     case "html":
       return {

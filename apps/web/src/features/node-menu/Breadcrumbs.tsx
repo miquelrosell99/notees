@@ -30,7 +30,7 @@ import { parseDateNodeId } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { untitledLabelOf } from "../../ui/renderStateLabel.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
@@ -73,7 +73,7 @@ function isDateLocked(node: ClientNode | undefined): boolean {
  *  chip's label is graph state) — fall back to the chip's resolved class
  *  display name so the crumb never reads "Untitled". */
 function crumbNameOf(client: AnyClient, node: ClientNode): string {
-  const excerpt = displayNameForSettings(node);
+  const excerpt = nodeDisplayName(node);
   if (excerpt !== "") return clipCrumbName(excerpt);
   const chip = node.contentAst.find(
     (token) => token.type === "class_link",

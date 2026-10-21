@@ -28,7 +28,7 @@ import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain"
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameForSettings } from "./dateDisplay.js";
+import { nodeDisplayName } from "./dateDisplay.js";
 import { parentRenderFacts } from "./renderStateLabel.js";
 import { NodeResultItem } from "../features/pickers/NodeResultItem.js";
 import { Button } from "../components/ui/fleet/Button.js";
@@ -171,7 +171,7 @@ export function SearchPage({
   const classOptions = useMemo(() => {
     const classes = client.listClasses().map((cls) => ({
       value: cls.id,
-      label: displayNameForSettings(cls) || "Untitled class",
+      label: nodeDisplayName(cls) || "Untitled class",
     }));
     return [{ value: "", label: "Any class" }, ...classes];
   }, [client]);
@@ -186,7 +186,7 @@ export function SearchPage({
     while (currentId !== null && guard < 64) {
       const parent: ClientNode | undefined = client.getNode(currentId);
       if (!parent || !rendersWithDocumentChrome(parent)) break;
-      segments.unshift(displayNameForSettings(parent) || "Untitled");
+      segments.unshift(nodeDisplayName(parent) || "Untitled");
       currentId = parent.parentId;
       guard += 1;
     }
@@ -213,7 +213,7 @@ export function SearchPage({
       if (parent === undefined) break;
       if (rendersWithDocumentChrome(parent)) {
         const ancestors = buildParentPath(parent);
-        const name = displayNameForSettings(parent) || "Untitled";
+        const name = nodeDisplayName(parent) || "Untitled";
         return ancestors !== "" ? `${ancestors} ${name}` : name;
       }
       currentId = parent.parentId;
@@ -229,7 +229,7 @@ export function SearchPage({
       .map((classUuid) => {
         const classNode = client.getNode(classUuid);
         if (!classNode) return null;
-        const name = displayNameForSettings(classNode);
+        const name = nodeDisplayName(classNode);
         if (!name) return null;
         return { nodeUuid: classUuid, name };
       })

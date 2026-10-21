@@ -52,7 +52,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { UndoUiState } from "@/core/undo-journal.js";
 
-import { displayNameForSettings, isDatePageNode, rawDateKeywordOf } from "../../ui/dateDisplay.js";
+import { nodeDisplayName, isDatePageNode, rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { flipTheme, toggleFocusMode } from "../settings/deviceSettings.js";
@@ -169,7 +169,7 @@ function containingPageLabel(client: AnyClient, node: ClientNode): string | null
   while (currentId !== null && guard < 64) {
     const parent = client.getNode(currentId);
     if (parent === undefined) return null;
-    if (rendersWithDocumentChrome(parent)) return displayNameForSettings(parent) || "Untitled";
+    if (rendersWithDocumentChrome(parent)) return nodeDisplayName(parent) || "Untitled";
     currentId = parent.parentId;
     guard += 1;
   }
@@ -217,7 +217,7 @@ function pickRandomRows(
     rows.push({
       key: `random:${page.id}`,
       group: "Random",
-      label: displayNameForSettings(page) || "Untitled",
+      label: nodeDisplayName(page) || "Untitled",
       icon: page.icon ?? "mdi-file-document-outline",
       keywords: rawDateKeywordOf(page),
       run: () => onOpenNode(page.id),
@@ -398,7 +398,7 @@ export function CommandPalette({
         if (node === undefined || node.classIds.includes(assetClassId)) continue;
         recentPool.push({
           id: node.id,
-          label: displayNameForSettings(node) || "Untitled",
+          label: nodeDisplayName(node) || "Untitled",
           icon: node.icon ?? "mdi-file-document-outline",
           keywords: rawDateKeywordOf(node),
           run: () => onOpenNode(node.id),
@@ -434,7 +434,7 @@ export function CommandPalette({
         if (!isDatePageNode(page)) continue;
         datePool.push({
           id: page.id,
-          label: displayNameForSettings(page) || "Untitled",
+          label: nodeDisplayName(page) || "Untitled",
           icon: page.icon ?? "mdi-calendar",
           // The raw compact label stays a keyword: display is formatted, but
           // users still type YYYYMMDD to find a date page.
@@ -450,7 +450,7 @@ export function CommandPalette({
         "Pages",
         pages.map((page) => ({
           id: page.id,
-          label: displayNameForSettings(page) || "Untitled page",
+          label: nodeDisplayName(page) || "Untitled page",
           icon: page.icon ?? "mdi-file-document-outline",
           keywords: rawDateKeywordOf(page),
           run: () => onOpenNode(page.id),
@@ -460,9 +460,9 @@ export function CommandPalette({
         "Classes",
         classes.map((cls) => ({
           id: cls.id,
-          label: displayNameForSettings(cls) || "Untitled class",
+          label: nodeDisplayName(cls) || "Untitled class",
           icon: cls.icon ?? "mdi-shape-outline",
-          keywords: `${displayNameForSettings(cls)}`,
+          keywords: `${nodeDisplayName(cls)}`,
           run: () => onOpenNode(cls.id),
         })),
       );
@@ -641,7 +641,7 @@ export function CommandPalette({
                 queryTag: text,
                 key: `content:${node.id}`,
                 group: "Content" as const,
-                label: displayNameForSettings(node) || "Untitled",
+                label: nodeDisplayName(node) || "Untitled",
                 icon: rendersWithDocumentChrome(node, parentRenderFacts(client, node))
                   ? (node.icon ?? "mdi-file-document-outline")
                   : "mdi-format-text",

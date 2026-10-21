@@ -34,7 +34,7 @@ import { cloneSubtree, type CloneReadSurface, type CloneWriteSurface } from "@/c
 import { extractBlockToPage } from "@/core/extractToPage.js";
 import type { ClientNode, ClientPropertySchema } from "@/core/workspace-client/index.js";
 
-import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { nodeLinkUrl } from "../../ui/nodeLink.js";
 import { parentRenderFacts, untitledLabelOf } from "../../ui/renderStateLabel.js";
 import { copyToClipboard } from "../modals/clipboard.js";import { notificationStore } from "../../components/ui/fleet/notificationStore.js";
@@ -93,7 +93,7 @@ export type NodeMenuState =
 
 /** Human label for a node in destructive messages: display name, never an id. */
 export function displayLabelOf(node: ClientNode): string {
-  return displayNameForSettings(node) || untitledLabelOf(node);
+  return nodeDisplayName(node) || untitledLabelOf(node);
 }
 
 /**

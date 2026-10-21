@@ -9,7 +9,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  displayNameForSettings,
+  nodeDisplayName,
   displayNameFromClient,
   formatDateName,
   isDatePageNode,
@@ -40,11 +40,11 @@ describe("formatDateName", () => {
   });
 });
 
-describe("displayNameForSettings", () => {
+describe("nodeDisplayName", () => {
   it("formats from the date id even with a null name (migrated pages)", () => {
     localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY/MM/DD"));
     const node = { id: DAY_ID, isClass: false as const, isEmbedded: false as const, name: null, contentAst: [{ type: "text", text: "20290627" } as const] };
-    expect(displayNameForSettings(node)).toBe("2029/06/27");
+    expect(nodeDisplayName(node)).toBe("2029/06/27");
   });
 
   it("formats date-shaped titles per the setting (title-is-content)", () => {
@@ -57,7 +57,7 @@ describe("displayNameForSettings", () => {
       name: null,
       contentAst: [{ type: "text", text: "20290627" } as const],
     };
-    expect(displayNameForSettings(node)).toBe("27-06-2029");
+    expect(nodeDisplayName(node)).toBe("27-06-2029");
   });
 
   it("defers to the derived name for everything else", () => {
@@ -67,7 +67,7 @@ describe("displayNameForSettings", () => {
       name: null,
       contentAst: [{ type: "text", text: "Derived from content" } as const],
     };
-    expect(displayNameForSettings(node)).toBe("Derived from content");
+    expect(nodeDisplayName(node)).toBe("Derived from content");
   });
 });
 

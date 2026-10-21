@@ -120,7 +120,7 @@ function pad2(value: number): string {
  * the excerpt (flattened chrome: browser tab title, table cells) — without
  * it a bare chip contributes nothing (domain-pure default).
  */
-export function displayNameForSettings(
+export function nodeDisplayName(
   node: NodeLike,
   resolveClassName?: (classId: string) => string | null,
 ): string {
@@ -169,7 +169,7 @@ export function displayNameFromClient(
 ): string | null {
   const node = client.getNode(id);
   if (node === undefined) return client.getDisplayName(id);
-  return displayNameForSettings(node);
+  return nodeDisplayName(node);
 }
 
 /**
@@ -254,7 +254,7 @@ export function datetimeValueText(value: unknown): string | null {
 
 /**
  * The settings-aware label of a date-node id (the id-first branch of
- * displayNameForSettings, usable without a node lookup — property values
+ * nodeDisplayName, usable without a node lookup — property values
  * reference chain nodes that always carry deterministic ids).
  */
 function dateLabelFromId(id: string): string {

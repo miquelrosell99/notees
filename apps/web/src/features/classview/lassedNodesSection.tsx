@@ -37,7 +37,7 @@ import { rendersWithDocumentChrome } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { useViewModePreference } from "../../ui/viewPrefs.js";
@@ -190,7 +190,7 @@ export function ClassedNodesSection({
     <button
       type="button"
       className="nt-class-member-remove"
-      aria-label={`Remove ${displayNameForSettings(item.node) || item.node.id} from ${displayNameForSettings(client.getNode(classId)!) || "this class"}`}
+      aria-label={`Remove ${nodeDisplayName(item.node) || item.node.id} from ${nodeDisplayName(client.getNode(classId)!) || "this class"}`}
       title="Remove from class"
       onClick={() => {
         // System/journal classes refuse membership removal.

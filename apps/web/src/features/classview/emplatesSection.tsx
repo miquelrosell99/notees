@@ -20,7 +20,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
@@ -93,7 +93,7 @@ export function TemplatesSection({
       {templateBindings.length > 0 && (
         <ul className="nt-template-cards">
           {templateBindings.map(({ node, idx }) => {
-            const label = displayNameForSettings(node) ?? node.id;
+            const label = nodeDisplayName(node) ?? node.id;
             return (
               <li key={`${node.id}:${idx}`} className="nt-template-card">
                 <button

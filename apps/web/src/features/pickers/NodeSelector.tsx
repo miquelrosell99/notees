@@ -34,7 +34,7 @@ import { createPortal } from "react-dom";
 import { chainNodeIds, parseDateNodeId, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
-import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { readRecentIds } from "../sidebar/recentPages.js";
 import { Icon } from "../../ui/Icon.js";
@@ -420,7 +420,7 @@ export function NodeSelector({
     const restLower = rest.toLowerCase();
     const hit = client
       .listClasses()
-      .map((cls) => ({ cls, name: (displayNameForSettings(cls) || "").toLowerCase() }))
+      .map((cls) => ({ cls, name: (nodeDisplayName(cls) || "").toLowerCase() }))
       .filter((entry) => entry.name !== "" && (restLower === entry.name || restLower.startsWith(entry.name + " ")))
       .sort((a, b) => b.name.length - a.name.length)[0];
     if (hit === undefined) return { classId: null, query: inlineFilters.query };
@@ -495,7 +495,7 @@ export function NodeSelector({
     const q = effectiveQuery.toLowerCase();
     return client
       .listClasses()
-      .some((cls) => (displayNameForSettings(cls) ?? "").toLowerCase() === q);
+      .some((cls) => (nodeDisplayName(cls) ?? "").toLowerCase() === q);
   }, [client, searchMode, effectiveQuery]);
   const showCreateOption =
     !!effectiveCreateNew &&
@@ -611,7 +611,7 @@ export function NodeSelector({
       const classes = client.listClasses().filter((node) => {
         if (!matchesInlineFilters(node)) return false;
         if (q === "") return true;
-        const name = displayNameForSettings(node) ?? node.id;
+        const name = nodeDisplayName(node) ?? node.id;
         return name.toLowerCase().includes(q);
       });
       return classes;
@@ -811,7 +811,7 @@ export function NodeSelector({
     while (currentId !== null && guard < 64) {
       const parent: ClientNode | undefined = client.getNode(currentId);
       if (!parent || !rendersWithDocumentChrome(parent)) break;
-      segments.unshift(displayNameForSettings(parent) || "Untitled");
+      segments.unshift(nodeDisplayName(parent) || "Untitled");
       currentId = parent.parentId;
       guard += 1;
     }
@@ -839,7 +839,7 @@ export function NodeSelector({
       if (parent === undefined) break;
       if (rendersWithDocumentChrome(parent)) {
         const ancestors = buildParentPath(parent);
-        const name = displayNameForSettings(parent) || "Untitled";
+        const name = nodeDisplayName(parent) || "Untitled";
         return ancestors !== "" ? `${ancestors} ${name}` : name;
       }
       currentId = parent.parentId;
@@ -855,7 +855,7 @@ export function NodeSelector({
       .map((classUuid) => {
         const classNode = client.getNode(classUuid);
         if (!classNode) return null;
-        const name = displayNameForSettings(classNode);
+        const name = nodeDisplayName(classNode);
         if (!name) return null;
         return { nodeUuid: classUuid, name };
       })
