@@ -274,10 +274,12 @@ export function filterKindOptionsForConfig(config?: FilterBarConfig): readonly F
 export function createCondition(kind: ConditionKind): Condition {
   switch (kind) {
     case "class":
-      // The default CLASS row rides the exact register (owner 2026-10-16,
-      // the Odoo operator set): "Class is Day" means the class set is
-      // EXACTLY Day — membership ("contains") is a separate operator.
-      return { type: "classExact", classId: "" };
+      // The default CLASS row rides the MEMBERSHIP register (owner ruling
+      // 2026-10-21, superseding the 2026-10-16 exact-register default):
+      // "Class contains Day" — the class among others, extends-aware — is
+      // the intent nearly always; exact set equality ("is") is the
+      // deliberate narrow reading behind its own operator.
+      return { type: "class", classId: "" };
     case "type":
       return { type: "isClass", isClass: true };
     case "placement":

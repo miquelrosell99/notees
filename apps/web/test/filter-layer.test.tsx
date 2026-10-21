@@ -257,8 +257,9 @@ describe("the classed-nodes filter bar", () => {
     fireEvent.click(
       within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: "client" }),
     );
-    // The membership operator carries the extends closure (owner default:
-    // "is" is the exact register, "contains" is hierarchy-aware membership).
+    // The membership operator carries the extends closure; it is also the
+    // Class row's default since owner 2026-10-21 ("is" is the exact-set
+    // register — the deliberate narrow reading, not the default).
     fireEvent.click(within(panel).getByLabelText("Operator"));
     fireEvent.click(
       within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: "contains" }),
