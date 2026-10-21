@@ -937,7 +937,9 @@ function sweepClassMembership(db: StoreDatabase, classId: string, purge: boolean
  * (SCHEMA.md deletion semantics). Every descendant table owned by the
  * subtree is purged; incoming references from SURVIVING nodes keep their
  * rows (PB1 — see the object.delete applier's comment) and the alias/edge
- * projections are re-materialized for the deleted id set.
+ * projections are re-materialized for the deleted id set. The purge also
+ * rebuilds node_stats for everything that lost a count: the subtree's edge
+ * targets (backlinks) and its ancestors (descendant counts).
  */
 function permanentlyDeleteSubtree(db: StoreDatabase, objectId: string, ts: string): void {
   db.prepare(
@@ -946,6 +948,19 @@ function permanentlyDeleteSubtree(db: StoreDatabase, objectId: string, ts: strin
 
   const ids = subtreeIds(db, objectId);
   const placeholders = ids.map(() => "?").join(",");
+  // Everything that loses a materialized count in this purge, collected
+  // BEFORE the rows die: the subtree's edge targets lose backlinks and the
+  // subtree's ancestors lose descendants — without the rebuild their
+  // node_stats rows keep counting the dead rows (the badge reads a stored
+  // number, so the divergence never heals on its own).
+  const lostBacklinkTargets = (
+    db
+      .prepare(
+        `SELECT DISTINCT target_id FROM edge WHERE source_id IN (${placeholders}) AND target_id IS NOT NULL`,
+      )
+      .all(...ids) as { target_id: string }[]
+  ).map((r) => r.target_id);
+  const ancestors = ancestorIds(db, objectId);
   db.prepare(`DELETE FROM node WHERE id IN (${placeholders})`).run(...ids);
   db.prepare(
     `DELETE FROM node_child_order WHERE parent_id IN (${placeholders}) OR child_id IN (${placeholders})`,
@@ -979,6 +994,7 @@ function permanentlyDeleteSubtree(db: StoreDatabase, objectId: string, ts: strin
   // rows whose alias chains touched the subtree (incoming edges keep their
   // rows by design — PB1 — with the resolution their chain now yields).
   reresolveEdgeTargets(db, ids);
+  rebuildNodeStats(db, [...ancestors, ...lostBacklinkTargets]);
 }
 
 /**

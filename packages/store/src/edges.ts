@@ -275,10 +275,12 @@ export function rebuildEdges(db: StoreDatabase, nodeId: string, at: string): Edg
   ).map((r) => r.target_id);
 
   if (!nodeRow) {
-    // Node gone: drop everything this source ever derived.
+    // Node gone: drop everything this source ever derived. Its edge targets
+    // lose backlinks — rebuild their stats too, not just the dead node's.
+    const orphanedTargets = Array.from(new Set(previousTargets.filter((t): t is string => t !== null)));
     db.prepare("DELETE FROM edge WHERE source_id = ?").run(nodeId);
     db.prepare("DELETE FROM node_link WHERE source_id = ?").run(nodeId);
-    rebuildNodeStats(db, [nodeId]);
+    rebuildNodeStats(db, [nodeId, ...orphanedTargets]);
     return { affectedNodeIds: [nodeId] };
   }
 
