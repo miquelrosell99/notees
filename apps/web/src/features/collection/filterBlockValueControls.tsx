@@ -39,18 +39,23 @@ const PROPERTY_OP_LABELS: ReadonlyArray<{ op: PropertyOp; label: string }> = [
  * pick rides the fleet pill element — effective color/icon resolved the
  * NodePills way, × per pill, the "+ Add class" AddPill opening the anchored
  * NodeSelector in classes mode appending deduped. Broken/unknown ids render
- * an honest plain pill with the raw id. Replaces the old dropdown picks
- * (the single `class` / `classExact` rows bind it to a 0/1-element list).
+ * an honest plain pill with the raw id. Replaces the old dropdown picks;
+ * the single `class` / `classExact` rows bind it to a 0/1-element list with
+ * the AddPill hidden while the slot is filled (the "is" register).
  */
 function ClassPillsPick({
   ariaLabel,
   classIds,
+  single = false,
   client,
   facts,
   onChange,
 }: {
   ariaLabel: string;
   classIds: string[];
+  /** Single-slot binding (the "is" register, owner ruling 2026-10-21): the
+   * AddPill hides while a class rides; clear via the pill's × first. */
+  single?: boolean;
   client: AnyClient;
   facts: BuilderFacts;
   onChange: (classIds: string[]) => void;
@@ -86,15 +91,17 @@ function ClassPillsPick({
           />
         );
       })}
-      <AddPill
-        ref={anchorRef}
-        label="Add class"
-        aria-expanded={open}
-        onClick={(element) => {
-          anchorRef.current = element;
-          setOpen((cur) => !cur);
-        }}
-      />
+      {!(single && classIds.length >= 1) && (
+        <AddPill
+          ref={anchorRef}
+          label="Add class"
+          aria-expanded={open}
+          onClick={(element) => {
+            anchorRef.current = element;
+            setOpen((cur) => !cur);
+          }}
+        />
+      )}
       {open && (
         <NodeSelector
           client={client}
@@ -130,11 +137,14 @@ export function BlockValue({
   switch (condition.type) {
     case "class":
     case "classExact":
-      // The legacy single shapes bind the pill cluster to a 0/1-element list.
+      // The legacy single shapes bind the pill cluster to a 0/1-element
+      // list — the single-slot "is" register (the AddPill hides while the
+      // slot is filled).
       return (
         <ClassPillsPick
           ariaLabel="Class"
           classIds={condition.classId === "" ? [] : [condition.classId]}
+          single
           client={client}
           facts={facts}
           onChange={(classIds) => onChange({ ...condition, classId: classIds[0] ?? "" })}
@@ -164,13 +174,15 @@ export function BlockValue({
       // The set operators carry no value — the operator column IS the condition.
       return null;
     case "pageOf":
-      // v1's Page block (static): the containing page is any of the picked
-      // nodes.
+      // v1's Page block (static, single-value — owner ruling 2026-10-21):
+      // the containing page is ONE node; the AddPill hides while the slot
+      // is filled (clear via the pill's × first, no silent replace).
       return (
         <NodePillsPick
           ariaLabel="Pages"
           nodeIds={condition.nodeIds}
           addLabel="Add page"
+          single
           client={client}
           onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
         />
@@ -192,11 +204,14 @@ export function BlockValue({
     case "ancestorInQuery":
       return <span className="nt-fb-block__word">matching</span>;
     case "rootIn":
+      // The root walk (static, single-value — owner ruling 2026-10-21): the
+      // workspace-root ancestor is ONE node.
       return (
         <NodePillsPick
           ariaLabel="Roots"
           nodeIds={condition.nodeIds}
           addLabel="Add root"
+          single
           client={client}
           onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
         />
@@ -249,12 +264,14 @@ export function BlockValue({
     case "propertyWithin":
       return <PropertyValue condition={condition} onChange={onChange} facts={facts} client={client} datalistId={datalistId} />;
     case "parentOf":
-      // v1's PARENT block (static): the direct parent is any of the picked nodes.
+      // v1's PARENT block (static, single-value — owner ruling 2026-10-21):
+      // the DIRECT parent is ONE node.
       return (
         <NodePillsPick
           ariaLabel="Parents"
           nodeIds={condition.nodeIds}
           addLabel="Add parent"
+          single
           client={client}
           onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
         />
@@ -641,18 +658,25 @@ function NodePickBody({
  * filtering the id out — and the "+ Add" AddPill opens the anchored
  * NodeSelector appending deduped. Node targets are unbounded, so the multi
  * pick is a pill list + search, never a dropdown. Broken refs render an
- * honest plain pill with the raw id.
+ * honest plain pill with the raw id. The single-target families (parent /
+ * page / root, owner ruling 2026-10-21) pass `single`: one slot, the AddPill
+ * hidden while filled.
  */
 function NodePillsPick({
   ariaLabel,
   nodeIds,
   addLabel,
+  single = false,
   client,
   onChange,
 }: {
   ariaLabel: string;
   nodeIds: string[];
   addLabel: string;
+  /** Single-slot binding (owner ruling 2026-10-21 — parent/page/root): the
+   * AddPill hides while a value rides; clear via the pill's × first (no
+   * silent replace). The wire list still carries 0/1 elements. */
+  single?: boolean;
   client: AnyClient;
   onChange: (nodeIds: string[]) => void;
 }) {
@@ -674,15 +698,17 @@ function NodePillsPick({
           />
         );
       })}
-      <AddPill
-        ref={anchorRef}
-        label={addLabel}
-        aria-expanded={open}
-        onClick={(element) => {
-          anchorRef.current = element;
-          setOpen((cur) => !cur);
-        }}
-      />
+      {!(single && nodeIds.length >= 1) && (
+        <AddPill
+          ref={anchorRef}
+          label={addLabel}
+          aria-expanded={open}
+          onClick={(element) => {
+            anchorRef.current = element;
+            setOpen((cur) => !cur);
+          }}
+        />
+      )}
       {open && (
         <NodeSelector
           client={client}

@@ -256,26 +256,36 @@ describe("the classed-nodes filter bar", () => {
     // The default Class row binds the LIST — the picked class rides a pill
     // through the "+ Add class" picker.
     fireEvent.click(within(panel).getByRole("button", { name: "Add class" }));
-    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "client" } });
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "project" } });
     fireEvent.click(
       document.querySelector(
         ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
       )!,
     );
-    // The membership operator ("contains") carries the extends closure; it
-    // is also the Class row's default since owner 2026-10-21 ("is" is the
-    // exact-set register — the deliberate narrow reading, not the default).
+    // "Contains" rides the extends closure (the row's default): Gamma is
+    // classed client, client extends project — all three survive.
+    expect(tableRowCount()).toBe(3);
+    expect(within(section).getByText("3 of 3")).not.toBeNull();
+
+    // "Is" is the SAME closure membership in the single-pill register
+    // (owner ruling 2026-10-21 — "is project" still shows the node classed
+    // client): the picked id carries across the morph, all three stay.
     fireEvent.click(within(panel).getByLabelText("Operator"));
     fireEvent.click(
-      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: "contains" }),
+      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: "is" }),
     );
-
-    // Only the client-classed member survives; the bar names 1 of 3.
-    expect(tableRowCount()).toBe(1);
-    expect(within(section).getByText("1 of 3")).not.toBeNull();
+    expect(tableRowCount()).toBe(3);
     const table = screen.getAllByRole("table")[0]!;
     expect(within(table).getByText("Gamma")).not.toBeNull();
-    expect(within(table).queryByText("Alpha")).toBeNull();
+
+    // The negative register empties the section.
+    fireEvent.click(within(panel).getByLabelText("Operator"));
+    fireEvent.click(
+      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: "is not" }),
+    );
+    // The emptied table reads the empty state ("No classed nodes.").
+    expect(within(section).getByText("No classed nodes.")).not.toBeNull();
+    expect(within(section).getByText("0 of 3")).not.toBeNull();
   });
 
   it("a property condition row narrows the table through the builder", async () => {

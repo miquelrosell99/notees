@@ -520,7 +520,7 @@ describe("the block query builder", () => {
       return { projectId, journalId, clientId, dayish, plain };
     }
 
-    it("Class contains reads membership by default; is rides the EXACT register", async () => {
+    it("Class is and contains both read extends-inheriting closure membership", async () => {
       const client = await seedClient();
       const { projectId } = await seedContainerWorld(client);
       render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
@@ -529,17 +529,22 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Class/);
-      // Default operator "contains" = the multi-value register: closure-aware
-      // ANY-of over the picked list — the class among others, so Dual riding
+      // Default operator "contains" = the LIST form: closure-aware ANY-of
+      // over the picked classes — the class among others, so Dual riding
       // [project, client] stays.
       addNodeViaPicker(panel, "Add class", "project");
       expect(tableRowCount()).toBe(3);
 
-      // "is" = exact set equality: exact {project} keeps only the two
-      // single-classed rows (the picked id carries across the morph).
+      // "is" = the SINGLE-PILL form of the SAME closure membership (owner
+      // ruling 2026-10-21 — "is fuente" matches a node classed book when
+      // book extends fuente; the exact-set register is legacy-wire-only):
+      // the picked id carries across the morph, Dual still rides.
       pickOption(panel, "Operator", "is");
-      expect(tableRowCount()).toBe(2);
-      expect(within(section).queryByText("Dual")).toBeNull();
+      expect(tableRowCount()).toBe(3);
+      expect(within(section).getByText("Dual")).not.toBeNull();
+      // The single-slot register: the "+ Add class" pill hides while the
+      // slot is filled (clear via the pill's × first).
+      expect(within(panel).queryByRole("button", { name: "Add class" })).toBeNull();
     });
 
     it("contains matches ANY picked class (the multi pill pick); does not contain negates", async () => {
@@ -574,7 +579,7 @@ describe("the block query builder", () => {
       expect(within(section).getByText("No classed nodes.")).not.toBeNull();
     });
 
-    it("Page: static — the containing page is any of the picked nodes (v1's Page block)", async () => {
+    it("Page: static — the containing page is a single picked node (v1's Page block, single-value register)", async () => {
       const client = await seedClient();
       const { projectId } = await seedContainerWorld(client);
       render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
@@ -582,11 +587,14 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Page\b/);
+      pickOption(panel, "Operator", "is");
       addNodeViaPicker(panel, "Add page", "Dayish");
+      // Single-slot: the AddPill disappears once the slot is filled.
+      expect(within(panel).queryByRole("button", { name: "Add page" })).toBeNull();
       expect(tableRowCount()).toBe(1);
       expect(within(section).getByText("InDay")).not.toBeNull();
 
-      pickOption(panel, "Operator", "is not any of");
+      pickOption(panel, "Operator", "is not");
       expect(tableRowCount()).toBe(2);
       expect(within(section).queryByText("InDay")).toBeNull();
     });
@@ -646,7 +654,7 @@ describe("the block query builder", () => {
       expect(tableRowCount()).toBe(3);
     });
 
-    it("Root: the workspace-root ancestor is any of the picked nodes", async () => {
+    it("Root: the workspace-root ancestor is a single picked node (single-value register)", async () => {
       const client = await seedClient();
       const { projectId } = await seedContainerWorld(client);
       render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
@@ -654,15 +662,18 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Root/);
+      pickOption(panel, "Operator", "is");
       addNodeViaPicker(panel, "Add root", "Dayish");
+      // Single-slot: the AddPill disappears once the slot is filled.
+      expect(within(panel).queryByRole("button", { name: "Add root" })).toBeNull();
       expect(tableRowCount()).toBe(1);
       expect(within(section).getByText("InDay")).not.toBeNull();
 
-      pickOption(panel, "Operator", "is not any of");
+      pickOption(panel, "Operator", "is not");
       expect(tableRowCount()).toBe(2);
     });
 
-    it("Parent (v1's direct parent): is any of the picked nodes + the set bit", async () => {
+    it("Parent (v1's direct parent): is a single picked node + the set bit", async () => {
       const client = await seedClient();
       const projectId = await seedClass(client, "project");
       const p = await client.createObject({ isEmbedded: false, name: "P" });
@@ -677,7 +688,10 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Parent The/);
+      pickOption(panel, "Operator", "is");
       addNodeViaPicker(panel, "Add parent", "P");
+      // Single-slot: the AddPill disappears once the slot is filled.
+      expect(within(panel).queryByRole("button", { name: "Add parent" })).toBeNull();
       expect(tableRowCount()).toBe(1);
       expect(within(section).getByText("ChildOfP")).not.toBeNull();
 
