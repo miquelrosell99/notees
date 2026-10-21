@@ -203,7 +203,9 @@ describe("Class View", () => {
     // view toolbars render on a class page (body + classed nodes) — scope
     // the mode switch to the classed-nodes section.
     expect(screen.getByRole("table")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Ada Lovelace" })).not.toBeNull();
+    // The name cell is the node's title block row (owner 2026-10-21) — a
+    // div, not a button; the row's text is the anchor.
+    expect(within(screen.getByRole("table")).getByText("Ada Lovelace")).not.toBeNull();
 
     const classedNodesSection = screen
       .getByRole("button", { name: /classed nodes/i })

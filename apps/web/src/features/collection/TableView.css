@@ -101,47 +101,33 @@
   color: var(--md-sys-color-outline);
 }
 
-.nt-table-name-btn {
-  /* Block-level flex (not inline-flex): a percentage max-width on an
-     inline-flex inside a table cell resolves cyclically (cell width depends
-     on content) and is ignored — a long title then grew the cell past the
-     table, the label clipped without an ellipsis, and the pinned Open
-     button stranded under the context column (live probe 2026-10-20). A
-     block flex's width/max-width resolve against the cell content box, so
-     the label wraps inside its lane and the table keeps its width. */
+/* The name cell IS a block row (owner 2026-10-21 — the title BlockRow rides
+   the cell): the icon, the block row, and the pinned Open button share one
+   flex lane; the block row takes the rest of the cell and the title wraps
+   inside it (the retired name button's block-flex max-width contract moves
+   here). */
+td.nt-table-name .nt-table-name-row {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  width: 100%;
-  max-width: 100%;
   min-width: 0;
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--md-sys-color-on-surface);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
 }
 
-.nt-table-name-btn:hover .nt-table-name-label {
-  color: var(--md-sys-color-primary);
+td.nt-table-name .nt-block--title {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The page-headline typography stays in the page header (the card-title
+   precedent) — the cell rides the table's own font. */
+td.nt-table-name .nt-page-title {
+  font: inherit;
 }
 
 .nt-table-name-icon {
   flex-shrink: 0;
   color: var(--md-sys-color-on-surface-variant);
   display: inline-flex;
-}
-
-.nt-table-name-label {
-  /* Long titles WRAP to multiple lines (owner 2026-10-20) — the row grows
-     with the text instead of clipping at one line. overflow stays hidden
-     so the flex item's automatic minimum size stays 0 (the lane holds),
-     and break-word catches words longer than the lane. */
-  overflow: hidden;
-  overflow-wrap: break-word;
-  min-width: 0;
 }
 
 .nt-table-created {

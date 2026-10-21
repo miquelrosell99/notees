@@ -463,10 +463,12 @@ describe("tasks hub", () => {
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
-    // Table default; both node types listed by their derived titles.
+    // Table default; both node types listed by their derived titles — the
+    // name cell is the title block row (owner 2026-10-21): a div, not a
+    // button (navigation rides the pinned "Open …" button).
     const table = screen.getByRole("table");
-    expect(within(table).getByRole("button", { name: "Write report" })).not.toBeNull();
-    expect(within(table).getByRole("button", { name: "Call the office" })).not.toBeNull();
+    expect(within(table).getByText("Write report")).not.toBeNull();
+    expect(within(table).getByText("Call the office")).not.toBeNull();
 
     fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
     const cards = screen.getAllByRole("article");
@@ -536,7 +538,7 @@ describe("tasks hub", () => {
 
     const nameSort = screen.getByRole("button", { name: /^Name/ });
     const rowNames = () =>
-      [...screen.getByRole("table").querySelectorAll(".nt-table-name-label")].map(
+      [...screen.getByRole("table").querySelectorAll("td.nt-table-name .nt-title-content")].map(
         (el) => el.textContent,
       );
 
@@ -966,7 +968,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
   };
 
   const rowNames = (): Array<string | undefined> =>
-    [...screen.getByRole("table").querySelectorAll(".nt-table-name-label")].map((el) => el.textContent ?? undefined);
+    [...screen.getByRole("table").querySelectorAll("td.nt-table-name .nt-title-content")].map((el) => el.textContent ?? undefined);
 
   it("sort panel composes multi-column sorts and the header keeps quick-sort", async () => {
     const client = await seedClient();
@@ -1003,6 +1005,36 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     // Single sort: the arrow stays, the index badge is gone.
     expect(document.querySelectorAll(".nt-table-sort--active")).toHaveLength(1);
     expect(document.querySelector(".nt-table-sort-index")).toBeNull();
+  });
+
+  it("name cell IS the title block row: markdown links render as anchors (never the raw source), click edits inline", async () => {
+    const client = await seedClient();
+    const classId = await client.createClass("project");
+    await client.updateObject(classId, { contentAst: [{ type: "text", text: "project" }] });
+    const member = await client.createObject({
+      isEmbedded: false,
+      contentAst: [
+        { type: "text", text: "[Blender course](https://www.youtube.com/watch?v=abc123)" },
+      ],
+    });
+    await client.assignClass(member, classId);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    await expandClassedNodes();
+
+    // Read mode renders the markdown span as a real anchor — the owner
+    // ruling (2026-10-21) retired the raw [label](href) text flatten.
+    const cell = screen.getByRole("table").querySelector("td.nt-table-name") as HTMLElement;
+    const link = cell.querySelector("a");
+    expect(link?.getAttribute("href")).toBe("https://www.youtube.com/watch?v=abc123");
+    expect(link?.textContent).toBe("Blender course");
+    expect(cell.textContent ?? "").not.toContain("[");
+
+    // A click inside the cell swaps in the full block editor (the title
+    // projection's edit contract — the retired single-token rename input
+    // edited rich titles by flattening; the real editor needs no guard).
+    const content = cell.querySelector(".nt-title-content") as HTMLElement;
+    fireEvent.click(content);
+    expect(content.querySelector(".nt-block-text")).not.toBeNull();
   });
 
   it("column selector hides defaults and adds property columns", async () => {

@@ -55,7 +55,7 @@ async function seedClass(client: WorkspaceClient, title: string): Promise<string
 
 /** The classed-nodes table's rendered row count. */
 function tableRowCount(): number {
-  return screen.getAllByRole("table")[0]!.querySelectorAll(".nt-table-name-label").length;
+  return screen.getAllByRole("table")[0]!.querySelectorAll("td.nt-table-name").length;
 }
 
 /** The classed-nodes section wrapper. */

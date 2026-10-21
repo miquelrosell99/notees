@@ -33,14 +33,22 @@
  *   the picker (unless read-only), the button owns navigation (target
  *   node / day page), hover-revealed like the name cell. The retired
  *   inline open-arrow was its only navigation.
- * - Name cell: row click opens, shift+click peeks. The pinned Open
- *   button — the workspace card's "Open workspace" twin (ghost/sm,
- *   right arrow, owner 2026-10-20) — rides the cell's right edge
- *   regardless of the text: click opens, shift+click peeks the node in
- *   the sidebar card. The peek rides the container's `onNodeShiftClick`,
- *   falling back to the enclosing OutlinerContext's `openInSidebar`
- *   (CardsView's precedent) so un-wired hosts (the class page's Classed
- *   nodes section, query blocks) peek too.
+ * - Name cell (owner 2026-10-21): the node's title IS a block row — the
+ *   page header's title projection (BlockRow variant="title"): inline
+ *   tokens render read mode (markdown links render as links, class chips
+ *   resolve — never the raw-source text flatten), and a click inside the
+ *   cell swaps in the full block editor (the title variant's relaxed
+ *   contract: Enter flushes and leaves edit, no split/structural
+ *   gestures). The pinned Open button — the workspace card's "Open
+ *   workspace" twin (ghost/sm, right arrow, owner 2026-10-20) — owns
+ *   navigation: click opens, shift+click peeks the node in the sidebar
+ *   card. The peek rides the container's `onNodeShiftClick`, falling
+ *   back to the enclosing OutlinerContext's `openInSidebar` (CardsView's
+ *   precedent) so un-wired hosts (the class page's Classed nodes
+ *   section, query blocks) peek too. The rows consume an OutlinerContext,
+ *   so the table hosts its OWN (the FlatCards precedent — visible[0]'s
+ *   node as the root id): the enclosing page/class view is the navigation
+ *   fallback, the shell hubs have none of their own.
  * - CSV export: the toolbar "…" menu's "Export CSV"
  *   downloads the CURRENT view — the visible columns × the full sorted
  *   result set (the window is display-only, never an export cut) — through
@@ -65,6 +73,7 @@ import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
 import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu } from "../../components/ui/fleet/index.js";
 import { Icon } from "../../ui/Icon.js";
+import { BlockRow } from "../../ui/BlockRow.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import {
   DatePickerPopup,
@@ -76,7 +85,7 @@ import { ImportTableModal } from "../modals/ImportTableModal.js";
 import { downloadBlob } from "../modals/download.js";
 import { exportTimestamp } from "../export/exportSubtree.js";
 import { nodeIcon } from "../../ui/iconFor.js";
-import { OutlinerContext } from "../../ui/outliner-context.js";
+import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { nodeDisplayName, displayNameFromClient, datetimeValueText, formatIsoDate } from "../../ui/dateDisplay.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
@@ -249,17 +258,11 @@ function InlineInput({
   inputType = "text",
   ariaLabel,
   onCommit,
-  autoFocus = false,
 }: {
   value: string;
   inputType?: string;
   ariaLabel: string;
   onCommit: (next: string) => void;
-  /** Focus on mount — the click-to-edit rename path only. The editable
-   * property cells never pass this: an always-mounted autofocus input in
-   * every cell hands the page focus to the LAST cell on load (owner
-   * 2026-10-12). */
-  autoFocus?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   return (
@@ -270,7 +273,6 @@ function InlineInput({
       className="nt-table-input"
       aria-label={ariaLabel}
       value={draft}
-      autoFocus={autoFocus}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => onCommit(draft)}
       onKeyDown={(event) => {
@@ -499,9 +501,15 @@ function OpenButton({
   );
 }
 
-/** Name cell: click enters inline edit for simple titles (single text token);
-    rich content keeps click-to-open (editing flattens it — never silently).
-    The pinned Open button always navigates; shift+click peeks. */
+/** Name cell (owner 2026-10-21): the node's title as a block row — the page
+ * header's title projection (variant="title"): inline tokens render read
+ * mode (markdown links as links, class chips resolved — never the raw-source
+ * flatten), a click inside the cell swaps in the full block editor (the
+ * title variant's relaxed contract — Enter flushes and leaves edit, no
+ * split/structural gestures), and the pinned Open button owns navigation
+ * (click opens, shift+click peeks). The retired single-text-token rename
+ * input flattened rich titles to edit them — the real editor needs no such
+ * guard, so the simple/rich distinction retires with it. */
 function NameCell({
   node,
   icon,
@@ -516,52 +524,16 @@ function NameCell({
   onPeek: (id: string) => void;
 }) {
   const { client } = props;
-  const [editing, setEditing] = useState(false);
   const label = nameCellText(client, node);
-  const simple =
-    node.contentAst.length === 0 ||
-    (node.contentAst.length === 1 &&
-      (node.contentAst[0] as { type?: unknown }).type === "text");
-  if (editing && simple) {
-    return (
-      <span className="nt-table-name">
-        {icon !== null && <Icon path={icon} size={0.9} className="nt-table-name-icon" />}
-        <InlineInput
-          inputType="text"
-          ariaLabel={`Rename `}
-          autoFocus
-          value={label === "Untitled" ? "" : label}
-          onCommit={(next) => {
-            setEditing(false);
-            const text = next.trim();
-            if (text !== "" && text !== label) {
-              void client.updateObject(node.id, { contentAst: [{ type: "text", text }] });
-            }
-          }}
-        />
-        <OpenButton
-          label={label}
-          onOpen={() => props.onNodeClick?.(node.id)}
-          onPeek={() => onPeek(node.id)}
-        />
-      </span>
-    );
-  }
   return (
-    <span className="nt-table-name">
-      <button
-        type="button"
-        className="nt-table-name-btn"
-        title={simple ? `${label} (click to edit)` : label}
-        onClick={(event) => {
-          if (event.shiftKey) onPeek(node.id);
-          else if (simple) setEditing(true);
-          else props.onNodeClick?.(node.id);
-        }}
-      >
-        {icon !== null && <Icon path={icon} size={0.9} className="nt-table-name-icon" />}
-        <span className="nt-table-name-label">{label}</span>
-      </button>
+    <span className="nt-table-name-row">
+      {icon !== null && <Icon path={icon} size={0.9} className="nt-table-name-icon" />}
+      <BlockRow
+        variant="title"
+        tree={{ node, children: [] }}
+        client={client}
+        resolveName={(classId) => client.getDisplayName(classId)}
+      />
       <OpenButton
         label={label}
         onOpen={() => props.onNodeClick?.(node.id)}
@@ -969,6 +941,20 @@ export function TableView(props: NodeCollectionProps) {
   });
   const iconMap = client.effectiveClassIcons();
 
+  /**
+   * The name cells render editable title BlockRows (owner 2026-10-21 — a
+   * cell IS the node's title block), and BlockRow consumes an
+   * OutlinerContext — so the table hosts its OWN (the FlatCards precedent,
+   * visible[0]'s node as the root id; the title projection renders no
+   * children and reads no tree facts): the container's onNodeClick is the
+   * navigation seam, the enclosing page/class view the fallback, the shell
+   * hubs' context-free render included.
+   */
+  const outliner = useOutlinerValue(client, visible[0]?.item.node.id ?? "", {
+    openNode: (id) => (onNodeClick ?? outer?.openNode ?? (() => {}))(id),
+    openInSidebar: (id) => peekNode(id),
+  });
+
   const cycleSort = (column: TableColumn) => {
     if (column.sortable === false) return;
     const existing = sort.find((s) => s.key === column.id);
@@ -1255,6 +1241,7 @@ export function TableView(props: NodeCollectionProps) {
       {/* Hosted: the toolbar renders into the tab bar's right-hand cluster
           (owner 2026-10-12); un-hosted: it rides the body top as before. */}
       {chromeTarget !== null ? createPortal(toolbar, chromeTarget) : toolbar}
+      <OutlinerContext.Provider value={outliner}>
       <table className="nt-table">
         <thead>
           <tr>
@@ -1332,6 +1319,7 @@ export function TableView(props: NodeCollectionProps) {
           ))}
         </tbody>
       </table>
+      </OutlinerContext.Provider>
       <ShowMoreButton remaining={remaining} onShowMore={showMore} />
       {exportSelection !== null && (
         <ExportPageModal

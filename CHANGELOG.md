@@ -7,6 +7,41 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(web): table name cells ARE block rows — links render as links,
+  click edits inline, the hover tint is gone.** Owner ruling (2026-10-21).
+  The collection table's Name cell retired its flattened-text button (a
+  title carrying a markdown link showed the raw `[label](href)` source) and
+  the single-text-token rename input (rich titles couldn't edit without
+  flattening). The cell now renders the **page header's title projection**
+  (`BlockRow variant="title"`): read mode shows the real inline tokens —
+  markdown links as anchors, class chips resolved — and a click inside the
+  cell swaps in the **full block editor** (the title variant's relaxed
+  contract: Enter flushes and leaves edit, no split/structural gestures).
+  The row icon stays, and navigation rides the pinned **Open button**
+  exactly as before (click opens, shift+click peeks). The name cell's
+  hover color change (the label tinting primary) retired with the old
+  button.
+  - **Files**: `TableView.tsx` (the `NameCell` rewrite; the table hosts its
+    OWN `OutlinerContext` via `useOutlinerValue` — the FlatCards precedent,
+    `visible[0]`'s node as the root id — so the block rows edit on every
+    host, shell hubs with no enclosing context included; the dead
+    `InlineInput autoFocus` prop retired with the rename path), `TableView.css`
+    (the `.nt-table-name-btn` rules including the hover tint deleted; the
+    cell's flex-lane layout + the headline-typography override ride
+    `td.nt-table-name`).
+  - **Tests**: the row-count/name selectors in `windowing`, `filter-builder`,
+    `filter-layer`, `query-block`, `view-modes`, `class-view` follow the new
+    DOM (`td.nt-table-name` / its `.nt-title-content` — the name cell is no
+    longer a button); a new `view-modes` test pins the ruling: a
+    markdown-link title renders as a real anchor (href + label, never the
+    raw source) and a click in the cell mounts the block editor.
+  - **Docs**: `docs/features/views.md` (the table name-cell paragraph; the
+    read-only sentence now scopes to cards).
+  - **Verification**: `pnpm --filter @notees/web typecheck` clean; web
+    suite green except the pre-existing property-definition/editor failures
+    (another session's in-flight cog slice) and one flaky block-dnd case —
+    none touch the table.
+
 - **fix(web): client-side name search folds diacritics — `video` finds the
   class "Vídeo".** The ranked FTS index has folded diacritics since store
   schema v19, but the pickers' client-side name filters compared raw
