@@ -1,15 +1,43 @@
 // Minimal production verification: boot the migrated workspace in the web UI,
 // assert footer has no sync error, UI search returns the API-known hit.
 // Hard timeouts everywhere; streams progress; exits non-zero on failure.
+//
+// Run from anywhere: `node scripts/screenshots/verify-min.mjs` — every path
+// below self-locates (env → fleet stack dir → repo root). It verifies the
+// migrated workspace, so the search term and workspace default to that
+// dataset; point the env vars elsewhere to smoke another deployment.
 import { chromium } from "playwright";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+// Fleet hosts keep the live stack outside the checkout (source/stack split);
+// repo-root deployments use the repo's own config/.
+const stackDir = process.env.NOTEES_STACK_DIR
+  ?? (existsSync("/etc/periphery/stacks/notees") ? "/etc/periphery/stacks/notees" : repoRoot);
+
+const API = process.env.NOTEES_API ?? "http://localhost:8377";
+const WEB = process.env.NOTEES_WEB ?? "http://localhost:8378";
+const WS = process.env.NOTEES_WORKSPACE ?? "3b30e070-039b-47bc-ad0d-2440a2f173c5";
+
+const readFirst = (paths, what) => {
+  for (const p of paths) {
+    if (p && existsSync(p)) return readFileSync(p, "utf8").trim();
+  }
+  throw new Error(`${what} not found — set the env var or one of: ${paths.filter(Boolean).join(", ")}`);
+};
+const KEY = process.env.NOTEES_API_KEY
+  ?? readFirst([process.env.NOTEES_API_KEY_FILE, join(stackDir, "config/notees/sync/api_key.txt")], "API key");
+const PASSWORD = process.env.NOTEES_ADMIN_PASSWORD
+  ?? readFirst([
+    process.env.NOTEES_ADMIN_PASSWORD_FILE,
+    join(stackDir, "config/notees/.admin_password"),
+    join(repoRoot, "config/notees/.admin_password"),
+  ], "admin password");
 const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL;
 if (!ADMIN_EMAIL) throw new Error("NOTEES_ADMIN_EMAIL is required (the admin login email)");
-
-const API = "http://localhost:8377";
-const WEB = "http://localhost:8378";
-const KEY = (await import("node:fs")).readFileSync("/etc/periphery/stacks/notees/config/notees/sync/api_key.txt", "utf8").trim();
-const WS = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
+const OUT_DIR = process.env.NOTEES_VERIFY_OUT ?? join(stackDir, "scripts/migrated-verify");
 
 const api = async (path) => {
   const r = await fetch(API + path, { headers: { "x-api-key": KEY, "x-workspace-id": WS } });
@@ -23,7 +51,7 @@ const hit = searchApi.results?.[0] ?? searchApi[0];
 const term = "20180900";
 console.log("api search hit:", JSON.stringify(hit).slice(0, 120));
 
-mkdirSync("/etc/periphery/stacks/notees/scripts/migrated-verify", { recursive: true });
+mkdirSync(OUT_DIR, { recursive: true });
 const browser = await chromium.launch({ headless: true, args: ["--disable-dev-shm-usage"] });
 const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
 const page = await context.newPage();
@@ -45,7 +73,7 @@ const t0 = Date.now();
 const loginRes = await fetch(API + "/api/auth/login", {
   method: "POST",
   headers: { "content-type": "application/json" },
-  body: JSON.stringify({ email: ADMIN_EMAIL, password: process.env.NOTEES_ADMIN_PASSWORD ?? "" }),
+  body: JSON.stringify({ email: ADMIN_EMAIL, password: PASSWORD }),
 });
 if (!loginRes.ok) throw new Error(`login: ${loginRes.status}`);
 const { token: SESSION } = await loginRes.json();
@@ -121,7 +149,7 @@ await page.waitForFunction(
 const body = await page.evaluate(() => document.body.innerText);
 const found = body.includes("20180900") || body.includes("2018/09");
 console.log("ui search found hit:", found);
-await page.screenshot({ path: "/etc/periphery/stacks/notees/scripts/migrated-verify/verify.jpg", type: "jpeg", quality: 85 });
+await page.screenshot({ path: join(OUT_DIR, "verify.jpg"), type: "jpeg", quality: 85 });
 
 const rawJson = body.includes('"type":"') || body.includes('[{"type"');
 console.log("raw JSON in rendered body:", rawJson);

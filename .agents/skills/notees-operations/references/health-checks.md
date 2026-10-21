@@ -16,14 +16,15 @@ Canonical: `docs/developers/deployment.md`.
 ## Post-deploy verification (the smoke)
 
 ```sh
-cd scripts/screenshots
-NOTEES_ADMIN_PASSWORD=$(cat ../../config/notees/.admin_password) node verify-min.mjs
+node scripts/screenshots/verify-min.mjs   # any cwd; config self-locates (see deployment.md)
 ```
 
 End-to-end through the real web UI: boots the production stack window, logs
 in via `/api/auth/login`, seeds localStorage, asserts no sync error in the
 footer + a known search hit renders + no raw JSON in the body. Prints
-`VERIFY-PASS` / `VERIFY-FAIL`; exit 1 on fail.
+`VERIFY-PASS` / `VERIFY-FAIL`; exit 1 on fail. Missing password or API key
+fails fast with the env var to set — never a silent empty-credential login
+(bad passwords trip the per-email rate limit below).
 
 ## Headless UI probes (playwright)
 

@@ -8,12 +8,20 @@ Canonical: `docs/developers/deployment.md` + `releases.md`.
 docker build -f apps/server/Dockerfile -t ghcr.io/miquelrosell99/notees-sync:latest . \
 && docker build -f apps/web/Dockerfile    -t ghcr.io/miquelrosell99/notees-web:latest . \
 && docker compose up -d
-cd scripts/screenshots && NOTEES_ADMIN_PASSWORD=$(cat ../../config/notees/.admin_password) node verify-min.mjs
+cd scripts/screenshots && node verify-min.mjs
 ```
 
 `verify-min.mjs` logs in via `/api/auth/login`, seeds localStorage, and asserts
 the footer has no sync error + UI search finds a known hit; prints
-`VERIFY-PASS` / `VERIFY-FAIL` (exit 1), with a 900 s boot window.
+`VERIFY-PASS` / `VERIFY-FAIL` (exit 1), with a 900 s boot window. Run it from
+any cwd — it self-locates the stack dir (`NOTEES_STACK_DIR` →
+`/etc/periphery/stacks/notees` when present → repo root), the API key
+(`<stack>/config/notees/sync/api_key.txt`), and the admin password
+(`<stack>/config/notees/.admin_password`); every value is env-overridable
+(`NOTEES_API`/`NOTEES_WEB`/`NOTEES_API_KEY`/`NOTEES_ADMIN_PASSWORD`/`NOTEES_ADMIN_EMAIL`/`NOTEES_WORKSPACE`/`NOTEES_VERIFY_OUT`).
+The stale duplicate `scripts/verify-min.mjs` (pre-login flow, no playwright
+resolution) was removed 2026-10-21 — the only copy is
+`scripts/screenshots/verify-min.mjs`.
 
 ## Version pinning (ghcr path)
 
