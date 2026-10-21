@@ -7,6 +7,46 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(web): no section header counts anywhere — the active tab's badge is
+  the one count, and every section counts the same way (displayed nodes).**
+  Owner ruling (2026-10-21, on the Backlinks 111 vs Default 109 divergence):
+  a visible section already says it holds SOMETHING, and the hosted tab
+  bar's active-tab badge names the number dynamically — so the
+  NodeViewSection/Section header count badge DIED everywhere. The count
+  prop and `.node-view-section__count` register are gone; every call site
+  (system sections, classed nodes, class properties/templates, metadata
+  panels, graph rail, calendar day sections, TOC) stops passing one. The
+  eager reads that ONLY fed badges are dropped; the eager reads that GATE
+  (hide-when-empty, the empty-starts-expanded states) stay — they answer
+  "is there anything", never display. The block-level backlink gutter
+  badge is untouched (a row affordance, not section chrome). The tab badge
+  semantics are unchanged: the open tab's displayed row count.
+  - **Files**: `apps/web/src/features/page-sections/NodeViewSection.tsx` +
+    `.css` (the count prop + register removed), `apps/web/src/ui/Section.tsx`
+    (the `badge` prop removed), and every call site: `SystemSections.tsx`,
+    `CollectionSection.tsx`, `CommentsSection.tsx`, `CreatedSection.tsx`,
+    `lassedNodesSection.tsx`, `PropertyDefinitionsSection.tsx`,
+    `emplatesSection.tsx`, `xtendedBySection.tsx`, `PropertiesSection.tsx`,
+    `PropertiesSidebar.tsx`, `PropertyView.tsx`, `GraphView.tsx`,
+    `DayPageSections.tsx`, `sidebarSections.tsx`; `docs/features/links.md` +
+    `queries.md` follow.
+  - **Verification**: `pnpm --filter @notees/web typecheck` and the full web
+    suite green.
+
+- **fix(web): the dot glyph returns to 6px — the register growth belongs to
+  the icon bullets.** Owner review (2026-10-21): collapsed nodes with icons
+  "look nice", but the non-icon bullets read too big. The cause: the dot
+  had grown 50% with the register (6 → 9px) while the ring settled back at
+  28px — a bigger dot inside the same circle reads heavy. The dot returns
+  to its long-standing 6px (the `--bullet-dot-size` token value, unchanged
+  all along); the 46px bullet element and the 28px ring stay — the growth
+  exists for the 19.2px class-icon glyph, and the dot doesn't participate
+  in the icon rows at all (the glyph replaces it).
+  - **Files**: `apps/web/src/ui/app.css` (`.nt-bullet-dot` 9 → 6px),
+    `apps/web/test/view-modes.test.tsx` (the CSS spec follows).
+  - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
+    `pnpm --filter @notees/web test` — see the run below.
+
 - **fix(web): the collapsed ring settles back at 28px — the 40px circle read
   too big; the grown bullet element stays.** Owner ruling (2026-10-21,
   live-size review): "the outer circle was fine, now it's too big." The

@@ -866,7 +866,7 @@ describe("outline list: rows with children default collapsed (owner 2026-10-21)"
     expect(bullet![0]).toContain("height: 46px");
     const dot = /\.nt-bullet-dot \{[^}]*\}/.exec(css);
     expect(dot).not.toBeNull();
-    expect(dot![0]).toContain("width: 9px");
+    expect(dot![0]).toContain("width: 6px");
     // The grouped rendering separates its rows from the group header —
     // the overhanging ring of the first row used to crowd the title.
     const outlineCss = process_.getBuiltinModule("node:fs").readFileSync(
