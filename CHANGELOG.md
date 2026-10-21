@@ -45,6 +45,47 @@ predating this file.
     (the mention folds to "Notes on Target", no `.nt-link` inside the row,
     the row button the only click target, right-click anywhere → the row
     menu).
+- **fix(web,domain,protocol): content hyperlinks stop hijacking the block
+  click; bare URLs autolink.** Two owner asks, one slice (2026-10-21).
+  - **The click gesture**: a plain click on a content
+    hyperlink used to BOTH navigate to the external URL and enter edit mode
+    (the anchor had no `onClick`; the event bubbled to the block row's
+    `enterEdit`). Now the anchor `preventDefault`s a plain, unmodified click
+    — no navigation — and deliberately does NOT `stopPropagation`, so the row
+    claims the click as before (edit mode; `openNode` in read-only
+    projections). A Ctrl/Cmd/Shift-modified click keeps the browser default
+    (`target="_blank"` opens a new tab); middle-click and the context menu
+    are untouched. The anchor carries a `Ctrl+click to open link` title so
+    the link stays discoverable.
+  - **Bare-URL autolinking**: `splitMarkdownLinks` (`packages/domain`, the
+    shared render grammar) previously linkified only explicit
+    `[label](href)` markdown spans; a pasted `https://…` rode as literal
+    text. After the markdown-span pass, remaining text segments are now
+    scanned for bare `http(s)://` URLs and linkified — trailing sentence
+    punctuation (`. , ; : ! ? =`) and unbalanced closing parens/brackets are
+    trimmed off the match (`https://x.com/a(b)` keeps its balanced parens;
+    `(see https://x.com)` leaves the sentence's `)` outside), and markdown
+    link labels/hrefs are never re-scanned (order of operations). Non-http(s)
+    schemes and bare schemes without a host stay literal — the
+    `javascript:` allow-list guard is unchanged. Consumers inherit the
+    behavior automatically: the web renderer (`InlineTokens`) and the
+    markdown/html/latex export serializers.
+  - **Docs**: SCHEMA.md's NORMATIVE render grammar (autolink rules + the
+    click gesture — GTK/Flutter port both); `docs/features/links.md`'s
+    external-links section (click gesture + autolinking).
+  - **Verification:** `pnpm typecheck` clean; `pnpm test` green repo-wide.
+    New coverage: `packages/domain/test/markdown-links.test.ts` (the
+    splitter's markdown spans, bare URLs, trailing punctuation, balanced
+    parens, non-http schemes); `apps/web/test/markdown-links.test.tsx`
+    (rendering + the plain/modified-click contract on the anchor);
+    `apps/web/test/node-link-gestures.test.tsx` (plain click on a link
+    enters edit mode without navigating; ctrl+click leaves edit mode alone).
+    One export expectation updated to the new intended behavior:
+    `packages/export/test/markdown-hardening.test.ts` now pins that the
+    paren-unsafe span's bare URL autolinks in the markdown body (emitted as
+    an explicit link with the paren-bearing href in angle brackets) — the
+    old assertion passed only coincidentally, via the un-linkified flattened
+    title in the frontmatter/heading.
 
 - **feat(protocol,store,web)!: retire the `readonly` render contract —
   derived from the system list; class-view chrome cleanup; aliases hide when
