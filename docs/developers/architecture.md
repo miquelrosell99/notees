@@ -639,7 +639,16 @@ code is narrower in these places:
    direct/containment first, alias rows last. `backlinks(id)` and the
    `node_stats.backlink_count` badge stay RAW-DIRECT (an alias- or
    containment-heavy page's list can exceed its badge); `refset`
-   filter inheritance is still owed.
+   filter inheritance is still owed. **Invalidation contract** (the badge is
+   a stored number, the list is a live query — a persistent divergence means
+   a stale count): every edge-affecting write rebuilds `node_stats` for the
+   source and the gained/lost targets (`rebuildEdges`), and the permanent
+   purge rebuilds the subtree's edge targets plus its ancestors
+   (`permanentlyDeleteSubtree` — the 2026-10-21 fix; previously
+   `object.delete {permanent: true}` / `trash.empty` left both
+   `backlink_count` and the ancestors' `descendant_count` counting dead
+   rows). The counts are a derived projection: a `rebuildNodeStats` pass
+   converges them to the edge index.
 3. ~~**FTS search misses page titles.**~~ RECONCILED 2026-09-26, SUPERSEDED
    2026-10-01 (title-is-content): the indexed text is the content plaintext —
    the title lives in the content, so title search rides the same index
