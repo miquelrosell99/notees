@@ -91,9 +91,11 @@ predating this file.
     (the required/defaultValue convention) — fixtures byte-identical both.
   - **Verification:** `pnpm typecheck` clean repo-wide; `pnpm test` green
     (protocol 530, store 617 on both adapters, query 249, server 236,
-    domain 96, web — full suite); fixture replay clean; the migration
-    script's dry run + apply + verify against the live log (envelope count
-    below), then the scoped redeploy + verify-min smoke — VERIFY-PASS.
+    domain 96, web 1881); fixture replay clean; the live migration rewrote
+    826 + 44 envelopes (owner + test workspaces; epochs 14/5; full-replay
+    verify clean); the scoped redeploy + verify-min smoke — VERIFY-PASS.
+    Lockstep: GTK 5fafd87 (854 tests) + Flutter befd834 (668 tests),
+    fixtures byte-identical both.
 - **fix(web): the workspace-switcher's Manage icon is a dashboard grid, not
   sliders.** `mdi-tune` described configuring; the Manage Workspaces view is
   a responsive card grid of workspaces, so the affordance now previews the
