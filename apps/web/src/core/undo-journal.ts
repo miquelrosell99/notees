@@ -166,9 +166,9 @@ export interface UndoSchemaSnapshot {
   targetClassFilter: string[] | null;
   datePrecision: string | null;
   dateQualified: boolean | null;
-  /** The render contracts (PROPERTY-level): null = panel / unset. */
+  /** The render contracts (PROPERTY-level): null = panel / unset.
+   *  (`readonly` retired 2026-10-21 — derived from the system list.) */
   display: "panel" | "bullet" | "inline" | null;
-  readonly: boolean | null;
   hideWhenEmpty: boolean | null;
   /** The GLOBAL default: null = none. */
   defaultValue: unknown;
@@ -500,7 +500,6 @@ export function invertEnvelope(
       }
       if (hasOwn(p, "dateQualified")) restore.dateQualified = prior.dateQualified ?? false;
       if (hasOwn(p, "display")) restore.display = prior.display;
-      if (hasOwn(p, "readonly")) restore.readonly = prior.readonly;
       if (hasOwn(p, "hideWhenEmpty")) restore.hideWhenEmpty = prior.hideWhenEmpty;
       // The property-definition surfaces batch:
       // the new update fields restore with the same keep/clear shape.

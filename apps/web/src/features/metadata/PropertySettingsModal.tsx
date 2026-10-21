@@ -220,17 +220,9 @@ export function PropertySettingsModal({
           </PropertyField>
         )}
 
-        <PropertyField label="Read-only">
-          <ToggleSwitch
-            id="property-readonly"
-            size="sm"
-            leftLabel="Editable"
-            rightLabel="Read-only"
-            checked={schema.readonly === true}
-            onChange={(value) => patch({ readonly: value ? true : null })}
-            aria-label="Read-only"
-          />
-        </PropertyField>
+        {/* No Read-only toggle: the render contract retired — readonly-ness derives from the system property
+            list (@notees/domain isReadonlyProperty), it is not user
+            configuration. */}
         <PropertyField label="Hide when empty">
           <ToggleSwitch
             id="property-hide-when-empty"

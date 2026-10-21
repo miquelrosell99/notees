@@ -275,16 +275,16 @@ export function PropertyConvertModal({
       // The render contracts are PROPERTY-level and the create input
       // carries none — patch the new schema with the old row's contracts.
       // Value display only rides types the row button renders (select /
-      // multi_select / boolean); read-only and hide-when-empty are
-      // type-agnostic.
+      // multi_select / boolean); hide-when-empty is type-agnostic.
+      // (`readonly` retired 2026-10-21 — derived from the system list on
+      // the new schema's id, nothing to copy.)
       const carriesDisplay =
         schema.display !== null &&
         schema.display !== undefined &&
         (targetType === "select" || targetType === "multi_select" || targetType === "boolean");
-      if (carriesDisplay || schema.readonly != null || schema.hideWhenEmpty != null) {
+      if (carriesDisplay || schema.hideWhenEmpty != null) {
         await client.updatePropertySchema(createdId, {
           ...(carriesDisplay ? { display: schema.display } : {}),
-          ...(schema.readonly != null ? { readonly: schema.readonly } : {}),
           ...(schema.hideWhenEmpty != null ? { hideWhenEmpty: schema.hideWhenEmpty } : {}),
         });
       }

@@ -78,8 +78,8 @@ describe("Class View class properties editor", () => {
     // Empty schema: the section starts expanded and invites setup.
     expect(screen.getByText("No property bindings.")).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
-    const dialog = screen.getByRole("dialog", { name: "Add property" });
+    fireEvent.click(screen.getByRole("button", { name: "Bind property" }));
+    const dialog = screen.getByRole("dialog", { name: "Bind property" });
     fireEvent.click(within(dialog).getByText("priority"));
     await flushWrites();
 
@@ -87,8 +87,8 @@ describe("Class View class properties editor", () => {
     expect(bindings).toHaveLength(1);
     expect(bindings[0]).toMatchObject({ name: "priority" });
     // The popover no longer lists the bound schema.
-    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
-    const again = screen.getByRole("dialog", { name: "Add property" });
+    fireEvent.click(screen.getByRole("button", { name: "Bind property" }));
+    const again = screen.getByRole("dialog", { name: "Bind property" });
     expect(within(again).queryByText("priority")).toBeNull();
   });
 
@@ -102,8 +102,8 @@ describe("Class View class properties editor", () => {
       </>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
-    const dialog = screen.getByRole("dialog", { name: "Add property" });
+    fireEvent.click(screen.getByRole("button", { name: "Bind property" }));
+    const dialog = screen.getByRole("dialog", { name: "Bind property" });
     fireEvent.change(within(dialog).getByPlaceholderText("Search or create property…"), {
       target: { value: "impact" },
     });
@@ -112,7 +112,7 @@ describe("Class View class properties editor", () => {
 
     // The popover closed and the S1 modal opened pre-filled (no instant
     // create-and-bind).
-    expect(screen.queryByRole("dialog", { name: "Add property" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Bind property" })).toBeNull();
     const createModal = screen.getByRole("dialog", { name: "Create property" });
     const nameInput = within(createModal).getByLabelText("Property name");
     expect(nameInput).toHaveProperty("value", "impact");
@@ -257,8 +257,8 @@ describe("Class View class properties editor", () => {
     // The schema is picker-eligible again (the schema itself survives — its
     // default included).
     expect(client.listPropertySchemas().find((s) => s.id === schemaId)?.defaultValue).toBe("medium");
-    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
-    const dialog = screen.getByRole("dialog", { name: "Add property" });
+    fireEvent.click(screen.getByRole("button", { name: "Bind property" }));
+    const dialog = screen.getByRole("dialog", { name: "Bind property" });
     expect(within(dialog).getByText("priority")).not.toBeNull();
   });
 

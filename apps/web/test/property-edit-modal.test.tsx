@@ -89,18 +89,6 @@ describe("S2 PropertySettingsModal — the base-definition writes", () => {
     expect(schemaOf(client, schemaId)?.name).toBe("New");
   });
 
-  it("readonly toggles write true and clear back to null (keep/clear)", async () => {
-    const client = await seedClient();
-    const schemaId = await client.createPropertySchema({ name: "Flag", type: "boolean" });
-    const { sync } = renderModal(client, schemaId);
-    fireEvent.click(screen.getByRole("switch", { name: /Read-only$/ }));
-    await sync();
-    expect(schemaOf(client, schemaId)?.readonly).toBe(true);
-    fireEvent.click(screen.getByRole("switch", { name: /Read-only$/ }));
-    await sync();
-    expect(schemaOf(client, schemaId)?.readonly).toBeNull();
-  });
-
   it("number formats: pad/decimals/rounding write and clear", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "Price", type: "number" });
