@@ -7,6 +7,31 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(web): breadcrumbs join the plain-text chrome labels — and the
+  derivation gets one shared home (`plainTitleOf`).**, rounding out the sidebar slice.
+  - **`plainTitleOf(node, resolveClassName?)`** (dateDisplay.ts, beside
+    `nodeDisplayName`): the chrome-label derivation = nodeDisplayName +
+    markdown link spans reduced to their label (per text token, BEFORE the
+    80-char cap — the domain's `splitMarkdownLinks` grammar) + inline class
+    chips resolved to the class's current name via `resolveClassName`.
+    Extracted from the sidebar's inline strip so breadcrumbs and the sidebar
+    rows ride ONE definition instead of two parallel flattens.
+  - **Breadcrumbs**: `crumbNameOf` now rides `plainTitleOf` with the class
+    resolver. Fixes two ed gaps: a title carrying a markdown
+    link showed the raw `[label](href)` source in the trail (now the label
+    only, href never — the strip lands before the 28-char per-crumb clip),
+    and inline class chips were dropped from mixed titles like "Reunión con
+    [persona]" (only chip-ONLY titles had the resolved-name fallback before;
+    the resolver now rides every crumb, so that fallback retires). The
+    sidebar rows switch to the same helper (identical output — their inline
+    strip moves in).
+  - **Docs**: `docs/features/pages.md`'s Breadcrumbs paragraph (the
+    plain-text contract).
+  - **Verification:** `pnpm typecheck` clean repo-wide; `pnpm test` green —
+    new `plainTitleOf` units (link strip, cap order, chip resolution, date
+    branch) and breadcrumb cases (markdown title, mixed chip title) ride
+    alongside the existing chip-only crumb tests.
+
 - **fix(scripts): `verify-min.mjs` self-locates its config — and the stale
   root-copy duplicate is gone.** The smoke failed when run outside
   `scripts/screenshots` (a second, older `scripts/verify-min.mjs` with the
