@@ -7,6 +7,29 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(web): class-property rows — the name-hover tint is gone, and hover
+  now reveals a COG beside the REMOVE ×.**. The
+  direct-bindings row of the class page's "Class properties" section lost
+  the hover background on its icon+name button (resting rows stay clean);
+  the row's hover-revealed right side now carries TWO affordances, both the
+  STANDARD fleet ghost icon buttons: the **cog** (`Definition settings for
+  <name>`, opens the same S2 base-definition modal the row click opens —
+  present even on system-schema rows) and the **×** (the section-level
+  remove confirm, still system-locked = absent). The inherited group's rows
+  are untouched.
+  - **Files**: `PropertyDefinitionsSection.tsx` (the cog Button rides
+    before the ×; the row-comment + section header-comment hover contract
+    updated), `.css` (the `.nt-propdef-main:hover` overlay rule deleted; the
+    cog joins the remove on the `opacity: 0 → row-hover/focus-visible: 1`
+    reveal).
+  - **Verification**: `pnpm --filter @notees/web exec vitest run
+    test/property-definitions-section.test.tsx` — 10/10 (the identity-row
+    test now asserts the cog + × as the hover pair; a new test clicks the
+    cog straight into the "Property settings" dialog; the system-schema
+    test pins the cog riding where the × is locked). `pnpm --filter
+    @notees/web typecheck` clean. Redeployed: `notees-web` rebuilt + stack
+    recreated from the live stack folder, `verify-min.mjs` VERIFY-PASS.
+
 - **feat(web): breadcrumbs join the plain-text chrome labels — and the
   derivation gets one shared home (`plainTitleOf`).**, rounding out the sidebar slice.
   - **`plainTitleOf(node, resolveClassName?)`** (dateDisplay.ts, beside
