@@ -6,9 +6,9 @@
  * - Open / Open in sidebar — navigate to the link target.
  * - Edit link… — the page-level LinkEditModal: retarget the link and/or set
  *   (or edit) an optional custom label. NODE LINKS ONLY (owner ruling): the
- *   item renders only when the target token is a mention — an external_link
- *   token never offers Edit (external links navigate; they are authored by
- *   the slash "Add URL" command / markdown / raw-URL pasting).
+ *   item renders only when the target token is a mention — external links
+ *   (markdown spans in text tokens) never offer Edit here (they navigate;
+ *   they are authored by the slash "Add URL" command / markdown pasting).
  * - Remove link — unlink but keep the visible text (the custom label when
  *   one is set, otherwise the captured surface text).
  * - Delete link — drop the mention token from the block entirely.

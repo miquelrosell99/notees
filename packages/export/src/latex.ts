@@ -73,7 +73,7 @@
  *  | mention        | escaped name; multi-file hook resolved: `[name](path)`      |
  *  | class_link     | `#name` (escaped)                                           |
  *  | typed_link     | `\textbf{verb} text (locator)` — all escaped                |
- *  | external_link  | `\href{escaped url}{escaped text}` (hyperref)               |
+ *  | [text](href)   | markdown link spans in text runs → \href (hyperref)        |
  *  | math           | `$expression$` VERBATIM (authored LaTeX)                    |
  *  | quote          | `quote` environment with the inline children                |
  *  | asset_ref      | `\fbox{\parbox{0.9\linewidth}{Asset: \texttt{id}}}`         |
@@ -111,7 +111,7 @@
  * with no bibliography, like a document without `\cite`s).
  */
 
-import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { SYSTEM_PROPERTY_UUIDS, splitMarkdownLinks } from "@notees/domain";
 
 import type { ExportBlock, ExportDocument, ExportDocumentChild, ExportDocumentProperty, ExportSpan } from "./document.js";
 import { isEmptyPropertyValue, qualifierTail, withoutLeadingTitle } from "./document.js";
@@ -187,8 +187,21 @@ function renderMarkedText(text: string, marks: readonly string[]): string {
 
 function renderSpan(span: ExportSpan): string {
   switch (span.kind) {
-    case "text":
-      return renderMarkedText(span.text, span.marks);
+    case "text": {
+      // Markdown links live INSIDE text runs (SCHEMA.md render grammar):
+      // link segments become \href hyperlinks (hyperref rides the preamble).
+      const segments = splitMarkdownLinks(span.text);
+      if (segments.length === 1 && segments[0]?.kind === "text") {
+        return renderMarkedText(span.text, span.marks);
+      }
+      return segments
+        .map((segment) =>
+          segment.kind === "link"
+            ? `\\href{${escapeLatex(segment.href)}}{${renderMarkedText(segment.text, span.marks)}}`
+            : renderMarkedText(segment.text, span.marks),
+        )
+        .join("");
+    }
     case "hardBreak":
       return "\\\\\n";
     case "mention":
@@ -204,8 +217,6 @@ function renderSpan(span: ExportSpan): string {
       const locator = span.locator === null ? "" : ` (${escapeLatex(span.locator)})`;
       return `\\textbf{${escapeLatex(span.verb)}} ${escapeLatex(span.text)}${locator}`;
     }
-    case "externalLink":
-      return `\\href{${escapeLatex(span.href)}}{${escapeLatex(span.text)}}`;
     case "math":
       // Authored LaTeX — verbatim inside $…$ (see module doc comment).
       return `$${span.expression}$`;

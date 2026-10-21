@@ -143,15 +143,13 @@ describe("token → markdown mapping", () => {
     expect(md).toContain("**glosses** plain");
   });
 
-  it("renders asset_ref, embed_ref, external_link, and math", () => {
+  it("renders asset_ref, embed_ref, markdown links, and math", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000006", "refs", [
       { type: "text", text: "see " },
       { type: "asset_ref", assetId: ASSET_ID },
       { type: "text", text: " and " },
       { type: "embed_ref", nodeId: EMBED_ID },
-      { type: "text", text: " and " },
-      { type: "external_link", href: "https://example.com/x", text: "an example" },
-      { type: "text", text: " and " },
+      { type: "text", text: " and [an example](https://example.com/x) and " },
       { type: "math", expression: "e = mc^2" },
     ]);
     const md = nodeToMarkdown(node, makeCtx());

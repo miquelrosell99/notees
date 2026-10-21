@@ -5,3 +5,4 @@ export * from "./features.js";
 export * from "./dates.js";
 export * from "./recurrence.js";
 export * from "./icons.js";
+export * from "./markdownLinks.js";

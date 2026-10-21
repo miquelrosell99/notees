@@ -124,8 +124,9 @@ detected (`detectConflicts`: `move_move`, `node_deleted`, `class_conflict`,
 ## Content + edges
 
 `contentAst: ContentToken[]` (text, class_link, mention, typed_link,
-asset_ref, embed_ref, quote, query, whiteboard, external_link, math,
-hard_break) — normative in SCHEMA.md, executable
+asset_ref, embed_ref, quote, query, whiteboard, math,
+hard_break — external links are markdown spans inside `text` tokens, the
+`external_link` token retired 2026-10-21) — normative in SCHEMA.md, executable
 `packages/protocol/src/content-mark.ts`. Edge index via `rebuildEdges`
 (`packages/store/src/edges.ts`); `backlinksWithRollup(id)` is query-time
 (direct + containment). Live carrier is whole-array `contentAst`;

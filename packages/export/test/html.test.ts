@@ -261,9 +261,10 @@ describe("inline spans", () => {
     expect(html).toContain('<strong class="verb">auth*red</strong> Le &lt;Guin&gt; (p. 42)');
   });
 
-  it("maps external links to anchors with escaped href and text", () => {
+  it("maps markdown link spans in text to anchors with escaped href and label", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000029", "link", [
-      { type: "external_link", href: "https://example.com/a?b=1&c=2", text: "a <site>" },
+      { type: "text", text: "[a <site>](https://example.com/a?b=1&c=2)" },
+      { type: "text", text: " — done" },
     ]);
     const html = toHtml(node, makeCtx());
     expect(html).toContain('<a href="https://example.com/a?b=1&amp;c=2">a &lt;site&gt;</a>');
@@ -463,8 +464,7 @@ describe("layouts and print", () => {
 describe("privacy: no external resources", () => {
   it("references no link/script/img tags and only the authored external href", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000080", "privacy", [
-      { type: "text", text: "home " },
-      { type: "external_link", href: "https://example.com/only-external", text: "site" },
+      { type: "text", text: "home [site](https://example.com/only-external) " },
       { type: "mention", targetNodeId: EMBED_ID, text: "Embedded target" },
       { type: "embed_ref", nodeId: EMBED_ID },
     ]);

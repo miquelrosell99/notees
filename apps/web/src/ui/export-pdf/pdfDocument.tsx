@@ -117,7 +117,6 @@ function buildStyles(theme: PdfTheme) {
       fontSize: theme.type.bodySize - 1.5,
     },
     verb: { fontWeight: 700, color: theme.colors.accent },
-    externalLink: { color: theme.colors.accent, textDecoration: "underline" },
     math: { fontFamily: theme.fonts.mono, fontSize: theme.type.bodySize - 1.5 },
     assetFigure: { marginBottom: 10 },
     // Display-time rule (owner 2026-10-16): a block whose content is exactly
@@ -245,8 +244,6 @@ function PdfSpan({ span, styles, theme, chrome }: { span: ExportSpan; styles: St
           {span.locator !== null ? ` (${span.locator})` : ""}
         </Text>
       );
-    case "externalLink":
-      return <Text style={styles.externalLink}>{span.text}</Text>;
     case "math":
       return (
         <Text style={styles.math}>

@@ -8,6 +8,46 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-21
+- **feat(protocol)!: the `external_link` content token retires — links are
+  markdown spans in `text` tokens, parsed at render time.** Owner ruling
+  (2026-10-21): the token was invisible in the web editor (zero-length prose
+  span — unselectable, uneditable), authored only by the `/url` slash command
+  with `text = href`, and silently dropped by the document-chrome content
+  flatten — so it never worked in page titles at all, while imports (which can
+  only place raw text in titles) produced `[label](href)` that rendered as raw
+  text. Markdown-in-text survives every boundary (flatten, promotion, export)
+  and is editable prose, exactly what the owner asked for. What changed:
+  `externalLinkTokenSchema` leaves `inlineTokenSchema`/`contentTokenSchema`
+  (strict schemas reject the type — no backward compatibility); SCHEMA.md
+  gains the normative render grammar (`\[([^\]\n]+)\]\(([^()\s]+)\)`,
+  http/https/mailto only, everything else literal) with the reference
+  implementation `splitMarkdownLinks` in `packages/domain` (shared by the web
+  renderer and the markdown/html/latex serializers — docx rides verbatim,
+  PDF prints as text); the web `/url` command writes a `[href](href)` text
+  token (visible, editable, renders linked — the splice merges it into an
+  abutting run per `edit-apply`'s text-merge invariant); `InlineTokens` parses
+  link spans out of every text token (marks apply to all segments);
+  `packages/export` loses the `externalLink` IR span (text spans linkify at
+  serialize time — markdown round-trips verbatim instead of escaping the
+  brackets). **Migration**: `scripts/migrate-retire-external-link.mts`
+  (migrations.md catalog; Kind B — dry-run verified against the live log:
+  2,054 envelopes / 2,074 tokens, all in the personal workspace) rewrites each
+  retired token to a `text` token — `[text](href)` when the pair satisfies the
+  render grammar, else `text (href)` — in the envelope log + snapshot/derived
+  `node.content` rows, bumps `restore_epoch`. LOCKSTEP GATE: run only after
+  the GTK/Flutter ports ship the retired token's rejection + the markdown
+  parse. Derived-state delta: link labels now appear in plaintext excerpts /
+  FTS / display names where the retired token was previously silent.
+  `packages/protocol/src/content-mark.ts`, `packages/protocol/SCHEMA.md`,
+  `packages/domain/src/markdownLinks.ts`, `packages/export/src/{document,
+  markdown,html,latex,docx}.ts`, `apps/web/src/ui/InlineTokens.tsx`,
+  `apps/web/src/features/block-editor/BlockTextEditor.tsx`,
+  `apps/web/src/features/block-editor/captureModel.ts`,
+  `apps/web/src/features/node-menu/NodeContextMenu.tsx`,
+  `apps/web/src/ui/export-pdf/pdfDocument.tsx`, `scripts/`, docs pass
+  (`SCHEMA.md` grammar, `architecture.md` ×2, `links.md` new section,
+  `migrations.md` catalog). Full gate green; the sibling GTK/Flutter slices +
+  the live migration are follow-ups per the lockstep law.
 - **fix(web): the workspace-switcher's Manage icon is a dashboard grid, not
   sliders.** `mdi-tune` described configuring; the Manage Workspaces view is
   a responsive card grid of workspaces, so the affordance now previews the

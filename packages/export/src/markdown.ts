@@ -69,7 +69,7 @@
  *  |                |   includeEmbedded resolves it via ctx.nodeOf; when    |
  *  |                |   unresolved and ctx.linkTarget knows the file,       |
  *  |                |   `[name](<path>)`                                    |
- *  | external_link  | `[text](href)` — href bare when safe, else `<…>`       |
+ *  | [text](href)   | markdown link spans in text runs round-trip verbatim    |
  *  | math           | `$expression$`                                        |
  *  | quote          | `> ` prefix per rendered line (children inline)        |
  *  | query          | fenced ```query block, pretty-printed QueryAST JSON    |
@@ -83,6 +83,7 @@
  */
 
 import type { ContentAst } from "@notees/protocol";
+import { splitMarkdownLinks } from "@notees/domain";
 
 import type {
   ExportBlock,
@@ -309,8 +310,24 @@ function renderMarkedText(text: string, marks: readonly string[], atLineStart: b
 
 function renderSpan(span: ExportSpan, atLineStart: boolean): string {
   switch (span.kind) {
-    case "text":
-      return renderMarkedText(span.text, span.marks, atLineStart);
+    case "text": {
+      // Markdown links live INSIDE text runs (the retired external_link
+      // token's replacement — SCHEMA.md render grammar): link segments
+      // round-trip as real markdown links, everything else is escaped as
+      // before. Marks apply to every segment (the label may carry them too:
+      // `[**label**](href)` is valid markdown).
+      const segments = splitMarkdownLinks(span.text);
+      if (segments.length === 1 && segments[0]?.kind === "text") {
+        return renderMarkedText(span.text, span.marks, atLineStart);
+      }
+      return segments
+        .map((segment, index) =>
+          segment.kind === "link"
+            ? `[${renderMarkedText(segment.text, span.marks, false)}](${renderHref(segment.href)})`
+            : renderMarkedText(segment.text, span.marks, index === 0 && atLineStart),
+        )
+        .join("");
+    }
     case "hardBreak":
       return "\n";
     case "mention":
@@ -325,8 +342,6 @@ function renderSpan(span: ExportSpan, atLineStart: boolean): string {
       const locator = span.locator === null ? "" : ` (${escapeLocator(span.locator)})`;
       return `**${escapeMarkdownText(span.verb)}** ${escapeMarkdownText(span.text)}${locator}`;
     }
-    case "externalLink":
-      return `[${escapeLinkText(span.text)}](${renderHref(span.href)})`;
     case "math":
       return `$${span.expression}$`;
   }

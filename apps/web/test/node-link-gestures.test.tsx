@@ -535,22 +535,19 @@ describe("node-link context menu (read mode)", () => {
     expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "see  again" }]);
   });
 
-  it("the menu opened on an external_link token offers no Edit link… (node links only)", async () => {
+  it("the menu opened at a non-mention token (a markdown link span) offers no Edit link… (node links only)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
-      contentAst: [
-        { type: "text", text: "see " },
-        { type: "external_link", href: "https://a.example", text: "Alpha" },
-      ],
+      contentAst: [{ type: "text", text: "see [Alpha](https://a.example)" }],
     });
     renderHosted(client, pageId);
 
-    // Drive the host's opener at the external token (the UI hit-test never
-    // routes external links here — the guard is the component's contract).
+    // Drive the host's opener at the link span (the UI hit-test never routes
+    // external links here — the guard is the component's contract).
     act(() => {
-      openNodeLinkMenu({ blockId, tokenIndex: 1, x: 8, y: 8, targetNodeId: "" });
+      openNodeLinkMenu({ blockId, tokenIndex: 0, x: 8, y: 8, targetNodeId: "" });
     });
 
     const menu = linkMenu();

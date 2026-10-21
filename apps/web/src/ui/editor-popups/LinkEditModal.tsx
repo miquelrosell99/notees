@@ -12,8 +12,8 @@
  * bound to the existing schema; an unknown name offers "Create property
  * '…' and bind") plus the optional locator. External links are NOT edited
  * here: they navigate in read mode, are authored directly by the slash
- * "Add URL" command (which composes the external_link token at the caret),
- * and carry labels through markdown [label](url) / raw-URL pasting. When
+ * "Add URL" command (which writes a markdown [href](href) text token at the
+ * caret), and carry labels through markdown [label](url) pasting. When
  * the mention's target id resolves to no node, the target section offers
  * the "create page with this id" heal (the caller-id create path — the
  * mention heals in place, no retarget write). Enter inside the modal saves

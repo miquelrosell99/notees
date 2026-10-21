@@ -113,7 +113,6 @@ export const QUOTE_CHILD_TYPES = new Set([
   "typed_link",
   "mention",
   "class_link",
-  "external_link",
   "math",
   "hard_break",
 ]);
