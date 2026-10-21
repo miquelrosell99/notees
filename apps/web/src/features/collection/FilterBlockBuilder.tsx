@@ -103,14 +103,15 @@ import "./FilterBlockBuilder.css";
 
 /**
  * The Match ALL/ANY logic options — the BORDERED button switcher (the fleet
- * SelectionButton, owner ruling 2026-10-21: mode/view switching rides it,
- * with MDI gate symbols so AND/OR stop looking identical — the ToggleSwitch
- * is an enable-a-setting idiom, wrong here). `label` stays the accessible
- * name; shared by the root head row AND every nested group header.
+ * SelectionButton, owner ruling 2026-10-21: mode/view switching rides it;
+ * AND/OR read as BOLD UPPERCASE TEXT — no MDI word icons exist, and the
+ * gate symbols the owner trialed still read worse than words). `label`
+ * stays the accessible name; shared by the root head row AND every nested
+ * group header.
  */
 const LOGIC_OPTIONS: SelectionButtonOption[] = [
-  { value: "and", icon: "mdi-gate-and", label: "Match ALL conditions" },
-  { value: "or", icon: "mdi-gate-or", label: "Match ANY condition" },
+  { value: "and", text: "AND", label: "Match ALL conditions" },
+  { value: "or", text: "OR", label: "Match ANY condition" },
 ];
 
 export interface FilterBlockBuilderProps {
@@ -325,12 +326,14 @@ export function FilterBlockBuilder({ client, group, onChange, config, footExtra 
               setRawText(next);
               setRawError(null);
             }}
+            // The visible label is hidden by the raw-mode CSS (owner ruling
+            // 2026-10-21) — the accessible name stays via the label/htmlFor.
             label="Query AST (JSON)"
             error={rawError !== null}
             spellCheck={false}
           />
           <div className="nt-fb__raw-actions">
-            <Button type="button" size="sm" onClick={applyRaw}>
+            <Button type="button" variant="outline" size="sm" onClick={applyRaw}>
               Apply
             </Button>
           </div>

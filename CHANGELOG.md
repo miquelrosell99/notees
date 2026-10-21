@@ -7,6 +7,60 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): text buttons render at their size tokens fleet-wide — the
+  48dp floor moves to the invisible hit-area overlay.** Owner ruling
+  (2026-10-21): "the add condition button also has too much top and bottom
+  padding, so the problem is global" — the fleet Button's base carried
+  `min-h-touch` (M3's 48dp floor, owner ruling 2026-10-16) for EVERY size,
+  and only icon-only buttons reset it, so text buttons rode 48px tall
+  regardless of their size token (xs/sm/md/lg = 26/30/36/44px). The fix
+  extends the 2026-10-20 icon-only precedent to all buttons: the unlayered
+  `btn` reset (min-width/min-height 0) now covers every button, `relative`
+  rides the base class string, and the invisible min-w/min-h-touch overlay
+  span renders for every enabled button — the visible box shrinks to the
+  size token, the 48dp floor stays as hit area (the 2026-10-16 ruling is
+  honored, as hit area). Blast radius: every text button in the app; no
+  test encoded the bloat (jsdom has no layout), no feature CSS was found
+  compensating with negative margins (the calendar days' local min-height
+  reset anticipated the fix and is now redundant but harmless). Same batch:
+  the raw-mode Apply button is `variant="outline"` + `size="sm"` (bordered
+  → reads clickable; the rounded-square register from 2026-10-20 stands, no
+  pill), and the raw editor's visible "Query AST (JSON)" label is hidden
+  (scoped clip register, RepeatPicker's sr-only pattern — the accessible
+  name stays via label/htmlFor). Also riding uncommitted in this batch: the
+  owner's AND/OR BOLD UPPERCASE TEXT in the SelectionButton (the gate
+  symbols from the last slice read worse than words — no MDI word icons
+  exist; the text segment register returns with `font-weight: 600`).
+  - **Files**: `apps/web/src/components/ui/fleet/Button.tsx` (the overlay
+    for every button, `relative` on the base), `…/Button.css` (the reset
+    selector `.btn.btn--icon-only` → `.btn`, header rewritten),
+    `apps/web/src/features/collection/FilterBlockBuilder.tsx` (Apply
+    outline+sm, the label comment), `…/FilterBlockBuilder.css` (the raw
+    label's screen-reader-only clip), `apps/web/src/components/ui/fleet/
+    SelectionButton.tsx` + `.css` (the bold AND/OR text segments, the
+    owner's uncommitted edits kept).
+  - **Verification**: `npx tsc --noEmit` (apps/web), css-token-drift, and
+    the FULL `pnpm --filter @notees/web test` — 1934 passed, with only the
+    known intermittent block-dnd preview-count flake (27/27 in isolation).
+
+- **fix(web): the block row's "+ Add class" pill stops reserving a permanent
+  gap.** Owner ruling (2026-10-21): the icon-only add pill rides the chips
+  hover-reveal contract (`Pill.css` fades it out until the chips group is
+  hovered), but opacity-hiding still occupies its flex slot — a permanent
+  gap after the last class pill in the block row's right-hand column,
+  pushing the backlink toggle away from the row-end group. The block-row
+  override collapses the hidden pill entirely (`display: none`), so the gap
+  exists only while the classes list is hovered; `:focus-within` keeps the
+  pill reachable and revealed on keyboard entry, and an expanded class
+  picker keeps it in flow because the anchored `NodeSelector` re-measures
+  its anchor on scroll (a collapsed anchor would jump the popup). The rest
+  of the metadata surfaces (page header, tags, aliases, property cells)
+  keep the opacity-only contract untouched.
+  - **Files**: `apps/web/src/ui/app.css` (the scoped rules beside
+    `.nt-block-classes`), `docs/features/pages.md` (the block-row column
+    contract clause).
+  - **Verification**: `pnpm typecheck` + the apps/web suite green.
+
 - **refine(web): the ALL/ANY logic control returns to the bordered
   SelectionButton with gate symbols — and the mode-switch vs settings
   interaction ruling is documented.** Owner ruling (2026-10-21), the

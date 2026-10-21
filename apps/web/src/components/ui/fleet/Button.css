@@ -1,22 +1,27 @@
 /**
- * Button Component CSS — the icon-only contract the utility layer can't
- * express deterministically.
+ * Button Component CSS — the visible-box vs hit-area contract the utility
+ * layer can't express deterministically.
  *
  * The fleet Button's base utility string carries `min-h-touch` (M3's 48dp
- * floor) for every size. For an icon-only button that floor BLOATS the
- * visible box: a 17px icon floated in a 48px square (owner feedback
- * 2026-10-20 — "too much gap between the icon and the button borders").
- * The icon-only visible register (32px at sm) is the box; the INVISIBLE
- * min-w-touch/min-h-touch overlay span inside carries the hit area, the
- * exact division the overlay was built for.
+ * floor) for every size. For the VISIBLE box that floor is bloat: a 17px
+ * icon floated in a 48px square (owner feedback 2026-10-20 — "too much gap
+ * between the icon and the button borders"), and a 14px label riding 48px
+ * tall in every toolbar and panel row (owner feedback 2026-10-21 — "too
+ * much top and bottom padding, so the problem is global"). The visible box
+ * rides the size token for EVERY button (h-button-xs/sm/md/lg — 26/30/36/
+ * 44px); the INVISIBLE min-w-touch/min-h-touch overlay span inside carries
+ * the 48dp hit area, the exact division the overlay was built for. The
+ * 2026-10-16 ruling stays honored (the floor lives on, as hit area); the
+ * 2026-10-20 icon-only visible-register ruling now extends to text buttons
+ * (owner 2026-10-21).
  *
- * min-height/min-width 0 here ride the legacy `btn--icon-only` hook class
- * in UNLAYERED feature CSS, which beats the layered utilities regardless
- * of source order (the utility-layer min-h-0 vs min-h-touch race is
- * order-fragile — measured live).
+ * min-height/min-width 0 here ride the legacy `btn` hook class in UNLAYERED
+ * feature CSS, which beats the layered utilities regardless of source order
+ * (the utility-layer min-h-0 vs min-h-touch race is order-fragile —
+ * measured live).
  */
 
-.btn.btn--icon-only {
+.btn {
   min-width: 0;
   min-height: 0;
 }

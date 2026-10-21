@@ -66,6 +66,18 @@
   justify-content: flex-end;
 }
 
+/* The raw editor's visible label is hidden (owner ruling 2026-10-21) — the
+   accessible name stays (label/htmlFor), the chrome drops. Same clip
+   pattern as the scoped .sr-only registers (RepeatPicker). */
+.nt-fb__raw .code-textarea-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 /* --- the group -------------------------------------------------------- */
 
 .nt-fb-group {
