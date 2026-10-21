@@ -77,7 +77,7 @@ import { downloadBlob } from "../modals/download.js";
 import { exportTimestamp } from "../export/exportSubtree.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 import { OutlinerContext } from "../../ui/outliner-context.js";
-import { displayNameForSettings, displayNameFromClient, datetimeValueText, formatIsoDate } from "../../ui/dateDisplay.js";
+import { nodeDisplayName, displayNameFromClient, datetimeValueText, formatIsoDate } from "../../ui/dateDisplay.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
@@ -119,13 +119,13 @@ function formatCreated(createdAt: string | null): string {
  * multiple lines (owner 2026-10-20), so the dense-chrome 80-char budget
  * doesn't apply — the cell reads fullTitleOf, the same uncapped derivation
  * node links render (the links' whole-title ruling). Date nodes keep the
- * settings-formatted displayNameForSettings branch: their titles are short
+ * settings-formatted nodeDisplayName branch: their titles are short
  * (the cap never binds) and only that branch applies the user's dateFormat.
  */
 function nameCellText(client: AnyClient, node: ClientNode): string {
   const resolve = (classId: string) => client.getDisplayName(classId);
   if (parseDateNodeId(node.id) !== null) {
-    return displayNameForSettings(node, resolve) || "Untitled";
+    return nodeDisplayName(node, resolve) || "Untitled";
   }
   return fullTitleOf(node, resolve) || "Untitled";
 }
@@ -1323,7 +1323,7 @@ export function TableView(props: NodeCollectionProps) {
                     size="sm"
                     checked={selected.has(row.item.node.id)}
                     onChange={() => toggleSelected(row.item.node.id)}
-                    aria-label={`Select ${displayNameForSettings(row.item.node) || "Untitled"}`}
+                    aria-label={`Select ${nodeDisplayName(row.item.node) || "Untitled"}`}
                   />
                 </td>
               )}

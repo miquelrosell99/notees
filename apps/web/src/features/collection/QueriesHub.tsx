@@ -25,7 +25,7 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { useDeviceSetting, writeDeviceSetting } from "../settings/deviceSettings.js";
 import { Button, EmptyState } from "../../components/ui/fleet/index.js";
 import { FilterBuilderModal } from "./FilterBuilderModal.js";
@@ -100,7 +100,7 @@ function QueryResults({
     // Aggregates render the grouped grid (measures need columns) — the same
     // projection the token view uses.
     const classes = client.listClasses();
-    const classNames = new Map(classes.map((cls) => [cls.id, displayNameForSettings(cls) || cls.id]));
+    const classNames = new Map(classes.map((cls) => [cls.id, nodeDisplayName(cls) || cls.id]));
     const propertyNames = new Map(client.listPropertySchemas().map((s) => [s.id, s.name]));
     return (
       <table className="nt-query-table">

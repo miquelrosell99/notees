@@ -10,7 +10,7 @@
  * confirmation-gated Delete, and the shared row markup.
  *
  * Row labels are PLAIN TEXT (owner ruling 2026-10-21): the row is chrome,
- * not content — the title flattens through displayNameForSettings (the same
+ * not content — the title flattens through nodeDisplayName (the same
  * text-only derivation as tab titles and table cells), so mentions, class
  * chips and marks fold into their captured text, markdown links reduce to
  * their label (no hrefs in a row), and nothing inside the label is
@@ -30,7 +30,7 @@ import { SYSTEM_CLASS_UUIDS, splitMarkdownLinks } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -148,7 +148,7 @@ export function FavoritesRecents({
 
   /**
    * Row label: PLAIN TEXT (owner ruling 2026-10-21) — the flatten is
-   * displayNameForSettings, the same text-only derivation the tab title and
+   * nodeDisplayName, the same text-only derivation the tab title and
    * table cells use: mentions fold to their captured text, class chips to
    * the class's current name, marks to their words; markdown link spans
    * reduce to their label (the href never reaches a row). The label carries
@@ -167,7 +167,7 @@ export function FavoritesRecents({
         ? { ...token, text: splitMarkdownLinks(token.text).map((segment) => segment.text).join("") }
         : token,
     );
-    const text = displayNameForSettings(
+    const text = nodeDisplayName(
       { ...node, contentAst: strippedAst },
       (classId) => client.getDisplayName(classId),
     );

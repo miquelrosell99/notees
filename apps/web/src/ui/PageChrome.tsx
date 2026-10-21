@@ -40,7 +40,7 @@ import { Icon } from "./Icon.js";
 import { AddPill } from "../components/ui/fleet/AddPill.js";
 import { Button } from "../components/ui/fleet/Button.js";
 import { TextField } from "../components/ui/fleet/TextField.js";
-import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
+import { nodeDisplayName, displayNameFromClient } from "./dateDisplay.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -324,7 +324,7 @@ export function PageHeaderChrome({
                 if (!preview) onHeaderMenu(event.clientX, event.clientY);
               }}
             >
-              <DayPageHeader iso={dayIso} title={displayNameForSettings(page)} />
+              <DayPageHeader iso={dayIso} title={nodeDisplayName(page)} />
             </span>
           ) : (
             <>
@@ -365,7 +365,7 @@ export function PageHeaderChrome({
                 title="Open page"
                 onClick={() => onOpenPage?.(pageId)}
               >
-                {displayNameForSettings(page)}
+                {nodeDisplayName(page)}
               </button>
             ) : (
               /* The title is a bullet-less BlockRow over the page node itself

@@ -3,7 +3,7 @@
  * refinement 2026-10-06): the weekday + Today flags ride a small line ABOVE
  * the title, and the ISO week number rides a small flag AFTER the title. The
  * title itself stays the user's dateFormat-aware display name (the caller
- * passes displayNameForSettings — the stored compact label must stay
+ * passes nodeDisplayName — the stored compact label must stay
  * canonical for sorting and date lookups). The ±1-day stepping bar and the
  * Reviewed checkbox are gone (owner ruling — day navigation rides the
  * calendar popup, the Today sidebar entry, and Ctrl/Cmd+Shift+T).
