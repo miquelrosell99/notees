@@ -7,6 +7,47 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **refine(web): the structured-filters panel chrome ruling — both switches
+  on one top row, the count line at the bottom-right, "nodes" wording; the
+  head-row controls are TEXT segments.** Owner layout ruling (2026-10-21)
+  on the panel the Save-as-tab and Raw-AST slices just landed. The builder
+  gains a HEAD row carrying BOTH switches on ONE line — the root Match
+  ALL/ANY logic toggle (left, moved out of the root group's header) and the
+  Blocks/Raw AST toggle (right, replacing the floating `.nt-fb__viewbar`
+  row) — and a FOOT row with "Add condition" (left) and the caller's
+  right-aligned cluster (right): the count line, now "**N of M nodes
+  match**" (was "rows"), beside the "Save as tab" button (previously a
+  separate panel-header row, retired). The root GroupBlock rides BARE (no
+  header/footer — an explicit prop, so NOT-wrapped groups at depth 0 keep
+  theirs); the "Add condition" ButtonWithPanel+GridMenu is one small shared
+  component (`AddConditionMenu`) plus a shared `withAddedEntry` helper, used
+  by the nested group footers and the root foot alike; raw AST mode hides
+  the foot's Add condition (no blocks to add) but the count line still
+  rides. The FilterBlockBuilder gains an optional `footExtra` prop (the
+  FilterBar passes the count + save cluster); the graph color-group editor
+  passes nothing and keeps its Add condition. Owner follow-up the same day:
+  the two head-row controls are TEXT segmented controls now — ALL|ANY and
+  Blocks|Raw — the set-all/set-center icons read identically, text wins;
+  `SelectionButton` gains an optional `text` rendering (backwards-compatible,
+  `label` stays the accessible name), used by the logic options (root head
+  AND every nested group header) and the view toggle; the row-level
+  static/dynamic mode buttons stay icon-based.
+  - **Files**: `apps/web/src/features/collection/FilterBlockBuilder.tsx`
+    (the head/foot rows, `AddConditionMenu` + `withAddedEntry` extraction,
+    the root GroupBlock `bare` prop, text LOGIC_OPTIONS + view options),
+    `…/FilterBlockBuilder.css` (`.nt-fb__head`/`.nt-fb__foot` rows, the
+    viewbar retires), `…/FilterBar.tsx` + `…/FilterBar.css` (the panel-head
+    row retires, the count + save cluster moves into `footExtra`, "nodes"
+    wording), `apps/web/src/components/ui/fleet/SelectionButton.tsx` +
+    `…/SelectionButton.css` (the optional `text` segment register),
+    `apps/web/test/filter-builder.test.tsx` (the wording, the foot-row and
+    the ALL/ANY/Blocks/Raw text assertions), `docs/features/queries.md` +
+    `docs/developers/architecture.md` (the count line's placement and
+    wording).
+  - **Verification**: `npx tsc --noEmit` (apps/web), and
+    `npx vitest run test/filter-builder.test.tsx test/filter-query.test.ts
+    test/filter-layer.test.tsx test/graph-view.test.tsx` — 77 tests green.
+
 - **feat(web): the structured-filters panel gains "Save as tab" and a
   blocks ⇄ raw AST toggle.** Two owner asks (2026-10-21) — the escapes from
   the transient filter's transience. (1) **Save as tab**: a quiet button on

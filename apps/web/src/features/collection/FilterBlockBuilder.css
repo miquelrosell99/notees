@@ -14,12 +14,27 @@
   font: var(--font-body-small);
 }
 
-/* --- the blocks ⇄ raw toggle (owner ruling 2026-10-21) -------------------- */
+/* --- the head + foot rows (owner ruling 2026-10-21) ----------------------- */
 
-/* The slim viewbar rides the ROOT builder only, the toggle right-aligned. */
-.nt-fb__viewbar {
+/* The head row: BOTH switches on ONE row — the root Match ALL/ANY logic
+   toggle (left) and the blocks ⇄ raw AST toggle (right). */
+.nt-fb__head {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+/* The foot row: the "Add condition" menu (left) and the caller's
+   right-aligned cluster (the count line + "Save as tab"). */
+.nt-fb__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.nt-fb__head-spacer,
+.nt-fb__foot-spacer {
+  flex: 1;
 }
 
 .nt-fb__raw {
