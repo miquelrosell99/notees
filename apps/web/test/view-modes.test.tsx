@@ -64,6 +64,22 @@ async function flushWrites(): Promise<void> {
   await act(async () => {});
 }
 
+/** Emulate typing into the contentEditable block editor (the title-editor
+ *  suite's helper): mutate the DOM + a collapsed end caret + an input event. */
+function typeInto(editor: HTMLElement, text: string): void {
+  editor.textContent = text;
+  const node = editor.firstChild;
+  if (node !== null) {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(node, text.length);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+  fireEvent.input(editor);
+}
+
 /**
  * The tasks hub authors the task family on open, so its cards
  * board groups by the fixed-id taskStatus schema — tests ensure the family
@@ -1054,25 +1070,45 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     expect(headers()).toContain("Pages");
   });
 
-  it("inline text editing writes a node-backed carrier; numbers commit as scalars; empty unsets", async () => {
+  it("text cells ride the carrier block row — the placeholder creates and edits it, empty unsets; numbers commit as scalars", async () => {
     const client = await seedClient();
     const seeded = await seedProjectTable(client);
     render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
-    // Text cells are node-backed (PB2 one-shape-per-type): the commit
-    // creates a carrier block child and links {nodeId}; the carrier's
-    // content holds the text.
-    const noteInput = screen.getAllByRole("textbox", { name: "Note" })[0]!;
-    fireEvent.change(noteInput, { target: { value: "hello world" } });
-    fireEvent.blur(noteInput);
+    // Text cells are node-backed (PB2 one-shape-per-type) and render through
+    // the name cell's block row (owner 2026-10-21 — the retired inline input
+    // flattened rich text). The empty cell is the muted schema-name
+    // placeholder: one click creates the carrier block child, links
+    // {nodeId}, and lands straight in the block editor.
+    // [0] is the column header sort button; [1] is Alpha's cell.
+    fireEvent.click(screen.getAllByRole("button", { name: "Note" })[1]!);
     await flushWrites();
     const note = client.getEffectiveProperties(seeded.alpha).find((p) => p.propertySchemaId === seeded.noteId);
     const carrierId = (note?.value as { nodeId?: string }).nodeId;
     expect(typeof carrierId).toBe("string");
     const carrier = client.getNode(carrierId!);
     expect(carrier?.parentId).toBe(seeded.alpha);
-    expect(carrier?.contentAst).toEqual([{ type: "text", text: "hello world" }]);
+
+    // The editor mounted straight away (autoEdit) — typing writes the carrier.
+    const editor = document.querySelector(".nt-table-text-cell .nt-block-text") as HTMLElement;
+    expect(editor).not.toBeNull();
+    typeInto(editor, "hello world");
+    fireEvent.blur(editor);
+    await flushWrites();
+    expect(client.getNode(carrierId!)?.contentAst).toEqual([{ type: "text", text: "hello world" }]);
+
+    // Leaving the editor emptied unsets the property — the auto-unset pass
+    // (the metadata row's contract) trashes the orphaned carrier.
+    const content = document.querySelector(".nt-table-text-cell .nt-title-content") as HTMLElement;
+    fireEvent.click(content);
+    const reEditor = document.querySelector(".nt-table-text-cell .nt-block-text") as HTMLElement;
+    typeInto(reEditor, "");
+    fireEvent.blur(reEditor);
+    await flushWrites();
+    expect(
+      client.getEffectiveProperties(seeded.alpha).find((p) => p.propertySchemaId === seeded.noteId),
+    ).toBeUndefined();
 
     const effortInput = screen.getAllByRole("spinbutton", { name: "Effort" })[1]!;
     fireEvent.change(effortInput, { target: { value: "5" } });
@@ -1119,6 +1155,49 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
 
     const owner = client.getEffectiveProperties(seeded.alpha).find((p) => p.propertySchemaId === seeded.ownerId);
     expect(owner?.value).toEqual({ nodeId: paris });
+  });
+
+  it("multi-value node cells wear the pill cluster: every value a pill, add through the picker, remove per pill", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "paper");
+    const authorsId = await client.createPropertySchema({ name: "Authors", type: "object", multi: true });
+    await client.setClassProperty(classId, authorsId, {});
+    const ada = await client.createObject({ isEmbedded: false, name: "Ada Lovelace" });
+    const grace = await client.createObject({ isEmbedded: false, name: "Grace Hopper" });
+    const paper = await client.createObject({ isEmbedded: false, name: "Notes on the Analytical Engine" });
+    await client.assignClass(paper, classId);
+    await client.setProperty(paper, authorsId, { nodeId: ada }, 0);
+    await client.setProperty(paper, authorsId, { nodeId: grace }, 1);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    await expandClassedNodes();
+
+    // Every value rides its own pill (the metadata row's NodePill cluster,
+    // table-scaled) — the old read-only first-value-only cell is gone.
+    const row = screen.getByRole("table").querySelector(`tr[data-node-id="${paper}"]`) as HTMLElement;
+    const pillLabels = [...row.querySelectorAll(".nt-table-chips .pill")].map((el) => el.textContent ?? "");
+    expect(pillLabels.some((label) => label.includes("Ada Lovelace"))).toBe(true);
+    expect(pillLabels.some((label) => label.includes("Grace Hopper"))).toBe(true);
+
+    // The hover-reveal × unsets its own slot, the sibling value survives.
+    fireEvent.click(within(row).getByRole("button", { name: "Remove Ada Lovelace" }));
+    await flushWrites();
+    const remaining = client.getEffectiveProperties(paper).filter((p) => p.propertySchemaId === authorsId);
+    expect(remaining).toHaveLength(1);
+    expect((remaining[0]!.value as { nodeId: string }).nodeId).toBe(grace);
+
+    // The "+ Authors" pill opens the anchored picker; the create row appends
+    // the new node at the next free idx.
+    fireEvent.click(within(row).getByRole("button", { name: "Authors" }));
+    fireEvent.change(screen.getByLabelText("Search Authors"), { target: { value: "Alan Turing" } });
+    await flushWrites();
+    fireEvent.click(document.querySelector(".node-result-item--create")!);
+    await flushWrites();
+    const after = client.getEffectiveProperties(paper).filter((p) => p.propertySchemaId === authorsId);
+    expect(after).toHaveLength(2);
+    // The append rides the next free idx past the highest authored slot (the
+    // ObjectPropertyRow per-slot pattern) — sparse slots never backfill.
+    expect(after.map((p) => p.idx).sort()).toEqual([1, 2]);
+    expect(client.getDisplayName((after[1]!.value as { nodeId: string }).nodeId)).toBe("Alan Turing");
   });
 
   it("row checkboxes select rows; the header box selects the visible window", async () => {

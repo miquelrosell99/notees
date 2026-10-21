@@ -44,6 +44,42 @@ predating this file.
     worker-shaped client shim; `verify-min.mjs` VERIFY-PASS after the web
     image rebuild.
 
+- **feat(web): table property cells — multi-value node properties get the
+  pill cluster; text cells become carrier block rows.** Owner ask
+  (2026-10-21): in table view there was no way to edit or add nodes to a
+  node-typed property (an Authors column rendered read-only, first value
+  only), and text property cells wore a bordered inline input that read out
+  place next to the name cells' title block rows. Now: (1) an editable
+  multi-value object column renders every value as the shared `NodePill`
+  (the linked node's effective color, click opens, hover-reveal × unsets its
+  own idx slot, broken refs keep the dashed raw-id honest state) plus an
+  "+ Add" pill appending at the next free idx through the anchored
+  `NodeSelector` — the schema's `targetClassFilter` scopes both the search
+  and the create row (the metadata `ObjectPropertyRow`'s contract,
+  table-scaled). (2) Single-value text cells render the value's carrier
+  block through `BlockRow variant="title"` — the name cell's contract:
+  inline tokens render read mode, a click swaps in the full block editor
+  (rich text no longer flattens to a plain input), an empty cell is the
+  muted schema-name placeholder whose single click creates the carrier and
+  lands straight in the editor (new additive `BlockRow autoEdit` prop), and
+  an emptied carrier unsets automatically (the `TextPropertyRow` auto-unset
+  pass, table-scaled: the cell's own client subscription + a focus guard so
+  the just-minted carrier survives while its editor holds the caret).
+  Read-only tables (and other multi-value types) render every value of a
+  property joined, never just the first.
+  - **Files**: `apps/web/src/features/collection/TableView.tsx` (the two
+    cell components + the `PropertyCell` branches + the joined read-only
+    tail), `apps/web/src/features/collection/TableView.css` (the cell
+    wrapper/placeholder styles + the title-row-in-td block treatment),
+    `apps/web/src/ui/BlockRow.tsx` (the additive `autoEdit` prop),
+    `apps/web/test/view-modes.test.tsx` (the carrier-cell flow + the pill
+    cluster add/remove), `docs/features/views.md` (the property-cells
+    paragraph).
+  - **Verification**: web `tsc` green; `view-modes.test.tsx` 42/42 (the
+    rewritten text-cell spec exercises placeholder-create → autoEdit →
+    typed commit → emptied unset; the new spec exercises pill render,
+    per-slot × removal, picker append at the next free idx).
+
 - **fix(web): the add pills wear one cursor — the label rides the button's
   pointer.** Hovering an `AddPill` ("+ Add class/tag/property/alias…") split
   the cursor: pointer over the button's padding, the default arrow over the

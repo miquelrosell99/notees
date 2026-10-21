@@ -402,6 +402,44 @@ td.nt-table-name .nt-page-title {
   box-shadow: var(--shadow-focus-ring);
 }
 
+/* The text-property cell (owner 2026-10-21): the value IS a carrier block,
+   rendered through the name cell's title BlockRow — no input chrome. The
+   empty cell is the muted schema-name placeholder (the NodeCell precedent):
+   one click creates the carrier and lands in the editor. */
+.nt-table-text-empty {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.nt-table-text-empty:hover {
+  color: var(--md-sys-color-primary);
+}
+
+/* The carrier's title row root is the OUTLINE GRID by construction (the
+   name-cell caveat, app.css .nt-block): inside a fixed-layout td the grid
+   sets the cell's min-content to the gutter tracks — the cell wrapper and
+   the row take plain block layout instead, and the page-title typography
+   yields to the table font. */
+td .nt-table-text-cell {
+  display: block;
+  min-width: 0;
+}
+
+td .nt-table-text-cell .nt-block--title {
+  display: block;
+  min-width: 0;
+}
+
+td .nt-table-text-cell .nt-page-title {
+  font: inherit;
+}
+
 .nt-table-date {
   border: none;
   background: none;
