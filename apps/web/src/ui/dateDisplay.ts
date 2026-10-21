@@ -15,6 +15,7 @@ import {
   isValidTimeOfDay,
   parseDateNodeId,
   dateNodeLabel,
+  splitMarkdownLinks,
   type NodeLike,
 } from "@notees/domain";
 
@@ -136,6 +137,28 @@ export function nodeDisplayName(
     );
   }
   return deriveDisplayName(node, resolveClassName);
+}
+
+/**
+ * The plain-text chrome label of a node: `nodeDisplayName` PLUS the two
+ * chrome flattens dense surfaces need — markdown link spans reduced to
+ * their label (per text token, BEFORE the 80-char cap, so a long href can
+ * never crowd the label out; the domain's splitMarkdownLinks is the
+ * canonical render grammar) and, via `resolveClassName`, inline class chips
+ * resolved to the class's current name (without a resolver a bare chip
+ * contributes nothing). This is the breadcrumb / sidebar-row derivation:
+ * strings, never interactive or styled markup.
+ */
+export function plainTitleOf(
+  node: NodeLike,
+  resolveClassName?: (classId: string) => string | null,
+): string {
+  const strippedAst = (node.contentAst ?? []).map((token) =>
+    token.type === "text"
+      ? { ...token, text: splitMarkdownLinks(token.text).map((segment) => segment.text).join("") }
+      : token,
+  );
+  return nodeDisplayName({ ...node, contentAst: strippedAst }, resolveClassName);
 }
 
 /**
