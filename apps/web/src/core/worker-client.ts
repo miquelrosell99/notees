@@ -507,6 +507,16 @@ export class WorkerClient {
   }
 
   /**
+   * True while `query`'s cached search read has been seeded but not yet
+   * refreshed from the worker. A cache miss and a real no-match BOTH read
+   * `[]` synchronously — the pending state is the only way a caller can
+   * tell "results loading" from "no results".
+   */
+  searchPending(query: string): boolean {
+    return this.refreshDirty.has(JSON.stringify(["search", [query, null]]));
+  }
+
+  /**
    * Cursor-paginated ranked search: raw RPC (not the read cache —
    * the cache key would include the cursor, so a load-more could never reuse
    * the first page anyway). `cursor` is the previous page's `nextCursor`.

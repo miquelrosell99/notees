@@ -15,16 +15,18 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { chainNodeIds, deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import type { ClientNode } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { proseFromAst } from "../src/editor/prose.js";
 import { computeCandidateSpans, withCandidateSpans } from "../src/editor/capture.js";
+import { isTriggerBoundary } from "../src/features/block-editor/captureModel.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -827,5 +829,224 @@ describe("capture: create-from-@ (async completion)", () => {
     for (let i = 0; i < 6; i += 1) await act(async () => {});
     ast = client.getNode(blockId)?.contentAst as ContentAst;
     expect(ast.some((token) => (token as { type?: string }).type === "mention")).toBe(false);
+  });
+});
+
+describe("capture: trigger boundary (sigil after punctuation)", () => {
+  it("unit: start, whitespace, and punctuation are boundaries; word chars are not", () => {
+    expect(isTriggerBoundary(undefined)).toBe(true);
+    // Whitespace + punctuation + symbols open the picker (the "(@" case)…
+    for (const ch of [" ", "\n", "(", "[", "{", '"', "'", "-", ".", "!", ":", "（"]) {
+      expect(isTriggerBoundary(ch)).toBe(true);
+    }
+    // …letters, digits, underscore, and non-ASCII word chars do not
+    // (the email `user@host` case stays silent).
+    for (const ch of ["a", "Z", "0", "9", "_", "é", "中"]) {
+      expect(isTriggerBoundary(ch)).toBe(false);
+    }
+  });
+
+  it("typing @ / # / + after punctuation opens the picker; after a word char it does not", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "" }] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+
+    // Any non-word char before the sigil counts: bracket, quote, dash…
+    for (const text of ["(@", '"@', "-@"]) {
+      typeWithCaret(editor, text);
+      expect(picker()).not.toBeNull();
+      fireEvent.keyDown(searchBox(), { key: "Escape" });
+      expect(picker()).toBeNull();
+    }
+    // …and the same rule carries # and +.
+    typeWithCaret(editor, "(#");
+    expect(picker()).not.toBeNull();
+    fireEvent.keyDown(searchBox(), { key: "Escape" });
+    typeWithCaret(editor, "(+");
+    expect(picker()).not.toBeNull();
+    fireEvent.keyDown(searchBox(), { key: "Escape" });
+
+    // Mid-word: no popup (the email case).
+    typeWithCaret(editor, "see a@");
+    expect(picker()).toBeNull();
+    typeWithCaret(editor, "see a#");
+    expect(picker()).toBeNull();
+    // Blur flushes the pending draft (and clears the save debounce) before
+    // teardown.
+    fireEvent.blur(editor);
+    await act(async () => {});
+  });
+
+  it("Ctrl+L after punctuation before the selection opens (the widened boundary)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "(hello world)" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    selectRange(editor, 1, 6); // "hello" — preceded by "("
+    fireEvent.keyDown(editor, { key: "l", ctrlKey: true });
+    expect(picker()).not.toBeNull();
+    expect((searchBox() as HTMLInputElement).value).toBe("hello");
+  });
+});
+
+describe("node picker over an async client (worker-shaped reads)", () => {
+  /**
+   * Wrap the in-process client so its reads behave like the WorkerClient
+   * proxy: `search` answers [] until the async refresh "lands" (a manual
+   * notify through the subscribed listeners), and `subscribe` collects
+   * listeners the test fires by hand.
+   */
+  function makeAsyncSearchShim(client: WorkspaceClient): {
+    land: (hits: ClientNode[]) => void;
+  } {
+    let hits: ClientNode[] = [];
+    const listeners: Array<() => void> = [];
+    vi.spyOn(client, "search").mockImplementation(((query: string) => hits) as never);
+    vi.spyOn(client, "subscribe").mockImplementation(((listener: () => void) => {
+      listeners.push(listener);
+      return () => {};
+    }) as never);
+    return {
+      land: (landed) => {
+        hits = landed;
+        for (const listener of listeners) listener();
+      },
+    };
+  }
+
+  it("search hits render when the async notify lands — no extra keystroke needed", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const shim = makeAsyncSearchShim(client);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "see @");
+    typeInPicker("Tar");
+    // The async read is still in flight: no hits, and no lying empty state
+    // either (the client reports the read pending).
+    expect(within(picker()!).queryByText("Target")).toBeNull();
+
+    // The worker's refresh lands: the picker re-renders ON ITS OWN — the bug
+    // needed one more keystroke to surface the cached hits.
+    await act(async () => {
+      shim.land([client.getNode(targetId)!]);
+    });
+    expect(within(picker()!).getByText("Target")).not.toBeNull();
+
+    // Blur flushes the pending draft (and clears the save debounce) before
+    // teardown.
+    fireEvent.blur(editor);
+    await act(async () => {});
+  });
+
+  it("while a search read is pending the picker shows 'Searching…' instead of 'No matches found'", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const shim = makeAsyncSearchShim(client);
+    // The read never resolves while the flag holds.
+    (client as unknown as { searchPending: (query: string) => boolean }).searchPending = () => true;
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "see @");
+    typeInPicker("Tar");
+    // The spinner rides the <300ms-nothing rule — it appears once the wait
+    // is real, and the empty state stays suppressed the whole time.
+    await waitFor(
+      () => expect(within(picker()!).getByRole("status")).not.toBeNull(),
+      { timeout: 2000 },
+    );
+    expect(within(picker()!).queryByText("No matches found")).toBeNull();
+
+    // The read lands: results replace the spinner.
+    (client as unknown as { searchPending: (query: string) => boolean }).searchPending = () => false;
+    await act(async () => {
+      shim.land([client.getNode(targetId)!]);
+    });
+    expect(within(picker()!).getByText("Target")).not.toBeNull();
+    expect(within(picker()!).queryByRole("status")).toBeNull();
+
+    // Blur flushes the pending draft (and clears the save debounce) before
+    // teardown.
+    fireEvent.blur(editor);
+    await act(async () => {});
+  });
+
+  it("the create row waits for the node to become readable (worker-shaped create) and inserts the mention", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "see " }] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    // Worker shape: createObject's promise resolves with the id BEFORE the
+    // node is readable — the sync push lands a beat later, when the test
+    // calls `push` (unhide + notify).
+    const hidden = new Set<string>();
+    const listeners: Array<() => void> = [];
+    let push: (() => void) | null = null;
+    const originalCreate = client.createObject.bind(client);
+    vi.spyOn(client, "createObject").mockImplementation(((input: unknown) =>
+      originalCreate(input as Parameters<typeof originalCreate>[0]).then((id) => {
+        hidden.add(id);
+        push = () => {
+          hidden.delete(id);
+          for (const listener of listeners) listener();
+        };
+        return id;
+      })) as never);
+    const originalGetNode = client.getNode.bind(client);
+    vi.spyOn(client, "getNode").mockImplementation(((id: string) =>
+      hidden.has(id) ? undefined : originalGetNode(id)) as never);
+    vi.spyOn(client, "subscribe").mockImplementation(((listener: () => void) => {
+      listeners.push(listener);
+      return () => {};
+    }) as never);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "see @");
+    typeInPicker("Fresh page");
+    await act(async () => {
+      fireEvent.click(within(picker()!).getByText('Create "Fresh page"'));
+    });
+    for (let i = 0; i < 6; i += 1) await act(async () => {});
+    // The create resolved but the node has not landed yet: no mention, no
+    // crash — the pick is waiting on the subscription.
+    const astBefore = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(astBefore.some((token) => (token as { type?: string }).type === "mention")).toBe(false);
+
+    // The sync push arrives; the waiting pick lands the mention in the same
+    // gesture (no second invocation of the picker).
+    await act(async () => {
+      push?.();
+    });
+    for (let i = 0; i < 6; i += 1) await act(async () => {});
+
+    const created = client.listPages().filter((p) => deriveDisplayName(p) === "Fresh page");
+    expect(created).toHaveLength(1);
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[1]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+      text: "Fresh page",
+    });
+    expect(picker()).toBeNull();
   });
 });

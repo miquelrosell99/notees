@@ -21,6 +21,19 @@ export interface SlashCandidate {
 
 export const TRIGGER_CHAR: Record<CaptureKind, string> = { mention: "@", tag: "#", class: "+", slash: "/" };
 
+/**
+ * The trigger boundary rule: a sigil opens its picker when typed at the
+ * start of the text or right after any NON-word character — whitespace,
+ * punctuation, brackets, quotes, dashes… A word character before the sigil
+ * (letter, digit, underscore — the email `user@host` case) means mid-word
+ * typing: no popup. `prevChar` is the character before the sigil, or
+ * undefined at the start of the text.
+ */
+export function isTriggerBoundary(prevChar: string | undefined): boolean {
+  if (prevChar === undefined) return true;
+  return !/[\p{L}\p{N}_]/u.test(prevChar);
+}
+
 /** displayText schema bound (content-mark.ts mentionTokenSchema). */
 export const MENTION_LABEL_MAX = 512;
 

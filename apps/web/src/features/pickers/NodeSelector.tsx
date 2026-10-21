@@ -26,6 +26,15 @@
  * refines any non-classes mode to that class's members; the create row
  * answers the rest of the query and carries the refined class. Data wiring
  * goes through the workspace client (search/list/create/class-assign).
+ *
+ * Async reads: the worker-backed client answers from a cache that converges
+ * through a "changed" notify — the picker subscribes (search hits render
+ * the moment they land, no retype needed) and renders a "Searching…" state
+ * while the current query's read is pending (the client's `searchPending`
+ * seam) instead of a lying "No matches found". A create that returns an id
+ * resolves through `waitForNode` — the fresh node is not readable until the
+ * create's sync push lands, and picking must wait for it or the mention
+ * never inserts.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -49,6 +58,8 @@ import type { QuickCreateClient, QuickCreatePlan } from "../modals/quickCreate.j
 import { resolveQuickCreate } from "../modals/quickCreate.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
 import { SearchField } from "../../components/ui/fleet/SearchField.js";
+import { Spinner } from "../../components/ui/fleet/Spinner.js";
+import { useDelayedVisible } from "../../components/ui/fleet/useDelayedVisible.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import "./NodeSelector.css";
 
@@ -65,6 +76,13 @@ export interface NodeSelectorClient extends QuickCreateClient {
   /** The document-chrome node pool (filter-prefix listings). */
   listPages(): ClientNode[];
   search(query: string): ClientNode[];
+  /**
+   * Async clients only (the worker proxy): true while `query`'s search read
+   * is still in flight. A miss and a real no-match both read `[]`
+   * synchronously, so this is the only "loading" signal. Sync clients omit
+   * it — their `search` answers immediately.
+   */
+  searchPending?(query: string): boolean;
   createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string>;
 }
 
@@ -478,8 +496,14 @@ export function NodeSelector({
 
   const resolveCreateResult = (result: ClientNode | string | void): void => {
     if (typeof result === "string") {
-      const node = client.getNode(result);
-      if (node) handleAdd(node);
+      // The worker client answers a just-created id's getNode with undefined
+      // until the create's sync push lands (the RPC resolution outruns it) —
+      // reading synchronously here dropped the pick entirely: the node was
+      // created, the panel closed, and no mention ever inserted. Wait for
+      // the node like the date-suggestion path does, then hand it to the pick.
+      void waitForNode(client, result).then((node) => {
+        if (node !== undefined) handleAdd(node);
+      });
     } else if (result !== undefined && typeof result === "object" && "id" in result) {
       handleAdd(result);
     }
@@ -606,13 +630,32 @@ export function NodeSelector({
       : rendersAsInlineBlock(node, parentRenderFacts(client, node));
   };
 
+  // The worker-backed client answers reads synchronously from a cache that
+  // converges through a "changed" notify: a first search of a new query
+  // returns [] and the real hits land a macrotask later. Without a
+  // subscription the picker never re-renders on that landing — the hits sat
+  // in the cache until the NEXT keystroke re-ran the memo (the reported
+  // "results only appear after I change the query"). Subscribe and bump a
+  // version the search memo depends on, so the landing re-renders the picker
+  // on its own. Clients without subscribe (the outliner's context client)
+  // are synchronous and degrade to the pre-fix behavior.
+  const [dataVersion, setDataVersion] = useState(0);
+  useEffect(() => {
+    // Called as a method (client.subscribe) — WorkspaceClient binds `this`.
+    const sub = client as { subscribe?: (listener: () => void) => () => void };
+    if (typeof sub.subscribe !== "function") return;
+    return sub.subscribe(() => setDataVersion((v) => v + 1));
+  }, [client]);
+
   // Search results through the client. Classes are matched by name over the
   // class list (name filtering is the better picker behavior for short
   // queries); object/block hits go through the ranked FTS index — the
   // class appliers reindex too, so "all"-mode search surfaces classes as
   // well. A `class:` refine narrows the candidates to the refined
   // class's members; "blocks" mode keeps only inline-body blocks — the
-  // `((` block-linking candidate set.
+  // `((` block-linking candidate set. `dataVersion` is in the deps so the
+  // async client's landing notify re-computes the hits from the warmed
+  // cache (see the subscription above).
   const searchResults = useMemo(() => {
     const q = foldSearchText(classRefine.query.trim().toLowerCase());
     if (searchMode === "classes") {
@@ -683,7 +726,17 @@ export function NodeSelector({
       })
       .filter(matchesScopeTab);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesInlineFilters derives from inlineFilters (searchQuery); matchesScopeTab derives from scope/scopeTabs/searchMode.
-  }, [client, searchQuery, searchMode, classRefine, effectiveClassIds, scopeTabs, scope]);
+  }, [client, searchQuery, searchMode, classRefine, effectiveClassIds, scopeTabs, scope, dataVersion]);
+
+  // "Searching…" state: on an async client the current query's read may be
+  // in flight while the memo already returned the empty default — without
+  // this the picker showed "No matches found" for results that were simply
+  // still loading. Sync clients have no pending concept and never search.
+  const searchText = classRefine.query.trim();
+  const searching =
+    searchText !== "" &&
+    searchMode !== "classes" &&
+    (client.searchPending?.(searchText) ?? false);
 
   const filteredResults = useMemo(
     () =>
@@ -875,6 +928,10 @@ export function NodeSelector({
     setDisplayLimit(DEFAULT_DISPLAY_LIMIT);
   };
 
+  // The loading-timing rule (<300ms nothing): a fast worker round-trip never
+  // flashes the spinner — results just land.
+  const spinnerVisible = useDelayedVisible(searching);
+
   /** Switch the Main/Blocks scope: re-page results and keep typing in the search box. */
   const handleScopeChange = (next: "main" | "blocks") => {
     setScope(next);
@@ -941,7 +998,12 @@ export function NodeSelector({
           Show more results
         </button>
       )}
-      {totalItems === 0 && (
+      {searching && spinnerVisible && (
+        <div className="node-selector__searching">
+          <Spinner size="sm" label="Searching…" centered />
+        </div>
+      )}
+      {totalItems === 0 && !searching && (
         <div className={emptyClassName}>
           {searchQuery ? "No matches found" : "Start typing to search"}
         </div>

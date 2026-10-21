@@ -396,6 +396,14 @@
   color: var(--md-sys-color-on-surface-variant);
 }
 
+/* "Searching…" pending row (the async worker client): a cache miss and a
+   real no-match both read [] synchronously, so while the query's read is
+   in flight the spinner replaces the empty state — the user sees loading,
+   never a lying "No matches found". */
+.node-selector__searching {
+  padding: var(--spacing-3);
+}
+
 /* "Recently used" caption over the empty-query recents listing: a quiet section label so the opening list reads as recents,
    not search hits. */
 .node-selector__recent-caption {

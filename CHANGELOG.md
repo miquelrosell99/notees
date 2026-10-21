@@ -7,6 +7,43 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): the node picker searches live, says when it's thinking, links
+  what it creates — and the sigils fire after punctuation.** Three reported
+  defects, one root each. (1) *Stale results:* the picker never subscribed to
+  the workspace client, so on the worker-backed client each new query's FTS
+  hits landed in the read cache with nobody re-rendering — the results only
+  appeared after one more keystroke re-ran the memo. The picker now
+  subscribes (a `dataVersion` the search memo depends on) and renders the
+  hits the moment the client's notify lands, plus a **"Searching…"** state
+  (`Spinner` + the <300ms-nothing rule) driven by a new
+  `WorkerClient.searchPending` seam — a cache miss and a real no-match both
+  read `[]` synchronously, so the pending flag is the only way to show
+  loading instead of a lying "No matches found". (2) *Create dropped the
+  link:* `resolveCreateResult` read the just-created id synchronously, which
+  the worker client answers with `undefined` until the create's sync push
+  lands — the pick never fired. It now routes through the existing
+  `waitForNode` (subscribe + bounded poll), same as the date-suggestion path.
+  (3) *Sigils after symbols:* the trigger boundary required whitespace (or
+  text start) before `@`/`#`/`+`, so `(@` never opened the picker; the rule
+  is now the shared `isTriggerBoundary` helper — any NON-word character
+  (punctuation, brackets, quotes) or start-of-text opens the picker, a word
+  character (the email `user@host` case) stays silent — applied to both the
+  collapsed-caret trigger and the `@`-over-selection / Ctrl+L path.
+  - **Files**: `apps/web/src/features/pickers/NodeSelector.tsx` (the
+    subscription + `searchPending`-driven searching state, `waitForNode` in
+    `resolveCreateResult`, header contract), `apps/web/src/core/worker-client.ts`
+    (`searchPending`), `apps/web/src/features/block-editor/captureModel.ts`
+    (`isTriggerBoundary`), `apps/web/src/features/block-editor/BlockTextEditor.tsx`
+    (both boundary sites + comments), `apps/web/src/features/pickers/NodeSelector.css`
+    (the searching row), `apps/web/test/capture.test.tsx` (boundary unit +
+    integration, async-search convergence, pending spinner, worker-shaped
+    create), `docs/features/links.md` + `docs/features/outliner.md` (the
+    widened boundary + live-search contract).
+  - **Verification**: web `tsc` green; full gate `pnpm typecheck && pnpm
+    test` green (166 files / 1911 tests), incl. four new picker tests over a
+    worker-shaped client shim; `verify-min.mjs` VERIFY-PASS after the web
+    image rebuild.
+
 - **fix(web): the add pills wear one cursor — the label rides the button's
   pointer.** Hovering an `AddPill` ("+ Add class/tag/property/alias…") split
   the cursor: pointer over the button's padding, the default arrow over the
