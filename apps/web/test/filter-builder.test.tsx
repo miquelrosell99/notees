@@ -217,11 +217,16 @@ describe("the block query builder", () => {
     expect(tableRowCount()).toBe(1);
     expect(within(section).getByText("1 of 3")).not.toBeNull();
     expect(within(panel).getByText("1 of 3 nodes match")).not.toBeNull();
-    // The head-row logic control is the TEXT register: visible ALL/ANY segments, not the look-alike icons.
+    // The head-row logic control is the v1 ToggleSwitch: the ALL|ANY toggle pill, role=switch, unchecked = ALL.
+    const logicSwitch = within(panel).getByRole("switch", {
+      name: "Match ALL or ANY (group logic)",
+    });
+    expect(logicSwitch.getAttribute("aria-checked")).toBe("false");
     expect(within(panel).getByText("ALL")).not.toBeNull();
     expect(within(panel).getByText("ANY")).not.toBeNull();
-    expect(within(panel).getByText("Blocks")).not.toBeNull();
-    expect(within(panel).getByText("Raw")).not.toBeNull();
+    // …and the Blocks/Raw selection is the icon register again.
+    expect(within(panel).getByRole("radio", { name: "Blocks" })).not.toBeNull();
+    expect(within(panel).getByRole("radio", { name: "Raw AST" })).not.toBeNull();
 
     // A second condition ANDs: nothing is both Alpha and Beta — the table
     // empties (the empty state replaces it) and the panel names 0 of 3.
@@ -366,7 +371,9 @@ describe("the block query builder", () => {
     expect(within(section).getByText("No classed nodes.")).not.toBeNull();
 
     // Flip the root group to Match ANY: Alpha (the content hit) joins Gamma.
-    fireEvent.click(within(panel).getByRole("radio", { name: "Match ANY condition" }));
+    // The logic control is the v1 ToggleSwitch —
+    // role=switch, aria-checked true = ANY.
+    fireEvent.click(within(panel).getByRole("switch", { name: "Match ALL or ANY (group logic)" }));
     expect(tableRowCount()).toBe(2);
     expect(within(panel).getByText("2 of 3 nodes match")).not.toBeNull();
     const table = screen.getAllByRole("table")[0]!;
