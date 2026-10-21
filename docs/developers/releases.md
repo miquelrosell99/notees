@@ -58,7 +58,7 @@ Repo checkouts used for releases (both clean, tagged from `main`):
   + GitHub Release; `android.yml` produces debug-signed CI artifacts for
   try-out builds).
 
-**Current wire (through the 2026-10-20 property-definition batch):** envelope v3; Revision-12
+**Current wire (through the 2026-10-21 binding-sequence retirement):** envelope v3; Revision-12
 render state; `object.restore`; the color grammar; the
 workspace-feature batch (`workspace.feature.set`, `code_block`/`hr`, `embed_ref.view`, PG5
 element ids, PC4 `active`, PC6 qualifiers); number formats; the
@@ -91,6 +91,22 @@ TS reference: main repo
 **v4.4.0** (store v24); GTK **v4.2.0** (store v16); Flutter **v4.1.0**
 (app DB v31). The GTK UI has no property rendering (protocol+store port
 only); Flutter renders the block-bullet value button.
+
+**The 2026-10-21 binding-sequence retirement (a continuation of
+the property-definition batch):** `sequence` RETIRES from `class.property.set`
+— class properties render as a PURE ALPHABETICAL list everywhere (by property
+name, a read-time derivation), so panel order no longer exists to configure;
+the binding is strictly `{classId, propertySchemaId, active?}` (`active` the
+soft-unbind flag, the only per-class mechanic left). The strict payload
+rejects the retired key outright; store v25→v26 rebuilds `class_property`
+without the `sequence` column (no snapshot byte patch — no data to backfill);
+the class-page property panel's drag-and-drop reorder is gone with it (the
+list is display-only, alphabetical at render time). The four sequence-bearing
+fixtures re-vendor (gate stays 36). LOCKSTEP: GTK/Flutter ports ship the same
+day (the required/defaultValue precedent); the live log rewrites via
+`scripts/migrate-drop-binding-sequence.mts` (Path B, in-place strip + epoch
+bump — no compensation) after the ports. The CLI's `property bind --sequence`
+flag retires with a pending lockstep follow-up in the notees-cli repo.
 
 **The 2026-10-07 wire batch (second, third, and fourth changes of the day):**
 (1) the wire node fields (`object.update` optional nullable
@@ -144,6 +160,7 @@ this batch = bumping the package pins + releases, not code ports.
 | unified datetime | 2026-10-09 | the `date`/`date_range` property types unify into one `datetime` type (strict `propertySchema.create` type enum — the retired values are rejected outright; gate 24→25, `property-datetime.json`); values ride untouched (every legacy shape is a legal member of the new union), so the live rewrite is payload-only: `scripts/migrate-unified-datetime.mts` (Path B, no compensation) — TS **v4.1.0** (ghcr `notees-sync`/`notees-web` v4.1.0 + latest from the tag); **client alignment: GTK v4.1.0 + Flutter v4.0.1 + CLI v4.1.0 tagged** (fixtures sha256-matched 25/25; CLI vendor pin → af57c5bb); live migration run the same day (owner workspace 82 envelopes rewritten, epoch 6; test workspace 3, epoch 1; snapshots patched both; full-replay verified) and the stack redeployed — VERIFY-PASS |
 | per-block list style | 2026-10-16 | `object.create`/`object.update` gain the optional nullable `listStyle` (`"numbered" \| "alpha" \| "roman"`; absent/null = bullet — store v22→v23, gate 32→33, `object-list-style.json`); the marker number is render-time derivation from the sibling run, never stored; no query predicate (presentation state) — **LOCKSTEP SHIPPED 2026-10-20** with the property-definition batch's ports (GTK v4.2.0 / Flutter v4.1.0; strict-payload additive; no log migration — pre-existing nodes default to bullet) |
 | property-definition batch | 2026-10-20 | the retired `scope` enum is rejected outright, replaced by `scopeClassIds` (the sole locality authority — bindings carry zero availability semantics; owner R1–R6); schema-level `icon`; `propertySchema.update` gains `scopeClassIds`/`targetClassFilter`/`multi`/`validationRules`; fail-loud extends-aware eligibility at `property.set`/`class.property.set`; eligible-tagged effective reads; validationRules value enforcement at `property.set`; store v23→v24 (the property_schema rebuild); gate 33→36 (`property-schema-scope.json`, `property-schema-update-fields.json`, `property-validation-rules.json`) — TS **v4.4.0**, GTK **v4.2.0** (store v16, 847 tests, fixtures 36/36), Flutter **v4.1.0** (DB v31, 664 tests, 36/36), CLI by vendor pin; the seed-scope audit (task family + weblink `url` → global) rides the same window; live migration run the same day (owner workspace 5,389 envelopes + test workspace 175, snapshots patched both, restore_epoch 10/4, seed-flip convergence appended; the migration script gained a snapshot-patch ordering fix + resumable apply + a verify comparison fix) and the stack redeployed — VERIFY-PASS |
+| the binding-sequence retirement | 2026-10-21 | `sequence` RETIRES from `class.property.set` — class properties render as a PURE ALPHABETICAL list everywhere (by property name, read-time derivation); the binding is strictly `{classId, propertySchemaId, active?}`; the class-page panel's drag reorder is removed (display-only list); store v25→v26 (class_property drops `sequence`; no snapshot patch — nothing to backfill); the four sequence-bearing fixtures re-vendor (gate stays 36) — TS reference + GTK/Flutter lockstep ports same day (the required/defaultValue convention); live log rewritten by `scripts/migrate-drop-binding-sequence.mts` (Path B) after the ports; CLI `--sequence` retirement is a pending lockstep follow-up |
 | the global-default batch | 2026-10-20 | `required` RETIRES outright (its only render effect — hiding the icon-button's "None" row — was mild enforcement, contradicting the render-contract law) and `defaultValue` MOVES from `class.property.set` to the property schema — ONE global default per property, the Logseq shape; the class-page inline editor is gone with it (the class page lists its properties; the default editor lives in the base-definition modal; a binding is sequence/active only). `class.property.set` is strictly `{classId, propertySchemaId, sequence?, active?}`; `propertySchema.create/update` gain `defaultValue` (PC2-typed at apply — create against the payload's type, update against the stored type; keep/clear, the cleared spelling SQL NULL); the effective read derives the schema default when a winning ACTIVE binding brings the property into the node's context (no more per-class default conflicts); store v24→v25 (class_property drops `required`/`default_value`, property_schema gains `default_value`); the three default-bearing fixtures re-encode the global semantics (gate stays 36) — TS reference + GTK/Flutter lockstep ports same day; live log rewritten by `scripts/migrate-drop-binding-required.mts` (Path B) after the ports |
 
 ## 5. The SDK/repo splits (parked, owner)

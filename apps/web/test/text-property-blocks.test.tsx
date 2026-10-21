@@ -396,7 +396,7 @@ describe("the '+ Add property' placeholder (unbound text)", () => {
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
     const classId = await client.createClass("Document");
-    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.setClassProperty(classId, schemaId, {});
     await client.assignClass(pageId, classId);
 
     const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);

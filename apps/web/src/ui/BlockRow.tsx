@@ -480,14 +480,15 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
   // "bullet"/"inline" display position ride the block row as icon buttons
   // (the Logseq-DB "beginning of the block" behavior; the buttons and the
   // boolean glyphs are the design) — one button per property, in
-  // binding-sequence order (the groups sort by sequence across both
-  // sources). Valued properties group from the effective rows (row.display
-  // is schema-sourced); a bound-but-empty binding still mounts the button —
-  // the unset affordance is how a fresh task gets its status. The properties
-  // panel below omits these positions so the value never reads twice. Reads
-  // follow the PropertiesSection pattern: plain render reads over the
-  // client, refreshed by the surrounding view's client.subscribe re-render.
-  // The title row renders none of this chrome — skip the whole read.
+  // ALPHABETICAL order by property name (binding
+  // sequence retired; the groups sort by name across both sources). Valued
+  // properties group from the effective rows (row.display is schema-sourced);
+  // a bound-but-empty binding still mounts the button — the unset affordance
+  // is how a fresh task gets its status. The properties panel below omits
+  // these positions so the value never reads twice. Reads follow the
+  // PropertiesSection pattern: plain render reads over the client, refreshed
+  // by the surrounding view's client.subscribe re-render. The title row
+  // renders none of this chrome — skip the whole read.
   const bulletDisplayGroups: Array<{
     propertySchemaId: string;
     label: string;
@@ -496,7 +497,6 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     multi: boolean;
     boolean: boolean;
     display: "bullet" | "inline";
-    sequence: number;
   }> = [];
   const inlineDisplayGroups: Array<{
     propertySchemaId: string;
@@ -506,7 +506,6 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     multi: boolean;
     boolean: boolean;
     display: "bullet" | "inline";
-    sequence: number;
   }> = [];
   if (!isTitle) {
     const effectiveRows = client.getEffectiveProperties(node.id);
@@ -534,7 +533,6 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
           multi: row.schema?.multi ?? type === "multi_select",
           boolean: type === "boolean",
           display,
-          sequence: row.sequence ?? Number.MAX_SAFE_INTEGER,
         });
       }
       // Bound-but-empty bindings with a row display position: no effective row
@@ -563,11 +561,10 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
             multi: binding.multi,
             boolean: isBoolean,
             display,
-            sequence: binding.sequence,
           });
         }
       }
-      selectDisplayGroups.sort((a, b) => a.sequence - b.sequence);
+      selectDisplayGroups.sort((a, b) => a.label.localeCompare(b.label));
     }
     for (const group of selectDisplayGroups) {
       if (group.display === "bullet") bulletDisplayGroups.push(group);

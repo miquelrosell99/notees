@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 25;
+export const SCHEMA_VERSION = 26;
 
 /**
  * The render-path list-reads index: composite for the
@@ -298,21 +298,21 @@ CREATE TABLE IF NOT EXISTS property_schema (
 CREATE INDEX IF NOT EXISTS idx_property_schema_workspace
     ON property_schema (workspace_id);
 
--- Class -> property binding rows (sequence), authored by
+-- Class -> property binding rows, authored by
 -- class.property.set / class.property.unset (SCHEMA.md "Class properties").
 -- Row-level LWW by (hlc, actor): the winning write's causality is stored on
 -- the row, so a stale set replayed after a newer one is dropped.
---: the row carries ONLY the genuinely
--- per-class mechanics — sequence + the soft-unbind flag. 'required' retired
--- outright and 'default_value' MOVED to property_schema (one global default
--- per property, the Logseq shape); the live log rewrite is
--- scripts/migrate-drop-binding-required.mts (Path B).
+--: the row carries ONLY the soft-unbind
+-- flag. 'sequence' retired outright (class panels render alphabetically by
+-- property name — pure read-time derivation, nothing to configure); the live
+-- log rewrite is scripts/migrate-drop-binding-sequence.mts (Path B).
+-- 'required'/'default_value' retired/moved at v25,
+-- scripts/migrate-drop-binding-required.mts.
 -- 'active' (PC4): the soft-unbind flag — an inactive row stops contributing
--- to the effective read (no sequence); authored values survive.
+-- to the effective read; authored values survive.
 CREATE TABLE IF NOT EXISTS class_property (
     class_id TEXT NOT NULL,
     property_schema_id TEXT NOT NULL,
-    sequence INTEGER NOT NULL DEFAULT 0,
     active INTEGER NOT NULL DEFAULT 1,
     hlc_physical INTEGER NOT NULL DEFAULT 0,
     hlc_logical INTEGER NOT NULL DEFAULT 0,
@@ -747,7 +747,6 @@ export function migrate(
       CREATE TABLE class_property_v14 (
           class_id TEXT NOT NULL,
           property_schema_id TEXT NOT NULL,
-          sequence INTEGER NOT NULL DEFAULT 0,
           required INTEGER,
           default_value TEXT,
           active INTEGER NOT NULL DEFAULT 1,
@@ -757,10 +756,10 @@ export function migrate(
           PRIMARY KEY (class_id, property_schema_id)
       );
       INSERT INTO class_property_v14 (
-          class_id, property_schema_id, sequence, required, default_value, active,
+          class_id, property_schema_id, required, default_value, active,
           hlc_physical, hlc_logical, actor_id
       )
-      SELECT class_id, property_schema_id, sequence, required, default_value, active,
+      SELECT class_id, property_schema_id, required, default_value, active,
              hlc_physical, hlc_logical, actor_id
       FROM class_property;
       DROP TABLE class_property;
@@ -778,7 +777,6 @@ export function migrate(
       CREATE TABLE class_property_v25pre (
           class_id TEXT NOT NULL,
           property_schema_id TEXT NOT NULL,
-          sequence INTEGER NOT NULL DEFAULT 0,
           active INTEGER NOT NULL DEFAULT 1,
           hlc_physical INTEGER NOT NULL DEFAULT 0,
           hlc_logical INTEGER NOT NULL DEFAULT 0,
@@ -786,9 +784,9 @@ export function migrate(
           PRIMARY KEY (class_id, property_schema_id)
       );
       INSERT INTO class_property_v25pre (
-          class_id, property_schema_id, sequence, active, hlc_physical, hlc_logical, actor_id
+          class_id, property_schema_id, active, hlc_physical, hlc_logical, actor_id
       )
-      SELECT class_id, property_schema_id, sequence, active, hlc_physical, hlc_logical, actor_id
+      SELECT class_id, property_schema_id, active, hlc_physical, hlc_logical, actor_id
       FROM class_property;
       DROP TABLE class_property;
       ALTER TABLE class_property_v25pre RENAME TO class_property;
@@ -1123,7 +1121,6 @@ export function migrate(
         CREATE TABLE class_property_v25 (
             class_id TEXT NOT NULL,
             property_schema_id TEXT NOT NULL,
-            sequence INTEGER NOT NULL DEFAULT 0,
             active INTEGER NOT NULL DEFAULT 1,
             hlc_physical INTEGER NOT NULL DEFAULT 0,
             hlc_logical INTEGER NOT NULL DEFAULT 0,
@@ -1131,9 +1128,9 @@ export function migrate(
             PRIMARY KEY (class_id, property_schema_id)
         );
         INSERT INTO class_property_v25 (
-            class_id, property_schema_id, sequence, active, hlc_physical, hlc_logical, actor_id
+            class_id, property_schema_id, active, hlc_physical, hlc_logical, actor_id
         )
-        SELECT class_id, property_schema_id, sequence, active, hlc_physical, hlc_logical, actor_id
+        SELECT class_id, property_schema_id, active, hlc_physical, hlc_logical, actor_id
         FROM class_property;
         DROP TABLE class_property;
         ALTER TABLE class_property_v25 RENAME TO class_property;
@@ -1145,6 +1142,41 @@ export function migrate(
     const schemaColsV25 = db.prepare("PRAGMA table_info(property_schema)").all() as { name: string }[];
     if (!schemaColsV25.some((c) => c.name === "default_value")) {
       db.exec("ALTER TABLE property_schema ADD COLUMN default_value TEXT;");
+    }
+  }
+  // v25 -> v26: `sequence` retires from the
+  // binding — class panels render alphabetically by property name (pure
+  // read-time derivation), so the column is gone. The binding table REBUILDS
+  // without it (SQLite cannot drop a column on old builds); the live log
+  // rewrite (scripts/migrate-drop-binding-sequence.mts, Path B) + the epoch
+  // bump normalize the envelopes, so no value backfill exists. Guarded on
+  // the old column so the step is a no-op for databases already carrying
+  // the new shape.
+  {
+    const bindingColsV26 = db.prepare("PRAGMA table_info(class_property)").all() as { name: string }[];
+    if (bindingColsV26.some((c) => c.name === "sequence")) {
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE class_property_v26 (
+            class_id TEXT NOT NULL,
+            property_schema_id TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1,
+            hlc_physical INTEGER NOT NULL DEFAULT 0,
+            hlc_logical INTEGER NOT NULL DEFAULT 0,
+            actor_id TEXT,
+            PRIMARY KEY (class_id, property_schema_id)
+        );
+        INSERT INTO class_property_v26 (
+            class_id, property_schema_id, active, hlc_physical, hlc_logical, actor_id
+        )
+        SELECT class_id, property_schema_id, active, hlc_physical, hlc_logical, actor_id
+        FROM class_property;
+        DROP TABLE class_property;
+        ALTER TABLE class_property_v26 RENAME TO class_property;
+        CREATE INDEX IF NOT EXISTS idx_class_property_class
+            ON class_property (class_id);
+        PRAGMA foreign_keys = ON;
+      `);
     }
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

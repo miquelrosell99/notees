@@ -87,7 +87,7 @@ function retirementWorld(): Store {
     ),
     env(
       "class.property.set",
-      { classId: CLASS_CLASS_ID, propertySchemaId: HAS_TEMPLATE, sequence: 0 },
+      { classId: CLASS_CLASS_ID, propertySchemaId: HAS_TEMPLATE },
       1002,
     ),
     env(

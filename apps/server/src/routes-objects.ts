@@ -857,11 +857,12 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
   });
 
   /**
-   * class.property.set: the binding upsert (sequence/active patch — omitted
-   * fields keep their values; the binding carries
-   * the genuinely per-class mechanics ONLY; `required` retired outright and
-   * `defaultValue` moved to the property schema, so the strict payload
-   * rejects both keys).
+   * class.property.set: the binding upsert (the active soft-unbind patch —
+   * omitted fields keep their values; the
+   * binding carries ONLY the per-class soft-unbind flag; `required` retired
+   * outright, `defaultValue` moved to the property schema, `sequence`
+   * retired outright — class panels render alphabetically by property name —
+   * so the strict payload rejects all three keys).
    */
   app.post("/classes/:id/properties", async (request) => {
     const { id } = request.params as { id: string };
@@ -888,11 +889,11 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     });
     const row = store.database
       .prepare(
-        `SELECT property_schema_id, sequence, active
+        `SELECT property_schema_id, active
          FROM class_property WHERE class_id = ? AND property_schema_id = ?`,
       )
       .get(id, propertySchemaId) as
-      | { property_schema_id: string; sequence: number; active: number }
+      | { property_schema_id: string; active: number }
       | undefined;
     return {
       classId: id,
@@ -902,7 +903,6 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
           ? null
           : {
               propertySchemaId: row.property_schema_id,
-              sequence: row.sequence,
               active: row.active === 1,
             },
     };
@@ -1051,7 +1051,6 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       boundBy: row.boundBy,
       readonly: row.readonly,
       hideWhenEmpty: row.hideWhenEmpty,
-      sequence: row.sequence,
     }));
     return { nodeId: id, properties };
   });

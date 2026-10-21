@@ -84,7 +84,6 @@ function authoredProp(
     eligible: true,
     readonly: null,
     hideWhenEmpty: null,
-    sequence: null,
     display: null,
   };
 }
@@ -504,8 +503,8 @@ describe("instantiateTemplate (real client)", () => {
     // only the schema default (must stay derived on the instance).
     const prioId = await client.createPropertySchema({ name: "Priority", type: "select" });
     const venueId = await client.createPropertySchema({ name: "Venue", type: "text" });
-    await client.setClassProperty(meetingId, prioId, { sequence: 0 });
-    await client.setClassProperty(meetingId, venueId, { sequence: 1 });
+    await client.setClassProperty(meetingId, prioId, {});
+    await client.setClassProperty(meetingId, venueId, {});
     await client.updatePropertySchema(prioId, { defaultValue: "low" });
     await client.updatePropertySchema(venueId, { defaultValue: "room-1" });
 
