@@ -82,7 +82,15 @@ silently dropped by the document-chrome content flatten). **Render grammar
 (NORMATIVE, shared by every renderer — web, GTK, Flutter, export serializers):**
 match `\[([^\]\n]+)\]\(([^()\s]+)\)` — the label holds no `]` or newline, the
 href holds no whitespace or parentheses; only `http:`, `https:`, and `mailto:`
-hrefs render as anchors, anything else stays literal text. Reference
+hrefs render as anchors, anything else stays literal text. After the
+markdown-span pass, remaining text segments are scanned for bare `http(s)://`
+URLs and linkified too (trailing sentence punctuation and unbalanced closing
+parens/brackets are trimmed off the match; non-http(s) schemes and bare schemes
+without a host stay literal). **Click gesture (NORMATIVE):** a plain click on a
+content link does NOT follow the href — the owning block row claims the click
+(edit mode, or openNode read-only) and the event bubbles there unimpeded; only
+a Ctrl/Cmd/Shift-modified click follows the anchor (the web anchor renders
+`target="_blank"`, so the default opens a new tab). Reference
 implementation: `splitMarkdownLinks`, `packages/domain`.
 
 Typed-link rule: a typed link is a **mark on a prose word** — nothing is inserted; the word you wrote is the annotation. Delete the word and the mark dies with it; marks ride inside the CRDT-synchronized content (per-node `Y.Text` over the serialized token array; canonical wire carrier `contentDeltaB64`, readable carrier `contentAst`). Plaintext for FTS is derived by the applier, never stored as truth. Per-field CRDTs remain a documented future option if real-time collaboration ever demands finer granularity.
