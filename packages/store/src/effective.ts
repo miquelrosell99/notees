@@ -51,9 +51,9 @@ export interface EffectivePropertySchema {
   numberPad: number | null;
   numberDecimals: number | null;
   numberRounding: "round" | "floor" | "ceil" | "truncate" | null;
-  /** PROPERTY-level render contracts (NULL = panel / unset). */
+  /** PROPERTY-level render contracts (NULL = panel / unset). `readonly`
+   *  retired 2026-10-21 — derived from the system list, not stored. */
   display: "panel" | "bullet" | "inline" | null;
-  readonly: boolean | null;
   hideWhenEmpty: boolean | null;
 }
 
@@ -78,8 +78,9 @@ export interface EffectiveProperty {
   source: "authored" | "default";
   boundBy: string | null;
   /** PROPERTY-level: the schema's render contracts — the same for
-   *  every carrier, class-bound or not. */
-  readonly: boolean | null;
+   *  every carrier, class-bound or not. (Readonly-ness derives from the
+   *  system property list since the field
+   *  left the wire and the store together.) */
   hideWhenEmpty: boolean | null;
   display: "panel" | "bullet" | "inline" | null;
   /**
@@ -243,7 +244,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
         `SELECT id, name, type, multi, icon, scope_class_ids, validation_rules,
                 date_precision, date_qualified,
                 number_pad, number_decimals, number_rounding,
-                display, readonly, hide_when_empty, default_value
+                display, hide_when_empty, default_value
          FROM property_schema WHERE id IN (${placeholders})`,
       )
       .all(...schemaIds) as Array<{
@@ -260,7 +261,6 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       number_decimals: number | null;
       number_rounding: string | null;
       display: string | null;
-      readonly: number | null;
       hide_when_empty: number | null;
       default_value: string | null;
     }>;
@@ -292,7 +292,6 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
             ? row.number_rounding
             : null,
         display: displayOf(row.display),
-        readonly: flag(row.readonly),
         hideWhenEmpty: flag(row.hide_when_empty),
       });
     }
@@ -343,7 +342,6 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       boundBy: winner?.classId ?? null,
       // Readonly/hideWhenEmpty/display are per-PROPERTY (the schema — unbound
       // values included, the owner's multi-class/unbound cases).
-      readonly: schema?.readonly ?? null,
       hideWhenEmpty: schema?.hideWhenEmpty ?? null,
       display: schema?.display ?? null,
       // Authored rows SURVIVE scope narrowing (never retroactive) — the
@@ -379,7 +377,6 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       metadata: null,
       source: "default",
       boundBy: classId,
-      readonly: schema?.readonly ?? null,
       hideWhenEmpty: schema?.hideWhenEmpty ?? null,
       display: schema?.display ?? null,
       eligible: true,

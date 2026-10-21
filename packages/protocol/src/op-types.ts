@@ -449,17 +449,21 @@ export const propertySchemaCreatePayload = z
      */
     display: z.enum(["panel", "bullet", "inline"]).nullable().optional(),
     /**
-     *: the render contracts are PROPERTY-level
-     * — a property is readonly/hidden-when-empty everywhere it appears,
-     * whatever class binds it (or none). (`required` was the deliberate
-     * binding-level exception until retired it
-     * outright — the strict binding schema rejects it like any retired key.)
-     * Keep/clear contract like the number formats: absent keeps, null clears.
-     * Clients: readonly dims/disables the editors (never blocks a write —
-     * PC1); hideWhenEmpty hides the row unless a value or derived default
-     * exists.
+     *: the render
+     * contracts are PROPERTY-level — a property is hidden-when-empty
+     * everywhere it appears, whatever class binds it (or none). (`required`
+     * was the deliberate binding-level exception until retired it outright — the strict binding schema rejects it
+     * like any retired key.) Keep/clear contract like the number formats:
+     * absent keeps, null clears.
+     * Clients: hideWhenEmpty hides the row unless a value or derived default
+     * exists. `readonly` left the payloads entirely under it was never user configuration (no seed ever carried
+     * it), so clients DERIVE readonly-ness from the system property list
+     * (`isReadonlyProperty`, packages/domain) instead of storing it; the
+     * strict schemas reject the retired key outright and live logs rewrite
+     * via scripts/migrate-drop-schema-readonly.mts. Derived readonly-ness
+     * dims/disables the editors exactly like the old flag — never blocks a
+     * write (PC1).
      */
-    readonly: z.boolean().nullable().optional(),
     hideWhenEmpty: z.boolean().nullable().optional(),
   })
   .strict();
@@ -523,9 +527,9 @@ export const propertySchemaUpdatePayload = z
      * value, null clears back to the "panel" default.
      */
     display: z.enum(["panel", "bullet", "inline"]).nullable().optional(),
-    /** The render contracts (create-side doc above) — same
-     *  absent-keeps / null-clears contract. */
-    readonly: z.boolean().nullable().optional(),
+    /** The render contract (create-side doc above) — same absent-keeps /
+     *  null-clears contract. (`readonly` retired outright 2026-10-21 —
+     *  derived from the system list instead; the strict schema rejects it.) */
     hideWhenEmpty: z.boolean().nullable().optional(),
   })
   .strict();

@@ -337,6 +337,35 @@ export const SYSTEM_PROPERTY_UUIDS = {
 
 export type SystemPropertyName = keyof typeof SYSTEM_PROPERTY_UUIDS;
 
+/**
+ * The READONLY derivation list: the retired
+ * `readonly` render contract was never user configuration — an enumeration
+ * of the seeds (seeds.ts + the GTK/Flutter seed manifests) finds ZERO
+ * system properties that ever carried the flag — so the contract retires
+ * from the wire/store entirely and readonly-ness DERIVES from the system
+ * list instead (store nothing that is a fact about system seeds — the
+ * binding-`sequence` philosophy).
+ *
+ * The list is the platform-PROVENANCE properties: values authored by
+ * platform flows, not user data. `generatedFrom` is written by template
+ * instantiation (T3/D1); `alias` is name-equivalence metadata surfaced
+ * through the dedicated aliases UI. Clients dim/disable these properties'
+ * editors exactly where the old flag did (never blocking a write — PC1).
+ * Everything else (bibliographic fields, the task/meeting families, names)
+ * is ordinary user data and stays editable. Correcting the list is a
+ * one-line change here (fixed seed UUIDs, precise).
+ */
+export const READONLY_SYSTEM_PROPERTY_IDS: readonly string[] = [
+  SYSTEM_PROPERTY_UUIDS.generatedFrom,
+  SYSTEM_PROPERTY_UUIDS.alias,
+];
+
+/** True when the schema id is a system property whose editors render
+ *  readonly (dimmed/disabled — the retired render contract, now derived). */
+export function isReadonlyProperty(schemaId: string): boolean {
+  return READONLY_SYSTEM_PROPERTY_IDS.includes(schemaId);
+}
+
 /** Class-scoped system property schemas in canonical seed order (ported;
  * the old `node` type maps to `object`; `classFilter` → `targetClassFilter`).
  * The type union mirrors the wire enum (op-types.ts) — the spec manifest
