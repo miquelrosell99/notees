@@ -15,7 +15,7 @@ import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.j
 import { NodeIcon } from "./NodeIcon.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
-import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import "./MergeNodesModal.css";
 
 export interface MergeNodesModalProps {
@@ -57,8 +57,8 @@ export function MergeNodesModal({
   }, [isOpen]);
 
   const source = client.getNode(sourceId);
-  const sourceTitle = (source !== undefined && displayNameForSettings(source)) || "Untitled";
-  const targetTitle = (target !== null && displayNameForSettings(target)) || "Untitled";
+  const sourceTitle = (source !== undefined && nodeDisplayName(source)) || "Untitled";
+  const targetTitle = (target !== null && nodeDisplayName(target)) || "Untitled";
 
   const handleClose = useCallback(() => {
     setTarget(null);
@@ -129,7 +129,7 @@ export function MergeNodesModal({
                 <>
                   <NodeIcon icon={target.icon} isPage size="sm" />
                   <span className="merge-nodes-modal__target-name">
-                    {displayNameForSettings(target) || "Untitled"}
+                    {nodeDisplayName(target) || "Untitled"}
                   </span>
                 </>
               ) : (

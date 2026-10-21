@@ -13,7 +13,7 @@ import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspac
 
 import { proseFromAst } from "@/editor/prose.js";
 
-import { displayNameForSettings, formatIsoDate } from "../../ui/dateDisplay.js";
+import { nodeDisplayName, formatIsoDate } from "../../ui/dateDisplay.js";
 import { todayIsoLocal } from "../calendar/calendarViewUtils.js";
 import "./PageFooter.css";
 
@@ -30,7 +30,7 @@ function localIsoDate(iso: string): string | null {
 
 /** Word count over the title + the whole block tree (prose projections). */
 export function wordCountOf(page: ClientNode, tree: BlockTreeNode[]): number {
-  const parts: string[] = [displayNameForSettings(page)];
+  const parts: string[] = [nodeDisplayName(page)];
   const walk = (nodes: BlockTreeNode[]) => {
     for (const entry of nodes) {
       parts.push(proseFromAst(entry.node.contentAst));

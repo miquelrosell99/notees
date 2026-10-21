@@ -19,7 +19,7 @@ import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameForSettings } from "../dateDisplay.js";
+import { nodeDisplayName } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { Modal } from "../../components/ui/fleet/Modal.js";
@@ -75,8 +75,8 @@ export function TemplateGalleryModal({
       .getClassMembers(SYSTEM_CLASS_UUIDS.template)
       .filter((node) => node.isActive)
       .sort((a, b) => {
-        const nameA = displayNameForSettings(a) ?? a.id;
-        const nameB = displayNameForSettings(b) ?? b.id;
+        const nameA = nodeDisplayName(a) ?? a.id;
+        const nameB = nodeDisplayName(b) ?? b.id;
         return nameA.localeCompare(nameB) || a.id.localeCompare(b.id);
       });
   }, [client, version]);
@@ -85,7 +85,7 @@ export function TemplateGalleryModal({
     const q = query.trim().toLowerCase();
     if (q === "") return templates;
     return templates.filter((node) =>
-      (displayNameForSettings(node) ?? node.id).toLowerCase().includes(q),
+      (nodeDisplayName(node) ?? node.id).toLowerCase().includes(q),
     );
   }, [templates, query]);
 

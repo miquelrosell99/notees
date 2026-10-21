@@ -68,7 +68,7 @@ import { Icon } from "../../ui/Icon.js";
 import { Breadcrumbs } from "../node-menu/Breadcrumbs.js";
 import { ReferenceSubtree } from "../block-editor/ReferenceSubtree.js";
 import { Section } from "../../ui/Section.js";
-import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { untitledLabelOf } from "../../ui/renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../../ui/viewPrefs.js";
 import { promoteMentionInAst } from "../collection/unlinkedRefs.js";
@@ -249,7 +249,7 @@ export function ReferenceList({
 
 /** Crumb-safe row label for the action aria labels. */
 function displayNameOf(node: ClientNode): string {
-  return displayNameForSettings(node) || untitledLabelOf(node);
+  return nodeDisplayName(node) || untitledLabelOf(node);
 }
 
 /**

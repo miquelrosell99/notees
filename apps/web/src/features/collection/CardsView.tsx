@@ -82,7 +82,7 @@ import { parseDateNodeId, rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "
 
 import { Icon } from "../../ui/Icon.js";
 import { BlockRow } from "../../ui/BlockRow.js";
-import { displayNameForSettings, displayNameFromClient } from "../../ui/dateDisplay.js";
+import { nodeDisplayName, displayNameFromClient } from "../../ui/dateDisplay.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { SelectionButton, Checkbox, ImageModal, SortMenuButton, type SortMenuOption } from "../../components/ui/fleet/index.js";
@@ -159,7 +159,7 @@ function CardCover({ item, props, layout }: { item: NodeCollectionItem; props: N
         <button
           type="button"
           className="node-card__cover node-card__cover--empty"
-          aria-label={`Add cover image to ${displayNameForSettings(item.node) || "Untitled"}`}
+          aria-label={`Add cover image to ${nodeDisplayName(item.node) || "Untitled"}`}
           title="Add cover image"
           onClick={(event) => {
             event.stopPropagation();
@@ -253,7 +253,7 @@ export function NodeCard({
   selection?: { checked: boolean; onToggle: () => void } | undefined;
 }) {
   const { client, onNodeClick } = props;
-  const label = displayNameForSettings(item.node) || "Untitled";
+  const label = nodeDisplayName(item.node) || "Untitled";
   const resolveName = (id: string) => displayNameFromClient(client, id);
   const openNode = (id: string) => onNodeClick?.(id);
   /** The title's right-click menu — position-only state. */
