@@ -39,6 +39,11 @@ import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { ExtendedBySection } from "../classview/xtendedBySection.js";
 import { PropertyDefinitionsSection } from "../classview/PropertyDefinitionsSection.js";
 import { TemplatesSection } from "../classview/emplatesSection.js";
+import {
+  BacklinksSection,
+  ChildPagesSection,
+  UnlinkedMentionsSection,
+} from "./SystemSections.js";
 import { createdPeriodBounds, isoOfDateParts } from "../calendar/calendarViewUtils.js";
 import type { SectionSpec } from "../collection/useSectionData.js";
 
@@ -93,6 +98,12 @@ export interface VariantSectionCtx {
   onOpenPage?: ((pageId: string) => void) | undefined;
   /** Class navigation (extends pills, extended-by rows) — the same funnel. */
   onOpenClass?: ((classId: string) => void) | undefined;
+  /**
+   * Embedded surface (journal feed, calendar embed): sections render
+   * read-only (the Child pages create affordance steps aside). The same
+   * flag the old <SystemSections embedded> prop carried.
+   */
+  embedded?: boolean | undefined;
 }
 
 export interface PageVariant {
@@ -112,7 +123,15 @@ export interface PageVariant {
    * in the content flow. Empty for every other variant.
    */
   sidebarSections?: VariantSectionSpec[] | undefined;
-  /** Sections ahead of the default <SystemSections/> (class: Extended by). */
+  /**
+   * The page's reference family + the class variant's ahead-of-list
+   * relation section (the <SystemSections/> group
+   * component died by subtraction — Child pages / Backlinks / Unlinked
+   * mentions are self-gating descriptor entries now, the date variants'
+   * list OMITS the unlinked spec (spec absence is the date-page ruling;
+   * the old runtime gate forced its count to 0), and Extended by rides
+   * ahead of the family on class pages). Order is the render order.
+   */
   systemSections: VariantSectionSpec[];
 }
 
@@ -145,7 +164,7 @@ const CLASS_SIDEBAR_SECTIONS: VariantSectionSpec[] = [
   },
 ];
 
-/** The class variant's ahead-of-system sections: Extended by. */
+/** The class variant's ahead-of-family relation section: Extended by. */
 const CLASS_SYSTEM_SECTIONS: VariantSectionSpec[] = [
   {
     key: "extended-by",
@@ -153,6 +172,40 @@ const CLASS_SYSTEM_SECTIONS: VariantSectionSpec[] = [
       createElement(ExtendedBySection, { client, classId: nodeId, onOpenClass }),
   },
 ];
+
+/**
+ * Every page's reference family — the self-gating system sections
+ * (SystemSections.tsx), as descriptor data: Child pages, Backlinks,
+ * Unlinked mentions, in render order. Placement is data (the S5 contract);
+ * the sections own their hide-when-empty gates.
+ */
+const PAGE_SYSTEM_SECTIONS: VariantSectionSpec[] = [
+  {
+    key: "child-pages",
+    render: ({ client, nodeId, onOpenPage, embedded }) =>
+      createElement(ChildPagesSection, { client, pageId: nodeId, onOpenPage, embedded }),
+  },
+  {
+    key: "backlinks",
+    render: ({ client, nodeId, onOpenPage }) =>
+      createElement(BacklinksSection, { client, pageId: nodeId, onOpenPage }),
+  },
+  {
+    key: "unlinked-mentions",
+    render: ({ client, nodeId, onOpenPage }) =>
+      createElement(UnlinkedMentionsSection, { client, pageId: nodeId, onOpenPage }),
+  },
+];
+
+/**
+ * The date family's reference stack: the day/month/year pages' descriptor
+ * OMITS the unlinked spec — spec absence is the date-page ruling now
+ *. The unlinked section (and its FTS count)
+ * never mounts there at all.
+ */
+const DATE_SYSTEM_SECTIONS: VariantSectionSpec[] = PAGE_SYSTEM_SECTIONS.filter(
+  (spec) => spec.key !== "unlinked-mentions",
+);
 
 /**
  * The extends corner relation (the class page's corner): class.setExtends
@@ -210,11 +263,13 @@ export function pageVariantOf(client: AnyClient, nodeId: string): PageVariant {
       cornerPills: extendsCornerPills(client, nodeId),
       sections: CLASS_SECTIONS,
       sidebarSections: CLASS_SIDEBAR_SECTIONS,
-      systemSections: CLASS_SYSTEM_SECTIONS,
+      // Extended by rides ahead of the page's reference family — the old
+      // mount order (variant system sections, then the group).
+      systemSections: [...CLASS_SYSTEM_SECTIONS, ...PAGE_SYSTEM_SECTIONS],
     };
   }
   if (node === undefined || !rendersWithDocumentChrome(node, parentRenderFacts(client, node))) {
-    return { variant: "plain", sections: NO_SECTIONS, systemSections: NO_SECTIONS };
+    return { variant: "plain", sections: NO_SECTIONS, systemSections: PAGE_SYSTEM_SECTIONS };
   }
   const parsed = parseDateNodeId(nodeId);
   if (parsed !== null && parsed.precision === "day") {
@@ -222,7 +277,7 @@ export function pageVariantOf(client: AnyClient, nodeId: string): PageVariant {
       variant: "date-day",
       dayIso: isoOfDateParts(parsed),
       sections: NO_SECTIONS,
-      systemSections: NO_SECTIONS,
+      systemSections: DATE_SYSTEM_SECTIONS,
     };
   }
   if (parsed !== null) {
@@ -234,8 +289,8 @@ export function pageVariantOf(client: AnyClient, nodeId: string): PageVariant {
         precision: parsed.precision === "year" ? "year" : "month",
       }),
       sections: NO_SECTIONS,
-      systemSections: NO_SECTIONS,
+      systemSections: DATE_SYSTEM_SECTIONS,
     };
   }
-  return { variant: "plain", sections: NO_SECTIONS, systemSections: NO_SECTIONS };
+  return { variant: "plain", sections: NO_SECTIONS, systemSections: PAGE_SYSTEM_SECTIONS };
 }
