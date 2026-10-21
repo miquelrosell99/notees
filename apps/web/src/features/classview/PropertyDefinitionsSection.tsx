@@ -10,21 +10,23 @@
  *
  * Section level: two groups — "Class properties" (the class's DIRECT
  * bindings) and "Inherited" (read-only rows attributed to the NEAREST
- * extends-ancestor that binds each schema; clicking one opens the
+ * extends-ancestor that binds each schema; the row's cog opens the
  * base-definition editor).
  *
- * The row (the Notion database-property-row pattern, now the WHOLE
- * surface): the schema icon (the owner-2026-10-20 icon field, per-type
- * glyph fallback) and the name (min-width 0 + ellipsis). NOTHING else —
- * no chevron, no expansion, no inline fields, no drag. Inactive bindings
- * dim the name (the only disabled cue). The whole row is ONE action: it
- * opens the S2 base-definition modal (PropertyEditModal — the default
- * editor lives there now, at the schema level). Hover reveals exactly TWO
- * right-side affordances (no row tint, no name-hover glow,
- * no grip): the COG (definition settings — same S2 modal the row click
- * opens) and the REMOVE × (the section-level danger confirm; hidden for
- * system property schemas — non-removable means absent). Neither requires
- * opening anything first.
+ * The row (the Notion database-property-row LOOK, with an explicit-action
+ * twist): the schema icon (the owner-2026-10-20
+ * icon field, per-type glyph fallback) and the name (min-width 0 +
+ * ellipsis) are IDENTITY DISPLAY ONLY — the name is NOT a button. NOTHING
+ * else in the body — no chevron, no expansion, no inline fields, no drag.
+ * Inactive bindings dim the name (the only disabled cue). Hover reveals
+ * exactly TWO right-side affordances (no row tint, no
+ * name-hover glow, no grip): the COG (definition settings — opens the S2
+ * base-definition modal, PropertyEditModal, where the default editor lives
+ * now, at the schema level; present even for system property schemas) and
+ * the REMOVE × (the section-level danger confirm; hidden for system
+ * property schemas — non-removable means absent). Explicit affordance over
+ * whole-row click: a text-looking row must not pretend to be clickable,
+ * and the same action on BOTH the row and a button is redundant.
  *
  * Bind property: the AddPill opens an anchored popover (SearchField,
  * keyboard-navigable listbox, rows = icon + name + type label) filtered
@@ -195,34 +197,28 @@ function BindingRow({
       data-property-schema-id={binding.propertySchemaId}
       className={`nt-propdef` + (binding.active ? "" : " nt-propdef--inactive")}
     >
+      {/* The row body is IDENTITY DISPLAY ONLY (the
+          name is not a button — a text-looking row must not pretend to be
+          clickable; the explicit COG below is the affordance). The row's
+          TWO hover surfaces (no row tint, no grip): the COG
+          (definition settings — the S2 base-definition modal, where the
+          default editor lives now at the schema level) and the REMOVE ×
+          (the section-level danger confirm; hidden for system property
+          schemas — non-removable means absent). */}
       <div className="nt-propdef-row">
-        {/* The whole row is ONE action: it opens the base-definition modal
-            (the default editor lives there now, at the schema level — the
-            class-level inline editor is gone). */}
-        <button
-          type="button"
-          className="nt-propdef-main"
-          aria-label={`Open property ${name}`}
-          onClick={onOpenDefinition}
-        >
+        <span className="nt-propdef-main">
           <span className="nt-propdef-icon" aria-hidden="true">
             <Icon path={schemaIconOf(schema, binding.type)} size={0.8} />
           </span>
           <span className="nt-propdef-name">{name}</span>
-        </button>
-        {/* The row's TWO hover surfaces (no row tint, no grip):
-            the COG (definition settings — the same S2 modal the row click
-            opens; present even for system schemas, whose REMOVE is absent). */}
+        </span>
         <Button
           variant="ghost"
           size="sm"
           icon="mdi-cog-outline"
           className="nt-propdef-cog"
           aria-label={`Definition settings for ${name}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpenDefinition();
-          }}
+          onClick={onOpenDefinition}
         />
         {!isSystem && (
           <Button
@@ -437,24 +433,32 @@ export function PropertyDefinitionsSection({
               const sourceName = displayNameFromClient(client, sourceClassId) ?? sourceClassId;
               return (
                 <li key={binding.propertySchemaId} className="nt-propdef-inherited-row">
-                  <button
-                    type="button"
-                    className="nt-propdef-inherited-main"
-                    title={`Open property (inherited from ${sourceName})`}
-                    aria-label={`Open property ${schema?.name ?? binding.name}`}
-                    onClick={() => setEditFor(binding.propertySchemaId)}
-                  >
-                    <span className="nt-propdef-icon" aria-hidden="true">
-                      <Icon path={schemaIconOf(schema, binding.type)} size={0.8} />
-                    </span>
-                    <span className="nt-propdef-name">{schema?.name ?? binding.name}</span>
-                    <span className="pill nt-propdef-source">
-                      <span className="pill__left-icon" aria-hidden="true">
-                        <Icon path={client.effectiveClassIcon(sourceClassId)} size={0.6} />
+                  {/* Identity display + source attribution — the same
+                      explicit-cog criterion as the direct rows (the name is
+                      NOT a button); the hover COG opens the base definition
+                      (inherited from ${sourceName}). */}
+                  <div className="nt-propdef-inherited-rowinner">
+                    <span className="nt-propdef-inherited-main">
+                      <span className="nt-propdef-icon" aria-hidden="true">
+                        <Icon path={schemaIconOf(schema, binding.type)} size={0.8} />
                       </span>
-                      <span className="pill__text">{sourceName}</span>
+                      <span className="nt-propdef-name">{schema?.name ?? binding.name}</span>
+                      <span className="pill nt-propdef-source">
+                        <span className="pill__left-icon" aria-hidden="true">
+                          <Icon path={client.effectiveClassIcon(sourceClassId)} size={0.6} />
+                        </span>
+                        <span className="pill__text">{sourceName}</span>
+                      </span>
                     </span>
-                  </button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon="mdi-cog-outline"
+                      className="nt-propdef-cog"
+                      aria-label={`Definition settings for ${schema?.name ?? binding.name} (inherited from ${sourceName})`}
+                      onClick={() => setEditFor(binding.propertySchemaId)}
+                    />
+                  </div>
                 </li>
               );
             })}
