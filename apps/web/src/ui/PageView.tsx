@@ -119,7 +119,6 @@ import { bannerAssetIdOf, setNodeBanner } from "../features/page-sections/PageBa
 import { AssetUploadModal } from "../features/modals/AssetUploadModal.js";
 import { SelectionBar } from "../features/block-editor/SelectionBar.js";
 import { SelectionOutline } from "./SelectionOutline.js";
-import { SystemSections } from "../features/page-sections/SystemSections.js";
 import { childQuery } from "../features/collection/childQuery.js";
 import { coverAssetIdOf } from "../features/metadata/coverProperty.js";
 import { ensureAliasProperty } from "../features/metadata/aliasProperty.js";
@@ -537,14 +536,23 @@ export function PageView({
   /**
    * The variant's section stacks: the descriptor's SectionSpec-shaped
    * entries mount their existing section components at the placement sites —
-   * the content stack (between the body and the date/system sections), the
+   * the content stack (between the body and the system sections), the
    * panelled first column (`sidebarSections`, rendered under the Metadata
    * panel — only when panelled; the compact layout keeps them in the content
-   * stack in their original order), and ahead of the default
-   * <SystemSections/>. Empty for plain/date variants, so the maps are the
-   * no-op they always were there.
+   * stack in their original order), and the page's reference family +
+   * the variant's relation sections (`systemSections` — the self-gating
+   * Child pages / Backlinks / Unlinked mentions ride it on every variant,
+   * with the unlinked spec omitted on the date family;
+   * the <SystemSections/> group component died by subtraction, placement
+   * is data, the sections own their gates).
    */
-  const variantSectionCtx = { client, nodeId: pageId, onOpenPage, onOpenClass: onOpenPage };
+  const variantSectionCtx = {
+    client,
+    nodeId: pageId,
+    onOpenPage,
+    onOpenClass: onOpenPage,
+    embedded,
+  };
   const contentSectionSpecs = panelled
     ? variant.sections
     : [...(variant.sidebarSections ?? []), ...variant.sections];
@@ -585,10 +593,7 @@ export function PageView({
           <>
             <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
             {!preview && !focusMode && (
-              <div className="nt-page-section-stack">
-                {variantSystemSections}
-                <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} embedded={embedded} />
-              </div>
+              <div className="nt-page-section-stack">{variantSystemSections}</div>
             )}
           </>
         ) : (
@@ -703,9 +708,6 @@ export function PageView({
                 />
               )}
               {!preview && !focusMode && variantSystemSections}
-              {!preview && !focusMode && (
-                <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} embedded={embedded} />
-              )}
             </div>
           </EmbedBoundary>
         </>
