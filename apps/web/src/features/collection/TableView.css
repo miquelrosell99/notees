@@ -468,15 +468,18 @@ td:has(> .nt-table-node > .nt-table-open-btn) {
   transition: padding-right var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-/* The name column takes the table's free space (owner 2026-10-21 — the
-   retired name button's width:100% did this; the block-row cell's nested
-   flex/grid min-content is the longest word, so without the claim the
-   auto-layout column collapses under contention while the nowrap headers
-   keep theirs). The other columns size from their content; a crowded
-   table scrolls horizontally (the wrap's overflow-x), it never starves
-   the name cell to gutter width. */
+/* The name column keeps a readable lane (owner 2026-10-21 — the retired
+   name button's width:100% claimed the free space; the block-row cell's
+   nested flex/grid min-content is the longest word, so under column
+   contention the auto-layout algorithm collapsed the column to ~85px while
+   the nowrap property headers kept theirs — live probe). Percentage cell
+   widths are no-ops here (the table sizes from its content and overflows
+   the wrap horizontally, as before); a ch-unit floor is the claim that
+   holds: crowded tables scroll with a readable name lane, sparse tables
+   still grow the column to the title (the wrap ruling — titles wrap inside
+   the lane). */
 td.nt-table-name {
-  width: 100%;
+  min-width: 32ch;
 }
 
 td.nt-table-name:hover,
