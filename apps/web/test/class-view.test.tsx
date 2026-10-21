@@ -282,19 +282,16 @@ describe("Class View", () => {
     // FINAL citations authorship (2026-09-27): authors is the node-typed,
     // agent-filtered property (linkedAuthors was withdrawn same day, …0025).
     const authorsRow = rows[1]!;
-    // The row is identity-only (S6) and IS the whole surface (owner ruling
-    // 2026-10-20): no chevron, no cog, no inline fields — the click opens the
-    // S2 definition modal (the unresolved-targets hint for the undeployed
-    // "agent" class lives there).
+    // The row is identity-only (S6): no chevron, no inline fields — the
+    // hover-revealed COG opens the S2 definition modal (the
+    // unresolved-targets hint for the undeployed "agent" class lives there;
+    // the name itself is display only — owner ruling 2026-10-21).
     expect(within(authorsRow as HTMLElement).queryByLabelText("Default for Authors")).toBeNull();
     expect(within(authorsRow as HTMLElement).queryByRole("checkbox", { name: "Required" })).toBeNull();
-    expect(
-      within(authorsRow as HTMLElement).queryByRole("button", { name: "Definition settings for Authors" }),
-    ).toBeNull();
     expect(within(authorsRow as HTMLElement).queryByText("For this class")).toBeNull();
     expect(within(authorsRow as HTMLElement).queryByText("Definition")).toBeNull();
     expect(within(authorsRow as HTMLElement).queryByText("Target classes")).toBeNull();
-    fireEvent.click(within(authorsRow as HTMLElement).getByRole("button", { name: "Open property Authors" }));
+    fireEvent.click(within(authorsRow as HTMLElement).getByRole("button", { name: "Definition settings for Authors" }));
     await flushWrites();
     // Authors is object-typed: the definition modal carries NO default editor
     // for node-typed schemas (the owner ruling, 2026-10-20).

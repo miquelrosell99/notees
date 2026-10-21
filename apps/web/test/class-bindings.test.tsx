@@ -142,9 +142,9 @@ describe("Class View class properties editor", () => {
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
 
-    // The whole row opens the S2 base-definition modal; the default editor
-    // lives there now (schema-level, the Logseq shape).
-    fireEvent.click(screen.getByRole("button", { name: "Open property priority" }));
+    // The row's hover cog opens the S2 base-definition modal; the default
+    // editor lives there now (schema-level, the Logseq shape).
+    fireEvent.click(screen.getByRole("button", { name: "Definition settings for priority" }));
     const dialog = screen.getByRole("dialog");
     const defaultSelect = within(dialog).getByLabelText("Default value");
     expect(defaultSelect).toHaveProperty("value", "opt-medium");
@@ -168,7 +168,7 @@ describe("Class View class properties editor", () => {
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open property done" }));
+    fireEvent.click(screen.getByRole("button", { name: "Definition settings for done" }));
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("Default value"), { target: { value: "true" } });
     await flushWrites();
@@ -189,7 +189,7 @@ describe("Class View class properties editor", () => {
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open property estimate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Definition settings for estimate" }));
     const dialog = screen.getByRole("dialog");
     const input = within(dialog).getByLabelText("Default value");
     expect(input).toHaveProperty("type", "number");
@@ -206,7 +206,7 @@ describe("Class View class properties editor", () => {
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open property link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Definition settings for link" }));
     // A default that links a node is meaningless (PC2): the definition modal
     // carries no default editor for object/asset/image/datetime schemas.
     const dialog = screen.getByRole("dialog");
@@ -222,9 +222,9 @@ describe("Class View class properties editor", () => {
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
 
-    // The whole row IS the definition-modal path (the cog is gone with the
-    // inline editor — owner ruling 2026-10-20).
-    fireEvent.click(screen.getByRole("button", { name: "Open property Priority" }));
+    // The row's hover cog IS the definition-modal path (the name is
+    // display only — owner ruling 2026-10-21).
+    fireEvent.click(screen.getByRole("button", { name: "Definition settings for Priority" }));
     const nameInput = screen.getByLabelText("Property name");
     fireEvent.blur(nameInput, { target: { value: "Importance" } });
     await flushWrites();
@@ -277,21 +277,26 @@ describe("Class View class properties editor", () => {
     render(<NodeView client={client} nodeId={classC} onOpenNode={() => {}} />);
     await expandDefinitions();
 
-    // Direct group: only own-y. The row is identity-only.
-    expect(screen.getByRole("button", { name: "Open property own-y" })).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "Open property shared-x" })).toBeNull();
-    // No chips on the row.
-    const row = screen.getByRole("button", { name: "Open property own-y" });
+    // Direct group: only own-y. The row is identity-only (name not a button).
+    expect(screen.getByRole("button", { name: "Definition settings for own-y" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Definition settings for shared-x" })).toBeNull();
+    // No chips on the row body.
+    const row = screen
+      .getByRole("button", { name: "Definition settings for own-y" })
+      .closest(".nt-propdef") as HTMLElement;
     expect(within(row).queryByText(/default:|disabled/)).toBeNull();
 
     // Inherited group: shared-x attributed to SourceB (the NEAREST binder).
     const inherited = screen.getByRole("button", { name: /inherited/i });
     fireEvent.click(inherited);
     await flushWrites();
-    const inheritedRow = screen.getByRole("button", { name: "Open property shared-x" });
-    expect(within(inheritedRow).getByText("SourceB")).not.toBeNull();
+    const inheritedRow = screen.getByRole("button", {
+      name: "Definition settings for shared-x (inherited from SourceB)",
+    });
+    const inheritedItem = inheritedRow.closest(".nt-propdef-inherited-row") as HTMLElement;
+    expect(within(inheritedItem).getByText("SourceB")).not.toBeNull();
 
-    // Clicking the inherited row opens the base-definition editor (the
+    // The inherited row's cog opens the base-definition editor (the
     // settings modal's dialog carries no title attribute — the heading
     // names it).
     fireEvent.click(inheritedRow);
