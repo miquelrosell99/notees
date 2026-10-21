@@ -650,6 +650,47 @@ describe("crumb labels over class chips (issue #2)", () => {
     const crumbs = container.querySelectorAll(".node-breadcrumb-name");
     expect(crumbs[1]!.textContent).toBe("on the Republic");
   });
+
+  it("a MIXED title folds an inline chip's resolved name in (the resolver now rides every crumb, not only the chip-only fallback)", async () => {
+    const client = await seedClient();
+    const classId = await client.createClass("persona");
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const parentId = await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "text", text: "Reunión con " },
+        { type: "class_link", classId },
+      ],
+    });
+    const childId = await client.createObject({ parentId, contentAst: [{ type: "text", text: "Child" }] });
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={childId} onOpenNode={() => {}} />,
+    );
+    const crumbs = container.querySelectorAll(".node-breadcrumb-name");
+    expect(crumbs[1]!.textContent).toBe("Reunión con persona");
+  });
+});
+
+describe("crumb labels reduce markdown links", () => {
+  it("a markdown link title crumbs under its label — no raw brackets, no href", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const parentId = await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "text", text: "Ver [Informe 2024](https://example.com/informe) hoy" },
+      ],
+    });
+    const childId = await client.createObject({ parentId, contentAst: [{ type: "text", text: "Child" }] });
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={childId} onOpenNode={() => {}} />,
+    );
+    const crumbs = container.querySelectorAll(".node-breadcrumb-name");
+    expect(crumbs[1]!.textContent).toBe("Ver Informe 2024 hoy");
+    expect(container.querySelector(".node-breadcrumbs")!.textContent).not.toContain("example.com");
+  });
 });
 
 
