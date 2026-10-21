@@ -50,13 +50,15 @@
  *   node as the root id): the enclosing page/class view is the navigation
  *   fallback, the shell hubs have none of their own.
  * - Column sizing (owner 2026-10-21): the table rides fixed layout with a
- *   colgroup — every column has a DEFAULT width (classes/created/edited/
- *   isClass/isEmbedded/property kinds below) and the name column alone is
- *   flexible, taking the table's remaining width (its 32ch floor stays).
- *   Dragging a header divider commits a px width for that column (session-
- *   state, like the rest of the table chrome), clamped to a minimum; the
- *   divider is keyboard-reachable too (ArrowLeft/Right nudge 1ch). A crowded
- *   table scrolls the wrap horizontally, never starves a column.
+ *   colgroup — every column has a DEFAULT width (name 32ch, classes 16ch,
+ *   created/edited 12ch, isClass/isEmbedded 8ch, properties 18ch — ch units
+ *   in the table font) and a user drag on a header divider commits a px
+ *   width (session-state, like the rest of the table chrome), clamped to a
+ *   72px minimum; the divider is keyboard-reachable too (ArrowLeft/Right
+ *   nudge 16px). Fixed layout makes the widths exact — cell content wraps
+ *   inside its lane, and a crowded table scrolls the wrap horizontally
+ *   instead of renegotiating columns from content (auto layout starved the
+ *   name column to its nested-flex min-content, found by the live probe).
  * - CSV export: the toolbar "…" menu's "Export CSV"
  *   downloads the CURRENT view — the visible columns × the full sorted
  *   result set (the window is display-only, never an export cut) — through
@@ -123,11 +125,13 @@ const MIN_COLUMN_WIDTH = 72;
 /**
  * The fixed-layout default share per column kind (ch units — the table
  * font's character box; the property default rides the common header
- * length). The NAME column returns undefined — it is the flexible one and
- * takes the table's remaining width (its 32ch floor stays on the cell).
+ * length). The name column rides 32ch — the same lane the flexible
+ * auto-layout column claimed — and grows with its share of any leftover
+ * table width. Fixed layout ignores the td's min-width, so the floor is a
+ * real col width here, not a CSS minimum.
  */
-function defaultColumnWidth(column: TableColumn): string | undefined {
-  if (column.kind === "name") return undefined;
+function defaultColumnWidth(column: TableColumn): string {
+  if (column.kind === "name") return "32ch";
   if (column.kind === "classes") return "16ch";
   if (column.kind === "created" || column.kind === "edited") return "12ch";
   if (column.kind === "isClass" || column.kind === "isEmbedded") return "8ch";
@@ -1330,7 +1334,7 @@ export function TableView(props: NodeCollectionProps) {
           {selectable && <col className="nt-table-select-col" />}
           {visibleColumns.map((column) => {
             const width = colWidths.get(column.id) ?? defaultColumnWidth(column);
-            return <col key={column.id} style={width === undefined ? undefined : { width }} />;
+            return <col key={column.id} style={{ width }} />;
           })}
         </colgroup>
         <thead>

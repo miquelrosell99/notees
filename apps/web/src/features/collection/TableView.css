@@ -113,15 +113,16 @@
   color: var(--md-sys-color-primary);
 }
 
-/* The column-resize divider (owner 2026-10-21): an 8px hit area straddling
-   the header's right edge (the th is the positioning context — sticky
-   already establishes one). At rest it shows a hairline on hover/focus
-   only; the drag itself is live (the column reflows under the pointer). */
+/* The column-resize divider (owner 2026-10-21): an 8px hit area at the
+   header's right edge (inside the th — the sticky header clips overflow,
+   and the th's right padding keeps it off the sort button's text). At
+   rest it shows a hairline on hover/focus only; the drag itself is live
+   (the column reflows under the pointer). */
 .nt-table-resize {
   position: absolute;
   top: 0;
   bottom: 0;
-  right: calc(-1 * var(--spacing-1));
+  right: 0;
   width: var(--spacing-2);
   cursor: col-resize;
   touch-action: none;
@@ -506,20 +507,6 @@ td.nt-table-name,
 td:has(> .nt-table-node > .nt-table-open-btn) {
   position: relative;
   transition: padding-right var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-/* The name column keeps a readable lane (owner 2026-10-21 — the retired
-   name button's width:100% claimed the free space; the block-row cell's
-   nested flex/grid min-content is the longest word, so under column
-   contention the auto-layout algorithm collapsed the column to ~85px while
-   the nowrap property headers kept theirs — live probe). Percentage cell
-   widths are no-ops here (the table sizes from its content and overflows
-   the wrap horizontally, as before); a ch-unit floor is the claim that
-   holds: crowded tables scroll with a readable name lane, sparse tables
-   still grow the column to the title (the wrap ruling — titles wrap inside
-   the lane). */
-td.nt-table-name {
-  min-width: 32ch;
 }
 
 td.nt-table-name:hover,
