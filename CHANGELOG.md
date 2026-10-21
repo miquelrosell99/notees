@@ -7,6 +7,20 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **refine(web): the AND/OR control settles on the original
+  overlapping-circles icons.** Owner reversal, same day (2026-10-21): the
+  bold-uppercase AND/OR text segments "look terrible" — the control returns
+  to the v1 register (`mdi-set-all` AND / `mdi-set-center` OR, the
+  overlapping-circles pair) inside the bordered SelectionButton. The
+  SelectionButton `text` segment register, trialed three ways this session,
+n  retires unused — the primitive is restored to its pre-experiment form.
+  - **Files**: `apps/web/src/features/collection/FilterBlockBuilder.tsx`
+    (LOGIC_OPTIONS back to set-all/set-center), `apps/web/src/components/ui/fleet/SelectionButton.tsx`
+    + `.css` (restored).
+  - **Verification**: `npx tsc --noEmit`; `filter-builder` + `graph-view`
+    46/46 green (the logic radios keep their accessible names, assertions
+    unchanged).
+
 - **feat(web): the outline list opens pages collapsed — a page row with
   child blocks starts folded behind its chevron.**"in outline nodecollection view mode always show pages in
   collapsed state by default (when they actually have child blocks, of
