@@ -116,14 +116,17 @@ describe("metacharacter escaping", () => {
     expect(md).toContain("**c\\*tes** Le Guin (p. 42\\) x)");
   });
 
-  it("escapes external-link text and wraps unsafe hrefs in angle brackets", () => {
+  it("linkifies safe markdown spans in text and escapes non-linkable brackets", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000007", "links", [
-      { type: "external_link", href: "https://example.com/a(b)", text: "a ] b" },
+      // Unsafe per the render grammar (parens in the href): NOT a link — the
+      // brackets escape as ordinary text and the URL rides along literally.
+      { type: "text", text: "[a ] b](https://example.com/a(b))" },
       { type: "text", text: " and " },
-      { type: "external_link", href: "https://example.com/x", text: "safe" },
+      // Safe span: round-trips as a real markdown link.
+      { type: "text", text: "[safe](https://example.com/x)" },
     ]);
     const md = nodeToMarkdown(node, makeCtx());
-    expect(md).toContain("[a \\] b](<https://example.com/a%28b%29>)");
+    expect(md).toContain("\\[a \\] b\\](https://example.com/a(b))");
     expect(md).toContain("[safe](https://example.com/x)");
   });
 

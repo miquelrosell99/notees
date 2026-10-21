@@ -97,7 +97,7 @@ function fixtureDocument(): ExportDocument {
           { kind: "mention", targetNodeId: "node-gear", name: "Gear" },
           { kind: "classLink", classId: "class-tag", name: "travel" },
           { kind: "typedLink", verb: "authored by", text: "Miquel", locator: "p. 2" },
-          { kind: "externalLink", text: "docs", href: "https://example.com" },
+          { kind: "text", text: "[docs](https://example.com)", marks: [] },
           { kind: "math", expression: "e=mc^2" },
           { kind: "hardBreak" },
           { kind: "text", text: "second line", marks: ["code"] },
