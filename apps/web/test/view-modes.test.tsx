@@ -26,6 +26,7 @@ import { HubView } from "../src/ui/app/HubView.js";
 import { PageView } from "../src/ui/PageView.js";
 import { NodeView } from "../src/ui/App.js";
 import { CollectionHub } from "../src/features/collection/CollectionHub.js";
+import { ReferenceSubtree } from "../src/features/block-editor/ReferenceSubtree.js";
 import { childQuery } from "../src/features/collection/childQuery.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 import { getViewDefinition, getViewModeOptions, NodeCollection } from "../src/features/collection/index.js";
@@ -746,7 +747,7 @@ describe("pages hub (workspace roots)", () => {
   });
 });
 
-describe("outline list: pages with children default collapsed", () => {
+describe("outline list: rows with children default collapsed", () => {
   it("a page row folds its child blocks behind the chevron; the toggle is session-local display state", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Folded" });
@@ -780,7 +781,7 @@ describe("outline list: pages with children default collapsed", () => {
     expect(row.textContent).not.toContain("the hidden block");
   });
 
-  it("block rows with children keep their natural expanded state — the ruling names pages only", async () => {
+  it("block rows with children fold too — the ruling covers every row, not pages only", async () => {
     const client = await seedClient();
     const hostId = await client.createObject({ isEmbedded: false, name: "Host" });
     const blockId = await client.createObject({
@@ -803,10 +804,35 @@ describe("outline list: pages with children default collapsed", () => {
         onOpenNode={() => {}}
       />,
     );
-    // The block row is not a page — its children render expanded, no fold.
     const row = container.querySelector("ul.outline-flat > li") as HTMLElement;
+    expect(row.textContent).not.toContain("the nested block");
+    const chevron = row.querySelector(".nt-block-chevron") as HTMLElement;
+    expect(chevron.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(chevron);
     expect(row.textContent).toContain("the nested block");
-    expect(row.querySelector(".nt-block-chevron")?.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("the backlinks-style reference subtree folds its root row the same way", async () => {
+    const client = await seedClient();
+    const hostId = await client.createObject({ isEmbedded: false, name: "Host" });
+    const sourceId = await client.createObject({
+      parentId: hostId,
+      contentAst: [{ type: "text", text: "the referencing block" }],
+    });
+    await client.createObject({
+      parentId: sourceId,
+      contentAst: [{ type: "text", text: "the folded context" }],
+    });
+
+    const { container } = render(
+      <ReferenceSubtree client={client} rootId={sourceId} onOpenNode={() => {}} />,
+    );
+    const row = container.querySelector(".nt-refblock-tree") as HTMLElement;
+    expect(row.textContent).not.toContain("the folded context");
+    const chevron = row.querySelector(".nt-block-chevron") as HTMLElement;
+    expect(chevron.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(chevron);
+    expect(row.textContent).toContain("the folded context");
   });
 });
 
