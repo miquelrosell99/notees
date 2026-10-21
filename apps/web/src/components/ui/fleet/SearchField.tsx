@@ -30,6 +30,10 @@ export interface SearchFieldProps extends Omit<InputHTMLAttributes<HTMLInputElem
   icon?: ReactNode;
   /** Visible label text (also used as accessible name when visible) */
   label?: string;
+  /** Pill size — "md" (default) stands 36px-class rows; "sm" (30px) rides
+   * compact chrome rows like the hosted tab bar, matching the sm buttons
+   * beside it. */
+  size?: 'md' | 'sm' | undefined;
   /** Additional CSS class on the wrapper */
   className?: string;
   /** Clear affordance: with a non-empty `value`, an × renders inside the
@@ -38,7 +42,7 @@ export interface SearchFieldProps extends Omit<InputHTMLAttributes<HTMLInputElem
 }
 
 export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
-  function SearchField({ icon, label, className = '', 'aria-label': ariaLabel, onClear, ...inputProps }, ref) {
+  function SearchField({ icon, label, size = 'md', className = '', 'aria-label': ariaLabel, onClear, ...inputProps }, ref) {
     const id = useId();
     const hasValue = typeof inputProps.value === 'string' && inputProps.value !== '';
 
@@ -46,6 +50,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
       <div
         className={cn(
           'search-field flex items-center gap-2 rounded-item px-3 py-2 transition-colors duration-short ease-standard',
+          size === 'sm' && 'search-field--sm',
           className,
         )}
       >
@@ -56,7 +61,10 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
           ref={ref}
           id={id}
           type="text"
-          className="search-field__input min-w-0 flex-1 border-none bg-transparent text-base text-on-surface placeholder:text-on-surface-variant focus-visible:ring-0"
+          className={cn(
+            'search-field__input min-w-0 flex-1 border-none bg-transparent text-base text-on-surface placeholder:text-on-surface-variant focus-visible:ring-0',
+            size === 'sm' && 'h-button-sm',
+          )}
           aria-label={ariaLabel ?? label}
           {...inputProps}
         />
