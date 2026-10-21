@@ -7,6 +7,24 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): two ring sizes, one style — the classic 16px halo returns on
+  dot bullets; icon bullets keep the 28px circle.**"would having the old ring size for non-icon bullets look
+  bad? so, two ring sizes" — answered no and shipped: the ring exists to
+  hug its glyph. 28px around the 19.2px class-icon plate reads tight (the
+  16px halo hid entirely behind the solid glyph); 28px around the 6px dot
+  was a big empty wash, so dot bullets return to the long-approved 16px
+  halo — dot rows regain their exact original proportions (with the 6px
+  dot from the sibling commit) while icon rows keep the grown circle. Same
+  soft primary background for both — the `:has(.nt-bullet-icon)` rule is a
+  size variant only, never the retired border/outline treatment. The 46px
+  bullet element and the grouped rendering's spacing-3 separation stay.
+  - **Files**: `apps/web/src/ui/app.css` (`.nt-bullet-ring` 16px base + the
+    28px `:has(.nt-bullet-icon)` size variant), `apps/web/test/view-modes.
+    test.tsx` (the CSS spec pins both sizes and the no-border style).
+  - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
+    `pnpm --filter @notees/web test` — see the run below (deployed with
+    the 6px-dot revert once the parallel session's tree lands).
+
 - **feat(web): no section header counts anywhere — the active tab's badge is
   the one count, and every section counts the same way (displayed nodes).**
  
