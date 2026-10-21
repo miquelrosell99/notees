@@ -298,6 +298,32 @@ describe("compile: SQL shape", () => {
     expect(params).toEqual([PLACE]);
   });
 
+  it("classAnyQuery / tagAnyQuery: the picked ids come from the nested group's subquery", () => {
+    const classSql = compile(ast(entire, [
+      { type: "classAnyQuery", root: { type: "group", logic: "and", children: [
+        { type: "class", classId: PLACE },
+      ] } },
+    ]));
+    // The hierarchy closure read rides the group's matches (a fresh `node n`
+    // scope), like classAny but with the subquery in place of the id list.
+    expect(classSql.sql).toContain("json_each(n.class_ids)");
+    expect(classSql.sql).toContain(
+      "value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id IN " +
+      "(SELECT n.id FROM node n WHERE n.is_active = 1 AND (",
+    );
+    expect(classSql.params).toEqual([PLACE]);
+    const tagSql = compile(ast(entire, [
+      { type: "tagAnyQuery", root: { type: "group", logic: "and", children: [
+        { type: "isClass", isClass: true },
+      ] } },
+    ]));
+    expect(tagSql.sql).toContain(
+      "EXISTS (\n  SELECT 1 FROM json_each(n.tag_ids)\n  WHERE value IN " +
+      "(SELECT n.id FROM node n WHERE n.is_active = 1 AND (",
+    );
+    expect(tagSql.params).toEqual([1]);
+  });
+
   it("isClass/isEmbedded and created-window conditions are parameterized", () => {
     const { sql, params } = compile(
       ast(entire, [
@@ -1515,6 +1541,34 @@ describe.each(adapters)("$name: Odoo operator-set conditions", ({ makeStore }) =
     ).toThrow();
   });
 
+  it("classAnyQuery: DYNAMIC class — closure-aware membership of ANY class matching the nested group", () => {
+    const store = worldStore();
+    // The nested group picks the CLASSES (class nodes): "classed as anything
+    // matching [isClass]" — the closure of Place and City: France directly,
+    // Paris through the City extends row.
+    expect(
+      runQuery(store, ast(entire, [{ type: "classAnyQuery", root: { type: "group", logic: "and", children: [
+        { type: "isClass", isClass: true },
+      ] } }])).ids.sort(),
+    ).toEqual([FRANCE, PARIS].sort());
+    // "Anything matching the class NAMED City" — Paris only (the closure of
+    // City is just City; France's Place does not match).
+    expect(
+      runQuery(store, ast(entire, [{ type: "classAnyQuery", root: { type: "group", logic: "and", children: [
+        { type: "content", op: "eq", value: "City" },
+      ] } }])).ids,
+    ).toEqual([PARIS]);
+    // The not-wrap reads "does not contain".
+    const negated = runQuery(store, ast(entire, [
+      { type: "not", child: { type: "classAnyQuery", root: { type: "group", logic: "and", children: [
+        { type: "isClass", isClass: true },
+      ] } } },
+    ]));
+    expect(negated.ids).not.toContain(FRANCE);
+    expect(negated.ids).not.toContain(PARIS);
+    expect(negated.ids).toContain(LONE);
+  });
+
   it("classSet: the class set is non-empty", () => {
     const store = worldStore();
     const { ids } = runQuery(store, ast(entire, [{ type: "classSet" }]));
@@ -1663,9 +1717,11 @@ describe.each(adapters)("$name: Odoo operator-set conditions", ({ makeStore }) =
     const t = (i: number) => T0 + 100 * STEP + i * STEP;
     const text = (s: string) => [{ type: "text", text: s }];
     store.applyMany([
-      env("object.create", { objectId: FRANCE, contentAst: text("France"), tagIds: [TAG_A] }, t(0)),
-      env("object.create", { objectId: PARIS, contentAst: text("Paris"), tagIds: [TAG_A, TAG_B] }, t(1)),
-      env("object.create", { objectId: LONE, contentAst: text("Lone") }, t(2)),
+      env("object.create", { objectId: TAG_A, contentAst: text("Urgent") }, t(0)),
+      env("object.create", { objectId: TAG_B, contentAst: text("Later") }, t(1)),
+      env("object.create", { objectId: FRANCE, contentAst: text("France"), tagIds: [TAG_A] }, t(2)),
+      env("object.create", { objectId: PARIS, contentAst: text("Paris"), tagIds: [TAG_A, TAG_B] }, t(3)),
+      env("object.create", { objectId: LONE, contentAst: text("Lone") }, t(4)),
     ]);
     expect(runQuery(store, ast(entire, [{ type: "tag", tagId: TAG_A }])).ids.sort()).toEqual([FRANCE, PARIS].sort());
     expect(runQuery(store, ast(entire, [{ type: "tag", tagId: TAG_B }])).ids).toEqual([PARIS]);
@@ -1673,9 +1729,29 @@ describe.each(adapters)("$name: Odoo operator-set conditions", ({ makeStore }) =
       runQuery(store, ast(entire, [{ type: "tagAny", tagIds: [TAG_A, TAG_B] }])).ids.sort(),
     ).toEqual([FRANCE, PARIS].sort());
     expect(runQuery(store, ast(entire, [{ type: "tagSet" }])).ids.sort()).toEqual([FRANCE, PARIS].sort());
+    // The untagged: Lone plus the tag nodes themselves (a tag carries no tags).
     expect(
-      runQuery(store, ast(entire, [{ type: "not", child: { type: "tagSet" } }])).ids,
-    ).toEqual([LONE]);
+      runQuery(store, ast(entire, [{ type: "not", child: { type: "tagSet" } }])).ids.sort(),
+    ).toEqual([LONE, TAG_A, TAG_B].sort());
+    // DYNAMIC tags: the nested group's matches ARE the tag nodes — "tagged
+    // with anything named Urgent" (TAG_A) keeps France and Paris; "Later"
+    // (TAG_B) keeps Paris alone.
+    expect(
+      runQuery(store, ast(entire, [{ type: "tagAnyQuery", root: { type: "group", logic: "and", children: [
+        { type: "content", op: "eq", value: "Urgent" },
+      ] } }])).ids.sort(),
+    ).toEqual([FRANCE, PARIS].sort());
+    expect(
+      runQuery(store, ast(entire, [{ type: "tagAnyQuery", root: { type: "group", logic: "and", children: [
+        { type: "content", op: "eq", value: "Later" },
+      ] } }])).ids,
+    ).toEqual([PARIS]);
+    // A group matching no tag node leaves every row out.
+    expect(
+      runQuery(store, ast(entire, [{ type: "tagAnyQuery", root: { type: "group", logic: "and", children: [
+        { type: "content", op: "eq", value: "Zebras" },
+      ] } }])).ids,
+    ).toEqual([]);
   });
 
   it("links: ANY-of over picked nodes + the inbound-link set bit", () => {

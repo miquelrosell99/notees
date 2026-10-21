@@ -114,16 +114,19 @@ describe("the FilterQuery shape", () => {
   });
 
   it("createCondition seeds a half-typed default per family", () => {
-    // The class family's default row rides the MEMBERSHIP register (owner
-    // ruling 2026-10-21): "Class contains Day" = the class among others,
-    // extends-aware — the exact-set reading ("is") is the deliberate narrow
-    // operator, no longer the default.
-    expect(createCondition("class")).toEqual({ type: "class", classId: "" });
+    // The class family's default row rides the MULTI-VALUE membership
+    // register (owner ruling 2026-10-21): "Class contains Day, Week" =
+    // closure-aware ANY-of over the picked list — the exact single-pill
+    // reading ("is") is the deliberate narrow operator, not the default.
+    expect(createCondition("class")).toEqual({ type: "classAny", classIds: [] });
     expect(createCondition("type")).toEqual({ type: "isClass", isClass: true });
     expect(createCondition("placement")).toEqual({ type: "isEmbedded", isEmbedded: false });
     expect(createCondition("content")).toEqual({ type: "content", op: "contains", value: "" });
     expect(createCondition("property")).toEqual({ type: "property", schemaId: "", op: "eq", value: "" });
-    expect(createCondition("links")).toEqual({ type: "linkedTo", nodeId: "" });
+    // The single-target node families bind the LIST by default (owner
+    // ruling 2026-10-21): tags is […], links is […] — ANY-of membership.
+    expect(createCondition("tags")).toEqual({ type: "tagAny", tagIds: [] });
+    expect(createCondition("links")).toEqual({ type: "linkedToAny", nodeIds: [] });
     expect(createCondition("referencePath")).toEqual({ type: "referencePathOf", nodeIds: [] });
     expect(createCondition("parent")).toEqual({ type: "parentOf", nodeIds: [] });
     expect(createCondition("child")).toEqual({ type: "childOf", nodeIds: [] });
@@ -243,6 +246,10 @@ describe("filterQueryToGroup — the draft prune", () => {
         { type: "descendantOfQuery", root: { type: "group", logic: "and", children: [
           { type: "class", classId: "" },
         ] } },
+        { type: "classAnyQuery", root: { type: "group", logic: "and", children: [] } },
+        { type: "tagAnyQuery", root: { type: "group", logic: "and", children: [
+          { type: "tagAny", tagIds: [] },
+        ] } },
         { type: "updatedAfter", timestamp: " " },
         { type: "updatedBefore", timestamp: "" },
         { type: "linkedTo", nodeId: "" },
@@ -260,6 +267,9 @@ describe("filterQueryToGroup — the draft prune", () => {
           { type: "isClass", isClass: false },
           { type: "property", schemaId: "", op: "eq" },
         ] } },
+        { type: "classAnyQuery", root: { type: "group", logic: "and", children: [
+          { type: "classAny", classIds: [CLASS_A] },
+        ] } },
       ],
     };
     expect(filterQueryToGroup({ text: "", group: draft })).toEqual({
@@ -268,6 +278,9 @@ describe("filterQueryToGroup — the draft prune", () => {
       children: [
         { type: "linkedToQuery", root: { type: "group", logic: "and", children: [
           { type: "isClass", isClass: false },
+        ] } },
+        { type: "classAnyQuery", root: { type: "group", logic: "and", children: [
+          { type: "classAny", classIds: [CLASS_A] },
         ] } },
       ],
     });

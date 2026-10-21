@@ -7,6 +7,54 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(web): the filter block builder's node-target values ride pill
+  clusters, the single-target families go multi-value, and Class/Tags gain
+  the static/dynamic mode.** Owner asks (2026-10-21): node-target filter
+  values render as the fleet pill cluster (NodePill + AddPill, the
+  MultiNodeCell precedent); the Class is/is-not/contains and Links/Tags
+  is/is-not families bind a LIST (ANY-of membership) — the redundant "one
+  of" operator collapses into "contains"/"is" (owner ruling: identical
+  semantics); Class and Tags blocks gain the static/dynamic mode toggle
+  (dynamic = a nested query subgroup inside a kit Card, the nesting
+  infinite); the condition row's value column spans the full remaining row
+  width (the spacer goes zero-width). Wire: two new dynamic condition
+  shapes — `classAnyQuery` (closure-aware membership of ANY class matching
+  the nested group) and `tagAnyQuery` (tagged with ANY tag matching the
+  nested group) — protocol conditions + zod schema, compiler arms
+  (correlated subquery over the group's matches, degrading to the
+  never-matching subquery on an empty group like the other dynamic arms),
+  and the section probe gate (dynamic leaves ride the runQueryAst query
+  channel, never local eval). Latent fix riding along: `familyOf` mapped
+  the tag conditions to the PARENT family (wrong label + operator set) —
+  they ride the Tags family now, which the mode toggle also needs. The
+  multi-value register: Class "contains"
+  now binds the picked list (the default Class row seeds `classAny`), Links
+  "is" binds `linkedToAny`, Tags "is" binds `tagAny`; "is" on the class
+  family stays the single-pill EXACT register (the carried id morphs).
+  Value controls: `ClassPillsPick` replaces the single/multi dropdown
+  picks (class pills with effective color/icon via the NodePills
+  resolution, honest raw-id pills for broken refs), `NodePillsPick`
+  replaces the custom chip spans (effective node color + icon, hover-reveal
+  ×). Legacy single shapes (`class`, `classExact`, `tag`, `linkedTo`,
+  `descendantOf`) still parse, evaluate, and render.
+  - **Files**: `packages/protocol/src/query-ast.ts` (the two Condition
+    shapes + conditionSchema), `packages/query/src/compiler.ts`
+    (conditionSql arms), `packages/query/test/query.test.ts` (SQL-shape +
+    behavior cases), `apps/web/src/features/collection/filterBlockModel.ts`
+    (family/operator registers + the morphs), `…/filterQuery.ts`
+    (createCondition defaults, the dynamic prune arm), `…/filterBlockValueControls.tsx`
+    (ClassPillsPick + NodePillsPick, the BlockValue bindings),
+    `…/FilterBlockBuilder.tsx` (the mode toggle on class/tags, the Card
+    subgroup), `…/FilterBlockBuilder.css` (`.nt-fb-card`, the zero-width
+    spacer, the dead chip styles retire), `…/sectionViewResolve.ts` (the
+    probe gate), `apps/web/test/filter-builder.test.tsx`,
+    `…/filter-query.test.ts`, `…/filter-layer.test.tsx` (the picker-flow +
+    multi-value assertions).
+  - **Verification**: `pnpm --filter @notees/protocol build && pnpm
+    --filter @notees/query build` (dev-condition exports), `pnpm --filter
+    @notees/web typecheck`, the protocol (530) + query (252) suites, and
+    the web filter suites (filter-builder/filter-query/filter-layer/
+    css-token-drift — 70 tests) all green.
 - **fix(store): permanent delete heals the materialized counts — a backlink
   badge stops outliving its edges.** Reported symptom: a block showed a "1
   linked reference" badge over an empty "No linked references" list. The

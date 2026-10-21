@@ -1,10 +1,12 @@
 /* FilterBlockBuilder — the structured panel's block query builder: the v1
    group/condition/not registers ported over the v2 query AST, token-only.
-   The chrome is FLAT like the app's list surfaces — no containing cards:
-   the root group is a bare column, nested groups indent under a left
-   hairline, condition rows are transparent list rows with a hover fill.
-   The kit Card lives only on the transient add-menu popover. Depth indent
-   rides the --nt-fb-depth custom property (the v1 --group-depth register). */
+   The chrome is FLAT like the app's list surfaces — no containing cards on
+   the groups themselves: the root group is a bare column, nested groups
+   indent under a left hairline, condition rows are transparent list rows
+   with a hover fill. The kit Card rides the transient add-menu popover and
+   the DYNAMIC mode's nested-query subgroup (the one contained subgroup).
+   Depth indent rides the --nt-fb-depth custom property (the v1
+   --group-depth register). */
 
 .nt-fb {
   display: flex;
@@ -27,6 +29,18 @@
 .nt-fb-group--nested {
   padding-left: var(--spacing-3);
   border-left: var(--spacing-hairline) solid var(--md-sys-color-outline-variant);
+}
+
+/* The dynamic subgroup rides inside the kit Card — the card's own
+   container background is the containment, so the depth indent and the
+   hairline indent drop and the content reads as one contained subgroup. */
+.nt-fb-card .nt-fb-group {
+  margin-left: 0;
+}
+
+.nt-fb-card .nt-fb-group--nested {
+  padding-left: 0;
+  border-left: none;
 }
 
 .nt-fb-group__header {
@@ -166,14 +180,21 @@
 }
 
 /* The dynamic mode's nested query rides its own wrapped line beneath the
-   row (the v1 DynamicQuerySection register). */
+   row (the v1 DynamicQuerySection register), the subgroup in a kit Card. */
 .nt-fb-block__nested {
   flex-basis: 100%;
   min-width: 0;
 }
 
+.nt-fb-card {
+  width: 100%;
+}
+
+/* The zero-width spacer: the VALUE column absorbs ALL the free space up to
+   the reorder/remove buttons (owner ruling 2026-10-21 — the value rides
+   side to side). */
 .nt-fb-block__spacer {
-  flex: 1;
+  flex: 0 0 0;
 }
 
 /* The node-target trigger (Links to / Parent is rows) — the SelectTrigger
@@ -217,62 +238,16 @@
   transform: rotate(180deg);
 }
 
-/* The multi node pick (the "one of" value over node targets): picked nodes
-   ride as quiet chips with a remove ×, the + trigger opens the anchored
-   NodeSelector. Flexes with the value column like the other controls. */
+/* The multi pick's pill cluster (owner ruling 2026-10-21): picked nodes /
+   classes ride as the fleet pill element (NodePill), the "+ Add" AddPill
+   opens the anchored NodeSelector. Flexes with the value column like the
+   other controls. */
 .nt-fb-multipick {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--spacing-1);
   min-width: 0;
-}
-
-.nt-fb-multipick__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  max-width: 18ch;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  padding: 0 var(--spacing-1) 0 var(--spacing-2);
-  min-height: calc(var(--height-md) - var(--spacing-2));
-  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-extra-large);
-  background: var(--md-sys-color-surface);
-  color: var(--md-sys-color-on-surface);
-  font: var(--font-body-small);
-}
-
-.nt-fb-multipick__remove {
-  border: none;
-  background: transparent;
-  padding: 0 var(--spacing-1);
-  border-radius: var(--shape-medium);
-  color: var(--md-sys-color-on-surface-variant);
-  cursor: pointer;
-  font: inherit;
-}
-
-.nt-fb-multipick__remove:hover {
-  color: var(--md-sys-color-on-surface);
-}
-
-.nt-fb-multipick__add {
-  min-height: calc(var(--height-md) - var(--spacing-2));
-  padding: 0 var(--spacing-2);
-  border: var(--border-width-default) dashed var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-extra-large);
-  background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--font-body-small);
-  cursor: pointer;
-}
-
-.nt-fb-multipick__add:hover {
-  border-color: var(--md-sys-color-outline);
-  color: var(--md-sys-color-on-surface);
 }
 
 /* The add-condition trigger rides the app's quiet button register

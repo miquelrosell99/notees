@@ -46,6 +46,7 @@ export function familyOf(condition: Condition): ConditionKind {
     case "class":
     case "classExact":
     case "classAny":
+    case "classAnyQuery":
     case "classSet":
       return "class";
     case "isClass":
@@ -78,10 +79,11 @@ export function familyOf(condition: Condition): ConditionKind {
       return "childPath";
     case "tag":
     case "tagAny":
-    case "parentSet":
-      return "parent";
+    case "tagAnyQuery":
     case "tagSet":
       return "tags";
+    case "parentSet":
+      return "parent";
     case "pageOf":
     case "pageOfQuery":
     case "pageSet":
@@ -131,16 +133,16 @@ export function operatorOptions(
 ): readonly OperatorOption[] {
   switch (family) {
     case "class":
-      // The class set: is/is not ride the EXACT register, contains/does not
-      // contain ride closure MEMBERSHIP, one of/not one of ride ANY-of
-      // membership, is set/is not set test the set's emptiness.
+      // The class set (owner ruling 2026-10-21: the multi-value register):
+      // is/is not ride the EXACT set equality (the single-pill register),
+      // contains/does not contain ride closure ANY-of membership over the
+      // picked LIST (the "one of" operator collapsed into contains — the
+      // identical semantics), is set/is not set test the set's emptiness.
       return [
         { value: "is", label: "is" },
         { value: "is-not", label: "is not" },
         { value: "contains", label: "contains" },
         { value: "not-contains", label: "does not contain" },
-        { value: "one-of", label: "one of" },
-        { value: "not-one-of", label: "not one of" },
         { value: "set", label: "is set" },
         { value: "not-set", label: "is not set" },
       ];
@@ -160,13 +162,13 @@ export function operatorOptions(
       ];
     case "tags":
     case "links":
-      // The link/tag families: is/is not (membership), one of/not one of
-      // (ANY-of over picked nodes), is set/is not set (the reference exists).
+      // The link/tag families (owner ruling 2026-10-21: the multi-value
+      // register): is/is not bind the LIST (ANY-of membership over the picked
+      // nodes — the "one of" operator collapsed into is), is set/is not set
+      // test the reference's existence.
       return [
         { value: "is", label: "is" },
         { value: "is-not", label: "is not" },
-        { value: "one-of", label: "one of" },
-        { value: "not-one-of", label: "not one of" },
         { value: "set", label: "is set" },
         { value: "not-set", label: "is not set" },
       ];
@@ -350,7 +352,10 @@ export function operatorOf(condition: Condition, negated: boolean): string {
     case "classExact":
       return negated ? "is-not" : "is";
     case "classAny":
-      return negated ? "not-one-of" : "one-of";
+    case "classAnyQuery":
+      // ANY-of closure membership over the picked list (the collapsed
+      // "one of" register — owner ruling 2026-10-21).
+      return negated ? "not-contains" : "contains";
     case "classSet":
       return negated ? "not-set" : "set";
     case "content":
@@ -364,14 +369,18 @@ export function operatorOf(condition: Condition, negated: boolean): string {
     case "tag":
       return negated ? "is-not" : "is";
     case "tagAny":
-      return negated ? "not-one-of" : "one-of";
+    case "tagAnyQuery":
+      // The multi-value register (owner ruling 2026-10-21): "is" binds the
+      // picked LIST — ANY-of membership.
+      return negated ? "is-not" : "is";
     case "tagSet":
       return negated ? "not-set" : "set";
     case "linkedTo":
     case "linkedToQuery":
       return negated ? "is-not" : "is";
     case "linkedToAny":
-      return negated ? "not-one-of" : "one-of";
+      // The multi-value register: "is" binds the picked LIST.
+      return negated ? "is-not" : "is";
     case "linkSet":
       return negated ? "not-set" : "set";
     case "descendantOf":
@@ -452,9 +461,10 @@ export function operatorOf(condition: Condition, negated: boolean): string {
 }
 
 /**
- * The class family's operator application (owner 2026-10-16, the Odoo set):
- * is / is not → EXACT set equality, contains / does not contain → closure
- * membership, one of / not one of → ANY-of membership, is set / is not set →
+ * The class family's operator application (owner 2026-10-21, the multi-value
+ * register): is / is not → EXACT set equality (the single-pill register, the
+ * first carried id), contains / does not contain → closure ANY-of membership
+ * over the picked LIST (the collapsed "one of"), is set / is not set →
  * emptiness. The picked ids carry across the morphs so switching operators
  * keeps the selection.
  */
@@ -472,12 +482,8 @@ function applyClassOperator(condition: Condition, op: string): Child {
     case "is-not":
       return neg({ type: "classExact", classId: carried[0] ?? "" });
     case "contains":
-      return { type: "class", classId: carried[0] ?? "" };
-    case "not-contains":
-      return neg({ type: "class", classId: carried[0] ?? "" });
-    case "one-of":
       return { type: "classAny", classIds: carried };
-    case "not-one-of":
+    case "not-contains":
       return neg({ type: "classAny", classIds: carried });
     case "set":
       return { type: "classSet" };
@@ -512,11 +518,15 @@ function carriedNodeIds(condition: Condition): string[] {
   return [];
 }
 
-/** The node-target morph: is/is not (single), one of/not one of (multi), is set/is not set. */
+/**
+ * The node-target morph (owner 2026-10-21, the multi-value register): is /
+ * is not bind the picked LIST (ANY-of membership — the collapsed "one of";
+ * the legacy single shapes re-enter as the multi list carrying their id),
+ * is set / is not set test the reference's existence.
+ */
 function applyNodeTargetOperator(
   condition: Condition,
   op: string,
-  single: (id: string) => Condition,
   any: (ids: string[]) => Condition,
   setType: Condition,
 ): Child {
@@ -524,12 +534,8 @@ function applyNodeTargetOperator(
   const neg = (next: Condition): Child => ({ type: "not", child: next });
   switch (op) {
     case "is":
-      return single(carried[0] ?? "");
-    case "is-not":
-      return neg(single(carried[0] ?? ""));
-    case "one-of":
       return any(carried);
-    case "not-one-of":
+    case "is-not":
       return neg(any(carried));
     case "set":
       return setType;
@@ -756,11 +762,11 @@ export function applyOperator(condition: Condition, op: string): Child {
       return applyContentOperator(condition, op);
     case "tag":
     case "tagAny":
+    case "tagAnyQuery":
     case "tagSet":
       return applyNodeTargetOperator(
         condition,
         op,
-        (tagId) => ({ type: "tag", tagId }),
         (tagIds) => ({ type: "tagAny", tagIds }),
         { type: "tagSet" },
       );
@@ -770,7 +776,6 @@ export function applyOperator(condition: Condition, op: string): Child {
       return applyNodeTargetOperator(
         condition,
         op,
-        (nodeId) => ({ type: "linkedTo", nodeId }),
         (nodeIds) => ({ type: "linkedToAny", nodeIds }),
         { type: "linkSet" },
       );
@@ -852,6 +857,12 @@ export function applyOperator(condition: Condition, op: string): Child {
     case "isEmbedded":
       return { ...condition, isEmbedded: op !== "is-not" };
     case "linkedToQuery":
+      return op === "is-not" ? neg(condition) : wrap(condition);
+    case "classAnyQuery":
+      // The dynamic class row: the negative operator wraps in not, every
+      // other choice keeps the condition (the nested group is the value).
+      return op === "not-contains" ? neg(condition) : wrap(condition);
+    case "tagAnyQuery":
       return op === "is-not" ? neg(condition) : wrap(condition);
     case "coverAsset":
     case "bannerAsset":

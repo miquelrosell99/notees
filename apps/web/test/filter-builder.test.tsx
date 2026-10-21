@@ -95,18 +95,6 @@ function contentValues(scope: HTMLElement): string[] {
     .map((input) => (input as HTMLInputElement).value);
 }
 
-/** Drive the anchored NodeSelector inside a condition row: search + pick
- * the first real result (mirrors the table node-cell test flow). */
-function pickNode(scope: HTMLElement, query: string): void {
-  fireEvent.click(within(scope).getByRole("button", { name: "Pick target node" }));
-  fireEvent.change(screen.getByLabelText("Search..."), { target: { value: query } });
-  fireEvent.click(
-    document.querySelector(
-      ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
-    )!,
-  );
-}
-
 /** Drive a kit Dropdown (the condition rows' selection columns): open the
  * trigger by aria-label, pick the menu item by name. `index` disambiguates
  * same-labelled triggers inside the scope (several rows). The menu portals
@@ -115,6 +103,18 @@ function pickOption(scope: HTMLElement, label: string, option: string | RegExp, 
   fireEvent.click(within(scope).getAllByLabelText(label)[index]!);
   const menu = document.querySelector(".dropdown-menu--portal") as HTMLElement;
   fireEvent.click(within(menu).getByRole("option", { name: option }));
+}
+
+/** Drive the pill-cluster picker (the multi-value static pick): open the
+ * "+ Add" pill by its accessible name, search, pick the first real result. */
+function addNodeViaPicker(scope: HTMLElement, addLabel: string, query: string): void {
+  fireEvent.click(within(scope).getByRole("button", { name: addLabel }));
+  fireEvent.change(screen.getByLabelText("Search..."), { target: { value: query } });
+  fireEvent.click(
+    document.querySelector(
+      ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
+    )!,
+  );
 }
 
 describe("the block query builder", () => {
@@ -280,9 +280,9 @@ describe("the block query builder", () => {
     addCondition(panel, /^Class/);
     // Gamma rides [project, client], so the membership reading ("contains"
     // — also the row's default since owner 2026-10-21) is the AND-of-one
-    // intent here; exact {client} would miss it.
-    pickOption(panel, "Operator", "contains", 0);
-    pickOption(panel, "Class", "client");
+    // intent here; exact {client} would miss it. The default Class row
+    // binds the LIST — the picked class rides a pill.
+    addNodeViaPicker(panel, "Add class", "client");
     expect(tableRowCount()).toBe(1); // AND of one: only the double-classed Gamma.
 
     addCondition(panel, /^Content/);
@@ -364,13 +364,15 @@ describe("the block query builder", () => {
 
     const panel = openPanel(section);
     addCondition(panel, /^Links /);
-    // Switch the block to DYNAMIC mode — the nested query builder appears.
+    // Switch the block to DYNAMIC mode — the nested query builder appears
+    // inside a card.
     fireEvent.click(within(panel).getByRole("radio", { name: "Dynamic — a nested query" }));
     const nested = panel.querySelector(".nt-fb-block__nested") as HTMLElement;
     expect(nested).not.toBeNull();
+    expect(nested.querySelector(".nt-fb-card")).not.toBeNull();
     // The nested group: person class + age > 50 (the owner's example shape).
     addCondition(nested, /^Class /);
-    pickOption(nested, "Class", "person");
+    addNodeViaPicker(nested, "Add class", "person");
     addCondition(nested, /^Property/);
     pickOption(nested, "Property", "age");
     // Two blocks ride in the nested group — the Class row's operator dropdown
@@ -379,7 +381,6 @@ describe("the block query builder", () => {
     fireEvent.change(within(nested).getByLabelText("Value"), { target: { value: "50" } });
 
     await act(async () => {});
-    console.log("PROBE CALLS:", probe.mock.calls.length, "FIRST:", JSON.stringify(probe.mock.calls[0]?.[0]).slice(0, 400));
     await waitFor(() => expect(tableRowCount()).toBe(1));
     // The probe ran with the DYNAMIC condition carrying the nested group verbatim
     // (it fires per edit — the last call carries the complete nested query).
@@ -387,12 +388,80 @@ describe("the block query builder", () => {
     const dynamic = ast.root.children.find((child) => child.type === "linkedToQuery");
     expect(dynamic).toBeDefined();
     const nestedGroup = (dynamic as { root: { children: Array<{ type: string }> } }).root;
-    // The nested Class row rides the default MEMBERSHIP register (class).
-    expect(nestedGroup.children.map((child) => child.type)).toEqual(["class", "property"]);
+    // The nested Class row rides the multi-value default (classAny — the
+    // membership register, owner ruling 2026-10-21).
+    expect(nestedGroup.children.map((child) => child.type)).toEqual(["classAny", "property"]);
     const table = screen.getAllByRole("table")[0]!;
     expect(within(table).getByText("Linker")).not.toBeNull();
     expect(within(table).queryByText("Plain")).toBeNull();
     await act(async () => {});
+  });
+
+  it("Class flips to Dynamic — the nested query rides in a card and the probe carries classAnyQuery", async () => {
+    const client = await seedClient();
+    const classId = await seedMembers(client);
+    await seedClass(client, "client");
+    const probe = vi.spyOn(client, "runQueryAst").mockResolvedValue({ ids: [], rows: [] });
+
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    const section = classedNodesSection();
+    const panel = openPanel(section);
+    addCondition(panel, /^Class/);
+    // Flip the CLASS block to DYNAMIC mode (owner ruling 2026-10-21): the
+    // nested subgroup renders inside a card.
+    fireEvent.click(within(panel).getByRole("radio", { name: "Dynamic — a nested query" }));
+    const nested = panel.querySelector(".nt-fb-block__nested") as HTMLElement;
+    expect(nested).not.toBeNull();
+    expect(nested.querySelector(".nt-fb-card")).not.toBeNull();
+
+    // A surviving nested condition makes the dynamic class ride the probe —
+    // the wire carries the classAnyQuery condition verbatim.
+    addCondition(nested, /^Class /);
+    addNodeViaPicker(nested, "Add class", "client");
+    await act(async () => {});
+    expect(probe).toHaveBeenCalled();
+    const ast = probe.mock.calls.at(-1)![0] as { root: { children: Array<{ type: string }> } };
+    expect(ast.root.children.map((child) => child.type)).toContain("classAnyQuery");
+  });
+
+  it("a dynamic row inside a dynamic subgroup nests again (infinite dynamic nesting)", async () => {
+    const client = await seedClient();
+    const classId = await seedMembers(client);
+    const probe = vi.spyOn(client, "runQueryAst").mockResolvedValue({ ids: [], rows: [] });
+
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    const section = classedNodesSection();
+    const panel = openPanel(section);
+    addCondition(panel, /^Class/);
+    fireEvent.click(within(panel).getByRole("radio", { name: "Dynamic — a nested query" }));
+    const nested = panel.querySelector(".nt-fb-block__nested") as HTMLElement;
+    expect(nested).not.toBeNull();
+
+    // Inside the card, a Links row flips to Dynamic too — a SECOND-level
+    // nested card renders (the empty inner subgroup prunes at compose time,
+    // so no probe leaf fires).
+    addCondition(nested, /^Links /);
+    fireEvent.click(within(nested).getByRole("radio", { name: "Dynamic — a nested query" }));
+    expect(panel.querySelectorAll(".nt-fb-block__nested")).toHaveLength(2);
+    expect(panel.querySelectorAll(".nt-fb-block__nested .nt-fb-card")).toHaveLength(2);
+    expect(probe).not.toHaveBeenCalled();
+  });
+
+  it("the value column rides the row's remaining width (operator → value, side to side)", async () => {
+    const client = await seedClient();
+    const classId = await seedMembers(client);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    const section = classedNodesSection();
+
+    const panel = openPanel(section);
+    addCondition(panel, /^Content/);
+    // jsdom has no layout — the width contract pins the DOM register: the
+    // operator column precedes the value control on the row (the CSS spacer
+    // is zero-width so the flex VALUE column absorbs the free space).
+    const row = within(panel).getByLabelText("Content").closest(".nt-fb-block__row") as HTMLElement;
+    const operator = within(row).getByLabelText("Operator");
+    const value = within(row).getByLabelText("Content");
+    expect(operator.compareDocumentPosition(value) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("a Links-to condition rides the runQueryAst probe and intersects with the base rows", async () => {
@@ -415,7 +484,9 @@ describe("the block query builder", () => {
 
     const panel = openPanel(section);
     addCondition(panel, /^Links /);
-    pickNode(panel, "Target");
+    // The default Links row binds the LIST — the target rides a pill via
+    // the "+ Add node" picker.
+    addNodeViaPicker(panel, "Add node", "Target");
 
     await waitFor(() => expect(tableRowCount()).toBe(1));
     expect(probe).toHaveBeenCalled();
@@ -458,19 +529,20 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Class/);
-      // Default operator "contains" = hierarchy-aware membership: the class
-      // among others — Dual rides [project, client], so all three stay.
-      pickOption(panel, "Class", "project");
+      // Default operator "contains" = the multi-value register: closure-aware
+      // ANY-of over the picked list — the class among others, so Dual riding
+      // [project, client] stays.
+      addNodeViaPicker(panel, "Add class", "project");
       expect(tableRowCount()).toBe(3);
 
       // "is" = exact set equality: exact {project} keeps only the two
-      // single-classed rows.
+      // single-classed rows (the picked id carries across the morph).
       pickOption(panel, "Operator", "is");
       expect(tableRowCount()).toBe(2);
       expect(within(section).queryByText("Dual")).toBeNull();
     });
 
-    it("one of matches ANY picked class (the multi pick); not one of negates", async () => {
+    it("contains matches ANY picked class (the multi pill pick); does not contain negates", async () => {
       const client = await seedClient();
       const { projectId } = await seedContainerWorld(client);
       render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
@@ -478,16 +550,13 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Class/);
-      pickOption(panel, "Operator", "one of");
-      // The multi pick stays open per toggle — pick both, then dismiss.
-      fireEvent.click(within(panel).getByLabelText("Classes"));
-      const menu = () => document.querySelector(".dropdown-menu--portal") as HTMLElement;
-      fireEvent.click(within(menu()).getByRole("option", { name: "project" }));
-      fireEvent.click(within(menu()).getByRole("option", { name: "client" }));
-      fireEvent.keyDown(document, { key: "Escape" });
+      // The default Class row binds the LIST — the pills accumulate through
+      // the class picker, one ANY-of member at a time.
+      addNodeViaPicker(panel, "Add class", "project");
+      addNodeViaPicker(panel, "Add class", "client");
       expect(tableRowCount()).toBe(3);
 
-      pickOption(panel, "Operator", "not one of");
+      pickOption(panel, "Operator", "does not contain");
       expect(within(section).getByText("No classed nodes.")).not.toBeNull();
     });
 
@@ -504,18 +573,6 @@ describe("the block query builder", () => {
       pickOption(panel, "Operator", "is not set");
       expect(within(section).getByText("No classed nodes.")).not.toBeNull();
     });
-
-    /** Drive the chip-list node picker (the "one of" static pick): open the
-     * add trigger by label, search, pick the first real result. */
-    function addNodeViaPicker(scope: HTMLElement, addLabel: string, query: string): void {
-      fireEvent.click(within(scope).getByRole("button", { name: addLabel }));
-      fireEvent.change(screen.getByLabelText("Search..."), { target: { value: query } });
-      fireEvent.click(
-        document.querySelector(
-          ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
-        )!,
-      );
-    }
 
     it("Page: static — the containing page is any of the picked nodes (v1's Page block)", async () => {
       const client = await seedClient();
@@ -542,16 +599,16 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Page\b/);
-      // Flip the target mode to dynamic — the nested builder appears beneath
-      // the row; the subquery's matches BECOME the page set.
+      // Flip the target mode to dynamic — the nested builder appears inside
+      // a card beneath the row; the subquery's matches BECOME the page set.
       fireEvent.click(within(panel).getByRole("radio", { name: "Dynamic — a nested query" }));
       const nested = panel.querySelector(".nt-fb-block__nested") as HTMLElement;
       expect(nested).not.toBeNull();
+      expect(nested.querySelector(".nt-fb-card")).not.toBeNull();
       addCondition(nested, /^Class /);
-      // Membership ("contains") is the intent — picked explicitly here, and
-      // the Class row's default operator since owner 2026-10-21.
-      pickOption(nested, "Operator", "contains", 0);
-      pickOption(nested, "Class", "journal");
+      // Membership ("contains") is the intent — the Class row's default
+      // operator since owner 2026-10-21.
+      addNodeViaPicker(nested, "Add class", "journal");
       // The dynamic container rides the probe path — the membership set
       // lands one beat after the pick.
       await waitFor(() => expect(tableRowCount()).toBe(1));
@@ -710,7 +767,7 @@ describe("the block query builder", () => {
       expect(tableRowCount()).toBe(3);
     });
 
-    it("tags: is set / one of over the OR-set tag membership", async () => {
+    it("tags: is set / is (multi ANY-of) / is not over the OR-set tag membership", async () => {
       const client = await seedClient();
       const classId = await seedMembers(client);
       const tagUrgent = await client.createObject({ isEmbedded: false, name: "Urgent" });
@@ -725,25 +782,20 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Tags/);
-      pickOption(panel, "Operator", "is set");
+      // The default "is" binds the LIST (owner ruling 2026-10-21): the pills
+      // accumulate through the picker — ANY-of [Urgent, Later] keeps Alpha
+      // AND Beta.
+      addNodeViaPicker(panel, "Add tag", "Urgent");
+      addNodeViaPicker(panel, "Add tag", "Later");
       expect(tableRowCount()).toBe(2);
 
-      // one of [Urgent, Later] — chips accumulate through the node picker.
-      pickOption(panel, "Operator", "one of");
-      fireEvent.click(within(panel).getByRole("button", { name: "Add tag" }));
-      fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Urgent" } });
-      fireEvent.click(
-        document.querySelector(
-          ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
-        )!,
-      );
-      fireEvent.click(within(panel).getByRole("button", { name: "Add tag" }));
-      fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Later" } });
-      fireEvent.click(
-        document.querySelector(
-          ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
-        )!,
-      );
+      // The negative register: "is not" keeps only the untagged Gamma.
+      pickOption(panel, "Operator", "is not");
+      expect(tableRowCount()).toBe(1);
+      expect(within(section).getByText("Gamma")).not.toBeNull();
+
+      // The emptiness bit: the two tagged members survive "is set".
+      pickOption(panel, "Operator", "is set");
       expect(tableRowCount()).toBe(2);
     });
 

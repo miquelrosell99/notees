@@ -10,43 +10,48 @@
  * the condition row).
  *
  * The chrome is FLAT, matching the app's list surfaces — no containing
- * cards (owner review 2026-10-08: card-in-card read as a modal; the kit Card
- * lives only on the transient add-menu popover, the one surface elevation
- * is legal): the root group is a bare column (logic toggle + count on one
- * quiet line), nested groups indent under a left hairline, and condition
- * rows are list rows — transparent with a hover fill.
+ * cards on the groups themselves (owner review 2026-10-08: card-in-card
+ * read as a modal): the root group is a bare column (logic toggle + count
+ * on one quiet line), nested groups indent under a left hairline, and
+ * condition rows are list rows — transparent with a hover fill. The two
+ * card surfaces are the transient add-menu popover and the DYNAMIC mode's
+ * nested-query subgroup (owner ruling 2026-10-21 — the one contained
+ * subgroup reads as a card, `nt-fb-card`).
  *
  * The registers are the v1 ones (owner 2026-10-09: the 1:1 block model;
  * the row IDENTITY is READONLY once added — owner 2026-10-19, the Notion/
  * Odoo field → operator → value register: no row morphing, a kind change is
  * delete + re-add) — each block is a row of COLUMNS: a TYPE slot (a static
  * label naming the family — except the PROPERTY family, where the schema
- * dropdown rides the slot so the row reads [Property ▾] [Operator ▾]
+ * dropdown so the row reads [Property ▾] [Operator ▾]
  * [Value]), an OPERATOR dropdown whose options vary by family — the class
- * family carries the Odoo set (owner 2026-10-16): is / is not (EXACT set
- * equality), contains / does not contain (closure membership), one of /
- * not one of (ANY-of membership), is set / is not set (emptiness); the
- * content/property/date families carry their own variation (full-text /
- * ordering / after / before — the negatives are not-wrap sugar, the
- * booleans flip their bit), then the VALUE
+ * family carries the multi-value set (owner ruling 2026-10-21): is / is not
+ * (EXACT single-pill equality), contains / does not contain (closure ANY-of
+ * over the picked list — the collapsed "one of"), is set / is not set
+ * (emptiness); the content/property/date families carry their own
+ * variation (full-text / ordering / after / before — the negatives are
+ * not-wrap sugar, the booleans flip their bit), then the VALUE
  * control (typed per family — the property-table register: numeric keyboard,
  * placeholder datalist, anchored node picker). The selection columns ride
  * the kit Dropdown register and the text values the kit Input (the boxed
  * field pairing with SelectTrigger — owner 2026-10-16: the raw native
  * <select>s rendered the browser's chrome, unaligned with the token
  * interface); the node-target families
- * (Links, Parent) carry the v1 MODE SWITCH: static (a picked node) or
- * dynamic (a nested query-block list defining the target set — "links to a
- * person node with age > 50"), the nested group rendering beneath the row
- * (the v1 DynamicQuerySection). Groups nest as hairline-indented columns
+ * (Links, Parent, Class, Tags) carry the v1 MODE SWITCH: static (picked
+ * nodes) or dynamic (a nested query-block list defining the target set —
+ * "links to a person node with age > 50"), the nested group rendering
+ * inside a card beneath the row (the v1 DynamicQuerySection; the nesting is
+ * infinite — a dynamic row inside a dynamic subgroup can go dynamic again).
+ * Groups nest as hairline-indented columns
  * with the Match ALL/ANY header toggle; the root level is not a group.
  * Every control bubbles an immutable update to the root group via onChange —
  * the parent (the FilterBar) owns the state, this module is chrome.
  *
- * The offered condition kinds are the sync-evaluable subset (filterQuery.ts
- * — the linkedTo/fts probe leaves are deliberately not buildable here); the
- * quick-search text is NOT part of this tree — the FilterBar unshifts it
- * into the composed group at prune time.
+ * The probe-riding leaves (the links/dynamic-target conditions, content
+ * fts) evaluate through the runQueryAst query channel, never locally
+ * (sectionViewResolve.ts leafNeedsProbe); the quick-search text is NOT part
+ * of this tree — the FilterBar unshifts it into the composed group at prune
+ * time.
  */
 
 import type { CSSProperties } from "react";
@@ -69,6 +74,7 @@ import { Dropdown, type DropdownOption } from "../../components/ui/fleet/Dropdow
 import { GridMenu } from "../../components/ui/fleet/GridMenu.js";
 import { Input } from "../../components/ui/fleet/Input.js";
 import { SelectionButton, type SelectionButtonOption } from "../../components/ui/fleet/SelectionButton.js";
+import { Card } from "../../components/ui/fleet/Card.js";
 import { useBuilderFacts, type BuilderFacts } from "./QueryBuilderFields.js";
 import {
   createCondition,
@@ -434,7 +440,7 @@ function BlockRow({
   const showReorder = onMoveUp !== undefined || onMoveDown !== undefined;
   /** The node-target families: static (picked node(s)) or dynamic (a nested
    * query defining the target set — the v1 static/dynamic switch, now on
-   * links / parent / page / parent path / root alike). */
+   * links / parent / page / parent path / root / class / tags alike). */
   const dynamic =
     condition.type === "linkedToQuery" ||
     condition.type === "descendantOfQuery" ||
@@ -443,7 +449,9 @@ function BlockRow({
     condition.type === "rootInQuery" ||
     condition.type === "parentOfQuery" ||
     condition.type === "childOfQuery" ||
-    condition.type === "referencePathOfQuery";
+    condition.type === "referencePathOfQuery" ||
+    condition.type === "classAnyQuery" ||
+    condition.type === "tagAnyQuery";
   return (
     <div className="nt-fb-block">
       <div className="nt-fb-block__row">
@@ -483,6 +491,8 @@ function BlockRow({
           />
         </div>
         {(family === "links" ||
+          family === "class" ||
+          family === "tags" ||
           family === "referencePath" ||
           family === "parent" ||
           family === "child" ||
@@ -501,42 +511,54 @@ function BlockRow({
             onChange={(mode) => {
               const empty = { type: "group", logic: "and", children: [] } as Group;
               const dynamicFor = (type: string): Condition => ({ type, root: empty } as Condition);
-              const staticFor = (type: string): Condition =>
-                type === "linkedTo" || type === "descendantOf"
-                  ? ({ type, nodeId: "" } as Condition)
-                  : ({ type, nodeIds: [] } as Condition);
+              const staticFor = (type: string): Condition => {
+                if (type === "linkedTo" || type === "descendantOf") {
+                  return { type, nodeId: "" } as Condition;
+                }
+                if (type === "classAny") return { type, classIds: [] } as Condition;
+                if (type === "tagAny") return { type, tagIds: [] } as Condition;
+                return { type, nodeIds: [] } as Condition;
+              };
               const dynamicType =
-                family === "links"
-                  ? "linkedToQuery"
-                  : family === "referencePath"
-                    ? "referencePathOfQuery"
-                    : family === "parent"
-                      ? "parentOfQuery"
-                      : family === "child"
-                        ? "childOfQuery"
-                        : family === "childPath"
-                          ? "descendantOfQuery"
-                          : family === "page"
-                            ? "pageOfQuery"
-                            : family === "parentPath"
-                              ? "ancestorInQuery"
-                              : "rootInQuery";
+                family === "class"
+                  ? "classAnyQuery"
+                  : family === "tags"
+                    ? "tagAnyQuery"
+                    : family === "links"
+                      ? "linkedToQuery"
+                      : family === "referencePath"
+                        ? "referencePathOfQuery"
+                        : family === "parent"
+                          ? "parentOfQuery"
+                          : family === "child"
+                            ? "childOfQuery"
+                            : family === "childPath"
+                              ? "descendantOfQuery"
+                              : family === "page"
+                                ? "pageOfQuery"
+                                : family === "parentPath"
+                                  ? "ancestorInQuery"
+                                  : "rootInQuery";
               const staticType =
-                family === "links"
-                  ? "linkedTo"
-                  : family === "referencePath"
-                    ? "referencePathOf"
-                    : family === "parent"
-                      ? "parentOf"
-                      : family === "child"
-                        ? "childOf"
-                        : family === "childPath"
-                          ? "descendantOfAny"
-                          : family === "page"
-                            ? "pageOf"
-                            : family === "parentPath"
-                              ? "ancestorIn"
-                              : "rootIn";
+                family === "class"
+                  ? "classAny"
+                  : family === "tags"
+                    ? "tagAny"
+                    : family === "links"
+                      ? "linkedTo"
+                      : family === "referencePath"
+                        ? "referencePathOf"
+                        : family === "parent"
+                          ? "parentOf"
+                          : family === "child"
+                            ? "childOf"
+                            : family === "childPath"
+                              ? "descendantOfAny"
+                              : family === "page"
+                                ? "pageOf"
+                                : family === "parentPath"
+                                  ? "ancestorIn"
+                                  : "rootIn";
               const next = mode === "dynamic" ? dynamicFor(dynamicType) : staticFor(staticType);
               onChange(negated ? { type: "not", child: next } : next);
             }}
@@ -577,25 +599,29 @@ function BlockRow({
           onClick={onDelete}
         />
       </div>
-      {/* Dynamic mode: the nested query rides beneath the row (the v1
-          DynamicQuerySection register). */}
+      {/* Dynamic mode: the nested query rides beneath the row inside a kit
+          Card (the one contained-subgroup surface — owner ruling
+          2026-10-21); the nesting is infinite (a dynamic row inside a
+          dynamic subgroup can go dynamic again). */}
       {dynamic && (
         <div className="nt-fb-block__nested">
-          <GroupBlock
-            group={condition.root}
-            onChange={(root) =>
-              onChange(
-                negated
-                  ? { type: "not", child: { ...condition, root } }
-                  : { ...condition, root },
-              )
-            }
-            depth={depth + 1}
-            client={client}
-            facts={facts}
-            datalistId={datalistId}
-            menuWidth={0}
-          />
+          <Card padding paddingSize="sm" variant="filled" className="nt-fb-card">
+            <GroupBlock
+              group={condition.root}
+              onChange={(root) =>
+                onChange(
+                  negated
+                    ? { type: "not", child: { ...condition, root } }
+                    : { ...condition, root },
+                )
+              }
+              depth={depth + 1}
+              client={client}
+              facts={facts}
+              datalistId={datalistId}
+              menuWidth={0}
+            />
+          </Card>
         </div>
       )}
     </div>

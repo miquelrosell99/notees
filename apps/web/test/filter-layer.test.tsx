@@ -253,13 +253,18 @@ describe("the classed-nodes filter bar", () => {
     fireEvent.click(
       within(document.querySelector(".btn-panel") as HTMLElement).getByRole("menuitem", { name: /^Class/ }),
     );
-    fireEvent.click(within(panel).getByLabelText("Class"));
+    // The default Class row binds the LIST — the picked class rides a pill
+    // through the "+ Add class" picker.
+    fireEvent.click(within(panel).getByRole("button", { name: "Add class" }));
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "client" } });
     fireEvent.click(
-      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: "client" }),
+      document.querySelector(
+        ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
+      )!,
     );
-    // The membership operator carries the extends closure; it is also the
-    // Class row's default since owner 2026-10-21 ("is" is the exact-set
-    // register — the deliberate narrow reading, not the default).
+    // The membership operator ("contains") carries the extends closure; it
+    // is also the Class row's default since owner 2026-10-21 ("is" is the
+    // exact-set register — the deliberate narrow reading, not the default).
     fireEvent.click(within(panel).getByLabelText("Operator"));
     fireEvent.click(
       within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: "contains" }),
