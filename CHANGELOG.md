@@ -7,6 +7,28 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): the bullet register grows ≥50% (46px box, 40px ring, 9px
+  dot), and the group-items separation deepens to match.**"the bullet element could be even larger — at least 50%
+  larger." `.nt-bullet` 30 → 46px, `.nt-bullet-ring` 28 → 40px (the halo
+  now clears the 19.2px class-icon glyph by ~10px), and the dot glyph
+  scales with the register (6 → 9px — hardcoded in `.nt-bullet-dot`, the
+  `--bullet-dot-size` token stays 6px because it also feeds the
+  LoadingScreen). `--bullet-wrapper-size` follows at 46px. The grouped
+  rendering's top padding rides along: `spacing-2` → `spacing-3` — the
+  40px ring overhangs its row far more than the 28px one did. Rows are
+  noticeably taller; that is the owner-directed trade. The CSS spec pins
+  the register (46/40/9) and the group padding.
+  - **Files**: `apps/web/src/ui/app.css` (`.nt-bullet` 46px,
+    `.nt-bullet-ring` 40px, `.nt-bullet-dot` 9px), `apps/web/src/ui/
+    variables.css` (`--bullet-wrapper-size`), `apps/web/src/features/
+    collection/OutlineView.css` (`.outline-group__items` spacing-3 top
+    padding), `apps/web/test/view-modes.test.tsx` (the CSS spec follows).
+  - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
+    `pnpm --filter @notees/web test` — 1938 passed (167 files); the
+    failures seen across full runs (block-dnd, filter-builder,
+    section-views — none touched by this CSS-only slice) all pass in
+    isolation, the known concurrent-suite contention flakes.
+
 - **fix(web): the bullet and its collapsed ring grow once more (30px/28px),
   and grouped rows separate from the group titles.** the first row's ring
   crowded the group header, and the bullet element still read small.
