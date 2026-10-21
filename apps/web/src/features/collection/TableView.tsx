@@ -53,12 +53,14 @@
  *   colgroup — every column has a DEFAULT width (name 32ch, classes 16ch,
  *   created/edited 12ch, isClass/isEmbedded 8ch, properties 18ch — ch units
  *   in the table font) and a user drag on a header divider commits a px
- *   width (session-state, like the rest of the table chrome), clamped to a
- *   72px minimum; the divider is keyboard-reachable too (ArrowLeft/Right
- *   nudge 16px). Fixed layout makes the widths exact — cell content wraps
- *   inside its lane, and a crowded table scrolls the wrap horizontally
- *   instead of renegotiating columns from content (auto layout starved the
- *   name column to its nested-flex min-content, found by the live probe).
+ *   width (session-state, like the rest of the table chrome), clamped at
+ *   that default — the default IS the minimum, a column widens from its
+ *   default and never narrows below it; the divider is keyboard-reachable
+ *   too (ArrowLeft/Right nudge 16px). Fixed layout makes the widths exact —
+ *   cell content wraps inside its lane, and a crowded table scrolls the
+ *   wrap horizontally instead of renegotiating columns from content (auto
+ *   layout starved the name column to its nested-flex min-content, found
+ *   by the live probe).
  * - CSV export: the toolbar "…" menu's "Export CSV"
  *   downloads the CURRENT view — the visible columns × the full sorted
  *   result set (the window is display-only, never an export cut) — through
@@ -117,18 +119,13 @@ import "./TableView.css";
 const ROW_WINDOW = 100;
 
 /**
- * The drag clamp — every resizable column keeps at least this many px
- * (≈8ch in the table font), the owner's "minimum size".
- */
-const MIN_COLUMN_WIDTH = 72;
-
-/**
- * The fixed-layout default share per column kind (ch units — the table
- * font's character box; the property default rides the common header
- * length). The name column rides 32ch — the same lane the flexible
- * auto-layout column claimed — and grows with its share of any leftover
- * table width. Fixed layout ignores the td's min-width, so the floor is a
- * real col width here, not a CSS minimum.
+ * The fixed-layout share per column kind (ch units — the table font's
+ * character box; the property default rides the common header length).
+ * The DEFAULT IS THE MINIMUM: a column renders at its
+ * default and a drag can only widen it from there — it never comes back
+ * narrower than the default. The name column rides 32ch, the lane the
+ * flexible auto-layout column claimed. Fixed layout ignores the td's
+ * min-width, so the share is a real col width here, not a CSS minimum.
  */
 function defaultColumnWidth(column: TableColumn): string {
   if (column.kind === "name") return "32ch";
@@ -136,6 +133,21 @@ function defaultColumnWidth(column: TableColumn): string {
   if (column.kind === "created" || column.kind === "edited") return "12ch";
   if (column.kind === "isClass" || column.kind === "isEmbedded") return "8ch";
   return "18ch";
+}
+
+/**
+ * A column kind's minimum in px — its default ch share resolved against
+ * the table font (measured with a 10ch probe; the fallback only rides a
+ * zero-size jsdom box, where layout doesn't run anyway).
+ */
+function columnMinimumWidth(column: TableColumn, table: HTMLTableElement | null): number {
+  const probe = document.createElement("span");
+  probe.style.cssText = "position:absolute;visibility:hidden;width:10ch;";
+  (table?.querySelector("th") ?? document.body).appendChild(probe);
+  const ch = probe.getBoundingClientRect().width / 10;
+  probe.remove();
+  const perCh = ch > 0 ? ch : 9;
+  return Math.round(parseFloat(defaultColumnWidth(column)) * perCh);
 }
 
 const DEFAULT_COLUMNS: TableColumn[] = [
@@ -919,7 +931,13 @@ export function TableView(props: NodeCollectionProps) {
    */
   const [colWidths, setColWidths] = useState<ReadonlyMap<string, number>>(new Map());
   const [resizing, setResizing] = useState<string | null>(null);
-  const resizeDrag = useRef<{ columnId: string; startX: number; startWidth: number } | null>(null);
+  const resizeDrag = useRef<{
+    columnId: string;
+    startX: number;
+    startWidth: number;
+    /** The column's default share in px — the drag floor. */
+    minWidth: number;
+  } | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [exportSelection, setExportSelection] = useState<string[] | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -1028,8 +1046,9 @@ export function TableView(props: NodeCollectionProps) {
   /**
    * Column resize drag: pointerdown on a header divider claims the pointer
    * (capture keeps the moves even past the cell edge); the width commits
-   * LIVE on every move (the visual feedback is the column itself), clamped
-   * to the minimum; pointerup (or cancel) ends the session.
+   * LIVE on every move, clamped to the column's default share (the
+   * default IS the minimum — it widens from there, never narrows below);
+   * pointerup (or cancel) ends the session.
    */
   const beginColumnResize = (event: ReactPointerEvent<HTMLSpanElement>, column: TableColumn) => {
     if (event.button !== 0) return;
@@ -1039,7 +1058,8 @@ export function TableView(props: NodeCollectionProps) {
     resizeDrag.current = {
       columnId: column.id,
       startX: event.clientX,
-      startWidth: th?.getBoundingClientRect().width ?? MIN_COLUMN_WIDTH,
+      startWidth: th?.getBoundingClientRect().width ?? 0,
+      minWidth: columnMinimumWidth(column, tableRef.current),
     };
     setResizing(column.id);
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -1047,7 +1067,7 @@ export function TableView(props: NodeCollectionProps) {
   const moveColumnResize = (event: ReactPointerEvent<HTMLSpanElement>) => {
     const drag = resizeDrag.current;
     if (drag === null) return;
-    const width = Math.max(MIN_COLUMN_WIDTH, Math.round(drag.startWidth + event.clientX - drag.startX));
+    const width = Math.max(drag.minWidth, Math.round(drag.startWidth + event.clientX - drag.startX));
     setColWidths((prev) => {
       if (prev.get(drag.columnId) === width) return prev;
       const next = new Map(prev);
@@ -1063,9 +1083,9 @@ export function TableView(props: NodeCollectionProps) {
   const nudgeColumnWidth = (column: TableColumn, delta: number) => {
     setColWidths((prev) => {
       const th = tableRef.current?.querySelector(`th[data-column-id="${column.id}"]`);
-      const current = prev.get(column.id) ?? th?.getBoundingClientRect().width ?? MIN_COLUMN_WIDTH;
+      const current = prev.get(column.id) ?? th?.getBoundingClientRect().width ?? 0;
       const next = new Map(prev);
-      next.set(column.id, Math.max(MIN_COLUMN_WIDTH, Math.round(current + delta)));
+      next.set(column.id, Math.max(columnMinimumWidth(column, tableRef.current), Math.round(current + delta)));
       return next;
     });
   };
