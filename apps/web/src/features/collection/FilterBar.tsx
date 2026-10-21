@@ -13,8 +13,9 @@
  * the hook applies its composed group post-resolution/pre-windowing, and
  * the eager count stays unfiltered — while the query is active the bar names
  * the match against it ("0 of N"), it never hides the section. The panel's
- * "N of M rows match" line updates live because the filter applies on every
- * change (the v1 ViewBuilder result-preview pattern).
+ * "N of M nodes match" line rides the builder's foot row and updates live
+ * because the filter applies on every change (the v1 ViewBuilder
+ * result-preview pattern).
  *
  * The quick search is a PERMANENT field on wide viewports; at narrow widths
  * (≤768px) it folds into a magnifier button whose popup carries the field
@@ -112,6 +113,11 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
   );
   /** The composed draft — the save button rides only while it survives pruning. */
   const composedGroup = viewSaver !== undefined ? filterQueryToGroup(value) : null;
+  /** The foot-row cluster: the count line and the
+   *  "Save as tab" button ride the builder's bottom row, beside "Add
+   *  condition" — right-aligned, "nodes" wording. */
+  const hasCountLine = matchCount !== null && totalCount !== null;
+  const canSaveAsTab = viewSaver !== undefined && composedGroup !== null;
 
   const saveAsTab = async (): Promise<void> => {
     if (viewSaver === undefined || composedGroup === null) return;
@@ -216,29 +222,33 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
           role="group"
           aria-label="Structured filters"
         >
-          <div className="nt-filter-bar__panel-head">
-            {matchCount !== null && totalCount !== null && (
-              <p className="nt-filter-bar__result">
-                {matchCount} of {totalCount} rows match
-              </p>
-            )}
-            {viewSaver !== undefined && composedGroup !== null && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                icon="mdi mdi-tab-plus"
-                aria-label="Save as tab"
-                title="Save this filter as a new tab"
-                onClick={() => void saveAsTab()}
-              />
-            )}
-          </div>
           <FilterBlockBuilder
             client={client}
             group={value.group}
             config={config}
             onChange={(group) => onChange({ ...value, group })}
+            footExtra={
+              hasCountLine || canSaveAsTab ? (
+                <>
+                  {hasCountLine && (
+                    <span className="nt-filter-bar__result">
+                      {matchCount} of {totalCount} nodes match
+                    </span>
+                  )}
+                  {canSaveAsTab && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      icon="mdi mdi-tab-plus"
+                      aria-label="Save as tab"
+                      title="Save this filter as a new tab"
+                      onClick={() => void saveAsTab()}
+                    />
+                  )}
+                </>
+              ) : undefined
+            }
           />
         </div>
       )}
