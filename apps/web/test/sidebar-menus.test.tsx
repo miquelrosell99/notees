@@ -5,9 +5,9 @@
  *
  * Also: the account popup + the row menu close on the shared dismissal
  * layer (outside pointer-down + Escape, never on an inside press); row
- * labels render through the shared read-only content machinery, so a
- * link-rich title shows the mention link UI and keeps the row-menu /
- * node-link-menu split honest.
+ * labels are PLAIN TEXT — a link-rich title
+ * flattens to its words, so the row is one click target and a right-click
+ * anywhere on it opens the row menu.
  */
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,7 +18,8 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import type { ClientNode } from "../src/core/workspace-client/index.js";
-import { Sidebar, recordRecent } from "../src/ui/app/Sidebar.js";
+import { Sidebar } from "../src/ui/app/Sidebar.js";
+import { recordRecent } from "../src/features/sidebar/recentPages.js";
 import type { AnyClient } from "../src/ui/app/Sidebar.js";
 import { resetNodePrefsForTests } from "../src/features/settings/nodePrefs.js";
 
@@ -410,7 +411,7 @@ describe("account popup — the user menu", () => {
   });
 });
 
-describe("sidebar row labels render as read-only block content", () => {
+describe("sidebar row labels render as plain text", () => {
   /**
    * The store flattens document-chrome content to text-only at the applier,
    * so no op path can seed a page title with a mention; the component seam
@@ -478,33 +479,31 @@ describe("sidebar row labels render as read-only block content", () => {
     return { ...rendered, row, rich, target };
   }
 
-  it("renders a link-rich title with the shared mention link UI", () => {
-    renderRichRow();
-    const link = document.body.querySelector<HTMLElement>(".nt-link");
-    expect(link).not.toBeNull();
-    expect(link!.textContent).toBe("Target");
-    expect(link!.classList.contains("nt-chip")).toBe(false);
+  it("flattens a link-rich title to its words — no link UI inside the row", () => {
+    const { row } = renderRichRow();
+    // The mention folded into its captured text; the label carries no
+    // interactive or styled elements at all.
+    expect(document.body.querySelector(".nt-link")).toBeNull();
+    const label = row.querySelector<HTMLElement>(".nt-side-item-label")!;
+    expect(label.textContent).toBe("Notes on Target");
+    expect(label.querySelector("button, a")).toBeNull();
   });
 
-  it("clicking the mention link opens the target, not the row", () => {
+  it("the row is the only clickable surface — clicking it opens the row's page", () => {
     const onOpenPage = vi.fn();
-    renderRichRow({ onOpenPage });
-    fireEvent.click(document.body.querySelector<HTMLElement>(".nt-link")!);
-    expect(onOpenPage).toHaveBeenCalledWith("target-1");
+    const { row } = renderRichRow({ onOpenPage });
+    // Nothing nested inside the row button competes with the row click.
+    expect(row.querySelector("button, a")).toBeNull();
+    fireEvent.click(row);
+    expect(onOpenPage).toHaveBeenCalledWith("rich-1");
   });
 
-  it("right-click splits honestly: the chip owns its node-link menu, the row opens the row menu", () => {
-    renderRichRow();
-    const link = document.body.querySelector<HTMLElement>(".nt-link")!;
-    // The mention's right-click is the node-link menu's (hosted app-level;
-    // absent here, so nothing renders) — the row menu must NOT claim it.
-    fireEvent.contextMenu(link, { clientX: 4, clientY: 4 });
-    expect(rowMenu()).toBeNull();
-    // The row itself still opens the node context menu.
-    fireEvent.contextMenu(screen.getAllByRole("button", { name: /notes on target/i })[0]!.closest("li")!, {
-      clientX: 4,
-      clientY: 4,
-    });
+  it("right-click anywhere on the row — the label included — opens the row menu", () => {
+    const { row } = renderRichRow();
+    const label = row.querySelector(".nt-side-item-label")!;
+    fireEvent.contextMenu(label, { clientX: 4, clientY: 4 });
+    expect(rowMenu()).not.toBeNull();
+    fireEvent.contextMenu(row.closest("li")!, { clientX: 4, clientY: 4 });
     const menu = rowMenu();
     expect(menu).not.toBeNull();
     expect(within(menu!).getByText("Open page")).not.toBeNull();
