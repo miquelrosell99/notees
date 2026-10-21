@@ -8,8 +8,10 @@
 .nt-section-views {
   display: flex;
   flex-direction: column;
-  /* The tab row breathes before the view below it. */
+  /* The tab row breathes before the view below it (the tab row and the first view row were reading as one
+     block). */
   gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
 }
 
 .nt-section-views__bar {
