@@ -7,6 +7,34 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **refine(web): Blocks/Raw back
+  to the icon SelectionButton, Match ALL/ANY becomes the v1 ToggleSwitch.**
+ , one day after the text-segment experiment: the
+  Blocks/Raw view toggle returns to the ICON `SelectionButton`
+  (mdi-toy-brick-outline / mdi-code-braces — the icons were better), still
+  in the head row (the retired viewbar does not come back). The Match
+  ALL/ANY group logic becomes a port of the v1 **ToggleSwitch** — a toggle
+  pill with the dot inside and text on either side (ALL left, ANY right;
+  ANY = checked) — on the root head row AND every nested group header,
+  replacing both the look-alike set-all/set-center icons and yesterday's
+  text segments. The primitive already existed in the fleet (the Radix-based
+  v1 port); this slice extends its a11y contract — an explicit `aria-label`
+  names the control (the state rides aria-checked, the side labels stay
+  visual) while the labelledby-both-labels default stays for the existing
+  call sites. The `SelectionButton` text support from the text-segment
+  experiment retires unused — the primitive is restored byte-for-byte from
+  712c6995a.
+  - **Files**: `apps/web/src/features/collection/FilterBlockBuilder.tsx`
+    (the ToggleSwitch logic control, the icon view toggle restored),
+    `apps/web/src/components/ui/fleet/ToggleSwitch.tsx` (the explicit-name
+    a11y contract), `apps/web/src/components/ui/fleet/SelectionButton.tsx`
+    + `…/SelectionButton.css` (restored from 712c6995a, the `text` register
+    retires), `apps/web/test/filter-builder.test.tsx` (role=switch driving
+    + the icon-radio assertions).
+  - **Verification**: `npx tsc --noEmit` (apps/web) and
+    `npx vitest run test/filter-builder.test.tsx test/filter-query.test.ts
+    test/filter-layer.test.tsx test/graph-view.test.tsx` — 77 tests green.
+
 - **refine(web): the structured-filters panel chrome ruling — both switches
   on one top row, the count line at the bottom-right, "nodes" wording; the
   head-row controls are TEXT segments.** Owner layout ruling (2026-10-21)
