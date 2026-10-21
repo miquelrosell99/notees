@@ -489,6 +489,19 @@ describe("sidebar row labels render as plain text", () => {
     expect(label.querySelector("button, a")).toBeNull();
   });
 
+  it("a markdown link in the title reduces to its label — the href stays out of the row", () => {
+    const linked = stubNode({
+      id: "md-1",
+      contentAst: [
+        { type: "text", text: "Ver [Informe 2024](https://example.com/informe) hoy" },
+      ],
+    });
+    localStorage.setItem("notees.favorites", JSON.stringify([linked.id]));
+    renderSidebar(stubSidebarClient([linked]));
+    const row = screen.getAllByRole("button", { name: /ver informe 2024 hoy/i })[0] as HTMLElement;
+    expect(row.querySelector(".nt-side-item-label")!.textContent).toBe("Ver Informe 2024 hoy");
+  });
+
   it("the row is the only clickable surface — clicking it opens the row's page", () => {
     const onOpenPage = vi.fn();
     const { row } = renderRichRow({ onOpenPage });
