@@ -835,26 +835,34 @@ describe("outline list: rows with children default collapsed", () => {
     expect(row.textContent).toContain("the folded context");
   });
 
-  it("a collapsed class-icon bullet wears an outline ring ABOVE the glyph", () => {
-    // jsdom has no layout: the regression is CSS — the icon glyph is a
-    // solid plate that covers the soft background halo, so the ring must
-    // become a border circle painted over the glyph (z-index) to read.
+  it("the collapsed ring is ONE outer circle sized past the class-icon glyph", () => {
+    // jsdom has no layout: the regression is CSS — the 19.2px icon glyph
+    // is a solid plate that covered the old 16px halo entirely. The
+    // ruling: the SAME soft outer circle on both bullet kinds, grown past
+    // the glyph (ring 24px riding a 26px bullet box), never an icon-only
+    // outline hack.
     const process_ = globalThis.process as unknown as {
       getBuiltinModule(name: string): { readFileSync(path: unknown, enc: string): string };
+      cwd(): string;
+    };
+    const path = process_.getBuiltinModule("node:path") as unknown as {
+      join(...parts: string[]): string;
     };
     const css = process_.getBuiltinModule("node:fs").readFileSync(
-      new URL("../src/ui/app.css", import.meta.url),
+      path.join(process_.cwd(), "src", "ui", "app.css"),
       "utf8",
     );
-    const rule = /\.nt-bullet:has\(\.nt-bullet-icon\) \.nt-bullet-ring \{[^}]*\}/.exec(css);
-    expect(rule).not.toBeNull();
-    expect(rule![0]).toContain("border:");
-    expect(rule![0]).toContain("z-index: 1");
-    expect(
-      /\.nt-bullet--collapsed:hover:has\(\.nt-bullet-icon\) \.nt-bullet-ring \{[^}]*border-color/.test(
-        css,
-      ),
-    ).toBe(true);
+    const ring = /\.nt-bullet-ring \{[^}]*\}/.exec(css);
+    expect(ring).not.toBeNull();
+    expect(ring![0]).toContain("width: 24px");
+    expect(ring![0]).toContain("height: 24px");
+    expect(ring![0]).toContain("background-color");
+    // One circle for dot and icon alike — no icon-specific variant.
+    expect(css).not.toContain(":has(.nt-bullet-icon) .nt-bullet-ring");
+    const bullet = /\.nt-bullet \{[^}]*\}/.exec(css);
+    expect(bullet).not.toBeNull();
+    expect(bullet![0]).toContain("width: 26px");
+    expect(bullet![0]).toContain("height: 26px");
   });
 });
 
