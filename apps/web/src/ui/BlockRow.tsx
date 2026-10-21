@@ -1002,6 +1002,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                   onOpenPage={openNode}
                   overflow
                   iconOnlyAdd
+                  addAtStart
                   readOnly={readOnly}
                 />
               </div>
