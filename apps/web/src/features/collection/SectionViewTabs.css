@@ -8,8 +8,12 @@
 .nt-section-views {
   display: flex;
   flex-direction: column;
-  /* The tab row breathes before the view below it (owner 2026-10-12). */
+  /* The tab row breathes before the view below it (owner 2026-10-12
+     internally; owner 2026-10-21: the bar-to-view separation proper is
+     12px — the tab row and the first view row were reading as one
+     block). */
   gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
 }
 
 .nt-section-views__bar {
