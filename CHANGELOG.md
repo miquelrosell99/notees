@@ -7,6 +7,33 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(store): permanent delete heals the materialized counts — a backlink
+  badge stops outliving its edges.** Reported symptom: a block showed a "1
+  linked reference" badge over an empty "No linked references" list. The
+  badge reads `node_stats.backlink_count` (a stored number — it renders on
+  every block row, so a live per-row count is what the lazy-loading contract
+  forbids); the expanded list runs a live query over the edge index. Two
+  delete paths dropped the subtree's edge rows without rebuilding the
+  targets' stats, so the targets kept counting dead edges forever (51 stale
+  rows in the live workspace): the `permanentlyDeleteSubtree` purge
+  (`object.delete {permanent: true}`, `trash.empty`) and the `rebuildEdges`
+  gone-source branch. The purge now rebuilds `node_stats` for the subtree's
+  edge targets AND its ancestors (their `descendant_count` was stale the same
+  way); the gone-branch rebuilds its orphaned targets. Pre-existing
+  projections heal with a one-off `rebuildNodeStats` pass + a fresh snapshot
+  + a `restore_epoch` bump (the counts are a derived projection — the rebuild
+  converges them).
+  - **Files**: `packages/store/src/appliers.ts` (`permanentlyDeleteSubtree`
+    collects the lost backlink targets + the ancestors before the purge and
+    rebuilds after it), `packages/store/src/edges.ts` (the gone-branch
+    rebuilds `previousTargets`), `packages/store/test/store.test.ts` (four
+    regression tests × both adapters, failing before / passing after),
+    `docs/features/links.md` (the badge invalidation contract),
+    `docs/developers/architecture.md` (the same contract, developer-facing).
+  - **Verification**: store suite 625 green (4 new tests × both adapters);
+    full gate `pnpm -r build` + `pnpm typecheck` + `pnpm test` green (166
+    files / 1912 tests).
+
 - **perf(web): the node picker's search coalesces keystrokes on async
   clients — one ranked-index query per pause, not per keystroke.** Owner
   ruling (2026-10-21) on a huge workspace: the FTS itself is fast, but each
