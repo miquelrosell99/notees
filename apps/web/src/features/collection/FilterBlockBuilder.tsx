@@ -78,8 +78,7 @@ import { CodeTextarea } from "../../components/ui/fleet/CodeTextarea.js";
 import { Dropdown, type DropdownOption } from "../../components/ui/fleet/Dropdown.js";
 import { GridMenu } from "../../components/ui/fleet/GridMenu.js";
 import { Input } from "../../components/ui/fleet/Input.js";
-import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
-import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
+import { SelectionButton, type SelectionButtonOption } from "../../components/ui/fleet/SelectionButton.js";
 import { Card } from "../../components/ui/fleet/Card.js";
 import { useBuilderFacts, type BuilderFacts } from "./QueryBuilderFields.js";
 import {
@@ -103,13 +102,14 @@ import {
 import "./FilterBlockBuilder.css";
 
 /**
- * The Match ALL/ANY logic control: the v1
- * ToggleSwitch — a toggle pill with the dot inside and text on either side
- * (ALL left, ANY right; ANY = checked). One shared element, rendered by the
- * root head row AND every nested group header; the state rides aria-checked
- * and the control carries an explicit accessible name.
+ * The Match ALL/ANY logic options — the BORDERED button switcher (the fleet
+ * SelectionButton). `label` stays the accessible
+ * name; shared by the root head row AND every nested group header.
  */
-const LOGIC_SWITCH_LABEL = "Match ALL or ANY (group logic)";
+const LOGIC_OPTIONS: SelectionButtonOption[] = [
+  { value: "and", icon: "mdi-gate-and", label: "Match ALL conditions" },
+  { value: "or", icon: "mdi-gate-or", label: "Match ANY condition" },
+];
 
 export interface FilterBlockBuilderProps {
   client: AnyClient;
@@ -288,13 +288,12 @@ export function FilterBlockBuilder({ client, group, onChange, config, footExtra 
           group's header) and the blocks ⇄ raw AST toggle (right, replacing
           the old floating viewbar row). */}
       <div className="nt-fb__head">
-        <ToggleSwitch
+        <SelectionButton
+          options={LOGIC_OPTIONS}
+          value={group.logic}
+          onChange={(logic) => onChange({ ...group, logic: logic as Group["logic"] })}
           size="sm"
-          leftLabel="ALL"
-          rightLabel="ANY"
-          checked={group.logic === "or"}
-          onChange={(checked) => onChange({ ...group, logic: checked ? "or" : "and" })}
-          aria-label={LOGIC_SWITCH_LABEL}
+          aria-label="Group logic"
         />
         <span className="nt-fb__head-spacer" />
         <SelectionButton
@@ -454,13 +453,12 @@ function GroupBlock({ group, onChange, onDelete, depth, bare = false, client, fa
     >
       {!bare && (
         <div className="nt-fb-group__header">
-          <ToggleSwitch
+          <SelectionButton
+            options={LOGIC_OPTIONS}
+            value={group.logic}
+            onChange={(logic) => patch({ logic: logic as Group["logic"] })}
             size="sm"
-            leftLabel="ALL"
-            rightLabel="ANY"
-            checked={group.logic === "or"}
-            onChange={(checked) => patch({ logic: checked ? "or" : "and" })}
-            aria-label={LOGIC_SWITCH_LABEL}
+            aria-label="Group logic"
           />
           {nested && (
             <>

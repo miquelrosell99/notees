@@ -37,6 +37,16 @@
   flex: 1;
 }
 
+/* The bordered switcher must READ inside the panel: the SelectionButton container rides the same
+   --md-sys-color-surface-container token as the structured-filters
+   panel's own background, so the container background vanishes and the
+   outline-variant hairline alone barely reads. The nudge steps the
+   builder's switcher containers up to the -high surface token — one
+   token, no new primitive. */
+.nt-fb .selection-button {
+  background: var(--md-sys-color-surface-container-high);
+}
+
 .nt-fb__raw {
   display: flex;
   flex-direction: column;
