@@ -82,6 +82,45 @@ predating this file.
     full gate `pnpm -r build` + `pnpm typecheck` + `pnpm test` green (166
     files / 1912 tests).
 
+- **refine(web): every empty table cell reads "Empty" — the placeholder
+  ruling settles, and multi-value node/asset cells join the idiom.** the "Add \<name\>" placeholder trialed
+  on the picker/scalar cells reads like a button label, not a state — date
+  fields etc. show "Empty" like the text cells already did; and the
+  multi-value node/asset clusters should not wear a separate "+ Add" pill
+  before the first value — the same "Empty" placeholder opens the picker on
+  click, one UI for every empty property cell. The visible placeholder is
+  now "Empty" across text, node, date, asset, and scalar (url/email/number
+  input placeholder) cells; a picker cell's accessible name still names the
+  action ("Add \<name\>"), the NodeCell and the cluster empties carrying the
+  aria label; the "+ Add \<name\>" pill now rides the VALUED cluster cells
+  only (adding more), the metadata row's idiom.
+  - **Files**: `apps/web/src/features/collection/TableView.tsx` (DateCell +
+    NodeCell visible placeholders, InlineInput placeholder, MultiNodeCell +
+    AssetCell empty branches opening the picker — the picker element shares
+    both branches, the header comment's settled ruling), `apps/web/test/view-modes.test.tsx`
+    (the Owner spec's visible "Empty" + action aria name; the new spec:
+    empty multi node/asset cells read Empty, open the picker from the
+    placeholder, and render no add pill before the first value).
+  - **Verification**: web `tsc` green; `view-modes.test.tsx` 45/45.
+
+- **fix(web): the Created/Edited stamp never overflows into the hover-
+  revealed Open button.** on hover
+  the day-stamp's Open button overlapped the date text. The stamp cells
+  carry `white-space: nowrap`, and the hover state reserves the button lane
+  by growing the td padding — a bare nowrap text child overflows its shrunk
+  box into the lane instead of moving (the name-cell idiom works because
+  that text wraps). The stamp now rides a `.nt-table-stamp` span (flex
+  lane, `min-width: 0`, `overflow: hidden`, ellipsis): on hover a stamp too
+  long for the remaining width ellipsizes — never overlaps.
+  - **Files**: `apps/web/src/features/collection/TableView.tsx` (the
+    Created/Edited markup wraps the stamp), `apps/web/src/features/collection/TableView.css`
+    (the `.nt-table-stamp` rules), `scripts/screenshots/datebtn-probe.mjs`
+    (the live geometry probe: rest = absolute + hidden, hover = lane
+    reserved + visible + no overlap, screenshot).
+  - **Verification**: live probe against the deployed stack (test
+    workspace): rest opacity 0 / absolute, hover padding 12px → 40px,
+    no overlap; screenshot `datebtn-probe.jpg`.
+
 - **feat(web): table cell chrome — the pinned Open button everywhere a cell
   names a target, "Add <name>"/"Empty" empty states, asset cells with the
   asset buttons.** text cells with a carrier should
