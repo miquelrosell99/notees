@@ -7,6 +7,40 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(web): the sidebar's Favorites/Recents lists move to
+  `features/sidebar/` — and their row labels go plain-text.**, one slice.
+  - **Plain-text row labels**: the Favorites and Recents rows
+    flatten the node's title through `displayNameForSettings` — the same
+    text-only derivation the tab title and table cells use — instead of
+    rendering the title as read-only block content (`InlineTokens`).
+    Mentions, class chips, markdown links and marks fold into their captured
+    text: nothing inside a row label is individually clickable or styled,
+    the label's mention links lose their click/right-click affordances, and
+    the row-menu/node-link-menu right-click split retires with them. The row
+    stays one button (click opens, Shift+click peeks, right-click → the row
+    menu); date pages keep the setting-aware display name through the same
+    helper's date branch.
+  - **The extraction**: `features/sidebar/FavoritesRecents.tsx` owns the two
+    sections — the nodePrefs hook, the drag-sort, the row context menu, the
+    confirmation-gated Delete, the live-label subscription — and
+    `features/sidebar/recentPages.ts` owns the device-local recents storage
+    (`recordRecent`/`readRecentIds`/`removeRecent`, moved out of Sidebar.tsx;
+    it has callers outside the sidebar: App.openPage, the pickers). The
+    `sidebarSection` collapsible-section shell moved with the feature (the
+    shell's Navigation section renders through it). `Sidebar.tsx` is the
+    shell now: the NAV_ENTRIES register + the profile/account popup,
+    composing the feature. `AnyClient` is defined by the feature and
+    re-exported from the shell, so the existing type importers are untouched.
+    The row/section styles stay in `Sidebar.css` — the nav rows and the list
+    rows share the same classes.
+  - **Docs**: `docs/features/pages.md`'s sidebar paragraph (the plain-text
+    contract); `nodePrefs.ts`'s header comment re-anchored to the new home.
+  - **Verification:** `pnpm typecheck` clean repo-wide; `pnpm test` green —
+    the web suite's sidebar label tests now assert the plain-text contract
+    (the mention folds to "Notes on Target", no `.nt-link` inside the row,
+    the row button the only click target, right-click anywhere → the row
+    menu).
+
 - **feat(protocol,store,web)!: retire the `readonly` render contract —
   derived from the system list; class-view chrome cleanup; aliases hide when
   empty.** Three owner asks, one slice.

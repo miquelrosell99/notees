@@ -14,7 +14,8 @@
  *    with the legacy broadcasts, so device-local readers (the palette's
  *    Recent section) see the synced source immediately;
  *  - legacy writers (the node context menu's toggle, `recordRecent` /
- *    `removeRecent` in Sidebar.tsx) keep writing the device-local keys and
+ *    `removeRecent` in features/sidebar/recentPages.ts) keep writing the
+ *    device-local keys and
  *    broadcasting — this store listens and pushes the change to the server
  *    when online (that IS the "migrate the recents write" path: no caller
  *    has to change);

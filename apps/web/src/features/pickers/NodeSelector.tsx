@@ -36,7 +36,7 @@ import { chainNodeIds, parseDateNodeId, rendersAsInlineBlock, rendersWithDocumen
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
-import { readRecentIds } from "../../ui/app/Sidebar.js";
+import { readRecentIds } from "../sidebar/recentPages.js";
 import { Icon } from "../../ui/Icon.js";
 import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
 import { NodePill } from "../metadata/NodePill.js";
