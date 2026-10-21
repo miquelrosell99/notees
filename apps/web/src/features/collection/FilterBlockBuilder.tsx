@@ -164,7 +164,12 @@ interface GroupBlockProps extends BlockContext {
   /** The parent's delete — absent at the root. */
   onDelete?: () => void;
   depth: number;
-  /** The add menu's width — the builder container's. */
+  /**
+   * The add menu's width — the builder container's at the root. Nested
+   * groups arrive with 0 and measure their own container instead (the
+   * dynamic subgroup rides the kit Card — a 0-width menu popup renders
+   * invisible, the card's Add condition must read at the card's width).
+   */
   menuWidth: number;
 }
 
@@ -212,6 +217,25 @@ function GroupBlock({ group, onChange, onDelete, depth, client, facts, config, d
   const menuEntries = filterKindOptionsForConfig(config);
   /** The add menu's open state — drives the trigger chevron (the dropdown register). */
   const [addOpen, setAddOpen] = useState(false);
+  /**
+   * Nested groups measure their own container for the add menu (the root
+   * arrives with the builder container's width measured upstream). A
+   * 0-width popup renders invisible — the dynamic subgroup's Add condition
+   * would open a menu nobody can see or hit.
+   */
+  const groupRef = useRef<HTMLDivElement>(null);
+  const [ownWidth, setOwnWidth] = useState(0);
+  useEffect(() => {
+    if (!nested) return;
+    const el = groupRef.current;
+    if (el === null) return;
+    const measure = () => setOwnWidth(el.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [nested]);
+  const addMenuWidth = menuWidth > 0 ? menuWidth : Math.max(280, ownWidth);
   const menuItems = menuEntries.map((entry) => ({
     id: entry.value,
     icon: entry.icon,
@@ -221,6 +245,7 @@ function GroupBlock({ group, onChange, onDelete, depth, client, facts, config, d
 
   return (
     <div
+      ref={groupRef}
       className={`nt-fb-group${nested ? " nt-fb-group--nested" : ""}`}
       style={{ "--nt-fb-depth": depth } as CSSProperties}
     >
@@ -332,7 +357,7 @@ function GroupBlock({ group, onChange, onDelete, depth, client, facts, config, d
           buttonProps={{ size: "sm" }}
           panelPosition="bottom"
           panelAlignment="start"
-          panelWidth={menuWidth}
+          panelWidth={addMenuWidth}
           showCloseButton={false}
           usePortal
           aria-label="Add condition"
