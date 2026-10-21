@@ -7,6 +7,49 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): the fleet Button is the rounded square again — the visible-box
+  reset lost its specificity race.** Owner report (2026-10-21): the topbar
+  buttons "are no longer a square with rounded corners". Measured live with
+  a geometry probe: every fleet Button rendered 32x48 — `w-icon-only-
+  visible-sm` (32px) wide but `min-h-touch` (48px) tall, a portrait
+  rectangle. Cause: 146dd7623 widened the visible-box reset from
+  `.btn.btn--icon-only` (specificity 0,2,0) to `.btn` (0,1,0) — the same
+  specificity as the `.min-h-touch` utility, which wins the source-order
+  race (the utilities are emitted unlayered, so the "unlayered beats
+  layered" assumption in the old comment did not hold; the pre-change
+  specificity edge was doing the real work). The reset is `.btn.btn` now —
+  (0,2,0), beating the utility while keeping the reset on EVERY button
+  (text buttons included). The 48dp floor lives on, unchanged, as the
+  invisible hit-area overlay.
+  - **Files**: `apps/web/src/components/ui/fleet/Button.css` (the doubled
+    class + the corrected measured-live comment).
+  - **Verification**: `node scripts/screenshots/button-shape-probe.mjs`
+    against the rebuilt stack — topbar buttons measure 32x32,
+    border-radius 6px; `pnpm typecheck` + the apps/web suite green.
+
+- **fix(web): class pills answer edits from read-only reference rows, and
+  the whole clickable pill wears one cursor.** Two owner reports from the
+  Backlinks outline rows (2026-10-21): (1) hovering a row's class pill
+  showed nothing — no ×, no "+", no response. The block row rendered the
+  classes column with the row's `readOnly` flag (the "edit/read alignment"
+  ruling), so backlinks/unlinked/child-page rows projected STATIC pills.
+  Owner ruling: class membership is a working surface on reference rows —
+  the column now rides its own lock, the date-chain rule, and answers × /
+  "+" / drag-sort on every row (the content, tags row, and properties stay
+  read-only; the date-lock is new for the inline column too — date blocks
+  in editable pages were mutably wrong before). (2) the hover cursor split
+  across a clickable pill — hand over the label, arrow over the colored
+  padding. The fleet Pill now carries `.pill:has(button.pill__text) {
+  cursor: pointer }`: a pill whose label is a button reads as ONE surface
+  (the same ruling the `.pill--add` label already had); non-clickable chips
+  (`span.pill__text`) keep the default arrow.
+  - **Files**: `apps/web/src/ui/BlockRow.tsx` (the `classesLocked` date
+    rule + the column's new contract comment + `parseDateNodeId` import),
+    `apps/web/src/components/ui/fleet/Pill.css` (the `:has()` cursor rule),
+    `apps/web/src/features/collection/types.ts` (the `readOnly` contract
+    doc), `docs/features/pages.md` (the class-pills clause).
+  - **Verification**: `pnpm typecheck` + the apps/web suite green.
+
 - **fix(web): the collapsed bullet ring is ONE soft outer circle, grown past
   the class-icon glyph — the bullet element grows to hold it.** Owner
   correction (2026-10-21, reviewing the outline-ring variant shipped in the

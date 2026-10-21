@@ -187,13 +187,16 @@ export interface NodeCollectionProps {
    */
   editable?: boolean | undefined;
   /**
-   * Read-only rows: every mutation gesture off and the metadata chrome
-   * (property icon buttons, classes column, tags row, the collapsed
-   * Metadata section) rendered statically, aligned with the editable row.
-   * The click contract differs by path: a read-only TREE opens the node on
-   * content click (Child pages, "Extended by"); the flat LIST is inert
-   * instead — the content click does nothing and the bullet element opens
-   * the node (no full-row hover wash).
+   * Read-only rows: every CONTENT mutation gesture off — the text renders
+   * statically and the properties chrome (property icon buttons, tags row,
+   * the collapsed Metadata section) renders statically too, aligned with
+   * the editable row. The classes column is the one exception (owner
+   * ruling 2026-10-21): class membership answers edits from read-only
+   * reference rows (backlinks, unlinked mentions — × / "+" / drag-sort),
+   * only the date-chain lock renders it static. The click contract differs
+   * by path: a read-only TREE opens the node on content click (Child pages,
+   * "Extended by"); the flat LIST is inert instead — the content click does
+   * nothing and the bullet element opens the node (no full-row hover wash).
    */
   readOnly?: boolean | undefined;
   /**
