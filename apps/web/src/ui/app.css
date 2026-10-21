@@ -1018,11 +1018,12 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 26px: the class-icon glyph is 19.2px — the bullet
-     box stays on par with the icon so the collapsed ring (24px) reads
-     around it instead of hiding behind the solid glyph. */
-  width: 26px;
-  height: 26px;
+  /* 30px: the class-icon glyph is 19.2px
+     and the collapsed ring is 28px — the bullet box stays on par with
+     both so the ring reads around the icon instead of hiding behind
+     the solid glyph. */
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
   cursor: pointer;
   user-select: none;
@@ -1107,14 +1108,14 @@ select:focus-visible {
 }
 
 /* Soft ring behind a collapsed-with-children bullet (collapse UI).
-   24px: one outer circle for both bullet kinds — big
-   enough to peek past the 19.2px class-icon glyph (the old 16px halo hid
-   entirely behind the solid plate, so collapsed icon bullets showed no
-   ring). */
+   28px: one outer circle for both bullet
+   kinds — big enough to clear the 19.2px class-icon glyph (the 16px halo
+   hid entirely behind the solid plate, so collapsed icon bullets showed
+   no ring) and to read at a glance beside the row text. */
 .nt-bullet-ring {
   position: absolute;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background-color: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
   opacity: 0;
