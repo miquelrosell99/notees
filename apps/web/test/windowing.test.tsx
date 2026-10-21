@@ -145,7 +145,7 @@ describe("table windowing", () => {
   }
 
   const rowCount = (): number =>
-    screen.getAllByRole("table")[0]!.querySelectorAll(".nt-table-name-label").length;
+    screen.getAllByRole("table")[0]!.querySelectorAll("td.nt-table-name").length;
 
   it("renders the first window with an honest remaining count; Show more grows", async () => {
     const client = await seedClient();

@@ -382,7 +382,7 @@ describe("query block (live query token)", () => {
     expect(headers.map((th) => th.textContent)).toEqual(["", "Name", "Class", "Embedded", "Created"]);
     const rows = container.querySelectorAll(".nt-table tbody tr");
     expect(rows.length).toBe(2);
-    const names = Array.from(rows).map((row) => row.querySelector(".nt-table-name-label")?.textContent);
+    const names = Array.from(rows).map((row) => row.querySelector("td.nt-table-name .nt-title-content")?.textContent);
     expect(names.sort()).toEqual(["London", "Paris"]);
     const created = rows[0]!.querySelector(".nt-table-created")?.textContent ?? "";
     expect(created).toMatch(/\d{4}/);
