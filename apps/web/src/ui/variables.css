@@ -772,7 +772,13 @@
      washed with ~4–13% of the active seed (color-mix resolves per accent
      preset, monochrome included). The monochrome accent is near-achromatic,
      so its dark mode lands on untinted graphite. The light ground stays the
-     brand paper regardless of accent. */
+     brand paper regardless of accent.
+     The container ladder ASCENDS from `surface` (M3 dark tonal elevation,
+     owner ruling 2026-10-16): every surface-container step is LIGHTER than
+     the content surface, so elevated chrome — menus, popups, modal cards,
+     panels — reads against the flat night. The pre-2026-10-21 values sat at
+     or below `surface` (low was darker, container was identical), which
+     made every dark popup the same color as the content behind it. */
   --md-sys-color-background: color-mix(in oklab, var(--md-sys-color-primary) 6%, #141414);
   --md-sys-color-on-background: color-mix(in oklab, var(--md-sys-color-primary) 3%, #f4f3f1);
   --md-sys-color-surface: color-mix(in oklab, var(--md-sys-color-primary) 8%, #1b1b1a);
@@ -781,10 +787,10 @@
   --md-sys-color-on-surface-variant: color-mix(in oklab, var(--md-sys-color-primary) 7%, #a9a59f);
   --md-sys-color-surface-dim: color-mix(in oklab, var(--md-sys-color-primary) 4%, #100f0e);
   --md-sys-color-surface-bright: color-mix(in oklab, var(--md-sys-color-primary) 10%, #212120);
-  --md-sys-color-surface-container: color-mix(in oklab, var(--md-sys-color-primary) 8%, #1b1b1a);
-  --md-sys-color-surface-container-low: color-mix(in oklab, var(--md-sys-color-primary) 6%, #141414);
-  --md-sys-color-surface-container-high: color-mix(in oklab, var(--md-sys-color-primary) 10%, #212120);
-  --md-sys-color-surface-container-highest: color-mix(in oklab, var(--md-sys-color-primary) 13%, #292925);
+  --md-sys-color-surface-container: color-mix(in oklab, var(--md-sys-color-primary) 8%, #222221);
+  --md-sys-color-surface-container-low: color-mix(in oklab, var(--md-sys-color-primary) 6%, #1e1e1d);
+  --md-sys-color-surface-container-high: color-mix(in oklab, var(--md-sys-color-primary) 10%, #262624);
+  --md-sys-color-surface-container-highest: color-mix(in oklab, var(--md-sys-color-primary) 13%, #2c2c28);
   --md-sys-color-surface-container-lowest: color-mix(in oklab, var(--md-sys-color-primary) 4%, #100f0e);
   --md-sys-color-inverse-surface: #f4f3f1;
   --md-sys-color-inverse-on-surface: color-mix(in oklab, var(--md-sys-color-primary) 6%, #141414);
@@ -828,10 +834,10 @@
   --md-sys-color-surface-variant: #0a0a0a;
   --md-sys-color-surface-dim: #000;
   --md-sys-color-surface-bright: #111;
-  --md-sys-color-surface-container: #000;
-  --md-sys-color-surface-container-low: #000;
-  --md-sys-color-surface-container-high: #0a0a0a;
-  --md-sys-color-surface-container-highest: #17130e;
+  --md-sys-color-surface-container: #131312;
+  --md-sys-color-surface-container-low: #0e0e0d;
+  --md-sys-color-surface-container-high: #191917;
+  --md-sys-color-surface-container-highest: #1f1f1b;
   --md-sys-color-surface-container-lowest: #000;
   --md-sys-color-outline-variant: #221c15;
 

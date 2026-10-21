@@ -8,6 +8,36 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-21
+- **fix(web): dark popups stop blending into the content — the night container
+  ladder ascends, floating chrome rides elevated steps.** Owner report: the
+  calendar popup (and similar popups) was the same color as the main content
+  area. Root cause at the token level: the dark theme's `surface-container`
+  was byte-identical to `surface` and `surface-container-low` was DARKER, so
+  the M3 dark tonal-elevation mechanism (owner ruling 2026-10-16: the dark
+  theme expresses elevation through the surface-container tone ladder) had
+  nothing to work with — every elevated surface rendered at the content
+  tone. `variables.css` `[data-theme="dark"]` re-tones the four container
+  steps to ascend from `surface` (`-low` +1 → `-container` +3.5 → `-high`
+  +5.5 → `-highest` +8.5 L*, seed tint preserved per the night-is-tinted
+  ruling; grounds `-lowest`/`surface`/`background` untouched); `[data-oled]`
+  lifts its container steps off pure black the same way (grounds stay #000).
+  With the ladder working, the floating chrome that still rode plain
+  `surface` moves to the app's established elevated steps, per the M3
+  elevation ruling: the calendar popups (top-bar + date-picker family), the
+  icon picker, and the node-selector picker ride `surface-container-high` +
+  the level-2 shadow their siblings (hover preview, history menu,
+  condensed-links popup) already carry (the date picker's "no shadow by
+  local choice, flagged for the follow-up elevation audit" comment IS this
+  audit); the Dropdown menu and the command-palette modal ride
+  `surface-container-low` (the ContextMenu and the modal-card family's
+  step). Menus, pickers, and modals now read against the flat night in every
+  accent and in OLED. Light theme untouched (its ladder already descended
+  correctly). `variables.css`,
+  `features/calendar/TopBarCalendarPopup.css`,
+  `features/date-pickers/CalendarPopup.css`, `DatePickerPopup.css`,
+  `features/icon-picker/IconPickerPopup.css`,
+  `features/pickers/NodeSelector.css`, `components/ui/fleet/Dropdown.css`,
+  `features/command-palette/Modal.css`. Full gate green.
 - **fix(web): the workspace-switcher's Manage affordance moved off the
   duplicated cog, and the per-row cog stopped reserving space.** The popup
   footer (cog icon + "Manage workspaces") is gone — that cog duplicated the

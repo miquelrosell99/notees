@@ -316,9 +316,10 @@
   z-index: var(--z-10002);
   min-width: var(--layout-size-2xl);
   max-width: var(--layout-size-6xl);
-  background: var(--md-sys-color-surface);
+  background: var(--md-sys-color-surface-container-high);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-floating-panel);
+  box-shadow: var(--elevation-2);
   overflow: hidden;
 }
 
