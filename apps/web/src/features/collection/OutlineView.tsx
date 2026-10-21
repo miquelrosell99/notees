@@ -19,6 +19,11 @@
  *   (the tasks hub), collapse chevrons, recursive children (the item's own
  *   children when the container supplied them, else the client's live
  *   children), property icon buttons, classes/tags/metadata chrome.
+ *   PAGES WITH CHILDREN DEFAULT COLLAPSED (owner 2026-10-21): the flat list
+ *   opens one row per page, its child blocks folded behind the chevron; the
+ *   expansion override is session-local, so the default re-applies next
+ *   session. Block rows keep their natural expanded state — the ruling
+ *   names pages (document-chrome rows) only.
  *   Read-only rows are the inert variant (`readOnlyInert`): the content
  *   click does NOTHING and the bullet element opens the node — no full-row
  *   hover wash, the bullet carries the only hover feedback. The list hosts
@@ -53,6 +58,8 @@
 import { useContext, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+
+import { rendersWithDocumentChrome } from "@notees/domain";
 
 import { BlockRow } from "../../ui/BlockRow.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
@@ -183,9 +190,24 @@ function FlatRows({
     enabled: props.windowed ?? true,
     resetKey,
   });
+  // Pages-with-children default COLLAPSED (owner 2026-10-21): the outline
+  // list shows one row per page, its blocks folded behind the chevron. The
+  // set collects every page-role row with children in the rendered trees
+  // (nested child pages included); block rows keep their natural expanded
+  // state. The expansion override is session-local (the context contract).
+  const defaultCollapsed = useMemo(() => {
+    const set = new Set<string>();
+    const walk = (tree: BlockTreeNode): void => {
+      if (tree.children.length > 0 && rendersWithDocumentChrome(tree.node)) set.add(tree.node.id);
+      for (const child of tree.children) walk(child);
+    };
+    for (const item of visible) walk(flatTreeOf(client, item));
+    return set;
+  }, [client, visible]);
   const outliner = useOutlinerValue(client, visible[0]?.node.id ?? "", {
     openNode: (id) => (onNodeClick ?? outer?.openNode ?? (() => {}))(id),
     openInSidebar: (id) => (onNodeShiftClick ?? outer?.openInSidebar ?? (() => {}))(id),
+    defaultCollapsed,
   });
   const resolveName = (id: string) => displayNameFromClient(client, id);
   return (

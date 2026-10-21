@@ -714,7 +714,7 @@ describe("assets hub", () => {
 });
 
 describe("pages hub (workspace roots)", () => {
-  it("lists top-level pages only — subpages render nested under their parent's row", async () => {
+  it("lists top-level pages only — subpages ride the parent's row, collapsed by default (owner 2026-10-21)", async () => {
     const client = await seedClient();
     await client.createObject({ isEmbedded: false, name: "Top Level" });
     const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
@@ -734,12 +734,80 @@ describe("pages hub (workspace roots)", () => {
     expect(ownTitles.some((t) => t.includes("Parent"))).toBe(true);
     // The subpage is not a top-level row…
     expect(ownTitles.some((t) => t.includes("Subpage"))).toBe(false);
-    // …it renders nested inside the Parent row (the list view's recursive
-    // children).
+    // …and the parent's row opens COLLAPSED — pages with children default
+    // folded (owner 2026-10-21); the chevron reveals the subpage on demand.
     const parentRow = [...hub.querySelectorAll(".outline-flat > li")].find(
       (li) => ownTitle(li).includes("Parent"),
     ) as HTMLElement;
+    expect(parentRow.textContent).not.toContain("Subpage");
+    const chevron = parentRow.querySelector(".nt-block-chevron") as HTMLElement;
+    expect(chevron.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(chevron);
     expect(parentRow.textContent).toContain("Subpage");
+  });
+});
+
+describe("outline list: pages with children default collapsed (owner 2026-10-21)", () => {
+  it("a page row folds its child blocks behind the chevron; the toggle is session-local display state", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Folded" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "the hidden block" }],
+    });
+
+    const { container } = render(
+      <CollectionHub
+        client={client}
+        icon="mdi-format-list-bulleted"
+        title="Fold list"
+        items={[{ node: client.getNode(pageId)! }]}
+        modes={["outline"]}
+        defaultMode="outline"
+        onOpenNode={() => {}}
+      />,
+    );
+    const row = container.querySelector("ul.outline-flat > li") as HTMLElement;
+    // Collapsed by default: the child block is not in the DOM, the chevron
+    // names the folded state.
+    expect(row.textContent).not.toContain("the hidden block");
+    const chevron = row.querySelector(".nt-block-chevron") as HTMLElement;
+    expect(chevron.getAttribute("aria-expanded")).toBe("false");
+    // Expand renders the child block; re-fold hides it again.
+    fireEvent.click(chevron);
+    expect(row.textContent).toContain("the hidden block");
+    expect(chevron.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(chevron);
+    expect(row.textContent).not.toContain("the hidden block");
+  });
+
+  it("block rows with children keep their natural expanded state — the ruling names pages only", async () => {
+    const client = await seedClient();
+    const hostId = await client.createObject({ isEmbedded: false, name: "Host" });
+    const blockId = await client.createObject({
+      parentId: hostId,
+      contentAst: [{ type: "text", text: "the parent block" }],
+    });
+    await client.createObject({
+      parentId: blockId,
+      contentAst: [{ type: "text", text: "the nested block" }],
+    });
+
+    const { container } = render(
+      <CollectionHub
+        client={client}
+        icon="mdi-format-list-bulleted"
+        title="Block list"
+        items={[{ node: client.getNode(blockId)! }]}
+        modes={["outline"]}
+        defaultMode="outline"
+        onOpenNode={() => {}}
+      />,
+    );
+    // The block row is not a page — its children render expanded, no fold.
+    const row = container.querySelector("ul.outline-flat > li") as HTMLElement;
+    expect(row.textContent).toContain("the nested block");
+    expect(row.querySelector(".nt-block-chevron")?.getAttribute("aria-expanded")).toBe("true");
   });
 });
 

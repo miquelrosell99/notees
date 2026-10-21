@@ -5,7 +5,7 @@
  * WorkspaceClient and the WorkerClient proxy.
  */
 
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 
 import { foldSearchText } from "@notees/store";
 
@@ -370,6 +370,14 @@ export function useOutlinerValue(
     selection?: boolean;
     /** Focus mode (#12) — hides block-level reference/property chrome. */
     focusMode?: boolean;
+    /**
+     * Read-only collection projections (the flat outline list, owner
+     * 2026-10-21): ids in this set render COLLAPSED until the user expands
+     * them — pages-with-children default folded in the node-collection
+     * outline. The expansion override is SESSION-LOCAL (never persisted);
+     * the persisted fold set keeps storing only explicit folds.
+     */
+    defaultCollapsed?: ReadonlySet<string> | undefined;
   },
 ): OutlinerContextValue {
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
@@ -377,16 +385,41 @@ export function useOutlinerValue(
   // Mirror for the toggle (computes the next set outside the state updater,
   // where the persistence write would be an impure side effect).
   const collapsedRef = useRef<ReadonlySet<string>>(collapsedIds);
+  // The default-collapsed overrides (owner 2026-10-21): rows a read-only
+  // collection projection folds by default (pages with children) read
+  // collapsed until the user expands them. The override is session-local —
+  // device state, never persisted — so the "collapsed by default" ruling
+  // re-applies on the next session.
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const expandedRef = useRef<ReadonlySet<string>>(expandedIds);
+  const defaultCollapsedRef = useRef(options?.defaultCollapsed);
+  defaultCollapsedRef.current = options?.defaultCollapsed;
+  const isEffectivelyCollapsed = useCallback((blockId: string): boolean => {
+    if (collapsedRef.current.has(blockId)) return true;
+    const defaults = defaultCollapsedRef.current;
+    return defaults !== undefined && defaults.has(blockId) && !expandedRef.current.has(blockId);
+  }, []);
   const toggleCollapse = useCallback(
     (blockId: string) => {
       const next = new Set(collapsedRef.current);
-      if (next.has(blockId)) next.delete(blockId);
-      else next.add(blockId);
+      const nextExpanded = new Set(expandedRef.current);
+      if (isEffectivelyCollapsed(blockId)) {
+        next.delete(blockId);
+        // A default-collapsed row expands via the SESSION override only —
+        // it never enters the persisted fold set.
+        if (defaultCollapsedRef.current?.has(blockId) === true) nextExpanded.add(blockId);
+        else nextExpanded.delete(blockId);
+      } else {
+        nextExpanded.delete(blockId);
+        next.add(blockId);
+      }
       collapsedRef.current = next;
       setCollapsedIds(next);
       persistCollapsedState(rootId, next);
+      expandedRef.current = nextExpanded;
+      setExpandedIds(nextExpanded);
     },
-    [rootId],
+    [rootId, isEffectivelyCollapsed],
   );
   // The stretched set — the condensed layer's exceptions (blocks rendered
   // full while the layer is on). Same persistence shape and toggle pattern
@@ -556,11 +589,21 @@ export function useOutlinerValue(
   // The VISIBLE document order (the arrow-handoff reads): a collapsed block
   // contributes its own row and nothing under it — the next/previous answer
   // is always a rendered row. Rebuilt every render alongside the tree.
+  // Effective collapse: the persisted folds plus the un-overridden
+  // default-collapsed rows (the read-only collection projections).
+  const effectiveCollapsed = useMemo(() => {
+    if (options?.defaultCollapsed === undefined) return collapsedIds;
+    const next = new Set(collapsedIds);
+    for (const id of options.defaultCollapsed) {
+      if (!expandedIds.has(id)) next.add(id);
+    }
+    return next;
+  }, [collapsedIds, expandedIds, options?.defaultCollapsed]);
   const visibleOrder: string[] = [];
   const flattenVisible = (nodes: readonly BlockTreeNode[]): void => {
     for (const entry of nodes) {
       visibleOrder.push(entry.node.id);
-      if (!collapsedIds.has(entry.node.id)) flattenVisible(entry.children);
+      if (!effectiveCollapsed.has(entry.node.id)) flattenVisible(entry.children);
     }
   };
   flattenVisible(tree);
@@ -603,7 +646,7 @@ export function useOutlinerValue(
       return index > 0 ? visibleOrder[index - 1]! : null;
     },
     firstBlockId: () => visibleOrder[0] ?? null,
-    collapsed: collapsedIds,
+    collapsed: effectiveCollapsed,
     toggleCollapse,
     stretched: stretchedIds,
     toggleStretched,
