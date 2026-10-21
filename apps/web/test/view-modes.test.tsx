@@ -855,11 +855,17 @@ describe("outline list: rows with children default collapsed (owner 2026-10-21)"
     );
     const ring = /\.nt-bullet-ring \{[^}]*\}/.exec(css);
     expect(ring).not.toBeNull();
-    expect(ring![0]).toContain("width: 28px");
-    expect(ring![0]).toContain("height: 28px");
+    // Two sizes, one style: the classic 16px halo on dot bullets…
+    expect(ring![0]).toContain("width: 16px");
+    expect(ring![0]).toContain("height: 16px");
     expect(ring![0]).toContain("background-color");
-    // One circle for dot and icon alike — no icon-specific variant.
-    expect(css).not.toContain(":has(.nt-bullet-icon) .nt-bullet-ring");
+    // …and the 28px circle on class-icon bullets (the halo that hides
+    // behind the solid glyph without it) — a SIZE variant only, never
+    // the retired border/outline treatment.
+    const iconRing = /\.nt-bullet:has\(\.nt-bullet-icon\) \.nt-bullet-ring \{[^}]*\}/.exec(css);
+    expect(iconRing).not.toBeNull();
+    expect(iconRing![0]).toContain("width: 28px");
+    expect(iconRing![0]).not.toContain("border");
     const bullet = /\.nt-bullet \{[^}]*\}/.exec(css);
     expect(bullet).not.toBeNull();
     expect(bullet![0]).toContain("width: 46px");

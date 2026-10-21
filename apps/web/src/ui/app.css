@@ -1114,14 +1114,15 @@ select:focus-visible {
   opacity: 1;
 }
 
-/* Soft ring behind a collapsed-with-children bullet (collapse UI).
-   28px (owner 2026-10-21 — settled after the live-size review: the 16px
-   halo hid behind the 19.2px class-icon plate, 40px read too big): one
-   outer circle for both bullet kinds, riding the grown 46px bullet box. */
+/* Soft ring behind a collapsed-with-children bullet (collapse UI). Two
+   sizes, one style (owner 2026-10-21): 16px around the 6px dot — the
+   long-approved halo; 28px around the 19.2px class-icon plate — the
+   16px halo hid entirely behind the solid glyph, so icon bullets
+   showed no ring until the ring grew. The ring always hugs its glyph. */
 .nt-bullet-ring {
   position: absolute;
-  width: 28px;
-  height: 28px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background-color: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
   opacity: 0;
@@ -1129,6 +1130,12 @@ select:focus-visible {
     opacity var(--motion-duration-short) var(--motion-easing-standard),
     transform var(--motion-duration-short) var(--motion-easing-standard),
     background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Class-icon bullets: the bigger circle clears the solid glyph. */
+.nt-bullet:has(.nt-bullet-icon) .nt-bullet-ring {
+  width: 28px;
+  height: 28px;
 }
 
 .nt-bullet--collapsed .nt-bullet-ring {
