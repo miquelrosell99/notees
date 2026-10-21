@@ -93,11 +93,13 @@ describe("metadata pickers (ported popups)", () => {
     expect(screen.getByRole("button", { name: "Remove class Poetry" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Add class" }));
 
-    // Both remaining classes list; the search input narrows.
+    // Both remaining classes list; the compact search input narrows.
     const dialog = screen.getByRole("dialog", { name: "Select node" });
+    const search = within(dialog).getByLabelText("Search classes");
+    expect(search.closest(".search-field")).toHaveClass("search-field--sm");
     expect(within(dialog).getByText("Fiction")).not.toBeNull();
     expect(within(dialog).queryByText("Poetry")).toBeNull(); // already assigned
-    fireEvent.change(within(dialog).getByLabelText("Search classes"), { target: { value: "fic" } });
+    fireEvent.change(search, { target: { value: "fic" } });
     expect(within(dialog).getByText("Fiction")).not.toBeNull();
     expect(within(dialog).queryByText("No matches found")).toBeNull();
     fireEvent.change(within(dialog).getByLabelText("Search classes"), { target: { value: "zz" } });

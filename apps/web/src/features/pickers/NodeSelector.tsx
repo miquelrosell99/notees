@@ -1069,6 +1069,7 @@ export function NodeSelector({
         <SearchField
           ref={searchInputRef}
           className="node-selector__search-field"
+          size="sm"
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
           value={searchQuery}
@@ -1091,6 +1092,7 @@ export function NodeSelector({
         <SearchField
           ref={searchInputRef}
           className="node-selector__search-field"
+          size="sm"
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
           value={searchQuery}

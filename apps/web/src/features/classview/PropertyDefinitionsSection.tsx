@@ -367,6 +367,7 @@ export function PropertyDefinitionsSection({
             >
               <SearchField
                 autoFocus
+                size="sm"
                 value={query}
                 placeholder="Search or create property…"
                 aria-label="Search or create property"
