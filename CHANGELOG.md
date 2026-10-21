@@ -13,9 +13,13 @@ predating this file.
     flatten the node's title through `displayNameForSettings` — the same
     text-only derivation the tab title and table cells use — instead of
     rendering the title as read-only block content (`InlineTokens`).
-    Mentions, class chips, markdown links and marks fold into their captured
-    text: nothing inside a row label is individually clickable or styled,
-    the label's mention links lose their click/right-click affordances, and
+    Mentions, class chips and marks fold into their captured text; a
+    markdown link span reduces to its label through the domain's canonical
+    `splitMarkdownLinks` grammar (the href never reaches a row — the live
+    smoke caught a YouTube-import title otherwise spending its whole
+    80-char budget on a URL). Nothing inside a row label is individually
+    clickable or styled, the label's mention links lose their
+    click/right-click affordances, and
     the row-menu/node-link-menu right-click split retires with them. The row
     stays one button (click opens, Shift+click peeks, right-click → the row
     menu); date pages keep the setting-aware display name through the same

@@ -12,8 +12,9 @@
  * Row labels are PLAIN TEXT: the row is chrome,
  * not content — the title flattens through displayNameForSettings (the same
  * text-only derivation as tab titles and table cells), so mentions, class
- * chips, markdown links and marks fold into their captured text and nothing
- * inside the label is individually clickable or styled. The row is one
+ * chips and marks fold into their captured text, markdown links reduce to
+ * their label (no hrefs in a row), and nothing inside the label is
+ * individually clickable or styled. The row is one
  * button: click opens the node, Shift+click peeks it in the right sidebar,
  * right-click opens the row menu.
  *
@@ -24,7 +25,7 @@
 
 import { useEffect, useState } from "react";
 
-import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, splitMarkdownLinks } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
@@ -149,15 +150,23 @@ export function FavoritesRecents({
    * Row label: PLAIN TEXT — the flatten is
    * displayNameForSettings, the same text-only derivation the tab title and
    * table cells use: mentions fold to their captured text, class chips to
-   * the class's current name, markdown links and marks to their words. The
-   * label carries no interactive or styled elements, so the row is one
-   * button. Date pages keep the setting-aware display name through the same
-   * helper's date branch; empty content falls back to the untitled label.
+   * the class's current name, marks to their words; markdown link spans
+   * reduce to their label (the href never reaches a row). The label carries
+   * no interactive or styled elements, so the row is one button. Date pages
+   * keep the setting-aware display name through the same helper's date
+   * branch; empty content falls back to the untitled label.
    */
   const renderRowLabel = (node: ClientNode) => {
     const text = displayNameForSettings(node, (classId) => client.getDisplayName(classId));
+    // A markdown link span reduces to its LABEL — the href is chrome noise
+    // in a plain-text row (splitMarkdownLinks is the canonical render
+    // grammar); the cap lands first, so a truncated href may leave raw
+    // brackets, which stays honest plain text.
+    const labelText = splitMarkdownLinks(text)
+      .map((segment) => segment.text)
+      .join("");
     return (
-      <span className="nt-side-item-label">{text === "" ? untitledLabelOf(node) : text}</span>
+      <span className="nt-side-item-label">{labelText === "" ? untitledLabelOf(node) : labelText}</span>
     );
   };
 
