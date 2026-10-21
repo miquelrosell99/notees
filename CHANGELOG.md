@@ -22,8 +22,8 @@ predating this file.
     28px `:has(.nt-bullet-icon)` size variant), `apps/web/test/view-modes.
     test.tsx` (the CSS spec pins both sizes and the no-border style).
   - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
-    `pnpm --filter @notees/web test` — see the run below (deployed with
-    the 6px-dot revert once the parallel session's tree lands).
+    `pnpm --filter @notees/web test` — 1938 passed (167 files), run once
+    the parallel session's section-props refactor landed.
 
 - **feat(web): no section header counts anywhere — the active tab's badge is
   the one count, and every section counts the same way (displayed nodes).**
