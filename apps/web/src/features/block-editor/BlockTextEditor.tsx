@@ -35,7 +35,7 @@
  *   "Create … page"). Esc/click-outside keeps the trigger char as plain text
  *   and hands focus back to the block.
  * - `@` over a selection: the browser default (delete the selection, insert
- *   the sigil) is intercepted at a word boundary; the picker opens with the
+ *   the sigil) is intercepted at a trigger boundary; the picker opens with the
  *   selected text as its search query, and the pick splices the mention over
  *   the never-deleted range. Ctrl/Cmd+Enter on a row picks WITH the query as
  *   a custom label (`displayText`). Esc restores the original selection.
@@ -204,6 +204,7 @@ import {
   MENTION_LABEL_MAX,
   QUOTE_CHILD_TYPES,
   STARTER_QUERY_AST,
+  isTriggerBoundary,
   toIsoDate,
   TRIGGER_CHAR,
   truncatePickerHint,
@@ -612,9 +613,10 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   /**
    * Reconcile the capture popup with the draft + caret: close when the
    * trigger was backspaced over or the caret left the query; open when a
-   * trigger char was just typed at a word boundary. Slash tracks the query
-   * inline (the block is the search field); @/#/+ open the node-picker popup
-   * with its own search input, anchored at the caret line captured here.
+   * trigger char was just typed at a trigger boundary (see
+   * isTriggerBoundary). Slash tracks the query inline (the block is the
+   * search field); @/#/+ open the node-picker popup with its own search
+   * input, anchored at the caret line captured here.
    */
   const updateCapture = (draft: string, caret: number | null) => {
     setCapture((current) => {
@@ -635,8 +637,10 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       }
       if (caret === null || caret === 0) return null;
       const ch = draft[caret - 1]!;
-      const boundary = caret === 1 || /\s/.test(draft[caret - 2]!);
-      if (!boundary) return null;
+      // Boundary rule: any non-word char (or the start of the text) before
+      // the sigil opens the picker; a word char means mid-word typing
+      // (isTriggerBoundary — the email `a@b` case stays silent).
+      if (!isTriggerBoundary(caret === 1 ? undefined : draft[caret - 2]!)) return null;
       if (ch === "@") {
         const anchor = caretLineAnchor();
         return { kind: "mention", start: caret - 1, query: "", index: 0, anchor: { top: anchor.top, left: anchor.left } };
@@ -1145,7 +1149,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
    * button AND the typed sigil share this): the node picker opens with the
    * selected text as its search query; the pick replaces the selection with
    * the mention (Ctrl/Cmd+Enter keeps the text as a custom label). The
-   * typed sigil requires the word-boundary rule (without it the browser
+   * typed sigil requires the boundary rule (without it the browser
    * default inserts the char); the toolbar button always opens. False when
    * there is no selection to ride.
    *
@@ -1163,7 +1167,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     const range = el === null ? null : selectionOffsets(el);
     if (range === null || range.start === range.end) return false;
     const draft = draftRef.current;
-    const boundary = range.start === 0 || /\s/.test(draft[range.start - 1]!);
+    const boundary = isTriggerBoundary(range.start === 0 ? undefined : draft[range.start - 1]!);
     if (requireBoundary && !boundary) return false;
     const selectedText = draft
       .slice(range.start, range.end)
@@ -1753,7 +1757,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     // text and insert the sigil — instead the node picker opens with the
     // selected text as its search query, and the pick replaces the selection
     // with the mention (Ctrl/Cmd+Enter keeps the text as a custom label).
-    // Same word-boundary rule as the collapsed-caret trigger; without it the
+    // Same boundary rule as the collapsed-caret trigger; without it the
     // default runs unchanged.
     if (event.key === "@" && !mod && !event.altKey) {
       const range = (() => {
