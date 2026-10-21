@@ -232,6 +232,15 @@ export default {
       width: {
         panel: "var(--panel-width-md)",
         sidebar: "var(--sidebar-width)",
+        /* The square box controls' twin of the height register (Checkbox,
+           Radio): the box sides ride the same --height-N tokens, so `w-xs`
+           and friends actually generate — without them twMerge keeps the
+           caller's `w-xs` over the catalog's `w-icon-md`, the utility
+           resolves to nothing, and the box renders a content-width
+           rectangle instead of a square. */
+        xs: "var(--height-xs)",
+        sm: "var(--height-sm)",
+        md: "var(--height-md)",
         "icon-xs": "var(--icon-size-xs)",
         "icon-sm": "var(--icon-size-sm)",
         "icon-md": "var(--icon-size-md)",
