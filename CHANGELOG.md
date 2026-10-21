@@ -8,6 +8,49 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-21
+- **fix(web): the calendar popups' ‹ › period arrows render and size to the
+  catalogue.** Two defects, one root: the nav arrows were raw feature-code
+  buttons — in the top-bar CalendarPopup and the Calendar view's MonthCalendar
+  panel they wrapped `<span class="mdi mdi-chevron-…">`, which this app never
+  renders (icons are the `Icon` SVG sprite, the MDI webfont isn't loaded), so
+  the arrows were INVISIBLE; everywhere (those two plus the date picker's
+  DatePickerPopup and the shared CalendarGrids header) the raw buttons were
+  sized to `--button-icon-only-sm` — the 48px INVISIBLE hit-area floor — so
+  they read as bloated next to the 32px catalogue standard. All four now
+  compose the fleet `Button` (`variant="ghost" size="sm"`, icon-only): the
+  SVG chevron renders, the visible box rides the icon-only-visible-sm
+  register (32px), and the invisible 48px touch floor rides the catalogue's
+  overlay span. The dead `.calendar-nav-btn` / `.month-calendar__nav` CSS
+  blocks go with them. `TopBarCalendarPopup.tsx` + `.css`, `MonthCalendar.tsx`
+  + `.css`, `DatePickerPopup.tsx`, `calendar/CalendarGrids.tsx`,
+  `date-pickers/CalendarPopup.css`. Full gate green.
+- **refactor(web): the SystemSections group component dies by subtraction —
+  Child pages / Backlinks / Unlinked mentions become self-gating descriptor
+  sections (the 2026-10-20 follow-through).** Yesterday's ruling retired the
+  wrapper chrome, the all-empty gate, and the single-boundary hairline; the
+  group COMPONENT survived one day as a pure mount site. It is gone: the
+  three system sections are exported self-gating components (the
+  ExtendedBySection pattern — eager count read, `null` at 0, then the lazy
+  section mounts; each owns its hide-when-empty ruling, its hooks, its
+  FilterQuery), and every variant's `systemSections` list places them as
+  DATA (`pageVariant.ts`): plain pages carry [Child pages, Backlinks,
+  Unlinked mentions], the class page prepends Extended by (the old mount
+  order preserved), and the date family carries [Child pages, Backlinks] —
+  the date-page ruling gains a cleaner mechanism: the descriptor OMITS the
+  unlinked spec, so neither the section nor its FTS count mounts there at
+  all (the old runtime gate forced the count to 0 inside the group; the
+  exception becomes spec absence). `embedded` (read-only feeds: no Child
+  pages create action) threads through the variant render context — the
+  old `<SystemSections embedded>` prop's only payload. PageView loses both
+  `<SystemSections/>` mounts and the import; the whiteboard branch's stack
+  and the main stack render `variantSystemSections` alone. No visible
+  behavior change: same sections, same order, same gates, same focus-mode
+  and preview guards — the seams move, the surfaces don't.
+  `SystemSections.tsx` (the three sections + module doc re-anchored;
+  `ReferenceList` stays exported for the block-level backlink gutter — its
+  import path is unchanged), `pageVariant.ts` (the specs, the `embedded`
+  context field, the date omission), `PageView.tsx` (mounts + context).
+  Full gate green.
 - **fix(web): the workspace-switcher popup no longer shrinks to the trigger's
   width.** The panel was stretched to the sidebar trigger (`left: 0; right:
   0`), so on a narrow sidebar the search input, the badge + per-row gear, and

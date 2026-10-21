@@ -1,43 +1,49 @@
 /**
- * SystemSections — the card-bottom system sections. Below the page's own
- * content, in order: the Child pages section (expanded, the create
- * affordance), then the page's references as TWO normal NodeCollection
- * sections (owner 2026-10-09, the tab strip's retirement): Backlinks and
- * Unlinked mentions each ride the shared collapsible-section chrome — the
- * NodeViewSection header IS the section header, the tab row is gone — with
- * the eager count badge, the hosted view chrome, the transient FilterBar,
- * and the lazy useSectionData contract every other section has. Each
- * section owns its hook instances and its FilterQuery (the per-view rule);
- * the date-page ruling stands — the deterministic day/month/year family
- * carries no Unlinked mentions section at all (the literal date text those
- * pages accumulate is noise, never a discovery surface) and the unlinked
- * count read (a full FTS pass) is skipped there.
+ * SystemSections — the page's reference family as THREE SELF-GATING
+ * sections (owner 2026-10-21: the `SystemSections` group component died by
+ * subtraction — 2026-10-20 retired its wrapper chrome and its all-empty
+ * gate; this slice retires the component itself). Each section renders ONLY
+ * while its OWN eager count reads > 0 (the hide-when-empty ruling, owner
+ * 2026-10-09/10-12 — the gate lives IN the section now, the ExtendedBySection
+ * pattern: an eager count read, `null` when 0, then the lazy section
+ * component) and each mounts through the variant's `systemSections`
+ * descriptor list (pageVariant.ts) — placement is data, there is no group
+ * mount. Below the page's own content, in order: Child pages (expanded, the
+ * create affordance), then the page's references as TWO normal
+ * NodeCollection sections (owner 2026-10-09, the tab strip's retirement):
+ * Backlinks and Unlinked mentions each ride the shared collapsible-section
+ * chrome — the NodeViewSection header IS the section header, the tab row is
+ * gone — with the eager count badge, the hosted view chrome, the transient
+ * FilterBar, and the lazy useSectionData contract every other section has.
+ * Each section owns its hook instances and its FilterQuery (the per-view
+ * rule). The date-page ruling stands with a cleaner mechanism: the
+ * deterministic day/month/year family's descriptor OMITS the unlinked
+ * spec (the literal date text those pages accumulate is noise, never a
+ * discovery surface) — the old runtime count-forced-to-0 gate and its
+ * skipped FTS read become spec absence, so the section (and its count)
+ * never mounts there at all.
  *
- * The hide-when-empty ruling covers all three system sections: each renders
- * only while its eager count reads > 0 (owner 2026-10-12 — Child pages
- * joined the ruling; its old main-surface exception retired). Backlinks
- * starts EXPANDED — its read is cheap and it is the incoming direction
- * (the old selected tab resolved on mount). Unlinked mentions starts
- * COLLAPSED — its list query is the expensive FTS pass, previously gated
- * behind the first tab switch; the collapsed start keeps that economics.
- * A collapsed section executes no query and caches its rows across a
- * collapse/expand at an unchanged version (the Section SCHEMA.md
+ * Backlinks starts EXPANDED — its read is cheap and it is the incoming
+ * direction (the old selected tab resolved on mount). Unlinked mentions
+ * starts COLLAPSED — its list query is the expensive FTS pass, previously
+ * gated behind the first tab switch; the collapsed start keeps that
+ * economics. A collapsed section executes no query and caches its rows
+ * across a collapse/expand at an unchanged version (the Section SCHEMA.md
  * contract); an expanded section re-derives per client notification.
  *
  * Unlinked mentions carry the original action pair: Promote rewrites the
  * source block's literal name match into a mention (./unlinkedRefs.ts —
  * after the write the source moves to Backlinks, the honest place for
  * it); Ignore dismisses the source device-locally, per page — device
- * state, never an op (./viewPrefs.js).
- *
- * The transient filter layer (owner 2026-10-07) rides the shared FilterBar
- * (./FilterBar.js — the same chrome the classed-nodes section renders),
- * since owner 2026-10-12 in the hosted tab bar's FAR RIGHT as the
- * collection's `tabBarTrailing` (the collapsible quick search + the
- * structured-filters toggle — one row with the tabs): one FilterQuery per section (the
- * per-view rule, component state — nothing persisted), applied
- * post-resolution/pre-windowing; the eager count badge stays UNFILTERED —
- * an active filter reads "0 of N" in the bar and never hides the section.
+ * state, never an op (./viewPrefs.js). The transient filter layer
+ * (owner 2026-10-07) rides the shared FilterBar (./FilterBar.js — the same
+ * chrome the classed-nodes section renders), since owner 2026-10-12 in the
+ * hosted tab bar's FAR RIGHT as the collection's `tabBarTrailing` (the
+ * collapsible quick search + the structured-filters toggle — one row with
+ * the tabs): one FilterQuery per section (the per-view rule, component
+ * state — nothing persisted), applied post-resolution/pre-windowing; the
+ * eager count badge stays UNFILTERED — an active filter reads "0 of N" in
+ * the bar and never hides the section.
  *
  * The Child pages section renders only while the page has main children
  * (owner 2026-10-12 — the "always renders on the main surface" exception
@@ -51,12 +57,10 @@
  * Embedded feeds render the sections read-only: no create affordance, and
  * a childless feed entry hides the section as before.
  *
- * Extracted from PageView.tsx.
+ * Extracted from PageView.tsx; the group component subtracted 2026-10-21.
  */
 
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-
-import { parseDateNodeId } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
@@ -351,14 +355,22 @@ function ReferenceSection({
   );
 }
 
-export function SystemSections({
+/**
+ * ChildPagesSection — the page's main children as the read-only tree, ONE
+ * self-gating section (owner 2026-10-21): the eager count reads first, the
+ * section renders null while it reads 0 (the hide-when-empty ruling, owner
+ * 2026-10-12), else the lazy <Section> mounts — the ExtendedBySection
+ * pattern. The header carries the create affordance ("Add child page" —
+ * the create lands IN THE PAGES ZONE, embedded feeds render read-only with
+ * no action). The tree opens on the Name A–Z sort (owner 2026-10-13).
+ */
+export function ChildPagesSection({
   client,
   pageId,
   onOpenPage,
   /**
-   * Embedded surface (journal feed, calendar embed): the sections render
-   * read-only — no create affordance — and a childless feed entry hides
-   * the Child pages section as before.
+   * Embedded surface (journal feed, calendar embed): the section renders
+   * read-only — no create affordance.
    */
   embedded = false,
 }: {
@@ -367,13 +379,110 @@ export function SystemSections({
   onOpenPage?: ((pageId: string) => void) | undefined;
   embedded?: boolean | undefined;
 }) {
+  const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
+  const childPageCount = client.getChildPageCount(pageId);
+  if (childPageCount === 0) return null;
+  return (
+    <Section
+      key={`child-${pageId}`}
+      client={client}
+      title="Child pages"
+      icon={<Icon path="mdi-file-tree-outline" size={0.9} />}
+      badge={childPageCount}
+      defaultCollapsed={false}
+      action={
+        embedded
+          ? undefined
+          : {
+              icon: "mdi-plus",
+              label: "Add child page",
+              onClick: () =>
+                void client.createObject({ parentId: pageId, isEmbedded: false }),
+            }
+      }
+      load={loadChildPages}
+      emptyText="No child pages."
+      renderResults={(pages) => (
+        // The reusable outline view over the read-only child-page tree
+        // (rows open the page via the row click, per the outline view's
+        // read-only tree path).
+        <NodeCollection
+          viewMode="outline"
+          client={client}
+          items={pages.map((child) => pageTreeOf(client, child))}
+          tree
+          readOnly
+          hideBacklinkCount
+          defaultSortMode="alphabetical"
+          onNodeClick={(id) => onOpenPage?.(id)}
+        />
+      )}
+    />
+  );
+}
+
+/**
+ * BacklinksSection — the incoming direction, expanded by default (its read
+ * is cheap; the old tab strip's selected tab resolved on mount). Self-gates
+ * on the eager materialized count (null while 0 — the hide-when-empty
+ * ruling covers every reference section).
+ */
+export function BacklinksSection({
+  client,
+  pageId,
+  onOpenPage,
+}: {
+  client: AnyClient;
+  pageId: string;
+  onOpenPage?: ((pageId: string) => void) | undefined;
+}) {
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
+  const backlinkCount = client.getBacklinkCount(pageId);
+  if (backlinkCount === 0) return null;
+  return (
+    <ReferenceSection
+      key={`backlinks-${pageId}`}
+      client={client}
+      pageId={pageId}
+      title="Backlinks"
+      icon={<Icon path="mdi-link-variant" size={0.9} />}
+      count={backlinkCount}
+      load={loadLinkedRefs}
+      sectionKey="linked-references"
+      emptyText="No backlinks."
+      defaultExpanded
+      onOpenPage={onOpenPage}
+    />
+  );
+}
+
+/**
+ * UnlinkedMentionsSection — collapsed by default (the list query is the
+ * expensive FTS pass; the collapsed start keeps it lazy behind the first
+ * expand — the old unselected tab's contract). Self-gates on the eager
+ * memoized count. Carries the promote/ignore action pair (see
+ * ReferenceList). The date-page ruling lives in the DESCRIPTOR now
+ * (owner 2026-10-21): the date variants' systemSections omit this spec, so
+ * neither the section nor its FTS count mounts there — the old runtime
+ * count-forced-to-0 gate retired with the group.
+ */
+export function UnlinkedMentionsSection({
+  client,
+  pageId,
+  onOpenPage,
+}: {
+  client: AnyClient;
+  pageId: string;
+  onOpenPage?: ((pageId: string) => void) | undefined;
+}) {
   const ignored = useIgnoredUnlinkedRefs(pageId);
   // The ignore-list hook hands back a FRESH array every render — key the
   // callback (and the section's refreshKey below) on the joined value so
   // its identity stays stable between actual ignore-list changes; a
   // churning identity re-runs the resolution every render and loops on the
-  // fresh-array state installs (found by the test pass).
+  // fresh-array state installs (found by the test pass). Hooks run before
+  // the self-gate below — the component flips between null and rendered as
+  // counts change, so the hook order must stay unconditional.
   const ignoredKey = ignored.join(" ");
   const loadUnlinkedRefs = useCallback(() => {
     const dismissed = new Set(ignoredKey === "" ? [] : ignoredKey.split(" "));
@@ -381,120 +490,22 @@ export function SystemSections({
       .getUnlinkedReferences(pageId)
       .filter((entry) => !dismissed.has(entry.source.id));
   }, [client, pageId, ignoredKey]);
-  const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
-
-  // The eager counts ride the section badges (the backlink count is a
-  // materialized read; the unlinked count its memoized count query — the
-  // SystemSections precedent, so the badges know emptiness without running
-  // the list queries). Date pages are the exception (owner 2026-10-09):
-  // the whole deterministic day/month/year family hides the Unlinked
-  // mentions section — the literal date text those pages accumulate is
-  // noise, never a discovery surface — so the count reads 0 there and the
-  // FTS pass it pays is skipped entirely (the journal feed renders one
-  // embedded day page per entry).
-  const isDatePage = parseDateNodeId(pageId) !== null;
-  const backlinkCount = client.getBacklinkCount(pageId);
-  const unlinkedCount = isDatePage ? 0 : client.getUnlinkedReferenceCount(pageId);
-  const childPageCount = client.getChildPageCount(pageId);
-
-  // The hide-when-empty rulings gate every system section — each hides while
-  // its OWN count reads 0 (owner 2026-10-09, the tab strip's retirement:
-  // the strip-level gate becomes per-section). Child pages joined the ruling
-  // owner 2026-10-12 (the "always renders on the main surface" exception
-  // retired — a childless page shows no Child pages section; the create
-  // gesture lives in the "…" menu and the New button). AFTER every hook:
-  // the component flips between null and rendered as counts change, so the
-  // hook order must stay unconditional. There is deliberately NO all-empty
-  // gate and NO wrapper chrome (owner ruling 2026-10-20): the host mounts
-  // the sections inside the chromeless nt-page-section-stack, each
-  // section's own top border is its separator, and an all-empty render is
-  // visually nothing either way — a group-level gate only ever existed to
-  // protect a wrapper's boundary hairline, and the wrapper is gone.
-  const showChildPages = childPageCount > 0;
-  const showBacklinks = backlinkCount > 0;
-  const showUnlinked = !isDatePage && unlinkedCount > 0;
-
+  const unlinkedCount = client.getUnlinkedReferenceCount(pageId);
+  if (unlinkedCount === 0) return null;
   return (
-    <>
-      {/* Child pages: hide-when-empty like every system section (owner
-          2026-10-12); the header action still creates a child page when the
-          section renders. */}
-      {showChildPages && (
-        <Section
-          key={`child-${pageId}`}
-          client={client}
-          title="Child pages"
-          icon={<Icon path="mdi-file-tree-outline" size={0.9} />}
-          badge={childPageCount > 0 ? childPageCount : undefined}
-          defaultCollapsed={false}
-          action={
-            embedded
-              ? undefined
-              : {
-                  icon: "mdi-plus",
-                  label: "Add child page",
-                  onClick: () =>
-                    void client.createObject({ parentId: pageId, isEmbedded: false }),
-                }
-          }
-          load={loadChildPages}
-          emptyText="No child pages."
-          renderResults={(pages) => (
-            // The reusable outline view over the read-only child-page tree
-            // (rows open the page via the row click, per the outline view's
-            // read-only tree path).
-            <NodeCollection
-              viewMode="outline"
-              client={client}
-              items={pages.map((child) => pageTreeOf(client, child))}
-              tree
-              readOnly
-              hideBacklinkCount
-              defaultSortMode="alphabetical"
-              onNodeClick={(id) => onOpenPage?.(id)}
-            />
-          )}
-        />
-      )}
-      {/* Backlinks: the incoming direction, expanded by default (its read
-          is cheap; the old tab strip's selected tab resolved on mount).
-          Hides while the count reads 0 — the hide-when-empty ruling covers
-          every reference section. */}
-      {showBacklinks && (
-        <ReferenceSection
-          key={`backlinks-${pageId}`}
-          client={client}
-          pageId={pageId}
-          title="Backlinks"
-          icon={<Icon path="mdi-link-variant" size={0.9} />}
-          count={backlinkCount}
-          load={loadLinkedRefs}
-          sectionKey="linked-references"
-          emptyText="No backlinks."
-          defaultExpanded
-          onOpenPage={onOpenPage}
-        />
-      )}
-      {/* Unlinked mentions: collapsed by default — the list query is the
-          expensive FTS pass, and the collapsed start keeps it lazy behind
-          the first expand (the old unselected tab's contract). Date pages
-          carry no section at all (the gate above forces the count to 0). */}
-      {showUnlinked && (
-        <ReferenceSection
-          key={`unlinked-${pageId}`}
-          client={client}
-          pageId={pageId}
-          title="Unlinked mentions"
-          icon={<Icon path="mdi-text-search" size={0.9} />}
-          count={unlinkedCount}
-          load={loadUnlinkedRefs}
-          refreshKey={ignoredKey}
-          unlinkedPageId={pageId}
-          sectionKey="unlinked-mentions"
-          emptyText="No unlinked mentions."
-          onOpenPage={onOpenPage}
-        />
-      )}
-    </>
+    <ReferenceSection
+      key={`unlinked-${pageId}`}
+      client={client}
+      pageId={pageId}
+      title="Unlinked mentions"
+      icon={<Icon path="mdi-text-search" size={0.9} />}
+      count={unlinkedCount}
+      load={loadUnlinkedRefs}
+      refreshKey={ignoredKey}
+      unlinkedPageId={pageId}
+      sectionKey="unlinked-mentions"
+      emptyText="No unlinked mentions."
+      onOpenPage={onOpenPage}
+    />
   );
 }
