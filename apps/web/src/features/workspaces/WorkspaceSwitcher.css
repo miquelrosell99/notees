@@ -43,6 +43,10 @@
   top: calc(100% + var(--spacing-1));
   left: 0;
   right: 0;
+  /* The trigger is only as wide as the sidebar chrome allows; the panel
+     must fit the search input, the badge + per-row gear, and the footer
+     on one line, so it grows past the trigger when needed. */
+  min-width: 16rem;
   z-index: 60;
   background: var(--md-sys-color-surface-container-high);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
