@@ -74,7 +74,7 @@ export interface ButtonBadge {
 const buttonVariants = cva(
   [
     "btn inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-button",
-    "border font-sans font-medium select-none cursor-pointer no-underline",
+    "border font-sans font-medium select-none cursor-pointer no-underline relative",
     "min-h-touch transition-colors duration-short ease-standard",
     "active:scale-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     "disabled:opacity-50 disabled:cursor-not-allowed",
@@ -264,10 +264,11 @@ export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonPr
       {!showSpinner && icon && iconPosition === 'right' && (
         <Icon path={icon} size={resolvedIconSize} className="btn__icon btn__icon--right shrink-0" />
       )}
-      {isIconOnly && !isDisabled && (
-        // Invisible minimum hit-area overlay (M3's 48dp floor) — the
-        // contract the old .btn--icon-only::after carried, as a real
-        // element so it needs no stylesheet.
+      {!isDisabled && (
+        // Invisible minimum hit-area overlay (M3's 48dp floor) — carried
+        // by EVERY button: the visible box rides the size token, the floor
+        // lives here (extending the 2026-10-20 icon-only
+        // register to text buttons).
         <span
           aria-hidden="true"
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 min-w-touch min-h-touch"
