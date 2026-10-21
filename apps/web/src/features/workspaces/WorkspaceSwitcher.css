@@ -76,8 +76,9 @@
   font-size: var(--font-size-button);
 }
 
-/* Opens the Manage Workspaces view — the sliders glyph (not the per-row
-   cog, which means one workspace's settings). */
+/* Opens the Manage Workspaces view — a dashboard glyph previewing the
+   card-grid manager (the plain grid glyph is taken by the view-mode
+   toggle; the per-row cog means one workspace's settings). */
 .workspace-switcher__manage-btn {
   flex-shrink: 0;
   display: inline-flex;

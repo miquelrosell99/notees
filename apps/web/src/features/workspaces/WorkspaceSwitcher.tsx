@@ -162,7 +162,7 @@ export function WorkspaceSwitcher({
                 onManageWorkspaces?.();
               }}
             >
-              <Icon path="mdi-tune" size={0.9} />
+              <Icon path="mdi-view-dashboard-outline" size={0.9} />
             </button>
           </div>
           <ul className="workspace-switcher__list">
