@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import { Store } from "@notees/store";
+import { betterSqlite3Backend } from "@notees/store/better-sqlite3";
+
 import { closeTestServer, ingest, makeTestServer, pagePayload, testEnvelope, type TestServer } from "./helpers";
 
 let server: TestServer | null = null;
@@ -120,6 +123,66 @@ describe("snapshots", () => {
     });
     expect(data.statusCode).toBe(200);
     expect(Buffer.from(data.rawPayload).equals(justOverGlobal)).toBe(true);
+  });
+});
+
+describe("PUT /snapshot/data — the sanity gate (owner incident 2026-10-21)", () => {
+  /** Seed a log above the gate threshold (1000-envelope WIRE batch cap). */
+  async function seedBigLog(): Promise<void> {
+    for (let batch = 0; batch < 11; batch += 1) {
+      const envelopes = Array.from({ length: 100 }, (_, i) =>
+        testEnvelope({ opType: "object.create", payload: pagePayload(`gate-${batch}-${i}`) }),
+      );
+      await ingest(server!, envelopes);
+    }
+  }
+
+  it("rejects an EMPTY derived store on a big log; the previous checkpoint survives", async () => {
+    server = await makeTestServer();
+    await seedBigLog();
+    // A healthy checkpoint first.
+    const good = await putSnapshot(
+      100,
+      1,
+      Buffer.from(server!.ctx.workspaces.storeFor(server!.workspaceId).snapshot()),
+    );
+    expect(good.statusCode).toBe(201);
+    // The incident shape: a wiped/broken client's empty store.
+    const empty = Store.open(betterSqlite3Backend(":memory:"));
+    const bad = await putSnapshot(200, 2, Buffer.from(empty.snapshot()));
+    empty.close();
+    expect(bad.statusCode).toBe(422);
+    expect(bad.json().error.code).toBe("validation_failed");
+    // The good checkpoint is untouched (retention did not swap it out).
+    const meta = await server!.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/snapshot?workspaceId=${server!.workspaceId}`,
+      headers: server!.authHeaders,
+    });
+    expect(meta.json().snapshotId).toBe(good.json().snapshotId);
+  });
+
+  it("rejects non-store bytes on a big log (the magic-header fast path)", async () => {
+    server = await makeTestServer();
+    await seedBigLog();
+    const res = await putSnapshot(100, 1, Buffer.from("notees-snapshot-bytes"));
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe("validation_failed");
+  });
+
+  it("accepts a healthy derived store on a big log", async () => {
+    server = await makeTestServer();
+    await seedBigLog();
+    const bytes = Buffer.from(server!.ctx.workspaces.storeFor(server!.workspaceId).snapshot());
+    const res = await putSnapshot(100, 1, bytes);
+    expect(res.statusCode).toBe(201);
+  });
+
+  it("small logs stay exempt (a fresh workspace's empty checkpoint is legitimate)", async () => {
+    server = await makeTestServer();
+    await ingest(server, [testEnvelope({ opType: "object.create", payload: pagePayload("s") })]);
+    const res = await putSnapshot(100, 1, Buffer.from("notees-snapshot-bytes"));
+    expect(res.statusCode).toBe(201);
   });
 });
 

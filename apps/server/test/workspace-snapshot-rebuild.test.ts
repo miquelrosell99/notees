@@ -162,11 +162,13 @@ describe("snapshot self-heal after replay", () => {
     freshDataDir();
     const first = await boot();
     await seedObjects(first, SNAPSHOT_REBUILD_MIN_ENVELOPES + 50, "seed");
+    // A HEALTHY checkpoint upload (the sanity gate rejects empty/garbage
+    // bytes on a big log — owner incident 2026-10-21).
     const put = await first.app.inject({
       method: "PUT",
       url: `/api/relay/v2/snapshot/data?workspaceId=${TEST_WORKSPACE}&physical=100&logical=2`,
       headers: { "content-type": "application/octet-stream", ...first.authHeaders },
-      payload: Buffer.from("client-uploaded-bytes"),
+      payload: Buffer.from(first.ctx.workspaces.storeFor(TEST_WORKSPACE).snapshot()),
     });
     expect(put.statusCode).toBe(201);
     const uploadedId = (put.json() as { snapshotId: string }).snapshotId;

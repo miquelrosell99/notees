@@ -15,13 +15,44 @@
  *  - compaction_segment rows: prune bookkeeping per WIRE.md POST /compact.
  */
 
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import Database from "better-sqlite3";
 import type { Envelope, Hlc } from "@notees/protocol";
 
 type Db = InstanceType<typeof Database>;
+
+/**
+ * The snapshot sanity gate (owner incident 2026-10-21: an old-device client
+ * uploaded its EMPTY post-wipe store covering the log tip; saveSnapshot then
+ * replaced the good checkpoint and every fresh client restored an empty
+ * workspace). Snapshot bytes are a serialized derived store — this opens a
+ * copy read-only and counts the node rows. Returns null when the bytes are
+ * not a parseable store (non-SQLite magic, missing node table, open error).
+ */
+export function countSnapshotNodes(bytes: Buffer): number | null {
+  if (bytes.length < 16 || !bytes.subarray(0, 16).equals(Buffer.from("SQLite format 3\0"))) {
+    return null;
+  }
+  const dir = mkdtempSync(join(tmpdir(), "notees-snapshot-gate-"));
+  const file = join(dir, "probe.db");
+  try {
+    writeFileSync(file, bytes);
+    const db = new Database(file, { readonly: true, fileMustExist: true });
+    try {
+      const row = db.prepare("SELECT COUNT(*) AS n FROM node").get() as { n: number };
+      return row.n;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return null;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 const DDL = `
 CREATE TABLE IF NOT EXISTS envelope (
