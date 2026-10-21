@@ -142,7 +142,7 @@ describe("migrate-retire-class-class planning", () => {
     const store = retirementWorld();
     const templateRow = store.database
       .prepare(
-        "SELECT name, multi, target_class_filter AS targetClassFilter, display, readonly, hide_when_empty AS hideWhenEmpty FROM property_schema WHERE id = ?",
+        "SELECT name, multi, target_class_filter AS targetClassFilter, display, hide_when_empty AS hideWhenEmpty FROM property_schema WHERE id = ?",
       )
       .get(HAS_TEMPLATE) as never;
     const envelopes = buildEnvelopes(WS, planRetirement(store), templateRow);
@@ -164,7 +164,7 @@ describe("migrate-retire-class-class envelopes", () => {
     const plan = planRetirement(store);
     const templateRow = store.database
       .prepare(
-        "SELECT name, multi, target_class_filter AS targetClassFilter, display, readonly, hide_when_empty AS hideWhenEmpty FROM property_schema WHERE id = ?",
+        "SELECT name, multi, target_class_filter AS targetClassFilter, display, hide_when_empty AS hideWhenEmpty FROM property_schema WHERE id = ?",
       )
       .get(HAS_TEMPLATE) as never;
     const envelopes = buildEnvelopes(WS, plan, templateRow);
@@ -234,7 +234,7 @@ describe("migrate-retire-class-class envelopes", () => {
     const plan = planRetirement(store);
     const templateRow = store.database
       .prepare(
-        "SELECT name, multi, target_class_filter AS targetClassFilter, display, readonly, hide_when_empty AS hideWhenEmpty FROM property_schema WHERE id = ?",
+        "SELECT name, multi, target_class_filter AS targetClassFilter, display, hide_when_empty AS hideWhenEmpty FROM property_schema WHERE id = ?",
       )
       .get(HAS_TEMPLATE) as never;
     const envelopes = buildEnvelopes(WS, plan, templateRow);

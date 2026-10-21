@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { type DatePrecision } from "@notees/domain";
+import { type DatePrecision, isReadonlyProperty } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
@@ -61,8 +61,8 @@ export function PropertiesTable({
     }
     return false;
   };
-  const isReadonly = (schemaId: string): boolean =>
-    rows.some((r) => r.propertySchemaId === schemaId && r.readonly === true);
+  // Readonly-ness derives from the system property list.
+  const isReadonly = (schemaId: string): boolean => isReadonlyProperty(schemaId);
   const emptyProperty = (schemaId: string) => {
     for (const row of rows) {
       if (row.propertySchemaId === schemaId && row.source === "authored") {

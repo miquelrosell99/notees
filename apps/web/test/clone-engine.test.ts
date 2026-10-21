@@ -82,7 +82,6 @@ function authoredProp(
     source: "authored",
     boundBy: null,
     eligible: true,
-    readonly: null,
     hideWhenEmpty: null,
     display: null,
   };

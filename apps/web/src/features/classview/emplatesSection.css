@@ -1,11 +1,5 @@
 /* TemplatesSection — the assigned-template cards + the bind affordance. */
 
-.nt-templates-empty {
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: var(--font-size-button);
-  padding: 4px 8px 4px 20px;
-}
-
 .nt-template-cards {
   list-style: none;
   margin: 0 0 8px;

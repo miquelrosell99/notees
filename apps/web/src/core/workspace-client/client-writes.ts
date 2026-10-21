@@ -391,7 +391,6 @@ export class WorkspaceClientWrites {
     // keeps, present-null clears; PC2 type-check runs at apply.
     if (fields.defaultValue !== undefined) payload.defaultValue = fields.defaultValue;
     if (fields.display !== undefined) payload.display = fields.display;
-    if (fields.readonly !== undefined) payload.readonly = fields.readonly;
     if (fields.hideWhenEmpty !== undefined) payload.hideWhenEmpty = fields.hideWhenEmpty;
     this.ctx.enqueueLocal(this.ctx.buildEnvelope("propertySchema.update", payload, []));
   }

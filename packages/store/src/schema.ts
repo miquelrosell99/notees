@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 26;
+export const SCHEMA_VERSION = 27;
 
 /**
  * The render-path list-reads index: composite for the
@@ -279,10 +279,13 @@ CREATE TABLE IF NOT EXISTS property_schema (
     number_decimals INTEGER,
     number_rounding TEXT,
     -- The render contracts are PROPERTY-level — display (panel|bullet|inline; NULL = panel) and the
-    -- readonly/hide-when-empty tri-state flags, wherever the property
-    -- appears (class-bound or not).
+    -- hide-when-empty flag, wherever the property appears (class-bound
+    -- or not). The readonly flag retired outright at v27: never user configuration (no seed ever carried it),
+    -- clients DERIVE it from the system property list
+    -- (@notees/domain isReadonlyProperty) — the strict schemas reject
+    -- the retired key; the live log rewrite is
+    -- scripts/migrate-drop-schema-readonly.mts.
     display TEXT,
-    readonly INTEGER,
     hide_when_empty INTEGER,
     -- The property's DEFAULT VALUE (-- moved from the class binding to the schema, the Logseq shape): ONE
     -- global default per property, JSON-encoded, typed per the schema type
@@ -718,7 +721,8 @@ export function migrate(
   // from the binding to the property). Two guarded steps, each idempotent
   // for a fresh v14 create:
   // (1) property_schema gains display + readonly/hide_when_empty
-  //     (NULL = panel / unset). `required` deliberately stays on the binding.
+  //     (NULL = panel / unset). `required` deliberately stays on the
+  //     binding. (`readonly` retired outright at v27)
   const schemaColumnsV14 = db.prepare("PRAGMA table_info(property_schema)").all() as {
     name: string;
   }[];
@@ -1067,7 +1071,6 @@ export function migrate(
             number_decimals INTEGER,
             number_rounding TEXT,
             display TEXT,
-            readonly INTEGER,
             hide_when_empty INTEGER,
             active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT,
@@ -1077,12 +1080,12 @@ export function migrate(
             id, workspace_id, name, type, multi, icon, scope_class_ids, validation_rules,
             options, target_class_filter, date_precision, date_qualified,
             number_pad, number_decimals, number_rounding,
-            display, readonly, hide_when_empty, active, created_at, updated_at
+            display, hide_when_empty, active, created_at, updated_at
         )
         SELECT id, workspace_id, name, type, multi, NULL, NULL, NULL,
                options, target_class_filter, date_precision, date_qualified,
                number_pad, number_decimals, number_rounding,
-               display, readonly, hide_when_empty, active, created_at, updated_at
+               display, hide_when_empty, active, created_at, updated_at
         FROM property_schema;
         DROP TABLE property_schema;
         ALTER TABLE property_schema_v24 RENAME TO property_schema;
@@ -1175,6 +1178,62 @@ export function migrate(
         ALTER TABLE class_property_v26 RENAME TO class_property;
         CREATE INDEX IF NOT EXISTS idx_class_property_class
             ON class_property (class_id);
+        PRAGMA foreign_keys = ON;
+      `);
+    }
+  }
+  // v26 -> v27: `readonly` retires from the
+  // property schema — never user configuration (no seed ever carried the
+  // flag), so clients DERIVE readonly-ness from the system property list
+  // (@notees/domain isReadonlyProperty) instead of storing it. The schema
+  // table REBUILDS without the column (SQLite cannot drop a column on old
+  // builds); the live log rewrite (scripts/migrate-drop-schema-readonly.mts,
+  // Path B) + the epoch bump normalize the envelopes — no data backfill
+  // (derived, not stored). Guarded on the old column so the step is a no-op
+  // for databases already carrying the new shape.
+  {
+    const schemaColsV27 = db.prepare("PRAGMA table_info(property_schema)").all() as { name: string }[];
+    if (schemaColsV27.some((c) => c.name === "readonly")) {
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE property_schema_v27 (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            multi INTEGER NOT NULL DEFAULT 0,
+            icon TEXT,
+            scope_class_ids TEXT,
+            validation_rules TEXT,
+            options TEXT NOT NULL DEFAULT '[]',
+            target_class_filter TEXT,
+            date_precision TEXT,
+            date_qualified INTEGER,
+            number_pad INTEGER,
+            number_decimals INTEGER,
+            number_rounding TEXT,
+            display TEXT,
+            hide_when_empty INTEGER,
+            default_value TEXT,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        INSERT INTO property_schema_v27 (
+            id, workspace_id, name, type, multi, icon, scope_class_ids, validation_rules,
+            options, target_class_filter, date_precision, date_qualified,
+            number_pad, number_decimals, number_rounding,
+            display, hide_when_empty, default_value, active, created_at, updated_at
+        )
+        SELECT id, workspace_id, name, type, multi, icon, scope_class_ids, validation_rules,
+               options, target_class_filter, date_precision, date_qualified,
+               number_pad, number_decimals, number_rounding,
+               display, hide_when_empty, default_value, active, created_at, updated_at
+        FROM property_schema;
+        DROP TABLE property_schema;
+        ALTER TABLE property_schema_v27 RENAME TO property_schema;
+        CREATE INDEX IF NOT EXISTS idx_property_schema_workspace
+            ON property_schema (workspace_id);
         PRAGMA foreign_keys = ON;
       `);
     }
