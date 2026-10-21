@@ -7,6 +7,35 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(scripts): `verify-min.mjs` self-locates its config — and the stale
+  root-copy duplicate is gone.** The smoke failed when run outside
+  `scripts/screenshots` (a second, older `scripts/verify-min.mjs` with the
+  pre-login flow shadowed the real one and couldn't resolve playwright), and
+  the documented invocation relied on a checkout-relative password path that
+  doesn't exist on the fleet host (source/stack split). The canonical script
+  now resolves everything from `import.meta.url` + env: stack dir
+  (`NOTEES_STACK_DIR` → `/etc/periphery/stacks/notees` when present → repo
+  root), API key (`NOTEES_API_KEY`/`_FILE` → `<stack>/config/notees/sync/
+  api_key.txt`), admin password (`NOTEES_ADMIN_PASSWORD`/`_FILE` →
+  `<stack>/config/notees/.admin_password`), plus `NOTEES_API`/`NOTEES_WEB`/
+  `NOTEES_ADMIN_EMAIL`/`NOTEES_WORKSPACE`/`NOTEES_VERIFY_OUT`; a missing
+  credential fails fast naming the env var instead of attempting an
+  empty-password login (rate-limit risk). `node scripts/screenshots/verify-min
+  .mjs` from the repo root, zero env → VERIFY-PASS on the fleet host. Docs:
+  the invocation in `notees-operations` SKILL.md + `references/deployment.md`
+  and `references/health-checks.md` matches reality; `scripts/verify-min.mjs`
+  (stale duplicate) deleted. Repo-only slice — no redeploy.
+
+- **refactor(web): `displayNameForSettings` → `nodeDisplayName`.** The old
+  name promised a settings-only helper; it is the general setting-aware
+  display-name funnel for a node — the dateFormat device setting applied to
+  date pages, everything else deferring to the domain's `deriveDisplayName`
+  (title-is-content) — and titles, table cells, breadcrumbs, the palette,
+  exports, and the new sidebar list labels all read through it (the wrong name invited wrong uses). Pure identifier
+  rename, zero behavior change (106 references across 33 files, all in
+  apps/web). Verification: `pnpm typecheck` clean repo-wide; `pnpm test`
+  green. No redeploy — no runtime delta.
+
 - **chore(compose): the redeploy instruction is plain docker compose — the
   Komodo-enforcement comment is gone.**, zero
   runtime effect. The template header no longer routes updates through a
