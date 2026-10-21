@@ -35,6 +35,7 @@ import {
 } from "../src/index.js";
 import { betterSqlite3Backend } from "../src/adapters/better-sqlite3.js";
 import { sqljsBackend } from "../src/adapters/sqljs.js";
+import { rebuildEdges } from "../src/edges.js";
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "protocol", "fixtures");
 
@@ -1703,6 +1704,87 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         .prepare("SELECT is_permanent FROM trash WHERE node_id = ?")
         .get(NODE_PAGE) as { is_permanent: number };
       expect(permanentTrash.is_permanent).toBe(1);
+    });
+
+    describe("permanent delete heals node_stats (the badge counts live edges only)", () => {
+      const SOURCE_PAGE = "0192a000-0000-7000-8000-0000000000e1";
+      const SOURCE_BLOCK = "0192a000-0000-7000-8000-0000000000e2";
+      const GRANDCHILD = "0192a000-0000-7000-8000-0000000000e3";
+
+      const mentionToken = (target: string, text: string) => ({
+        type: "mention",
+        targetNodeId: target,
+        text,
+      });
+      const statsOf = (store: Store, id: string) =>
+        (
+          store.database
+            .prepare("SELECT backlink_count AS n FROM node_stats WHERE node_id = ?")
+            .get(id) as { n: number } | undefined
+        )?.n ?? 0;
+      const descendantsOf = (store: Store, id: string) =>
+        (
+          store.database
+            .prepare("SELECT descendant_count AS n FROM node_stats WHERE node_id = ?")
+            .get(id) as { n: number } | undefined
+        )?.n ?? 0;
+
+      /** NODE_BOOK's block mentions NODE_PAGE: the badge contract setup. */
+      function linkedStore(): Store {
+        const store = baseStore();
+        store.apply(env("object.create", { objectId: SOURCE_PAGE }, 1727200001500));
+        store.apply(
+          env(
+            "object.create",
+            {
+              objectId: SOURCE_BLOCK,
+              parentId: SOURCE_PAGE,
+              contentAst: [mentionToken(NODE_PAGE, "page")],
+            },
+            1727200001600,
+          ),
+        );
+        return store;
+      }
+
+      it("object.delete {permanent: true} rebuilds the backlink targets' badge counts", () => {
+        const store = linkedStore();
+        expect(statsOf(store, NODE_PAGE)).toBe(1);
+        store.apply(env("object.delete", { objectId: SOURCE_PAGE, permanent: true }, 1727200002000));
+        expect(store.backlinks(NODE_PAGE)).toEqual([]);
+        // The badge reads node_stats (a stored number) — it must not
+        // outlive the edges it counts.
+        expect(statsOf(store, NODE_PAGE)).toBe(0);
+      });
+
+      it("trash.empty rebuilds the backlink targets' badge counts", () => {
+        const store = linkedStore();
+        store.apply(env("object.delete", { objectId: SOURCE_PAGE }, 1727200002000));
+        expect(statsOf(store, NODE_PAGE)).toBe(1);
+        store.apply(env("trash.empty", {}, 1727200003000));
+        expect(store.backlinks(NODE_PAGE)).toEqual([]);
+        expect(statsOf(store, NODE_PAGE)).toBe(0);
+      });
+
+      it("the subtree's ancestors' descendant counts are rebuilt too", () => {
+        const store = baseStoreWithBlock(); // NODE_BLOCK under NODE_PAGE
+        store.apply(env("object.create", { objectId: GRANDCHILD, parentId: NODE_BLOCK }, 1727200001500));
+        expect(descendantsOf(store, NODE_PAGE)).toBe(2);
+        store.apply(env("object.delete", { objectId: NODE_BLOCK, permanent: true }, 1727200002000));
+        expect(descendantsOf(store, NODE_PAGE)).toBe(0);
+      });
+
+      it("rebuildEdges on a gone source heals its orphaned backlink targets", () => {
+        const store = linkedStore();
+        // Simulate the source row disappearing without the delete applier —
+        // the gone-branch contract: the edge outlives the node until the
+        // rebuild sweeps it.
+        store.database.prepare("DELETE FROM node_child_order WHERE child_id = ?").run(SOURCE_BLOCK);
+        store.database.prepare("DELETE FROM node WHERE id = ?").run(SOURCE_BLOCK);
+        rebuildEdges(store.database, SOURCE_BLOCK, new Date(1727200002000).toISOString());
+        expect(store.backlinks(NODE_PAGE)).toEqual([]);
+        expect(statsOf(store, NODE_PAGE)).toBe(0);
+      });
     });
 
     it("re-issuing object.create on an existing id is a strict tree no-op", () => {
