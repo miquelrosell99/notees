@@ -7,6 +7,28 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **refine(web): the block row's "+ Add class" pill moves to the start of
+  the classes cluster — hover-reveal no longer shifts the pills.** Owner
+  ruling (2026-10-21), the follow-up to the no-permanent-gap fix: with the
+  add pill at the END of the chips, the hover reveal grew the right-pinned
+  row-end group rightward-bound — the class pills and the backlink toggle
+  slid sideways on every hover. `NodePills` gains `addAtStart`: the block
+  row renders the "+" picker FIRST (left of the pills, DOM order matching
+  visual order so tab/screen-reader order stays honest), so the reveal
+  grows the group leftward over the flexible text column and the pills
+  never move. The pill LIST order is deliberately untouched — the pills
+  carry the user-defined drag-sort order, and inverting their display
+  would flip that semantics (the owner's "invert the list" idea proved
+  unnecessary once the add button rides at the start). Every other surface
+  (page header, tags, aliases, property cells, the extends row) keeps the
+  end-of-list add position.
+  - **Files**: `apps/web/src/features/metadata/NodePills.tsx` (the
+    `addAtStart` prop + the add-anchor extraction shared by both
+    positions), `apps/web/src/ui/BlockRow.tsx` (the block classes column
+    passes it), `docs/features/pages.md` (the block-row column contract
+    clause).
+  - **Verification**: `pnpm typecheck` + the apps/web suite green.
+
 - **refine(web): the AND/OR control settles on the original
   overlapping-circles icons.** Owner reversal, same day (2026-10-21): the
   bold-uppercase AND/OR text segments "look terrible" — the control returns
@@ -50,6 +72,31 @@ predating this file.
     the fold/expand toggle and the block-rows-stay-expanded carve-out).
   - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
     `pnpm --filter @notees/web test` — 1936 passed (167 files).
+
+- **fix(web): the collapsed default generalizes to every row with children
+  — blocks included — and reaches the backlinks-style reference rows.**
+  Owner review of the slice above (same day): the backlinks section still
+  showed rows uncollapsed — its rows render through `ReferenceSubtree` (the
+  section renderItem), not the flat list's BlockRow, and they are blocks,
+  outside the first slice's pages-only predicate. Two changes: the flat
+  list's default-collapse set now collects EVERY rendered row with children
+  (the `rendersWithDocumentChrome` predicate is gone — the tasks hub's
+  subtask rows fold like everything else), and `ReferenceSubtree` hands its
+  own context a `defaultCollapsed` set holding the root id when the root
+  has children — the backlinks/unlinked-mentions rows and the property
+  carrier cell read one row per reference, the subtree behind the chevron,
+  same session-local override. The editable outliner tree (page body,
+  focused-block zoom) and the read-only child-page tree stay expanded by
+  design — they are documents/trees, not item lists. Docs: the
+  `docs/features/views.md` ruling reworded to rows-with-children.
+  - **Files**: `apps/web/src/features/collection/OutlineView.tsx` (the
+    predicate dropped — children > 0 is the whole condition), `apps/web/
+    src/features/block-editor/ReferenceSubtree.tsx` (the root-row default,
+    the file header records the ruling), `apps/web/test/view-modes.test.tsx`
+    (the block carve-out spec inverts to the generalized ruling; a new spec
+    covers the reference subtree's folded root).
+  - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
+    `pnpm --filter @notees/web test` — 1937 passed (167 files).
 
 - **fix(web): text buttons render at their size tokens fleet-wide — the
   48dp floor moves to the invisible hit-area overlay.** Owner ruling

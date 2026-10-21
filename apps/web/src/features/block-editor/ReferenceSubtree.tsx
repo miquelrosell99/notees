@@ -6,6 +6,11 @@
  * through the shared outliner client, so edits inside a reference behave
  * exactly like edits in the page body (same ops, same sync).
  *
+ * The ROOT row starts COLLAPSED when it has children (owner 2026-10-21,
+ * the collection-list ruling): a backlinks/unlinked row reads one row per
+ * reference, the subtree behind the chevron — same default, same
+ * session-local override as the flat outline list.
+ *
  * `readOnly` (the hover preview's preview surface) renders the same rows
  * inert: clicks navigate instead of editing, the context menu stays shut,
  * and the rows wear the readonly class (excluded from drag measuring). The
@@ -32,7 +37,7 @@
  * subtree renders (linked references, the hover-preview trampoline).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
@@ -82,11 +87,24 @@ export function ReferenceSubtree({
 }) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-  const outliner = useOutlinerValue(client, rootId, {
-    openNode: (id) => onOpenNode?.(id),
-  });
 
   const node = client.getNode(rootId);
+  // The root row starts COLLAPSED when it has children (owner 2026-10-21,
+  // the collection-list ruling — the backlinks/unlinked rows read one row
+  // per reference, the subtree behind the chevron). The override is
+  // session-local (the OutlinerContext contract). A `showGhost` surface is
+  // an editing document, not a read-out list — the "+ Add block" ghost
+  // rides the children container, so the root stays expanded.
+  const childCount = node === undefined ? 0 : client.getChildren(rootId).length;
+  const defaultCollapsed = useMemo(
+    () => (!showGhost && childCount > 0 ? new Set([rootId]) : undefined),
+    [rootId, childCount, showGhost],
+  );
+  const outliner = useOutlinerValue(client, rootId, {
+    openNode: (id) => onOpenNode?.(id),
+    defaultCollapsed,
+  });
+
   if (node === undefined) return null;
   const tree = toTree(client, node);
 
