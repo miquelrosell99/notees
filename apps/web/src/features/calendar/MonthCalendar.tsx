@@ -81,23 +81,21 @@ export function MonthCalendar({
   return (
     <section className="month-calendar" aria-label="Month calendar">
       <div className="month-calendar__header">
-        <button
-          type="button"
-          className="month-calendar__nav"
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="mdi-chevron-left"
           aria-label="Previous period"
           onClick={goPrev}
-        >
-          <span className="mdi mdi-chevron-left" aria-hidden="true" />
-        </button>
+        />
         <span className="month-calendar__title">{title}</span>
-        <button
-          type="button"
-          className="month-calendar__nav"
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="mdi-chevron-right"
           aria-label="Next period"
           onClick={goNext}
-        >
-          <span className="mdi mdi-chevron-right" aria-hidden="true" />
-        </button>
+        />
         <span className="month-calendar__zoom">
           <SelectionButton
             size="sm"
