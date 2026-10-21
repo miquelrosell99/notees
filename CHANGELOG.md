@@ -7,6 +7,37 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(web): the outline list opens pages collapsed — a page row with
+  child blocks starts folded behind its chevron.** Owner ruling
+  (2026-10-21): "in outline nodecollection view mode always show pages in
+  collapsed state by default (when they actually have child blocks, of
+  course)". The flat outline list (hubs, classed-nodes, query results, the
+  pages hub) previously rendered every page's child blocks expanded, so a
+  list of pages with content read as a wall of nested text. Now the list
+  reads one row per page: any document-chrome row (the
+  `rendersWithDocumentChrome` page role, nested child pages included) with
+  children defaults to the folded state; block rows keep their natural
+  expanded state — the ruling names pages only. Expansion is session-local
+  display state: the default rides a per-render `defaultCollapsed` set into
+  `useOutlinerValue`, which keeps a session-only override set (never
+  persisted — the persisted fold set still stores only explicit folds, and
+  the collapse-by-default re-applies next session); the toggle consults the
+  effective set, so folding/unfolding a defaulted row composes with the
+  existing rail click and keyboard navigation (the visible-order derivation
+  reads the same effective set). Out of scope by the ruling's letter: the
+  editable outliner tree (the page body, the focused-block zoom) and the
+  read-only child-page tree (its rows carry child pages, not child blocks).
+  Docs: `docs/features/views.md` (the list-view section owns the ruling).
+  - **Files**: `apps/web/src/ui/outliner-context.ts` (the `defaultCollapsed`
+    option, the session override set, the effective-collapse derivation,
+    the toggle), `apps/web/src/features/collection/OutlineView.tsx` (the
+    flat list computes the page-with-children set and passes it; the file
+    header records the ruling), `apps/web/test/view-modes.test.tsx` (the
+    pages-hub spec re-encodes the collapsed default; two new specs cover
+    the fold/expand toggle and the block-rows-stay-expanded carve-out).
+  - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
+    `pnpm --filter @notees/web test` — 1936 passed (167 files).
+
 - **fix(web): text buttons render at their size tokens fleet-wide — the
   48dp floor moves to the invisible hit-area overlay.** Owner ruling
   (2026-10-21): "the add condition button also has too much top and bottom

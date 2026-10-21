@@ -2288,6 +2288,25 @@ select:focus-visible {
   padding-left: var(--spacing-2);
 }
 
+/* The "+ Add class" ghost pill rides the chips hover-reveal contract
+   (Pill.css fades the icon-only add pill out until the group is hovered),
+   but opacity-hiding still reserves the pill's slot — a permanent gap
+   after the last class pill, pushing the backlink toggle off the row-end
+   group. In the block row the hidden pill collapses entirely, so the gap
+   exists only while the classes list is hovered or keyboard-focused.
+   An expanded picker keeps the pill in flow: the anchored NodeSelector
+   re-measures its anchor on scroll, and a collapsed anchor would jump. */
+.nt-block-classes .nt-property-chips:not(:hover):not(:focus-within) .pill--add.pill--icon-only:not([aria-expanded="true"]) {
+  display: none;
+}
+
+/* Keyboard focus reveals the add pill like the fleet hover-reveal
+   contract (Pill.css's hover-only selector would leave it transparent
+   on a focus-within-without-hover entry). */
+.nt-block-classes .nt-property-chips:focus-within:not(:hover) .pill--add.pill--icon-only {
+  opacity: var(--opacity-100);
+}
+
 /* Backlink gutter toggle (SCHEMA.md:117): the materialized count rides a
    Badge; quiet by default, emphasized on row hover / when expanded. */
 .nt-block-backlink-toggle {
