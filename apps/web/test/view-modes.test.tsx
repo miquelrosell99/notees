@@ -1070,19 +1070,21 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     expect(headers()).toContain("Pages");
   });
 
-  it("text cells ride the carrier block row — the placeholder creates and edits it, empty unsets; numbers commit as scalars", async () => {
+  it("text cells ride the carrier block row — the Empty placeholder creates and edits it, the Open button navigates, empty unsets; numbers commit as scalars", async () => {
     const client = await seedClient();
     const seeded = await seedProjectTable(client);
-    render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
+    const onOpen = vi.fn();
+    render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={onOpen} />);
     await expandClassedNodes();
 
     // Text cells are node-backed (PB2 one-shape-per-type) and render through
     // the name cell's block row (owner 2026-10-21 — the retired inline input
-    // flattened rich text). The empty cell is the muted schema-name
-    // placeholder: one click creates the carrier block child, links
-    // {nodeId}, and lands straight in the block editor.
-    // [0] is the column header sort button; [1] is Alpha's cell.
-    fireEvent.click(screen.getAllByRole("button", { name: "Note" })[1]!);
+    // flattened rich text). The empty cell is the muted "Empty" placeholder
+    // (its accessible name names the action): one click creates the carrier
+    // block child, links {nodeId}, and lands straight in the block editor.
+    // [0] is Alpha's cell (the header sort button is named "Note", not
+    // "Add Note").
+    fireEvent.click(screen.getAllByRole("button", { name: "Add Note" })[0]!);
     await flushWrites();
     const note = client.getEffectiveProperties(seeded.alpha).find((p) => p.propertySchemaId === seeded.noteId);
     const carrierId = (note?.value as { nodeId?: string }).nodeId;
@@ -1097,6 +1099,13 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     fireEvent.blur(editor);
     await flushWrites();
     expect(client.getNode(carrierId!)?.contentAst).toEqual([{ type: "text", text: "hello world" }]);
+
+    // The pinned Open button rides the assigned cell (owner 2026-10-21): the
+    // value click owns editing, the button owns navigation — the embedded
+    // carrier resolves to its page (Alpha).
+    const openBtn = screen.getByRole("button", { name: "Open hello world" });
+    fireEvent.click(openBtn);
+    expect(onOpen).toHaveBeenCalledWith(seeded.alpha);
 
     // Leaving the editor emptied unsets the property — the auto-unset pass
     // (the metadata row's contract) trashes the orphaned carrier.
@@ -1147,8 +1156,9 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
-    // [0] is the column header sort button; [1] is Alpha's cell.
-    fireEvent.click(screen.getAllByRole("button", { name: "Owner" })[1]!);
+    // [0] is the column header sort button; [1] is Alpha's cell — the empty
+    // cell names its action ("Add Owner", owner 2026-10-21).
+    fireEvent.click(screen.getAllByRole("button", { name: "Add Owner" })[0]!);
     fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Paris" } });
     await flushWrites();
     fireEvent.click(document.querySelector(".node-result-item:not(.node-result-item--create):not(.node-result-item--date)")!);
@@ -1185,9 +1195,9 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     expect(remaining).toHaveLength(1);
     expect((remaining[0]!.value as { nodeId: string }).nodeId).toBe(grace);
 
-    // The "+ Authors" pill opens the anchored picker; the create row appends
-    // the new node at the next free idx.
-    fireEvent.click(within(row).getByRole("button", { name: "Authors" }));
+    // The "+ Add Authors" pill opens the anchored picker; the create row
+    // appends the new node at the next free idx.
+    fireEvent.click(within(row).getByRole("button", { name: "Add Authors" }));
     fireEvent.change(screen.getByLabelText("Search Authors"), { target: { value: "Alan Turing" } });
     await flushWrites();
     fireEvent.click(document.querySelector(".node-result-item--create")!);
@@ -1198,6 +1208,78 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     // ObjectPropertyRow per-slot pattern) — sparse slots never backfill.
     expect(after.map((p) => p.idx).sort()).toEqual([1, 2]);
     expect(client.getDisplayName((after[1]!.value as { nodeId: string }).nodeId)).toBe("Alan Turing");
+  });
+
+  it("asset cells wear the asset buttons: filename pills, the ❝ annotations toggle, and the upload create row", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "source doc");
+    const filesId = await client.createPropertySchema({
+      name: "Files",
+      type: "asset",
+      multi: true,
+      targetClassFilter: [SYSTEM_CLASS_UUIDS.asset],
+    });
+    await client.setClassProperty(classId, filesId, {});
+    // The system asset class is authored on demand (never pre-seeded).
+    await createTitledClass(client, "asset", SYSTEM_CLASS_UUIDS.asset);
+    const pdf = await client.createObject({
+      isEmbedded: false,
+      name: "spec node",
+      classIds: [SYSTEM_CLASS_UUIDS.asset],
+    });
+    await client.attachAsset(pdf, {
+      assetId: "00000000-0000-0000-00aa-0000000000aa",
+      hash: "a0".repeat(32),
+      mimeType: "application/pdf",
+      size: 1,
+      originalName: "spec.pdf",
+    });
+    const doc = await client.createObject({ isEmbedded: false, name: "Design spec" });
+    await client.assignClass(doc, classId);
+    await client.setProperty(doc, filesId, { nodeId: pdf }, 0);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    await expandClassedNodes();
+
+    const row = screen.getByRole("table").querySelector(`tr[data-node-id="${doc}"]`) as HTMLElement;
+    // The pill labels the asset by its original filename (the metadata row's
+    // contract) and carries the ❝ annotations toggle.
+    const pill = row.querySelector(".nt-table-chips .pill") as HTMLElement;
+    expect(pill.textContent).toContain("spec.pdf");
+    expect(within(row).getByRole("button", { name: "Annotate spec.pdf" })).toBeTruthy();
+
+    // ❝ opens the annotations panel anchored under the cell; the add form
+    // renders even with no annotations yet.
+    fireEvent.click(within(row).getByRole("button", { name: "Annotate spec.pdf" }));
+    const popup = screen.getByRole("dialog", { name: "Annotations for spec.pdf" });
+    expect(within(popup).getByLabelText(/quote/i)).toBeTruthy();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    await flushWrites();
+    expect(screen.queryByRole("dialog", { name: "Annotations for spec.pdf" })).toBeNull();
+
+    // The "+ Add Files" picker's create row IS the upload action.
+    fireEvent.click(within(row).getByRole("button", { name: "Add Files" }));
+    fireEvent.click(document.querySelector(".node-result-item--create")!);
+    expect(screen.getByRole("dialog", { name: /upload/i })).toBeTruthy();
+  });
+
+  it("date stamps never navigate on click — Created/Edited render plain text with the pinned day-page Open button", async () => {
+    const client = await seedClient();
+    const seeded = await seedProjectTable(client);
+    const onOpen = vi.fn();
+    render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={onOpen} />);
+    await expandClassedNodes();
+
+    const row = screen.getByRole("table").querySelector(`tr[data-node-id="${seeded.alpha}"]`) as HTMLElement;
+    const created = row.querySelector("td.nt-table-created") as HTMLElement;
+    // The date text is NOT a click target (the retired day link is gone) —
+    // no button inside the cell but the pinned Open button.
+    const createdButtons = within(created).getAllByRole("button");
+    expect(createdButtons).toHaveLength(1);
+    expect(createdButtons[0]!.getAttribute("aria-label")).toMatch(/^Open the .* day page$/);
+    // And the button owns the navigation.
+    fireEvent.click(createdButtons[0]!);
+    await flushWrites();
+    expect(onOpen).toHaveBeenCalled();
   });
 
   it("row checkboxes select rows; the header box selects the visible window", async () => {

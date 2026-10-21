@@ -29,8 +29,8 @@
  *   node cells open the anchored NodeSelector — the single-value cell as a
  *   picker on the value, the MULTI-value cell (owner 2026-10-21) as the
  *   metadata row's pill cluster: every value a NodePill (open on click,
- *   hover-reveal × unsets its slot) plus an "+ Add" pill appending at the
- *   next free idx through the anchored NodeSelector (the schema's
+ *   hover-reveal × unsets its slot) plus an "+ Add <name>" pill appending at
+ *   the next free idx through the anchored NodeSelector (the schema's
  *   targetClassFilter scopes the search AND the create row).
  *   TEXT cells (owner 2026-10-21) ride the name cell's contract: the value
  *   IS a carrier block, so the cell renders it through BlockRow
@@ -38,16 +38,31 @@
  *   swaps in the full block editor; leaving the editor emptied unsets the
  *   property and the orphaned carrier is trashed) — the retired bordered
  *   inline input flattened rich text to edit it. An empty (or broken-ref)
- *   text cell renders the muted schema-name placeholder (the NodeCell
- *   precedent); one click creates the carrier and lands straight in the
- *   editor (BlockRow autoEdit).
- *   Multi-value properties other than node-typed stay read-only (every
- *   value renders, joined).
- * - The navigate button (owner 2026-10-20): the pinned Open button also
- *   rides the single-value node/date property cells — the VALUE click owns
- *   the picker (unless read-only), the button owns navigation (target
- *   node / day page), hover-revealed like the name cell. The retired
- *   inline open-arrow was its only navigation.
+ *   text cell renders the muted "Empty" placeholder (owner 2026-10-21 — one
+ *   click creates the carrier and lands straight in the editor, BlockRow
+ *   autoEdit; the button names the action "Add <name>" for assistive tech).
+ *   ASSET cells (owner 2026-10-21) mirror the metadata asset row: every
+ *   value a pill whose click DOWNLOADS the asset, with the ❝ annotations
+ *   toggle opening the annotations panel anchored under the cell, and the
+ *   "+ Add <name>" pill's picker create row IS the upload action ("Upload
+ *   file…" → AssetUploadModal → the uploaded asset links at the next free
+ *   idx; single-value schemas replace their authored slot).
+ *   Multi-value properties other than node/asset-typed stay read-only
+ *   (every value renders, joined).
+ * - The navigate button (owner 2026-10-20, extended 2026-10-21): the pinned
+ *   Open button rides every cell that names a target — the name cell, the
+ *   single-value node/date property cells, TEXT cells with a carrier (opens
+ *   the carrier's page), and the Created/Edited stamps (owner 2026-10-21:
+ *   the retired click-to-navigate day link — date TEXT never navigates, it
+ *   edits (editable value click → picker) or reads (readonly plain text);
+ *   navigation is the button's alone). The VALUE click owns the picker
+ *   (unless read-only), the button owns navigation (target node / day
+ *   page), hover-revealed like the name cell.
+ * - The empty-state placeholders (owner 2026-10-21): an empty PICKER cell
+ *   (node/date/asset) names its action — "Add <name>" (the muted placeholder
+ *   idiom); an empty text cell says "Empty" (its click creates-and-edits, so
+ *   the state, not the action, is the honest label); an empty scalar input
+ *   (url/email/number) rides the same "Add <name>" as its input placeholder.
  * - Name cell (owner 2026-10-21): the node's title IS a block row — the
  *   page header's title projection (BlockRow variant="title"): inline
  *   tokens render read mode (markdown links render as links, class chips
@@ -95,7 +110,7 @@
  */
 
 import { useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { isRangeDatetimeValue, isReadonlyProperty, isValidTimeOfDay, parseDateNodeId, fullTitleOf, plainTextExcerpt } from "@notees/domain";
+import { isRangeDatetimeValue, isReadonlyProperty, isValidTimeOfDay, parseDateNodeId, fullTitleOf, plainTextExcerpt, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
 import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu, AddPill } from "../../components/ui/fleet/index.js";
@@ -103,7 +118,10 @@ import { Icon } from "../../ui/Icon.js";
 import { BlockRow } from "../../ui/BlockRow.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { NodePill } from "../metadata/NodePills.js";
-import { resolveTargetClassIds } from "../metadata/shared.js";
+import { isAssetClass, resolveTargetClassIds } from "../metadata/shared.js";
+import { AnnotationsSection } from "../../ui/AnnotationsSection.js";
+import { AssetUploadModal } from "../modals/AssetUploadModal.js";
+import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import {
   DatePickerPopup,
   type DatetimePickerSlot,
@@ -313,7 +331,9 @@ function ClassChips({ item, props }: { item: NodeCollectionItem; props: NodeColl
   );
 }
 
-/** Click-to-edit inline input: commit on blur/Enter, cancel on Escape. */
+/** Click-to-edit inline input: commit on blur/Enter, cancel on Escape. The
+ *  empty cell names its action — "Add <name>" rides as the input
+ *  placeholder (owner 2026-10-21, the empty-picker-cell idiom). */
 function InlineInput({
   value,
   inputType = "text",
@@ -333,6 +353,7 @@ function InlineInput({
       type={inputType}
       className="nt-table-input"
       aria-label={ariaLabel}
+      placeholder={value === "" ? `Add ${ariaLabel}` : undefined}
       value={draft}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => onCommit(draft)}
@@ -380,7 +401,11 @@ function carrierRefOf(value: unknown): string | null {
  * bordered inline input flattened rich text to edit it. An empty (or
  * broken-ref) cell renders the muted schema-name placeholder (the NodeCell
  * precedent): one click creates the carrier, links it at the property's
- * idx, and lands straight in the editor (BlockRow autoEdit).
+ * idx, and lands straight in the editor (BlockRow autoEdit). With a
+ * carrier assigned, the pinned Open button rides the cell too (owner
+ * 2026-10-21 — the name cell's navigation twin): the value click owns
+ * editing, the button owns navigation (click opens the carrier, shift+click
+ * peeks it in the sidebar); the empty placeholder carries no button.
  *
  * Auto-unset (the TextPropertyRow contract, table-scaled): an authored
  * carrier with no content and no children unsets once the caret is no
@@ -397,11 +422,13 @@ function TextCell({
   schemaId,
   props,
   schemaName,
+  peek,
 }: {
   row: TableRow;
   schemaId: string;
   props: NodeCollectionProps;
   schemaName: string;
+  peek: (id: string) => void;
 }) {
   const { client } = props;
   const prop = row.properties.find((p) => p.propertySchemaId === schemaId);
@@ -428,11 +455,13 @@ function TextCell({
   });
 
   if (carrier === undefined) {
+    // The empty state says "Empty" (owner 2026-10-21); the click
+    // creates-and-edits, so the accessible name names the action.
     return (
       <button
         type="button"
         className="nt-table-text-empty"
-        aria-label={schemaName}
+        aria-label={`Add ${schemaName}`}
         onClick={() => {
           void (async () => {
             const created = await client.createObject({
@@ -444,19 +473,27 @@ function TextCell({
           })();
         }}
       >
-        <span className="nt-table-date-placeholder">{schemaName}</span>
+        <span className="nt-table-date-placeholder">Empty</span>
       </button>
     );
   }
 
+  const label = displayNameFromClient(client, carrier.id) ?? "carrier";
   return (
-    <span className="nt-table-text-cell" ref={wrapRef}>
-      <BlockRow
-        variant="title"
-        tree={{ node: carrier, children: [] }}
-        client={client}
-        resolveName={(classId) => client.getDisplayName(classId)}
-        autoEdit={carrier.id === freshId}
+    <span className="nt-table-node">
+      <span className="nt-table-text-cell" ref={wrapRef}>
+        <BlockRow
+          variant="title"
+          tree={{ node: carrier, children: [] }}
+          client={client}
+          resolveName={(classId) => client.getDisplayName(classId)}
+          autoEdit={carrier.id === freshId}
+        />
+      </span>
+      <OpenButton
+        label={label}
+        onOpen={() => props.onNodeClick?.(carrier.id)}
+        onPeek={() => peek(carrier.id)}
       />
     </span>
   );
@@ -534,7 +571,7 @@ function MultiNodeCell({
       })}
       <AddPill
         ref={addRef}
-        label={schemaName}
+        label={`Add ${schemaName}`}
         aria-expanded={open}
         onClick={(element) => {
           addRef.current = element;
@@ -556,6 +593,219 @@ function MultiNodeCell({
             void client.setProperty(row.item.node.id, schemaId, { nodeId: node.id }, nextIdx);
           }}
         />
+      )}
+    </span>
+  );
+}
+
+/**
+ * Asset-property cell (owner 2026-10-21) — the metadata ObjectPropertyRow's
+ * asset branch, table-scaled: every value rides the shared NodePill whose
+ * click DOWNLOADS the asset (the metadata pill's primary action — the
+ * original filename labels the pill), with the ❝ annotations toggle opening
+ * the annotations panel anchored under the cell (the node-pills overflow
+ * popup pattern) and the hover-reveal × unsetting its own idx slot. The
+ * "+ Add <name>" pill opens the anchored NodeSelector (searchMode "all")
+ * whose create row IS the upload action — "Upload file…" opens the
+ * AssetUploadModal and the uploaded asset links at the next free idx; a
+ * single-value schema replaces its authored slot instead (the
+ * ObjectPropertyRow write pattern, cover values included).
+ */
+function AssetCell({
+  row,
+  schemaId,
+  props,
+  schemaName,
+}: {
+  row: TableRow;
+  schemaId: string;
+  props: NodeCollectionProps;
+  schemaName: string;
+}) {
+  const { client } = props;
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  /** The pill whose annotations panel is open, anchored at its position. */
+  const [annotating, setAnnotating] = useState<{ ref: string; top: number; left: number } | null>(null);
+  const addRef = useRef<HTMLButtonElement | null>(null);
+  const annotRef = useRef<HTMLDivElement | null>(null);
+  usePopupDismissal({
+    popupRef: annotRef,
+    isOpen: annotating !== null,
+    onClose: () => setAnnotating(null),
+  });
+
+  const rows = row.properties
+    .filter((p) => p.propertySchemaId === schemaId)
+    .sort((a, b) => a.idx - b.idx);
+  const pills = rows
+    .map((p) => ({ row: p, ref: carrierRefOf(p.value) }))
+    .filter((pill): pill is { row: EffectiveProperty; ref: string } => pill.ref !== null);
+  const authoredIdx = rows.filter((p) => p.source === "authored").map((p) => p.idx);
+  const nextIdx = authoredIdx.length > 0 ? Math.max(...authoredIdx) + 1 : 0;
+  const single = client.listPropertySchemas().find((s) => s.id === schemaId)?.multi === false;
+  // Single-value: the pick rewrites the highest authored slot; multi:
+  // appends at the next free idx.
+  const writeIdx = single && authoredIdx.length > 0 ? Math.max(...authoredIdx) : nextIdx;
+  const targetClassIds = resolveTargetClassIds(client, schemaId, null);
+  const assetClassId = targetClassIds?.find((id) => isAssetClass(client, id));
+  const isAssetTarget = assetClassId !== undefined;
+
+  const pillLabel = (ref: string): string =>
+    client.getAssetInfo(ref)?.originalName ?? displayNameFromClient(client, ref) ?? ref;
+
+  const linkAsset = async (assetNodeId: string, idx: number): Promise<void> => {
+    await client.setProperty(row.item.node.id, schemaId, { nodeId: assetNodeId }, idx);
+    // A cover value written through the generic panel still classes the
+    // target as an asset (the ObjectPropertyRow precedent).
+    if (schemaId === SYSTEM_PROPERTY_UUIDS.cover) {
+      const classIds = client.getNode(assetNodeId)?.classIds ?? [];
+      if (!classIds.includes(SYSTEM_CLASS_UUIDS.asset)) {
+        await client.assignClass(assetNodeId, SYSTEM_CLASS_UUIDS.asset);
+      }
+    }
+    setUploadOpen(false);
+    setPickerOpen(false);
+  };
+
+  const download = (ref: string): void => {
+    const info = client.getAssetInfo(ref);
+    if (info !== undefined) void client.downloadAsset(info.assetId);
+  };
+
+  return (
+    <span className="nt-table-chips">
+      {pills.map(({ row: pillRow, ref }) => {
+        const linked = client.getNode(ref);
+        const label = pillLabel(ref);
+        if (linked === undefined) {
+          return (
+            <span key={`${schemaId}:${pillRow.idx}`} className="pill pill--broken" title={`Broken reference: ${ref}`}>
+              <span className="pill__text nt-chip-label nt-chip-label--broken">
+                <code>{ref}</code>
+              </span>
+              <button
+                type="button"
+                className="pill__right-button nt-chip-remove"
+                aria-label={`Remove ${label}`}
+                onClick={() => void client.unsetProperty(row.item.node.id, schemaId, pillRow.idx)}
+              >
+                <Icon path="mdi-close" size={0.6} />
+              </button>
+            </span>
+          );
+        }
+        return (
+          <NodePill
+            key={`${schemaId}:${pillRow.idx}`}
+            color={client.effectiveNodeColor(linked)}
+            icon={linked.icon}
+            label={label}
+            onOpen={() => download(ref)}
+            onRemove={() => void client.unsetProperty(row.item.node.id, schemaId, pillRow.idx)}
+            removeLabel={`Remove ${label}`}
+            trailing={
+              // The ❝ annotations toggle — an asset-pill primary action,
+              // never hidden (the metadata row's contract).
+              <button
+                type="button"
+                className="pill__right-button nt-chip-annotations"
+                title="Annotations"
+                aria-label={`Annotate ${label}`}
+                aria-expanded={annotating?.ref === ref}
+                onClick={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  setAnnotating((cur) =>
+                    cur?.ref === ref ? null : { ref, top: rect.bottom + 4, left: rect.left },
+                  );
+                }}
+              >
+                ❝
+              </button>
+            }
+          />
+        );
+      })}
+      <AddPill
+        ref={addRef}
+        label={`Add ${schemaName}`}
+        aria-expanded={pickerOpen}
+        onClick={(element) => {
+          addRef.current = element;
+          setPickerOpen((cur) => !cur);
+        }}
+      />
+      {pickerOpen && (
+        <NodeSelector
+          client={client}
+          searchMode="all"
+          classFilters={targetClassIds ?? undefined}
+          excludeNodeId={row.item.node.id}
+          anchorEl={addRef.current}
+          onClose={() => setPickerOpen(false)}
+          searchPlaceholder={`Search ${schemaName}`}
+          onAdd={(node) => {
+            setPickerOpen(false);
+            void linkAsset(node.id, writeIdx);
+          }}
+          // Asset targets: the create row IS the upload action (the
+          // ObjectPropertyRow precedent) — "Upload file…" opens the modal,
+          // never a bare create. Unresolvable filter: plain create.
+          alwaysShowCreate={isAssetTarget}
+          createLabel={isAssetTarget ? "Upload file…" : undefined}
+          onCreateNew={
+            isAssetTarget
+              ? () => {
+                  setPickerOpen(false);
+                  setUploadOpen(true);
+                }
+              : (name) =>
+                  client.createObject({
+                    isEmbedded: false,
+                    name,
+                    ...(targetClassIds !== null ? { classIds: targetClassIds } : {}),
+                  })
+          }
+        />
+      )}
+      {uploadOpen && assetClassId !== undefined && (
+        <AssetUploadModal
+          isOpen
+          client={client}
+          assetClassId={assetClassId}
+          onClose={() => setUploadOpen(false)}
+          onUploaded={(assetNodeId) => void linkAsset(assetNodeId, writeIdx)}
+        />
+      )}
+      {annotating !== null && (
+        <>
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop closes on click */}
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: "var(--z-9998)" }}
+            onClick={() => setAnnotating(null)}
+          />
+          {createPortal(
+            <div
+              ref={annotRef}
+              className="nt-table-annot-popup"
+              role="dialog"
+              aria-label={`Annotations for ${pillLabel(annotating.ref)}`}
+              style={{ position: "fixed", top: annotating.top, left: annotating.left, zIndex: "var(--z-9999)" }}
+              onClick={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <AnnotationsSection
+                client={client}
+                assetId={annotating.ref}
+                onOpenPage={(id) => {
+                  setAnnotating(null);
+                  props.onNodeClick?.(id);
+                }}
+              />
+            </div>,
+            document.body,
+          )}
+        </>
       )}
     </span>
   );
@@ -604,10 +854,11 @@ function DateCell({ row, schemaId, props, schemaName, peek }: { row: TableRow; s
         aria-expanded={open}
         onClick={() => setOpen((cur) => !cur)}
       >
-        {/* The empty cell shows the muted schema-name placeholder (the
-            NodeCell precedent) — an empty button collapsed to zero height
-            and was near-unclickable (owner 2026-10-20). */}
-        {display === "" ? <span className="nt-table-date-placeholder">{schemaName}</span> : display}
+        {/* The empty cell names its action — "Add <name>" in the muted
+            placeholder idiom (owner 2026-10-21; was the bare schema name).
+            An empty button collapsed to zero height and was near-unclickable
+            (owner 2026-10-20). */}
+        {display === "" ? <span className="nt-table-date-placeholder">Add {schemaName}</span> : display}
       </button>
       {open && (
         <DatePickerPopup
@@ -759,7 +1010,13 @@ function NodeCell({ row, schemaId, props, schemaName, peek }: { row: TableRow; s
         className="nt-table-date"
         onClick={() => setOpen(true)}
       >
-        {targetId !== null ? (displayNameFromClient(props.client, targetId) ?? targetId) : schemaName}
+        {/* The empty cell names its action — "Add <name>" in the muted
+            placeholder idiom (owner 2026-10-21; was the bare schema name). */}
+        {targetId !== null ? (
+          displayNameFromClient(props.client, targetId) ?? targetId
+        ) : (
+          <span className="nt-table-date-placeholder">Add {schemaName}</span>
+        )}
       </button>
       {targetId !== null && (
         <OpenButton
@@ -830,7 +1087,7 @@ function PropertyCell({ row, column, props, peek }: { row: TableRow; column: Tab
 
   if (editable && (schema?.type === "text" || schema?.type === "url" || schema?.type === "email") && schema?.multi !== true) {
     if (schema?.type === "text") {
-      return <TextCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} />;
+      return <TextCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} peek={peek} />;
     }
     return (
       <InlineInput
@@ -864,6 +1121,10 @@ function PropertyCell({ row, column, props, peek }: { row: TableRow; column: Tab
 
   if (editable && schema?.type === "object" && schema?.multi !== true) {
     return <NodeCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} peek={peek} />;
+  }
+
+  if (editable && schema?.type === "asset") {
+    return <AssetCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} />;
   }
 
   // Url/email values render as links (mailto: for email; a url
@@ -1334,36 +1595,54 @@ export function TableView(props: NodeCollectionProps) {
     }
     if (column.kind === "created") {
       const createdIso = formatIsoDate(node.createdAt);
+      // Owner 2026-10-21: the date TEXT never navigates — it reads. The
+      // retired click-to-navigate day link gives way to the pinned Open
+      // button (the date-property-cell contract): the button owns the
+      // day-page jump, hover-revealed like the name cell.
       return (
         <td key={column.id} className="nt-table-created">
           {createdIso === null ? (
             "—"
           ) : (
-            <button
-              type="button"
-              className="nt-table-daylink"
-              title={`Open the ${createdIso} day page`}
-              onClick={(event) => {
-                // The day-page link owns the click — the row's open rides
-                // the rest of the cell (the node-typed property precedent).
-                event.stopPropagation();
-                const dayIso = formatIsoDate(node.createdAt);
-                if (dayIso === null) return;
-                void client.ensureDateChain(dayIso).then(({ day }) => onNodeClick?.(day));
-              }}
-            >
+            <span className="nt-table-node">
               {createdIso}
-            </button>
+              <OpenButton
+                label={`the ${createdIso} day page`}
+                onOpen={() => {
+                  void client.ensureDateChain(createdIso).then(({ day }) => onNodeClick?.(day));
+                }}
+                onPeek={() => {
+                  void client.ensureDateChain(createdIso).then(({ day }) => peekNode(day));
+                }}
+              />
+            </span>
           )}
         </td>
       );
     }
     if (column.kind === "edited") {
-      // Plain text (no day-page link — the Edited stamp is a timestamp,
-      // not a page association; the Created cell's link is its own thing).
+      // The same contract as Created (owner 2026-10-21): plain text + the
+      // pinned day-page Open button — no click-to-navigate anywhere on a
+      // date.
+      const editedIso = formatIsoDate(node.updatedAt);
       return (
         <td key={column.id} className="nt-table-created">
-          {node.updatedAt === null ? "—" : formatCreated(node.updatedAt)}
+          {editedIso === null || node.updatedAt === null ? (
+            "—"
+          ) : (
+            <span className="nt-table-node">
+              {formatCreated(node.updatedAt)}
+              <OpenButton
+                label={`the ${editedIso} day page`}
+                onOpen={() => {
+                  void client.ensureDateChain(editedIso).then(({ day }) => onNodeClick?.(day));
+                }}
+                onPeek={() => {
+                  void client.ensureDateChain(editedIso).then(({ day }) => peekNode(day));
+                }}
+              />
+            </span>
+          )}
         </td>
       );
     }

@@ -7,6 +7,46 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(web): table cell chrome — the pinned Open button everywhere a cell
+  names a target, "Add <name>"/"Empty" empty states, asset cells with the
+  asset buttons.** Owner asks (2026-10-21): text cells with a carrier should
+  wear the navigate button like the name cell; date text should never
+  navigate on click (only edit), with navigation on the pinned button —
+  including the Created/Edited stamps, whose click-to-navigate day link
+  retires; empty property cells should name their action ("Add <name>",
+  "Empty" for text); and asset properties should carry their buttons in
+  table cells. Now: (1) an assigned text cell rides `nt-table-node` + the
+  pinned Open button (click opens the carrier's page — the embedded carrier
+  resolves through the container's `openMember` — shift+click peeks); (2)
+  the Created/Edited columns render plain text + the day-page Open button
+  (`nt-table-daylink` retires); editable date value clicks still open the
+  picker, readonly dates stay inert text; (3) empty picker cells (node /
+  date / asset) show the muted "Add <name>" placeholder, empty scalar inputs
+  ride it as the input placeholder, empty text cells read "Empty" (the
+  click creates-and-edits, so the accessible name names the action "Add
+  <name>"), and the multi pill clusters' add pills label "Add <name>"; (4)
+  a new `AssetCell` mirrors the metadata asset row, table-scaled: pills
+  labeled by the file's original name whose click downloads, the ❝
+  annotations toggle opening the annotations panel anchored under the cell
+  (the node-pills overflow popup pattern), × per slot, and the picker's
+  create row IS "Upload file…" → AssetUploadModal → link at the next free
+  idx (single-value schemas replace their authored slot; cover values still
+  class the target as an asset).
+  - **Files**: `apps/web/src/features/collection/TableView.tsx` (TextCell
+    Open button + "Empty" placeholder, AssetCell, the Created/Edited
+    rework, the InlineInput placeholder, the MultiNodeCell add-pill label),
+    `apps/web/src/features/collection/TableView.css` (the daylink styles
+    retire; the text cell flex lane; the input placeholder; the annotations
+    popup card), `apps/web/test/view-modes.test.tsx` (the Open-button
+    navigation assertion, the asset-cell spec, the no-click-navigate date
+    stamp spec), `docs/features/views.md` + `docs/features/pages.md` (the
+    cell chrome + the Created/Edited paragraphs).
+  - **Verification**: web `tsc` green; `view-modes.test.tsx` 44/44 (the
+    asset spec exercises filename pill + ❝ popup + upload create row; the
+    date-stamp spec asserts a single button in the cell and its day-page
+    navigation; the text spec asserts the carrier's Open button navigating
+    to the page).
+
 - **perf(web): the node picker's search coalesces keystrokes on async
   clients — one ranked-index query per pause, not per keystroke.** Owner
   ruling (2026-10-21) on a huge workspace: the FTS itself is fast, but each

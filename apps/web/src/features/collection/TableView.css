@@ -515,21 +515,8 @@ td .nt-table-text-cell .nt-page-title {
   white-space: nowrap;
 }
 
-/* The Created/Updated day-page link — borderless, rides the cell text. */
-.nt-table-daylink {
-  font: inherit;
-  color: inherit;
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-}
-
-.nt-table-daylink:hover {
-  color: var(--md-sys-color-primary);
-  text-decoration: underline;
-}
+/* The Created/Updated day-page link retired (owner 2026-10-21): date text
+   never navigates — the pinned Open button owns the day-page jump. */
 
 /* The open-arrow retired with the pinned OpenButton (owner 2026-10-20) —
    navigation rides the button on every cell that offers it. */
@@ -564,7 +551,8 @@ td:has(> .nt-table-node > .nt-table-open-btn):focus-within {
 }
 
 .nt-table-node > .nt-table-date,
-.nt-table-node > .nt-dateslot__button {
+.nt-table-node > .nt-dateslot__button,
+.nt-table-node > .nt-table-text-cell {
   flex: 1;
   min-width: 0;
   overflow-wrap: break-word;
@@ -595,4 +583,25 @@ td:has(> .nt-table-node > .nt-table-open-btn):hover .nt-table-open-btn,
 td:has(> .nt-table-node > .nt-table-open-btn):focus-within .nt-table-open-btn,
 td:has(> .nt-table-node > .nt-table-open-btn) .nt-table-open-btn:focus-visible {
   opacity: var(--opacity-100);
+}
+
+/* The empty scalar cell's placeholder rides the muted italic idiom (the
+   picker-cell "Add <name>" placeholder). */
+.nt-table-input::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+}
+
+/* The asset cell's annotations popup (owner 2026-10-21) — the
+   AnnotationsSection rides a fixed min-width card so the add-annotation
+   form keeps its shape outside the metadata panel. */
+.nt-table-annot-popup {
+  min-width: 22rem;
+  max-width: min(32rem, calc(100vw - var(--spacing-4)));
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--md-sys-color-surface-container);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-3);
+  box-shadow: var(--shadow-md);
 }
