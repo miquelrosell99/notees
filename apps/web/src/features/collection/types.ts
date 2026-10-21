@@ -34,6 +34,14 @@ export interface HostedViewsConfig {
   nodeId: string;
   /** The section key (the server's pinned vocabulary). */
   sectionKey: HostedSectionKey;
+  /**
+   * The selected tab (SECTION_DEFAULT_TAB or a view id) — OPTIONAL control:
+   * when both `selected` and `onSelectTab` are set, the host owns the tab
+   * state (the "Save as tab" flow selects the freshly saved view); absent,
+   * NodeCollection keeps its internal useState (every other call site).
+   */
+  selected?: string | undefined;
+  onSelectTab?: ((tab: string) => void) | undefined;
 }
 
 /** The collection view modes (graph = the workspace graph). */
