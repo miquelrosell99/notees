@@ -89,6 +89,7 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
         {showText && !narrowSearch && (
           <SearchField
             className="nt-filter-bar__search"
+            size="sm"
             aria-label="Filter by text"
             placeholder="Filter…"
             value={value.text ?? ""}

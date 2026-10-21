@@ -49,6 +49,14 @@
  *   so the table hosts its OWN (the FlatCards precedent — visible[0]'s
  *   node as the root id): the enclosing page/class view is the navigation
  *   fallback, the shell hubs have none of their own.
+ * - Column sizing (owner 2026-10-21): the table rides fixed layout with a
+ *   colgroup — every column has a DEFAULT width (classes/created/edited/
+ *   isClass/isEmbedded/property kinds below) and the name column alone is
+ *   flexible, taking the table's remaining width (its 32ch floor stays).
+ *   Dragging a header divider commits a px width for that column (session-
+ *   state, like the rest of the table chrome), clamped to a minimum; the
+ *   divider is keyboard-reachable too (ArrowLeft/Right nudge 1ch). A crowded
+ *   table scrolls the wrap horizontally, never starves a column.
  * - CSV export: the toolbar "…" menu's "Export CSV"
  *   downloads the CURRENT view — the visible columns × the full sorted
  *   result set (the window is display-only, never an export cut) — through
@@ -67,7 +75,7 @@
  *   next to the Columns/Sort configurators.
  */
 
-import { useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { useContext, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { isRangeDatetimeValue, isReadonlyProperty, isValidTimeOfDay, parseDateNodeId, fullTitleOf } from "@notees/domain";
 import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
@@ -105,6 +113,26 @@ import "./TableView.css";
 
 /** Rows per window. */
 const ROW_WINDOW = 100;
+
+/**
+ * The drag clamp — every resizable column keeps at least this many px
+ * (≈8ch in the table font), the owner's "minimum size".
+ */
+const MIN_COLUMN_WIDTH = 72;
+
+/**
+ * The fixed-layout default share per column kind (ch units — the table
+ * font's character box; the property default rides the common header
+ * length). The NAME column returns undefined — it is the flexible one and
+ * takes the table's remaining width (its 32ch floor stays on the cell).
+ */
+function defaultColumnWidth(column: TableColumn): string | undefined {
+  if (column.kind === "name") return undefined;
+  if (column.kind === "classes") return "16ch";
+  if (column.kind === "created" || column.kind === "edited") return "12ch";
+  if (column.kind === "isClass" || column.kind === "isEmbedded") return "8ch";
+  return "18ch";
+}
 
 const DEFAULT_COLUMNS: TableColumn[] = [
   { id: "name", kind: "name", label: "Name", sortable: true },
@@ -881,10 +909,20 @@ export function TableView(props: NodeCollectionProps) {
   const setSort = (specs: SortSpec[]) => setSortState({ key: defaultSortKey, specs, chosen: true });
   const [hiddenColumns, setHiddenColumns] = useState<ReadonlySet<string>>(new Set());
   const [extraColumns, setExtraColumns] = useState<ReadonlySet<string>>(new Set());
+  /**
+   * Column resize (owner 2026-10-21): user-committed px widths, keyed by
+   * column id (stable across hide/show — hidden columns keep their width).
+   * Absent id = the default share rides. Session-local like the sort and
+   * the column visibility.
+   */
+  const [colWidths, setColWidths] = useState<ReadonlyMap<string, number>>(new Map());
+  const [resizing, setResizing] = useState<string | null>(null);
+  const resizeDrag = useRef<{ columnId: string; startX: number; startWidth: number } | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [exportSelection, setExportSelection] = useState<string[] | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
   const selectable = props.selectable ?? true;
 
   const rows = useMemo<TableRow[]>(
@@ -985,6 +1023,51 @@ export function TableView(props: NodeCollectionProps) {
       else next.add(id);
       return next;
     });
+
+  /**
+   * Column resize drag: pointerdown on a header divider claims the pointer
+   * (capture keeps the moves even past the cell edge); the width commits
+   * LIVE on every move (the visual feedback is the column itself), clamped
+   * to the minimum; pointerup (or cancel) ends the session.
+   */
+  const beginColumnResize = (event: ReactPointerEvent<HTMLSpanElement>, column: TableColumn) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const th = event.currentTarget.closest("th");
+    resizeDrag.current = {
+      columnId: column.id,
+      startX: event.clientX,
+      startWidth: th?.getBoundingClientRect().width ?? MIN_COLUMN_WIDTH,
+    };
+    setResizing(column.id);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveColumnResize = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const drag = resizeDrag.current;
+    if (drag === null) return;
+    const width = Math.max(MIN_COLUMN_WIDTH, Math.round(drag.startWidth + event.clientX - drag.startX));
+    setColWidths((prev) => {
+      if (prev.get(drag.columnId) === width) return prev;
+      const next = new Map(prev);
+      next.set(drag.columnId, width);
+      return next;
+    });
+  };
+  const endColumnResize = () => {
+    resizeDrag.current = null;
+    setResizing(null);
+  };
+  /** Keyboard resize: the divider is a focusable separator; arrows nudge. */
+  const nudgeColumnWidth = (column: TableColumn, delta: number) => {
+    setColWidths((prev) => {
+      const th = tableRef.current?.querySelector(`th[data-column-id="${column.id}"]`);
+      const current = prev.get(column.id) ?? th?.getBoundingClientRect().width ?? MIN_COLUMN_WIDTH;
+      const next = new Map(prev);
+      next.set(column.id, Math.max(MIN_COLUMN_WIDTH, Math.round(current + delta)));
+      return next;
+    });
+  };
   const allVisibleSelected = visible.length > 0 && visible.every((row) => selected.has(row.item.node.id));
   const someVisibleSelected = visible.some((row) => selected.has(row.item.node.id));
 
@@ -1242,7 +1325,14 @@ export function TableView(props: NodeCollectionProps) {
           (owner 2026-10-12); un-hosted: it rides the body top as before. */}
       {chromeTarget !== null ? createPortal(toolbar, chromeTarget) : toolbar}
       <OutlinerContext.Provider value={outliner}>
-      <table className="nt-table">
+      <table className={`nt-table${resizing !== null ? " nt-table--resizing" : ""}`} ref={tableRef}>
+        <colgroup>
+          {selectable && <col className="nt-table-select-col" />}
+          {visibleColumns.map((column) => {
+            const width = colWidths.get(column.id) ?? defaultColumnWidth(column);
+            return <col key={column.id} style={width === undefined ? undefined : { width }} />;
+          })}
+        </colgroup>
         <thead>
           <tr>
             {selectable && (
@@ -1266,9 +1356,11 @@ export function TableView(props: NodeCollectionProps) {
               // The sort register: every sorted column wears its direction
               // arrow; a multi-sort adds the priority index badge.
               const sortIndex = sort.findIndex((s) => s.key === column.id);
+              const committed = colWidths.get(column.id);
               return (
                 <th
                   key={column.id}
+                  data-column-id={column.id}
                   aria-sort={
                     sort.length === 1 && sort[0]!.key === column.id
                       ? sort[0]!.direction === "asc"
@@ -1280,6 +1372,7 @@ export function TableView(props: NodeCollectionProps) {
                   <button
                     type="button"
                     className={`nt-table-sort${sortIndex !== -1 ? " nt-table-sort--active" : ""}`}
+                    title={column.label}
                     onClick={() => cycleSort(column)}
                     disabled={column.sortable === false}
                   >
@@ -1296,6 +1389,30 @@ export function TableView(props: NodeCollectionProps) {
                       </>
                     )}
                   </button>
+                  {/* The resize divider (owner 2026-10-21): straddles the
+                      header's right edge; the drag commits a px width
+                      (minimum clamped), arrows nudge when focused. */}
+                  <span
+                    className="nt-table-resize"
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label={`Resize ${column.label}`}
+                    {...(committed !== undefined ? { "aria-valuenow": committed } : {})}
+                    tabIndex={0}
+                    onPointerDown={(event) => beginColumnResize(event, column)}
+                    onPointerMove={moveColumnResize}
+                    onPointerUp={endColumnResize}
+                    onPointerCancel={endColumnResize}
+                    onKeyDown={(event) => {
+                      if (event.key === "ArrowLeft") {
+                        event.preventDefault();
+                        nudgeColumnWidth(column, -16);
+                      } else if (event.key === "ArrowRight") {
+                        event.preventDefault();
+                        nudgeColumnWidth(column, 16);
+                      }
+                    }}
+                  />
                 </th>
               );
             })}
