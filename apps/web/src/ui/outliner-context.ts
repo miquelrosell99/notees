@@ -7,6 +7,8 @@
 
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 
+import { foldSearchText } from "@notees/store";
+
 import type { CaretPlacement } from "@/editor/caret.js";
 import type { OutlinePositionMap } from "@/editor/outline.js";
 import { buildOutlinePositions } from "@/editor/outline.js";
@@ -615,7 +617,7 @@ export function useOutlinerValue(
        * not already surface).
        */
       searchNodes: (query) => {
-        const q = query.trim().toLowerCase();
+        const q = foldSearchText(query.trim().toLowerCase());
         const pool = [
           ...client.listPages(),
           ...client.listClasses(),
@@ -626,7 +628,11 @@ export function useOutlinerValue(
           if (seen.has(node.id)) return false;
           seen.add(node.id);
           if (q === "") return true;
-          return (displayNameFromClient(client, node.id) ?? "").toLowerCase().includes(q);
+          // Diacritics fold on both sides (the store search mirror): `@video`
+          // surfaces the class "Vídeo".
+          return foldSearchText((displayNameFromClient(client, node.id) ?? "").toLowerCase()).includes(
+            q,
+          );
         });
       },
       listClasses: () => client.listClasses(),

@@ -15,6 +15,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { foldSearchText } from "@notees/store";
 
 import { clampOverlayLeft, flipOverlayTop } from "../editor-popups/overlay-position.js";
 import { Icon } from "../Icon.js";
@@ -93,10 +94,10 @@ export function TemplateListPopup({
   }, [client, version, familyReady]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = foldSearchText(query.trim().toLowerCase());
     if (q === "") return templates;
     return templates.filter((node) =>
-      (nodeDisplayName(node) ?? node.id).toLowerCase().includes(q),
+      foldSearchText((nodeDisplayName(node) ?? node.id).toLowerCase()).includes(q),
     );
   }, [templates, query]);
 

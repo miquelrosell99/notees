@@ -32,6 +32,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { chainNodeIds, parseDateNodeId, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
+import { foldSearchText } from "@notees/store";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import { nodeDisplayName } from "../../ui/dateDisplay.js";
@@ -417,14 +418,21 @@ export function NodeSelector({
     const raw = inlineFilters.query.trim();
     if (!/^class:/i.test(raw)) return { classId: null, query: inlineFilters.query };
     const rest = raw.slice("class:".length).trimStart();
-    const restLower = rest.toLowerCase();
+    const restLower = foldSearchText(rest.toLowerCase());
     const hit = client
       .listClasses()
-      .map((cls) => ({ cls, name: (nodeDisplayName(cls) || "").toLowerCase() }))
-      .filter((entry) => entry.name !== "" && (restLower === entry.name || restLower.startsWith(entry.name + " ")))
-      .sort((a, b) => b.name.length - a.name.length)[0];
+      .map((cls) => {
+        const raw = nodeDisplayName(cls) ?? "";
+        return { cls, raw, folded: foldSearchText(raw.toLowerCase()) };
+      })
+      .filter(
+        (entry) =>
+          entry.folded !== "" &&
+          (restLower === entry.folded || restLower.startsWith(entry.folded + " ")),
+      )
+      .sort((a, b) => b.folded.length - a.folded.length)[0];
     if (hit === undefined) return { classId: null, query: inlineFilters.query };
-    return { classId: hit.cls.id, query: rest.slice(hit.name.length) };
+    return { classId: hit.cls.id, query: rest.slice(hit.raw.length) };
   }, [client, inlineFilters.query, searchMode]);
 
   // Effective class ids: caller-side classFilters plus the refined class —
@@ -492,10 +500,10 @@ export function NodeSelector({
   // rides the results, checkmarked when assigned).
   const exactClassNameMatch = useMemo(() => {
     if (searchMode !== "classes" || effectiveQuery === "") return false;
-    const q = effectiveQuery.toLowerCase();
+    const q = foldSearchText(effectiveQuery.toLowerCase());
     return client
       .listClasses()
-      .some((cls) => (nodeDisplayName(cls) ?? "").toLowerCase() === q);
+      .some((cls) => foldSearchText((nodeDisplayName(cls) ?? "").toLowerCase()) === q);
   }, [client, searchMode, effectiveQuery]);
   const showCreateOption =
     !!effectiveCreateNew &&
@@ -606,13 +614,13 @@ export function NodeSelector({
   // class's members; "blocks" mode keeps only inline-body blocks — the
   // `((` block-linking candidate set.
   const searchResults = useMemo(() => {
-    const q = classRefine.query.trim().toLowerCase();
+    const q = foldSearchText(classRefine.query.trim().toLowerCase());
     if (searchMode === "classes") {
       const classes = client.listClasses().filter((node) => {
         if (!matchesInlineFilters(node)) return false;
         if (q === "") return true;
         const name = nodeDisplayName(node) ?? node.id;
-        return name.toLowerCase().includes(q);
+        return foldSearchText(name.toLowerCase()).includes(q);
       });
       return classes;
     }
