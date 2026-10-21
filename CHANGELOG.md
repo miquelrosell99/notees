@@ -7,6 +7,45 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(web): table columns have default + minimum sizes and draggable
+  dividers; the hosted tab bar's search field rides the sm height.**
+  Owner ruling (2026-10-21). The table switched to **fixed layout with a
+  colgroup**: every column has a DEFAULT width in ch units (name 32ch,
+  classes 16ch, created/edited 12ch, isClass/isEmbedded 8ch, properties
+  18ch) and a drag on a header divider commits a px width — live, clamped
+  to a 72px minimum, session-state like the sort and the column visibility;
+  the divider is keyboard-reachable too (ArrowLeft/Right nudge 16px). Fixed
+  layout makes the widths exact: cell content wraps inside its lane, spare
+  width distributes proportionally (the name column stays dominant), and a
+  crowded table scrolls the wrap horizontally — auto layout could not hold
+  this: it sized the table from content and, under column contention,
+  starved the name cell to its nested-flex min-content (the live probes
+  below). The quick-search pill in the hosted tab bar was huge (~52px in a
+  30px-button row): the fleet `SearchField` gained a proper `size="sm"`
+  (30px — the sm button height; md, the default, is unchanged everywhere
+  else) and the filter bar's inline field rides it.
+  - **Files**: `TableView.tsx` (the colgroup, the `colWidths` state, the
+    pointer-capture drag + the separator-keyboard nudge, the
+    `defaultColumnWidth`/`MIN_COLUMN_WIDTH` registers), `TableView.css`
+    (`table-layout: fixed`, the `.nt-table-resize` divider inside the
+    sticky header's clip, the `--resizing` cursor/user-select register, the
+    `overflow-wrap` guard; the td-level name floor removed — fixed layout
+    ignores it, the colgroup width is the claim), `SearchField.tsx` +
+    `.css` (the `size` prop: `h-button-sm` input via twMerge, the compound
+    `search-field--sm` zeroing the block padding), `FilterBar.tsx` (the
+    wide field passes `size="sm"`; the narrow popup keeps md).
+  - **Tests**: view-modes + windowing + the filter/query suites green
+    (174/174 across the eight table-adjacent files).
+  - **Docs**: `docs/features/views.md` (the table paragraph — the column
+    sizing contract).
+  - **Verification**: `pnpm --filter @notees/web typecheck` clean. Live
+    probes (`scripts/screenshots/colresize-probe.mjs` + the sparse-table
+    pass, TEST workspace): the search field measures 30px (row 32px); a
+    header drag commits 162→282px and clamps at 72px; the crowded 8-column
+    shape scrolls with the name lane at 288px; the sparse shape distributes
+    spare width proportionally (name 436px, dominant). `verify-min.mjs`
+    VERIFY-PASS after the scoped `notees-web` rebuild.
+
 - **feat(web): table name cells ARE block rows — links render as links,
   click edits inline, the hover tint is gone.** Owner ruling (2026-10-21).
   The collection table's Name cell retired its flattened-text button (a
