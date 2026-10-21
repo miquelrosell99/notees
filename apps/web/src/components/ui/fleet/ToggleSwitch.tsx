@@ -12,6 +12,11 @@
  * register. The calc'd track/thumb token math has no utility form (the
  * drift gate bans arbitrary values), so it rides inline styles referencing
  * the tokens — values stay token-owned.
+ *
+ * A11Y: the accessible name is an explicit `aria-label` when the caller
+ * names the control (the state rides aria-checked; the side labels stay
+ * visual) — otherwise it derives from BOTH side labels via labelledby
+ * (the v1 default).
  */
 import { forwardRef, type CSSProperties, type HTMLAttributes } from "react";
 import * as SwitchPrimitive from "@radix-ui/react-switch";
@@ -79,6 +84,15 @@ export const ToggleSwitch = forwardRef<HTMLButtonElement, ToggleSwitchProps>(
   ) {
     const leftId = `${props.id ?? "toggle"}-left`;
     const rightId = `${props.id ?? "toggle"}-right`;
+    /**
+     * The accessible-name contract: callers MAY name the control explicitly
+     * (aria-label — "Match ALL or ANY (group logic)" style; the state rides
+     * aria-checked, the side labels stay visual). Without one, the name
+     * derives from BOTH side labels via labelledby (the v1 default the
+     * existing call sites rely on). aria-labelledby would otherwise win
+     * over aria-label, so it is only set when no explicit name arrives.
+     */
+    const explicitName = props["aria-label"];
 
     const labelClasses = (active: boolean) =>
       cn(
@@ -93,7 +107,7 @@ export const ToggleSwitch = forwardRef<HTMLButtonElement, ToggleSwitchProps>(
         checked={checked}
         onCheckedChange={onChange}
         disabled={disabled}
-        aria-labelledby={`${leftId} ${rightId}`}
+        {...(explicitName === undefined ? { "aria-labelledby": `${leftId} ${rightId}` } : {})}
         className={cn(
           "relative inline-flex items-center gap-2 select-none bg-transparent p-0 border-0 text-inherit rounded-item",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-offset-micro",

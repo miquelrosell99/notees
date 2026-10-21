@@ -96,7 +96,7 @@ describe("S1 PropertyCreateModal — the payload composition", () => {
     fireEvent.change(optionInputs[1]!, { target: { value: "Romance" } });
     fireEvent.blur(optionInputs[1]!);
     // Scope: local to Fiction.
-    fireEvent.click(screen.getByRole("switch", { name: /Local to classes/ }));
+    fireEvent.click(screen.getByRole("switch", { name: "Property scope" }));
     await pickClass("Scope classes", "Fiction");
     // Confirm.
     fireEvent.click(screen.getByRole("button", { name: "Create Property" }));
@@ -167,7 +167,7 @@ describe("S1 PropertyCreateModal — the payload composition", () => {
     const client = await seedClient();
     render(<PropertyCreateModal isOpen client={client} onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText("Property name"), { target: { value: "ISBN" } });
-    fireEvent.click(screen.getByRole("switch", { name: /Local to classes/ }));
+    fireEvent.click(screen.getByRole("switch", { name: "Property scope" }));
     const create = screen.getByRole("button", { name: "Create Property" }) as HTMLButtonElement;
     expect(create.disabled).toBe(true);
   });
