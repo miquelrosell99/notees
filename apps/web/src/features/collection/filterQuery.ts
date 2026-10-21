@@ -83,7 +83,7 @@ export interface FilterBarConfig {
  * an empty schemaId, created/updated with a blank timestamp, static
  * link/parent with no node picked), nested groups recurse (emptied ones
  * drop), a not drops when its child pruned away, and the DYNAMIC
- * link/parent sets drop when their nested group pruned to empty. Anything
+ * link/parent/class/tags sets drop when their nested group pruned to empty. Anything
  * fully specified — isClass, isEmbedded, the wire-field predicates —
  * survives verbatim.
  */
@@ -148,7 +148,9 @@ function pruneChild(child: Child): Child | null {
     case "rootInQuery":
     case "parentOfQuery":
     case "childOfQuery":
-    case "referencePathOfQuery": {
+    case "referencePathOfQuery":
+    case "classAnyQuery":
+    case "tagAnyQuery": {
       const nested = pruneChild(child.root);
       return nested === null || (nested.type === "group" && nested.children.length === 0)
         ? null
@@ -273,11 +275,11 @@ export function filterKindOptionsForConfig(config?: FilterBarConfig): readonly F
 export function createCondition(kind: ConditionKind): Condition {
   switch (kind) {
     case "class":
-      // The default CLASS row rides the MEMBERSHIP register (superseding the 2026-10-16 exact-register default):
-      // "Class contains Day" — the class among others, extends-aware — is
-      // the intent nearly always; exact set equality ("is") is the
-      // deliberate narrow reading behind its own operator.
-      return { type: "class", classId: "" };
+      // The default CLASS row rides the MULTI-VALUE membership register
+      //: "Class contains Day, Week" — closure-aware
+      // ANY-of over the picked list — is the intent nearly always; the exact
+      // single-pill reading ("is") is the deliberate narrow operator.
+      return { type: "classAny", classIds: [] };
     case "type":
       return { type: "isClass", isClass: true };
     case "placement":
@@ -287,9 +289,13 @@ export function createCondition(kind: ConditionKind): Condition {
     case "property":
       return { type: "property", schemaId: "", op: "eq", value: "" };
     case "tags":
-      return { type: "tag", tagId: "" };
+      // The default TAGS row binds the LIST:
+      // "Tags is Urgent, Later" — ANY-of over the picked tags.
+      return { type: "tagAny", tagIds: [] };
     case "links":
-      return { type: "linkedTo", nodeId: "" };
+      // The default LINKS row binds the LIST:
+      // "Links is Alpha, Beta" — ANY-of over the picked nodes.
+      return { type: "linkedToAny", nodeIds: [] };
     case "referencePath":
       return { type: "referencePathOf", nodeIds: [] };
     case "parent":

@@ -140,6 +140,12 @@ export type Condition =
   /** The class set is non-empty (Odoo "is defined"/"is set"); the not-wrap reads "is not set". */
   | { type: "classSet" }
   /**
+   * DYNAMIC class: closure-aware membership of ANY class matching the nested
+   * group — the dynamic form of classAny ("classed as anything matching …").
+   * A saved view re-resolves the nested query on every run, never baked uuids.
+   */
+  | { type: "classAnyQuery"; root: Group }
+  /**
    * The CONTAINING PAGE (the nearest self-or-ancestor rendering with document
    * chrome — a class, a parentless node, or an is_embedded=0 node under a
    * page-role parent) IS ONE OF the picked nodes (v1's Page block, static
@@ -226,6 +232,8 @@ export type Condition =
   | { type: "tagAny"; tagIds: string[] }
   /** At least one tag rides the node. */
   | { type: "tagSet" }
+  /** DYNAMIC tags: tagged with ANY tag matching the nested group. */
+  | { type: "tagAnyQuery"; root: Group }
   /** backlinksWithRollup membership of ANY picked node (the links "one of"). */
   | { type: "linkedToAny"; nodeIds: string[] }
   /** At least one inbound link (a direct edge targets the node). */
@@ -291,6 +299,8 @@ export const conditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("classAny"), classIds: z.array(uuid).min(1) }).strict(),
   /** The class set is non-empty (Odoo "is set"); the not-wrap reads "is not set". */
   z.object({ type: z.literal("classSet") }).strict(),
+  /** DYNAMIC class: closure-aware membership of ANY class matching the nested group. */
+  z.object({ type: z.literal("classAnyQuery"), root: groupSchema }).strict(),
   /**
    * Ancestor-chain membership (the "parent is X, anywhere up the tree"
    * condition): subtree membership minus the anchor itself.
@@ -331,6 +341,8 @@ export const conditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("tag"), tagId: uuid }).strict(),
   z.object({ type: z.literal("tagAny"), tagIds: z.array(uuid).min(1) }).strict(),
   z.object({ type: z.literal("tagSet") }).strict(),
+  /** DYNAMIC tags: tagged with ANY tag matching the nested group. */
+  z.object({ type: z.literal("tagAnyQuery"), root: groupSchema }).strict(),
   /** Node-target ANY-of + set shapes (the class operator set over links/parent). */
   z.object({ type: z.literal("linkedToAny"), nodeIds: z.array(uuid).min(1) }).strict(),
   z.object({ type: z.literal("linkSet") }).strict(),

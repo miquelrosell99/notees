@@ -123,6 +123,8 @@ function leafNeedsProbe(condition: QueryAst["root"]["children"][number]): boolea
   if (condition.type === "childOfQuery") return true;
   if (condition.type === "referencePathOf") return true;
   if (condition.type === "referencePathOfQuery") return true;
+  if (condition.type === "classAnyQuery") return true;
+  if (condition.type === "tagAnyQuery") return true;
   if (condition.type === "content" && condition.op === "fts") return true;
   return false;
 }
