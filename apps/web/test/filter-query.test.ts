@@ -114,9 +114,10 @@ describe("the FilterQuery shape", () => {
   });
 
   it("createCondition seeds a half-typed default per family", () => {
-    // The class family's default row rides the EXACT register: "Class is Day" = the set is exactly
-    // Day — membership ("contains") is a separate operator choice.
-    expect(createCondition("class")).toEqual({ type: "classExact", classId: "" });
+    // The class family's default row rides the MEMBERSHIP register: "Class contains Day" = the class among others,
+    // extends-aware — the exact-set reading ("is") is the deliberate narrow
+    // operator, no longer the default.
+    expect(createCondition("class")).toEqual({ type: "class", classId: "" });
     expect(createCondition("type")).toEqual({ type: "isClass", isClass: true });
     expect(createCondition("placement")).toEqual({ type: "isEmbedded", isEmbedded: false });
     expect(createCondition("content")).toEqual({ type: "content", op: "contains", value: "" });

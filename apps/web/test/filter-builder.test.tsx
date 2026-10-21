@@ -278,9 +278,9 @@ describe("the block query builder", () => {
 
     const panel = openPanel(section);
     addCondition(panel, /^Class/);
-    // The default CLASS operator is the EXACT register:
-    // Gamma rides [project, client], so exact {client} would miss it — the
-    // membership reading ("contains") is the AND-of-one intent here.
+    // Gamma rides [project, client], so the membership reading ("contains"
+    // — also the row's default since) is the AND-of-one
+    // intent here; exact {client} would miss it.
     pickOption(panel, "Operator", "contains", 0);
     pickOption(panel, "Class", "client");
     expect(tableRowCount()).toBe(1); // AND of one: only the double-classed Gamma.
@@ -387,8 +387,8 @@ describe("the block query builder", () => {
     const dynamic = ast.root.children.find((child) => child.type === "linkedToQuery");
     expect(dynamic).toBeDefined();
     const nestedGroup = (dynamic as { root: { children: Array<{ type: string }> } }).root;
-    // The nested Class row rides the default EXACT register (classExact).
-    expect(nestedGroup.children.map((child) => child.type)).toEqual(["classExact", "property"]);
+    // The nested Class row rides the default MEMBERSHIP register (class).
+    expect(nestedGroup.children.map((child) => child.type)).toEqual(["class", "property"]);
     const table = screen.getAllByRole("table")[0]!;
     expect(within(table).getByText("Linker")).not.toBeNull();
     expect(within(table).queryByText("Plain")).toBeNull();
@@ -449,7 +449,7 @@ describe("the block query builder", () => {
       return { projectId, journalId, clientId, dayish, plain };
     }
 
-    it("Class is rides the EXACT register; contains reads membership", async () => {
+    it("Class contains reads membership by default; is rides the EXACT register", async () => {
       const client = await seedClient();
       const { projectId } = await seedContainerWorld(client);
       render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
@@ -458,15 +458,16 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Class/);
-      // Default operator "is" = exact set equality: Dual rides [project,
-      // client], so exact {project} keeps only the two single-classed rows.
+      // Default operator "contains" = hierarchy-aware membership: the class
+      // among others — Dual rides [project, client], so all three stay.
       pickOption(panel, "Class", "project");
+      expect(tableRowCount()).toBe(3);
+
+      // "is" = exact set equality: exact {project} keeps only the two
+      // single-classed rows.
+      pickOption(panel, "Operator", "is");
       expect(tableRowCount()).toBe(2);
       expect(within(section).queryByText("Dual")).toBeNull();
-
-      // "contains" is hierarchy-aware membership: the class among others.
-      pickOption(panel, "Operator", "contains");
-      expect(tableRowCount()).toBe(3);
     });
 
     it("one of matches ANY picked class (the multi pick); not one of negates", async () => {
@@ -547,7 +548,8 @@ describe("the block query builder", () => {
       const nested = panel.querySelector(".nt-fb-block__nested") as HTMLElement;
       expect(nested).not.toBeNull();
       addCondition(nested, /^Class /);
-      // Class default is the exact register; membership ("contains") is the intent.
+      // Membership ("contains") is the intent — picked explicitly here, and
+      // the Class row's default operator since.
       pickOption(nested, "Operator", "contains", 0);
       pickOption(nested, "Class", "journal");
       // The dynamic container rides the probe path — the membership set

@@ -7,6 +7,53 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): every dropdown menu item wears the disabled look — and none of
+  them click.** The cmdk rebuild (2026-10-19, the catalog-combobox Dropdown)
+  inherited the shadcn `CommandItem` classes `data-[disabled]:opacity-50
+  data-[disabled]:pointer-events-none` — and cmdk 1.x renders
+  `data-disabled="false"` on EVERY item (React stringifies the boolean, so
+  the attribute is present even when the item is enabled). This repo's
+  Tailwind v3 bridge compiles the bare `data-[disabled]` form to a presence
+  selector (`[data-disabled]`), so every option of every fleet Dropdown —
+  enabled or not — rendered at 50% opacity with pointer-events off. Live
+  symptom: in the structured-filters panel the Class block's
+  operator options all read greyed and unclickable; jsdom never caught it
+  (fireEvent bypasses pointer-events; no computed-style assertion). The
+  classes now pin the value — `data-[disabled="true"]:opacity-50
+  data-[disabled="true"]:pointer-events-none` — matching only the real
+  state. A source-level register test
+  (`test/cmdk-disabled-register.test.ts`, the css-token-drift pattern) fails
+  the build if the presence form returns to the cmdk surface. (The Radix
+  primitives — dropdown-menu/select — keep the bare form on purpose: Radix
+  renders the attribute only when the state fires.)
+  - **Files**: `apps/web/src/components/ui/command.tsx` (the CommandItem
+    class string), `apps/web/test/cmdk-disabled-register.test.ts` (the gate).
+  - **Verification**: live probe (`scripts/screenshots/operator-probe.mjs`):
+    before — every `.dropdown-option` computed `opacity: 0.5` +
+    `pointer-events: none`, `elementFromPoint` missed the item, a real click
+    on "contains" left the operator at "is"; after — the option rows render
+    full-opacity and clickable. jsdom suites green (filter-builder,
+    filter-layer, filter-query, the new register gate).
+
+- **refine(web): the Class filter block defaults to "contains", not "is".**
+  the m2m families' block creation defaults to the membership
+  reading. For **Class** the default condition is now `class` (closure
+  membership — "the class among others", extends-aware); "is" stays
+  available as the deliberate narrow exact-set-equality reading. The other
+  node-target families need no change: their single-target "is" already
+  compiles to membership (`linkedTo`/`tag` are EXISTS-over-the-set probes —
+  there is no exact-set trap there). `createCondition("class")` returns
+  `{ type: "class", classId: "" }`; the builder tests now assert
+  contains-by-default and pick "is" explicitly for the exact-register case.
+  - **Files**: `apps/web/src/features/collection/filterQuery.ts`
+    (`createCondition`), `apps/web/test/filter-builder.test.tsx`,
+    `apps/web/test/filter-layer.test.tsx`, `apps/web/test/filter-query.test.ts`
+    (the default assertions + comments).
+  - **Verification**: `vitest run test/filter-builder.test.tsx
+    test/filter-layer.test.tsx test/filter-query.test.ts` green — the
+    Class-default test now reads: default "contains" keeps all three rows,
+    switching to "is" drops the double-classed row.
+
 - **fix(web): the node picker searches live, says when it's thinking, links
   what it creates — and the sigils fire after punctuation.** Three reported
   defects, one root each. (1) *Stale results:* the picker never subscribed to
