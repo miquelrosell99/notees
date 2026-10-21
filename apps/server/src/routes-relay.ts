@@ -20,6 +20,8 @@ import { AppError } from "./errors.js";
 import type { Principal } from "./identity.js";
 import { resolvePrincipal } from "./routes-auth.js";
 import { RelayValidationError, validateRelayBatch } from "./validate.js";
+import { countSnapshotNodes } from "./relay-storage.js";
+import { SNAPSHOT_REBUILD_MIN_ENVELOPES } from "./workspace-store.js";
 
 const WS_PROTOCOL_VERSION = 2;
 
@@ -213,6 +215,24 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     const body = request.body;
     if (!Buffer.isBuffer(body) || body.length === 0) {
       throw new AppError(422, "validation_failed", "snapshot data must be a non-empty binary body");
+    }
+    // The sanity gate: for a workspace with a
+    // real log, the uploaded checkpoint must be a parseable derived store
+    // WITH node rows — an empty-store upload (a wiped/broken/old-device
+    // client) would otherwise replace the good snapshot and blank every
+    // fresh client's restore. Small logs stay exempt (a fresh workspace's
+    // empty checkpoint is legitimate; the threshold mirrors the server's
+    // own post-replay self-heal).
+    if (ctx.relay.envelopeCount(workspaceId) > SNAPSHOT_REBUILD_MIN_ENVELOPES) {
+      const nodes = countSnapshotNodes(body);
+      if (nodes === null || nodes === 0) {
+        throw new AppError(
+          422,
+          "validation_failed",
+          "snapshot failed the sanity gate: not a derived store with node rows, " +
+            `but the workspace log carries ${ctx.relay.envelopeCount(workspaceId)} envelopes — refusing to replace the checkpoint`,
+        );
+      }
     }
     const snapshotId = uuidv7();
     const upToSeq = ctx.relay.latestSeq(workspaceId);
