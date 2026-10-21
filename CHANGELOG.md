@@ -8,6 +8,24 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-21
+- **fix(server)!: the snapshot-upload sanity gate — an empty/garbage client
+  checkpoint can no longer blank a workspace for every fresh client (the live workspace read empty).** Root cause: `PUT
+  /snapshot/data` accepted ANY authenticated bytes; an old-device client
+  (pre-global-default build) wiped on the restore-epoch bump, failed its
+  resync, and uploaded its EMPTY store covering the log tip — `saveSnapshot`
+  then replaced the good 124 MB checkpoint (retention keeps only the newest)
+  and every fresh client restored empty + no tail. The log and the server's
+  derived state were untouched throughout (33 k nodes); the fix rides the
+  existing recovery (bad snapshot dropped, epoch bumped, clients re-sync).
+  The gate: for a workspace whose log exceeds `SNAPSHOT_REBUILD_MIN_ENVELOPES`
+  (1000 — the server's own self-heal threshold), the uploaded bytes must be a
+  parseable derived store (SQLite magic fast path, read-only probe on a temp
+  copy) WITH node rows, else 422 and the previous checkpoint survives.
+  Small logs stay exempt (a fresh workspace's empty checkpoint is legal).
+  `@notees/store` gains the `./better-sqlite3` export (tsup entry + package
+  exports) so the server tests can build store bytes. Tests: the gate's three
+  reject/accept arms + the small-log exemption, and the rebuilt-snapshot
+  suite's client-upload now sends healthy bytes. Server suite green (236).
 - **fix(web): the calendar popups' ‹ › period arrows render and size to the
   catalogue.** Two defects, one root: the nav arrows were raw feature-code
   buttons — in the top-bar CalendarPopup and the Calendar view's MonthCalendar
