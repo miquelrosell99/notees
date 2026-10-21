@@ -33,12 +33,34 @@ import { ButtonWithPanel } from "../../components/ui/fleet/ButtonWithPanel.js";
 import { SearchField } from "../../components/ui/fleet/SearchField.js";
 import { FilterBlockBuilder } from "./FilterBlockBuilder.js";
 import {
+  createSectionView,
+  useSectionViews,
+} from "./sectionViews.js";
+import { autoViewName } from "./SectionViewTabs.js";
+import {
   EMPTY_FILTER_QUERY,
+  filterQueryToGroup,
   isFilterInactive,
   type FilterBarConfig,
   type FilterQuery,
 } from "./filterQuery.js";
+import type { HostedSectionKey } from "@/core/workspace-client/index.js";
 import "./FilterBar.css";
+
+/**
+ * The "Save as tab" wiring: when the host section
+ * knows its hosted-views identity, the structured panel offers one click to
+ * persist the pruned draft as a new section view (a new tab refining the
+ * section's rows with the query) and select it. `onSaved` is the host's tab
+ * select (the tab state lives at the host, lifted through NodeCollection's
+ * controlled hostedViews).
+ */
+export interface FilterViewSaver {
+  client: AnyClient;
+  nodeId: string;
+  sectionKey: HostedSectionKey;
+  onSaved: (viewId: string) => void;
+}
 
 export interface FilterBarProps {
   client: AnyClient;
@@ -49,8 +71,16 @@ export interface FilterBarProps {
   config?: FilterBarConfig | undefined;
   /** The filtered row count — null while the section is unresolved. */
   matchCount: number | null;
-  /** The UNFILTERED row count the query runs over — null while unresolved. */
+  /**
+   * The UNFILTERED row count the query runs over — null while unresolved.
+   */
   totalCount: number | null;
+  /**
+   * "Save as tab" persistence (optional): set by hosted sections with the
+   * hosted-views identity at hand; renders the panel's save button while
+   * the composed draft is non-empty.
+   */
+  viewSaver?: FilterViewSaver | undefined;
   /**
    * "block" (default) renders the bar as its own body-top row; "inline"
    * renders it inside a toolbar row (a ViewToolbar or the hosted tab bar's
@@ -63,7 +93,7 @@ export interface FilterBarProps {
   layout?: "block" | "inline" | undefined;
 }
 
-export function FilterBar({ client, value, onChange, config, matchCount, totalCount, layout = "block" }: FilterBarProps) {
+export function FilterBar({ client, value, onChange, config, matchCount, totalCount, viewSaver, layout = "block" }: FilterBarProps) {
   const [panelOpen, setPanelOpen] = useState(false);
   /**
    * The narrow-viewport fold: at ≤768px the permanent
@@ -72,6 +102,30 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
    * toggling, Escape/outside dismissal). Wide widths keep the inline field.
    */
   const narrowSearch = useMediaQuery("(width <= 768px)");
+
+  // The "Save as tab" source: the section's existing views name the new
+  // one (autoViewName), the shared cache keeps this subscription cheap.
+  const { views } = useSectionViews(
+    viewSaver !== undefined ? viewSaver.client : null,
+    viewSaver?.nodeId ?? "",
+    viewSaver?.sectionKey ?? "linked-references",
+  );
+  /** The composed draft — the save button rides only while it survives pruning. */
+  const composedGroup = viewSaver !== undefined ? filterQueryToGroup(value) : null;
+
+  const saveAsTab = async (): Promise<void> => {
+    if (viewSaver === undefined || composedGroup === null) return;
+    const view = await createSectionView(viewSaver.client, viewSaver.nodeId, viewSaver.sectionKey, {
+      name: autoViewName(views),
+      queryAst: { version: 1, scope: { type: "entire_workspace" }, root: composedGroup },
+    });
+    if (view === null) return; // the write failed — the views chrome surfaces it
+    viewSaver.onSaved(view.id);
+    // The new tab owns the query now — the transient draft clears (the
+    // modal's Run behavior).
+    onChange(EMPTY_FILTER_QUERY);
+    setPanelOpen(false);
+  };
 
   const showText = config?.text ?? true;
   const showClass = config?.class ?? true;
@@ -162,11 +216,24 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
           role="group"
           aria-label="Structured filters"
         >
-          {matchCount !== null && totalCount !== null && (
-            <p className="nt-filter-bar__result">
-              {matchCount} of {totalCount} rows match
-            </p>
-          )}
+          <div className="nt-filter-bar__panel-head">
+            {matchCount !== null && totalCount !== null && (
+              <p className="nt-filter-bar__result">
+                {matchCount} of {totalCount} rows match
+              </p>
+            )}
+            {viewSaver !== undefined && composedGroup !== null && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon="mdi mdi-tab-plus"
+                aria-label="Save as tab"
+                title="Save this filter as a new tab"
+                onClick={() => void saveAsTab()}
+              />
+            )}
+          </div>
           <FilterBlockBuilder
             client={client}
             group={value.group}

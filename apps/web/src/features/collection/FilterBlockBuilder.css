@@ -14,6 +14,32 @@
   font: var(--font-body-small);
 }
 
+/* --- the blocks ⇄ raw toggle -------------------- */
+
+/* The slim viewbar rides the ROOT builder only, the toggle right-aligned. */
+.nt-fb__viewbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.nt-fb__raw {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+/* The exchange editor: the COMPOSED query as JSON — a real editing surface,
+   not a one-line peek. */
+.nt-fb__raw .code-textarea {
+  min-height: 12em;
+}
+
+.nt-fb__raw-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* --- the group -------------------------------------------------------- */
 
 .nt-fb-group {

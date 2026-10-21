@@ -59,6 +59,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import {
   QUERY_PLACEHOLDERS,
+  groupSchema,
   type Child,
   type Condition,
   type Group,
@@ -70,6 +71,7 @@ import type { AnyClient } from "./index.js";
 import { Icon } from "../../ui/Icon.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { ButtonWithPanel } from "../../components/ui/fleet/ButtonWithPanel.js";
+import { CodeTextarea } from "../../components/ui/fleet/CodeTextarea.js";
 import { Dropdown, type DropdownOption } from "../../components/ui/fleet/Dropdown.js";
 import { GridMenu } from "../../components/ui/fleet/GridMenu.js";
 import { Input } from "../../components/ui/fleet/Input.js";
@@ -79,6 +81,7 @@ import { useBuilderFacts, type BuilderFacts } from "./QueryBuilderFields.js";
 import {
   createCondition,
   filterKindOptionsForConfig,
+  filterQueryToGroup,
   type AddMenuEntry,
   type FilterBarConfig,
 } from "./filterQuery.js";
@@ -114,6 +117,18 @@ export function FilterBlockBuilder({ client, group, onChange, config }: FilterBl
   /** The placeholder datalist, rendered once, useId-scoped. */
   const datalistId = useId();
   /**
+   * The blocks ⇄ raw AST toggle: the raw mode is
+   * the EXCHANGE format — copy a query out, paste one in (another section,
+   * node, tab). It rides the COMPOSED group: switching to raw serializes
+   * the pruned draft (`filterQueryToGroup`), so half-typed rows drop; Apply
+   * validates against the wire `groupSchema` and replaces the whole draft.
+   */
+  const [view, setView] = useState<"blocks" | "raw">("blocks");
+  const [rawText, setRawText] = useState("");
+  const [rawError, setRawError] = useState<string | null>(null);
+  /** The raw editor's label association (the kit CodeTextarea's htmlFor). */
+  const rawId = useId();
+  /**
    * The add menu expands to this width — the builder container's (the
    * the popup reads as wide as the query builder it feeds).
    */
@@ -128,6 +143,36 @@ export function FilterBlockBuilder({ client, group, onChange, config }: FilterBl
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  const toRawText = (): string =>
+    JSON.stringify(
+      filterQueryToGroup({ text: "", group }) ?? { type: "group", logic: "and", children: [] },
+      null,
+      2,
+    );
+
+  const applyRaw = (): void => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch (error) {
+      setRawError(`Invalid JSON — ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
+    const result = groupSchema.safeParse(parsed);
+    if (!result.success) {
+      const issue = result.error.issues[0]!;
+      const where = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
+      setRawError(`Not a query group — ${where}${issue.message}`);
+      return;
+    }
+    onChange(result.data);
+    // Feedback the apply landed: the normalized JSON re-serializes into the
+    // textarea (the draft it came from may have been formatted differently).
+    setRawText(JSON.stringify(result.data, null, 2));
+    setRawError(null);
+  };
+
   return (
     <div className="nt-fb" ref={rootRef}>
       <datalist id={datalistId}>
@@ -135,16 +180,62 @@ export function FilterBlockBuilder({ client, group, onChange, config }: FilterBl
           <option key={placeholder} value={placeholder} />
         ))}
       </datalist>
-      <GroupBlock
-        group={group}
-        onChange={onChange}
-        depth={0}
-        client={client}
-        facts={facts}
-        config={config}
-        datalistId={datalistId}
-        menuWidth={menuWidth}
-      />
+      {/* The view toggle rides the ROOT builder only (nested groups never
+          show it) — right-aligned slim row. */}
+      <div className="nt-fb__viewbar">
+        <SelectionButton
+          size="sm"
+          aria-label="Builder view"
+          options={[
+            { value: "blocks", icon: "mdi mdi-toy-brick-outline", label: "Blocks" },
+            { value: "raw", icon: "mdi mdi-code-braces", label: "Raw AST" },
+          ]}
+          value={view}
+          onChange={(next) => {
+            if (next === "raw") {
+              setRawText(toRawText());
+              setRawError(null);
+            }
+            setView(next as "blocks" | "raw");
+          }}
+        />
+      </div>
+      {view === "raw" ? (
+        <div className="nt-fb__raw">
+          <CodeTextarea
+            id={rawId}
+            value={rawText}
+            onChange={(next) => {
+              setRawText(next);
+              setRawError(null);
+            }}
+            label="Query AST (JSON)"
+            error={rawError !== null}
+            spellCheck={false}
+          />
+          <div className="nt-fb__raw-actions">
+            <Button type="button" size="sm" onClick={applyRaw}>
+              Apply
+            </Button>
+          </div>
+          {rawError !== null && (
+            <p className="nt-error" role="alert">
+              {rawError}
+            </p>
+          )}
+        </div>
+      ) : (
+        <GroupBlock
+          group={group}
+          onChange={onChange}
+          depth={0}
+          client={client}
+          facts={facts}
+          config={config}
+          datalistId={datalistId}
+          menuWidth={menuWidth}
+        />
+      )}
     </div>
   );
 }

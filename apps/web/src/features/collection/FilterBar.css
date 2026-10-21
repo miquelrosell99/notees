@@ -69,6 +69,18 @@
   background: var(--md-sys-color-surface-container);
 }
 
+.nt-filter-bar__panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+/* The result line takes the free space; the "Save as tab" button rides the
+   row's right edge. */
+.nt-filter-bar__panel-head > .nt-filter-bar__result {
+  flex: 1;
+}
+
 .nt-filter-bar__result {
   margin: 0;
   color: var(--md-sys-color-on-surface-variant);

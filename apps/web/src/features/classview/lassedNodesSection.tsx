@@ -52,6 +52,7 @@ import {
 } from "../collection/filterQuery.js";
 import { useSectionData, type SectionRowFilter } from "../collection/useSectionData.js";
 import { NodeCollection, ViewSwitcher } from "../collection/index.js";
+import { SECTION_DEFAULT_TAB } from "../collection/SectionViewTabs.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../collection/index.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -107,6 +108,14 @@ export function ClassedNodesSection({
    * stays UNFILTERED.
    */
   const [memberFilter, setMemberFilter] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
+  /**
+   * The hosted tab state, lifted: "Save as tab"
+   * persists the structured draft as a section view and must SELECT the new
+   * tab — the tab state lives here now, handed to the collection as a
+   * controlled hostedViews (NodeCollection keeps its internal state when
+   * the control props are absent).
+   */
+  const [tab, setTab] = useState<string>(SECTION_DEFAULT_TAB);
   const memberFilterActive = useMemo<SectionRowFilter<ClientNode> | undefined>(() => {
     if (isFilterInactive(memberFilter)) return undefined;
     // The quick text narrows the pool by the ranked search before the
@@ -246,7 +255,7 @@ export function ClassedNodesSection({
           }}
           trailingAction={unassignAction}
           emptyTitle="No classed nodes."
-          hostedViews={{ nodeId: classId, sectionKey: "classed-nodes" }}
+          hostedViews={{ nodeId: classId, sectionKey: "classed-nodes", selected: tab, onSelectTab: setTab }}
           tabBarTrailing={
             <>
               <ViewSwitcher modes={modes} value={membersMode} onChange={setMembersMode} />
@@ -257,6 +266,7 @@ export function ClassedNodesSection({
                 onChange={setMemberFilter}
                 matchCount={members.length}
                 totalCount={total}
+                viewSaver={{ client, nodeId: classId, sectionKey: "classed-nodes", onSaved: setTab }}
               />
             </>
           }
