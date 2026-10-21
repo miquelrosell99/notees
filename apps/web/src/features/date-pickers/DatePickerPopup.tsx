@@ -42,6 +42,7 @@ import { createPortal } from "react-dom";
 import { isValidTimeOfDay, type DatePrecision } from "@notees/domain";
 
 import { Icon } from "../../ui/Icon.js";
+import { Button } from "../../components/ui/fleet/Button.js";
 import { parseDate } from "./dateParser.js";
 import { useViewportPosition } from "../pickers/useViewportPosition.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
@@ -544,14 +545,13 @@ export function DatePickerPopup({
           {/* month ⌄ / year ⌄ dropdown header + ‹ › navigation */}
           <div className="calendar-header date-picker-header">
             <div className="calendar-nav-row">
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="mdi-chevron-left"
                 aria-label="Previous"
-                className="calendar-nav-btn"
                 onClick={goPrev}
-              >
-                <Icon path="mdi-chevron-left" size={0.7} />
-              </button>
+              />
               <div className="calendar-title">
                 {mode === "days" && (
                   <>
@@ -592,14 +592,13 @@ export function DatePickerPopup({
                   </span>
                 )}
               </div>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="mdi-chevron-right"
                 aria-label="Next"
-                className="calendar-nav-btn"
                 onClick={goNext}
-              >
-                <Icon path="mdi-chevron-right" size={0.7} />
-              </button>
+              />
             </div>
           </div>
 

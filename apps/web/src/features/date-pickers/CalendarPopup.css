@@ -37,27 +37,6 @@
   flex-shrink: 0;
 }
 
-.calendar-nav-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: var(--button-icon-only-sm);
-  height: var(--button-icon-only-sm);
-  aspect-ratio: 1;
-  background: none;
-  border: none;
-  font-size: var(--font-size-lg);
-  cursor: pointer;
-  border-radius: var(--shape-small);
-  color: var(--md-sys-color-on-surface);
-  transition: background var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.calendar-nav-btn:hover {
-  background: var(--md-sys-color-hover-overlay);
-}
-
 .calendar-title {
   display: flex;
   flex: 1;

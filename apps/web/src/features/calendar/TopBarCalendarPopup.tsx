@@ -74,9 +74,13 @@ export function CalendarPopup({
     <div className="calendar-popup" role="dialog" aria-label="Calendar" ref={popupRef} style={style}>
       <div className="calendar-header">
         <div className="calendar-nav-row">
-          <button type="button" className="calendar-nav-btn" aria-label="Previous period" onClick={goPrev}>
-            <span className="mdi mdi-chevron-left" aria-hidden="true" />
-          </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="mdi-chevron-left"
+            aria-label="Previous period"
+            onClick={goPrev}
+          />
           <div className="calendar-title">
             {mode === "days" && (
               <>
@@ -114,9 +118,13 @@ export function CalendarPopup({
               </span>
             )}
           </div>
-          <button type="button" className="calendar-nav-btn" aria-label="Next period" onClick={goNext}>
-            <span className="mdi mdi-chevron-right" aria-hidden="true" />
-          </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="mdi-chevron-right"
+            aria-label="Next period"
+            onClick={goNext}
+          />
         </div>
         <div className="calendar-zoom">
           <SelectionButton
