@@ -14,13 +14,18 @@
  * 2026-10-20 icon-only visible-register ruling now extends to text buttons
  *.
  *
- * min-height/min-width 0 here ride the legacy `btn` hook class in UNLAYERED
- * feature CSS, which beats the layered utilities regardless of source order
- * (the utility-layer min-h-0 vs min-h-touch race is order-fragile —
- * measured live).
+ * min-height/min-width 0 here ride the legacy `btn` hook class — measured
+ * live (button-shape probe): the utility layer's
+ * `min-h-touch` WINS the order race against a single-class `.btn` reset
+ * (both (0,1,0), utilities emitted unlayered and later), so the 146dd7623
+ * widening of this reset from `.btn.btn--icon-only` to `.btn` silently
+ * re-bloated every visible box back to the 48dp floor (32x48 icon buttons).
+ * The doubled `.btn.btn` restores the pre-change (0,2,0) specificity edge
+ * while keeping the reset on EVERY button (text buttons included — their
+ * visible box rides the size token exactly like the icon-only register).
  */
 
-.btn {
+.btn.btn {
   min-width: 0;
   min-height: 0;
 }
