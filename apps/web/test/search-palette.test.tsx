@@ -15,6 +15,9 @@
  *  - NodeSelector: a leading `class:<name>` prefix refines candidates
  *    to that class's members, and the create row answers the rest of the
  *    query carrying the refined class;
+ *  - NodeSelector: the classes tab, the exact-name create-row suppression
+ *    and the `class:` refine all fold diacritics (the store search mirror):
+ *    "video" matches the class "Vídeo";
  *  - NodeSelector: searchMode="blocks" lists only inline blocks, each
  *    labeled with its containing-page path.
  */
@@ -440,6 +443,48 @@ describe("NodeSelector class refine", () => {
       expect(created).not.toBeUndefined();
       expect(created!.classIds).toContain(myClassId);
     });
+  });
+});
+
+describe("NodeSelector diacritic folding (the store search mirror)", () => {
+  it("an unaccented query matches an accented class name in the classes tab", async () => {
+    const client = await seedClient();
+    await createTitledClass(client, "Vídeo");
+    await createTitledClass(client, "Poesía");
+    render(<NodeSelector client={client} trigger="inline" searchMode="classes" onAdd={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "video" } });
+    expect(await screen.findByText("Vídeo")).not.toBeNull();
+    expect(screen.queryByText("Poesía")).toBeNull();
+    // The accent direction folds too: "poesia" finds "Poesía".
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "poesia" } });
+    expect(await screen.findByText("Poesía")).not.toBeNull();
+    expect(screen.queryByText("Vídeo")).toBeNull();
+  });
+
+  it("an unaccented exact query suppresses the create row when the accented class exists", async () => {
+    const client = await seedClient();
+    await createTitledClass(client, "Vídeo");
+    render(<NodeSelector client={client} trigger="inline" searchMode="classes" onAdd={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "video" } });
+    expect(await screen.findByText("Vídeo")).not.toBeNull();
+    expect(screen.queryByText('Create "video"')).toBeNull();
+    // A query that folds to nothing exact still creates.
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "videos" } });
+    expect(await screen.findByText('Create "videos"')).not.toBeNull();
+  });
+
+  it("an unaccented `class:` prefix refines into an accented class name", async () => {
+    const client = await seedClient();
+    const videoId = await createTitledClass(client, "Vídeo");
+    await client.createObject({ isEmbedded: false, name: "Charla", classIds: [videoId] });
+    await client.createObject({ isEmbedded: false, name: "Gardening Annual" });
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "class:video char" } });
+    expect(await screen.findByText("Charla")).not.toBeNull();
+    expect(screen.queryByText("Gardening Annual")).toBeNull();
   });
 });
 
