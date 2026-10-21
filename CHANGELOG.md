@@ -8,6 +8,14 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-21
+- **fix(web): the workspace-switcher's Manage icon is a dashboard grid, not
+  sliders.** `mdi-tune` described configuring; the Manage Workspaces view is
+  a responsive card grid of workspaces, so the affordance now previews the
+  destination with `mdi-view-dashboard-outline`. The plain
+  `mdi-view-grid-outline` was not an option — `CardsView` already spends it
+  as the grid-view mode toggle, where it would have read as a view switch.
+  Verification: `pnpm build` in `apps/web`; the 28 settings-modals tests
+  pass.
 - **fix(web): dark popups stop blending into the content — the night container
   ladder ascends, floating chrome rides elevated steps.** the
   calendar popup (and similar popups) was the same color as the main content
