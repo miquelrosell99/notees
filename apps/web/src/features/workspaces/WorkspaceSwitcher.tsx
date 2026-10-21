@@ -5,7 +5,6 @@ import { localWorkspaceCopies, rememberedWorkspaceList } from "@/core/workspace-
 
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import { Icon } from "../../ui/Icon.js";
-import { Separator } from "../../components/ui/fleet/Separator.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import { WorkspaceSettingsModal } from "./WorkspaceSettingsModal.js";
 import "./WorkspaceSwitcher.css";
@@ -20,8 +19,8 @@ import "./WorkspaceSwitcher.css";
  * suggestion) wait for recovery instead of failing loudly. Accountless
  * offline mode has exactly one well-known local workspace, so the switcher
  * stays hidden there. Typing a query that matches nothing offers to create
- * a workspace with that name (online); the footer opens the Manage
- * Workspaces view.
+ * a workspace with that name (online); the trailing icon in the search row
+ * opens the Manage Workspaces view.
  */
 export function WorkspaceSwitcher({
   serverUrl,
@@ -153,6 +152,18 @@ export function WorkspaceSwitcher({
               onChange={(event) => setQuery(event.target.value)}
               autoFocus
             />
+            <button
+              type="button"
+              className="workspace-switcher__manage-btn"
+              title="Manage workspaces"
+              aria-label="Manage workspaces"
+              onClick={() => {
+                setOpen(false);
+                onManageWorkspaces?.();
+              }}
+            >
+              <Icon path="mdi-tune" size={0.9} />
+            </button>
           </div>
           <ul className="workspace-switcher__list">
             {offline && (
@@ -235,20 +246,6 @@ export function WorkspaceSwitcher({
               </li>
             )}
           </ul>
-          <div className="workspace-switcher__footer">
-            <Separator orientation="horizontal" spacing="none" />
-            <button
-              type="button"
-              className="workspace-switcher__manage"
-              onClick={() => {
-                setOpen(false);
-                onManageWorkspaces?.();
-              }}
-            >
-              <Icon path="mdi-cog-outline" size={0.9} />
-              <span>Manage workspaces</span>
-            </button>
-          </div>
           {error !== null && <p className="workspace-switcher__error">{error}</p>}
         </div>
       )}

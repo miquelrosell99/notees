@@ -59,17 +59,41 @@
 }
 
 .workspace-switcher__search {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
   padding: var(--spacing-2);
   border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .workspace-switcher__search-input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: var(--spacing-2) var(--spacing-3);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   background: var(--md-sys-color-surface);
   color: var(--md-sys-color-on-surface);
   font-size: var(--font-size-button);
+}
+
+/* Opens the Manage Workspaces view — the sliders glyph (not the per-row
+   cog, which means one workspace's settings). */
+.workspace-switcher__manage-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--shape-medium);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.workspace-switcher__manage-btn:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* Quiet focus like every other search bar — no accent ring (owner
@@ -102,24 +126,30 @@
   min-width: 0;
 }
 
-.workspace-switcher__row-item:hover .workspace-switcher__settings-btn,
-.workspace-switcher__row-item:focus-within .workspace-switcher__settings-btn {
-  opacity: 1;
-}
-
+/* The per-row settings cog only exists on hover/focus — collapsed to zero
+   width so it stops reserving space (and truncating names) on every row. */
 .workspace-switcher__settings-btn {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
+  width: 0;
   height: 28px;
   border: none;
   border-radius: var(--shape-medium);
   background: transparent;
   color: var(--md-sys-color-on-surface-variant);
   opacity: 0;
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  overflow: hidden;
+  transition:
+    width var(--motion-duration-short) var(--motion-easing-standard),
+    opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.workspace-switcher__row-item:hover .workspace-switcher__settings-btn,
+.workspace-switcher__row-item:focus-within .workspace-switcher__settings-btn {
+  width: 28px;
+  opacity: 1;
 }
 
 .workspace-switcher__settings-btn:hover {
@@ -190,27 +220,6 @@
   padding: var(--spacing-3);
   font-size: var(--font-size-sm);
   color: var(--md-sys-color-on-surface-variant);
-}
-
-.workspace-switcher__footer {
-  display: flex;
-  flex-direction: column;
-}
-
-.workspace-switcher__manage {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3);
-  border: none;
-  background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: var(--font-size-sm);
-}
-
-.workspace-switcher__manage:hover {
-  background: var(--md-sys-color-hover-overlay);
-  color: var(--md-sys-color-on-surface);
 }
 
 .workspace-switcher__error {

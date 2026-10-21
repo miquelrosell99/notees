@@ -8,6 +8,18 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-21
+- **fix(web): the workspace-switcher's Manage affordance moved off the
+  duplicated cog, and the per-row cog stopped reserving space.** The popup
+  footer (cog icon + "Manage workspaces") is gone — that cog duplicated the
+  per-row settings gear and read as workspace settings. Manage Workspaces is
+  now an icon-only sliders button (`mdi-tune`, the "configure this set"
+  glyph) on the right of the popup's search row, keeping the same accessible
+  name so the settings-modals test only needed its title updated. Separately,
+  the per-row settings cog was always rendered (28px, `opacity: 0`), quietly
+  truncating every workspace name to make invisible room; it now collapses
+  to `width: 0` with an overflow guard and grows to 28px on row
+  hover/focus-within. Verification: `pnpm build` in `apps/web`; the 28
+  settings-modals tests pass.
 - **fix(server)!: the snapshot-upload sanity gate — an empty/garbage client
   checkpoint can no longer blank a workspace for every fresh client (owner
   incident: the Notas workspace read empty).** Root cause: `PUT
