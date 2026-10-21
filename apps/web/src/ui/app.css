@@ -1018,12 +1018,12 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 30px: the class-icon glyph is 19.2px
-     and the collapsed ring is 28px — the bullet box stays on par with
-     both so the ring reads around the icon instead of hiding behind
-     the solid glyph. */
-  width: 30px;
-  height: 30px;
+  /* 46px: the
+     class-icon glyph is 19.2px and the collapsed ring is 40px — the
+     bullet box stays on par with both so the ring reads around the icon
+     instead of hiding behind the solid glyph. */
+  width: 46px;
+  height: 46px;
   flex-shrink: 0;
   cursor: pointer;
   user-select: none;
@@ -1054,8 +1054,12 @@ select:focus-visible {
 }
 
 .nt-bullet-dot {
-  width: 6px;
-  height: 6px;
+  /* 9px: the dot scales with the grown bullet register
+     (46px box, 40px ring) — the visible bullet reads at the new size, not
+     lost inside the halo. The --bullet-dot-size token stays 6px: it also
+     feeds the LoadingScreen dot, a different surface. */
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background-color: var(--md-sys-color-on-surface-variant);
   opacity: 0.55;
@@ -1108,14 +1112,13 @@ select:focus-visible {
 }
 
 /* Soft ring behind a collapsed-with-children bullet (collapse UI).
-   28px: one outer circle for both bullet
-   kinds — big enough to clear the 19.2px class-icon glyph (the 16px halo
-   hid entirely behind the solid plate, so collapsed icon bullets showed
-   no ring) and to read at a glance beside the row text. */
+   40px: one outer circle for both bullet kinds, big enough
+   to clear the 19.2px class-icon glyph by ~10px and to read at a glance
+   beside the row text. */
 .nt-bullet-ring {
   position: absolute;
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background-color: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
   opacity: 0;

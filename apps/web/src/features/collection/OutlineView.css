@@ -121,10 +121,11 @@ button.outline-group__label:hover {
 .outline-group__items {
   list-style: none;
   /* Real separation from the group header: the grown
-     bullet/ring overhangs its row's line box upward, and with zero top
-     padding the first row's ring crowded the header. */
+     bullet/ring overhangs its row's line box upward (a 40px ring on a
+     46px bullet), and with zero top padding the first row's ring crowded
+     the header. */
   margin: 0 0 0 var(--spacing-2);
-  padding: var(--spacing-2) 0 0 var(--spacing-3);
+  padding: var(--spacing-3) 0 0 var(--spacing-3);
   border-left: 1px solid var(--md-sys-color-outline-variant);
 }
 
