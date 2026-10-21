@@ -19,10 +19,12 @@
  * no chevron, no expansion, no inline fields, no drag. Inactive bindings
  * dim the name (the only disabled cue). The whole row is ONE action: it
  * opens the S2 base-definition modal (PropertyEditModal — the default
- * editor lives there now, at the schema level). Hover reveals exactly ONE
- * surface (no row tint, no grip): the right-side REMOVE ×
- * (the section-level danger confirm; hidden for system property schemas —
- * non-removable means absent). Removal never requires opening anything.
+ * editor lives there now, at the schema level). Hover reveals exactly TWO
+ * right-side affordances (no row tint, no name-hover glow,
+ * no grip): the COG (definition settings — same S2 modal the row click
+ * opens) and the REMOVE × (the section-level danger confirm; hidden for
+ * system property schemas — non-removable means absent). Neither requires
+ * opening anything first.
  *
  * Bind property: the AddPill opens an anchored popover (SearchField,
  * keyboard-navigable listbox, rows = icon + name + type label) filtered
@@ -206,9 +208,20 @@ function BindingRow({
           </span>
           <span className="nt-propdef-name">{name}</span>
         </button>
-        {/* The row's ONE hover surface (no row tint, no grip):
-            the REMOVE × (hidden for system property schemas — non-removable
-            means absent). */}
+        {/* The row's TWO hover surfaces (no row tint, no grip):
+            the COG (definition settings — the same S2 modal the row click
+            opens; present even for system schemas, whose REMOVE is absent). */}
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="mdi-cog-outline"
+          className="nt-propdef-cog"
+          aria-label={`Definition settings for ${name}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenDefinition();
+          }}
+        />
         {!isSystem && (
           <Button
             variant="ghost"
