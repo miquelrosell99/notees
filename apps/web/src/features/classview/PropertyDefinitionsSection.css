@@ -42,14 +42,17 @@
   min-width: 0;
 }
 
-/* ONE hover surface (owner ruling): hover reveals only the right-side
-   REMOVE × (the STANDARD fleet ghost icon button; the class is a reveal
-   hook only) — no row background tint, no grip chrome. */
+/* The hover-revealed right-side affordances (owner ruling: no row tint, no
+   grip): the COG (definition settings) + the REMOVE × (the STANDARD fleet
+   ghost icon buttons; the classes are reveal hooks only). */
+.nt-propdef-cog,
 .nt-propdef-remove {
   opacity: 0;
 }
 
+.nt-propdef-row:hover .nt-propdef-cog,
 .nt-propdef-row:hover .nt-propdef-remove,
+.nt-propdef-cog:focus-visible,
 .nt-propdef-remove:focus-visible {
   opacity: 1;
 }
@@ -69,10 +72,6 @@
   color: var(--md-sys-color-on-surface);
   text-align: left;
   cursor: pointer;
-}
-
-.nt-propdef-main:hover {
-  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-propdef-main:focus-visible {
