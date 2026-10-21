@@ -519,6 +519,23 @@ class Compiler {
       case "classSet":
         // The class set is non-empty (Odoo "is set"); the not-wrap reads "is not set".
         return "(SELECT COUNT(*) FROM json_each(n.class_ids)) > 0";
+      case "classAnyQuery": {
+        // DYNAMIC class: closure-aware membership of ANY class matching the
+        // nested group — the picked ids come from the group's matches (a
+        // fresh `node n` scope), read through the hierarchy closure like
+        // classAny. An empty nested group degrades to the never-matching
+        // subquery (pruneChild drops empty dynamic roots before compose).
+        const group = this.groupSql(condition.root);
+        const targets =
+          group !== undefined
+            ? `SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group})`
+            : "SELECT n.id FROM node n WHERE n.is_active = 0";
+        return (
+          "EXISTS (\n  SELECT 1 FROM json_each(n.class_ids)\n" +
+          `  WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id IN (${targets}))\n` +
+          ")"
+        );
+      }
       case "pageOf": {
         // v1's Page block (static): the CONTAINING PAGE is one of the picked
         // nodes. The page id rides the correlated scalar subquery; the pick
@@ -677,6 +694,20 @@ class Compiler {
       }
       case "tagSet":
         return "(SELECT COUNT(*) FROM json_each(n.tag_ids)) > 0";
+      case "tagAnyQuery": {
+        // DYNAMIC tags: tagged with ANY tag matching the nested group — the
+        // tag ids come from the group's matches (a fresh `node n` scope).
+        // An empty nested group degrades to the never-matching subquery.
+        const group = this.groupSql(condition.root);
+        const targets =
+          group !== undefined
+            ? `SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group})`
+            : "SELECT n.id FROM node n WHERE n.is_active = 0";
+        return (
+          "EXISTS (\n  SELECT 1 FROM json_each(n.tag_ids)\n" +
+          `  WHERE value IN (${targets})\n)`
+        );
+      }
       case "linkedToAny": {
         // backlinksWithRollup membership of ANY picked node — the linkedToSet
         // over an anchor set. Params: the anchor ids (the CTE carries none).
