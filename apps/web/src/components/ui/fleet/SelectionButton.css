@@ -89,6 +89,21 @@
   color: var(--md-sys-color-on-primary);
 }
 
+/* The text segmented-control register: a short text segment rides instead of the icon. The option
+   drops the square icon geometry; the sliding indicator measures the
+   button, so text options move it like any other. */
+.selection-button__option--text {
+  aspect-ratio: auto;
+  padding-inline: var(--spacing-2);
+}
+
+.selection-button__text {
+  font: var(--font-label-small);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
 /* Ensure SVG icons are perfectly centered inside flex button */
 .selection-button__option svg,
 .selection-button__overflow-toggle svg {
