@@ -7,6 +7,29 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): the collapsed bullet ring is ONE soft outer circle, grown past
+  the class-icon glyph — the bullet element grows to hold it.** Owner
+  correction (2026-10-21, reviewing the outline-ring variant shipped in the
+  reference-sections slice below): "on icons there should be the same outer
+  circle as in collapsed bullets — make it bigger if needed, and also if
+  needed make the main bullet element bigger to make it on par with the
+  icon's size." The border-outline-above-the-glyph approach is retired; the
+  ring stays the shared soft primary halo for dot and icon bullets alike —
+  one circle, sized 16 → 24px so it clears the 19.2px class-icon plate that
+  hid the old halo entirely, and the bullet box grows 22 → 26px to carry the
+  ring on par with the glyph (rows gain a few px of height — the
+  owner-accepted trade). `--bullet-wrapper-size` follows at 26px — the
+  BooleanToggle lg thumb's bullet-sized token; its single lg consumer (the
+  workspace-settings modal) rides along. Hover still deepens the halo.
+  - **Files**: `apps/web/src/ui/app.css` (`.nt-bullet` 26px,
+    `.nt-bullet-ring` 24px, the icon-outline rules removed),
+    `apps/web/src/ui/variables.css` (`--bullet-wrapper-size`),
+    `apps/web/test/view-modes.test.tsx` (the CSS spec follows the ruling:
+    one 24px background circle, no icon-specific variant).
+  - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
+    `pnpm --filter @notees/web test` — 1938 passed (167 files; the CSS
+    spec reads app.css cwd-relative, the condensed precedent).
+
 - **refine(web): the block row's "+ Add class" pill moves to the start of
   the classes cluster — hover-reveal no longer shifts the pills.** Owner
   ruling (2026-10-21), the follow-up to the no-permanent-gap fix: with the
