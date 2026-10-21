@@ -15,7 +15,7 @@ import type { Condition, DatePeriod, PropertyOp } from "@notees/query";
 
 import type { AnyClient } from "./index.js";
 import { Icon } from "../../ui/Icon.js";
-import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { Dropdown } from "../../components/ui/fleet/Dropdown.js";
 import { Input } from "../../components/ui/fleet/Input.js";
@@ -585,7 +585,7 @@ function NodePickBody({
         onClick={() => setOpen(true)}
       >
         <span className="nt-fb-nodepick__label">
-          {target !== undefined ? displayNameForSettings(target) || "Untitled" : placeholder}
+          {target !== undefined ? nodeDisplayName(target) || "Untitled" : placeholder}
         </span>
         <Icon
           path="mdi mdi-chevron-down"
@@ -633,7 +633,7 @@ function NodeMultiPick({
     <span className="nt-fb-multipick" aria-label={ariaLabel}>
       {nodeIds.map((nodeId) => {
         const node = client.getNode(nodeId);
-        const label = node !== undefined ? displayNameForSettings(node) || "Untitled" : nodeId;
+        const label = node !== undefined ? nodeDisplayName(node) || "Untitled" : nodeId;
         return (
           <span key={nodeId} className="nt-fb-multipick__chip">
             {label}

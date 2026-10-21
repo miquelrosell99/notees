@@ -7,7 +7,7 @@
  */
 
 import { Icon } from "../../ui/Icon.js";
-import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import "./NodeResultItem.css";
 
@@ -70,7 +70,7 @@ export function NodeResultItem({
           {iconOverride ?? (icon !== null ? <Icon path={icon} size={0.7} /> : null)}
         </span>
         <span className="node-result-item__name">
-          {"id" in node ? displayNameForSettings(node as ClientNode) || node.id : node.name}
+          {"id" in node ? nodeDisplayName(node as ClientNode) || node.id : node.name}
         </span>
         {displayClasses && displayClasses.length > 0 && (
           <span className="node-result-item__class-pills">
