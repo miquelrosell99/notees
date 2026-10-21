@@ -58,8 +58,15 @@ pill — filter families, group toggles), `TextField`, `SearchField`,
 native `<input>`; pairs with `Dropdown` in dense condition/toolbar rows),
 `Dropdown`, `SelectTrigger`, `Checkbox`, `Radio` (the checkbox variant's
 single-selection sibling — groups compose by sharing a `name`),
-`ToggleSwitch`, `BooleanToggle`,
-`Slider`, `ColorButton`, `SelectionButton`, `ButtonWithPanel`,
+`ToggleSwitch` (enabling/disabling a SETTING
+only — never mode/view switching; that rides the bordered
+`SelectionButton`, whose container's background can sink into a
+same-token panel surface and need the one-step container-token nudge),
+`BooleanToggle`,
+`Slider`, `ColorButton`, `SelectionButton` (THE
+control for mutually-exclusive MODE/VIEW switching — AND/OR, Blocks/Raw,
+outline/cards/table — the bordered button switcher the ViewSwitcher
+rides; `ToggleSwitch` is the settings idiom, not this), `ButtonWithPanel`,
 `InlineConfirmButton`, `CodeTextarea`, `FileDropZone`,
 `HoverRevealButton` (the hover-reveal affordance: zero footprint at rest —
 collapsed width + faded out — expanded on hover of the surrounding
