@@ -104,14 +104,15 @@ import "./FilterBlockBuilder.css";
 /**
  * The Match ALL/ANY logic options — the BORDERED button switcher (the fleet
  * SelectionButton, owner ruling 2026-10-21: mode/view switching rides it;
- * AND/OR read as BOLD UPPERCASE TEXT — no MDI word icons exist, and the
- * gate symbols the owner trialed still read worse than words). `label`
- * stays the accessible name; shared by the root head row AND every nested
- * group header.
+ * the AND/OR register settled on the ORIGINAL overlapping-circles v1 icons
+ * — set-all (AND) / set-center (OR); gate symbols and bold text were both
+ * trialed and rejected, the owner came back to these). `label` stays the
+ * accessible name; shared by the root head row AND every nested group
+ * header.
  */
 const LOGIC_OPTIONS: SelectionButtonOption[] = [
-  { value: "and", text: "AND", label: "Match ALL conditions" },
-  { value: "or", text: "OR", label: "Match ANY condition" },
+  { value: "and", icon: "mdi-set-all", label: "Match ALL conditions" },
+  { value: "or", icon: "mdi-set-center", label: "Match ANY condition" },
 ];
 
 export interface FilterBlockBuilderProps {

@@ -1,21 +1,12 @@
 /**
  * SelectionButton Component
  *
- * A button-style selector with multiple options displayed as icons or
- * short text segments (the `text` register — ALL/ANY, Blocks/Raw).
- * Interaction ruling (owner 2026-10-21): the bordered SelectionButton is
- * THE control for mutually-exclusive MODE/VIEW switching — AND/OR,
- * Blocks/Raw, outline/cards/table (the ViewSwitcher rides it); enabling/
- * disabling a SETTING rides the ToggleSwitch, never this. Inside a panel
- * whose background rides the same surface-container token, the container
- * can need the one-step container-token nudge to read (see
- * FilterBlockBuilder.css).
- *
+ * A button-style selector with multiple options displayed as icons.
  * Features an animated selection indicator that slides between options.
  *
  * When `maxVisibleOptions` is provided, excess options are shown in an
  * overflow dropdown accessed via a "…" toggle. The inline buttons show
- * only icons (or the text); the dropdown shows icon/text + label.
+ * only icons; the dropdown shows icon + label.
  */
 
 import {
@@ -37,14 +28,8 @@ export type SelectionButtonOrientation = "horizontal" | "vertical";
 export interface SelectionButtonOption {
   /** Unique identifier for the option */
   value: string;
-  /** MDI icon path (the icon register; omit when `text` is set) */
-  icon?: string;
-  /**
-   * Visible text rendered instead of the icon (the text segmented-control
-   * register — owner ruling 2026-10-21: ALL/ANY and Blocks/Raw read as
-   * text, not icons). `label` stays the accessible name either way.
-   */
-  text?: string;
+  /** MDI icon path */
+  icon: string;
   /** Accessible label */
   label: string;
 }
@@ -273,16 +258,12 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
               aria-label={option.label}
               title={option.label}
               tabIndex={isTabStop ? 0 : -1}
-              className={`selection-button__option ${isSelected ? "selection-button__option--selected" : ""}${option.text !== undefined ? " selection-button__option--text" : ""}`}
+              className={`selection-button__option ${isSelected ? "selection-button__option--selected" : ""}`}
               onClick={() => handleOptionClick(option.value)}
               onKeyDown={handleOptionKeyDown}
               disabled={disabled}
             >
-              {option.text !== undefined ? (
-                <span className="selection-button__text">{option.text}</span>
-              ) : (
-                <Icon path={option.icon ?? ""} size={iconSize} />
-              )}
+              <Icon path={option.icon} size={iconSize} />
             </button>
           );
         })}
@@ -317,11 +298,7 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
                       onClick={() => handleOverflowOptionClick(option.value)}
                       disabled={disabled}
                     >
-                      {option.text !== undefined ? (
-                        <span className="selection-button__overflow-text">{option.text}</span>
-                      ) : (
-                        <Icon path={option.icon ?? ""} size={0.75} />
-                      )}
+                      <Icon path={option.icon} size={0.75} />
                       <span>{option.label}</span>
                     </button>
                   );
