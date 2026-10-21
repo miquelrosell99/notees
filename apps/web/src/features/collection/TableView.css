@@ -113,7 +113,14 @@ td.nt-table-name .nt-table-name-row {
   min-width: 0;
 }
 
+/* The title row root is the OUTLINE GRID by construction (the bullet-gutter
+   template columns, app.css .nt-block) — inside a table cell that grid sets
+   the cell's min-content to the fixed gutter tracks and the auto-layout
+   column collapses to gutter width. Inside the cell the row rides plain
+   block flow and the column sizes from the title text (live probe
+   2026-10-21 — one-word-per-line wrapping at ~50px). */
 td.nt-table-name .nt-block--title {
+  display: block;
   flex: 1;
   min-width: 0;
 }

@@ -28,7 +28,10 @@ predating this file.
     `InlineInput autoFocus` prop retired with the rename path), `TableView.css`
     (the `.nt-table-name-btn` rules including the hover tint deleted; the
     cell's flex-lane layout + the headline-typography override ride
-    `td.nt-table-name`).
+    `td.nt-table-name`; and the cell's `.nt-block--title` is `display:
+    block` — the outline grid's fixed bullet-gutter tracks otherwise set the
+    cell's min-content to gutter width and the auto-layout name column
+    collapsed to ~87px/one word per line, found by the live probe below).
   - **Tests**: the row-count/name selectors in `windowing`, `filter-builder`,
     `filter-layer`, `query-block`, `view-modes`, `class-view` follow the new
     DOM (`td.nt-table-name` / its `.nt-title-content` — the name cell is no
@@ -40,7 +43,12 @@ predating this file.
   - **Verification**: `pnpm --filter @notees/web typecheck` clean; web
     suite green except the pre-existing property-definition/editor failures
     (another session's in-flight cog slice) and one flaky block-dnd case —
-    none touch the table. Redeployed: `notees-web` rebuilt (clean worktree
+    none touch the table. Live probe (`scripts/screenshots/namecol-probe.mjs`,
+    TEST workspace, 8 bound property columns): BEFORE the `display: block`
+    fix the name cell measured 87px with a 32px content lane (= the gutter
+    tracks) and a 24-line title; AFTER, the column sizes from the title text
+    and the link title renders as a real anchor (href present, no raw
+    markdown). Redeployed: `notees-web` rebuilt (clean worktree
     at the slice commit — the checkout carried the parallel session's
     uncommitted edits) + stack recreated from the live stack folder,
     `verify-min.mjs` VERIFY-PASS.
