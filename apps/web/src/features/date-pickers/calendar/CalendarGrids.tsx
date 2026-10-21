@@ -8,7 +8,7 @@
  * plays nicely with React Fast Refresh. Shared constants/helpers stay private.
  */
 
-import { Icon } from "../../../ui/Icon.js";
+import { Button } from "../../../components/ui/fleet/Button.js";
 import { SelectionButton } from "../../../components/ui/fleet/SelectionButton.js";
 import type { CalendarMode } from "./useCalendarMode.js";
 
@@ -73,14 +73,13 @@ export function CalendarHeader({
   return (
     <div className="calendar-header">
       <div className="calendar-nav-row">
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="mdi-chevron-left"
           aria-label={prevLabel}
-          className="calendar-nav-btn"
           onClick={onPrev}
-        >
-          <Icon path="mdi-chevron-left" size={0.7} />
-        </button>
+        />
         <div className="calendar-title">
           {mode === "days" && (
             <>
@@ -129,14 +128,13 @@ export function CalendarHeader({
             </span>
           )}
         </div>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="mdi-chevron-right"
           aria-label={nextLabel}
-          className="calendar-nav-btn"
           onClick={onNext}
-        >
-          <Icon path="mdi-chevron-right" size={0.7} />
-        </button>
+        />
       </div>
       <div className="calendar-zoom">
         <SelectionButton
