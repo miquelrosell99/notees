@@ -47,6 +47,51 @@ predating this file.
   (`SCHEMA.md` grammar, `architecture.md` ×2, `links.md` new section,
   `migrations.md` catalog). Full gate green; the sibling GTK/Flutter slices +
   the live migration are follow-ups per the lockstep law.
+- **feat(protocol,store,server,web)!: retire binding `sequence` — class
+  properties render as a PURE ALPHABETICAL list everywhere.** the
+  class→property-schema binding keeps ONLY `active` (the soft-unbind flag) —
+  panel order no longer exists to configure, so `class.property.set` is
+  strictly `{classId, propertySchemaId, active?}` and the strict schema
+  rejects `sequence` outright (the `required`/`defaultValue` retirement
+  precedent, 2026-10-20).
+  - **Store v25→v26**: `class_property` rebuilds without the `sequence`
+    column (the historical v14/v25pre/v25 migration views drop it too; no
+    snapshot byte patch — nothing to backfill, every hydration path opens
+    through `Store.open`/migrate). `effective.ts` reads alphabetical: bound
+    rows by property name, unbound authored rows last, `(idx, element id)`
+    tiebreak. The applier's binding upsert is `active`-only; the task-family
+    seed-ensure binds sequence-less.
+  - **Web**: the class-property panel's drag-and-drop reorder is REMOVED —
+    the list is display-only, alphabetical by property name at render time
+    (getClassBindings/getRegistryBindings sort by name; the block-row
+    display groups sort by label). `SetClassPropertyInput` is `{active?}`;
+    the undo journal captures/restores the flag only. Seeds/self-heals
+    (task/meeting/system-class-deploy/quick-create/create/convert modals)
+    emit sequence-less binds.
+  - **Server**: the bind endpoint echoes `{propertySchemaId, active}`; the
+    effective-properties API drops `sequence`; the seed emits sequence-less
+    binding envelopes (the per-class counter is gone).
+  - **Domain seeds**: `SYSTEM_EXTRA_CLASS_BINDINGS` and `TASK_FAMILY_SEED`
+    carry no order; the seeded class panels render alphabetically.
+  - **Fixtures** (the gate stays 36): `class-property-defaults.json`,
+    `class-property-active.json`, `class-unassign.json`,
+    `property-schema-scope.json` re-encode the active-only binding.
+  - **Migration**: `scripts/migrate-drop-binding-sequence.mts` (Path B,
+    dry-run default) strips `sequence` from every stored
+    `class.property.set` payload in place + bumps the restore epoch — no
+    compensation (alphabetical order is pure derivation).
+  - **Docs**: SCHEMA.md "Class properties" (active-only bindings, pure
+    alphabetical rendering), `docs/developers/migrations.md`,
+    `releases.md` (current-wire + lockstep table), `docs/api.md`,
+    `docs/cli.md` (`--sequence` example/flag retired — a pending lockstep
+    follow-up in the notees-cli repo), AGENTS.md's property-scope line.
+  - **LOCKSTEP SHIPPED same day**: GTK + Flutter ports land with this batch
+    (the required/defaultValue convention) — fixtures byte-identical both.
+  - **Verification:** `pnpm typecheck` clean repo-wide; `pnpm test` green
+    (protocol 530, store 617 on both adapters, query 249, server 236,
+    domain 96, web — full suite); fixture replay clean; the migration
+    script's dry run + apply + verify against the live log (envelope count
+    below), then the scoped redeploy + verify-min smoke — VERIFY-PASS.
 - **fix(web): the workspace-switcher's Manage icon is a dashboard grid, not
   sliders.** `mdi-tune` described configuring; the Manage Workspaces view is
   a responsive card grid of workspaces, so the affordance now previews the

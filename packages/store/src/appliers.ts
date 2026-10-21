@@ -1607,16 +1607,19 @@ function applyClassSetExtends(db: StoreDatabase, env: Envelope): ChangeSummary {
 // --- class.property.* ---------------------------------------------------------
 //
 // Binding rows on `class_property` (SCHEMA.md "Class properties"): the
-// genuinely per-class mechanics ONLY (sequence, active) — the render
-// contracts (readonly/hideWhenEmpty/display) moved to the property schema
-// and `required`/`defaultValue` left the binding
-// entirely: `required` retired outright,
-// `defaultValue` moved to the schema (one global default per property).
-// Row-level LWW by envelope HLC; on update the payload PATCHES the row —
-// omitted fields keep their existing values. Defaults are never
-// materialized into property_value; the effective-values read model
-// (effective.ts) derives the schema's default at query time — and skips
-// INACTIVE rows entirely (PC4: soft-unbind, the row survives).
+// genuinely per-class mechanics ONLY — today just `active`, the soft-unbind
+// flag: the render contracts
+// (readonly/hideWhenEmpty/display) moved to the property schema
+//, `required`/`defaultValue` left the binding
+// entirely (2026-10-20 — `required` retired outright, `defaultValue` moved
+// to the schema, one global default per property), and `sequence` retired
+// outright (2026-10-21 — class panels render alphabetically by property
+// name, a pure read-time derivation in effective.ts). Row-level LWW by
+// envelope HLC; on update the payload PATCHES the row — omitted fields keep
+// their existing values. Defaults are never materialized into
+// property_value; the effective-values read model (effective.ts) derives the
+// schema's default at query time — and skips INACTIVE rows entirely (PC4:
+// soft-unbind, the row survives).
 
 function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "class.property.set";
@@ -1660,13 +1663,12 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
   if (!existing) {
     db.prepare(
       `INSERT INTO class_property
-         (class_id, property_schema_id, sequence, active,
+         (class_id, property_schema_id, active,
           hlc_physical, hlc_logical, actor_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?)`,
     ).run(
       p.classId,
       p.propertySchemaId,
-      p.sequence ?? 0,
       active ?? 1,
       env.hlc.physical,
       env.hlc.logical,
@@ -1677,12 +1679,10 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
     // (present fields update, including explicit false).
     db.prepare(
       `UPDATE class_property SET
-         sequence = COALESCE(?, sequence),
          active = COALESCE(?, active),
          hlc_physical = ?, hlc_logical = ?, actor_id = ?
        WHERE class_id = ? AND property_schema_id = ?`,
     ).run(
-      p.sequence ?? null,
       active,
       env.hlc.physical,
       env.hlc.logical,
@@ -2555,10 +2555,10 @@ function ensureTaskFamilyRows(db: StoreDatabase, env: Envelope): void {
     );
     db.prepare(
       `INSERT OR IGNORE INTO class_property
-         (class_id, property_schema_id, sequence,
+         (class_id, property_schema_id,
           hlc_physical, hlc_logical, actor_id)
-       VALUES (?, ?, ?, 0, 0, NULL)`,
-    ).run(classId, schemaId, entry.sequence);
+       VALUES (?, ?, 0, 0, NULL)`,
+    ).run(classId, schemaId);
   }
   reindexNode(db, classId);
 }

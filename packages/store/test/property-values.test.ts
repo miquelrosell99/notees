@@ -347,7 +347,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       );
       for (const [i, classId] of bindOn.entries()) {
         store.apply(
-          env("class.property.set", { classId, propertySchemaId: SCHEMA, sequence: i }, 1727200001600 + i),
+          env("class.property.set", { classId, propertySchemaId: SCHEMA }, 1727200001600 + i),
         );
       }
       // The default is SCHEMA-level — one global
@@ -411,8 +411,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(env("class.setExtends", { classId: LEAF, parentClassIds: [MID] }, 1727200001300));
       store.apply(env("class.setExtends", { classId: LEAF_B, parentClassIds: [MID_B] }, 1727200001300));
       store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA, name: "genre", type: "text" }, 1727200001400));
-      store.apply(env("class.property.set", { classId: MID, propertySchemaId: SCHEMA, sequence: 0 }, 1727200001500));
-      store.apply(env("class.property.set", { classId: MID_B, propertySchemaId: SCHEMA, sequence: 0 }, 1727200001500));
+      store.apply(env("class.property.set", { classId: MID, propertySchemaId: SCHEMA }, 1727200001500));
+      store.apply(env("class.property.set", { classId: MID_B, propertySchemaId: SCHEMA }, 1727200001500));
       // The default is the schema's single global value — only the WINNING BINDING varies per node.
       store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA, defaultValue: "dft" }, 1727200001550));
       // LEAF assigned first (earliest add HLC) — its path to MID wins the tie.
@@ -493,7 +493,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
     it("typed defaults store: string for text/select, number for number, boolean for boolean", () => {
       const store = boundStore("number", SCHEMA_NUMBER);
-      store.apply(env("class.property.set", { classId: CLS, propertySchemaId: SCHEMA_NUMBER, sequence: 0 }, 1727200001150));
+      store.apply(env("class.property.set", { classId: CLS, propertySchemaId: SCHEMA_NUMBER }, 1727200001150));
       store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_NUMBER, defaultValue: 7 }, 1727200001200));
       const owner2 = "0192a000-0000-7000-8000-0000000000e2";
       store.apply(env("object.create", { objectId: owner2, contentAst: text("N"), classIds: [CLS] }, 1727200002000));
@@ -516,7 +516,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
     it("a default that drifted out of match with the schema type yields no default at read", () => {
       const store = boundStore("number", SCHEMA_NUMBER);
-      store.apply(env("class.property.set", { classId: CLS, propertySchemaId: SCHEMA_NUMBER, sequence: 0 }, 1727200001150));
+      store.apply(env("class.property.set", { classId: CLS, propertySchemaId: SCHEMA_NUMBER }, 1727200001150));
       store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_NUMBER, defaultValue: 7 }, 1727200001200));
       // PG3-style drift: delete + recreate the schema under the SAME id as text.
       store.apply(env("propertySchema.delete", { propertySchemaId: SCHEMA_NUMBER }, 1727200001300));
