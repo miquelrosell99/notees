@@ -90,7 +90,7 @@
   padding: var(--spacing-2);
 }
 
-/* Reference rows: editable trees (the outline view's grouped rendering
+/* Reference rows: the standard outline rows (the grouped rendering
    lives in OutlineView.css — these are the section-specific bits). */
 
 /* Editable reference trees: same block chrome as the editor. */
@@ -98,21 +98,13 @@
   padding: 2px var(--spacing-2) 2px 0;
 }
 
-/* Compact per-reference breadcrumbs above each referencing block. */
-.outline-group__items > li > .node-breadcrumbs {
-  display: block;
-  margin: 4px 0 0 var(--spacing-2);
-  font-size: var(--font-size-xs);
-  opacity: 0.85;
-}
-
 /* The unlinked-references action pair: quiet icon buttons that
-   ride the reference row, revealed on hover/focus of the row. */
+   ride the reference row's trailing seam, beside the verb badge. */
 .nt-ref-actions {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
-  margin-left: var(--spacing-2);
+  margin-top: 2px;
   vertical-align: middle;
 }
 
@@ -136,10 +128,10 @@
 }
 
 /* Bound-verb backlink badge: the schema name the reference arrived
-   through — a quiet pill riding the breadcrumb line of the reference row. */
+   through — a quiet pill riding the reference row's trailing seam. */
 .nt-ref-verb {
   display: inline-block;
-  margin: 2px 0 0 var(--spacing-2);
+  margin-top: 2px;
   padding: 1px var(--spacing-2);
   border-radius: var(--radius-full);
   background: var(--md-sys-color-secondary-container);

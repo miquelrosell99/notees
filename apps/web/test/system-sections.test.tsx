@@ -559,11 +559,11 @@ describe("PageView system sections", () => {
     // exactly one row renders (the own-subtree roll-up stays hidden by the
     // owner rule).
     const backlinks = backlinksSection();
-    const items = Array.from(backlinks.querySelectorAll(".nt-refblock-tree"));
+    const items = Array.from(backlinks.querySelectorAll("ul.outline-flat > li"));
     expect(items).toHaveLength(1);
-    // Each reference renders the source block with its content (and children
-    // recursively — the fixture's mention block has none, the tree still shows
-    // the block row).
+    // Each reference renders as the standard collection row — the source
+    // block's content is the row (children folded behind the chevron when
+    // present; the fixture's mention block has none).
     expect(items[0]!.querySelector(".nt-block-content")?.textContent).toContain("France");
   });
 
