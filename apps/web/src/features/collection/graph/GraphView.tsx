@@ -1349,7 +1349,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     <div ref={selectionSectionRef}>
       <NodeViewSection
         title="Selection"
-        count={selectedIds.length}
         expanded={railSection === "selection"}
         onExpandedChange={(expanded) => setRailSection(expanded ? "selection" : null)}
       >

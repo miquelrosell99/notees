@@ -18,9 +18,11 @@
  * collection's `tabBarTrailing` (one chrome row with the
  * tabs, the structured panel dropping a wrapped full-width line beneath),
  * the section's FilterQuery filters the resolved members before the
- * collection's windowing sees them, and the eager member-count badge stays
- * UNFILTERED — an active filter reads "0 of N" in the bar and never hides
- * the section. The query is component state — one instance per class page,
+ * collection's windowing sees them, and the section renders even empty
+ * (the create affordance stays visible) — with no header count anywhere
+ *: the count rides the hosted tab bar's
+ * active-tab badge, naming the displayed rows. The query is
+ * component state — one instance per class page,
  * lost on reload, nothing persisted. The member set opens pure
  * ALPHABETICAL in every mode — the list view's Name A–Z
  * and the table's Name-asc default (containers own table defaults; an
@@ -215,7 +217,6 @@ export function ClassedNodesSection({
     <NodeViewSection
       title="Classed nodes"
       icon={<Icon path="mdi-shape-outline" size={0.9} />}
-      count={client.getClassMemberCount(classId)}
       className="nt-section"
       expanded={expanded}
       onExpandedChange={setExpanded}

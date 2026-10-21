@@ -341,13 +341,13 @@ describe("outline tree windowing", () => {
     }
     render(<PageView client={client} pageId={parentId} onOpenPage={() => {}} />);
 
-    // Child pages starts expanded; the section badge reads the materialized
-    // full count while the tree renders the loaded window.
+    // Child pages starts expanded; no header count anywhere — the tree renders the loaded window, the full count is
+    // invisible chrome.
     const sections = document.querySelectorAll(".node-view-section");
     const childPages = [...sections].find((section) =>
       section.textContent?.includes("Child pages"),
     ) as HTMLElement;
-    expect(childPages.querySelector(".node-view-section__count")!.textContent).toBe(String(BIG));
+    expect(childPages.querySelector(".node-view-section__count")).toBeNull();
     // Scoped to the Child pages section: the context column's TOC lists the
     // sub-pages too (a page is always a TOC entry).
     expect(within(childPages).getByText("Sub 000")).not.toBeNull();

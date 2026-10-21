@@ -367,7 +367,7 @@ describe("L3 TOC derivation (sidebarToc — heading tokens only)", () => {
     render(<TocSection client={client} pageId={pageId} onJumpToBlock={onJumpToBlock} />);
     // Standard section chrome: the named collapsible header with the count,
     // collapsed by default — expand it to list the entries.
-    const header = screen.getByRole("button", { name: /table of content 1/i });
+    const header = screen.getByRole("button", { name: /table of content/i });
     expect(header.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(header);
     expect(screen.getByText("Section One")).not.toBeNull();

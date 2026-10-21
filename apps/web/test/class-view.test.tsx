@@ -161,7 +161,7 @@ describe("Class View", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("lists classed nodes without expansion (the section defaults to expanded) and shows the count badge", async () => {
+  it("lists classed nodes without expansion (the section defaults to expanded)", async () => {
     const client = await seedClient();
     const classId = await client.createClass("agent");
     const pageId = await client.createObject({ isEmbedded: false, name: "Ada Lovelace" });
@@ -169,9 +169,9 @@ describe("Class View", () => {
     const membersSpy = vi.spyOn(client, "getClassMembers");
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
-    // Badge from the COUNT projection (eager, like the child-pages count) —
-    // rendered in the header without expanding anything.
-    expect(screen.getByRole("button", { name: /classed nodes 1/i })).not.toBeNull();
+    // The member set resolves for the header's section chrome (no header
+    // count anywhere).
+    expect(screen.getByRole("button", { name: /classed nodes/i })).not.toBeNull();
     expect(membersSpy).toHaveBeenCalledWith(classId);
     expect(screen.getByText("Ada Lovelace")).not.toBeNull();
   });
@@ -375,7 +375,7 @@ describe("the class page's panelled layout", () => {
     const side = document.querySelector(".nt-page-side-panel") as HTMLElement;
     expect(side).not.toBeNull();
     // The Properties panel + the two moved class sections live in the side panel.
-    expect(within(side).getByRole("button", { name: /^Properties / })).not.toBeNull();
+    expect(within(side).getByRole("button", { name: /^Properties/ })).not.toBeNull();
     expect(within(side).getByRole("button", { name: /class properties/i })).not.toBeNull();
     expect(within(side).getByRole("button", { name: /templates/i })).not.toBeNull();
     // Classed nodes stays the content column's centerpiece — not in the panel.
@@ -400,7 +400,7 @@ describe("the class page's panelled layout", () => {
     const flow = document.querySelector(".nt-page") as HTMLElement;
     const headerOf = (name: RegExp): HTMLElement =>
       within(flow).getByRole("button", { name }) as HTMLElement;
-    const metadata = headerOf(/^Properties /i);
+    const metadata = headerOf(/^Properties/i);
     const properties = headerOf(/class properties/i);
     const templates = headerOf(/templates/i);
     const classed = headerOf(/classed nodes/i);
