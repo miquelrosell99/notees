@@ -60,7 +60,7 @@
  */
 
 import { useContext, useMemo, useRef, useState, type ReactNode } from "react";
-import { isRangeDatetimeValue, isValidTimeOfDay, parseDateNodeId, fullTitleOf } from "@notees/domain";
+import { isRangeDatetimeValue, isReadonlyProperty, isValidTimeOfDay, parseDateNodeId, fullTitleOf } from "@notees/domain";
 import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
 import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu } from "../../components/ui/fleet/index.js";
@@ -612,7 +612,8 @@ function PropertyCell({ row, column, props, peek }: { row: TableRow; column: Tab
   const schemaId = column.propertySchemaId!;
   const schema = client.listPropertySchemas().find((s) => s.id === schemaId);
   const prop = row.properties.find((p) => p.propertySchemaId === schemaId);
-  const editable = tableEditable && prop?.readonly !== true;
+  // Readonly-ness derives from the system property list.
+  const editable = tableEditable && !isReadonlyProperty(schemaId);
 
   if (editable && schema?.type === "boolean") {
     return (

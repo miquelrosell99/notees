@@ -205,7 +205,7 @@ export class WorkspaceClientReadsProps {
     const rows = this.ctx.store.database
       .prepare(
         `SELECT id, name, type, multi, icon, scope_class_ids, validation_rules, options, target_class_filter, date_precision, date_qualified,
-                number_pad, number_decimals, number_rounding, display, readonly, hide_when_empty, default_value
+                number_pad, number_decimals, number_rounding, display, hide_when_empty, default_value
          FROM property_schema WHERE workspace_id = ? AND active = 1
          ORDER BY name, id`,
       )
@@ -270,8 +270,9 @@ export class WorkspaceClientReadsProps {
             ? null
             : (row.number_rounding as "round" | "floor" | "ceil" | "truncate"),
         // The render contracts (PROPERTY-level; null = panel / unset).
+        // (`readonly` retired 2026-10-21 — derived from the system list,
+        // not stored.)
         display: row.display === "bullet" || row.display === "inline" ? row.display : null,
-        readonly: row.readonly === null || row.readonly === undefined ? null : row.readonly === 1,
         hideWhenEmpty:
           row.hide_when_empty === null || row.hide_when_empty === undefined
             ? null

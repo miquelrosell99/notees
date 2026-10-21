@@ -126,7 +126,6 @@ export interface AttachmentsSchemaRow {
   scopeClassIds: string | null;
   options: string;
   display: string | null;
-  readonly: number | null;
   hideWhenEmpty: number | null;
 }
 
@@ -146,7 +145,7 @@ export interface AssetTypePlan {
 export function planAssetType(store: Pick<Store, "database">): AssetTypePlan {
   const row = store.database
     .prepare(
-      `SELECT name, type, multi, scope_class_ids AS scopeClassIds, options, display, readonly, hide_when_empty AS hideWhenEmpty
+      `SELECT name, type, multi, scope_class_ids AS scopeClassIds, options, display, hide_when_empty AS hideWhenEmpty
        FROM property_schema WHERE id = ?`,
     )
     .get(ATTACHMENTS_SCHEMA_ID) as AttachmentsSchemaRow | undefined;
@@ -200,7 +199,6 @@ export function buildEnvelopes(workspaceId: string, plan: AssetTypePlan): Envelo
         // No targetClassFilter: the asset type carries the filter implicitly
         // now — the explicit column retires (NULL on the upsert).
         ...(row.display !== null ? { display: row.display as "panel" | "bullet" | "inline" } : {}),
-        ...(row.readonly !== null ? { readonly: row.readonly === 1 } : {}),
         ...(row.hideWhenEmpty !== null ? { hideWhenEmpty: row.hideWhenEmpty === 1 } : {}),
       },
     }),

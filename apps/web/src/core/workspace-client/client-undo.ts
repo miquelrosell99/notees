@@ -125,7 +125,7 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
       const row = db()
         .prepare(
           `SELECT name, type, multi, icon, scope_class_ids, validation_rules, options, target_class_filter, date_precision, date_qualified,
-                  display, readonly, hide_when_empty, default_value
+                  display, hide_when_empty, default_value
            FROM property_schema WHERE id = ?`,
         )
         .get(propertySchemaId) as
@@ -141,7 +141,6 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
             date_precision: string | null;
             date_qualified: number | null;
             display: string | null;
-            readonly: number | null;
             hide_when_empty: number | null;
             default_value: string | null;
           }
@@ -172,7 +171,6 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
         datePrecision: row.date_precision,
         dateQualified: nullableBool(row.date_qualified),
         display: row.display === "bullet" || row.display === "inline" ? row.display : null,
-        readonly: nullableBool(row.readonly),
         hideWhenEmpty: nullableBool(row.hide_when_empty),
         defaultValue: row.default_value === null ? null : parseJson(row.default_value),
       };

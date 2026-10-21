@@ -1,3 +1,5 @@
+import { isReadonlyProperty } from "@notees/domain";
+
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
@@ -51,7 +53,7 @@ export function BooleanPropertyRow({
           <Checkbox
             size="sm"
             checked={row.value === true}
-            disabled={readOnly || row.readonly === true}
+            disabled={readOnly || isReadonlyProperty(propertySchemaId)}
             aria-label={`Property ${label}`}
             onChange={(checked) => {
               void client.setProperty(nodeId, propertySchemaId, checked, row.idx);
