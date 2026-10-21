@@ -7,6 +7,25 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): the bullet and its collapsed ring grow once more (30px/28px),
+  and grouped rows separate from the group titles.** Owner report
+  (2026-10-21, screenshot of a date-page group): the first row's ring
+  crowded the group header, and the bullet element still read small.
+  `.nt-bullet` 26 → 30px, `.nt-bullet-ring` 24 → 28px (the halo now clears
+  the 19.2px class-icon glyph by ~4px and reads beside the row text),
+  `--bullet-wrapper-size` follows at 30px. The grouped rendering's item
+  list gains a real top padding (`spacing-2`) — the grown ring overhangs
+  its row's line box upward, and with zero top padding it touched the
+  header. The CSS spec pins both (ring 28px, bullet 30px, the group-items
+  padding) and keeps asserting no icon-specific ring variant.
+  - **Files**: `apps/web/src/ui/app.css` (`.nt-bullet` 30px,
+    `.nt-bullet-ring` 28px), `apps/web/src/ui/variables.css`
+    (`--bullet-wrapper-size`), `apps/web/src/features/collection/
+    OutlineView.css` (`.outline-group__items` top padding), `apps/web/test/
+    view-modes.test.tsx` (the CSS spec follows).
+  - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
+    `pnpm --filter @notees/web test` — 1938 passed (167 files).
+
 - **fix(web): the fleet Button is the rounded square again — the visible-box
   reset lost its specificity race.** Owner report (2026-10-21): the topbar
   buttons "are no longer a square with rounded corners". Measured live with
