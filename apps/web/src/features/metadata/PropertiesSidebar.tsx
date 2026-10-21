@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { isReadonlyProperty } from "@notees/domain";
+
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
@@ -70,8 +72,9 @@ export function PropertiesSidebar({
     }
     return false;
   };
-  const isReadonly = (schemaId: string): boolean =>
-    rowsOf.some((r) => r.propertySchemaId === schemaId && r.readonly === true);
+  // Readonly-ness derives from the system property list (owner ruling
+  // 2026-10-21 — the render contract retired from the wire/store).
+  const isReadonly = (schemaId: string): boolean => isReadonlyProperty(schemaId);
   const emptyProperty = (schemaId: string) => {
     for (const row of rowsOf) {
       if (row.propertySchemaId === schemaId && row.source === "authored") {

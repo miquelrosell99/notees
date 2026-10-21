@@ -1735,9 +1735,9 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
     `INSERT INTO property_schema
        (id, workspace_id, name, type, multi, icon, scope_class_ids, options, target_class_filter,
         date_precision, date_qualified, number_pad, number_decimals, number_rounding,
-        display, readonly, hide_when_empty, default_value,
+        display, hide_when_empty, default_value,
         active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name = excluded.name, type = excluded.type, multi = excluded.multi, icon = excluded.icon,
        scope_class_ids = excluded.scope_class_ids,
@@ -1745,7 +1745,7 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
        date_precision = excluded.date_precision, date_qualified = excluded.date_qualified,
        number_pad = excluded.number_pad, number_decimals = excluded.number_decimals,
        number_rounding = excluded.number_rounding,
-       display = excluded.display, readonly = excluded.readonly,
+       display = excluded.display,
        hide_when_empty = excluded.hide_when_empty,
        default_value = excluded.default_value,
        active = 1, updated_at = excluded.updated_at`,
@@ -1765,7 +1765,6 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
     p.numberDecimals ?? null,
     p.numberRounding ?? null,
     p.display ?? null,
-    p.readonly !== undefined ? (p.readonly ? 1 : 0) : null,
     p.hideWhenEmpty !== undefined ? (p.hideWhenEmpty ? 1 : 0) : null,
     p.defaultValue !== undefined && p.defaultValue !== null ? JSON.stringify(p.defaultValue) : null,
     env.timestamp,
@@ -1920,14 +1919,12 @@ function applyPropertySchemaUpdate(db: StoreDatabase, env: Envelope): ChangeSumm
   // Render contracts (PROPERTY-level): absent keeps the stored value,
   // present-null clears (the same keep-vs-clear contract as the number
   // formats — `required`/`defaultValue` left the binding entirely under the
-  // owner ruling 2026-10-20; the default lives here).
+  // owner ruling 2026-10-20; the default lives here). `readonly` retired
+  // outright under the owner ruling 2026-10-21 — derived from the system
+  // property list instead, nothing to store.
   if (p.display !== undefined) {
     sets.push("display = ?");
     values.push(p.display);
-  }
-  if (p.readonly !== undefined) {
-    sets.push("readonly = ?");
-    values.push(p.readonly === null ? null : p.readonly ? 1 : 0);
   }
   if (p.hideWhenEmpty !== undefined) {
     sets.push("hide_when_empty = ?");

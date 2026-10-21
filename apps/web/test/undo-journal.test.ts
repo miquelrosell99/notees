@@ -457,7 +457,6 @@ describe("invertEnvelope — the inversion matrix", () => {
           datePrecision: null,
           dateQualified: null,
           display: null,
-          readonly: null,
           hideWhenEmpty: null,
         },
       })),
@@ -470,9 +469,9 @@ describe("invertEnvelope — the inversion matrix", () => {
     ]);
   });
 
-  it("propertySchema.update restores the render contracts it touches", () => {
+  it("propertySchema.update restores the render contract it touches", () => {
     expect(
-      invertEnvelope(env("propertySchema.update", { propertySchemaId: SCHEMA, display: "bullet", readonly: true }), fakeCapture({
+      invertEnvelope(env("propertySchema.update", { propertySchemaId: SCHEMA, display: "bullet" }), fakeCapture({
         schema: {
           name: "Status",
           type: "select",
@@ -485,14 +484,13 @@ describe("invertEnvelope — the inversion matrix", () => {
           datePrecision: null,
           dateQualified: null,
           display: "inline",
-          readonly: null,
           hideWhenEmpty: false,
         },
       })),
     ).toEqual([
       {
         opType: "propertySchema.update",
-        payload: { propertySchemaId: SCHEMA, display: "inline", readonly: null },
+        payload: { propertySchemaId: SCHEMA, display: "inline" },
         affected: [],
       },
     ]);

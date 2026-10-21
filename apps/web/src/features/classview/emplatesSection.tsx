@@ -88,9 +88,9 @@ export function TemplatesSection({
       defaultExpanded={templateBindings.length === 0}
       className="nt-templates"
     >
-      {templateBindings.length === 0 ? (
-        <span className="nt-templates-empty">No templates bound.</span>
-      ) : (
+      {/* No empty-state text: the "Bind template" pill below IS the empty
+          affordance (owner 2026-10-21 — redundant chrome). */}
+      {templateBindings.length > 0 && (
         <ul className="nt-template-cards">
           {templateBindings.map(({ node, idx }) => {
             const label = displayNameForSettings(node) ?? node.id;

@@ -76,8 +76,8 @@ async function expandSection() {
 
 async function openPopover() {
   await expandSection();
-  fireEvent.click(screen.getByRole("button", { name: "Add property" }));
-  return screen.getByRole("dialog", { name: "Add property" });
+  fireEvent.click(screen.getByRole("button", { name: "Bind property" }));
+  return screen.getByRole("dialog", { name: "Bind property" });
 }
 
 describe("S6 PropertyDefinitionsSection", () => {
@@ -137,7 +137,7 @@ describe("S6 PropertyDefinitionsSection", () => {
     renderSection(client, classId);
     const dialog = await openPopover();
     fireEvent.keyDown(dialog, { key: "Escape" });
-    expect(screen.queryByRole("dialog", { name: "Add property" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Bind property" })).toBeNull();
   });
 
   it("edits target classes through the definition modal (update {targetClassFilter})", async () => {

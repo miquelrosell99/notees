@@ -7,6 +7,46 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(protocol,store,web)!: retire the `readonly` render contract —
+  derived from the system list; class-view chrome cleanup; aliases hide when
+  empty.** Three owner asks, one slice.
+  - **Readonly retirement** (owner ruling 2026-10-21): the `readonly` render
+    contract leaves `propertySchema.create/update` — an enumeration of the
+    seeds (seeds.ts + the GTK/Flutter seed manifests) finds ZERO system
+    properties that ever carried the flag, so it was never user
+    configuration. `class.property.set`-style precedent: the strict payloads
+    reject the retired key outright; store **v26→v27** rebuilds
+    `property_schema` without the `readonly` column (no snapshot byte patch —
+    nothing to backfill; every hydration path opens through
+    `Store.open`/migrate); the effective read drops the field. Clients
+    DERIVE readonly-ness from the system property list —
+    `isReadonlyProperty(schemaId)` in `packages/domain` (fixed seed UUIDs,
+    precise) covering the platform-provenance schemas **generatedFrom +
+    alias** — and dim/disable editors exactly where the old flag did (never
+    blocking a write, PC1). `hideWhenEmpty` and `display` stay user-facing
+    render contracts. The web settings modal loses the Read-only toggle; the
+    convert flow stops copying the flag; the undo journal stops capturing
+    it.
+  - **Class-view chrome**: the "No templates bound" empty-state text is gone
+    (the "Bind template" pill sits right there); the class-properties side
+    says **"Bind property"** now (the domain verb — API/SCHEMA.md/CLI —
+    unifying with "Bind template", not "Add").
+  - **Aliases hide when empty**: the metadata panel's aliases row renders
+    nothing until ≥1 alias exists — the page-header action row carries the
+    "Add aliases" gesture until then; no empty section, no empty-state text.
+  - **Migration**: `scripts/migrate-drop-schema-readonly.mts` (Path B,
+    dry-run default) strips `readonly` from every stored
+    `propertySchema.create/update` payload in place + bumps the restore
+    epoch — no compensation (derived, not stored). Also: the two historical
+    migration scripts that copied the flag (`migrate-attachments-asset-type`,
+    `migrate-retire-class-class`) drop it from their plan/copy shape.
+  - **Docs**: SCHEMA.md "Class properties" (the derivation contract),
+    `docs/developers/migrations.md` (catalog row), `releases.md`
+    (current-wire + lockstep table).
+  - **Verification:** `pnpm typecheck` clean repo-wide; `pnpm test` green
+    (protocol 530, store 617 on both adapters, query 249, server 236,
+    domain 96, web — full suite); the live migration counts + the scoped
+    redeploy + verify-min smoke below — VERIFY-PASS.
 ## 2026-10-21
 - **feat(protocol)!: the `external_link` content token retires — links are
   markdown spans in `text` tokens, parsed at render time.** Owner ruling

@@ -458,7 +458,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
-  describe("schema-level render contracts (display/readonly/hideWhenEmpty) + option icon", () => {
+  describe("schema-level render contracts (display/hideWhenEmpty) + option icon", () => {
     const SCHEMA_SELECT = "0192a000-0000-7000-8000-0000000000a6";
 
     it("display persists on the schema and rides the effective read (panel default; unbound values included)", () => {
@@ -536,22 +536,29 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBeNull();
     });
 
-    it("readonly/hideWhenEmpty persist on the schema and ride every effective row", () => {
+    it("hideWhenEmpty persists on the schema and rides every effective row; "
+       + "readonly retired outright (owner ruling 2026-10-21)", () => {
       const store = seededStore();
       let ts = 1727200031000;
-      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select", readonly: true, hideWhenEmpty: false }, (ts += 100)));
+      // The strict payload rejects the retired readonly key outright.
+      expect(() =>
+        store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select", readonly: true, hideWhenEmpty: false } as unknown as Record<string, unknown>, (ts += 100))),
+      ).toThrow(/invalid propertySchema\.create payload/);
+      expect(() =>
+        store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SELECT, readonly: true } as unknown as Record<string, unknown>, (ts += 100))),
+      ).toThrow(/invalid propertySchema\.update payload/);
+      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select", hideWhenEmpty: false }, (ts += 100)));
       store.apply(env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA_SELECT, value: "opt-x", idx: 0 }, (ts += 100)));
       const row = store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT);
-      expect(row?.readonly).toBe(true);
       expect(row?.hideWhenEmpty).toBe(false);
+      expect(row).not.toHaveProperty("readonly");
       // Clear rides the same update path.
-      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SELECT, readonly: null, hideWhenEmpty: null }, (ts += 100)));
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SELECT, hideWhenEmpty: null }, (ts += 100)));
       const cleared = store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT);
-      expect(cleared?.readonly).toBeNull();
       expect(cleared?.hideWhenEmpty).toBeNull();
     });
 
-    it("a v13 database upgrades through v26: the schema gains the columns, the binding rebuild drops every retired one", () => {
+    it("a v13 database upgrades through v27: the schema gains the columns, the rebuilds drop every retired one", () => {
       // A dedicated FILE-backed store: close + reopen exercises migrate()
       // against the on-disk v13 shape (the sqljs/in-memory adapters cannot).
       const dir = mkdtempSync(join(tmpdir(), "notees-v25-migration-test-"));
@@ -581,7 +588,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // sequence retired outright (owner ruling 2026-10-21, store v26).
       expect(columns).not.toContain("sequence");
       const schemaCols = (reopened.database.prepare("PRAGMA table_info(property_schema)").all() as Array<{ name: string }>).map((c) => c.name);
-      for (const col of ["display", "readonly", "hide_when_empty", "default_value"]) expect(schemaCols).toContain(col);
+      // readonly retired outright at v27 (owner ruling 2026-10-21).
+      expect(schemaCols).not.toContain("readonly");
+      for (const col of ["display", "hide_when_empty", "default_value"]) expect(schemaCols).toContain(col);
       // The surviving binding row is intact across the rebuild; new writes
       // land on the new shape.
       const row = reopened.database

@@ -366,9 +366,10 @@ export interface UpdatePropertySchemaInput {
   /** The GLOBAL default (owner ruling 2026-10-20): absent keeps, null
    *  clears (PC2-typed at apply against the schema's stored type). */
   defaultValue?: unknown;
-  /** The render contracts (PROPERTY-level): absent keeps, null clears. */
+  /** The render contracts (PROPERTY-level): absent keeps, null clears.
+   *  (`readonly` retired 2026-10-21 — derived from the system list via
+   *  @notees/domain isReadonlyProperty, never stored.) */
   display?: PropertyDisplay | null;
-  readonly?: boolean | null;
   hideWhenEmpty?: boolean | null;
 }
 
@@ -393,9 +394,10 @@ export interface ClientPropertySchema {
   numberPad?: number | null;
   numberDecimals?: number | null;
   numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
-  /** The render contracts (PROPERTY-level; null = panel / unset). */
+  /** The render contracts (PROPERTY-level; null = panel / unset).
+   *  (`readonly` retired 2026-10-21 — derived from the system list, not
+   *  stored.) */
   display?: PropertyDisplay | null;
-  readonly?: boolean | null;
   hideWhenEmpty?: boolean | null;
   /** Value-validation rules (null = none). */
   validationRules?: ClientValidationRules | null;
@@ -464,9 +466,9 @@ export interface EffectiveProperty {
     numberPad?: number | null;
     numberDecimals?: number | null;
     numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
-    /** The render contracts (PROPERTY-level; null = panel / unset). */
+    /** The render contracts (PROPERTY-level; null = panel / unset).
+     *  (`readonly` retired 2026-10-21 — derived from the system list.) */
     display?: PropertyDisplay | null;
-    readonly?: boolean | null;
     hideWhenEmpty?: boolean | null;
   } | null;
   value: unknown;
@@ -480,8 +482,8 @@ export interface EffectiveProperty {
    *  ineligible nodes, so they always read true. */
   eligible: boolean;
   /** PROPERTY-level: the schema's render contracts — the same for
-   *  every carrier, class-bound or not. */
-  readonly: boolean | null;
+   *  every carrier, class-bound or not. (Readonly-ness derives from the
+   *  system property list since the owner ruling 2026-10-21.) */
   hideWhenEmpty: boolean | null;
   display: PropertyDisplay | null;
 }

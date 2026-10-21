@@ -30,6 +30,12 @@ import type { AnyClient } from "./shared.js";
  *
  * Pages only: the write guard makes a non-page target unwritable, so a block
  * (BlockRow hosts the same section) renders no row.
+ *
+ * Empty pages render NO row at all (owner 2026-10-21): the page header's
+ * action row carries the "Add aliases" button until the first alias
+ * exists — an empty section is redundant chrome. The row appears once
+ * ≥1 alias exists (its own "+ Add alias" pill then covers adding more;
+ * the header button retires).
  */
 export function AliasesRow({
   client,
@@ -60,6 +66,9 @@ export function AliasesRow({
     return null;
 
   const aliases = client.aliasNodesOf(nodeId);
+  // Hide when empty (owner 2026-10-21) — the header's "Add aliases" action
+  // is the entry point until the first alias exists.
+  if (aliases.length === 0) return null;
 
   return (
     <div className="node-metadata-row nt-aliases-row">

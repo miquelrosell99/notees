@@ -24,12 +24,13 @@
  * (the section-level danger confirm; hidden for system property schemas —
  * non-removable means absent). Removal never requires opening anything.
  *
- * Add property: the AddPill opens an anchored popover (SearchField,
+ * Bind property: the AddPill opens an anchored popover (SearchField,
  * keyboard-navigable listbox, rows = icon + name + type label) filtered
  * by query AND class-context eligibility (global + schemas scoped to
  * this class or its extends-ancestors, R1/R2). Its "Create …" row opens
  * the S1 creation modal pre-filled via requestPropertyCreate
- * ({ contextClassId }) — no instant text create-and-bind.
+ * ({ contextClassId }) — no instant text create-and-bind. ("Bind" is the
+ * domain verb — API/SCHEMA.md/CLI — owner 2026-10-21; not "Add".)
  *
  * Binding attribution: the direct group is "schemas whose NEAREST binder
  * is this class" — the class's own registry rows (getRegistryBindings)
@@ -337,7 +338,7 @@ export function PropertyDefinitionsSection({
         <div className="nt-propdefs-add">
           <AddPill
             ref={addButtonRef}
-            label="Add property"
+            label="Bind property"
             aria-expanded={pickerOpen}
             onClick={() => {
               setPickerOpen((open) => !open);
@@ -350,7 +351,7 @@ export function PropertyDefinitionsSection({
               ref={pickerRef}
               className="nt-propdef-picker"
               role="dialog"
-              aria-label="Add property"
+              aria-label="Bind property"
               onKeyDown={onPickerKeyDown}
             >
               <SearchField

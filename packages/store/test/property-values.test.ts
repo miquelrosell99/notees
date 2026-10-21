@@ -435,15 +435,14 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       });
     });
 
-    it("inherited binding attribution (boundBy from the winning binding, readonly from the schema) surfaces on authored rows", () => {
+    it("inherited binding attribution (boundBy from the winning binding) "
+       + "surfaces on authored rows", () => {
       const store = chainStore([BASE]);
-      // boundBy rides the winning BINDING (per-class); readonly rides the
-      // SCHEMA (per-property) — both surface on the subclass's authored row.
+      // boundBy rides the winning BINDING (per-class) — it surfaces on the
+      // subclass's authored row. (readonly retired outright with the owner
+      // ruling 2026-10-21 — derived from the system list, not stored.)
       store.apply(
         env("class.property.set", { classId: BASE, propertySchemaId: SCHEMA }, 1727200001700),
-      );
-      store.apply(
-        env("propertySchema.update", { propertySchemaId: SCHEMA, readonly: true }, 1727200001750),
       );
       store.apply(env("object.create", { objectId: OWNER, contentAst: text("Owner"), classIds: [LEAF] }, 1727200002000));
       store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA, value: "mine" }, 1727200002100));
@@ -452,8 +451,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         value: "mine",
         source: "authored",
         boundBy: BASE,
-        readonly: true,
       });
+      expect(row).not.toHaveProperty("readonly");
     });
   });
 

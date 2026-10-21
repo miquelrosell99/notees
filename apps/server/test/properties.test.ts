@@ -428,13 +428,20 @@ describe("class property binding routes", () => {
     });
     expect(reEnabled.json().binding).toMatchObject({ active: true });
 
-    // The render contracts AND the default live on the SCHEMA (owner ruling
+    // The render contract AND the default live on the SCHEMA (owner ruling
     // 2026-10-20 — one global default per property, the Logseq shape).
+    // `readonly` retired outright (owner ruling 2026-10-21 — the strict
+    // payload rejects it 422).
+    const retiredReadonly = await api("PATCH", `/api/property-schemas/${schemaId}`, {
+      payload: { readonly: true },
+    });
+    expect(retiredReadonly.statusCode).toBe(422);
     const schemaPatched = await api("PATCH", `/api/property-schemas/${schemaId}`, {
-      payload: { readonly: true, hideWhenEmpty: true, defaultValue: "n/a" },
+      payload: { hideWhenEmpty: true, defaultValue: "n/a" },
     });
     expect(schemaPatched.statusCode).toBe(200);
     expect(schemaPatched.json().propertySchema).toMatchObject({ defaultValue: "n/a" });
+    expect(schemaPatched.json().propertySchema).not.toHaveProperty("readonly");
 
     const member = (
       await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "pg7-book", classIds: [classId] } })
@@ -447,9 +454,9 @@ describe("class property binding routes", () => {
       value: "n/a",
       source: "default",
       boundBy: classId,
-      readonly: true,
       hideWhenEmpty: true,
     });
+    expect(row).not.toHaveProperty("readonly");
   });
 
   it("PATCH fails loud on a wrong-typed schema defaultValue and POST fails loud on unknown class/schema", async () => {

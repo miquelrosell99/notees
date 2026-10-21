@@ -237,7 +237,6 @@ export interface TemplateSchemaRow {
   multi: number;
   targetClassFilter: string | null;
   display: string | null;
-  readonly: number | null;
   hideWhenEmpty: number | null;
 }
 
@@ -302,7 +301,6 @@ export function buildEnvelopes(
           ? { targetClassFilter: JSON.parse(templateRow.targetClassFilter) as string[] }
           : {}),
         ...(templateRow.display !== null ? { display: templateRow.display } : {}),
-        ...(templateRow.readonly !== null ? { readonly: templateRow.readonly === 1 } : {}),
         ...(templateRow.hideWhenEmpty !== null ? { hideWhenEmpty: templateRow.hideWhenEmpty === 1 } : {}),
       },
       [],
@@ -449,7 +447,7 @@ function main(): void {
           .prepare(
             `SELECT name, multi,
                     target_class_filter AS targetClassFilter, display,
-                    readonly, hide_when_empty AS hideWhenEmpty
+                    hide_when_empty AS hideWhenEmpty
              FROM property_schema WHERE id = ?`,
           )
           .get(HAS_TEMPLATE_ID) as TemplateSchemaRow)
