@@ -7,6 +7,39 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **refine(web): the ALL/ANY logic control returns to the bordered
+  SelectionButton with gate symbols — and the mode-switch vs settings
+  interaction ruling is documented.** Owner ruling (2026-10-21), the
+  third iteration on this control in a day: the ToggleSwitch was the wrong
+  idiom for Match ALL/ANY ("we are not enabling anything") — the control
+  is the fleet SelectionButton again (root head row AND every nested group
+  header), now with the MDI gate symbols `mdi-gate-and` / `mdi-gate-or`
+  (verified in the sprite) so AND and OR stop looking identical; the
+  accessible names are unchanged ("Match ALL conditions" / "Match ANY
+  condition"). Blocks/Raw stays the icon SelectionButton (toy-brick /
+  code-braces). The owner's "use the BORDERED switcher" feedback exposed a
+  real contrast bug: the SelectionButton container rides the SAME
+  `--md-sys-color-surface-container` token as the structured-filters
+  panel's background, so inside the panel the container background was
+  invisible and only the hairline outline read — a minimal token-only nudge
+  in FilterBlockBuilder.css steps the builder's switcher containers to
+  `--md-sys-color-surface-container-high`. The interaction ruling is
+  documented to stop the flip-flopping (owner ruling 2026-10-21, in
+  `docs/developers/ui-primitives.md`'s catalog and both primitives' doc
+  comments): mutually-exclusive MODE/VIEW switching ALWAYS rides the
+  bordered SelectionButton (the ViewSwitcher component); ToggleSwitch is
+  for enabling/disabling a SETTING only, never mode switching.
+  - **Files**: `apps/web/src/features/collection/FilterBlockBuilder.tsx`
+    (the gate-symbol LOGIC_OPTIONS SelectionButton, ToggleSwitch import
+    leaves), `…/FilterBlockBuilder.css` (the container-token contrast
+    nudge), `apps/web/src/components/ui/fleet/SelectionButton.tsx` +
+    `…/ToggleSwitch.tsx` (the ruling cross-reference in both doc
+    comments), `docs/developers/ui-primitives.md` (the catalog ruling),
+    `apps/web/test/filter-builder.test.tsx` (radio assertions restored).
+  - **Verification**: `npx tsc --noEmit` (apps/web) and
+    `npx vitest run test/filter-builder.test.tsx test/filter-query.test.ts
+    test/filter-layer.test.tsx test/graph-view.test.tsx` — 77 tests green.
+
 - **refine(web): owner reversal on the head-row controls — Blocks/Raw back
   to the icon SelectionButton, Match ALL/ANY becomes the v1 ToggleSwitch.**
   Owner ruling (2026-10-21), one day after the text-segment experiment: the

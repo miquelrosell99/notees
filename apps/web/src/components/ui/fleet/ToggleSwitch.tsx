@@ -5,6 +5,11 @@
  * a simple on/off switch, ToggleSwitch shows text labels on left and right
  * sides, making it ideal for A/B choices like Page/Block.
  *
+ * Interaction ruling (owner 2026-10-21): ToggleSwitch is for
+ * enabling/disabling a SETTING only — mutually-exclusive MODE/VIEW
+ * switching (AND/OR, Blocks/Raw, outline/cards/table) rides the bordered
+ * SelectionButton, never this.
+ *
  * Thin fleet wrapper over the normalized catalog switch
  * (src/components/ui/switch.tsx — Radix underneath): the Radix Switch root
  * IS the interactive control (role=switch, aria-checked, keyboard), the

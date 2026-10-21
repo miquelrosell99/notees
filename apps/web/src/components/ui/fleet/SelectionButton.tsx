@@ -4,6 +4,14 @@
  * A button-style selector with multiple options displayed as icons.
  * Features an animated selection indicator that slides between options.
  *
+ * Interaction ruling (owner 2026-10-21): the bordered SelectionButton is
+ * THE control for mutually-exclusive MODE/VIEW switching — AND/OR,
+ * Blocks/Raw, outline/cards/table (the ViewSwitcher rides it); enabling/
+ * disabling a SETTING rides the ToggleSwitch, never this. Inside a panel
+ * whose background rides the same surface-container token, the container
+ * can need the one-step container-token nudge to read (see
+ * FilterBlockBuilder.css).
+ *
  * When `maxVisibleOptions` is provided, excess options are shown in an
  * overflow dropdown accessed via a "…" toggle. The inline buttons show
  * only icons; the dropdown shows icon + label.
