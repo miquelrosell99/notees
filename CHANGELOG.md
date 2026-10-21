@@ -40,7 +40,10 @@ predating this file.
   - **Verification**: `pnpm --filter @notees/web typecheck` clean; web
     suite green except the pre-existing property-definition/editor failures
     (another session's in-flight cog slice) and one flaky block-dnd case —
-    none touch the table.
+    none touch the table. Redeployed: `notees-web` rebuilt (clean worktree
+    at the slice commit — the checkout carried the parallel session's
+    uncommitted edits) + stack recreated from the live stack folder,
+    `verify-min.mjs` VERIFY-PASS.
 
 - **fix(web): client-side name search folds diacritics — `video` finds the
   class "Vídeo".** The ranked FTS index has folded diacritics since store
@@ -62,6 +65,32 @@ predating this file.
   full `pnpm typecheck` + `pnpm test` gate green. Docs: `docs/features/
   links.md`'s picker paragraph states the folding rule. Web-only slice —
   redeploy `notees-web`.
+- **feat(web): class-property rows are display-only — the whole-row click is
+  gone, the hover COG is the one definition-settings affordance.**. Carrying BOTH a
+  whole-row click AND the cog was redundant; one had to go, and the cog
+  wins by the explicit-affordance criterion: with the hover tint gone the
+  row announced nothing, and a text-looking name must not pretend to be
+  clickable (select/copy clicks were slapping the modal open). The
+  `.nt-propdef-main` / `.nt-propdef-inherited-main` row bodies are now
+  plain identity display (spans, no button chrome, no cursor); the
+  hover-revealed right side is the whole action surface — COG (opens the S2
+  base-definition modal, on system rows too) + REMOVE × (still
+  system-locked = absent). The Inherited group converts to the same
+  criterion (identity + source pill + hover cog naming the source class in
+  its aria label). The criterion is written into the fleet design system
+  (`rosellramos-design-system` `law/patterns.md`, new "Action row" pattern —
+  whole-row click survives only where activation IS the row's purpose and
+  the hover fill announces it).
+  - **Files**: `PropertyDefinitionsSection.tsx` (row bodies → spans; header
+    comment rewritten to the explicit-affordance contract), `.css` (button
+    chrome stripped from the row bodies; the inherited rows gain the same
+    `nt-propdef-rowinner` hover-reveal container), tests
+    (`property-definitions-section`, `class-bindings`, `class-view`,
+    `dates` — click targets move from the row button to the cog; the
+    identity-row tests now assert the name is NOT a button).
+  - **Verification:** `pnpm typecheck` clean repo-wide; `pnpm test` green;
+    `verify-min.mjs` VERIFY-PASS after the scoped `notees-web` rebuild.
+
 - **feat(web): class-property rows — the name-hover tint is gone, and hover
   now reveals a COG beside the REMOVE ×.**. The
   direct-bindings row of the class page's "Class properties" section lost
