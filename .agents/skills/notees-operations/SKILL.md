@@ -57,4 +57,9 @@ log, snapshot/compaction metadata, asset index, restore_epoch),
 | Maintenance | `references/maintenance.md` | `deployment.md` |
 
 The end-to-end smoke after any deploy or restart:
-`cd scripts/screenshots && NOTEES_ADMIN_PASSWORD=$(cat ../../config/notees/.admin_password) node verify-min.mjs` → expect `VERIFY-PASS`.
+`node scripts/screenshots/verify-min.mjs` (runnable from any cwd — it
+self-locates the stack dir, API key, admin password, and workspace: env →
+`/etc/periphery/stacks/notees` when present → repo root) → expect
+`VERIFY-PASS`. Env overrides: `NOTEES_STACK_DIR`, `NOTEES_API`/`NOTEES_WEB`,
+`NOTEES_API_KEY` (+`_FILE`), `NOTEES_ADMIN_PASSWORD` (+`_FILE`),
+`NOTEES_ADMIN_EMAIL`, `NOTEES_WORKSPACE`, `NOTEES_VERIFY_OUT`.
