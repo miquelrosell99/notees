@@ -238,9 +238,16 @@ interface BlockRowProps {
    * empty body too. Not sortable — the row carries no drag wiring.
    */
   trailingGhost?: ReactNode | undefined;
+  /**
+   * Mount straight into edit mode (the table text cell's placeholder
+   * creates its carrier and lands the user in the editor in one click):
+   * the initial editing state is true and the editor's mount effect lands
+   * the caret. Only the INITIAL state — later mounts render read mode.
+   */
+  autoEdit?: boolean | undefined;
 }
 
-export function BlockRow({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, proseMode = false, tableRow = false, variant = "block", hideBacklinks = false, condensed = false, trailingGhost = undefined }: BlockRowProps) {
+export function BlockRow({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, proseMode = false, tableRow = false, variant = "block", hideBacklinks = false, condensed = false, trailingGhost = undefined, autoEdit = false }: BlockRowProps) {
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
   const isTitle = variant === "title";
@@ -270,7 +277,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
   // The drag session's source set: a selection-stack drag faints EVERY root
   // row (the grip row's own isDragging only covers the one under the grip).
   const dragSources = useContext(DragSourcesContext);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(autoEdit);
   const [caret, setCaret] = useState<EditorCaret>("end");
   // Right-gutter backlink toggle (SCHEMA.md:117): the badge reads the
   // materialized count (cheap stored number, renders unconditionally at 0

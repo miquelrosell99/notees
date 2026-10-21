@@ -22,12 +22,27 @@
  *   Rows are ALWAYS flat — one row per item, children never render, whatever
  *   the tree/maxDepth props say (the cards-mode ruling's
  *   twin: cards always resolve children, table never shows them).
- * - Cells: boolean + select edit inline; text/url/email and number/integer
- *   commit on blur/Enter (empty unsets); date cells open the canonical
- *   date-picker popup (suggestions / All-day / Range / Remove) writing the
- *   unified datetime union (ensureDateChain); node cells open the anchored
- *   NodeSelector.
- *   Multi-value properties stay read-only.
+ * - Cells: boolean + select edit inline; url/email and number/integer
+ *   commit on blur/Enter (empty unsets) through the cell-level inline input;
+ *   date cells open the canonical date-picker popup (suggestions / All-day /
+ *   Range / Remove) writing the unified datetime union (ensureDateChain);
+ *   node cells open the anchored NodeSelector — the single-value cell as a
+ *   picker on the value, the MULTI-value cell as the
+ *   metadata row's pill cluster: every value a NodePill (open on click,
+ *   hover-reveal × unsets its slot) plus an "+ Add" pill appending at the
+ *   next free idx through the anchored NodeSelector (the schema's
+ *   targetClassFilter scopes the search AND the create row).
+ *   TEXT cells ride the name cell's contract: the value
+ *   IS a carrier block, so the cell renders it through BlockRow
+ *   variant="title" (read mode renders the carrier's inline tokens; a click
+ *   swaps in the full block editor; leaving the editor emptied unsets the
+ *   property and the orphaned carrier is trashed) — the retired bordered
+ *   inline input flattened rich text to edit it. An empty (or broken-ref)
+ *   text cell renders the muted schema-name placeholder (the NodeCell
+ *   precedent); one click creates the carrier and lands straight in the
+ *   editor (BlockRow autoEdit).
+ *   Multi-value properties other than node-typed stay read-only (every
+ *   value renders, joined).
  * - The navigate button: the pinned Open button also
  *   rides the single-value node/date property cells — the VALUE click owns
  *   the picker (unless read-only), the button owns navigation (target
@@ -79,14 +94,16 @@
  *   next to the Columns/Sort configurators.
  */
 
-import { useContext, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { isRangeDatetimeValue, isReadonlyProperty, isValidTimeOfDay, parseDateNodeId, fullTitleOf } from "@notees/domain";
+import { useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { isRangeDatetimeValue, isReadonlyProperty, isValidTimeOfDay, parseDateNodeId, fullTitleOf, plainTextExcerpt } from "@notees/domain";
 import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
-import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu } from "../../components/ui/fleet/index.js";
+import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu, AddPill } from "../../components/ui/fleet/index.js";
 import { Icon } from "../../ui/Icon.js";
 import { BlockRow } from "../../ui/BlockRow.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
+import { NodePill } from "../metadata/NodePills.js";
+import { resolveTargetClassIds } from "../metadata/shared.js";
 import {
   DatePickerPopup,
   type DatetimePickerSlot,
@@ -354,53 +371,194 @@ function carrierRefOf(value: unknown): string | null {
   return typeof value === "string" && UUID_LIKE.test(value) ? value : null;
 }
 
-/** The draft shown in a text cell: the carrier's raw text when node-backed. */
-function textCellDraft(client: AnyClient, prop: EffectiveProperty | undefined): string {
+/**
+ * Text-property cell — the name cell's contract applied
+ * to the value's carrier block: the cell renders the carrier through
+ * BlockRow variant="title" (inline tokens render read mode, a click swaps
+ * in the full block editor whose writes land on the carrier itself), so a
+ * text cell reads exactly like the name cell beside it — the retired
+ * bordered inline input flattened rich text to edit it. An empty (or
+ * broken-ref) cell renders the muted schema-name placeholder (the NodeCell
+ * precedent): one click creates the carrier, links it at the property's
+ * idx, and lands straight in the editor (BlockRow autoEdit).
+ *
+ * Auto-unset (the TextPropertyRow contract, table-scaled): an authored
+ * carrier with no content and no children unsets once the caret is no
+ * longer inside it — the fresh carrier the placeholder just minted is
+ * excepted by the focus guard (its autoEdit editor holds the caret), and
+ * the unset trashes the orphaned carrier, so empty cells never strand dead
+ * blocks. The pass rides the cell's own client subscription (the metadata
+ * row's precedent — the table host is not guaranteed to re-render on a
+ * store write) and runs on every synced render; the fresh reads come from
+ * the client, never a stale render closure.
+ */
+function TextCell({
+  row,
+  schemaId,
+  props,
+  schemaName,
+}: {
+  row: TableRow;
+  schemaId: string;
+  props: NodeCollectionProps;
+  schemaName: string;
+}) {
+  const { client } = props;
+  const prop = row.properties.find((p) => p.propertySchemaId === schemaId);
   const ref = carrierRefOf(prop?.value);
-  if (ref !== null) {
-    const node = client.getNode(ref);
-    if (node !== undefined) {
-      return node.contentAst
-        .map((token) => (token.type === "text" ? (token.text ?? "") : ""))
-        .join("");
-    }
+  const carrier = ref !== null ? client.getNode(ref) : undefined;
+  /** The carrier created by the placeholder click — it mounts in edit mode. */
+  const [freshId, setFreshId] = useState<string | null>(null);
+  const wrapRef = useRef<HTMLSpanElement | null>(null);
+
+  // The cell stays live outside a subscribing host (the TextPropertyRow
+  // precedent): writes (the editor's flush, the unset below) re-render it.
+  const [, setVersion] = useState(0);
+  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+
+  useEffect(() => {
+    if (carrier === undefined || prop?.source !== "authored") return;
+    const contentless =
+      plainTextExcerpt(carrier.contentAst).trim() === "" && client.getChildren(carrier.id).length === 0;
+    if (!contentless) return;
+    // The just-minted carrier's editor holds the caret — the user may be
+    // about to type; anything else emptied is unset now.
+    if (wrapRef.current?.contains(document.activeElement) === true) return;
+    void client.unsetProperty(row.item.node.id, schemaId, prop.idx);
+  });
+
+  if (carrier === undefined) {
+    return (
+      <button
+        type="button"
+        className="nt-table-text-empty"
+        aria-label={schemaName}
+        onClick={() => {
+          void (async () => {
+            const created = await client.createObject({
+              parentId: row.item.node.id,
+              contentAst: [],
+            });
+            await client.setProperty(row.item.node.id, schemaId, { nodeId: created }, prop?.idx ?? 0);
+            setFreshId(created);
+          })();
+        }}
+      >
+        <span className="nt-table-date-placeholder">{schemaName}</span>
+      </button>
+    );
   }
-  return propertyDisplayText(client, prop);
+
+  return (
+    <span className="nt-table-text-cell" ref={wrapRef}>
+      <BlockRow
+        variant="title"
+        tree={{ node: carrier, children: [] }}
+        client={client}
+        resolveName={(classId) => client.getDisplayName(classId)}
+        autoEdit={carrier.id === freshId}
+      />
+    </span>
+  );
 }
 
 /**
- * Text-property cell commit — node-backed per SCHEMA.md (PB2 one-shape-per-
- * type): strings no longer ride property.set directly. Editing an existing
- * carrier writes its content; a fresh value creates a carrier child of the
- * row node and links {nodeId}; clearing unsets (whose applier trashes the
- * orphaned carrier).
+ * Multi-value node-typed cell — the metadata ObjectPropertyRow's
+ * pill cluster, table-scaled: every value rides the shared NodePill (the
+ * linked node's effective color/icon, click opens, hover-reveal × unsets
+ * its own idx slot; a broken ref renders the dashed raw-id honest state),
+ * and the "+ Add" pill opens the anchored NodeSelector appending at the
+ * next free idx. The schema's targetClassFilter scopes the search AND the
+ * create row (the created node carries the filter classes).
  */
-async function commitTextCellValue(
-  props: NodeCollectionProps,
-  row: TableRow,
-  schemaId: string,
-  idx: number | undefined,
-  next: string,
-): Promise<void> {
+function MultiNodeCell({
+  row,
+  schemaId,
+  props,
+  schemaName,
+}: {
+  row: TableRow;
+  schemaId: string;
+  props: NodeCollectionProps;
+  schemaName: string;
+}) {
   const { client } = props;
-  const nodeId = row.item.node.id;
-  if (next === "") {
-    if (idx !== undefined) await client.unsetProperty(nodeId, schemaId, idx);
-    return;
-  }
-  const prop = row.properties.find(
-    (p) => p.propertySchemaId === schemaId && (idx === undefined || p.idx === idx),
+  const [open, setOpen] = useState(false);
+  const addRef = useRef<HTMLButtonElement | null>(null);
+  const rows = row.properties
+    .filter((p) => p.propertySchemaId === schemaId)
+    .sort((a, b) => a.idx - b.idx);
+  const pills = rows
+    .map((p) => ({ row: p, ref: carrierRefOf(p.value) }))
+    .filter((pill): pill is { row: EffectiveProperty; ref: string } => pill.ref !== null);
+  const linkedIds = new Set(pills.map((pill) => pill.ref));
+  const authoredIdx = rows.filter((p) => p.source === "authored").map((p) => p.idx);
+  // Per-slot append (the ObjectPropertyRow pattern): the next free idx past
+  // the highest authored slot.
+  const nextIdx = authoredIdx.length > 0 ? Math.max(...authoredIdx) + 1 : 0;
+  const targetClassIds = resolveTargetClassIds(client, schemaId, null);
+  return (
+    <span className="nt-table-chips">
+      {pills.map(({ row: pillRow, ref }) => {
+        const linked = client.getNode(ref);
+        const label = displayNameFromClient(client, ref) ?? ref;
+        if (linked === undefined) {
+          // PB1 honest state — the raw id, never a silently empty chip.
+          return (
+            <span key={`${schemaId}:${pillRow.idx}`} className="pill pill--broken" title={`Broken reference: ${ref}`}>
+              <span className="pill__text nt-chip-label nt-chip-label--broken">
+                <code>{ref}</code>
+              </span>
+              <button
+                type="button"
+                className="pill__right-button nt-chip-remove"
+                aria-label={`Remove ${label}`}
+                onClick={() => void client.unsetProperty(row.item.node.id, schemaId, pillRow.idx)}
+              >
+                <Icon path="mdi-close" size={0.6} />
+              </button>
+            </span>
+          );
+        }
+        return (
+          <NodePill
+            key={`${schemaId}:${pillRow.idx}`}
+            color={client.effectiveNodeColor(linked)}
+            icon={linked.icon}
+            label={label}
+            onOpen={() => props.onNodeClick?.(ref)}
+            onRemove={() => void client.unsetProperty(row.item.node.id, schemaId, pillRow.idx)}
+            removeLabel={`Remove ${label}`}
+          />
+        );
+      })}
+      <AddPill
+        ref={addRef}
+        label={schemaName}
+        aria-expanded={open}
+        onClick={(element) => {
+          addRef.current = element;
+          setOpen((cur) => !cur);
+        }}
+      />
+      {open && (
+        <NodeSelector
+          client={client}
+          searchMode="pages"
+          classFilters={targetClassIds ?? undefined}
+          excludeNodeId={row.item.node.id}
+          canAdd={(node) => !linkedIds.has(node.id)}
+          anchorEl={addRef.current}
+          onClose={() => setOpen(false)}
+          searchPlaceholder={`Search ${schemaName}`}
+          onAdd={(node) => {
+            setOpen(false);
+            void client.setProperty(row.item.node.id, schemaId, { nodeId: node.id }, nextIdx);
+          }}
+        />
+      )}
+    </span>
   );
-  const existing = carrierRefOf(prop?.value);
-  if (existing !== null && client.getNode(existing) !== undefined) {
-    await client.updateObject(existing, { contentAst: [{ type: "text", text: next }] });
-    return;
-  }
-  const carrier = await client.createObject({
-    parentId: nodeId,
-    contentAst: [{ type: "text", text: next }],
-  });
-  await client.setProperty(nodeId, schemaId, { nodeId: carrier }, idx ?? 0);
 }
 
 /**
@@ -670,13 +828,7 @@ function PropertyCell({ row, column, props, peek }: { row: TableRow; column: Tab
 
   if (editable && (schema?.type === "text" || schema?.type === "url" || schema?.type === "email") && schema?.multi !== true) {
     if (schema?.type === "text") {
-      return (
-        <InlineInput
-          value={textCellDraft(client, prop)}
-          ariaLabel={schema.name}
-          onCommit={(next) => void commitTextCellValue(props, row, schemaId, prop?.idx, next)}
-        />
-      );
+      return <TextCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} />;
     }
     return (
       <InlineInput
@@ -702,6 +854,10 @@ function PropertyCell({ row, column, props, peek }: { row: TableRow; column: Tab
 
   if (editable && schema?.type === "datetime" && schema?.multi !== true) {
     return <DateCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} peek={peek} />;
+  }
+
+  if (editable && schema?.type === "object" && schema?.multi === true) {
+    return <MultiNodeCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} />;
   }
 
   if (editable && schema?.type === "object" && schema?.multi !== true) {
@@ -770,9 +926,13 @@ function PropertyCell({ row, column, props, peek }: { row: TableRow; column: Tab
     }
   }
 
-  // Read-only EMPTY node/date cells: the muted schema-name placeholder
-  // (the editable DateCell precedent) — a blank cell reads as nothing.
-  const tailText = propertyDisplayText(client, prop);
+  // Read-only projection: EVERY value of the schema renders (multi rows
+  // join), never just the first.
+  const tailText = row.properties
+    .filter((p) => p.propertySchemaId === schemaId)
+    .map((p) => propertyDisplayText(client, p))
+    .filter((text) => text !== "")
+    .join(", ");
   if (
     tailText === "" &&
     schema?.multi !== true &&
