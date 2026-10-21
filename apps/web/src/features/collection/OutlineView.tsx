@@ -18,11 +18,12 @@
  *   (the tasks hub), collapse chevrons, recursive children (the item's own
  *   children when the container supplied them, else the client's live
  *   children), property icon buttons, classes/tags/metadata chrome.
- *   PAGES WITH CHILDREN DEFAULT COLLAPSED: the flat list
- *   opens one row per page, its child blocks folded behind the chevron; the
- *   expansion override is session-local, so the default re-applies next
- *   session. Block rows keep their natural expanded state — the ruling
- *   names pages (document-chrome rows) only.
+ *   ROWS WITH CHILDREN DEFAULT COLLAPSED (generalized
+ *   same day): every row in a collection list — pages and blocks alike —
+ *   opens folded, its children behind the chevron, so the list reads one
+ *   row per item; the expansion override is session-local, so the default
+ *   re-applies next session. The reference-subtree rows (the backlinks
+ *   sections' renderItem) ride the same default through their own context.
  *   Read-only rows are the inert variant (`readOnlyInert`): the content
  *   click does NOTHING and the bullet element opens the node — no full-row
  *   hover wash, the bullet carries the only hover feedback. The list hosts
@@ -57,8 +58,6 @@
 import { useContext, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-
-import { rendersWithDocumentChrome } from "@notees/domain";
 
 import { BlockRow } from "../../ui/BlockRow.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
@@ -189,15 +188,14 @@ function FlatRows({
     enabled: props.windowed ?? true,
     resetKey,
   });
-  // Pages-with-children default COLLAPSED: the outline
-  // list shows one row per page, its blocks folded behind the chevron. The
-  // set collects every page-role row with children in the rendered trees
-  // (nested child pages included); block rows keep their natural expanded
-  // state. The expansion override is session-local (the context contract).
+  // Rows WITH CHILDREN default COLLAPSED (every row in a collection list starts folded, its children
+  // behind the chevron, so the list reads one row per item). The set
+  // collects every rendered row with children, any node kind; the
+  // expansion override is session-local (the context contract).
   const defaultCollapsed = useMemo(() => {
     const set = new Set<string>();
     const walk = (tree: BlockTreeNode): void => {
-      if (tree.children.length > 0 && rendersWithDocumentChrome(tree.node)) set.add(tree.node.id);
+      if (tree.children.length > 0) set.add(tree.node.id);
       for (const child of tree.children) walk(child);
     };
     for (const item of visible) walk(flatTreeOf(client, item));
