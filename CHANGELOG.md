@@ -45,8 +45,11 @@ predating this file.
     (current-wire + lockstep table).
   - **Verification:** `pnpm typecheck` clean repo-wide; `pnpm test` green
     (protocol 530, store 617 on both adapters, query 249, server 236,
-    domain 96, web — full suite); the live migration counts + the scoped
-    redeploy + verify-min smoke below — VERIFY-PASS.
+    domain 96, web 1880). The live migration dry-run found ZERO envelopes
+    carrying the retired key in either workspace (the log was already
+    clean — no seed ever set the flag; no epoch bump needed); the scoped
+    redeploy + verify-min smoke — VERIFY-PASS. Lockstep: GTK b73a08e (854
+    tests) + Flutter f086dd4 (668 tests).
 ## 2026-10-21
 - **feat(protocol)!: the `external_link` content token retires — links are
   markdown spans in `text` tokens, parsed at render time.** the token was invisible in the web editor (zero-length prose
