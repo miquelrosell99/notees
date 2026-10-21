@@ -209,6 +209,14 @@
   color: var(--md-sys-color-on-surface);
 }
 
+/* The label rides the button's cursor everywhere: feature styles reset
+   `span.pill__text` to the default arrow (non-clickable chip labels), which
+   otherwise splits the hover cursor — pointer over the padding, arrow over
+   the text. */
+.pill--add .pill__text {
+  cursor: inherit;
+}
+
 /* Non-removable system/journal classes: the × becomes a permanent
    lock (always visible — the hover-reveal contract does not apply), and
    the click surfaces the honest refusal toast instead of removing. */
