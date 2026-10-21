@@ -2,7 +2,7 @@
  * The block query builder end to end (jsdom over the in-process
  * WorkspaceClient + MemoryRelay): the FilterBar's structured panel is the
  * v1 builder ported over the query AST — conditions append from the add
- * menu and filter live (the "N of M rows match" line updates on every
+ * menu and filter live (the "N of M nodes match" line updates on every
  * change), nested Match ALL/ANY groups and NOT wrappers compose, the
  * reorder chevrons swap rows within the parent, deletes and Clear filter
  * restore the set. The section-level contract (post-resolution counts,
@@ -216,7 +216,12 @@ describe("the block query builder", () => {
     // …filters live: the table, the bar count and the panel's result line.
     expect(tableRowCount()).toBe(1);
     expect(within(section).getByText("1 of 3")).not.toBeNull();
-    expect(within(panel).getByText("1 of 3 rows match")).not.toBeNull();
+    expect(within(panel).getByText("1 of 3 nodes match")).not.toBeNull();
+    // The head-row logic control is the TEXT register: visible ALL/ANY segments, not the look-alike icons.
+    expect(within(panel).getByText("ALL")).not.toBeNull();
+    expect(within(panel).getByText("ANY")).not.toBeNull();
+    expect(within(panel).getByText("Blocks")).not.toBeNull();
+    expect(within(panel).getByText("Raw")).not.toBeNull();
 
     // A second condition ANDs: nothing is both Alpha and Beta — the table
     // empties (the empty state replaces it) and the panel names 0 of 3.
@@ -224,7 +229,7 @@ describe("the block query builder", () => {
     const inputs = within(panel).getAllByLabelText("Content");
     fireEvent.change(inputs[1]!, { target: { value: "Beta" } });
     expect(within(section).getByText("No classed nodes.")).not.toBeNull();
-    expect(within(panel).getByText("0 of 3 rows match")).not.toBeNull();
+    expect(within(panel).getByText("0 of 3 nodes match")).not.toBeNull();
   });
 
   it("nested Match ANY groups OR their children", async () => {
@@ -246,7 +251,7 @@ describe("the block query builder", () => {
 
     // Alpha OR Beta — Gamma drops.
     expect(tableRowCount()).toBe(2);
-    expect(within(panel).getByText("2 of 3 rows match")).not.toBeNull();
+    expect(within(panel).getByText("2 of 3 nodes match")).not.toBeNull();
     const table = screen.getAllByRole("table")[0]!;
     expect(within(table).getByText("Alpha")).not.toBeNull();
     expect(within(table).getByText("Beta")).not.toBeNull();
@@ -322,7 +327,7 @@ describe("the block query builder", () => {
     expect(within(panel).queryByText("No conditions in this group")).toBeNull();
     expect(tableRowCount()).toBe(3);
     // The whole query went inactive — the bar row's count is gone (the
-    // panel's "3 of 3 rows match" preview line stays while the panel is open).
+    // panel's "3 of 3 nodes match" preview line stays while the panel is open).
     expect(within(section).queryByText("3 of 3")).toBeNull();
 
     // …and through the bar's Clear filter after a fresh condition.
@@ -363,7 +368,7 @@ describe("the block query builder", () => {
     // Flip the root group to Match ANY: Alpha (the content hit) joins Gamma.
     fireEvent.click(within(panel).getByRole("radio", { name: "Match ANY condition" }));
     expect(tableRowCount()).toBe(2);
-    expect(within(panel).getByText("2 of 3 rows match")).not.toBeNull();
+    expect(within(panel).getByText("2 of 3 nodes match")).not.toBeNull();
     const table = screen.getAllByRole("table")[0]!;
     expect(within(table).getByText("Alpha")).not.toBeNull();
     expect(within(table).getByText("Gamma")).not.toBeNull();
@@ -1014,7 +1019,9 @@ describe("the block query builder", () => {
       addCondition(panel, /^Content/);
       fireEvent.change(within(panel).getByLabelText("Content"), { target: { value: "Alpha" } });
       expect(tableRowCount()).toBe(1);
-      expect(within(panel).getByText("1 of 3 rows match")).not.toBeNull();
+      expect(within(panel).getByText("1 of 3 nodes match")).not.toBeNull();
+      // The count line rides the builder's FOOT row.
+      expect(panel.querySelector(".nt-fb__foot")?.textContent).toContain("1 of 3 nodes match");
       // Let the section's initial views load land before the write — a late
       // GET resolution would otherwise overwrite the optimistic row.
       await act(async () => {});
@@ -1031,7 +1038,7 @@ describe("the block query builder", () => {
         expect(screen.getByRole("tab", { name: "View 1" }).getAttribute("aria-selected")).toBe("true");
       });
       expect(tableRowCount()).toBe(1);
-      expect(within(section).queryByText("1 of 3 rows match")).toBeNull();
+      expect(within(section).queryByText("1 of 3 nodes match")).toBeNull();
       expect(within(section).queryByText("1 of 3")).toBeNull();
 
       // The persisted envelope: the composed group rides a full QueryAst

@@ -11,12 +11,15 @@
  *
  * The chrome is FLAT, matching the app's list surfaces — no containing
  * cards on the groups themselves (card-in-card
- * read as a modal): the root group is a bare column (logic toggle + count
- * on one quiet line), nested groups indent under a left hairline, and
- * condition rows are list rows — transparent with a hover fill. The two
- * card surfaces are the transient add-menu popover and the DYNAMIC mode's
- * nested-query subgroup (the one contained
- * subgroup reads as a card, `nt-fb-card`).
+ * read as a modal): the builder rides a HEAD row (both switches on ONE
+ * line — the root Match ALL/ANY logic toggle left, the blocks ⇄ raw AST
+ * toggle right), a bare column of condition rows,
+ * and a FOOT row ("Add condition" left, the caller's count line + "Save as
+ * tab" right); nested groups indent under a left hairline with their own
+ * header/footer, and condition rows are list rows — transparent with a
+ * hover fill. The two card surfaces are the transient add-menu popover and
+ * the DYNAMIC mode's nested-query subgroup (the
+ * one contained subgroup reads as a card, `nt-fb-card`).
  *
  * The registers are the v1 ones (the 1:1 block model;
  * the row IDENTITY is READONLY once added — the Notion/
@@ -54,7 +57,7 @@
  * time.
  */
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import {
@@ -98,9 +101,15 @@ import {
 } from "./filterBlockModel.js";
 import "./FilterBlockBuilder.css";
 
+/**
+ * The Match ALL/ANY logic options — TEXT segments (* the set-all/set-center icons read identically; ALL|ANY as words wins).
+ * `label` stays the accessible name ("Match ALL conditions"); `text` is the
+ * visible segment. Shared by the root head row and every nested group
+ * header.
+ */
 const LOGIC_OPTIONS: SelectionButtonOption[] = [
-  { value: "and", icon: "mdi mdi-set-all", label: "Match ALL conditions" },
-  { value: "or", icon: "mdi mdi-set-center", label: "Match ANY condition" },
+  { value: "and", label: "Match ALL conditions", text: "ALL" },
+  { value: "or", label: "Match ANY condition", text: "ANY" },
 ];
 
 export interface FilterBlockBuilderProps {
@@ -110,9 +119,104 @@ export interface FilterBlockBuilderProps {
   onChange: (group: Group) => void;
   /** Which condition kinds the add menu offers (default: all). */
   config?: FilterBarConfig | undefined;
+  /**
+   * Right-aligned content in the builder's foot row, beside the "Add
+   * condition" menu (the FilterBar rides it with the count line + the
+   * "Save as tab" button — puts both on the
+   * bottom row).
+   */
+  footExtra?: ReactNode | undefined;
 }
 
-export function FilterBlockBuilder({ client, group, onChange, config }: FilterBlockBuilderProps) {
+/**
+ * The add-menu register shared by every group level (one small component, used by the nested group footers AND
+ * the root builder's foot row). The popup spans `width` (the builder or
+ * card container's) with auto columns filling it.
+ */
+function AddConditionMenu({
+  config,
+  width,
+  onAdd,
+}: {
+  config?: FilterBarConfig | undefined;
+  width: number;
+  onAdd: (entry: AddMenuEntry) => void;
+}) {
+  /** The add menu's open state — drives the trigger chevron (the dropdown register). */
+  const [addOpen, setAddOpen] = useState(false);
+  const menuItems = filterKindOptionsForConfig(config).map((entry) => ({
+    id: entry.value,
+    icon: entry.icon,
+    label: entry.label,
+    description: entry.description,
+  }));
+  return (
+    <ButtonWithPanel
+      open={addOpen}
+      onOpenChange={setAddOpen}
+      customTrigger={
+        <>
+          Add condition
+          <Icon
+            path="mdi mdi-chevron-down"
+            size={0.7}
+            className={`nt-fb-add__chev${addOpen ? " nt-fb-add__chev--open" : ""}`}
+          />
+        </>
+      }
+      buttonClassName="nt-fb-add"
+      buttonProps={{ size: "sm" }}
+      panelPosition="bottom"
+      panelAlignment="start"
+      panelWidth={width}
+      showCloseButton={false}
+      usePortal
+      aria-label="Add condition"
+    >
+      {(closePanel) => (
+        <GridMenu
+          aria-label="Condition kinds"
+          columns="auto"
+          items={menuItems}
+          onSelect={(id) => {
+            onAdd(id as AddMenuEntry);
+            closePanel();
+          }}
+        />
+      )}
+    </ButtonWithPanel>
+  );
+}
+
+/**
+ * Append one add-menu entry to a group — the group constructors insert a
+ * group with the mode pre-set ("All of"/"Any of"), NOT wraps a fresh empty
+ * group, the condition kinds append a half-typed default (createCondition).
+ * Shared by the root builder's foot row and the nested group footers.
+ */
+function withAddedEntry(group: Group, entry: AddMenuEntry): Group {
+  if (entry === "group-and" || entry === "group-or") {
+    return {
+      ...group,
+      children: [
+        ...group.children,
+        { type: "group", logic: entry === "group-and" ? "and" : "or", children: [] },
+      ],
+    };
+  }
+  if (entry === "not") {
+    return {
+      ...group,
+      children: [
+        ...group.children,
+        { type: "not", child: { type: "group", logic: "and", children: [] } },
+      ],
+    };
+  }
+  return { ...group, children: [...group.children, createCondition(entry)] };
+}
+
+export function FilterBlockBuilder({ client, group, onChange, config, footExtra }: FilterBlockBuilderProps) {
   const facts = useBuilderFacts(client);
   /** The placeholder datalist, rendered once, useId-scoped. */
   const datalistId = useId();
@@ -180,15 +284,27 @@ export function FilterBlockBuilder({ client, group, onChange, config }: FilterBl
           <option key={placeholder} value={placeholder} />
         ))}
       </datalist>
-      {/* The view toggle rides the ROOT builder only (nested groups never
-          show it) — right-aligned slim row. */}
-      <div className="nt-fb__viewbar">
+      {/* The head row: BOTH switches on ONE row —
+          the root Match ALL/ANY logic toggle (left, moved out of the root
+          group's header) and the blocks ⇄ raw AST toggle (right, replacing
+          the old floating viewbar row). */}
+      <div className="nt-fb__head">
+        <SelectionButton
+          options={LOGIC_OPTIONS}
+          value={group.logic}
+          onChange={(logic) => onChange({ ...group, logic: logic as Group["logic"] })}
+          size="sm"
+          aria-label="Group logic"
+        />
+        <span className="nt-fb__head-spacer" />
         <SelectionButton
           size="sm"
           aria-label="Builder view"
           options={[
-            { value: "blocks", icon: "mdi mdi-toy-brick-outline", label: "Blocks" },
-            { value: "raw", icon: "mdi mdi-code-braces", label: "Raw AST" },
+            // Text segments; the labels stay the
+            // accessible names the tests and tooltips already speak.
+            { value: "blocks", label: "Blocks", text: "Blocks" },
+            { value: "raw", label: "Raw AST", text: "Raw" },
           ]}
           value={view}
           onChange={(next) => {
@@ -229,6 +345,7 @@ export function FilterBlockBuilder({ client, group, onChange, config }: FilterBl
           group={group}
           onChange={onChange}
           depth={0}
+          bare
           client={client}
           facts={facts}
           config={config}
@@ -236,6 +353,21 @@ export function FilterBlockBuilder({ client, group, onChange, config }: FilterBl
           menuWidth={menuWidth}
         />
       )}
+      {/* The foot row: the "Add condition" menu (left — the ONE group
+          constructor at the root too) and the caller's right-aligned
+          cluster (the count line + "Save as tab"). In raw mode there are
+          no blocks to add, but the caller's content still rides. */}
+      <div className="nt-fb__foot">
+        {view === "blocks" && (
+          <AddConditionMenu
+            config={config}
+            width={menuWidth}
+            onAdd={(entry) => onChange(withAddedEntry(group, entry))}
+          />
+        )}
+        <span className="nt-fb__foot-spacer" />
+        {footExtra}
+      </div>
     </div>
   );
 }
@@ -256,6 +388,14 @@ interface GroupBlockProps extends BlockContext {
   onDelete?: () => void;
   depth: number;
   /**
+   * The root builder renders the head (logic toggle) and foot (Add
+   * condition) itself (both switches share the
+   * head row, the foot carries the count line) — the root GroupBlock rides
+   * BARE: no header, no footer. Nested groups and NOT-wrapped groups keep
+   * theirs.
+   */
+  bare?: boolean;
+  /**
    * The add menu's width — the builder container's at the root. Nested
    * groups arrive with 0 and measure their own container instead (the
    * dynamic subgroup rides the kit Card — a 0-width menu popup renders
@@ -264,7 +404,7 @@ interface GroupBlockProps extends BlockContext {
   menuWidth: number;
 }
 
-function GroupBlock({ group, onChange, onDelete, depth, client, facts, config, datalistId, menuWidth }: GroupBlockProps) {
+function GroupBlock({ group, onChange, onDelete, depth, bare = false, client, facts, config, datalistId, menuWidth }: GroupBlockProps) {
   const patch = (partial: Partial<Group>): void => onChange({ ...group, ...partial });
   const updateChild = (index: number, child: Child): void => {
     const children = [...group.children];
@@ -281,33 +421,13 @@ function GroupBlock({ group, onChange, onDelete, depth, client, facts, config, d
     [children[index], children[to]] = [children[to]!, children[index]!];
     patch({ children });
   };
-  const addEntry = (entry: AddMenuEntry): void => {
-    if (entry === "group-and") {
-      patch({ children: [...group.children, { type: "group", logic: "and", children: [] }] });
-      return;
-    }
-    if (entry === "group-or") {
-      patch({ children: [...group.children, { type: "group", logic: "or", children: [] }] });
-      return;
-    }
-    if (entry === "not") {
-      patch({
-        children: [
-          ...group.children,
-          { type: "not", child: { type: "group", logic: "and", children: [] } },
-        ],
-      });
-      return;
-    }
-    patch({ children: [...group.children, createCondition(entry)] });
-  };
+  const addEntry = (entry: AddMenuEntry): void => onChange(withAddedEntry(group, entry));
 
   // The root level is NOT a group — no count label, no
-  // empty placeholder there; those read on nested groups only.
+  // empty placeholder there; those read on nested groups only. The root
+  // level is also BARE: its header and footer
+  // live on the builder's head/foot rows instead.
   const nested = depth > 0;
-  const menuEntries = filterKindOptionsForConfig(config);
-  /** The add menu's open state — drives the trigger chevron (the dropdown register). */
-  const [addOpen, setAddOpen] = useState(false);
   /**
    * Nested groups measure their own container for the add menu (the root
    * arrives with the builder container's width measured upstream). A
@@ -327,12 +447,6 @@ function GroupBlock({ group, onChange, onDelete, depth, client, facts, config, d
     return () => observer.disconnect();
   }, [nested]);
   const addMenuWidth = menuWidth > 0 ? menuWidth : Math.max(280, ownWidth);
-  const menuItems = menuEntries.map((entry) => ({
-    id: entry.value,
-    icon: entry.icon,
-    label: entry.label,
-    description: entry.description,
-  }));
 
   return (
     <div
@@ -340,34 +454,36 @@ function GroupBlock({ group, onChange, onDelete, depth, client, facts, config, d
       className={`nt-fb-group${nested ? " nt-fb-group--nested" : ""}`}
       style={{ "--nt-fb-depth": depth } as CSSProperties}
     >
-      <div className="nt-fb-group__header">
-        <SelectionButton
-          options={LOGIC_OPTIONS}
-          value={group.logic}
-          onChange={(logic) => patch({ logic: logic as Group["logic"] })}
-          size="sm"
-          aria-label="Group logic"
-        />
-        {nested && (
-          <>
-            <span className="nt-fb-group__count">
-              {group.children.length === 0
-                ? "Empty group"
-                : `${group.children.length} condition${group.children.length === 1 ? "" : "s"}`}
-            </span>
-            <span className="nt-fb-group__spacer" />
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              icon="mdi mdi-close"
-              aria-label="Remove group"
-              title="Remove group"
-              onClick={onDelete}
-            />
-          </>
-        )}
-      </div>
+      {!bare && (
+        <div className="nt-fb-group__header">
+          <SelectionButton
+            options={LOGIC_OPTIONS}
+            value={group.logic}
+            onChange={(logic) => patch({ logic: logic as Group["logic"] })}
+            size="sm"
+            aria-label="Group logic"
+          />
+          {nested && (
+            <>
+              <span className="nt-fb-group__count">
+                {group.children.length === 0
+                  ? "Empty group"
+                  : `${group.children.length} condition${group.children.length === 1 ? "" : "s"}`}
+              </span>
+              <span className="nt-fb-group__spacer" />
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                icon="mdi mdi-close"
+                aria-label="Remove group"
+                title="Remove group"
+                onClick={onDelete}
+              />
+            </>
+          )}
+        </div>
+      )}
       <div className="nt-fb-group__children">
         {group.children.length === 0 ? (
           nested ? (
@@ -426,46 +542,14 @@ function GroupBlock({ group, onChange, onDelete, depth, client, facts, config, d
           })
         )}
       </div>
-      <div className="nt-fb-group__footer">
-        {/* The add menu is the ONE group constructor too ("All of"/"Any of"
-            insert a group with the mode pre-set) — no separate Add group
-            button. The popup spans the builder container
-            (menuWidth) with auto columns filling it. */}
-        <ButtonWithPanel
-          open={addOpen}
-          onOpenChange={setAddOpen}
-          customTrigger={
-            <>
-              Add condition
-              <Icon
-                path="mdi mdi-chevron-down"
-                size={0.7}
-                className={`nt-fb-add__chev${addOpen ? " nt-fb-add__chev--open" : ""}`}
-              />
-            </>
-          }
-          buttonClassName="nt-fb-add"
-          buttonProps={{ size: "sm" }}
-          panelPosition="bottom"
-          panelAlignment="start"
-          panelWidth={addMenuWidth}
-          showCloseButton={false}
-          usePortal
-          aria-label="Add condition"
-        >
-          {(closePanel) => (
-            <GridMenu
-              aria-label="Condition kinds"
-              columns="auto"
-              items={menuItems}
-              onSelect={(id) => {
-                addEntry(id as AddMenuEntry);
-                closePanel();
-              }}
-            />
-          )}
-        </ButtonWithPanel>
-      </div>
+      {!bare && (
+        <div className="nt-fb-group__footer">
+          {/* The add menu is the ONE group constructor too ("All of"/"Any of"
+              insert a group with the mode pre-set) — no separate Add group
+              button. */}
+          <AddConditionMenu config={config} width={addMenuWidth} onAdd={addEntry} />
+        </div>
+      )}
     </div>
   );
 }
