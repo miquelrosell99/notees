@@ -217,6 +217,16 @@
   cursor: inherit;
 }
 
+/* The same split on every clickable pill: a pill whose label is a button
+   reads as ONE surface, so the whole pill wears the pointer — the colored
+   padding and the gaps around the label otherwise keep the default arrow
+   while the label shows the hand. The `:has()`
+   argument selects exactly the clickable variant; non-clickable chips
+   (span.pill__text) stay at the default arrow. */
+.pill:has(button.pill__text) {
+  cursor: pointer;
+}
+
 /* Non-removable system/journal classes: the × becomes a permanent
    lock (always visible — the hover-reveal contract does not apply), and
    the click surfaces the honest refusal toast instead of removing. */

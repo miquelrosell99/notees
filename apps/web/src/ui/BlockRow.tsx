@@ -113,7 +113,7 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, u
 
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { excerptOf, isRuleContent } from "@notees/domain";
+import { excerptOf, isRuleContent, parseDateNodeId } from "@notees/domain";
 
 import type { BlockTreeNode, EffectiveProperty, WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
@@ -288,6 +288,13 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
   const backlinkCount = hideBacklinks ? 0 : client.getBacklinkCount(node.id);
   const [backlinksExpanded, setBacklinksExpanded] = useState(false);
   const isCollapsed = collapsed.has(node.id);
+  // The classes column's own lock: date-chain nodes carry their precision's
+  // system class and nothing else (SCHEMA.md "Datetime"), so their pills
+  // render static everywhere — otherwise the column is mutable on EVERY
+  // row, read-only projections included (the
+  // backlinks/reference rows answer class edits — ×, "+", drag-sort — the
+  // content stays read-only, only class membership is a working surface).
+  const classesLocked = parseDateNodeId(node.id) !== null;
   // The links-badge popup (condensed layer): position-free state — the
   // popup unmounts with the excerpt chrome when the row stretches.
   const [linksPopupOpen, setLinksPopupOpen] = useState(false);
@@ -984,9 +991,11 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
             overflow popup, drag to reorder) and the backlink gutter toggle
             (SCHEMA.md:117 — the count badge rides the materialized
             node_stats number). The gutter is reference material, so it shows
-            in read-only projections too; the classes column renders in
-            read-only as well (static pills — edit/read alignment), hiding
-            only when the row carries no classes at all. */}
+            in read-only projections too; the classes column also renders in
+            read-only (hiding only when the row carries no classes at all)
+            and stays MUTABLE there: class
+            membership answers edits from reference rows (× / "+" /
+            drag-sort); only the date-chain lock renders it static. */}
         {!focusMode && (backlinkCount > 0 || !readOnly || node.classIds.length > 0) && (
           <div className="nt-block-row-end">
             {(!readOnly || node.classIds.length > 0) && (
@@ -999,7 +1008,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                   overflow
                   iconOnlyAdd
                   addAtStart
-                  readOnly={readOnly}
+                  readOnly={classesLocked}
                 />
               </div>
             )}
