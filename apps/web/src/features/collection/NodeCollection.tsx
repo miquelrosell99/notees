@@ -20,6 +20,9 @@
  * (and the ungrouped top-level rows) with their stored query_ast
  * (sectionViewResolve), and a custom tab's
  * view_mode overrides the requested mode when the registry knows it.
+ * The ACTIVE tab's displayed row count rides its name as a small badge
+ * (the count moved off the filter panel's foot;
+ * computed here post-refinement, so the badge names the open tab's rows).
  * `tabBarTrailing` rides the tab bar's far right — the
  * host section's filter/view chrome joins the tabs' row; it renders ONLY
  * in the hosted tab bar (a non-hosted collection has no tab row). The
@@ -111,6 +114,14 @@ export function NodeCollection({
   const resolvedItems = hosted !== null ? resolution.items : (props.items ?? []);
   const resolvedGroups = hosted !== null ? resolution.groups : props.groups;
   const resolvedUngrouped = hosted !== null ? resolution.ungrouped : props.ungroupedItems;
+  // The active tab's displayed row count — the badge riding its tab name
+  //: grouped rendering shows the groups' rows plus
+  // the ungrouped ones, flat rendering the item list.
+  const tabRowCount =
+    resolvedGroups !== undefined
+      ? resolvedGroups.reduce((sum, group) => sum + group.items.length, 0) +
+        (resolvedUngrouped?.length ?? 0)
+      : resolvedItems.length;
   const viewProps = { ...props, items: resolvedItems, groups: resolvedGroups, ungroupedItems: resolvedUngrouped };
   const showAdd = props.showAddButton === true && props.onAdd !== undefined;
   // A custom tab refined to empty answers for itself; the default tab (or an
@@ -152,6 +163,7 @@ export function NodeCollection({
           sectionKey={hosted.sectionKey}
           selected={selectedView !== undefined ? tab : SECTION_DEFAULT_TAB}
           onSelect={setTab}
+          activeCount={tabRowCount}
           trailing={
             <>
               <span className="node-collection__view-chrome" ref={setChromeSlot} />

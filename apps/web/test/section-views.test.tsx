@@ -773,8 +773,12 @@ describe("the hosted-views chrome", () => {
     fireEvent.click(screen.getByRole("button", { name: "Move One right" }));
     await waitFor(() => expect(restCalls.some((call) => call.method === "PUT")).toBe(true));
     await waitFor(() => {
-      const tabs = screen.getAllByRole("tab").map((tab) => tab.textContent);
-      expect(tabs.indexOf("Two")).toBeLessThan(tabs.indexOf("One"));
+      const tabs = screen.getAllByRole("tab").map((tab) => tab.textContent ?? "");
+      // The active tab's count badge rides its textContent ("One2") — match
+      // the name prefixes, not the full string.
+      expect(tabs.findIndex((t) => t.startsWith("Two"))).toBeLessThan(
+        tabs.findIndex((t) => t.startsWith("One")),
+      );
     });
 
     // Rename it.

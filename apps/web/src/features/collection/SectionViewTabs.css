@@ -34,6 +34,25 @@
   flex-wrap: wrap;
 }
 
+/* The active tab's total-count badge: the label
+   becomes a flex line so the pill sits beside the name, vertically
+   centered; the pill is the section-header count register one size down. */
+.nt-section-views__tabs .tabs__tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.nt-section-views__tab-count {
+  font: var(--font-label-small);
+  line-height: 1;
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: var(--shape-medium);
+  padding: 0.25em 0.6em;
+  flex-shrink: 0;
+}
+
 .nt-section-views__reset {
   border: none;
   background: transparent;

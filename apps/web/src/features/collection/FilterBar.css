@@ -69,8 +69,3 @@
   background: var(--md-sys-color-surface-container);
 }
 
-.nt-filter-bar__result {
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--font-label-small);
-}
-

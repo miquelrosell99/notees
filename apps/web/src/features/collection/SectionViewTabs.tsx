@@ -19,6 +19,9 @@
  *    Ordering contract: the FilterBar renders LAST in the cluster so its
  *    structured panel wraps a full-width line BENEATH the row without
  *    moving the other controls;
+ *  - the active tab carries a TOTAL COUNT badge beside its name (the resolved row count of the open tab, replacing
+ *    the filter panel's "N of M nodes match" foot line): visual only,
+ *    `aria-hidden`, so the tab's accessible name stays the bare label;
  *  - the active custom tab carries its management affordances: rename,
  *    reorder (move left/right), delete;
  *  - "Reset to default" (rendered only when custom views exist) deletes
@@ -69,13 +72,18 @@ export interface SectionViewTabsProps {
   selected: string;
   onSelect: (tab: string) => void;
   /**
+   * The resolved row count of the SELECTED tab — rides its tab name as a
+   * small badge (null/undefined renders none).
+   */
+  activeCount?: number | null;
+  /**
    * The host section's chrome riding the bar's far right (the filter bar,
    * the view switcher) — one row with the tabs.
    */
   trailing?: ReactNode;
 }
 
-export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect, trailing }: SectionViewTabsProps) {
+export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect, activeCount, trailing }: SectionViewTabsProps) {
   const { views, lastWriteError } = useSectionViews(client, nodeId, sectionKey);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [renaming, setRenaming] = useState<SectionView | null>(null);
@@ -141,10 +149,22 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
       <div className="nt-section-views__bar">
         <Tabs className="nt-section-views__tabs" value={selected} onChange={onSelect}>
           <Tabs.List>
-            <Tabs.Tab value={SECTION_DEFAULT_TAB}>Default</Tabs.Tab>
+            <Tabs.Tab value={SECTION_DEFAULT_TAB}>
+              Default
+              {selected === SECTION_DEFAULT_TAB && activeCount != null && (
+                <span className="nt-section-views__tab-count" aria-hidden="true">
+                  {activeCount}
+                </span>
+              )}
+            </Tabs.Tab>
             {views.map((view) => (
               <Tabs.Tab key={view.id} value={view.id}>
                 {view.name}
+                {selected === view.id && activeCount != null && (
+                  <span className="nt-section-views__tab-count" aria-hidden="true">
+                    {activeCount}
+                  </span>
+                )}
               </Tabs.Tab>
             ))}
             {/* The "+" rides the tablist's END — the last item beside the
