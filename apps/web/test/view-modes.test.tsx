@@ -855,15 +855,18 @@ describe("outline list: rows with children default collapsed (owner 2026-10-21)"
     );
     const ring = /\.nt-bullet-ring \{[^}]*\}/.exec(css);
     expect(ring).not.toBeNull();
-    expect(ring![0]).toContain("width: 28px");
-    expect(ring![0]).toContain("height: 28px");
+    expect(ring![0]).toContain("width: 40px");
+    expect(ring![0]).toContain("height: 40px");
     expect(ring![0]).toContain("background-color");
     // One circle for dot and icon alike — no icon-specific variant.
     expect(css).not.toContain(":has(.nt-bullet-icon) .nt-bullet-ring");
     const bullet = /\.nt-bullet \{[^}]*\}/.exec(css);
     expect(bullet).not.toBeNull();
-    expect(bullet![0]).toContain("width: 30px");
-    expect(bullet![0]).toContain("height: 30px");
+    expect(bullet![0]).toContain("width: 46px");
+    expect(bullet![0]).toContain("height: 46px");
+    const dot = /\.nt-bullet-dot \{[^}]*\}/.exec(css);
+    expect(dot).not.toBeNull();
+    expect(dot![0]).toContain("width: 9px");
     // The grouped rendering separates its rows from the group header —
     // the overhanging ring of the first row used to crowd the title.
     const outlineCss = process_.getBuiltinModule("node:fs").readFileSync(
@@ -872,7 +875,7 @@ describe("outline list: rows with children default collapsed (owner 2026-10-21)"
     );
     const items = /\.outline-group__items \{[^}]*\}/.exec(outlineCss);
     expect(items).not.toBeNull();
-    expect(items![0]).toContain("padding: var(--spacing-2) 0 0 var(--spacing-3)");
+    expect(items![0]).toContain("padding: var(--spacing-3) 0 0 var(--spacing-3)");
   });
 });
 
