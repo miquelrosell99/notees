@@ -19,6 +19,16 @@
  * through `resolveClassName`; without a resolver a chip contributes only its
  * displayText (usually "" — the chip is prose-invisible, the pre-chip
  * behavior every non-editor consumer keeps).
+ *
+ * Mentions DO carry captured text, but it can go stale (import-era captures
+ * baked nested-link UUIDs into it). The block editor therefore threads
+ * `resolveMentionName` and renders the pill — prose included — from the
+ * label-precedence chain `mentionProse` builds: the one-off `displayText`,
+ * else the target's CURRENT full title, else the captured text, else the raw
+ * target id (the broken-target fallback, read-mode parity: a mention whose
+ * target is gone shows the id, never silent retargeting). Without a resolver
+ * a mention contributes its captured text exactly as before — every
+ * non-editor consumer keeps the pre-resolver projection.
  */
 
 import type { ContentAst, Mark } from "@notees/protocol";
@@ -30,6 +40,15 @@ import type { ContentAst, Mark } from "@notees/protocol";
  */
 export type ClassNameResolver = (classId: string) => string;
 
+/**
+ * Resolves a mention target's current full title (the UNCAPPED
+ * title-is-content derivation — read-mode parity; the capped display name
+ * would truncate what read mode renders). Returns null when the target is
+ * unknown (broken reference). Optional everywhere: only the block editor
+ * threads it.
+ */
+export type MentionNameResolver = (targetNodeId: string) => string | null;
+
 /** A chip's prose contribution: the one-off wording when set, else the
  *  re-resolved class display name, else "" (unresolved and unlabeled). */
 function chipLabel(token: Record<string, unknown>, resolveClassName?: ClassNameResolver): string {
@@ -38,8 +57,34 @@ function chipLabel(token: Record<string, unknown>, resolveClassName?: ClassNameR
   return "";
 }
 
+/**
+ * A mention's prose contribution — the label the edit-mode pill renders,
+ * the same chain read mode uses (SCHEMA.md render grammar): the one-off
+ * `displayText` when set, else the target's re-resolved CURRENT full title,
+ * else the captured text (possibly stale — better a stale capture than a
+ * raw id), else the raw target id when a resolver was threaded (a
+ * textless mention of a broken target still needs SOME pill text in the
+ * editable). Without a resolver the captured text passes through
+ * verbatim — the projection every non-editor consumer keeps.
+ */
+export function mentionProse(token: Record<string, unknown>, resolveMentionName?: MentionNameResolver): string {
+  if (typeof token.displayText === "string" && token.displayText.length > 0) return token.displayText;
+  if (typeof token.targetNodeId === "string" && token.targetNodeId.length > 0) {
+    const resolved = resolveMentionName?.(token.targetNodeId);
+    if (typeof resolved === "string" && resolved.length > 0) return resolved;
+  }
+  if (typeof token.text === "string") return token.text;
+  return resolveMentionName !== undefined && typeof token.targetNodeId === "string"
+    ? token.targetNodeId
+    : "";
+}
+
 /** Flatten a token stream to the editable plain-text projection. */
-export function proseFromAst(ast: readonly unknown[], resolveClassName?: ClassNameResolver): string {
+export function proseFromAst(
+  ast: readonly unknown[],
+  resolveClassName?: ClassNameResolver,
+  resolveMentionName?: MentionNameResolver,
+): string {
   const parts: string[] = [];
   const walk = (tokens: readonly unknown[]): void => {
     for (const token of tokens) {
@@ -48,8 +93,10 @@ export function proseFromAst(ast: readonly unknown[], resolveClassName?: ClassNa
       switch (t.type) {
         case "text":
         case "typed_link":
-        case "mention":
           if (typeof t.text === "string") parts.push(t.text);
+          break;
+        case "mention":
+          parts.push(mentionProse(t, resolveMentionName));
           break;
         case "class_link":
           parts.push(chipLabel(t, resolveClassName));
@@ -79,7 +126,9 @@ export function proseFromAst(ast: readonly unknown[], resolveClassName?: ClassNa
  * `proseFromAst` builds from it. Tokens the projection skips (asset_ref,
  * embed_ref, query, whiteboard, malformed entries) get a zero-length range
  * at the current offset. Length rules mirror `proseFromAst`: text /
- * typed_link / mention count `text.length`, a class_link counts its resolved
+ * typed_link count `text.length`, a mention counts its resolved label
+ * length (`mentionProse` — displayText, else the re-resolved full title,
+ * else the captured text), a class_link counts its resolved
  * label length, math counts `expression.length`, hard_break counts 1 (its
  * "\n"), quote counts its inline children.
  */
@@ -92,7 +141,11 @@ export interface ProseSpan {
   end: number;
 }
 
-export function proseSpans(ast: readonly unknown[], resolveClassName?: ClassNameResolver): ProseSpan[] {
+export function proseSpans(
+  ast: readonly unknown[],
+  resolveClassName?: ClassNameResolver,
+  resolveMentionName?: MentionNameResolver,
+): ProseSpan[] {
   const spans: ProseSpan[] = [];
   let offset = 0;
   ast.forEach((token, index) => {
@@ -102,8 +155,10 @@ export function proseSpans(ast: readonly unknown[], resolveClassName?: ClassName
       switch (t.type) {
         case "text":
         case "typed_link":
-        case "mention":
           if (typeof t.text === "string") length = t.text.length;
+          break;
+        case "mention":
+          length = mentionProse(t, resolveMentionName).length;
           break;
         case "class_link":
           length = chipLabel(t, resolveClassName).length;
@@ -122,11 +177,9 @@ export function proseSpans(ast: readonly unknown[], resolveClassName?: ClassName
               if (typeof child !== "object" || child === null) continue;
               const c = child as Record<string, unknown>;
               if (c.type === "hard_break") length += 1;
-              else if (
-                (c.type === "text" || c.type === "typed_link" || c.type === "mention") &&
-                typeof c.text === "string"
-              )
+              else if ((c.type === "text" || c.type === "typed_link") && typeof c.text === "string")
                 length += c.text.length;
+              else if (c.type === "mention") length += mentionProse(c, resolveMentionName).length;
               else if (c.type === "class_link")
                 length += chipLabel(c, resolveClassName).length;
               else if (c.type === "math" && typeof c.expression === "string")

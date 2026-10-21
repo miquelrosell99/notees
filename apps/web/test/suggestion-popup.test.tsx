@@ -456,3 +456,41 @@ describe("suggestion popup filter prefixes", () => {
     expect(labels[0]).toContain("Some page");
   });
 });
+
+describe("picker row hover tooltip", () => {
+  it("the name span's title carries the full uncropped title", async () => {
+    const client = await seedClient();
+    const { pageId } = await seedBlock(client);
+    // Past the 80-char display-name budget: the row renders the capped
+    // display name, the tooltip must keep the whole title.
+    const longName = `Longtitle ${"very ".repeat(18).trimEnd()} page`;
+    await client.createObject({ isEmbedded: false, name: longName });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("longtitle");
+
+    const name = resultRows()[0]?.querySelector<HTMLElement>(".node-result-item__name");
+    expect(name).not.toBeNull();
+    expect(name?.textContent?.length).toBe(80); // the capped line
+    expect(name?.getAttribute("title")).toBe(longName); // the full title
+  });
+
+  it("the create row's tooltip is its label", async () => {
+    const client = await seedClient();
+    const { pageId } = await seedBlock(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("Brand new page");
+
+    const createRow = pickerRows().find((row) =>
+      row.classList.contains("node-result-item--create"),
+    );
+    expect(createRow).not.toBeUndefined();
+    const name = createRow!.querySelector<HTMLElement>(".node-result-item__name");
+    expect(name?.getAttribute("title")).toBe('Create "Brand new page"');
+  });
+});

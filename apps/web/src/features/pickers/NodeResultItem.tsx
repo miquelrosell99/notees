@@ -7,7 +7,7 @@
  */
 
 import { Icon } from "../../ui/Icon.js";
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { fullTitleForSettings, nodeDisplayName } from "../../ui/dateDisplay.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import "./NodeResultItem.css";
 
@@ -46,6 +46,14 @@ export function NodeResultItem({
   iconOverride,
 }: NodeResultItemProps) {
   const icon = "icon" in node && node.icon !== null ? node.icon : null;
+  // The row crops the name (CSS ellipsis); the hover tooltip shows the SAME
+  // string uncropped. The line renders the capped display name, but the
+  // tooltip rides the UNCAPPED full-title funnel (fullTitleForSettings —
+  // the read-mode link derivation): for any title inside the display-name
+  // budget it is byte-identical to the line, and past it the tooltip keeps
+  // the whole title instead of an 80-char cut — a link must read as the
+  // page's whole title (the crumbs above ride the same title idiom).
+  const fullName = "id" in node ? fullTitleForSettings(node as ClientNode) || node.id : node.name;
   return (
     <button
       type="button"
@@ -69,7 +77,7 @@ export function NodeResultItem({
         <span className="node-result-item__icon">
           {iconOverride ?? (icon !== null ? <Icon path={icon} size={0.7} /> : null)}
         </span>
-        <span className="node-result-item__name">
+        <span className="node-result-item__name" title={fullName}>
           {"id" in node ? nodeDisplayName(node as ClientNode) || node.id : node.name}
         </span>
         {displayClasses && displayClasses.length > 0 && (

@@ -452,3 +452,102 @@ describe("editor atoms — class chips", () => {
     ]);
   });
 });
+
+/**
+ * Mention label re-resolution: a mention
+ * whose captured `text` is stale (import-era captures baked nested-link
+ * UUIDs into it) must render the target's CURRENT full title in edit mode —
+ * the same label chain read mode uses (displayText → re-resolved full
+ * title → captured text → raw id). The pill is atomic and the offsets ride
+ * the resolved label, so keyboard gestures keep working.
+ */
+describe("editor atoms — mention label re-resolution", () => {
+  // An import-era capture: a nested link's UUID is baked into the text.
+  const STALE_TEXT = "Target (0192a000-0000-7000-8000-000000000099)";
+
+  /** Seed "see <mention>" where the capture is stale; the target is "Target". */
+  async function seededStale() {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "text", text: "see " },
+        { type: "mention", targetNodeId: targetId, text: STALE_TEXT, linkId: "0192a000-0000-7000-8000-0000000000cc" },
+        { type: "text", text: " again" },
+      ],
+    });
+    return { client, pageId, targetId, blockId };
+  }
+
+  it("edit mode renders the resolved current title, not the stale captured text", async () => {
+    const { client, pageId } = await seededStale();
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+    const pill = pillOf(editor);
+    expect(pill.textContent).toBe("Target");
+    // The resolved label rides the prose projection (one coordinate system).
+    expect(editor.textContent).toBe("see Target again");
+  });
+
+  it("the atom offsets ride the resolved label — keyboard gestures keep working", async () => {
+    const { client, pageId, blockId } = await seededStale();
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+
+    setProseCaret(editor, 4); // right before the pill
+    keyDown(editor, "ArrowRight");
+    expect(pillOf(editor).className).toContain("nt-atom--selected");
+
+    keyDown(editor, "Backspace"); // delete the selected pill
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "see  again" }]);
+  });
+
+  it("merely touching the block does not flatten the mention (the flush guard)", async () => {
+    const { client, pageId, blockId, targetId } = await seededStale();
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+
+    // Type after the block, then leave: the draft-equals-prose guard must
+    // recognize the resolved prose and keep the rich token intact.
+    editor.textContent = "see Target again!";
+    fireEvent.input(editor);
+    fireEvent.blur(editor);
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.contentAst).toEqual([
+      { type: "text", text: "see " },
+      { type: "mention", targetNodeId: targetId, text: STALE_TEXT, linkId: "0192a000-0000-7000-8000-0000000000cc" },
+      { type: "text", text: " again!" },
+    ]);
+  });
+
+  it("a displayText custom label wins over the resolved title", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "mention", targetNodeId: targetId, text: STALE_TEXT, displayText: "the target", linkId: "0192a000-0000-7000-8000-0000000000dd" },
+      ],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+    expect(pillOf(editor).textContent).toBe("the target");
+  });
+
+  it("a broken target falls back to the captured text", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const missing = "0192a000-0000-7000-8000-00000000beef";
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "mention", targetNodeId: missing, text: "Ghost", linkId: "0192a000-0000-7000-8000-0000000000ee" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+    expect(pillOf(editor).textContent).toBe("Ghost");
+  });
+});
