@@ -1,10 +1,10 @@
 /**
  * The value-column controls of the filter block builder — the typed
  * per-family pickers the condition row renders after its operator
- * column: the single/multi class picks, the family switch (BlockValue)
- * over node targets (single pick / multi pick / query "matching" word),
- * containers, dates with the relative-period picker, the property
- * family's schema select + typed value control, and the property
+ * column: the class pill cluster (ClassPillsPick), the family switch
+ * (BlockValue) over node targets (single pick / pill cluster / query
+ * "matching" word), containers, dates with the relative-period picker, the
+ * property family's schema select + typed value control, and the property
  * operator label table. Extracted verbatim from FilterBlockBuilder.tsx
  * (Stage D monolith split).
  */
@@ -17,6 +17,8 @@ import type { AnyClient } from "./index.js";
 import { Icon } from "../../ui/Icon.js";
 import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
+import { NodePill } from "../metadata/NodePills.js";
+import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { Dropdown } from "../../components/ui/fleet/Dropdown.js";
 import { Input } from "../../components/ui/fleet/Input.js";
 import { type BuilderFacts } from "./QueryBuilderFields.js";
@@ -32,34 +34,80 @@ const PROPERTY_OP_LABELS: ReadonlyArray<{ op: PropertyOp; label: string }> = [
   { op: "lte", label: "≤" },
 ];
 
-/** The single class pick shared by the class / page / parent-path / root value columns. */
-function ClassPick({
+/**
+ * The class pill cluster: the multi-value class
+ * pick rides the fleet pill element — effective color/icon resolved the
+ * NodePills way, × per pill, the "+ Add class" AddPill opening the anchored
+ * NodeSelector in classes mode appending deduped. Broken/unknown ids render
+ * an honest plain pill with the raw id. Replaces the old dropdown picks
+ * (the single `class` / `classExact` rows bind it to a 0/1-element list).
+ */
+function ClassPillsPick({
   ariaLabel,
-  value,
+  classIds,
+  client,
   facts,
   onChange,
 }: {
   ariaLabel: string;
-  value: string;
+  classIds: string[];
+  client: AnyClient;
   facts: BuilderFacts;
-  onChange: (classId: string) => void;
+  onChange: (classIds: string[]) => void;
 }) {
+  const anchorRef = useRef<HTMLButtonElement | null>(null);
+  const [open, setOpen] = useState(false);
   return (
-    <Dropdown
-      size="sm"
-      ariaLabel={ariaLabel}
-      options={[
-        { value: "", label: "Pick a class" },
-        ...facts.classes.map((cls) => ({
-          value: cls.id,
-          label: facts.classNames.get(cls.id) ?? cls.id,
-        })),
-      ]}
-      value={value}
-      onChange={(next) => {
-        if (next !== null) onChange(next);
-      }}
-    />
+    <span className="nt-fb-multipick" aria-label={ariaLabel}>
+      {classIds.map((classId) => {
+        const cls = facts.classes.find((node) => node.id === classId);
+        const label = facts.classNames.get(classId) ?? classId;
+        if (cls === undefined) {
+          // Broken ref — the raw id, never a silently empty pill.
+          return (
+            <NodePill
+              key={classId}
+              color={null}
+              icon={null}
+              label={label}
+              onRemove={() => onChange(classIds.filter((id) => id !== classId))}
+              removeLabel={`Remove ${label}`}
+            />
+          );
+        }
+        return (
+          <NodePill
+            key={classId}
+            color={client.effectiveClassColor(classId)}
+            icon={client.effectiveClassIcon(classId) || null}
+            label={label}
+            onRemove={() => onChange(classIds.filter((id) => id !== classId))}
+            removeLabel={`Remove ${label}`}
+          />
+        );
+      })}
+      <AddPill
+        ref={anchorRef}
+        label="Add class"
+        aria-expanded={open}
+        onClick={(element) => {
+          anchorRef.current = element;
+          setOpen((cur) => !cur);
+        }}
+      />
+      {open && (
+        <NodeSelector
+          client={client}
+          searchMode="classes"
+          anchorEl={anchorRef.current}
+          onClose={() => setOpen(false)}
+          onAdd={(node) => {
+            setOpen(false);
+            if (!classIds.includes(node.id)) onChange([...classIds, node.id]);
+          }}
+        />
+      )}
+    </span>
   );
 }
 
@@ -82,24 +130,29 @@ export function BlockValue({
   switch (condition.type) {
     case "class":
     case "classExact":
+      // The legacy single shapes bind the pill cluster to a 0/1-element list.
       return (
-        <ClassPick
+        <ClassPillsPick
           ariaLabel="Class"
-          value={condition.classId}
+          classIds={condition.classId === "" ? [] : [condition.classId]}
+          client={client}
           facts={facts}
-          onChange={(classId) => onChange({ ...condition, classId })}
+          onChange={(classIds) => onChange({ ...condition, classId: classIds[0] ?? "" })}
         />
       );
     case "classAny":
-      // "One of": ANY-of membership — a multi class pick.
+      // "Contains": ANY-of closure membership — the multi class pills.
       return (
-        <ClassMultiPick
+        <ClassPillsPick
           ariaLabel="Classes"
-          values={condition.classIds}
+          classIds={condition.classIds}
+          client={client}
           facts={facts}
           onChange={(classIds) => onChange({ ...condition, classIds })}
         />
       );
+    case "classAnyQuery":
+      return <span className="nt-fb-block__word">matching</span>;
     case "classSet":
     case "pageSet":
     case "childSet":
@@ -114,7 +167,7 @@ export function BlockValue({
       // v1's Page block (static): the containing page is any of the picked
       // nodes.
       return (
-        <NodeMultiPick
+        <NodePillsPick
           ariaLabel="Pages"
           nodeIds={condition.nodeIds}
           addLabel="Add page"
@@ -128,7 +181,7 @@ export function BlockValue({
       // v1's Parent path block (static): some strict ancestor is one of the
       // picked nodes.
       return (
-        <NodeMultiPick
+        <NodePillsPick
           ariaLabel="Ancestors"
           nodeIds={condition.nodeIds}
           addLabel="Add ancestor"
@@ -140,7 +193,7 @@ export function BlockValue({
       return <span className="nt-fb-block__word">matching</span>;
     case "rootIn":
       return (
-        <NodeMultiPick
+        <NodePillsPick
           ariaLabel="Roots"
           nodeIds={condition.nodeIds}
           addLabel="Add root"
@@ -198,7 +251,7 @@ export function BlockValue({
     case "parentOf":
       // v1's PARENT block (static): the direct parent is any of the picked nodes.
       return (
-        <NodeMultiPick
+        <NodePillsPick
           ariaLabel="Parents"
           nodeIds={condition.nodeIds}
           addLabel="Add parent"
@@ -211,7 +264,7 @@ export function BlockValue({
     case "childOf":
       // v1's CHILD block (static): a direct child is any of the picked nodes.
       return (
-        <NodeMultiPick
+        <NodePillsPick
           ariaLabel="Children"
           nodeIds={condition.nodeIds}
           addLabel="Add child"
@@ -224,7 +277,7 @@ export function BlockValue({
     case "descendantOfAny":
       // v1's CHILD PATH block (static): the subtree contains any of the picks.
       return (
-        <NodeMultiPick
+        <NodePillsPick
           ariaLabel="Targets"
           nodeIds={condition.nodeIds}
           addLabel="Add node"
@@ -237,7 +290,7 @@ export function BlockValue({
     case "referencePathOf":
       // v1's REFERENCE PATH block (static): the self-or-ancestor link rollup.
       return (
-        <NodeMultiPick
+        <NodePillsPick
           ariaLabel="Targets"
           nodeIds={condition.nodeIds}
           addLabel="Add target"
@@ -258,7 +311,7 @@ export function BlockValue({
       );
     case "tagAny":
       return (
-        <NodeMultiPick
+        <NodePillsPick
           ariaLabel="Tags"
           nodeIds={condition.tagIds}
           addLabel="Add tag"
@@ -266,6 +319,8 @@ export function BlockValue({
           onChange={(tagIds) => onChange({ ...condition, tagIds })}
         />
       );
+    case "tagAnyQuery":
+      return <span className="nt-fb-block__word">matching</span>;
     case "linkedTo":
       return (
         <NodePickBody
@@ -277,7 +332,7 @@ export function BlockValue({
       );
     case "linkedToAny":
       return (
-        <NodeMultiPick
+        <NodePillsPick
           ariaLabel="Nodes"
           nodeIds={condition.nodeIds}
           addLabel="Add node"
@@ -348,34 +403,6 @@ export function BlockValue({
     case "aliasedNode":
       return null;
   }
-}
-
-/** The multi class pick shared by the ANY-of value columns. */
-function ClassMultiPick({
-  ariaLabel,
-  values,
-  facts,
-  onChange,
-}: {
-  ariaLabel: string;
-  values: string[];
-  facts: BuilderFacts;
-  onChange: (classIds: string[]) => void;
-}) {
-  return (
-    <Dropdown
-      size="sm"
-      multiple
-      ariaLabel={ariaLabel}
-      placeholder="Pick classes"
-      options={facts.classes.map((cls) => ({
-        value: cls.id,
-        label: facts.classNames.get(cls.id) ?? cls.id,
-      }))}
-      values={values}
-      onChangeMultiple={onChange}
-    />
-  );
 }
 
 /** The relative-period picker (is within today / this week / this month / this year). */
@@ -609,12 +636,14 @@ function NodePickBody({
 }
 
 /**
- * The multi node pick (the "one of" value over node targets — links / parent /
- * tags): picked nodes ride as removable chips, the anchored NodeSelector
- * appends one at a time. Node targets are unbounded, so the multi pick is a
- * chip list + search, never a dropdown.
+ * The multi node pick: picked nodes ride as the
+ * fleet pill cluster — effective color + icon per node, the hover-reveal ×
+ * filtering the id out — and the "+ Add" AddPill opens the anchored
+ * NodeSelector appending deduped. Node targets are unbounded, so the multi
+ * pick is a pill list + search, never a dropdown. Broken refs render an
+ * honest plain pill with the raw id.
  */
-function NodeMultiPick({
+function NodePillsPick({
   ariaLabel,
   nodeIds,
   addLabel,
@@ -627,7 +656,7 @@ function NodeMultiPick({
   client: AnyClient;
   onChange: (nodeIds: string[]) => void;
 }) {
-  const anchorRef = useRef<HTMLButtonElement>(null);
+  const anchorRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
   return (
     <span className="nt-fb-multipick" aria-label={ariaLabel}>
@@ -635,31 +664,25 @@ function NodeMultiPick({
         const node = client.getNode(nodeId);
         const label = node !== undefined ? nodeDisplayName(node) || "Untitled" : nodeId;
         return (
-          <span key={nodeId} className="nt-fb-multipick__chip">
-            {label}
-            <button
-              type="button"
-              className="nt-fb-multipick__remove"
-              aria-label={`Remove ${label}`}
-              title="Remove"
-              onClick={() => onChange(nodeIds.filter((id) => id !== nodeId))}
-            >
-              <Icon path="mdi-close" size={0.7} />
-            </button>
-          </span>
+          <NodePill
+            key={nodeId}
+            color={node !== undefined ? client.effectiveNodeColor(node) : null}
+            icon={node?.icon ?? null}
+            label={label}
+            onRemove={() => onChange(nodeIds.filter((id) => id !== nodeId))}
+            removeLabel={`Remove ${label}`}
+          />
         );
       })}
-      <button
-        type="button"
+      <AddPill
         ref={anchorRef}
-        className="nt-fb-multipick__add"
-        aria-label={addLabel}
-        aria-haspopup="dialog"
+        label={addLabel}
         aria-expanded={open}
-        onClick={() => setOpen(true)}
-      >
-        + {addLabel}
-      </button>
+        onClick={(element) => {
+          anchorRef.current = element;
+          setOpen((cur) => !cur);
+        }}
+      />
       {open && (
         <NodeSelector
           client={client}
