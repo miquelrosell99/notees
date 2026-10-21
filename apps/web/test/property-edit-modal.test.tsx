@@ -170,7 +170,7 @@ describe("S2 PropertySettingsModal — the base-definition writes", () => {
     const { sync } = renderModal(client, schemaId);
     // The toggle is optimistic: local reveals the picker BEFORE any write
     // (the empty scope list can't ride the wire).
-    fireEvent.click(screen.getByRole("switch", { name: /Local to classes/ }));
+    fireEvent.click(screen.getByRole("switch", { name: "Property scope" }));
     fireEvent.click(screen.getByRole("button", { name: "Scope classes" }));
     const dialog = screen.getByRole("dialog", { name: "Select node" });
     fireEvent.change(within(dialog).getByLabelText("Search classes"), {
@@ -179,7 +179,7 @@ describe("S2 PropertySettingsModal — the base-definition writes", () => {
     fireEvent.click(within(dialog).getByText("Fiction"));
     await sync();
     expect(schemaOf(client, schemaId)?.scopeClassIds).toEqual([fiction]);
-    fireEvent.click(screen.getByRole("switch", { name: /Global \(any node\)/ }));
+    fireEvent.click(screen.getByRole("switch", { name: "Property scope" }));
     await sync();
     expect(schemaOf(client, schemaId)?.scopeClassIds).toBeNull();
   });
