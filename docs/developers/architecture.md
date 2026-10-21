@@ -217,7 +217,7 @@ designed, not implemented (see below).*
 
 **Content.** A block's content is one flat token array (`contentAst: ContentToken[]`) —
 `text` (with `marks`), `class_link`, `mention`, `typed_link`, `asset_ref`, `embed_ref`,
-`quote`, `query`, `whiteboard`, `external_link`, `math`, `hard_break`. Normative grammar in
+`quote`, `query`, `whiteboard`, `math`, `hard_break`. Normative grammar in
 `SCHEMA.md`; executable form in `content-mark.ts`. Key semantics:
 
 - `mention` stores the target id only; display resolves at render (rename-free).
@@ -516,7 +516,9 @@ canonical `YYYY/MM(/DD)`), and a compact date-label content (`YYYYMMDD…`) form
 only when the node carries a year/month/day class — an ordinary page whose title
 happens to be 8 digits keeps its literal title. Node links and mention chips
 read `fullTitleOf` — the same derivation without the slice (a link renders the page's complete title, never a truncation). A page's own content MAY carry inline rich
-tokens (mentions, external links — the header title is a bullet-less BlockRow with
+tokens (mentions; external links ride as markdown spans in `text` tokens per the
+SCHEMA.md render grammar — the `external_link` token is retired,
+the header title is a bullet-less BlockRow with
 the full block editor, display and edit;); class content
 stays text-only (`stringifyContentAst`), and the appliers keep flattening rich
 tokens on create-as-main and on block→page/class promotion — `object.update`

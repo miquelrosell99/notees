@@ -63,10 +63,10 @@
  *   block-type actions the content grammar executes — Text (strip the
  *   trigger), Quote (wrap the block's inline tokens in a quote token),
  *   Task/checkbox (assign the task class, OR-set add), Line break (insert a
- *   hard_break token), Add URL (compose the external_link token directly at
- *   the trigger offset — the LinkEditModal is node-only; a URL-looking query
- *   becomes the token, anything else falls back to plain prose and markdown
- *   [label](url) / raw-URL pasting remain the label-carrying paths),
+ *   hard_break token), Add URL (write a plain text token carrying markdown
+ *   [href](href) at the trigger offset — the LinkEditModal is node-only; a
+ *   URL-looking query becomes linked prose, anything else falls back to plain
+ *   prose and markdown [label](url) pasting remains the label-carrying path),
  *   Query (insert a query token at the caret and open its builder
  *   popover on exit), Date (typed date → mention of the daily
  *   page, chain ensured on demand; a bare /date or an unparseable
@@ -762,16 +762,17 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       return;
     }
     if (commandId === "url") {
-      // the LinkEditModal is node-only — the URL command
-      // authors the external_link token directly at the trigger offset
-      // (the token carries no prose; the caret lands at the splice point).
-      // A URL-looking query becomes the token (href + label = the URL);
-      // anything else falls back to plain prose — markdown [label](url) and
-      // raw-URL pasting remain the label-carrying paths.
+      // the LinkEditModal is node-only — the URL command writes
+      // a plain text token carrying markdown [href](href) at the trigger
+      // offset. The external_link token is retired (SCHEMA.md render
+      // grammar): links live as markdown spans inside text tokens, parsed at
+      // render time — the URL stays ordinary, editable prose that renders
+      // linked. (A URL containing ] or ) may not re-parse as a link; it then
+      // renders literally — same best-effort contract as imports.)
       const trimmed = query.trim();
       const remainder = /^url(\s+|$)/i.test(trimmed) ? trimmed.replace(/^url(\s+|$)/i, "").trim() : trimmed;
       if (/^https?:\/\/\S+$/i.test(remainder)) {
-        applySplice(start, end, [{ type: "external_link", href: remainder, text: remainder }], start);
+        applySplice(start, end, [{ type: "text", text: `[${remainder}](${remainder})` }], start + remainder.length + 2);
       } else {
         plainFallback(start);
       }

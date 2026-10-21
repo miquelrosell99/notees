@@ -22,6 +22,10 @@ Citations are the canonical dogfood: a `cites` verb with the locator auto-filled
 
 A mention (the dashed `@`-link) is a door, not just a color: **click** opens the target, **right-click** opens its menu (open, open in the sidebar, edit/retarget the link, remove or delete it), and **resting the pointer on it** raises a bounded preview card — the target's own page view, read-only: the real title row and the top of its block tree (the first level), with its backlink count in the card's footer. The card is read-only on purpose: the editor owns the caret, and a hover surface that grabbed focus would fight the page you're reading — clicking the title or a row opens the node instead of editing it. Click the card's title to open the node, or **Pin** it: the node becomes a small floating editor window — its real view (blocks and all) in a draggable card that sits beside what you're reading, editable exactly like the page (same writes, same undo, same sync), with **Open in main view** and **×** at the title bar's right. Pin an already-pinned node and its window just comes forward. The preview card closes when you move on, press Esc, or click elsewhere; the pinned window stays until you close it.
 
+## External links — markdown, not a token
+
+External links are **markdown spans inside ordinary text** — write or paste `[label](https://…)` anywhere (titles included) and it renders as a plain hyperlink (underline + link color, never chip chrome); click navigates in a new tab. There is no external-link token and no link modal: the `/url` slash command writes `[href](href)` as editable prose at the caret, and the label-carrying path is typing or pasting the markdown yourself — what you see in the editor is exactly what is stored. Every renderer applies the same conservative grammar (SCHEMA.md "Content grammar"): the label holds no `]` or newline, the href no whitespace or parentheses, and only `http(s)`/`mailto:` hrefs linkify — anything else stays literal text. Exports round-trip the markdown (markdown verbatim, HTML/LaTeX as real anchors); the PDF prints it as text for now.
+
 ## Aliases
 
 Two kinds, both page metadata, coexisting:

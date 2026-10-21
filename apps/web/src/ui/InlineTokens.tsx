@@ -7,8 +7,12 @@
  * graceful fallbacks); class chips render as the node-link look with a
  * WAVY underline tinted by the class's effective color
  * and no pill chrome — they open the class like a mention opens its
- * target; external links render as plain hyperlinks (underline + link
- * color, never a pill); mentions also notify the app-level hover coordinator
+ * target; external links are markdown `[label](href)` spans inside `text`
+ * tokens (the retired external_link token's replacement — SCHEMA.md render
+ * grammar), rendered as plain hyperlinks (underline + link color, never a
+ * pill; the shared `@notees/domain` splitter, http/https/mailto only);
+ * mentions also notify the app-level
+ * hover coordinator
  * (NodeHoverPreview — dwell raises a bounded preview card; the card's pin
  * promotes to a floating editor window); a mention whose target carries an
  * icon renders it ahead of the label (the resolveIcon resolver — defined
@@ -34,6 +38,7 @@ import { Fragment, type ReactNode } from "react";
 import { cssColorFor } from "../components/ui/fleet/colorPresets.js";
 import { notifyNodeHover } from "../features/node-menu/NodeHoverPreview.js";
 import { Icon } from "./Icon.js";
+import { splitMarkdownLinks } from "@notees/domain";
 
 export interface InlineTokensProps {
   tokens: readonly unknown[];
@@ -208,7 +213,28 @@ function renderToken(
   switch (t.type) {
     case "text": {
       if (typeof t.text !== "string") return null;
-      return <span key={key}>{renderMarkedText(t.text, Array.isArray(t.marks) ? t.marks.filter((m): m is string => typeof m === "string") : undefined)}</span>;
+      const marks = Array.isArray(t.marks) ? t.marks.filter((m): m is string => typeof m === "string") : undefined;
+      // Markdown-link spans (SCHEMA.md render grammar — the retired
+      // external_link token's replacement): `[label](href)` inside a text
+      // token renders as a plain hyperlink, keeping the token's marks on
+      // every segment. Non-linkable syntax stays literal text.
+      const segments = splitMarkdownLinks(t.text);
+      if (segments.length === 1 && segments[0]?.kind === "text") {
+        return <span key={key}>{renderMarkedText(t.text, marks)}</span>;
+      }
+      return (
+        <span key={key}>
+          {segments.map((segment, index) =>
+            segment.kind === "link" ? (
+              <a key={index} className="nt-hyperlink" href={segment.href} target="_blank" rel="noreferrer">
+                {renderMarkedText(segment.text, marks)}
+              </a>
+            ) : (
+              <Fragment key={index}>{renderMarkedText(segment.text, marks)}</Fragment>
+            ),
+          )}
+        </span>
+      );
     }
     case "typed_link": {
       if (typeof t.text !== "string") return null;
@@ -357,16 +383,6 @@ function renderToken(
         <span key={key} className="nt-heading">
           <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} resolveIcon={resolveIcon} resolveClassColor={resolveClassColor} resolveClassAssigned={resolveClassAssigned} onAssignClass={onAssignClass} />
         </span>
-      );
-    }
-    case "external_link": {
-      if (typeof t.href !== "string" || typeof t.text !== "string") return null;
-      // A plain hyperlink, not a chip: underline + link color
-      // only — no pill background/border/radius.
-      return (
-        <a key={key} className="nt-hyperlink" href={t.href} target="_blank" rel="noreferrer">
-          {t.text}
-        </a>
       );
     }
     case "math": {
