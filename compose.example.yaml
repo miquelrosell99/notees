@@ -1,0 +1,88 @@
+# Notees — production stack EXAMPLE (notees-sync server + notees-web client +
+# the tailnet HTTPS edge). Copy to compose.yaml and adjust .env — the live
+# compose.yaml is a host-local deployment artifact, gitignored, NEVER
+# committed (enforced fleet-wide by the
+# rosellramos-coding-standards skill). Keep this example in sync with the
+# live file by hand. The compose PROJECT name derives from the folder name
+# (fleet convention — no `name:` pin); keep the repo folder named `notees` on
+# production hosts.
+#
+# Data: the sync server's data dir binds ${NOTEES_DATA_DIR:-./config/notees/sync}
+# (envelope log = THE authority, api_key.txt, derived caches, workspaces).
+# Fresh hosts default to the repo-local config dir; hosts keeping their data
+# elsewhere set NOTEES_DATA_DIR in .env. App images track :latest deliberately
+# (you ARE the upstream; NOTEES_*_IMAGE overrides
+# cut over to a specific tag). The edge image is a one-command local build:
+# docker build -t notees-edge:local -f deploy/Dockerfile.caddy deploy/
+
+services:
+  notees-sync:
+    image: ${NOTEES_SYNC_IMAGE:-ghcr.io/miquelrosell99/notees-sync:latest}
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    container_name: notees-sync
+    # Loopback only: the edge reaches this over the compose network by name;
+    # loopback serves the verify-min smoke. The high LAN port re-exposes
+    # plain HTTP for the LAN (docs/developers/deployment.md).
+    ports:
+      - "${NOTEES_SYNC_HTTP:-0.0.0.0:8377}:8377"
+    volumes:
+      - "${NOTEES_DATA_DIR:-./config/notees/sync}:/data"
+    environment:
+      - NOTEES_DATA_DIR=/data
+      - NOTEES_LOG=false
+      # Browser clients call the API cross-origin (LAN path). Auth is
+      # header-based (no cookies), so the * default exposes no credential
+      # surface on a loopback/LAN-trusted deployment; a host that pins its
+      # real origins sets NOTEES_CORS_ORIGIN in .env (comma-separated).
+      - NOTEES_CORS_ORIGIN=${NOTEES_CORS_ORIGIN:-*}
+      # Open registration — off by default (the route 404s and the login
+      # screen hides "Create one" unless the server advertises it).
+      - NOTEES_SIGNUP_ENABLED=${NOTEES_SIGNUP_ENABLED:-false}
+    healthcheck:
+      test: wget -qO- http://127.0.0.1:8377/healthz || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+  notees-web:
+    image: ${NOTEES_WEB_IMAGE:-ghcr.io/miquelrosell99/notees-web:latest}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: notees-web
+    ports:
+      - "${NOTEES_WEB_HTTP:-0.0.0.0:8378}:80"
+    environment:
+      # Optional prefill for non-standard sync topologies (the web client
+      # guesses its sync URL from its own origin, which is right on every
+      # standard path — deployment.md; empty ships no prefill).
+      - NOTEES_SERVER_URL=${NOTEES_SERVER_URL:-}
+    depends_on:
+      notees-sync:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notees-edge:
+    image: notees-edge:local
+    container_name: notees-edge
+    # OPTIONAL tailnet HTTPS edge (Caddy + the tailscale plugin), enabled with
+    # the "edge" compose profile — the core stack has no dependency on it
+    # (plain http on the remappable app ports keeps working). One required
+    # env, NOTEES_EDGE_NAME (the tailnet hostname); certificates issue and
+    # renew automatically via the mounted tailscaled socket. /api/* proxies
+    # to the sync server, everything else to the web client — both over the
+    # compose network — so the https page calls its API same-origin (browser
+    # storage requires a secure context). NOTEES_EDGE_HTTP remaps the port.
+    profiles: ["edge"]
+    ports:
+      - "${NOTEES_EDGE_HTTP:-8443}:443"
+    environment:
+      - NOTEES_EDGE_NAME=${NOTEES_EDGE_NAME:?set NOTEES_EDGE_NAME (the tailnet hostname) in .env to enable the edge}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /var/run/tailscale:/var/run/tailscale:ro
+    restart: unless-stopped

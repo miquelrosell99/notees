@@ -1,0 +1,56 @@
+# Notees — DEV stack example: a second, isolated instance for trying changes
+# against a live-shaped stack without touching production. Copy to a
+# DEDICATED folder (the compose project name derives from the folder — name
+# the folder `notees-dev` so the project never collides with the prod
+# `notees`), then `cp compose.dev.example.yaml compose.yaml` and
+# `cp .env.example .env` (adjust the ports/data vars to taste).
+#
+# Deliberate deltas from the production example:
+# - ports 8379/8380 (prod owns 8377/8378 on a shared host)
+# - NOTEES_SERVER_URL prefill → the web UI points at THIS stack's sync
+#   (the client's same-host guess is hardwired to :8377, prod's port)
+# - data dir defaults to ./config/notees-dev/sync — never prod's data
+# - no tailscale edge (dev runs plain http on loopback)
+# - the app images still track :latest; NOTEES_*_IMAGE overrides cut over to
+#   a locally built image while developing (docker compose build notees-web)
+
+services:
+  notees-sync:
+    image: ${NOTEES_SYNC_IMAGE:-ghcr.io/miquelrosell99/notees-sync:latest}
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    container_name: notees-sync-dev
+    ports:
+      - "${NOTEES_SYNC_HTTP:-127.0.0.1:8379}:8377"
+    volumes:
+      - "${NOTEES_DATA_DIR:-./config/notees-dev/sync}:/data"
+    environment:
+      - NOTEES_DATA_DIR=/data
+      - NOTEES_LOG=false
+      - NOTEES_CORS_ORIGIN=${NOTEES_CORS_ORIGIN:-*}
+      - NOTEES_SIGNUP_ENABLED=${NOTEES_SIGNUP_ENABLED:-false}
+    healthcheck:
+      test: wget -qO- http://127.0.0.1:8377/healthz || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+  notees-web:
+    image: ${NOTEES_WEB_IMAGE:-ghcr.io/miquelrosell99/notees-web:latest}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: notees-web-dev
+    ports:
+      - "${NOTEES_WEB_HTTP:-127.0.0.1:8380}:80"
+    environment:
+      # Point this dev web UI at THIS stack's sync (the :8377 guess would
+      # find prod).
+      - NOTEES_SERVER_URL=${NOTEES_SERVER_URL:-http://localhost:8379}
+    depends_on:
+      notees-sync:
+        condition: service_healthy
+    restart: unless-stopped
