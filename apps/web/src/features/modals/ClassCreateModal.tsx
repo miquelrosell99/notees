@@ -46,7 +46,7 @@ export interface ClassCreateModalProps {
   client: WorkspaceClient | WorkerClient;
   /** The picker's typed query, carried in as the blank mode's name. */
   initialName?: string | undefined;
-  /** Open the gallery tab instead of the blank form (the picker's "Browse all types…"). */
+  /** Open the gallery tab instead of the blank form (the picker's "Browse all classes…"). */
   initialMode?: "blank" | "gallery" | undefined;
   /** Called with the new class id once created/deployed (host opens it). */
   onCreated?: ((classId: string) => void) | undefined;
