@@ -49,6 +49,10 @@ export class WorkspaceClientDates {
    * Ids are content-addressed from the date (@notees/domain dates.ts), so a
    * re-run creates nothing — the client-level existence check is op-log
    * hygiene, not correctness; even a raced create is an applier no-op.
+   * "Exists" also means LIVE: a trashed or archived chain node is restored
+   * (owner bug 2026-10-22 — the listing reads filter `is_active = 1`, so a
+   * trashed day page made the ensure a silent no-op while the journal
+   * showed nothing for today).
    */
   async ensureDateChain(
     isoDate: string,
@@ -82,6 +86,21 @@ export class WorkspaceClientDates {
         classIds: [SYSTEM_CLASS_UUIDS.day],
       });
     }
+    // A trashed (or archived) chain node is not "ensured" for the journal:
+    // every normal read filters `is_active = 1` (client-reads listPages), so
+    // with a trashed today page the feed stayed empty for today while the
+    // existence checks above no-op'd — and Jump to today landed on a past
+    // day (owner bug 2026-10-22). Restore brings the node back live;
+    // object.restore no-ops on active nodes, and as a log-ordered op it
+    // wins over the earlier delete.
+    const ensureLive = async (id: string): Promise<void> => {
+      if (this.reads.getNodeRaw(id) !== undefined && this.reads.getNode(id) === undefined) {
+        await this.writes.restoreObject(id);
+      }
+    };
+    await ensureLive(ids.year);
+    await ensureLive(ids.month);
+    await ensureLive(ids.day);
     // Heal the chain parentage AND labels: older writers created chain nodes
     // parentless and with ISO-dashed content ("2026-10-05"); the stored label
     // must be the compact form ("20261005" — the lookup/sort contract), so

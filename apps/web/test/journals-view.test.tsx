@@ -198,6 +198,32 @@ describe("JournalsView", () => {
       ).toBe(dayNodeId(today));
     });
   });
+
+  it("clicking Today resurrects a trashed today page instead of landing on a past day (owner bug 2026-10-22, second root)", async () => {
+    const client = await seedClient();
+    const today = todayIso();
+    const threeBack = shiftDays(today, -3);
+    await createDayPage(client, today);
+    await createDayPage(client, threeBack);
+    // Trash today's page: getNodeRaw still sees the row, so a naive
+    // existence check no-ops — but every listing read filters it out.
+    await client.deleteObject(dayNodeId(today));
+    expect(client.getNodeRaw(dayNodeId(today))).not.toBeUndefined();
+    expect(client.getNode(dayNodeId(today))).toBeUndefined();
+
+    const { container } = render(
+      <JournalsView client={client} onOpenPage={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Jump to today" }));
+
+    // The ensure restores the trashed chain node; the feed anchors on today.
+    await vi.waitFor(() => {
+      expect(client.getNode(dayNodeId(today))).not.toBeUndefined();
+      expect(
+        container.querySelector("[data-anchor='true']")?.getAttribute("data-journal-id"),
+      ).toBe(dayNodeId(today));
+    });
+  });
 });
 
 /** Local-date shift that avoids Date arithmetic across DST (noon anchor). */
