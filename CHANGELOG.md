@@ -7,6 +7,50 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-22
+
+- **feat(web): the hub surfaces restructure — flush card-border scrollbars
+  and the headers into a pinned in-card top bar.** The main content card's
+  generic 800px centered cap pushed every internally-scrolling hub view's
+  scrollbar to the floating column's right edge, mid-card; and each hub
+  carried its own hand-rolled header block. Now all nine hub surfaces
+  (Journal, Calendar, the collection hubs — Pages / Classes / Inbox /
+  Whiteboards / Assets / Tasks — Trash, Archived, Shares, Search, Queries)
+  are full-bleed exceptions in PageCard.css with one shared three-layer
+  shape: a new fleet primitive, `SurfaceTopBar` (icon + title + muted count
+  + freeform context + right-aligned actions cluster, the NodeView
+  `.nt-node-topbar` register generalized), pinned at the card's top; a body
+  scroller spanning the full card width so the scrollbar rides the card
+  border; and the content measure kept on an inner capped column inside
+  each view's own CSS. Each view converted: the journal's prev/Today/next
+  day nav and the calendar's date line + day nav close over their existing
+  handlers inside the bar (Today is a fleet ghost Button now — the custom
+  pill retired); the tasks hub's bucketed surface prepends the collection
+  inside the shared scrolling body (CollectionHub grew a `prepend` slot) so
+  the whole hub keeps ONE bar; the queries hub's mode switcher joins the
+  bar's actions cluster while the saved-view tabs stay in the body. The
+  shared `.nt-hub-header` / `.nt-hub-title` / `.nt-hub-count` /
+  `.nt-hub-switcher` / `.nt-hub-actions` registers in app.css are retired
+  (no user remains — verified), and `.nt-hub`'s padding re-homed into the
+  new co-located CollectionHub.css. The app-shell TopBar is untouched; the
+  GraphView stays full-bleed as-is.
+  - **Verification**: `pnpm typecheck` clean; `pnpm test` green (the
+    windowing/shares count pins and the journals Today pressed-register pin
+    updated to the new DOM — the count rides `.surface-topbar__count`, the
+    pressed register rides the kit Button).
+
+- **chore(migrations): the classes-gallery stored-log migration ran live — 3
+  envelopes rewritten, epoch bumped, VERIFY-PASS.** `migrate-class-delete.mts
+  --apply` against the production relay: 3 `class.delete` envelopes rewritten
+  to their routing equivalents (2 personal workspace, 1 test workspace), 0
+  drops, 29 class-addressed `object.delete` envelopes inspected and correctly
+  left unchanged (user-class trash arms); snapshots + derived caches purged,
+  `restore_epoch` bumped for both workspaces. The full-log rehydration
+  replayed 238k envelopes into a fresh derived store in ~39 minutes; backup at
+  `relay.db.bak-20261022-091640` (`quick_check` ok); post-restart
+  `verify-min.mjs` VERIFY-PASS. The LOCKSTEP-PENDING gate held: GTK `0537d39`,
+  Flutter `7b07a01`, CLI `6214b26` converged before the rewrite.
+
 - **docs(changelog): the classes-gallery lockstep converged — GTK `0537d39`,
   Flutter `7b07a01`, CLI `6214b26`.** All three clients now speak the `1423ce2c2`
   contract; the LOCKSTEP-PENDING note in that entry is closed. GTK
