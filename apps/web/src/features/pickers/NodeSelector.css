@@ -65,6 +65,14 @@
   margin: var(--spacing-2);
 }
 
+/* The panel margin IS the picker's horizontal padding. The sm field's own
+   inline padding would indent the placeholder a second time relative to the
+   result-row labels, so anchored pickers zero it and share the row grid. */
+.node-selector__picker .node-selector__search-field.search-field--sm {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .node-selector--readonly {
   opacity: var(--opacity-70);
 }
