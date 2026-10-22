@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-22
 
+- **feat(web): multi-line plain-text paste splits into sibling blocks.**
+  Pasting clipboard text containing newlines into a block used to ride the
+  browser default — one block whose newlines became `hard_break` tokens.
+  Now `handlePaste` intercepts it (single-line text, node links, the page
+  title, code blocks, and text-property carrier values keep the existing
+  paths): the head keeps the text before the caret plus the first pasted
+  line (the selection replaced), each further line becomes its own sibling
+  right after via chained `afterId` creates (fractional order preserved,
+  the `extractToPage` pattern), and the last line absorbs the tail — the
+  caret lands at the start of that tail. Trailing blank lines from the copy
+  are dropped rather than minted as empty blocks; internal blank lines
+  become empty blocks. The unflushed draft is folded in via
+  `applyTextEdit` and the debounced flush is cleared, same as the
+  mid-text Enter split.
+  - **Verification**: 6 new paste-split tests in
+    `apps/web/test/node-link-clipboard.test.tsx` (line split + focus, mid-
+    text head/tail, empty middle line, trailing-blank noise, single-visual-
+    line default, title default) — 22/22 in the file green; the full gate
+    (`pnpm typecheck` + `pnpm test`) clean.
+  - **Docs**: the editor header contract, `docs/features/outliner.md`'s
+    gesture table (new `Ctrl/Cmd+V` multi-line row).
+
 - **fix(web): the date-chain ensure resurrects trashed chain nodes — the
   journal's Today jump second root.** The live investigation of the owner
   bug (Jump to today landed on the 18th) found a second, deeper root

@@ -139,8 +139,11 @@
  *                  browser's default text copy runs.
  * - Ctrl/Cmd+V   → clipboard holding a node link (`<origin>/<uuid>` or a
  *                  bare uuid) splices a mention token at the caret,
- *                  replacing the selection like the default paste; any
- *                  other text keeps the default plain-text paste.
+ *                  replacing the selection like the default paste; multi-
+ *                  line plain text splits into sibling blocks at the caret
+ *                  (the first pasted line joins the head, the last absorbs
+ *                  the tail); any other text keeps the default plain-text
+ *                  paste.
  * - `@` over a selection → open the node picker with the selected text as
  *                  the query; the pick replaces the selection with the link
  *                  (Ctrl/Cmd+Enter keeps the text as the label); Esc restores
@@ -197,7 +200,7 @@ import {
   editableDomSignature,
   type EditableAtom,
 } from "@/editor/editable-dom.js";
-import { proseFromAst, proseSpans } from "@/editor/prose.js";
+import { astFromProse, proseFromAst, proseSpans } from "@/editor/prose.js";
 import { caretLineAnchor, selectionAnchor } from "./anchors.js";
 import { codeTokenOf, CodeBlockEditor } from "./codeBlock.js";
 import {
@@ -1503,18 +1506,55 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   /**
    * Paste: a clipboard holding a node link (`<origin>/<uuid>` or a bare
    * uuid) that resolves in the local graph becomes a mention token spliced
-   * at the caret/selection instead of the raw text. Anything else keeps
-   * the contentEditable default (plain text through the normal draft
-   * flow); an unresolvable id pastes as raw text too. (Paste events carry
-   * no modifier state, so even Ctrl/Cmd+Shift+V takes this path — a bare
-   * uuid as plain text is never the useful outcome.)
+   * at the caret/selection instead of the raw text; an unresolvable id
+   * pastes as raw text. Multi-line plain text splits at the caret into
+   * sibling blocks — the head keeps the text before the caret plus the
+   * first pasted line, each further line becomes its own block, and the
+   * last line absorbs the tail after the caret (the caret lands at the
+   * start of that tail). Everything else — single-line text, the title
+   * row, code blocks, text-property carrier values — keeps the
+   * contentEditable default (plain text through the normal draft flow).
+   * (Paste events carry no modifier state, so even Ctrl/Cmd+Shift+V takes
+   * this path — a bare uuid as plain text is never the useful outcome.)
    */
   const handlePaste = (event: ClipboardEvent<HTMLSpanElement>) => {
     if (event.clipboardData === null) return;
-    const targetId = parseNodeLink(event.clipboardData.getData("text/plain"));
-    if (targetId === null) return;
-    const name = captureApi.displayName(targetId);
-    if (name === null) return; // unknown node: default paste of the raw text
+    const text = event.clipboardData.getData("text/plain").replace(/\r\n?/g, "\n");
+    const targetId = parseNodeLink(text);
+    if (targetId !== null) {
+      const name = captureApi.displayName(targetId);
+      if (name !== null) {
+        const el = spanRef.current;
+        if (el === null) return;
+        event.preventDefault();
+        const range = selectionOffsets(el) ?? {
+          start: draftRef.current.length,
+          end: draftRef.current.length,
+        };
+        applySplice(
+          range.start,
+          range.end,
+          [{ type: "mention", targetNodeId: targetId, text: name, linkId: uuidv7() }],
+          range.start + name.length,
+        );
+        notificationStore.success("Node link pasted", name);
+        el.focus();
+        return;
+      }
+    }
+    if (!text.includes("\n")) return; // single-line: the default plain-text paste
+    // Trailing blank lines are copy noise — a paste ending in "\n\n" must
+    // not mint trailing empty blocks.
+    const lines = text.split("\n");
+    while (lines.length > 1 && lines[lines.length - 1] === "") lines.pop();
+    if (lines.length < 2) return; // "only\n": one visual line — the default paste
+    // Structural no-splits: the title row (it IS the page — the header
+    // contract never creates nodes from it), code blocks, and text-property
+    // carrier values (their Enter semantics are value-local; a paste there
+    // stays plain text).
+    if (variant === "title" || codeToken !== null) return;
+    const currentId = nodeRef.current.id;
+    if (carrierEnter?.carrierOf(currentId) != null) return;
     const el = spanRef.current;
     if (el === null) return;
     event.preventDefault();
@@ -1522,14 +1562,42 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       start: draftRef.current.length,
       end: draftRef.current.length,
     };
-    applySplice(
-      range.start,
-      range.end,
-      [{ type: "mention", targetNodeId: targetId, text: name, linkId: uuidv7() }],
-      range.start + name.length,
-    );
-    notificationStore.success("Node link pasted", name);
-    el.focus();
+    // The head write supersedes the debounced flush — clear it so the
+    // unmount flush can't overwrite the split (same as the Enter split).
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    dirtyRef.current = false;
+    const parentId = nodeRef.current.parentId;
+    const draft = draftRef.current;
+    const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName, resolveMentionName);
+    // Head: keep [0, caret) and replace the selection with the first line.
+    const head = spliceTokens(base, range.start, draft.length, astFromProse(lines[0]!, []), resolveClassName, resolveMentionName);
+    // Tail: everything after the selection; it rides the LAST pasted line.
+    const tail = spliceTokens(base, 0, range.end, [], resolveClassName, resolveMentionName);
+    void client.updateObject(currentId, { contentAst: withCandidateSpans(head) });
+    const lastLine = lines[lines.length - 1]!;
+    // The last line PREPENDS to the tail (spliceTokens merges adjacent text
+    // runs, so "Y" + "def" stores as one "Ydef" run).
+    const last = spliceTokens(tail, 0, 0, astFromProse(lastLine, []), resolveClassName, resolveMentionName);
+    const created: ContentAst[] = [
+      ...lines.slice(1, -1).map((line) => withCandidateSpans(astFromProse(line, []))),
+      withCandidateSpans(last),
+    ];
+    // afterId chaining keeps fractional sibling order — the first create
+    // anchors after the current block, each next one after the previous
+    // (the pattern extractToPage uses for N sibling inserts).
+    let chain: Promise<string> = client.createObject({
+      parentId,
+      contentAst: created[0]!,
+      ...(parentId !== null ? { afterId: currentId } : {}),
+    });
+    for (const contentAst of created.slice(1)) {
+      chain = chain.then((prevId) => client.createObject({ parentId, contentAst, afterId: prevId }));
+    }
+    // Caret at the start of the tail, inside the last pasted line's block.
+    void chain.then((lastId) => requestFocus(lastId, lastLine.length));
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
