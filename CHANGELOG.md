@@ -25,8 +25,8 @@ predating this file.
   pointer; its compose copy is deleted. Migrated live: `down` from the
   stack folder, `up -d` from the checkout (edge adopted into the project,
   sync healthy, bind verified the fleet-stack sync dir (`/data` inside the container)),
-  `verify-min` VERIFY-PASS. Aliases `notees-deploy` / `noteessync-deploy` /
-  `notees-ps` / `notees-edge-deploy` now point at the repo-root compose.
+  `verify-min` VERIFY-PASS. Operate the stack with plain `docker compose`
+  from the repo root — no aliases, no `-f` paths.
   Komodo follow-up (owner action, optional): re-point the Komodo `notees`
   stack resource's run directory at the repo root to restore UI-managed
   redeploys.
@@ -90,12 +90,12 @@ predating this file.
   isolated dev project (it fails loudly on the pinned 8377/8378 ports rather
   than hijacking the live containers); the live stack's compose names its
   project `notees` explicitly instead of deriving it from the folder name.
-  Fresh deployments set their own production `name:` (one line). Host-local
-  convenience: `notees-deploy` / `noteessync-deploy` / `notees-ps` aliases in
-  `~/.bashrc` run compose against the live stack from any cwd. Verified live:
-  both files resolve to their named project (`docker compose config`), the
-  running stack is untouched (container set + health identical), and the
-  alias lists the live containers from a foreign cwd.
+  (Both the template name and this slice's `~/.bashrc` aliases retired the
+  same day with the deployment collapse below — the repo-root compose became
+  the production file and plain `docker compose` from the repo root replaced
+  the aliases.) Verified live: both files resolve to their named project
+  (`docker compose config`), and the running stack was untouched (container
+  set + health identical).
   - **Files**: `compose.yaml` (repo template), `/etc/periphery/stacks/notees/
     compose.yaml` (live stack — host-local, the stacks repo gitignores
     `notees/`), `docs/developers/deployment.md`, `AGENTS.md`, `~/.bashrc`
