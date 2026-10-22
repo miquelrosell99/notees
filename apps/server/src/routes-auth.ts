@@ -176,7 +176,13 @@ export function reassignExportPaths(bundle: ExportBundle, paths: Map<string, str
   }
 }
 
-/** Extracts a credential from X-API-Key, Authorization: Bearer, or ?token=. */
+/** Extracts a credential from X-API-Key or Authorization: Bearer.
+ *
+ * Query-string credentials were retired (2026-10-22): a bearer token in a
+ * URL lands in every proxy/access/error log along the way. Browser
+ * WebSocket clients mint a short-lived single-use ticket instead
+ * (POST /tickets, WIRE.md §2); native clients set headers normally.
+ */
 export function extractCredential(request: FastifyRequest): string | null {
   const header = request.headers["x-api-key"];
   if (typeof header === "string" && header.length > 0) return header;
@@ -184,10 +190,6 @@ export function extractCredential(request: FastifyRequest): string | null {
   if (authorization !== undefined && authorization.startsWith("Bearer ")) {
     return authorization.slice("Bearer ".length).trim();
   }
-  // WebSocket clients put the credential in the query string (headers are
-  // not settable on browser WebSocket upgrades).
-  const query = request.query as { token?: unknown };
-  if (typeof query.token === "string" && query.token.length > 0) return query.token;
   return null;
 }
 

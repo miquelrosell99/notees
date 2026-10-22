@@ -89,8 +89,7 @@ window, 409 `idempotency_replay`); `PATCH /objects/:id` honors `baseRevision`
 relay-log read = the agent audit feed; `GET /openapi.json` self-describes
 (CI `openapi-coverage` fails on route drift).
 
-Auth: API key only (X-API-Key / Bearer / `?token=`), constant-time compare;
-only `GET /healthz` and `GET /api/version` are public. No TLS in the server —
+Auth: operator key / session token / API key as `X-API-Key` or `Authorization: Bearer`, constant-time compare; credentials never ride a URL (`?token=` retired 2026-10-22 — browsers mint single-use WS tickets at `POST /api/relay/v2/tickets`, WIRE.md §2); only `GET /healthz` and `GET /api/version` are public. No TLS in the server —
 terminate in a reverse proxy. Limits: relay batch ≤1000 envelopes / ≤1 MB;
 ≤30 k envelopes/min/workspace; 10 k req/min/IP; body 128 MB.
 

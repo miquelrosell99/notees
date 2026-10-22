@@ -162,16 +162,38 @@ export class HttpTransport implements Transport {
     });
   }
 
+  /**
+   * Mint a single-use WebSocket admission ticket (WIRE.md §2). The bearer
+   * credential rides the X-API-Key header; the returned ticket — not the
+   * credential — goes on the socket URL, so logs along the path record an
+   * ephemeral admission token instead of a reusable credential.
+   */
+  private async mintTicket(): Promise<string> {
+    const response = await this.request("/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId: this.workspaceId }),
+    });
+    const data = (await response.json()) as { ticket?: unknown };
+    if (typeof data.ticket !== "string" || data.ticket.length === 0) {
+      throw new TransportError("invalid_ticket_response", "relay returned no ticket", 200);
+    }
+    return data.ticket;
+  }
+
   // --- WebSocket acceleration path (WIRE.md) ------------------------------------
 
   /**
    * Subscribe to the workspace's realtime stream. Connects to
-   * `/api/relay/v2/ws/{workspaceId}?token=…`, dispatches frames to the
-   * handlers, reconnects with backoff after abnormal closes (the seq cursor in
-   * meta.ts is the authoritative recovery mechanism — the socket is only an
-   * accelerator), and fails loud when the relay speaks a newer framing
-   * version. The returned function stops the stream: pending reconnects are
-   * cancelled and the open socket is closed cleanly (code 1000, no reconnect).
+   * `/api/relay/v2/ws/{workspaceId}?ticket=…` where the single-use ticket is
+   * minted fresh from the credential on every connect (browsers cannot set
+   * upgrade headers; the ticket keeps the credential out of URLs and their
+   * logs). Dispatches frames to the handlers, reconnects with backoff after
+   * abnormal closes (the seq cursor in meta.ts is the authoritative recovery
+   * mechanism — the socket is only an accelerator), and fails loud when the
+   * relay speaks a newer framing version or does not offer tickets at all.
+   * The returned function stops the stream: pending reconnects are cancelled
+   * and the open socket is closed cleanly (code 1000, no reconnect).
    */
   subscribe(handlers: RealtimeHandlers): () => void {
     if (this.webSocketImpl === null) {
@@ -179,9 +201,8 @@ export class HttpTransport implements Transport {
         "HttpTransport.subscribe: no WebSocket available (pass webSocketImpl in Node)",
       );
     }
-    const url =
-      `${this.base.replace(/^http/, "ws")}/ws/${encodeURIComponent(this.workspaceId)}` +
-      `?token=${encodeURIComponent(this.apiKey)}`;
+    const wsBase =
+      `${this.base.replace(/^http/, "ws")}/ws/${encodeURIComponent(this.workspaceId)}`;
     const delays = this.wsReconnectDelaysMs;
 
     let stopped = false;
@@ -275,23 +296,47 @@ export class HttpTransport implements Transport {
 
     const connect = (): void => {
       if (stopped || failed) return;
-      let conn: WebSocketLike;
-      try {
-        conn = new this.webSocketImpl!(url);
-      } catch (err) {
-        handlers.onError?.(err instanceof Error ? err : new Error(String(err)));
-        scheduleReconnect();
-        return;
-      }
-      socket = conn;
-      conn.onopen = () => {};
-      conn.onmessage = (event) => handleFrame(event.data);
-      conn.onerror = null;
-      conn.onclose = () => {
-        if (socket !== conn) return; // Superseded or already torn down.
-        socket = null;
-        scheduleReconnect();
-      };
+      // Mint first: the ticket is single-use and 60 s valid, so every
+      // connect (including backoff reconnects) mints its own.
+      this.mintTicket()
+        .then((ticket) => {
+          if (stopped || failed) return;
+          let conn: WebSocketLike;
+          try {
+            conn = new this.webSocketImpl!(`${wsBase}?ticket=${encodeURIComponent(ticket)}`);
+          } catch (err) {
+            handlers.onError?.(err instanceof Error ? err : new Error(String(err)));
+            scheduleReconnect();
+            return;
+          }
+          socket = conn;
+          conn.onopen = () => {};
+          conn.onmessage = (event) => handleFrame(event.data);
+          conn.onerror = null;
+          conn.onclose = () => {
+            if (socket !== conn) return; // Superseded or already torn down.
+            socket = null;
+            scheduleReconnect();
+          };
+        })
+        .catch((err: unknown) => {
+          if (stopped || failed) return;
+          if (err instanceof TransportError && err.status === 404) {
+            // The relay predates tickets — reconnecting cannot fix that.
+            failLoud(
+              "relay does not offer WS admission tickets (POST /tickets answered 404) — upgrade the sync server",
+            );
+            return;
+          }
+          if (err instanceof TransportError && (err.status === 401 || err.status === 403)) {
+            // A refused credential is worth surfacing (expired session,
+            // revoked key); a refresh out-of-band may fix the next retry.
+            handlers.onError?.(err);
+          }
+          // Everything else (network down, 5xx) is transient — reconnect
+          // silently, exactly like an abnormal socket close.
+          scheduleReconnect();
+        });
     };
 
     const scheduleReconnect = (): void => {

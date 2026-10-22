@@ -177,10 +177,16 @@ there is no `notees export`.
 
 ## 8. Security notes (single-user)
 
-- **The API key is the only auth.** Every route except `GET /healthz` and
-  `GET /api/v1/version` requires it (`X-API-Key` header, `Authorization: Bearer`, or
-  `?token=` on the socket), compared in constant time. Anyone with the key can read and
-  write everything. Treat `api_key.txt` and the env var accordingly.
+- **Credentials:** the operator API key, account session tokens, and API keys
+  all authenticate as `X-API-Key` or `Authorization: Bearer`, compared in
+  constant time; the retired `?token=` query fallback was removed 2026-10-22 —
+  bearer tokens in URLs land in every proxy/access/error log along the path,
+  so browser WebSocket clients mint single-use 60 s tickets at
+  `POST /api/relay/v2/tickets` instead (WIRE.md §2; native clients set the
+  Authorization header on the upgrade). Anyone holding a full-access
+  credential can read and write everything; scoped API keys are object-API
+  credentials (the relay surface refuses them, 403 `scope_denied`). Treat
+  `api_key.txt`, session tokens, and the env var accordingly.
 - **No TLS in the server.** Terminate TLS in a reverse proxy (or use an SSH tunnel /
   WireGuard) for anything leaving the machine. The `0.0.0.0` default bind exposes the
   server on all interfaces — for a strictly local deployment set `NOTEES_HOST=127.0.0.1`.

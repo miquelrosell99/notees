@@ -7,6 +7,47 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(sync,server)!: WS admission tickets — bearer credentials no longer
+  ride any URL; the `?token=` query fallback is retired.** Owner ruling
+  (2026-10-22, "best practice implementation, no hacks"): a session token or
+  API key in a WebSocket URL was copied into every proxy/access/error log
+  along the path (the morning's incident: two live session tokens pasted
+  along with a log dump). New contract (WIRE.md §2): the socket admits
+  `Authorization: Bearer` (native clients set upgrade headers) or
+  `?ticket=ntk_…` — a ticket minted at the new `POST /api/relay/v2/tickets`
+  with the normal credential headers, single-use, 60 s valid, bound to the
+  workspace it was minted for, consumed AT the handshake (a bad ticket
+  refuses the upgrade with the 401 `invalid_ticket` envelope — a new taxonomy
+  code), worthless in a log within seconds of minting. The `HttpTransport`
+  mints a fresh ticket per connect including backoff reconnects; a mint 404
+  (relay predates tickets) fails loud, a 401/403 surfaces onError and keeps
+  retrying, anything else retries silently like a dropped socket. `?token=`
+  is rejected outright on the whole API (not just the socket). Server:
+  `apps/server/src/tickets.ts` (in-memory sha256-keyed store, TTL injectable
+  via the internal `wsTicketTtlMs` config hook), `context.ts`, `config.ts`,
+  `routes-relay.ts` (the `/tickets` route + the WS preHandler/handler split
+  carrying `wsPrincipal`), `routes-auth.ts` (`extractCredential` loses the
+  query fallback), `errors.ts` (`invalid_ticket`), `openapi.ts` (the new
+  route + the socket's updated description). Client: `packages/sync`
+  `transport.ts` (mint-then-connect `subscribe`). Docs: WIRE.md (auth posture
+  + the tickets endpoint + §2 rewrite), `deployment.md` §8 (the stale
+  "API key is the only auth" bullet rewritten to the real credential
+  surface), the operations/development skill references, the `deploy/
+  Caddyfile` logging comment.
+  - **LOCKSTEP-PENDING (the clients)**: GTK/Flutter must move their socket
+    connect from `?token=` to the `Authorization` header (their WS stacks set
+    headers natively); the CLI re-vendors `packages/sync` to pick up the
+    transport change (its public options are unchanged). Their next releases
+    carry the change — until then their sync sockets stop against this
+    server, HTTP sync unaffected.
+  - **Verification**: `apps/server` relay-ws suite 16/16 (ticket flow,
+    Bearer header, single-use, workspace binding, expiry via the TTL hook,
+    retired `?token=`, mint auth/strict-body) + auth/openapi-coverage/e2e/
+    relay-batch 52/52; `packages/sync` suite 26/26 (mint-per-connect,
+    no credential in the URL, 404 fail-loud with no reconnect, bad-credential
+    onError + retry); `pnpm typecheck` green; `pnpm test` full gate green;
+    live: rebuilt `notees-sync`/`notees-web`, `verify-min.mjs` VERIFY-PASS.
+
 - **fix(web): the context-menu flyout actually leaves the DOM on close —
   the mount lifecycle rides our state, not Radix Presence.** Owner report
   (2026-10-22): an open submenu flyout stayed visible after hovering a
