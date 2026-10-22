@@ -21,7 +21,10 @@
 
 .floating-toolbar__card {
   display: inline-flex;
-  background: var(--md-sys-color-surface);
+  /* The elevated popup register: a toolbar floats
+     over the editor content, so it rides surface-container-high like every
+     transient popup — plain surface blended into the page behind it. */
+  background: var(--md-sys-color-surface-container-high);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 

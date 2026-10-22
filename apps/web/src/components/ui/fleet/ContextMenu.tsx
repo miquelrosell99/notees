@@ -22,10 +22,17 @@
  *   it on their own contextmenu gestures), so the Trigger is a pure
  *   virtual anchor, never a visible right-click target.
  * - Hover opens submenus on pointer-fine devices and click/tap toggles
- *   them everywhere, with ENTER-ONLY semantics (entering any other
- *   top-level item closes the open flyout; leaving fires no close) —
- *   the seam is driven here onMouseEnter rather than by Radix's
- *   pointermove/100ms hover, preserving the synchronous.
+ *   them everywhere, with an enter-only seam BETWEEN items (entering any
+ *   other top-level item closes the open flyout) plus one leave rule at
+ *   the card boundary: the pointer leaving the whole menu closes the
+ *   flyout (a flyout lingered over the page
+ *   after the pointer walked off the menu). The flyout rides flush
+ *   against the menu edge as an inline DOM child of the card, so moving
+ *   INTO it never leaves the card — pointerleave is geometric over the
+ *   whole subtree: row → flyout keeps the pointer inside, row → page
+ *   fires the close. The seam is driven here onMouseEnter/onMouseLeave
+ *   rather than by Radix's pointermove/100ms hover, preserving the
+ *   synchronous.
  * - Escape closes the active submenu first, then the menu, from the
  *   overlay stack regardless of where DOM focus is.
  * - Dismissal exceptions: pointer presses inside the icon/color picker
@@ -148,9 +155,10 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
   );
 
   // Hover seam: entering a submenu parent opens its flyout; entering any
-  // other top-level item closes the open one. Enter-only semantics: the
-  // flyout carries no leave handlers, and the pointer can travel into its
-  // rows freely (it rides flush against the menu edge).
+  // other top-level item closes the open one. Item-level enter handles the
+  // BETWEEN-items case; the card-level leave (onMouseLeave on the Content)
+  // closes the flyout when the pointer walks off the menu entirely — the
+  // flyout is a DOM child of the card, so entering it never fires this.
   const handleItemEnter = useCallback(
     (item: ContextMenuItem) => {
       if (!canHover || item.disabled || item.separator) return;
@@ -387,6 +395,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
       onEscapeKeyDown={(event) => event.preventDefault()}
       onPointerDownOutside={handleInteractOutside}
       onInteractOutside={handleInteractOutside}
+      onMouseLeave={closeSubmenu}
       onFocus={(e: FocusEvent) => e.stopPropagation()}
       onMouseDown={(e: MouseEvent) => e.stopPropagation()}
       onClick={(e: MouseEvent) => e.stopPropagation()}
