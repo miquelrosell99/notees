@@ -33,6 +33,21 @@ predating this file.
     `main` forced to the rewritten tip; all tags force-updated; ruleset
     active on `refs/heads/main`.
 
+- **chore(deploy): human-readable edge logs — Caddy's console encoder with
+  the request/response header dumps filtered out.** The edge's default JSON
+  error log dumped every request header (Sec-Fetch-*, Sec-Websocket-Key, …),
+  so each 502 was a screen-filling line; the `log` block in
+  `deploy/Caddyfile` now wraps the console encoder in the filter encoder and
+  deletes `request>headers` + `resp_headers`, leaving one line with
+  timestamp, level, client, method, URI, status, duration (the sync token
+  stays in the WS URL as in any access log). Access lines and reverse-proxy
+  errors share the format; one-shot startup lines remain JSON.
+  - **Files**: `deploy/Caddyfile`; `docs/developers/deployment.md` §10 (edge
+    logging bullet); `.agents/skills/notees-operations/references/logs.md`.
+  - **Verification**: `caddy validate` against `notees-edge:local` — Valid
+    configuration; `docker compose restart notees-edge` + a curl through the
+    edge — 200, access line in console format with no header dumps.
+
 - **feat(store,web): the system-extends lock — a system class's extends mapping
   is frozen to the seeded set; deviations fail loud with
   `SystemExtendsLockError`.** Owner ruling (2026-10-22): the seeded extends

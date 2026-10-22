@@ -327,6 +327,11 @@ docker compose --profile edge up -d              # or COMPOSE_PROFILES=edge
   (`NOTEES_EDGE_HTTP`, default 8443 — :443 stays free for a shared edge) and proxies over the compose network:
   `/api/*` → `notees-sync:8377`, everything else → `notees-web:80` — the https
   page calls its API **same-origin**, so no CORS and no mixed content.
+- **Logging**: the edge writes human-readable one-line logs — Caddy's console
+  encoder with the request/response header dumps filtered out (`log {
+  format filter { wrap console … } }` in `deploy/Caddyfile`), so a proxy
+  error is one glanceable line (client, method, URI, status, duration) instead
+  of a screen-filling JSON dump. One-shot startup lines stay JSON.
 - **Remapping**: every published port is one env in full `ip:port` form
   (`NOTEES_SYNC_HTTP`, `NOTEES_WEB_HTTP`, the `*_LAN_HTTP` loopback
   high-ports, `NOTEES_EDGE_HTTP`). Container ports are fixed, so host remaps

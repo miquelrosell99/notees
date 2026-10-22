@@ -12,5 +12,21 @@ https://{$NOTEES_EDGE_NAME} {
 		get_certificate tailscale
 	}
 
+	# Human-readable logs: the console encoder with the request and response
+	# header dumps filtered out (they were most of every line and carried no
+	# diagnostic value). The request line keeps method/URI/proto/client —
+	# note the sync token travels in the WS URL query, so it still appears in
+	# request.uri, as in any access log. Reverse-proxy errors use this encoder
+	# too.
+	log {
+		format filter {
+			wrap console
+			fields {
+				request>headers delete
+				resp_headers delete
+			}
+		}
+	}
+
 	reverse_proxy notees-web:80
 }
