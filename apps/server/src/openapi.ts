@@ -865,10 +865,24 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["get", "/api/relay/v2/ws/:workspaceId", {
     summary: "WebSocket sync socket (hello/ops/ack/error frames, framing version 2)",
     description:
-      "Not plain HTTP: upgrade endpoint. Auth via ?token= or Authorization header; the credential is re-checked per batch frame. Fail loud on newer framing versions (WIRE.md).",
+      "Not plain HTTP: upgrade endpoint. Auth via Authorization header (native clients) or a single-use ?ticket= minted at POST /api/relay/v2/tickets (browsers); the principal is re-authorized per batch frame. Fail loud on newer framing versions (WIRE.md).",
     tags: ["Relay"],
     params: { workspaceId: "workspace uuid" },
     webSocket: true,
+  }],
+  ["post", "/api/relay/v2/tickets", {
+    summary: "Mint a WebSocket admission ticket (single-use, 60 s, workspace-bound)",
+    description:
+      "Authenticated with the normal credential headers (X-API-Key / Authorization: Bearer). Returns {ticket, expiresAt}; the ticket admits one connection to /ws/{workspaceId} for its workspace and dies on first use — browser WebSocket clients cannot set upgrade headers, so this keeps bearer credentials out of URLs and their logs (WIRE.md §2).",
+    tags: ["Relay"],
+    requestBody: {
+      type: "object",
+      properties: { workspaceId: { type: "string", format: "uuid" } },
+      required: ["workspaceId"],
+      additionalProperties: false,
+    },
+    success: { description: "{ ticket: string, expiresAt: number (epoch ms) }" },
+    errors: ["validation_failed", "unauthenticated", "forbidden", "scope_denied"],
   }],
 
   // --- plugins (manifest schema + inert registry; the RUNTIME is parked) ----

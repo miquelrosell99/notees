@@ -1,12 +1,15 @@
 /**
  * Relay routes — WIRE.md implemented exactly: POST /batch, POST
  * /catch-up, GET /snapshot, GET|PUT /snapshot/data, POST /compact, GET /stats,
- * and the /ws/{workspaceId} socket (hello/ops/ack/error frames, framing
- * version 2). Auth: the credential (operator API key or account session
- * token) travels as X-API-Key on HTTP and ?token= / Authorization on the
- * socket (transport.ts). Account principals are authorized per workspace via
- * membership: a workspace with no members is claimed by the first account
- * that writes to it (owner); reads require an existing membership.
+ * POST /tickets, and the /ws/{workspaceId} socket (hello/ops/ack/error frames,
+ * framing version 2). Auth: the credential (operator API key or account
+ * session token) travels as X-API-Key / Authorization on HTTP. The socket
+ * takes the credential as an Authorization header (native clients) or a
+ * short-lived single-use ticket minted here (browsers, which cannot set
+ * upgrade headers — WIRE.md §2); the bearer credential never rides a URL.
+ * Account principals are authorized per workspace via membership: a workspace
+ * with no members is claimed by the first account that writes to it (owner);
+ * reads require an existing membership.
  */
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
@@ -289,16 +292,50 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     return ctx.relay.stats(parsed.data.workspaceId);
   });
 
+  /**
+   * Mint a WebSocket admission ticket (WIRE.md §2). Authenticated with the
+   * normal credential headers; the ticket inherits the principal and is
+   * bound to this workspace — single-use, 60 s, and worthless in a log.
+   */
+  app.post("/tickets", async (request) => {
+    const parsed = z
+      .object({ workspaceId: z.string().uuid() })
+      .strict()
+      .safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid ticket request");
+    }
+    const { workspaceId } = parsed.data;
+    const principal = requireCredential(ctx, request, workspaceId, "read");
+    return ctx.tickets.mint(principal, workspaceId);
+  });
+
   // --- WebSocket -------------------------------------------------------------
 
-  // WIRE.md: socket auth via ?token= (credential) or the Authorization header.
-  // The preHandler answers plain-HTTP probes with the 401 JSON envelope; the
-  // in-handler check re-resolves the principal for per-frame authorization.
+  // WIRE.md §2: the socket admits an Authorization header (native clients) or
+  // ?ticket= (browsers — minted via POST /tickets just above). The preHandler
+  // answers plain-HTTP probes and bad tickets with the 401 JSON envelope —
+  // a ticket is consumed AT the handshake, so a refused upgrade never opens.
+  const wsTicket = (request: FastifyRequest): string | null => {
+    const query = request.query as { ticket?: unknown };
+    return typeof query.ticket === "string" && query.ticket.length > 0 ? query.ticket : null;
+  };
+
+  interface WsUpgradeRequest extends FastifyRequest {
+    /** Set by the preHandler when a ticket admits the upgrade. */
+    wsPrincipal?: Principal;
+  }
+
   const wsPreHandler = async (request: FastifyRequest) => {
     const { workspaceId } = request.params as { workspaceId: string };
-    if (z.string().uuid().safeParse(workspaceId).success) {
-      requireCredential(ctx, request, workspaceId, "read");
+    if (!z.string().uuid().safeParse(workspaceId).success) return; // handler answers with an error frame
+    const upgrade = request as WsUpgradeRequest;
+    const ticket = wsTicket(request);
+    if (ticket !== null) {
+      upgrade.wsPrincipal = ctx.tickets.consume(ticket, workspaceId);
+      return;
     }
+    requireCredential(ctx, request, workspaceId, "read");
   };
 
   app.get("/ws/:workspaceId", { websocket: true, preHandler: wsPreHandler }, (socket, request) => {
@@ -311,7 +348,9 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     }
     let principal: Principal;
     try {
-      principal = requireCredential(ctx, request, workspaceId, "read");
+      principal =
+        (request as WsUpgradeRequest).wsPrincipal ??
+        requireCredential(ctx, request, workspaceId, "read");
     } catch {
       ws.close(1002, "unauthorized");
       return;

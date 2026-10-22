@@ -2,7 +2,7 @@
 
 Status: **v2.0-draft, 2026-09-26.** Companion to `SCHEMA.md` (payloads/content grammar — normative there) and the envelope/op schemas in `src/` (executable form).
 
-Base path: `/api/relay/v2`. Auth: single-user API key (`X-API-Key`) today (JWT sessions land with multi-user); actor identity is derived from the authenticated principal only. All request/response bodies are camelCase JSON; envelopes travel inside bodies as defined in `envelope.ts` (`seq` never appears inside an envelope — it rides on catch-up responses and WS frames).
+Base path: `/api/relay/v2`. Auth: `X-API-Key` or `Authorization: Bearer` carrying the operator key, an account session token, or an API key — actor identity is derived from the authenticated principal only. Credentials NEVER ride a URL: the `?token=` query fallback was retired 2026-10-22 (a bearer token in a URL lands in every log along the path); browser WebSocket clients use the admission-ticket flow below. All request/response bodies are camelCase JSON; envelopes travel inside bodies as defined in `envelope.ts` (`seq` never appears inside an envelope — it rides on catch-up responses and WS frames).
 
 ## 1. Endpoints
 
@@ -31,9 +31,12 @@ Owner/admin: `{"workspaceId", "upToHlc": {physical, logical}, "prune": true, "da
 ### `GET /stats?workspaceId=…`
 `{"envelopeCount", "snapshotCount", "compactedOperationCount", "maxHlc", "restoreEpoch", "latestSnapshotHlc"}`.
 
+### `POST /tickets`
+Mint a WebSocket admission ticket (below). Request `{"workspaceId": "..."}`; response 200 `{"ticket": "ntk_...", "expiresAt": epoch-ms}`. Authenticated with the normal credential headers; scoped API keys are refused (403 `scope_denied`) as on the rest of the relay surface.
+
 ## 2. WebSocket — `/ws/{workspaceId}`
 
-Auth via `?token=` (API key) or subprotocol header. Framing version `wsProtocolVersion = 2`, independent of the envelope `protocolVersion`.
+Auth at the upgrade: `Authorization: Bearer` (native clients set headers normally) or `?ticket=ntk_…` with a ticket minted at `POST /tickets` (browsers cannot set upgrade headers). Tickets are single-use, 60 s valid, and bound to the workspace they were minted for — consuming one dies it, and an unknown/expired/wrong-workspace ticket refuses the upgrade with the 401 JSON envelope. Clients mint a FRESH ticket per connect (including backoff reconnects); the bearer credential itself never appears in a URL, so logs along the path record at most a seconds-lived admission token. The `?token=` credential fallback is retired. Framing version `wsProtocolVersion = 2`, independent of the envelope `protocolVersion`.
 
 - Server → client on connect: `{"type": "hello", "wsProtocolVersion": 2, "restoreEpoch": int, "latestSeq": int}`.
 - Client → server: `{"type": "batch", "envelopes": [...]}` (same path and limits as HTTP `/batch`).
