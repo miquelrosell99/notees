@@ -19,7 +19,13 @@
  *    and the `class:` refine all fold diacritics (the store search mirror):
  *    "video" matches the class "Vídeo";
  *  - NodeSelector: searchMode="blocks" lists only inline blocks, each
- *    labeled with its containing-page path.
+ *    labeled with its containing-page path;
+ *  - `/` filter mode (palette + picker): the slash opens the Filters option
+ *    list (kinds + class rows + the "With class…" browse), applying an
+ *    option renders a removable chip and scopes the results (Commands chip →
+ *    the action registry only; a With-class chip → the class's members),
+ *    chips compose with the existing text prefixes, and Backspace on an
+ *    empty query pops the last chip.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -509,5 +515,189 @@ describe("NodeSelector block mode", () => {
     // The containing-page breadcrumb.
     const crumbs = container.querySelector(".node-result-item__crumbs");
     expect(crumbs?.textContent).toBe("Notes");
+  });
+});
+
+describe("CommandPalette `/` filter mode", () => {
+  it("a leading slash swaps the results for the Filters option list", async () => {
+    const { client } = await seedPaletteWorld();
+    renderPalette(client);
+    await screen.findByText("Random");
+    typeInPalette("/");
+    // The full palette kinds, including the palette-only Commands row.
+    expect(await screen.findByText("Filters")).not.toBeNull();
+    for (const label of ["Daily pages", "Pages", "Blocks", "Classes", "With class…", "Commands"]) {
+      expect(screen.getByText(label)).not.toBeNull();
+    }
+    // The results sections stepped aside.
+    expect(screen.queryByText("Random")).toBeNull();
+  });
+
+  it("the slash text narrows the options and names classes directly", async () => {
+    const { client } = await seedPaletteWorld();
+    await createTitledClass(client, "Fiction");
+    renderPalette(client);
+    typeInPalette("/fic");
+    // The class row rides the narrowed list; non-matching kinds drop out.
+    expect(await screen.findByText("Class: Fiction")).not.toBeNull();
+    expect(screen.queryByText("Daily pages")).toBeNull();
+    expect(screen.queryByText("Commands")).toBeNull();
+  });
+
+  it("applying the Commands chip scopes the palette to the action registry", async () => {
+    const { client } = await seedPaletteWorld();
+    renderPalette(client);
+    typeInPalette("/comm");
+    await screen.findByText("Commands");
+    fireEvent.keyDown(screen.getByLabelText("Command palette search"), { key: "Enter" });
+    // The chip renders; only Commands answer; the node sections stay out.
+    expect(await screen.findByText("Commands", { selector: ".nt-palette-group-label" })).not.toBeNull();
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Commands");
+    expect(screen.queryByText("Pages")).toBeNull();
+    expect(screen.queryByText("Recent")).toBeNull();
+    expect(screen.getByText("New page")).not.toBeNull();
+  });
+
+  it("applying the Daily pages chip scopes the palette to date pages", async () => {
+    const { client } = await seedPaletteWorld();
+    await client.ensureDateChain("2026-03-05");
+    renderPalette(client);
+    typeInPalette("/da");
+    await screen.findByText("Daily pages");
+    fireEvent.keyDown(screen.getByLabelText("Command palette search"), { key: "Enter" });
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Daily pages");
+    expect(await screen.findByText("Date Pages")).not.toBeNull();
+    expect(screen.getByText("2026-03-05")).not.toBeNull();
+    expect(screen.queryByText("Garden")).toBeNull();
+    expect(screen.queryByText("Commands")).toBeNull();
+  });
+
+  it("a With-class chip restricts the node sections to the class's members", async () => {
+    const { client } = await seedPaletteWorld();
+    const fictionId = await createTitledClass(client, "Fiction");
+    await client.createObject({ isEmbedded: false, name: "Dune", classIds: [fictionId] });
+    renderPalette(client);
+    typeInPalette("/Fiction");
+    await screen.findByText("Class: Fiction");
+    fireEvent.keyDown(screen.getByLabelText("Command palette search"), { key: "Enter" });
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Class: Fiction");
+    // Only the member answers; the registry and the other pages stay out,
+    // and the typed create row has no class path to offer (hidden).
+    expect(await screen.findByText("Dune")).not.toBeNull();
+    expect(screen.queryByText("Tulip Catalog")).toBeNull();
+    expect(screen.queryByText("Commands")).toBeNull();
+    expect(screen.queryByText(/^Create page "/)).toBeNull();
+  });
+
+  it("the With class… row browses the classes; Backspace on an empty query pops the last chip", async () => {
+    const { client } = await seedPaletteWorld();
+    await createTitledClass(client, "Fiction");
+    renderPalette(client);
+    typeInPalette("/");
+    await screen.findByText("Filters");
+    fireEvent.click(screen.getByText("With class…"));
+    // The browse lists the workspace's classes.
+    expect(await screen.findByText("Classes")).not.toBeNull();
+    fireEvent.click(screen.getByText("Fiction"));
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Class: Fiction");
+    // One Backspace on the empty query removes the chip again.
+    fireEvent.keyDown(screen.getByLabelText("Command palette search"), { key: "Backspace" });
+    expect(document.querySelector(".filter-chips")).toBeNull();
+    expect(screen.queryByText("Class: Fiction")).toBeNull();
+  });
+});
+
+describe("NodeSelector `/` filter mode", () => {
+  it("a leading slash lists the picker filter kinds (no Commands row)", async () => {
+    const client = await seedClient();
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "/" } });
+    expect(await screen.findByText("Filters")).not.toBeNull();
+    expect(screen.getByText("Daily pages")).not.toBeNull();
+    expect(screen.getByText("With class…")).not.toBeNull();
+    expect(screen.queryByText("Commands")).toBeNull();
+  });
+
+  it("the classes picker offers no filters (the honest empty state)", async () => {
+    const client = await seedClient();
+    render(<NodeSelector client={client} trigger="inline" searchMode="classes" onAdd={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "/" } });
+    expect(await screen.findByText("No filters in this picker")).not.toBeNull();
+  });
+
+  it("a Daily pages chip lists the date-chain pool", async () => {
+    const client = await seedClient();
+    await client.createObject({ isEmbedded: false, name: "Gardening Annual" });
+    await client.ensureDateChain("2026-03-05");
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "/" } });
+    await screen.findByText("Filters");
+    fireEvent.click(screen.getByText("Daily pages"));
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Daily pages");
+    // The filter IS the query: the day page lists, the ordinary page stays out.
+    expect(await screen.findByText("2026-03-05")).not.toBeNull();
+    expect(screen.queryByText("Gardening Annual")).toBeNull();
+    expect(screen.queryByText("Recently used")).toBeNull();
+  });
+
+  it("a With-class chip scopes the results and the create row carries the class", async () => {
+    const client = await seedClient();
+    const fictionId = await createTitledClass(client, "Fiction");
+    await client.createObject({ isEmbedded: false, name: "Dune", classIds: [fictionId] });
+    await client.createObject({ isEmbedded: false, name: "Gardening Annual" });
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "/Fiction" } });
+    await screen.findByText("Class: Fiction");
+    fireEvent.keyDown(screen.getByLabelText("Search..."), { key: "Enter" });
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Class: Fiction");
+    // The empty-query member listing: only the class's members.
+    expect(await screen.findByText("Dune")).not.toBeNull();
+    expect(screen.queryByText("Gardening Annual")).toBeNull();
+    // The create row carries the chip's class.
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Dune Messiah" } });
+    const createRow = await screen.findByText('Create "Dune Messiah"');
+    fireEvent.click(createRow);
+    await waitFor(() => {
+      const created = client.listPages().find((n) => deriveDisplayName(n) === "Dune Messiah");
+      expect(created).not.toBeUndefined();
+      expect(created!.classIds).toContain(fictionId);
+    });
+  });
+
+  it("a Blocks chip composes with a text search (pages drop out)", async () => {
+    const client = await seedClient();
+    const notes = await client.createObject({ isEmbedded: false, name: "Notes" });
+    await client.createObject({
+      isEmbedded: true,
+      parentId: notes,
+      contentAst: [{ type: "text", text: "quixotic block text" }],
+    });
+    await client.createObject({ isEmbedded: false, name: "Quixotic Page" });
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "/" } });
+    await screen.findByText("Filters");
+    fireEvent.click(screen.getByText("Blocks"));
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Blocks");
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "quixotic" } });
+    expect(await screen.findByText("quixotic block text")).not.toBeNull();
+    expect(screen.queryByText("Quixotic Page")).toBeNull();
+  });
+
+  it("chips compose with the inline text prefixes", async () => {
+    const client = await seedClient();
+    await client.ensureDateChain("2026-03-05");
+    await createTitledClass(client, "Fiction");
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+    // The Daily chip AND `is_class:false` (a node, not a class): the day
+    // page is the only daily node and it is not a class — the conjunction
+    // holds; the class row drops out.
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "/" } });
+    await screen.findByText("Filters");
+    fireEvent.click(screen.getByText("Daily pages"));
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "is_class:false" } });
+    expect(await screen.findByText("2026-03-05")).not.toBeNull();
+    expect(screen.queryByText("Fiction")).toBeNull();
   });
 });

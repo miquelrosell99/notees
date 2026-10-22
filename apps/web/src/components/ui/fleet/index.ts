@@ -134,6 +134,12 @@ export { CodeTextarea } from './CodeTextarea.js';
 export { SearchField } from './SearchField.js';
 export type { SearchFieldProps } from './SearchField.js';
 
+export { FilterChips } from './FilterChips.js';
+export type { FilterChipsProps, FilterChipItem } from './FilterChips.js';
+
+export { FilterMenu } from './FilterMenu.js';
+export type { FilterMenuProps, FilterMenuOption } from './FilterMenu.js';
+
 export { Input } from './Input.js';
 export type { InputProps, InputSize } from './Input.js';
 

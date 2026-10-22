@@ -26,6 +26,31 @@ predating this file.
     class assertions from the picker fix still hold — the marker class is
     unchanged); the running stack's command palette reviewed at the new
     36px register height.
+- **feat(web): `/` filter mode — the command palette and every node picker
+  grow filter chips.** A slash as the first character of the search swaps the
+  results for a Filters option list (the new fleet `FilterMenu`; the options
+  come from the new shared model `features/search-filters/filterModel.ts`):
+  Daily pages, Pages, Blocks, Classes, With class… — plus Commands in the
+  palette, where the chip restricts the surface to the action registry. The
+  slash text narrows the options and names classes directly; the bare "With
+  class…" row browses the whole class list. Picking an option renders a
+  removable chip (the new fleet `FilterChips` composing `Pill`) under the
+  search field and scopes the results: kind chips gate the palette's sections,
+  a With-class chip restricts every node section to the class's members (and
+  hides the palette's typed create — `onNewPage(title)` has no class path).
+  In the pickers the chips feed the exact predicates of the existing inline
+  text prefixes (`daily:` / `is_page:` / `is_class:`) and join
+  `effectiveClassIds` like a `class:` refine — the empty-query member listing,
+  the create row, and the QuickCreateModal reroute honor them for free. Chips
+  compose (AND), dedupe, Backspace on an empty query pops the last chip, and
+  the palette footer/placeholder advertise the slash. New fleet primitives are
+  barrel-exported; the fuzzy scorer moved into the shared model.
+  - **Verification**: `apps/web/test/search-palette.test.tsx` grows a
+    `/`-mode suite (palette: option list, narrowing, Commands/Daily/
+    With-class scoping, class browse, chip pop; picker: kind gating per
+    searchMode, daily pool listing, member listing + create carrying the
+    class, Blocks chip composing with a text search, chip × prefix
+    conjunction) — 36/36 green; `pnpm typecheck` clean across the monorepo.
 
 - **fix(web): the journal's Today jump materializes today instead of
   landing on a past day.** The feed's anchor is "today, else the nearest
