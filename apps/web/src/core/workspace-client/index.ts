@@ -41,6 +41,7 @@ export type {
   SearchSnippetData,
   SetClassPropertyInput,
   SyncStatusSnapshot,
+  ArchivedEntry,
   TrashedEntry,
   UpdateObjectInput,
   UpdatePropertySchemaInput,

@@ -339,6 +339,17 @@ export interface TrashedEntry {
   deletedAt: string;
 }
 
+/**
+ * One archived node, as the Archived surface lists it: the inactive node row PLUS the
+ * guarantee that it carries NO trash row — archival is a reversible STATE
+ * (object.update {active}), distinct from deletion (the trash table). The
+ * stamp is the node row's `updated_at` (the archival write bumps it).
+ */
+export interface ArchivedEntry {
+  node: ClientNode;
+  archivedAt: string;
+}
+
 /** Editable fields of a propertySchema.update write (all optional — patch).
  *  The owner-2026-10-20 fields ride the keep/clear contract: absent keeps
  *  the stored value, present-null clears (SCHEMA.md "Class properties"). */
@@ -576,6 +587,13 @@ export interface UpdateObjectInput {
   /** Per-block list style (store schema v23): null clears back to the
    * bullet default (the color keep/clear contract). */
   listStyle?: ListStyle | null;
+  /**
+   * Archival bit:
+   * false archives the node (a reversible state — it leaves every default
+   * read, no trash row), true unarchives it. Locked system classes and
+   * family bases refuse the archival direction (write-time guards).
+   */
+  active?: boolean;
 }
 
 export interface DeleteObjectOptions {

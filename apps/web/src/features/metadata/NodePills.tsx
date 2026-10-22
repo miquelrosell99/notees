@@ -379,6 +379,7 @@ export function NodePills({
    */
   const [classCreate, setClassCreate] = useState<{
     initialName: string;
+    mode: "blank" | "gallery";
     resolve: (id: string | undefined) => void;
   } | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -581,7 +582,16 @@ export function NodePills({
             // picker's create-result flow then assigns it like any pick.
             setPickerOpen(false);
             return new Promise<string | undefined>((resolve) =>
-              setClassCreate({ initialName: name, resolve }),
+              setClassCreate({ initialName: name, mode: "blank", resolve }),
+            );
+          }}
+          onBrowseAllTypes={(query) => {
+            // The picker's "Browse all types…" row opens the gallery tab,
+            // carrying the typed query across (the blank mode's "Create
+            // your own" card uses it as the name).
+            setPickerOpen(false);
+            return new Promise<string | undefined>((resolve) =>
+              setClassCreate({ initialName: query, mode: "gallery", resolve }),
             );
           }}
         />
@@ -591,6 +601,7 @@ export function NodePills({
           isOpen
           client={client}
           initialName={classCreate.initialName}
+          initialMode={classCreate.mode}
           onClose={() => {
             classCreate.resolve(undefined);
             setClassCreate(null);
