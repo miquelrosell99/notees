@@ -116,6 +116,28 @@
   overflow-wrap: anywhere;
 }
 
+/* The Open-page button reveals on title-row hover (owner 2026-10-22):
+   hidden at rest on fine pointers so the feed stays clean; the wrap
+   spans the row's free width, so hovering the words OR the space
+   beside them reveals it. Opacity (not visibility) keeps the hidden
+   button in the tab order — keyboard focus reveals it through the
+   wrap's :focus-within — and the reserved width means the reveal
+   never shifts the title. Touch devices (no hover) keep the button
+   always visible. A pointer over the button's box is necessarily
+   hovering the row, so the button is always visible before it can
+   be clicked — no invisible click trap. */
+@media (hover: hover) and (pointer: fine) {
+  .nt-page-title-wrap .nt-page-title-embed__open {
+    opacity: 0;
+    transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  }
+
+  .nt-page-title-wrap:hover .nt-page-title-embed__open,
+  .nt-page-title-wrap:focus-within .nt-page-title-embed__open {
+    opacity: 1;
+  }
+}
+
 @media (width <= 768px) {
   .journals-view__header {
     padding-left: var(--spacing-4);

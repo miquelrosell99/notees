@@ -366,8 +366,9 @@ export function PageHeaderChrome({
               /* The feed title is a plain heading, not a link:
                  navigation rides the explicit "Open page" ghost
                  button beside it (owner 2026-10-22 — the headline
-                 hover overlay read as noise; the hover register
-                 stays at the icon-button scale). */
+                 hover overlay read as noise; the button reveals on
+                 title-row hover, JournalsView.css, and stays always
+                 visible for touch + keyboard focus). */
               <span className="nt-page-title-embed">
                 <span className="nt-page-title-embed__text">
                   {nodeDisplayName(page)}
@@ -378,6 +379,7 @@ export function PageHeaderChrome({
                   icon="mdi-arrow-right"
                   aria-label="Open page"
                   title="Open page"
+                  className="nt-page-title-embed__open"
                   onClick={() => onOpenPage?.(pageId)}
                 />
               </span>
