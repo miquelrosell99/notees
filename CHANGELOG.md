@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-22
 
+- **fix(web): the journal's Today jump materializes today instead of
+  landing on a past day.** The feed's anchor is "today, else the nearest
+  day at or before" — so with no page written yet for the 22nd, Jump to
+  today scrolled to the 18th (owner bug, same day as the button shipped).
+  Now the click ensures the date chain for today (the sidebar Today row's
+  and the empty-state CTA's precedent, behind the same journal-toggle
+  gate) and the scroll rides a layout effect that re-measures each render
+  until the anchor row IS today; when today's page already exists the
+  jump stays synchronous.
+  - **Verification**: new regression test in `journals-view.test.tsx`
+    (no today page → click → today materialized + the anchor re-resolves
+    to it); `pnpm typecheck` clean; the journals suite green; the running
+    stack probed live — with today absent the click lands the 22nd's
+    header at the top of the feed.
+
 - **feat(web): the hub top bar gains its bottom hairline, and the journal's
   Today button turns bordered.** Owner second pass on the hub-surface
   restructure: with the body scrolling tight under the pinned

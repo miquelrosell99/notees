@@ -13,7 +13,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, dayNodeId } from "@notees/domain";
 
 import { PageView } from "../../ui/PageView.js";
 import { rawDateKeywordOf } from "../../ui/dateDisplay.js";
@@ -149,12 +149,49 @@ export function JournalsView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- centers once on mount
   }, [visible.length]);
 
+  /**
+   * A pending Today jump (owner 2026-10-22): set when the button
+   * materializes a missing today page — the anchor only becomes today
+   * after the ensure's subscription re-render, so the scroll rides this
+   * effect, re-measuring each render until the anchor row IS today.
+   */
+  const jumpToTodayRef = useRef(false);
+
+  useLayoutEffect(() => {
+    if (!jumpToTodayRef.current) return;
+    const el = listRef.current;
+    if (el === null) return;
+    const top = anchorContentTop();
+    if (top === null) return;
+    el.scrollTop = top;
+    const anchor = el.querySelector(".journal-entry[data-anchor='true']");
+    if (anchor?.getAttribute("data-journal-id") === dayNodeId(todayIsoLocal())) {
+      jumpToTodayRef.current = false;
+    }
+  });
+
+  /**
+   * Jump to today: materialize today's page when it doesn't exist yet —
+   * the anchor is "today or the nearest day at or before", so with a
+   * missing page the jump landed on a past day (owner bug 2026-10-22:
+   * clicked Today, saw the 18th). The ensure mirrors the sidebar Today
+   * row and the empty-state CTA, behind the same journal-toggle gate;
+   * when today's page already exists the scroll is synchronous.
+   */
   const scrollToToday = () => {
     const el = listRef.current;
-    const top = anchorContentTop();
-    if (el !== undefined && el !== null && top !== null) {
-      el.scrollTop = top;
+    if (el === null) return;
+    const todayId = dayNodeId(todayIsoLocal());
+    if (pages.some((page) => page.id === todayId)) {
+      const top = anchorContentTop();
+      if (top !== null) el.scrollTop = top;
+      return;
     }
+    if (!client.isFeatureEnabled("journal")) return;
+    jumpToTodayRef.current = true;
+    void client.ensureDateChain(todayIsoLocal()).catch(() => {
+      jumpToTodayRef.current = false;
+    });
   };
 
   const openToday = async () => {
@@ -166,11 +203,11 @@ export function JournalsView({
     <div className="journals-view">
       {/* The hub chrome rides the shared SurfaceTopBar (owner 2026-10-22):
           pinned above the feed, full card width, so the feed's scrollbar
-          stays at the card border. The lone action is Today (a scroll-to —
-          the feed is a continuous stream, so discrete day-steppers were
-          retired: they stepped from the fixed anchor, not the visible day,
-          and day-jumping rides the calendar popup / sidebar / each entry's
-          Open-page button). */}
+          stays at the card border. The lone action is Today — a jump that
+          materializes today's page when missing (owner bug same day: a
+          pure scroll-to landed on the nearest past day). Discrete
+          day-steppers stay retired: day-jumping rides the calendar popup,
+          the sidebar Today row, and each entry's Open-page button. */}
       <SurfaceTopBar
         icon="mdi-notebook-outline"
         title="Journal"

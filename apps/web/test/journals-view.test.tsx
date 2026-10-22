@@ -173,6 +173,31 @@ describe("JournalsView", () => {
     );
     expect(client.getNodeRaw(dayNodeId(todayIso()))).not.toBeUndefined();
   });
+
+  it("clicking Today with no today page materializes it and re-anchors the jump (owner bug 2026-10-22)", async () => {
+    const client = await seedClient();
+    const today = todayIso();
+    const threeBack = shiftDays(today, -3);
+    await createDayPage(client, threeBack);
+
+    const { container } = render(
+      <JournalsView client={client} onOpenPage={() => {}} />,
+    );
+    // Without a today page the anchor is the nearest day at-or-before…
+    expect(
+      container.querySelector("[data-anchor='true']")?.getAttribute("data-journal-id"),
+    ).toBe(dayNodeId(threeBack));
+
+    fireEvent.click(screen.getByRole("button", { name: "Jump to today" }));
+
+    // …and the jump materializes today rather than landing on that past day.
+    await vi.waitFor(() => {
+      expect(client.getNodeRaw(dayNodeId(today))).not.toBeUndefined();
+      expect(
+        container.querySelector("[data-anchor='true']")?.getAttribute("data-journal-id"),
+      ).toBe(dayNodeId(today));
+    });
+  });
 });
 
 /** Local-date shift that avoids Date arithmetic across DST (noon anchor). */
