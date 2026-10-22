@@ -79,11 +79,15 @@ describe("system seeds (ported)", () => {
     }
   });
 
-  it("the seed-scope audit flips (owner 2026-10-20): weblink's url is global; citekey stays local; the task family is global", async () => {
+  it("the seed-scope audit flips (owner 2026-10-20): url is global; citekey stays local; the task family is global", async () => {
     const { TASK_FAMILY_SEED } = await import("../src/index.js");
-    // The url spec is bound (the weblink binding row lands) but explicitly
-    // global — a url is generically reusable.
-    expect(SYSTEM_PROPERTY_SPECS.url).toMatchObject({ bindTo: "weblink", global: true });
+    // The url spec is bound (the source binding row lands — owner 2026-10-22:
+    // url is a default source-family property, not weblink-only) but
+    // explicitly global — a url is generically reusable.
+    expect(SYSTEM_PROPERTY_SPECS.url).toMatchObject({ bindTo: "source", global: true });
+    // weblink keeps its class-local url row through the extra-bindings
+    // manifest (own-first resolution keeps naming weblink).
+    expect(SYSTEM_EXTRA_CLASS_BINDINGS).toContainEqual({ property: "url", bindTo: "weblink" });
     // citekey is the counter-precedent: explicitly ruled local to source +
     // extensions — no `global` flag.
     expect(SYSTEM_PROPERTY_SPECS.citekey).toMatchObject({ bindTo: "source" });

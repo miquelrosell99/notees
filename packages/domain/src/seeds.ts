@@ -522,7 +522,14 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   givenName: { type: "text", bindTo: "person" },
   familyName: { type: "text", bindTo: "person" },
   citekey: { type: "text", bindTo: "source", defaultValue: "" },
-  url: { type: "url", bindTo: "weblink", global: true },
+  // Owner 2026-10-22: url is a DEFAULT PROPERTY of the source family (a
+  // source of any kind carries a link), not weblink-only — bindTo moves to
+  // `source` with weblink re-bound class-locally via
+  // SYSTEM_EXTRA_CLASS_BINDINGS (the birthday→eventDate shape). The SCHEMA
+  // stays GLOBAL per the 2026-10-20 seed-scope audit — a url is generically
+  // reusable (the binding row lands on source either way; bindings are
+  // per-class config, zero availability semantics).
+  url: { type: "url", bindTo: "source", global: true },
   // D1: templates are ordinary nodes of the seeded `template` class;
   // a class binds its templates by authored values on the class node itself.
   // M47 (2026-10-07): the relation hosts on NO class — global scope, no
@@ -619,11 +626,15 @@ export function systemPropertyDisplayName(name: SystemPropertyName): string {
 
 /**
  * Extra binding ROWS beyond each spec's single `bindTo` — consumed by the
- * server seed (apps/server/src/seed.ts) and the web self-heal. The one
- * remaining shape: an EXTENDS-CHILD re-binding an inherited schema so
- * class-local binding reads (the calendar quick-create eligibility walk)
- * see it without the child duplicating the schema (birthday→eventDate: the
- * date value itself still resolves through the extends chain at read time).
+ * server seed (apps/server/src/seed.ts) and the web self-heal. Two shapes:
+ * (1) an EXTENDS-CHILD re-binding an inherited schema so class-local binding
+ * reads (the calendar quick-create eligibility walk) see it without the
+ * child duplicating the schema (birthday→eventDate: the date value itself
+ * still resolves through the extends chain at read time); (2) a family-child
+ * keeping its class-local row when the schema's primary binding moves to the
+ * family base (weblink→url, owner 2026-10-22: url binds to `source` now;
+ * weblink's own row survives so own-first resolution keeps naming weblink —
+ * see SCHEMA.md "Citations").
  * (The cover→source row lived here until 2026-10-05 — owner ruling: a cover
  * makes no sense on sources; the binding is removed from the seeds and from
  * live workspaces by the system-names migration,
@@ -631,6 +642,7 @@ export function systemPropertyDisplayName(name: SystemPropertyName): string {
  */
 export const SYSTEM_EXTRA_CLASS_BINDINGS: { property: SystemPropertyName; bindTo: SystemClassName }[] = [
   { property: "eventDate", bindTo: "birthday" },
+  { property: "url", bindTo: "weblink" },
 ];
 
 /**

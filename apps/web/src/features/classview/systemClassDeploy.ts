@@ -52,6 +52,12 @@ import { ensureTaskFamily } from "./taskFamily.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
+/** Set-equality over a stored schema scope (null = global) and the seeded scope. */
+function scopeEquals(stored: string[] | null, seeded: string[] | null): boolean {
+  if (stored === null || seeded === null) return stored === seeded;
+  return stored.length === seeded.length && stored.every((id) => seeded.includes(id));
+}
+
 /**
  * Deploy one system class at its fixed seed uuid: ancestors first, then
  * the class node, then the extends edges, then the property family. A
@@ -138,26 +144,39 @@ export async function deploySystemClass(
     >
   ).filter(([, spec]) => spec !== undefined && spec.bindTo === key);
   if (family.length > 0) {
-    const have = new Set(client.listPropertySchemas().map((schema) => schema.id));
+    const existing = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
     for (const [name, spec] of family) {
-      if (have.has(SYSTEM_PROPERTY_UUIDS[name])) continue;
-      await client.createPropertySchema({
-        id: SYSTEM_PROPERTY_UUIDS[name],
-        name: SYSTEM_PROPERTY_DISPLAY_NAMES[name],
-        type: spec!.type,
-        multi: spec!.multi ?? false,
-        // Scoped to this class unless the spec is marked `global` (owner
-        // ruling 2026-10-20, the seed-scope audit — weblink's url) — the
-        // binding rows below land either way (bindings are per-class config).
-        ...(spec!.global === true ? {} : { scopeClassIds: [classId] }),
-        // The spec's default is SCHEMA-level (owner ruling 2026-10-20 — one
-        // global default per property, the Logseq shape).
-        ...(spec!.defaultValue !== undefined ? { defaultValue: spec!.defaultValue } : {}),
-        ...(spec!.options !== undefined ? { options: spec!.options } : {}),
-        ...(spec!.targetClassFilter !== undefined
-          ? { targetClassFilter: spec!.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
-          : {}),
-      });
+      const schemaId = SYSTEM_PROPERTY_UUIDS[name];
+      // The seeded scope for this spec: global (the scope-audit flips — url,
+      // the task family) unless the spec stays a family-identity field.
+      const seededScope = spec!.global === true ? null : [classId];
+      const stored = existing.get(schemaId);
+      if (stored === undefined) {
+        await client.createPropertySchema({
+          id: schemaId,
+          name: SYSTEM_PROPERTY_DISPLAY_NAMES[name],
+          type: spec!.type,
+          multi: spec!.multi ?? false,
+          // Scoped to this class unless the spec is marked `global` (owner
+          // ruling 2026-10-20, the seed-scope audit — the url seed) — the
+          // binding rows below land either way (bindings are per-class config).
+          ...(seededScope === null ? {} : { scopeClassIds: seededScope }),
+          // The spec's default is SCHEMA-level (owner ruling 2026-10-20 — one
+          // global default per property, the Logseq shape).
+          ...(spec!.defaultValue !== undefined ? { defaultValue: spec!.defaultValue } : {}),
+          ...(spec!.options !== undefined ? { options: spec!.options } : {}),
+          ...(spec!.targetClassFilter !== undefined
+            ? { targetClassFilter: spec!.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
+            : {}),
+        });
+      } else if (!scopeEquals(stored.scopeClassIds, seededScope)) {
+        // Pre-ruling drift (owner 2026-10-22: url bound to source now — a
+        // stored url schema still scoped [weblink] would make the family
+        // base's binding dead config, R5 rejects it): converge the scope to
+        // the seed BEFORE the binding row below (the offline-first twin of
+        // scripts/migrate-seed-scope-flips.mts).
+        await client.updatePropertySchema(schemaId, { scopeClassIds: seededScope });
+      }
     }
     const registry = client.getRegistryBindings(classId);
     const bound = new Set(registry.map((binding) => binding.propertySchemaId));
