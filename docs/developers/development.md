@@ -230,6 +230,26 @@ LOCKSTEP-PENDING, the GTK and Flutter ports converged the same day — SCHEMA.md
 "Datetime") is recorded next to the normative rule; the three implementations
 converge before the marker clears.
 
+**Seed-manifest changes align clients in the same slice (owner ruling
+2026-10-22).** Any change to the system seed manifest in
+`packages/domain/src/seeds.ts` — class/property UUIDs, `SYSTEM_PROPERTY_SPECS`
+bindings or scope flags, `SYSTEM_EXTRA_CLASS_BINDINGS`, extends edges, icons,
+display names — checks the sibling clients' seed manifests for the same constants
+in the same slice: `notees-gtk` (`src/notees_gtk/core/protocol/features.py`),
+`notees-flutter` (`lib/core/constants/system.dart` +
+`lib/domain/services/local_workspace_seed.dart`), and `notees-cli` (consumes
+`@notees/domain` through its pinned `vendor/notees` submodule — no manifest of its
+own; it converges on the submodule bump). A client that carries the touched slice
+is aligned in the same pass, with its own changelog entry and gate. A change the
+clients receive purely through the log (e.g. a binding-row move — ordinary
+`class.property.set` envelopes, no client manifest entry) needs no client code —
+but the slice's changelog records that the check ran and no client carries the
+touched slice, never a silent "follow-up". Live-workspace convergence for a seed
+change is a Path A migration script (one appended envelope per drifted
+workspace, dry-run first — `scripts/migrate-*.mts`, `migrations.md`) or an
+idempotent client ensure; the sync server does not back-fill existing
+workspaces (seeds shape new workspaces only — SCHEMA.md "System seed manifest").
+
 ## 4. Adding a new op type — the order matters
 
 1. **Spec** — write the payload shape and semantics into `packages/protocol/SCHEMA.md`

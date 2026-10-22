@@ -9,6 +9,49 @@ predating this file.
 
 ## 2026-10-22
 
+- **feat(scripts): `migrate-url-source-binding.mts` — live workspaces converge
+  to the url→source seed change; and the seed-alignment law joins the
+  development skill.** Two facets of one slice.
+  1. *Live-workspace convergence.* The url seed change (previous entry) moved
+     the binding row to the `source` family base — but seeds shape NEW
+     workspaces only, and `deploySystemClass("source")` runs solely on the
+     user-triggered classes-gallery deploy, so existing workspaces would never
+     receive the row on their own. The new Path A script plans one appended
+     `class.property.set {classId: <source>, propertySchemaId: <url>}` per
+     workspace whose converged rows carry the url schema without a source
+     binding (the weblink row stays — own-first resolution is untouched); a
+     workspace whose schema scope still drifts from the global seed clears
+     scope FIRST in the same ingest, else the R5 dead-config check rejects
+     the binding. Dry-run by default, protocol-validates every envelope
+     before insert, verifies from a fresh scratch replay, idempotent.
+     **The sync server deliberately does NOT back-fill existing workspaces**
+     (owner question, settled): seeds-at-creation plus explicit converging
+     migrations/ensures keeps the relay a dumb coordination log — an
+     auto-applying server would duplicate `deploySystemClass`'s planning and
+     race the client ensures.
+  2. *The seed-alignment law* (owner ruling, now `notees-development` law 10 +
+     `docs/developers/development.md` §3): any change to the system seed
+     manifest checks the sibling seed manifests in the SAME slice — GTK
+     (`core/protocol/features.py`), Flutter (`system.dart` +
+     `local_workspace_seed.dart`), the CLI via its pinned `vendor/notees`
+     submodule — and aligns any client that carries the touched slice; a
+     log-only change records that the check ran, never a silent "follow-up".
+  - **Verification**: dry-run + `--apply` against the TEST workspace only
+    (law 8) — fabricated the pre-change shape (global url schema + weblink
+    row) through the relay, watched the script plan, ingest, verify (fresh
+    scratch replay: the source↔url row converges), and re-run to "already
+    bound" (idempotence). A dry run against the live default workspace
+    planned exactly one envelope — its `--apply` is the owner's call
+    (`--all` covers every workspace). The client-manifest check for the url
+    change itself: GTK carries no source-family property seeds, Flutter's
+    local seed mirrors the `authors` spec only, the CLI consumes
+    `@notees/domain` via the submodule — nothing to align, recorded here per
+    the new law.
+  - **Docs**: migrations.md (the script's Path A row), SCHEMA.md (the
+    2026-10-22 seed-manifest note now names the migration as the convergence
+    path, the gallery deploy as the fallback), the skill (law 10 +
+    `references/development-workflow.md`).
+
 - **feat(web): dialogs lose the 28px rounding — a 16px dialog register, and a
   tighter modal header.** Owner pass on the dialog chrome (design-overrides
   register, same day): the sheet family's 28px rounding read too round on

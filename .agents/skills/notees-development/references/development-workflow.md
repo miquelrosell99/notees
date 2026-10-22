@@ -148,6 +148,27 @@ version + fixtures + all three clients together (lockstep law,
 listed in `docs/developers/README.md`): **TS reference with fixtures → GTK +
 Flutter ports and tags → live migration.**
 
+## Seed-manifest changes (client alignment, owner ruling 2026-10-22)
+
+A change to the system seed manifest (`packages/domain/src/seeds.ts` — UUIDs,
+`SYSTEM_PROPERTY_SPECS`, `SYSTEM_EXTRA_CLASS_BINDINGS`, extends edges, icons,
+display names) checks the sibling seed manifests in the same slice:
+
+- `notees-gtk` — `src/notees_gtk/core/protocol/features.py`
+- `notees-flutter` — `lib/core/constants/system.dart` +
+  `lib/domain/services/local_workspace_seed.dart`
+- `notees-cli` — consumes `@notees/domain` via its pinned `vendor/notees`
+  submodule; no manifest of its own, converges on the submodule bump.
+
+A client that carries the touched slice is aligned in the same pass (own
+changelog + gate). A change received purely through the log (e.g. a
+binding-row move — ordinary `class.property.set` envelopes) needs no client
+code — record in the slice's changelog that the check ran. Live workspaces
+converge by a Path A migration script (dry-run first, `scripts/migrate-*.mts`,
+`docs/developers/migrations.md`) or an idempotent client ensure
+(`deploySystemClass` / the family ensures); the sync server does NOT back-fill
+existing workspaces — seeds shape new workspaces only.
+
 ## The v1 archive (v1 ports read from here)
 
 The pre-rewrite v1 app (React + Lexical frontend, Python FastAPI backend) is

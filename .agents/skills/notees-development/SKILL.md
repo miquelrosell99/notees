@@ -69,6 +69,21 @@ summary here.
    race (openers clear what they replace) and the stale "Notees" title when
    a view clears the selection. Detail: `references/coding-conventions.md`
    (canonical: `docs/developers/development.md` §7).
+10. **Seed changes align clients in the same slice** (owner ruling
+    2026-10-22). A change to the system seed manifest (`packages/domain/src/
+    seeds.ts` — UUIDs, `SYSTEM_PROPERTY_SPECS`, `SYSTEM_EXTRA_CLASS_BINDINGS`,
+    extends edges, icons, display names) checks the sibling seed manifests in
+    the same slice — GTK `src/notees_gtk/core/protocol/features.py`,
+    Flutter `lib/core/constants/system.dart` +
+    `lib/domain/services/local_workspace_seed.dart`, the CLI via its pinned
+    `vendor/notees` submodule (no manifest of its own) — and aligns any
+    client that carries the touched slice. A change received purely through
+    the log (e.g. a binding-row move) needs no client code, but the slice's
+    changelog records that the check ran — never a silent "follow-up".
+    Live workspaces converge by a Path A migration script (dry-run first) or
+    an idempotent client ensure; the sync server does not back-fill existing
+    workspaces. Detail: `references/development-workflow.md` (canonical:
+    `docs/developers/development.md` §3).
    Detail: `references/development-workflow.md`.
 
 ## Gate before declaring done
