@@ -60,6 +60,7 @@ import {
   type ReferenceEntry,
   type SetClassPropertyInput,
   type SyncStatusSnapshot,
+  type ArchivedEntry,
   type TrashedEntry,
   type UpdateObjectInput,
   type UpdatePropertySchemaInput,
@@ -151,6 +152,8 @@ const READ_METHODS: ReadonlySet<string> = new Set([
   "listPages",
   "roots",
   "listTrashed",
+  "listArchived",
+  "listArchivedClasses",
   "listClasses",
   "classIcons",
   "effectiveClassIcons",
@@ -470,6 +473,14 @@ export class WorkerCore {
     return this.client.listTrashed();
   }
 
+  listArchived(): ArchivedEntry[] {
+    return this.client.listArchived();
+  }
+
+  listArchivedClasses(): ClientNode[] {
+    return this.client.listArchivedClasses();
+  }
+
   listClasses(): ClientNode[] {
     return this.client.listClasses();
   }
@@ -683,6 +694,10 @@ export class WorkerCore {
         return this.roots();
       case "listTrashed":
         return this.listTrashed();
+      case "listArchived":
+        return this.listArchived();
+      case "listArchivedClasses":
+        return this.listArchivedClasses();
       case "listClasses":
         return this.listClasses();
       case "classIcons":
@@ -819,6 +834,8 @@ export class WorkerCore {
         return this.createObject(args[0] as CreateObjectInput);
       case "updateObject":
         return this.updateObject(args[0] as string, args[1] as UpdateObjectInput);
+      case "setArchived":
+        return this.client.setArchived(args[0] as string, args[1] as boolean);
       case "deleteObject":
         return this.deleteObject(args[0] as string, args[1] as DeleteObjectOptions | undefined);
       case "emptyTrash":

@@ -1,7 +1,7 @@
 /**
  * Change-info classification: the incremental-invalidation
  * vocabulary — which op types are listing-affecting (structural), the
- * presentAsMain carrier exception, envelope summarization, and the
+ * isEmbedded/active carrier exception, envelope summarization, and the
  * coalescing merge.
  */
 
@@ -41,11 +41,17 @@ describe("isListingAffectingOp", () => {
 });
 
 describe("isListingAffectingEnvelope", () => {
-  it("treats a presentAsMain toggle riding object.update as structural", () => {
+  it("treats isEmbedded / active toggles riding object.update as structural", () => {
     expect(
       isListingAffectingEnvelope({
         opType: "object.update",
-        payload: { objectId: "n1", presentAsMain: true },
+        payload: { objectId: "n1", isEmbedded: false },
+      }),
+    ).toBe(true);
+    expect(
+      isListingAffectingEnvelope({
+        opType: "object.update",
+        payload: { objectId: "n1", active: false },
       }),
     ).toBe(true);
   });

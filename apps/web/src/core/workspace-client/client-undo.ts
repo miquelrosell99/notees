@@ -41,6 +41,7 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
       const row = ctx.store.getNode(id);
       if (row === undefined) return null;
       return {
+        isClass: row.is_class === 1,
         isEmbedded: row.is_embedded === 1,
         icon: row.icon,
         color: row.color,

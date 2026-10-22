@@ -35,6 +35,7 @@ const NAV_PATHS: Record<string, NavKey> = {
   queries: "queries",
   graph: "graph",
   trash: "trash",
+  archived: "archived",
   shares: "shares",
 };
 

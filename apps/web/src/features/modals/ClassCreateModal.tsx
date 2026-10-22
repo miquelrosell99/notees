@@ -1,24 +1,25 @@
 /**
- * ClassCreateModal (#14) — the class-creation dialog, two modes under one
- * Modal:
+ * ClassCreateModal (#14, upgraded 2026-10-22 — the classes gallery) — the
+ * class-creation dialog, two modes under one Modal:
  *
  *  - Blank: a name, an icon (IconPickerPopup), and a color (ColorButton's
  *    picker) — the ordinary client.createClass.
- *  - Deploy system class: the seeded classes the workspace does not have
- *    yet (offline-first devices, seeds added after the workspace existed),
- *    from the domain feature gate DEPLOYABLE_SYSTEM_CLASSES filtered
- *    through deployableSystemClasses. Deploying authors the class at its
- *    fixed seed uuid + its whole family through deploySystemClass — all
- *    existing ops, idempotent, convergent with the server seed.
+ *  - Gallery (the deploy tab): a Capacities-style card grid of the seeded
+ *    system classes the workspace does not have ENABLED — icon chip,
+ *    display name, one-line description, grouped in sections. Picking a
+ *    card enables the class (deploySystemClass — the F4 inverse for family
+ *    bases, un-archive for archived seeds); a "Create your own" card
+ *    switches to the blank mode. Locked classes never appear; enabled
+ *    classes are managed on their class pages.
  *
  * Triggers: the Classes hub header button (HubView), a command-palette
- * command, and the block-editor class picker's create row (NodePills
- * carries the typed query in as the initial name).
+ * command, and the block-editor class picker's create/browse rows
+ * (NodePills carries the typed query in as the initial name).
  */
 
 import { useMemo, useRef, useState } from "react";
 
-import { SYSTEM_CLASS_DISPLAY_NAMES, SYSTEM_CLASS_ICONS, type SystemClassName } from "@notees/domain";
+import { SYSTEM_CLASS_ICONS, type SystemClassName } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
@@ -29,8 +30,13 @@ import { TextField } from "../../components/ui/fleet/TextField.js";
 import { SearchField } from "../../components/ui/fleet/SearchField.js";
 import { ColorButton } from "../../components/ui/fleet/ColorButton.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
+import { GridMenu } from "../../components/ui/fleet/GridMenu.js";
 import { IconPickerPopup } from "../icon-picker/IconPickerPopup.js";
-import { deployableSystemClasses, deploySystemClass } from "../classview/systemClassDeploy.js";
+import {
+  deploySystemClass,
+  galleryCardText,
+  gallerySections,
+} from "../classview/systemClassDeploy.js";
 
 import "./ClassCreateModal.css";
 
@@ -40,6 +46,8 @@ export interface ClassCreateModalProps {
   client: WorkspaceClient | WorkerClient;
   /** The picker's typed query, carried in as the blank mode's name. */
   initialName?: string | undefined;
+  /** Open the gallery tab instead of the blank form (the picker's "Browse all types…"). */
+  initialMode?: "blank" | "gallery" | undefined;
   /** Called with the new class id once created/deployed (host opens it). */
   onCreated?: ((classId: string) => void) | undefined;
 }
@@ -49,27 +57,37 @@ export function ClassCreateModal({
   onClose,
   client,
   initialName = "",
+  initialMode = "blank",
   onCreated,
 }: ClassCreateModalProps) {
-  const [mode, setMode] = useState<"blank" | "deploy">("blank");
+  const [mode, setMode] = useState<"blank" | "gallery">(initialMode);
   const [name, setName] = useState(initialName);
   const [icon, setIcon] = useState<string | undefined>(undefined);
   const [color, setColor] = useState<string | null>(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const iconButtonRef = useRef<HTMLButtonElement | null>(null);
   const [filter, setFilter] = useState("");
-  /** The deploy currently running — the row disables while it applies. */
+  /** The deploy currently running — the card disables while it applies. */
   const [deploying, setDeploying] = useState<SystemClassName | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Re-read the catalog on every render: a deploy updates the client, the
-  // view re-renders, and the row drops out of the "not yet deployed" list.
-  const catalog = useMemo(() => deployableSystemClasses(client), [client, deploying]);
-  const filteredCatalog = useMemo(() => {
+  // view re-renders, and the card drops out of the "not yet enabled" grid.
+  const sections = useMemo(() => gallerySections(client), [client, deploying]);
+  const filteredSections = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (q === "") return catalog;
-    return catalog.filter((key) => SYSTEM_CLASS_DISPLAY_NAMES[key].toLowerCase().includes(q));
-  }, [catalog, filter]);
+    if (q === "") return sections;
+    return sections
+      .map((section) => ({
+        ...section,
+        entries: section.entries.filter(({ key }) => {
+          const { label, description } = galleryCardText(key);
+          return label.toLowerCase().includes(q) || description.toLowerCase().includes(q);
+        }),
+      }))
+      .filter((section) => section.entries.length > 0);
+  }, [sections, filter]);
+  const totalCards = filteredSections.reduce((n, section) => n + section.entries.length, 0);
 
   if (!isOpen) return null;
 
@@ -118,7 +136,7 @@ export function ClassCreateModal({
         <Tabs value={mode} onChange={setMode}>
           <Tabs.List aria-label="Creation mode">
             <Tabs.Tab value="blank">Blank class</Tabs.Tab>
-            <Tabs.Tab value="deploy">Deploy system class</Tabs.Tab>
+            <Tabs.Tab value="gallery">Gallery</Tabs.Tab>
           </Tabs.List>
         </Tabs>
 
@@ -173,39 +191,69 @@ export function ClassCreateModal({
             </div>
           </div>
         ) : (
-          <div className="class-create__deploy">
-            {catalog.length === 0 ? (
+          <div className="class-create__gallery">
+            {sections.length === 0 ? (
               <p className="class-create__all-deployed">
-                Every seeded system class already exists in this workspace.
+                Every gallery class is already enabled in this workspace.
               </p>
             ) : (
               <>
                 <SearchField
                   value={filter}
                   onChange={(event) => setFilter(event.target.value)}
-                  placeholder="Filter system classes…"
-                  aria-label="Filter system classes"
+                  placeholder="Filter types…"
+                  aria-label="Filter types"
                 />
-                <ul className="class-create__catalog">
-                  {filteredCatalog.map((key) => (
-                    <li key={key}>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        icon={SYSTEM_CLASS_ICONS[key]}
-                        fullWidth
-                        disabled={deploying !== null}
-                        onClick={() => void handleDeploy(key)}
-                        className="class-create__catalog-row"
-                      >
-                        Deploy {SYSTEM_CLASS_DISPLAY_NAMES[key]}
-                      </Button>
-                    </li>
+                <div className="class-create__sections">
+                  {filteredSections.map((section) => (
+                    <section key={section.id} className="class-create__section">
+                      <h3 className="class-create__section-title">{section.title}</h3>
+                      <GridMenu
+                        className="class-create__grid"
+                        columns="auto"
+                        aria-label={section.title}
+                        items={section.entries.map(({ key, missing }) => {
+                          const { label, description } = galleryCardText(key);
+                          return {
+                            id: key,
+                            icon: SYSTEM_CLASS_ICONS[key],
+                            label,
+                            // An archived (not missing) seed is the
+                            // gallery's disabled state — the card says so.
+                            description: missing
+                              ? description
+                              : `${description} Currently disabled.`,
+                            disabled: deploying !== null,
+                          };
+                        })}
+                        onSelect={(id) => void handleDeploy(id as SystemClassName)}
+                      />
+                    </section>
                   ))}
-                </ul>
-                {filteredCatalog.length === 0 && filter.trim() !== "" && (
-                  <p className="class-create__all-deployed">No system class matches that filter.</p>
-                )}
+                  {totalCards === 0 && filter.trim() !== "" && (
+                    <p className="class-create__all-deployed">No type matches that filter.</p>
+                  )}
+                  {/* The Capacities "Create your own" card — once, after the
+                      sections — switches to the blank mode, carrying the
+                      typed filter as the name. */}
+                  <GridMenu
+                    className="class-create__grid"
+                    columns="auto"
+                    aria-label="Create your own"
+                    items={[
+                      {
+                        id: "__blank",
+                        icon: "mdi-plus",
+                        label: "Create your own",
+                        description: "Start from a blank class.",
+                      },
+                    ]}
+                    onSelect={() => {
+                      setName(filter.trim());
+                      setMode("blank");
+                    }}
+                  />
+                </div>
               </>
             )}
           </div>

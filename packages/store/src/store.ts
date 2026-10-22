@@ -21,7 +21,7 @@
  */
 
 import type { Envelope, WorkspaceFeature } from "@notees/protocol";
-import { managedClassIds } from "@notees/domain";
+import { isFamilyFeature, managedClassIds } from "@notees/domain";
 
 import { applyEnvelope, validateEnvelope, type ChangeSummary } from "./appliers.js";
 import type { SqliteDB, StoreBackend } from "./db.js";
@@ -304,13 +304,16 @@ export class Store {
       | undefined;
   }
 
-  /** Direct children in child-order position order. */
+  /** Direct children in child-order position order — ACTIVE rows only (the
+   * filtering law: archived and trashed children stay out of every default
+   * read; the Trash hub and the Archived surface read through their own
+   * seams). */
   children(parentId: string): NodeRow[] {
     return this.db
       .prepare(
         `SELECT n.* FROM node n
          JOIN node_child_order o ON o.child_id = n.id
-         WHERE o.parent_id = ? ORDER BY o.position`,
+         WHERE o.parent_id = ? AND n.is_active = 1 ORDER BY o.position`,
       )
       .all(parentId) as NodeRow[];
   }
@@ -804,10 +807,13 @@ export class Store {
 
   /**
    * Active instance count across a feature's managed classes (F3 disable
-   * confirmation — "N existing objects keep their data"): distinct active
+   * confirmation — "N existing objects keep their data"): distinct ACTIVE
    * non-class nodes with a present membership row in any managed class.
+   * Archived instances are hidden, so they stay uncounted (the filtering
+   * law). The `journal` toggle manages no class family — it counts nothing.
    */
   featureInstanceCount(workspaceId: string, feature: WorkspaceFeature): number {
+    if (!isFamilyFeature(feature)) return 0;
     const ids = managedClassIds(feature);
     if (ids.length === 0) return 0;
     const placeholders = ids.map(() => "?").join(",");

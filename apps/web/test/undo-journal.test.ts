@@ -77,6 +77,7 @@ function fakeCapture(overrides: {
   feature?: boolean;
 }): UndoCaptureSource {
   const defaultNode: UndoNodeSnapshot = {
+    isClass: false,
     isEmbedded: true,
     icon: null,
     color: null,
@@ -123,6 +124,7 @@ function fakeCapture(overrides: {
 
 describe("invertEnvelope — the inversion matrix", () => {
   const snapOf = (overrides: Partial<UndoNodeSnapshot> = {}): UndoNodeSnapshot => ({
+    isClass: false,
     isEmbedded: true,
     icon: null,
     color: null,
@@ -374,11 +376,88 @@ describe("invertEnvelope — the inversion matrix", () => {
     ).toBeNull();
   });
 
-  it("class.create inverts as class.delete; class.delete itself is not invertible", () => {
-    expect(invertEnvelope(env("class.create", { classId: CLASS_A }), fakeCapture({}))).toEqual([
-      { opType: "class.delete", payload: { classId: CLASS_A }, affected: [CLASS_A] },
+  it("class.create inverts by class kind (the 2026-10-22 routing); a re-declared class is a no-op; the retired class.delete never journals", () => {
+    // User class (fresh): trashes — the new-world un-create of a user class.
+    expect(invertEnvelope(env("class.create", { classId: CLASS_A }), fakeCapture({ node: null }))).toEqual([
+      { opType: "object.delete", payload: { objectId: CLASS_A, permanent: false }, affected: [CLASS_A] },
     ]);
+    // Family base (fresh, seeded task uuid): the toggle-managed arm —
+    // restores the PRIOR toggle state (here: enabled).
+    const TASK = "00000000-0000-0000-0001-000000000012";
+    expect(
+      invertEnvelope(env("class.create", { classId: TASK }), fakeCapture({ node: null, feature: true })),
+    ).toEqual([
+      { opType: "workspace.feature.set", payload: { feature: "tasks", enabled: true }, affected: [] },
+    ]);
+    // Non-locked system class (seeded quote uuid): archival, not trash.
+    const QUOTE = "00000000-0000-0000-0001-000000000006";
+    expect(invertEnvelope(env("class.create", { classId: QUOTE }), fakeCapture({ node: null }))).toEqual([
+      { opType: "object.update", payload: { objectId: QUOTE, active: false }, affected: [QUOTE] },
+    ]);
+    // Locked system class: un-invertible.
+    const YEAR = "00000000-0000-0000-0001-000000000003";
+    expect(invertEnvelope(env("class.create", { classId: YEAR }), fakeCapture({ node: null }))).toBeNull();
+    // Re-declared (conversion/ensure path): nothing honest to undo.
+    expect(invertEnvelope(env("class.create", { classId: CLASS_A }), fakeCapture({}))).toBeNull();
+    // The retired op is rejected by the strict schemas — never journaled.
     expect(invertEnvelope(env("class.delete", { classId: CLASS_A }), fakeCapture({}))).toBeNull();
+  });
+
+  it("object.delete on a class node inverts through the routing arms", () => {
+    const TASK = "00000000-0000-0000-0001-000000000012";
+    const QUOTE = "00000000-0000-0000-0001-000000000006";
+    const classSnap = { isClass: true };
+    // Family base → the toggle arm (prior state restored).
+    expect(
+      invertEnvelope(
+        env("object.delete", { objectId: TASK }),
+        fakeCapture({ node: { ...snapOf(classSnap), active: true }, feature: true }),
+      ),
+    ).toEqual([
+      { opType: "workspace.feature.set", payload: { feature: "tasks", enabled: true }, affected: [] },
+    ]);
+    // Other system class → unarchive.
+    expect(
+      invertEnvelope(
+        env("object.delete", { objectId: QUOTE }),
+        fakeCapture({ node: { ...snapOf(classSnap), active: true } }),
+      ),
+    ).toEqual([
+      { opType: "object.update", payload: { objectId: QUOTE, active: true }, affected: [QUOTE] },
+    ]);
+    // User class → plain trash → restore.
+    expect(
+      invertEnvelope(
+        env("object.delete", { objectId: CLASS_A }),
+        fakeCapture({ node: { ...snapOf(classSnap), active: true } }),
+      ),
+    ).toEqual([
+      { opType: "object.restore", payload: { objectId: CLASS_A }, affected: [CLASS_A] },
+    ]);
+    // Already archived (or trashed) — nothing honestly invertible.
+    expect(
+      invertEnvelope(
+        env("object.delete", { objectId: QUOTE }),
+        fakeCapture({ node: { ...snapOf(classSnap), active: false } }),
+      ),
+    ).toBeNull();
+  });
+
+  it("the archival bit restores the captured pre-op state (archive AND unarchive)", () => {
+    expect(
+      invertEnvelope(env("object.update", { objectId: NODE, active: false }), fakeCapture({})),
+    ).toEqual([
+      { opType: "object.update", payload: { objectId: NODE, active: true }, affected: [NODE] },
+    ]);
+    const snap = snapOf({ active: false });
+    expect(
+      invertEnvelope(
+        env("object.update", { objectId: NODE, active: true }),
+        fakeCapture({ node: snap }),
+      ),
+    ).toEqual([
+      { opType: "object.update", payload: { objectId: NODE, active: false }, affected: [NODE] },
+    ]);
   });
 
   it("property.set restores the captured row (element id carried) or unsets an empty slot", () => {

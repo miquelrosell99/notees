@@ -26,13 +26,13 @@ export const OP_CATALOG: OpCatalogEntry[] = [
   },
   {
     opType: "object.update",
-    description: "LWW field writes: embedding flag (promote/demote), icon, color, the wire node fields (coverAssetId, bannerAssetId, aliasedNodeId, description — description is the page subtitle, max 512 chars), content (contentAst readable carrier or contentDeltaB64 wire carrier — exactly one per update). color: preset token or #RRGGBB hex (colors.ts grammar), null clears.",
+    description: "LWW field writes: embedding flag (promote/demote), icon, color, the wire node fields (coverAssetId, bannerAssetId, aliasedNodeId, description — description is the page subtitle, max 512 chars), the archival bit (active — presence writes: false archives, true unarchives; default reads filter archived nodes out), content (contentAst readable carrier or contentDeltaB64 wire carrier — exactly one per update). color: preset token or #RRGGBB hex (colors.ts grammar), null clears.",
     example: { objectId: "<uuid>", color: "sky" },
     affected: "objectId",
   },
   {
     opType: "object.delete",
-    description: "Soft-delete (trash, subtree rides along); permanent: true hard-deletes.",
+    description: "Soft-delete (trash, subtree rides along); permanent: true hard-deletes. On a CLASS node the applier routes: a LOCKED system class (date chain, table, asset, query, code, template, comment) fails loud; a family base (task, event, meeting, source, person) applies as the family's feature toggle off; any other system class archives (active = false) instead of trashing; a user class takes the plain trash row. Membership rides in every arm.",
     example: { objectId: "<uuid>", permanent: false },
     affected: "objectId",
   },
@@ -69,14 +69,8 @@ export const OP_CATALOG: OpCatalogEntry[] = [
     affected: "classId",
   },
   {
-    opType: "class.delete",
-    description: "Deactivate a class and its node; membership pairs tombstone and nodes' class_ids recompute.",
-    example: { classId: "<uuid>" },
-    affected: "classId",
-  },
-  {
     opType: "class.unassign",
-    description: "OR-Set remove for class membership (idempotent tombstone; authored property values survive).",
+    description: "OR-Set remove for class membership (idempotent tombstone; authored property values survive). The sole per-node strip — class archival/trash never touches memberships (membership rides).",
     example: { objectId: "<uuid>", classId: "<class-uuid>" },
     affected: "objectId",
   },
@@ -167,7 +161,7 @@ export const OP_CATALOG: OpCatalogEntry[] = [
   {
     opType: "workspace.feature.set",
     description:
-      "Per-workspace feature toggle, LWW by HLC on (workspace, feature); absent row = enabled. Derives the membership-preserving archival of the feature's managed system classes — toggle-off hides surfaces and keeps data; a class.delete on a managed class routes here (F4).",
+      "Per-workspace feature toggle, LWW by HLC on (workspace, feature); absent row = enabled. The five family toggles derive the membership-preserving archival of the feature's managed system classes — toggle-off hides surfaces and keeps data; object.delete on a family base class routes here (the delete-as-disable path). The journal toggle gates the journal surfaces (nav view, Today-page management) — the date classes stay always-on.",
     example: { feature: "tasks", enabled: false },
     affected: "none",
   },
