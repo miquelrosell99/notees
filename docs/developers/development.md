@@ -172,9 +172,10 @@ The single most important process rule:
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
 groups). The exact file set is the contract — the gate test below asserts it
-verbatim (36 files after the 2026-10-20 property-scope batch added
-`property-schema-scope.json` + `property-schema-update-fields.json` and the
-validationRules value enforcement added `property-validation-rules.json`); the core
+verbatim (37 files after the 2026-10-20 property-scope batch added
+`property-schema-scope.json` + `property-schema-update-fields.json`, the
+validationRules value enforcement added `property-validation-rules.json`, and the
+2026-10-22 system-extends lock added `class-extends-system-lock.json`); the core
 scenarios:
 
 | Fixture | Scenario it pins |
@@ -189,6 +190,7 @@ scenarios:
 | `typed-link-mark-deleted.json` | deleting the word deletes the mark (honest lifecycle) |
 | `class-extends-m2m.json` | multiple inheritance closure (diamond) |
 | `class-extends-cycle.json` | extends cycles must throw on apply |
+| `class-extends-system-lock.json` | the system-extends lock: a user class may extend a system base and the seeded re-issue applies; detaching/extra-parent/parenting-a-system-base must throw on apply |
 | `object-wire-fields.json` | the cover/banner/alias wire fields set + clear through `object.update` |
 | `class-convert.json` | `class.create` on an existing node declares it a class (the retired class-class ruling) |
 | `property-asset-type.json` | the `asset` property type through `propertySchema.create` + a coexisting update |

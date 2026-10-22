@@ -161,6 +161,18 @@ describe("Class View", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("renders the extends corner read-only for a system class (the system-extends lock)", async () => {
+    const client = await seedClient();
+    // A class AT the fixed system seed UUID — its extends mapping is frozen
+    // seeded platform structure (SCHEMA.md "Class properties"), so the corner
+    // advertises no edits the applier would reject (SystemExtendsLockError).
+    const meetingId = await createTitledClass(client, "meeting", SYSTEM_CLASS_UUIDS.meeting);
+    render(<NodeView client={client} nodeId={meetingId} onOpenNode={() => {}} />);
+
+    expect(screen.queryByRole("button", { name: "Add class extension" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /remove extension/i })).toBeNull();
+  });
+
   it("lists classed nodes without expansion (the section defaults to expanded)", async () => {
     const client = await seedClient();
     const classId = await client.createClass("agent");
