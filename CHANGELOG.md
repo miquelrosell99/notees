@@ -7,6 +7,26 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(sync): the test workspace's relay log repaired — 50,001 envelopes the
+  relay had accepted but no strict applier could ever apply.** Owner directive
+  (2026-10-22, "repair the log"): fresh clients syncing the shared test
+  workspace wedged ("Backend unreachable — working locally") on a
+  `class.setExtends` naming Meeting 34s before Meeting's `class.create`. The
+  full-replay diagnosis (`scripts/repair-log-conformance.mts`, dry-run by
+  default, catalogued in `migrations.md`) found three poison shapes, all in
+  the test workspace (the personal workspace replays clean): the reordered
+  extends (payload rewrite — drop the not-yet-existing parent), a probe
+  clearing Meeting's parents against the system-extends lock (payload rewrite
+  — converge to the seeded set), and 50,000 `object.delete` envelopes from
+  the 2026-10-14 graph-loadtest naming nodes that were never created in that
+  workspace, plus one guard-failing negative-test `object.create` (envelope
+  deletion — no payload to neuter). `restore_epoch` bumped (now 8), stale
+  snapshot + derived cache dropped; verify = fresh full replay, zero throws,
+  and a fresh-browser boot probe against the test workspace (PROBE-PASS).
+  - **Verification**: dry-run 50,001 repairable / 0 unknown; post-repair full
+    replay VERIFY-PASS; live `verify-min.mjs` VERIFY-PASS; fresh-client boot
+    probe against the repaired workspace PROBE-PASS.
+
 - **feat(sync,server)!: WS admission tickets — bearer credentials no longer
   ride any URL; the `?token=` query fallback is retired.** Owner ruling
   (2026-10-22, "best practice implementation, no hacks"): a session token or
@@ -204,9 +224,12 @@ predating this file.
   sync healthy, bind verified `/etc/periphery/.../sync -> /data`),
   `verify-min` VERIFY-PASS. Operate the stack with plain `docker compose`
   from the repo root — no aliases, no `-f` paths.
-  Komodo follow-up (owner action, optional): re-point the Komodo `notees`
-  stack resource's run directory at the repo root to restore UI-managed
-  redeploys.
+  Komodo manages the fleet host's data folder; UI-managed redeploys re-enabled
+  the same day by pointing the Komodo `notees` stack resource at the repo root
+  (run directory `/root/projects/notees`, project name `notees`, env file the
+  repo-root `.env`) and mounting the repo into the periphery container
+  (same-path volume — without it periphery cannot see the run directory).
+  Validated with a real Komodo deploy: `VERIFY-PASS`.
   - **Files**: `compose.yaml` (repo root — now the production file),
     `docs/developers/deployment.md`, `AGENTS.md`,
     `.agents/skills/notees-operations/references/deployment.md`,
