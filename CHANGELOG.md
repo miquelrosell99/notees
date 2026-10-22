@@ -85,8 +85,11 @@ predating this file.
     row) through the relay, watched the script plan, ingest, verify (fresh
     scratch replay: the source↔url row converges), and re-run to "already
     bound" (idempotence). A dry run against the live default workspace
-    planned exactly one envelope — its `--apply` is the owner's call
-    (`--all` covers every workspace). The client-manifest check for the url
+    planned exactly one envelope. The `--all --apply` run happened the same
+    day (owner: "what would you do?"): both live workspaces converge — the
+    default workspace took its one envelope, the test workspace was already
+    bound; the idempotence re-run plans nothing; VERIFY-PASS. The
+    client-manifest check for the url
     change itself: GTK carries no source-family property seeds, Flutter's
     local seed mirrors the `authors` spec only, the CLI consumes
     `@notees/domain` via the submodule — nothing to align, recorded here per
