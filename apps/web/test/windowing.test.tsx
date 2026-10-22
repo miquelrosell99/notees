@@ -227,7 +227,7 @@ describe("cards windowing", () => {
     );
 
     // The hub count badge names the FULL set while the grid renders the window.
-    expect(document.querySelector(".nt-hub-count")!.textContent).toBe(String(BIG));
+    expect(document.querySelector(".surface-topbar__count")!.textContent).toBe(String(BIG));
     expect(screen.getAllByRole("article")).toHaveLength(100);
 
     fireEvent.click(screen.getByRole("button", { name: "Show more (20 remaining)" }));
@@ -294,7 +294,7 @@ describe("flat outline windowing", () => {
       />,
     );
 
-    expect(document.querySelector(".nt-hub-count")!.textContent).toBe(String(BIG));
+    expect(document.querySelector(".surface-topbar__count")!.textContent).toBe(String(BIG));
     expect(document.querySelectorAll(".outline-flat li")).toHaveLength(100);
 
     fireEvent.click(screen.getByRole("button", { name: "Show more (20 remaining)" }));
