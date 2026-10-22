@@ -4,6 +4,14 @@ Canonical: `docs/developers/deployment.md` + `releases.md`.
 
 ## Standard deploy (from repo root)
 
+The repo-root `compose.yaml` IS the production file (owner 2026-10-22:
+the source/stack split retired — one compose, one project `notees`, no
+live-stack copy). The live data dir binds
+`${NOTEES_DATA_DIR:-./config/notees/sync}`; hosts keeping the data at the
+fleet stacks location (the fleet host:
+`/etc/periphery/stacks/notees/config/notees/sync`, the borgmatic backup
+source) set `NOTEES_DATA_DIR` in the gitignored repo-root `.env`.
+
 ```sh
 docker build -f apps/server/Dockerfile -t ghcr.io/miquelrosell99/notees-sync:latest . \
 && docker build -f apps/web/Dockerfile    -t ghcr.io/miquelrosell99/notees-web:latest . \

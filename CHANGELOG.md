@@ -7,6 +7,38 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **chore(deploy)!: the repo-root compose IS the deployment — the
+  source/stack split retires; one compose file, one project (`notees`), the
+  data dir the single host-local override.** Owner decision (2026-10-22):
+  the dual deploy location (a live compose copy outside the checkout,
+  owner 2026-10-19) was more convoluted than protective — explicit project
+  names had already closed the 2026-10-20 hijack class structurally, and
+  the split broke the documented version-pin procedure on the fleet host.
+  The repo-root `compose.yaml` now carries `name: notees` (the template
+  name `notees-dev` reverted), build contexts `.`, and the sync data bind
+  `${NOTEES_DATA_DIR:-./config/notees/sync}`; the fleet host's `.env`
+  (moved from the retired stack folder into the repo root, gitignored) sets
+  `NOTEES_DATA_DIR=/etc/periphery/stacks/notees/config/notees/sync`, so the
+  live dataset — and the borgmatic `notees` backup source — stays at the
+  fleet stacks location, outside the dev repo where `git clean` could never
+  reach `relay.db`. The stack folder keeps ONLY the data + a README
+  pointer; its compose copy is deleted. Migrated live: `down` from the
+  stack folder, `up -d` from the checkout (edge adopted into the project,
+  sync healthy, bind verified `/etc/periphery/.../sync -> /data`),
+  `verify-min` VERIFY-PASS. Aliases `notees-deploy` / `noteessync-deploy` /
+  `notees-ps` / `notees-edge-deploy` now point at the repo-root compose.
+  Komodo follow-up (owner action, optional): re-point the Komodo `notees`
+  stack resource's run directory at the repo root to restore UI-managed
+  redeploys.
+  - **Files**: `compose.yaml` (repo root — now the production file),
+    `docs/developers/deployment.md`, `AGENTS.md`,
+    `.agents/skills/notees-operations/references/deployment.md`,
+    `~/.bashrc` (host-local), `/etc/periphery/stacks/notees/` (host-local:
+    compose retired, README pointer added, `config/` untouched).
+  - **Verification**: `verify-min.mjs` VERIFY-PASS after the migration;
+    `docker inspect` bind source = the live data dir; `notees-ps` lists
+    all three containers healthy from a foreign cwd.
+
 - **fix(web): the embedded feed's "Open page" button reveals on title-row
   hover.** Owner follow-up (2026-10-22): the button beside the journal/calendar
   feed titles shows only while the pointer is on the title row — hidden at
