@@ -586,7 +586,7 @@ export function NodePills({
             );
           }}
           onBrowseAllTypes={(query) => {
-            // The picker's "Browse all types…" row opens the gallery tab,
+            // The picker's "Browse all classes…" row opens the gallery tab,
             // carrying the typed query across (the blank mode's "Create
             // your own" card uses it as the name).
             setPickerOpen(false);

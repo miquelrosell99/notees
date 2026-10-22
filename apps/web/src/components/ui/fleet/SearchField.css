@@ -1,4 +1,6 @@
-/* SearchField — the bits the utility layer can't express: the wrapper-
+/* SearchField — the bits the utility layer can't express: the 3-column
+   pill anatomy (leading icon lane | input | trailing clear lane — the
+   grid the flex row approximated without lane discipline), the wrapper-
    carried focus ring (it hugs the whole pill, not the input box inside
    the padding — relocated from the inner input, not suppressed), the
    clear button's invisible hit-area floor (::after), the webkit cancel
@@ -7,6 +9,15 @@
    a class hook). The fills/hover/focus-within registers ride utilities. */
 
 .search-field {
+  /* The 3-column anatomy (owner 2026-10-22): leading icon lane | the input
+     | trailing clear lane. The middle column is minmax(0, 1fr) so the input
+     shrinks before the pill does; the lanes' insets ride the wrapper's
+     horizontal padding (or the anchored picker's zeroed padding + panel
+     margin — the lens then rides the same rail as the result-row icons). */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--spacing-2);
   background: var(--md-sys-color-surface-container);
 }
 
@@ -58,11 +69,10 @@
 /* The sm pill rides compact chrome rows and anchored picker popovers at the
    sm button height (--height-button-sm). The input swaps h-button-md for
    h-button-sm (twMerge); the compound selector tightens the inline padding
-   to the picker row grid so the placeholder starts on the list-label grid.
-   Block padding lives nowhere on the pill — at every size the wrapper's
-   height IS the input's button-height token (owner 2026-10-22: the old
-   py-2 stacked on h-button-md and doubled the vertical air — the padding
-   fix is universal, not per-callsite). */
+   to the picker row grid. Block padding lives nowhere on the pill — at
+   every size the wrapper's height IS the input's button-height token
+   (owner 2026-10-22: the old py-2 stacked on h-button-md and doubled the
+   vertical air — the padding fix is universal, not per-callsite). */
 .search-field.search-field--sm {
   padding-left: var(--spacing-2);
   padding-right: var(--spacing-2);

@@ -53,7 +53,10 @@ the pointer and the law.
 ## Catalog
 
 Inputs & buttons: `Button`, `Pill`/`AddPill`, `Chip` (the single-toggle
-pill — filter families, group toggles), `TextField`, `SearchField` (`md`
+pill — filter families, group toggles), `TextField`, `SearchField` (a
+3-column anatomy — leading icon lane | input | trailing clear lane —
+on `grid auto/minmax(0,1fr)/auto`; the catalog input's own inline
+padding is stripped so the text rides the icon lane's trailing edge; `md`
 by default on full surfaces; `size="sm"` on compact chrome rows and
 anchored picker popovers — NodeSelector, the bind-property picker, and the
 template-list popup; inside an anchored picker panel the panel margin is

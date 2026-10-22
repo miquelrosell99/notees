@@ -8,11 +8,15 @@
  * Thin fleet wrapper over the normalized catalog input
  * (src/components/ui/input.tsx): the filled-pill container, the left
  * icon, the clear affordance, the optional visible label, and the
- * borderless variant are the app's and live here. The wrapper-carried
- * focus ring (--shadow-focus-ring hugs the whole pill, not the input box
- * inside the padding) and the clear button's invisible hit-area floor
- * (::after) ride this file's co-located CSS — the utility layer can't
- * express the pseudo-element floor cleanly.
+ * borderless variant are the app's and live here. The pill rides an
+ * explicit 3-column anatomy — leading icon lane | input | trailing clear
+ * lane (the grid + the input's stripped padding live in the co-located
+ * CSS; the catalog input's own px-3 would indent the text a second time
+ * past the icon lane) — plus the wrapper-carried focus ring
+ * (--shadow-focus-ring hugs the whole pill, not the input box inside the
+ * padding) and the clear button's invisible hit-area floor (::after),
+ * which ride this file's co-located CSS — the utility layer can't express
+ * the pseudo-element floor cleanly.
  *
  * Legacy hook classes: `search-field` (+ `search-field--borderless`),
  * `search-field__input/icon/clear/label`, and `search-field-wrapper`
@@ -52,12 +56,12 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
     const input = (
       <div
         className={cn(
-          'search-field flex items-center gap-2 rounded-item px-3 transition-colors duration-short ease-standard',
+          'search-field rounded-item px-3 transition-colors duration-short ease-standard',
           size === 'sm' && 'search-field--sm',
           className,
         )}
       >
-        <span className="search-field__icon flex shrink-0 items-center text-on-surface-variant">
+        <span className="search-field__icon flex items-center text-on-surface-variant">
           {icon ?? <Icon path="mdi mdi-magnify" size="sm" />}
         </span>
         <CatalogInput
@@ -65,7 +69,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
           id={id}
           type="text"
           className={cn(
-            'search-field__input min-w-0 flex-1 border-none bg-transparent text-base text-on-surface placeholder:text-on-surface-variant focus-visible:ring-0',
+            'search-field__input min-w-0 w-full border-none bg-transparent px-0 text-base text-on-surface placeholder:text-on-surface-variant focus-visible:ring-0',
             size === 'sm' && 'h-button-sm',
           )}
           aria-label={ariaLabel ?? label}
@@ -74,7 +78,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
         {hasValue && onClear !== undefined && (
           <button
             type="button"
-            className="search-field__clear relative inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-none bg-transparent p-0 text-on-surface-variant hover:bg-hover-overlay hover:text-on-surface"
+            className="search-field__clear relative inline-flex cursor-pointer items-center justify-center rounded-full border-none bg-transparent p-0 text-on-surface-variant hover:bg-hover-overlay hover:text-on-surface"
             aria-label="Clear search"
             title="Clear search"
             onClick={onClear}

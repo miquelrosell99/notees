@@ -9,6 +9,50 @@ predating this file.
 
 ## 2026-10-22
 
+- **fix(web): the date-chain ensure resurrects trashed chain nodes — the
+  journal's Today jump second root.** The live investigation of the owner
+  bug (Jump to today landed on the 18th) found a second, deeper root
+  alongside the missing-page one: `ensureDateChain` treated a TRASHED day
+  page as "existing" — `getNodeRaw` reads rows regardless of active state,
+  while every listing read filters `is_active = 1` — so the ensure no-op'd,
+  no notification fired, and the journal could neither show today nor
+  recreate it. Now each chain level is restored when present-but-inactive
+  (`object.restore` — a no-op on live nodes, log-order LWW over the earlier
+  delete), so the ensure's contract is honest: the chain for a date exists
+  AND is live.
+  - **Verification**: the journals suite green (8 tests, both Today-jump
+    roots pinned); `pnpm typecheck` clean; probed live on the running stack
+    (test workspace) — with today's page trashed the click restores it and
+    the 22nd's header lands at the top of the feed.
+  - **Flagged for a future slice**: the live probe also showed a browser
+    worker holding a soft-trashed row that the server had since
+    permanently deleted, within a fresh boot's catch-up — a possible
+    convergence gap around today's epoch-bumped migration; the journal no
+    longer trips over it, but the sync layer deserves a look.
+
+- **fix(web): the search pill rides an explicit 3-column anatomy — icon
+  lane | input | clear lane — and the class picker's footer row says
+  "Browse all classes…".** Owner pass on the search bars: the lens and ×
+  read as glued to the pill borders with the text floating off the
+  row-label grid. Two stacked causes, one component-level fix: the pill
+  was a loose flex row, and the catalog input's own `px-3` indented the
+  text a second time past the icon lane (in anchored pickers the wrapper
+  padding is zeroed so the panel margin is the padding — the double
+  indent pushed the placeholder 12px right of the result-row labels the
+  zeroing was meant to join). Now `SearchField` rides a 3-column grid
+  (`auto | minmax(0,1fr) | auto`, column-gap spacing-2) with the input's
+  catalog padding stripped: the md pill keeps its px-3 lanes (lens at
+  12px, text at 38px — the old double indent read as a 20px lens-text
+  gap), and in anchored pickers the lens rides the same rail as the
+  row icons with the text landing exactly on the label grid. The v1
+  wording "Browse all types…" becomes "Browse all classes…" (v2
+  vocabulary) in the class picker's footer row + its comment references.
+  - **Verification**: `pnpm typecheck` and `pnpm test` clean for this
+    slice (the full-repo gate's only red items sat outside these files —
+    a transient scratch test and one timing-flaky dnd case that passes in
+    isolation); live probe of the class picker dialog + command palette —
+    geometry measured (lanes, grid alignment) and screenshots reviewed.
+
 - **fix(web): search pills lose their stacked block padding — the command
   palette's search box was the last tall one.** The picker fix (2026-10-21)
   compacted the anchored pickers' search bars by zeroing the sm pill's

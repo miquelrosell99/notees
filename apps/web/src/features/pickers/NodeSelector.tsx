@@ -291,7 +291,7 @@ interface NodeSelectorProps {
   /** Custom label for the create row (default: `Create "<query>"`). */
   createLabel?: string | undefined;
   /**
-   * Classes picker only — the "Browse all types…" footer row's host hook:
+   * Classes picker only — the "Browse all classes…" footer row's host hook:
    * opens the classes gallery (the ClassCreateModal), carrying the typed
    * query. The return resolves like onCreateNew's (created id → assigned).
    */
@@ -1312,7 +1312,7 @@ export function NodeSelector({
           onMouseEnter={() => setSelectedIndex(browseAllIndex)}
         >
           <Icon path="mdi-shape-outline" size={0.7} />
-          Browse all types…
+          Browse all classes…
         </button>
       )}
       {showMoreOption && (
