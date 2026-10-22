@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-22
 
+- **feat(web): dialogs lose the 28px rounding — a 16px dialog register, and a
+  tighter modal header.** Owner pass on the dialog chrome (design-overrides
+  register, same day): the sheet family's 28px rounding read too round on
+  centered dialogs, so a new token `--shape-dialog: 16px` (tailwind
+  `rounded-dialog` / `--radius-dialog`) now owns the dialog corner — the
+  fleet `Modal` dialog variant, the catalog `dialog` + `alert-dialog`
+  primitives, and the command palette's `.nt-modal` chrome all ride it
+  (bottom sheets keep `--shape-sheet` by design; Card's `xl` register
+  untouched). The same pass tightens the fleet `Modal` header from 16px to
+  12px vertical padding — one title-medium line no longer floats in a tall
+  chrome row. The 12px the register replaces had been judged too sharp in
+  the unrecorded 2026-10-15 bump, so the ruling lands the midpoint.
+  - **Verification**: `ui-primitives.test.tsx`'s Modal chrome assertion
+    updated to `rounded-dialog`; full web suite green; the new
+    `scripts/screenshots/dialog-radius-probe.mjs` captures the palette and
+    the class-create dialog at 1440 and reads the computed border-radius
+    live (16px on both surfaces, PROBE-PASS).
+
 - **feat(web): multi-line plain-text paste splits into sibling blocks.**
   Pasting clipboard text containing newlines into a block used to ride the
   browser default — one block whose newlines became `hard_break` tokens.
