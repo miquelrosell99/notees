@@ -12,6 +12,10 @@
   padding: var(--spacing-3) var(--spacing-6) var(--spacing-2);
   flex-shrink: 0;
   min-width: 0;
+  /* The bottom hairline (owner 2026-10-22, second pass): the body below
+     scrolls tight under the bar and its clipped content read as cut —
+     the divider marks the seam, the nodeview chrome's precedent. */
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .surface-topbar__title {

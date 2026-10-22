@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-22
 
+- **feat(web): the hub top bar gains its bottom hairline, and the journal's
+  Today button turns bordered.** Owner second pass on the hub-surface
+  restructure: with the body scrolling tight under the pinned
+  `SurfaceTopBar`, clipped content read as accidentally cut — the bar now
+  carries the outline-variant bottom divider (the nodeview chrome's
+  precedent), marking the seam between chrome and stream. And the journal's
+  Today action (the bar's lone button since the day-steppers retired) moves
+  from the ghost to the `outline` variant so it reads as clickable, with
+  `Jump to today` as its title/aria label — the short "Today" text names the
+  destination, the tooltip names the jump.
+  - **Verification**: `pnpm typecheck` clean; `pnpm test` green (the Today
+    pin updated: outline variant + the Jump-to-today title ride the source);
+    screenshot captures of the running stack (test workspace) reviewed.
+
 - **feat(web): the journal feed is a plain continuous stream — the hairline
   separators and the ‹ / › day-stepping arrows retired.** Two owner calls on
   the feed's look: the full-width hairline rules between entries "didn't feel

@@ -128,16 +128,19 @@ describe("hub/list row names ride the §7 list-row register", () => {
 describe("custom buttons carry the pressed layer (skill §6 tactile press)", () => {
   it("the journals Today button composes the kit Button — no custom pill (owner 2026-10-22)", () => {
     // The hand-rolled .journals-view__today-btn retired with the hub-surface
-    // restructure: Today is a fleet ghost Button inside the SurfaceTopBar's
-    // actions cluster now. Its pressed register lives in the kit Button —
-    // pinned at the source by the empty-state CTA test below — so the view
-    // CSS must carry no today-button rule of its own.
+    // restructure: Today is a fleet outline Button inside the SurfaceTopBar's
+    // actions cluster now (owner second pass: the bordered variant reads
+    // clickable; "Jump to today" carries the title/aria). Its pressed
+    // register lives in the kit Button — pinned at the source by the
+    // empty-state CTA test below — so the view CSS must carry no
+    // today-button rule of its own.
     expect(journalsCss).not.toMatch(/\.journals-view__today-btn/);
     const journalsSrc = fs.readFileSync(
       path.join(process.cwd(), "src", "features", "calendar", "JournalsView.tsx"),
       "utf8",
     );
-    expect(journalsSrc).toContain('variant="ghost"');
+    expect(journalsSrc).toContain('variant="outline"');
+    expect(journalsSrc).toContain('title="Jump to today"');
     expect(journalsSrc).toContain("scrollToToday");
   });
 
