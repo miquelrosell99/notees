@@ -19,7 +19,7 @@
  *    shared NodePill element tinted with the linked node's effective color.
  */
 
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
@@ -30,6 +30,7 @@ import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { IconPickerPopup } from "../src/features/icon-picker/IconPickerPopup.js";
 import { NodeSelector } from "../src/features/pickers/NodeSelector.js";
+import { createNodesWithClasses } from "../src/features/templates/createNodesWithClasses.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -532,6 +533,105 @@ describe("NodeSelector empty-query recents (owner 2026-10-19)", () => {
     );
     expect(screen.getByText("Fiction")).not.toBeNull();
     expect(screen.queryByText("Recently used")).toBeNull();
+  });
+});
+
+describe("New-node class picker", () => {
+  it("an empty class list creates one standalone class-less page", async () => {
+    const client = await seedClient();
+    const opened: string[] = [];
+    createNodesWithClasses(client, [], (id) => {
+      opened.push(id);
+    });
+    await flushWrites();
+
+    expect(opened).toHaveLength(1);
+    const page = client.getNode(opened[0]!);
+    expect(page).not.toBeUndefined();
+    expect(page!.isEmbedded).toBe(false);
+    expect(page!.classIds).toEqual([]);
+  });
+
+  it("the empty-query option renders before the classes and picks No class", async () => {
+    const client = await seedClient();
+    await createTitledClass(client, "Fiction");
+    const onPick = vi.fn();
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        searchMode="classes"
+        searchPlaceholder="Search classes"
+        emptyQueryOption={{ label: "No class", onPick }}
+        onAdd={() => {}}
+      />,
+    );
+
+    const rows = document.querySelectorAll(".node-result-item");
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0] as HTMLElement).getByText("No class")).not.toBeNull();
+    expect(within(rows[1] as HTMLElement).getByText("Fiction")).not.toBeNull();
+    fireEvent.click(rows[0]!);
+    expect(onPick).toHaveBeenCalledTimes(1);
+  });
+
+  it("typing hides No class so Enter keeps answering the class query", async () => {
+    const client = await seedClient();
+    await createTitledClass(client, "Fiction");
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        searchMode="classes"
+        searchPlaceholder="Search classes"
+        emptyQueryOption={{ label: "No class", onPick: vi.fn() }}
+        onAdd={() => {}}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Search classes"), { target: { value: "Fic" } });
+    expect(screen.queryByText("No class")).toBeNull();
+    expect(screen.getByText("Fiction")).not.toBeNull();
+  });
+
+  it("Enter on the empty picker picks No class", async () => {
+    const client = await seedClient();
+    await createTitledClass(client, "Fiction");
+    const onPick = vi.fn();
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        searchMode="classes"
+        searchPlaceholder="Search classes"
+        emptyQueryOption={{ label: "No class", onPick }}
+        onAdd={() => {}}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByLabelText("Search classes"), { key: "Enter" });
+    expect(onPick).toHaveBeenCalledTimes(1);
+  });
+
+  it("ArrowDown from No class reaches the first class", async () => {
+    const client = await seedClient();
+    const fictionId = await createTitledClass(client, "Fiction");
+    const onAdd = vi.fn();
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        searchMode="classes"
+        searchPlaceholder="Search classes"
+        emptyQueryOption={{ label: "No class", onPick: vi.fn() }}
+        onAdd={onAdd}
+      />,
+    );
+    const search = screen.getByLabelText("Search classes");
+
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(onAdd.mock.calls[0]?.[0]).toMatchObject({ id: fictionId });
   });
 });
 

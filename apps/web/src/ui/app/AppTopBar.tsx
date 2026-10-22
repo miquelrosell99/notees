@@ -177,6 +177,13 @@ export function AppTopBar(props: AppTopBarProps) {
           anchorEl={newButtonRef.current}
           searchMode="classes"
           searchPlaceholder="Search classes…"
+          emptyQueryOption={{
+            label: "No class",
+            onPick: () => {
+              setNewPickerOpen(false);
+              createNodesWithClasses(client, [], openPage);
+            },
+          }}
           onClose={() => setNewPickerOpen(false)}
           onAdd={(picked) => {
             // Single-pick contract (owner ruling): one class, one page —

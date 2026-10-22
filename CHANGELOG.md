@@ -7,6 +7,31 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **feat(web): the New-node picker offers “No class,” and its search text
+  joins the picker row grid.** Owner correction (2026-10-22): “Blank page”
+  named the page’s content; the choice is classification, so the pinned
+  first row is the explicit **No class**. It rides on the shared
+  `NodeSelector` as an opt-in `emptyQueryOption` — visible only while the
+  query is empty, indexed first for Enter, and hidden by typing so class
+  search keeps its ordinary keyboard answer. The New-node host maps the
+  pick to `createNodesWithClasses(client, [], openPage)`, whose empty list
+  now means one standalone class-less page. The compact search field also
+  claims the result-row grid: its sm variant gives the 20px glyph a 24px
+  icon lane, and anchored pickers zero the field’s internal horizontal
+  padding because the panel margin already supplies it — the placeholder
+  and result labels now share the same x position.
+  - **Files**: `apps/web/src/features/pickers/NodeSelector.tsx` +
+    `NodeSelector.css`, `apps/web/src/ui/app/AppTopBar.tsx`,
+    `apps/web/src/features/templates/createNodesWithClasses.ts`,
+    `apps/web/src/components/ui/fleet/SearchField.css`,
+    `apps/web/test/pickers.test.tsx`, `apps/web/test/ui-primitives.test.tsx`,
+    `docs/developers/ui-primitives.md`.
+  - **Verification**: `pnpm --filter @notees/web typecheck`; the affected
+    picker/primitive suites (42 tests); the FULL web suite — 1945 passed
+    (167 files); an offline Vite visual probe at 1440/768/390 measured
+    input/label x delta `0` and search/result icon-center delta `0`, with
+    “No class” first on the empty query and absent after typing.
+
 - **fix(web): anchored picker search bars ride the compact sm register — the
   New-node class picker stops wearing the oversized md pill.** Owner report
   (2026-10-21, the class-picker screenshot): the sibling `SearchField

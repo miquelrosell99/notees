@@ -56,10 +56,18 @@
 }
 
 /* The sm pill rides compact chrome rows and anchored picker popovers at the
-   sm button height (--height-button-sm): the input swaps h-button-md for
-   h-button-sm (twMerge) and the pill's block padding zeroes — the compound
-   selector beats the px-3/py-2 utilities, which stay for the inline axis. */
+   sm button height (--height-button-sm). The input swaps h-button-md for
+   h-button-sm (twMerge); the compound selector zeroes the block padding,
+   tightens the inline padding to the picker row grid, and gives the glyph
+   the same 24px lane as the result-row icons so the placeholder starts on
+   the list-label grid. */
 .search-field.search-field--sm {
   padding-top: 0;
   padding-bottom: 0;
+  padding-left: var(--spacing-2);
+  padding-right: var(--spacing-2);
+}
+
+.search-field.search-field--sm .search-field__icon {
+  width: var(--icon-size-md);
 }
