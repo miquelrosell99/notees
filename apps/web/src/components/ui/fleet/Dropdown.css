@@ -63,7 +63,10 @@
 
 /* Menu — the M3 menu ruling gives the panel the 4dp
    container shape via --radius-menu (was the 8px --shape-floating-panel).
-   The popover portal owns positioning now (the --portal class is a marker
+   The surface rides the elevated popup register with the ContextMenu
+ (-low blended into the dark content):
+   surface-container-high, the step the calendar-popup fix proved. The
+   popover portal owns positioning now (the --portal class is a marker
    hook for tests/feature CSS); the trigger width rides the popper's CSS
    var (JS-set by Radix, allowlisted in the drift gate). */
 .dropdown-menu {
@@ -76,7 +79,7 @@
   display: flex;
   flex-direction: column;
   animation: dropdownFadeIn var(--motion-duration-short) var(--motion-easing-standard);
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--md-sys-color-surface-container-high);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--radius-menu);
   box-shadow: var(--elevation-2);
@@ -86,7 +89,7 @@
    its popover chrome (background/radius/foreground) back to the menu
    register; the unlayered feature CSS wins over the utility layer. */
 .dropdown-command {
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--md-sys-color-surface-container-high);
   border-radius: 0;
   color: var(--md-sys-color-on-surface);
 }
