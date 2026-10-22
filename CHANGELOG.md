@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-22
 
+- **docs(runbooks): the "adding a default property to a system class"
+  recipe joins `docs/developers/development.md` §3** (owner question: how do
+  we proceed when more default properties are needed). Seven steps, proven by
+  the url→source change the same day: scope ruling (global vs
+  family-identity) → the three seed-manifest edits (UUID, display name, spec)
+  → zero wire cost (ordinary `class.property.set`, no fixture gate) →
+  same-slice client alignment → nothing to write server/web-side (both
+  consume the manifest; the deploy's scope-drift convergence already guards
+  R5) → a Path A migration script for live workspaces (dry-run first,
+  idempotent) → gate + changelog + SCHEMA.md + migrations.md, then `--all
+  --apply` on the owner's green light.
+  - **Verification**: docs-only slice; `pnpm typecheck && pnpm test` clean.
+  - **Docs**: `docs/developers/development.md` §3 (the recipe, anchored next
+    to the seed-alignment law it composes with).
+
 - **feat(scripts): `migrate-url-source-binding.mts` — live workspaces converge
   to the url→source seed change; and the seed-alignment law joins the
   development skill.** Two facets of one slice.

@@ -250,6 +250,41 @@ workspace, dry-run first — `scripts/migrate-*.mts`, `migrations.md`) or an
 idempotent client ensure; the sync server does not back-fill existing
 workspaces (seeds shape new workspaces only — SCHEMA.md "System seed manifest").
 
+**Adding a default property to a system class — the recipe** (proven by the
+`url` → `source` change, 2026-10-22):
+
+1. **Scope ruling first** — global (`global: true`) when the property is
+   generically reusable; local to the class + its extensions when it is
+   family-identity (the 2026-10-20 seed-scope audit's split).
+2. **`packages/domain/src/seeds.ts`** — mint the next-free UUID in
+   `SYSTEM_PROPERTY_UUIDS` (never reuse a withdrawn id), add the
+   `SYSTEM_PROPERTY_DISPLAY_NAMES` entry (the domain completeness tests force
+   both), add the `SYSTEM_PROPERTY_SPECS` entry with `bindTo`. A former
+   exclusive holder keeps its class-local row via
+   `SYSTEM_EXTRA_CLASS_BINDINGS` (own-first resolution is preserved).
+3. **Zero wire cost** — binding rows are ordinary `class.property.set` config
+   ops: no new op type, no fixture gate. (A NEW property *type* or enum value
+   is a different change entirely — fixtures + three-client lockstep.)
+4. **Client alignment (the law above)** — same-slice check of the GTK /
+   Flutter / CLI manifests; align any client that carries the touched slice,
+   or record that the check ran.
+5. **Server seed + web deploy — nothing to write.** Both consume the manifest
+   (`apps/server/src/seed.ts`, `deploySystemClass` + the ClassView seed-spec
+   fallback read). The deploy's family step converges a stored schema whose
+   scope drifted from the seed BEFORE authoring the binding row (the R5
+   dead-config guard), already in place.
+6. **Live workspaces — a Path A migration script.** Copy
+   `scripts/migrate-url-source-binding.mts` as the template: plan against a
+   scratch replay of the converged log, append one envelope per drifted
+   workspace (a scope-clear rides first in the same ingest when the stored
+   scope excludes the new binding class), dry-run by default, verify from a
+   fresh replay, idempotent. New workspaces need nothing — the server seed
+   carries the row from creation.
+7. **Gate + records** — `pnpm typecheck && pnpm test`, the CHANGELOG entry,
+   the SCHEMA.md statement, the migrations.md row; then the migration runs
+   `--all --apply` once the owner green-lights it (always verified against the
+   test workspace first).
+
 ## 4. Adding a new op type — the order matters
 
 1. **Spec** — write the payload shape and semantics into `packages/protocol/SCHEMA.md`
