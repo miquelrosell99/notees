@@ -1,6 +1,6 @@
 # Rollback
 
-Canonical: `docs/developers/releases.md` + `docs/developers/deployment.md`.
+Canonical: `docs/developers/deployment.md`.
 Discipline per the `deployment-runbook` skill (rollback triggers, traffic
 switch, postmortem) — this file is the Notees-specific mechanics.
 

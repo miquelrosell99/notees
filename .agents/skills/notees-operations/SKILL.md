@@ -26,7 +26,8 @@ log, snapshot/compaction metadata, asset index, restore_epoch),
    build && docker compose up -d`, so the deployment always runs the LOCAL
    codebase (owner 2026-10-07: no stray tags). Hosts that haven't built pull
    `:latest` from ghcr (default pull policy, left alone). Releases are
-   published to ghcr per `releases.md` for other users; never re-tag.
+   published to ghcr per `docs/developers/deployment.md` for other users;
+   never re-tag.
 3. **After any log-rewriting migration:** bump the restore epoch **and**
    `docker compose restart notees-sync` — ingest alone does not reapply to the
    running derived store (learned 2026-10-05, `migrations.md`).
@@ -46,13 +47,13 @@ log, snapshot/compaction metadata, asset index, restore_epoch),
 
 | Topic | Reference | Canonical runbook |
 |---|---|---|
-| Deployment | `references/deployment.md` | `docs/developers/deployment.md`, `releases.md` |
+| Deployment | `references/deployment.md` | `docs/developers/deployment.md` |
 | Health checks | `references/health-checks.md` | `deployment.md` |
 | Logs | `references/logs.md` | `deployment.md` |
-| Rollback | `references/rollback.md` | `releases.md` |
+| Rollback | `references/rollback.md` | `docs/developers/deployment.md` |
 | Database migrations | `references/database-migrations.md` | `docs/developers/migrations.md` |
 | Backups | `references/backups.md` | `deployment.md` |
-| Monitoring | `references/monitoring.md` | `releases.md`, `deployment.md` |
+| Monitoring | `references/monitoring.md` | `deployment.md` |
 | Incident response | `references/incident-response.md` | `migrations.md`, `deployment.md` |
 | Maintenance | `references/maintenance.md` | `deployment.md` |
 
