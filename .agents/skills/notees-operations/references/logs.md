@@ -6,6 +6,9 @@ Canonical: `docs/developers/deployment.md` (compose logging posture).
   output. Errors still reach stderr: `docker compose logs -f notees-sync`.
 - The web image's nginx disables access_log for the 30 s-interval healthcheck
   noise; web stderr: `docker compose logs -f notees-web`.
+- The edge (Caddy) logs human-readable one-liners — the request/response
+  header dumps are filtered out in `deploy/Caddyfile`; startup lines stay
+  JSON.
 - To get full request logging on the sync server, run it with
   `NOTEES_LOG=true` (dev/single-machine), never by default on the fleet host.
 - No log-aggregation stack is documented — if one is added, wire it per the
