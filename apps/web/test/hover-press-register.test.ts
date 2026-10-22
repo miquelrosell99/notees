@@ -246,8 +246,25 @@ describe("the final sweep notes close (2026-10-16)", () => {
     expect(text).not.toBeNull();
     expect(text![0]).toContain("font: var(--font-headline-medium)");
     expect(text![0]).not.toContain("cursor");
+    // The heading itself never hovers; the title ROW is the hover target
+    // for the button reveal below.
     const hover = /\.nt-page-title-embed(?!_)[^{]*:hover/.exec(journalsCss);
     expect(hover).toBeNull();
+  });
+
+  it("the embedded Open-page button reveals on title-row hover (fine pointers only)", () => {
+    // follow-up: hidden at rest so the feed stays clean;
+    // the wrap spans the row's free width, so hovering the words OR the
+    // space beside them reveals it. Opacity (not visibility) keeps the
+    // hidden button in the tab order — focus-within reveals it — and touch
+    // devices (no hover) keep it always visible.
+    expect(journalsCss).toContain("@media (hover: hover) and (pointer: fine)");
+    expect(journalsCss).toContain(".nt-page-title-wrap:hover .nt-page-title-embed__open");
+    expect(journalsCss).toContain(".nt-page-title-wrap:focus-within .nt-page-title-embed__open");
+    const rest = /\.nt-page-title-embed__open \{[^}]*\}/.exec(journalsCss);
+    expect(rest).not.toBeNull();
+    expect(rest![0]).toContain("opacity: 0");
+    expect(rest![0]).toContain("transition: opacity");
   });
 
   it("the settings badge rides the §7 tag/badge radius tier (the kit Badge's --shape-large)", () => {
