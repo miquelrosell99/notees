@@ -58,7 +58,10 @@ by default on full surfaces; `size="sm"` on compact chrome rows and
 anchored picker popovers — NodeSelector, the bind-property picker, and the
 template-list popup; inside an anchored picker panel the panel margin is
 the horizontal padding, so the placeholder joins the result-row label
-grid), `Input` (the boxed text field — the SelectTrigger register applied
+grid; at EVERY size the pill's block size is the input's button-height
+token — the wrapper carries no block padding, owner 2026-10-22: the old
+`py-2` stacked on `h-button-md` and doubled the vertical air, and the
+command palette surfaced it as the last tall search box), `Input` (the boxed text field — the SelectTrigger register applied
 to a native `<input>`; pairs with `Dropdown` in dense condition/toolbar
 rows),
 `Dropdown`, `SelectTrigger`, `Checkbox`, `Radio` (the checkbox variant's

@@ -30,9 +30,12 @@ export interface SearchFieldProps extends Omit<InputHTMLAttributes<HTMLInputElem
   icon?: ReactNode;
   /** Visible label text (also used as accessible name when visible) */
   label?: string;
-  /** Pill size — "md" (default) stands full surfaces and roomy chrome rows;
-   * "sm" (30px) rides compact rows and anchored picker popovers, matching
-   * the sm controls beside those lists (owner 2026-10-21). */
+  /** Pill size — "md" (default, 36px) stands full surfaces and roomy chrome
+   * rows; "sm" (30px) rides compact rows and anchored picker popovers,
+   * matching the sm controls beside those lists (owner 2026-10-21). The
+   * pill's block size is ALWAYS the input's button-height token — the
+   * wrapper carries no block padding (owner 2026-10-22: the old py-2
+   * stacked on h-button-md and doubled the vertical air). */
   size?: 'md' | 'sm' | undefined;
   /** Additional CSS class on the wrapper */
   className?: string;
@@ -49,7 +52,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
     const input = (
       <div
         className={cn(
-          'search-field flex items-center gap-2 rounded-item px-3 py-2 transition-colors duration-short ease-standard',
+          'search-field flex items-center gap-2 rounded-item px-3 transition-colors duration-short ease-standard',
           size === 'sm' && 'search-field--sm',
           className,
         )}
