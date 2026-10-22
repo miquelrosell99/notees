@@ -65,6 +65,39 @@ describe("Button", () => {
   });
 });
 
+describe("SearchField", () => {
+  it("the sm variant rides the picker row grid, not the roomier md padding", () => {
+    const process_ = process as unknown as { getBuiltinModule(name: "node:fs"): typeof import("node:fs") };
+    const css = process_.getBuiltinModule("node:fs").readFileSync(
+      `${process.cwd()}/src/components/ui/fleet/SearchField.css`,
+      "utf8",
+    );
+    const sm = /\.search-field\.search-field--sm \{[^}]*\}/.exec(css);
+    expect(sm).not.toBeNull();
+    expect(sm![0]).toContain("padding-left: var(--spacing-2)");
+    expect(sm![0]).toContain("padding-right: var(--spacing-2)");
+
+    // The 20px glyph rides the same 24px icon lane as the result rows.
+    const iconLane = /\.search-field\.search-field--sm \.search-field__icon \{[^}]*\}/.exec(css);
+    expect(iconLane).not.toBeNull();
+    expect(iconLane![0]).toContain("width: var(--icon-size-md)");
+
+    // Anchored pickers already give the field an 8px panel margin; adding the
+    // sm field's own inline padding would indent the placeholder a second
+    // time relative to the result-row labels.
+    const pickerCss = process_.getBuiltinModule("node:fs").readFileSync(
+      `${process.cwd()}/src/features/pickers/NodeSelector.css`,
+      "utf8",
+    );
+    const pickerField =
+      /\.node-selector__picker \.node-selector__search-field\.search-field--sm \{[^}]*\}/.exec(
+        pickerCss,
+      );
+    expect(pickerField).not.toBeNull();
+    expect(pickerField![0]).toContain("padding-left: 0");
+  });
+});
+
 describe("Badge", () => {
   it("renders the variant/size class contract", () => {
     render(<Badge variant="warning" size="md">3</Badge>);

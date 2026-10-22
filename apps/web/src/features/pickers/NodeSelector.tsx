@@ -183,6 +183,12 @@ interface NodeSelectorProps {
   emptyText?: string;
   /** Placeholder + aria-label of the search input. */
   searchPlaceholder?: string;
+  /**
+   * Optional row pinned before every result while the query is empty. The
+   * New-node class picker uses this for "No class"; typing hides it so the
+   * keyboard path keeps answering the class query.
+   */
+  emptyQueryOption?: { label: string; icon?: string; onPick: () => void } | undefined;
   /** Callback when clicking a pill. */
   onNodeClick?: ((node: ClientNode) => void) | undefined;
   /** Callback when removing a node (shows the pill's remove button). */
@@ -270,6 +276,7 @@ export function NodeSelector({
   placeholder = "Select node...",
   emptyText = "Add",
   searchPlaceholder = "Search...",
+  emptyQueryOption,
   onNodeClick,
   onRemove,
   onColorChange,
@@ -810,6 +817,10 @@ export function NodeSelector({
     inlineFilters.filters.cls === null &&
     effectiveClassIds.length === 0;
 
+  /** The pinned escape owns index 0 only while the query is empty. */
+  const emptyQueryOptionActive =
+    emptyQueryOption !== undefined && classRefine.query.trim() === "";
+
   // Assigned-row gesture hint: rides the picker's bottom while a checkmarked
   // row is on screen (the gestures apply to it). Callers with onAssignedPick
   // own the assigned-row semantics (the editor's `+` toggle); everywhere
@@ -867,28 +878,36 @@ export function NodeSelector({
     }
   }, [isPickerOpen, position]);
 
-  // Total selectable items (the date suggestion offsets the list by one).
-  const dateOffset = dateSuggestion ? 1 : 0;
-  const createIndex = dateOffset + visibleResults.length;
+  // Total selectable items. The optional empty-query escape rides before the
+  // date suggestion; both offset the ordinary result list.
+  const leadingOffset = (emptyQueryOptionActive ? 1 : 0) + (dateSuggestion ? 1 : 0);
+  const createIndex = leadingOffset + visibleResults.length;
   const showMoreIndex = createIndex + (showCreateOption ? 1 : 0);
   const totalItems =
     visibleResults.length +
-    dateOffset +
+    leadingOffset +
     (showCreateOption ? 1 : 0) +
     (showMoreOption ? 1 : 0);
 
   const handleSelectByIndex = (index: number, modifiers: { ctrlKey: boolean; metaKey: boolean }) => {
-    if (dateSuggestion && index === 0) {
+    if (emptyQueryOptionActive && index === 0) {
+      emptyQueryOption.onPick();
+      return;
+    }
+    if (dateSuggestion && index === (emptyQueryOptionActive ? 1 : 0)) {
       dateSuggestion.onSelect();
       return;
     }
-    const adjusted = index - dateOffset;
+    const adjusted = index - leadingOffset;
     if (adjusted < visibleResults.length) {
       const node = visibleResults[adjusted]!;
       handleAdd(node, modifiers.ctrlKey || modifiers.metaKey);
     } else if (showCreateOption && adjusted === visibleResults.length) {
       handleCreateNew();
-    } else if (showMoreOption && adjusted === showMoreIndex - dateOffset) {
+    } else if (
+      showMoreOption &&
+      adjusted === visibleResults.length + (showCreateOption ? 1 : 0)
+    ) {
       setDisplayLimit((prev) => prev + 20);
     }
   };
@@ -980,6 +999,19 @@ export function NodeSelector({
 
   const renderResults = (emptyClassName: string, createIconSize: number) => (
     <>
+      {emptyQueryOptionActive && emptyQueryOption !== undefined && (
+        <NodeResultItem
+          key="__empty-query-option"
+          node={{ name: emptyQueryOption.label }}
+          isHighlighted={selectedIndex === 0}
+          onClick={emptyQueryOption.onPick}
+          onMouseEnter={() => setSelectedIndex(0)}
+          className="node-result-item--empty-query"
+          iconOverride={
+            <Icon path={emptyQueryOption.icon ?? "mdi-file-outline"} size={createIconSize} />
+          }
+        />
+      )}
       {recentsActive && visibleResults.length > 0 && (
         <div className="node-selector__recent-caption" aria-hidden="true">
           Recently used
@@ -989,15 +1021,15 @@ export function NodeSelector({
         <NodeResultItem
           key={dateSuggestion.key}
           node={{ name: dateSuggestion.label }}
-          isHighlighted={selectedIndex === 0}
+          isHighlighted={selectedIndex === (emptyQueryOptionActive ? 1 : 0)}
           onClick={dateSuggestion.onSelect}
-          onMouseEnter={() => setSelectedIndex(0)}
+          onMouseEnter={() => setSelectedIndex(emptyQueryOptionActive ? 1 : 0)}
           className="node-result-item--date"
           iconOverride={<Icon path="mdi-calendar" size={0.7} />}
         />
       )}
       {visibleResults.map((node, index) => {
-        const globalIndex = dateOffset + index;
+        const globalIndex = leadingOffset + index;
         return (
           <NodeResultItem
             key={node.id}

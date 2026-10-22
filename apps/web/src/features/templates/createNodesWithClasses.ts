@@ -1,8 +1,9 @@
 /**
  * createNodesWithClasses — the "New" flow's write: one
  * untitled node per picked class, each created as a main page; the first
- * pick lands in the main view. Shared by the sidebar's New button and the
- * top bar's collapsed-sidebar cluster.
+ * pick lands in the main view. An empty pick list is the picker's "No class"
+ * row: one standalone class-less page. Shared by the sidebar's New button
+ * and the top bar's collapsed-sidebar cluster.
  */
 
 import type { WorkerClient } from "@/core/worker-client.js";
@@ -16,6 +17,11 @@ export function createNodesWithClasses(
   onOpenPage: (nodeId: string) => void,
 ): void {
   void (async () => {
+    if (classIds.length === 0) {
+      const id = await client.createObject({ isEmbedded: false });
+      onOpenPage(id);
+      return;
+    }
     let first: string | null = null;
     for (const classId of classIds) {
       const id = await client.createObject({ classIds: [classId], isEmbedded: false });
