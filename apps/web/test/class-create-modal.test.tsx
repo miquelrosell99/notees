@@ -4,11 +4,12 @@
  *
  *  - blank mode creates a class through client.createClass (name carried
  *    from the picker's query);
- *  - deploy mode authors a seeded system class at its FIXED uuid —
- *    ancestors first (extends edges), then the property family from the
- *    seed manifest — convergent with the server seed;
+ *  - gallery mode (the 2026-10-22 classes-gallery upgrade) authors a
+ *    seeded system class at its FIXED uuid — ancestors first (extends
+ *    edges), then the property family from the seed manifest — convergent
+ *    with the server seed;
  *  - re-deploying is a complete no-op (the per-step existence checks);
- *  - the catalog excludes classes the workspace already has;
+ *  - the gallery excludes classes the workspace already has enabled;
  *  - the Classes hub header hosts the modal (button → modal → created
  *    class opens), and the command palette offers "New class…".
  */
@@ -89,17 +90,17 @@ describe("ClassCreateModal blank mode (#14)", () => {
   });
 });
 
-describe("ClassCreateModal deploy mode (#14)", () => {
+describe("ClassCreateModal gallery mode (#14, the classes gallery)", () => {
   it("deploys a system class at its fixed uuid, family + ancestors included", async () => {
     const client = await seedClient();
     const created = vi.fn();
     render(
       <ClassCreateModal isOpen client={client} onClose={() => {}} onCreated={created} />,
     );
-    fireEvent.click(screen.getByRole("tab", { name: /deploy system class/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /gallery/i }));
 
-    const personRow = await screen.findByRole("button", { name: /deploy person/i });
-    fireEvent.click(personRow);
+    const personCard = await screen.findByRole("menuitem", { name: /^person/i });
+    fireEvent.click(personCard);
 
     await waitFor(() => expect(created).toHaveBeenCalledTimes(1));
     expect(created.mock.calls[0]![0]).toBe(SYSTEM_CLASS_UUIDS.person);
@@ -143,7 +144,7 @@ describe("ClassCreateModal deploy mode (#14)", () => {
     expect([...client.getClassParents(SYSTEM_CLASS_UUIDS.source)].sort()).toEqual(snapshot.parents);
   });
 
-  it("the catalog excludes classes that already exist in the workspace", async () => {
+  it("the gallery excludes classes that already exist in the workspace, and offers the blank card", async () => {
     const client = await seedClient();
     // A workspace that already has the person class (server-seeded shape).
     await client.createClass("Person", { id: SYSTEM_CLASS_UUIDS.person });
@@ -151,9 +152,39 @@ describe("ClassCreateModal deploy mode (#14)", () => {
     render(
       <ClassCreateModal isOpen client={client} onClose={() => {}} />,
     );
-    fireEvent.click(screen.getByRole("tab", { name: /deploy system class/i }));
-    await screen.findByRole("button", { name: /deploy source/i });
-    expect(screen.queryByRole("button", { name: /deploy person/i })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: /gallery/i }));
+    await screen.findByRole("menuitem", { name: /^source/i });
+    expect(screen.queryByRole("menuitem", { name: /^person/i })).toBeNull();
+    // The Capacities "Create your own" card switches to the blank mode,
+    // carrying the typed filter as the name.
+    fireEvent.change(screen.getByLabelText("Filter types"), { target: { value: "Char" } });
+    fireEvent.click(screen.getByRole("menuitem", { name: /create your own/i }));
+    expect(screen.getByLabelText("Name")).toHaveValue("Char");
+  });
+
+  it("an archived seed appears as disabled and picking it re-enables (un-archive)", async () => {
+    const client = await seedClient();
+    // The quote class exists but is archived (the gallery's disabled state).
+    await client.createClass("Quote", { id: SYSTEM_CLASS_UUIDS.quote });
+    await flushSync();
+    await client.updateObject(SYSTEM_CLASS_UUIDS.quote, { active: false });
+    await flushSync();
+    const created = vi.fn();
+    render(
+      <ClassCreateModal
+        isOpen
+        client={client}
+        initialMode="gallery"
+        onClose={() => {}}
+        onCreated={created}
+      />,
+    );
+    const quoteCard = await screen.findByRole("menuitem", { name: /^quote/i });
+    expect(quoteCard.textContent).toContain("Currently disabled");
+    fireEvent.click(quoteCard);
+    await waitFor(() => expect(created).toHaveBeenCalledTimes(1));
+    await flushSync();
+    expect(client.getNode(SYSTEM_CLASS_UUIDS.quote)!.isActive).toBe(true);
   });
 });
 

@@ -323,7 +323,15 @@ describe("account popup — the user menu (owner 2026-10-19)", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((el) => el.textContent),
-    ).toEqual(["Syncup to date", "Shares", "Trash", "Settings", "Admin settings", "Sign out"]);
+    ).toEqual([
+      "Syncup to date",
+      "Shares",
+      "Trash",
+      "Archived",
+      "Settings",
+      "Admin settings",
+      "Sign out",
+    ]);
   });
 
   it("entries close the popup and call their host: sync / trash / shares / settings / admin / sign out", async () => {

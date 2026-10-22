@@ -194,6 +194,65 @@ export function systemClassDisplayName(name: SystemClassName): string {
   return SYSTEM_CLASS_DISPLAY_NAMES[name];
 }
 
+/**
+ * One-line gallery descriptions (owner ruling 2026-10-22, the
+ * classes-gallery batch) — the card grid under every gallery-toggleable
+ * system class (the classes gallery, the picker enable rows). Display
+ * metadata only, following the icons/display-names manifest pattern:
+ * additive, no wire change, converging by seed id not by text.
+ */
+export const SYSTEM_CLASS_DESCRIPTIONS: Record<SystemClassName, string> = {
+  year: "The journal year chain — always on.",
+  month: "The journal month chain — always on.",
+  day: "The journal day chain — always on.",
+  quote: "Pull quotes and excerpts, cited in place.",
+  query: "A live, saved search over the object graph.",
+  code: "A code page with syntax-highlighted blocks.",
+  asset: "An uploaded file, content-addressed.",
+  whiteboard: "A freeform spatial canvas of cards and shapes.",
+  card: "A compact summary card for an entity.",
+  task: "Checkable work items with status and priority.",
+  template: "A reusable page skeleton for instantiation.",
+  comment: "A discussion thread anchored to a node.",
+  table: "A structured data table view.",
+  warning: "A warning callout in the page body.",
+  note: "A neutral callout in the page body.",
+  tip: "A tip callout in the page body.",
+  info: "An info callout in the page body.",
+  danger: "A danger callout in the page body.",
+  success: "A success callout in the page body.",
+  cloze: "A text with hidden gaps for recall.",
+  source: "A cited source with bibliographic fields.",
+  book: "A book, with authors and edition fields.",
+  paper: "An academic paper, with DOI and venue.",
+  article: "A journal or magazine article.",
+  thesis: "A thesis or dissertation.",
+  document: "Any other document — the family fallback.",
+  agent: "An author or organization that creates sources.",
+  person: "A person — the people graph and contact fields.",
+  organization: "A company, institution, or group.",
+  collection: "A manual grouping of nodes.",
+  highlight: "A highlighted passage from a source.",
+  weblink: "A bookmarked web page, cited as a source.",
+  movie: "A film, with director and cast fields.",
+  song: "A song or track, with artist and album.",
+  tv_series: "A TV series, with season and episode fields.",
+  conference: "A conference or talk.",
+  meeting: "A meeting, with date, location, and agenda.",
+  event: "A calendar event, dated through the day chain.",
+  birthday: "A person's birthday on the calendar.",
+  definition: "A term and its definition.",
+  idea: "A captured idea, developed later or never.",
+  place: "A place — visited, planned, or referenced.",
+  project: "A project with a goal and state.",
+  trip: "A journey on the calendar.",
+};
+
+/** The card description the gallery renders for `name`. */
+export function systemClassDescription(name: SystemClassName): string {
+  return SYSTEM_CLASS_DESCRIPTIONS[name];
+}
+
 /** Canonical `extends` edges between system classes (multiple inheritance-ready). */
 export const SYSTEM_CLASS_EXTENDS: Partial<Record<SystemClassName, SystemClassName[]>> = {
   book: ["source"],

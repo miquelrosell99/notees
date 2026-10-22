@@ -28,13 +28,23 @@
  *                         NULL icon/description cannot be expressed on the
  *                         wire (the payload grammar has no icon/description
  *                         clear) — such an update is NOT journaled rather
- *                         than half-undone.
+ *                         than half-undone. The archival bit (`active`)
+ *                         restores the captured pre-op state.
  *  - object.create        → object.delete (soft — trash keeps the subtree
  *                         restorable). The re-issued create (the OR-Set add
  *                         carrier behind assign class/tag) inverts per added
  *                         membership: class.unassign / tag.unassign.
- *  - object.delete        → object.restore (soft deletes only; a PERMANENT
- *                         delete is data loss and is not journaled).
+ *  - object.delete        → the ROUTED inverse (owner ruling 2026-10-22):
+ *                         a class-node delete no longer always trashes —
+ *                         the applier routes it by class kind, so the
+ *                         journal composes the matching inverse: a family
+ *                         base → workspace.feature.set restoring the prior
+ *                         toggle state; another system class → object.update
+ *                         {active: true} (unarchive); a user class or any
+ *                         non-class node → object.restore (soft deletes
+ *                         only; a PERMANENT delete is data loss and is not
+ *                         journaled). A delete on an already-inactive
+ *                         target adds nothing honestly invertible.
  *  - object.restore       → object.delete (soft).
  *  - object.move          → object.move to the prior parent, anchored by the
  *                         prior sibling read (afterId, else beforeId) so the
@@ -54,8 +64,15 @@
  *                         class.property.unset.
  *  - class.property.unset → class.property.set restoring the full captured row.
  *  - class.setExtends     → class.setExtends with the prior parent set.
- *  - class.create         → class.delete. (class.delete itself is NOT
- *                         journaled: the applier tombstones memberships.)
+ *  - class.create         → the ROUTED un-create (owner ruling 2026-10-22 —
+ *                         the retired class.delete's replacement): a family
+ *                         base → workspace.feature.set restoring the prior
+ *                         toggle state; another system class → object.update
+ *                         {active: false} (archival); a user class →
+ *                         object.delete (soft). Only a FRESH class inverts —
+ *                         a re-declared class (the conversion/ensure path)
+ *                         preserves existing fields and is not journaled;
+ *                         locked system classes are un-invertible.
  *  - class.update         → class.update restoring touched fields (same NULL
  *                         icon/description caveat as object.update).
  *  - propertySchema.*     → create↔delete / update restoring touched fields
@@ -77,6 +94,11 @@
  */
 
 import type { ContentAst, Envelope } from "@notees/protocol";
+import {
+  featureForManagedClass,
+  isLockedSystemClassId,
+  systemClassNameForId,
+} from "@notees/domain";
 
 /** One op to apply — op type + payload + affected ids (the buildEnvelope triple). */
 export interface UndoOpSpec {
@@ -123,6 +145,8 @@ export interface UndoHistoryEntry {
 
 /** Facts about a node row needed to invert ops that touched it. */
 export interface UndoNodeSnapshot {
+  /** Class identity bit — the delete-routing arms key off it (2026-10-22). */
+  isClass: boolean;
   isEmbedded: boolean;
   icon: string | null;
   color: string | null;
@@ -257,6 +281,12 @@ function restoreUpdateSpec(
   if (hasOwn(payload, "listStyle") && opType === "object.update") {
     restore.listStyle = snap.listStyle;
   }
+  // The archival bit (2026-10-22): always expressible — restore the captured
+  // pre-op state (a prior active = true node unarchives honestly, and an
+  // unarchive gesture on a node that was archived restores the archive).
+  if (hasOwn(payload, "active") && opType === "object.update") {
+    restore.active = snap.active;
+  }
   if (hasOwn(payload, "icon")) {
     // The payload grammar has no "clear icon" — a prior NULL is inexpressible.
     if (snap.icon === null) return null;
@@ -329,7 +359,40 @@ export function invertEnvelope(
       const objectId = asString(p.objectId);
       if (objectId === null || p.permanent === true) return null; // permanent = data loss
       const snap = capture.nodeSnapshot(objectId);
-      if (snap === null || !snap.active) return null; // already trashed — no-op
+      // Already inactive (trashed OR archived): the routed delete adds
+      // nothing honestly invertible — restore would also flip is_active
+      // past the pre-op state.
+      if (snap === null || !snap.active) return null;
+      if (snap.isClass) {
+        // The class-node delete routing (owner ruling 2026-10-22): the
+        // applier decides the arm by class kind, so the inverse composes
+        // the matching forward removal. Locked classes never reach here
+        // (their delete throws before the journal commits).
+        if (isLockedSystemClassId(objectId)) return null;
+        const feature = featureForManagedClass(objectId);
+        if (feature !== null) {
+          // The delete applied as a feature-disable — restore the prior
+          // toggle state (the F4/F4-inverse pair).
+          return [
+            {
+              opType: "workspace.feature.set",
+              payload: { feature, enabled: capture.featureEnabled(feature) },
+              affected: [],
+            },
+          ];
+        }
+        if (systemClassNameForId(objectId) !== null) {
+          // The delete applied as archival — unarchive.
+          return [
+            {
+              opType: "object.update",
+              payload: { objectId, active: true },
+              affected: [objectId],
+            },
+          ];
+        }
+        // A user class trashes — restore like any node.
+      }
       return [{ opType: "object.restore", payload: { objectId }, affected: [objectId] }];
     }
     case "object.restore": {
@@ -358,7 +421,43 @@ export function invertEnvelope(
     case "class.create": {
       const classId = asString(p.classId);
       if (classId === null) return null;
-      return [{ opType: "class.delete", payload: { classId }, affected: [classId] }];
+      // The routed un-create (owner ruling 2026-10-22 — the retired
+      // class.delete's replacement): only a FRESH class inverts — a
+      // re-declared class (the conversion/ensure path) preserves existing
+      // fields, so there is nothing honest to undo.
+      const snap = capture.nodeSnapshot(classId);
+      if (snap !== null) return null;
+      if (isLockedSystemClassId(classId)) return null; // seeds: un-removable
+      const feature = featureForManagedClass(classId);
+      if (feature !== null) {
+        // Removing a family base is toggle-managed — restore the prior
+        // toggle state.
+        return [
+          {
+            opType: "workspace.feature.set",
+            payload: { feature, enabled: capture.featureEnabled(feature) },
+            affected: [],
+          },
+        ];
+      }
+      if (systemClassNameForId(classId) !== null) {
+        // Other system classes archive, never trash.
+        return [
+          {
+            opType: "object.update",
+            payload: { objectId: classId, active: false },
+            affected: [classId],
+          },
+        ];
+      }
+      // A user class trashes (soft — restorable, membership rides).
+      return [
+        {
+          opType: "object.delete",
+          payload: { objectId: classId, permanent: false },
+          affected: [classId],
+        },
+      ];
     }
     case "class.update": {
       const classId = asString(p.classId);
@@ -375,8 +474,9 @@ export function invertEnvelope(
       return spec === null ? null : [spec];
     }
     case "class.delete":
-      // The applier tombstones every member's class_membership — no honest
-      // inverse composes from existing ops.
+      // RETIRED op (owner ruling 2026-10-22) — the strict schemas reject it
+      // outright, so no local writer produces it anymore; any envelope seen
+      // here is foreign history and never enters the journal.
       return null;
     case "class.unassign": {
       const objectId = asString(p.objectId);
@@ -727,6 +827,9 @@ export function undoVerbFor(envelope: Envelope, capture: UndoCaptureSource): str
     if (touched.length === 1 && touched[0] === "icon") return "change icon";
     if (touched.length === 1 && touched[0] === "color") return "change color";
     if (touched.length === 1 && touched[0] === "listStyle") return "change list style";
+    if (touched.length === 1 && touched[0] === "active") {
+      return p.active === false ? "archive" : "unarchive";
+    }
     if (touched.includes("isEmbedded")) return p.isEmbedded === false ? "promote" : "demote";
     return "update";
   }

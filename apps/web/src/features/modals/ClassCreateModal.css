@@ -32,19 +32,63 @@
   gap: var(--spacing-3);
 }
 
-.class-create__catalog {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.class-create__gallery {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1);
-  max-height: var(--layout-size-7xl);
-  overflow-y: auto;
+  gap: var(--spacing-3);
 }
 
-.class-create__catalog-row {
-  justify-content: flex-start;
+.class-create__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  max-height: var(--layout-size-7xl);
+  overflow-y: auto;
+  padding-right: var(--spacing-1);
+}
+
+.class-create__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.class-create__section-title {
+  margin: 0;
+  font: var(--font-title-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* The card grid: GridMenu in auto columns, tuned to the gallery card —
+   the icon sits in a tinted rounded chip (the Capacities reference), the
+   label + one-line description stack beside it. Token-only; scoped to the
+   modal so the add-condition popup's GridMenu is untouched. */
+.class-create__grid.grid-menu {
+  gap: var(--spacing-2);
+  padding: 0;
+  max-height: none;
+  overflow: visible;
+}
+
+.class-create__grid .grid-menu__item {
+  align-items: center;
+  padding: var(--spacing-2) var(--spacing-2-5);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-md);
+}
+
+.class-create__grid .grid-menu__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2em;
+  height: 2em;
+  margin-top: 0;
+  border-radius: var(--radius-sm);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-primary);
+  flex-shrink: 0;
 }
 
 .class-create__all-deployed {

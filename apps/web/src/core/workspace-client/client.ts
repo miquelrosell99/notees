@@ -226,6 +226,16 @@ export class WorkspaceClient {
     return this.reads.listTrashed();
   }
 
+  /** The Archived surface's read — archived rows (no trash row), newest first. */
+  listArchived() {
+    return this.reads.listArchived();
+  }
+
+  /** Archived CLASS nodes (the class picker's dimmed enable matches). */
+  listArchivedClasses() {
+    return this.reads.listArchivedClasses();
+  }
+
   listClasses() {
     return this.reads.listClasses();
   }
@@ -509,6 +519,10 @@ export class WorkspaceClient {
 
   updateObject(id: string, fields: UpdateObjectInput) {
     return this.writes.updateObject(id, fields);
+  }
+
+  setArchived(id: string, active: boolean) {
+    return this.writes.setArchived(id, active);
   }
 
   deleteObject(id: string, opts: DeleteObjectOptions = {}) {

@@ -288,6 +288,48 @@
   background: var(--md-sys-color-hover-overlay);
 }
 
+/* Archived-class matches (owner ruling 2026-10-22): the query names a
+   DISABLED system class — the row renders dimmed with an Enable badge;
+   picking it enables the class (the gallery pick semantics) and assigns
+   it like any other pick. */
+.node-selector__archived-match {
+  opacity: var(--opacity-60);
+}
+
+.node-selector__enable-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+  padding: 0 var(--spacing-1-5);
+  min-height: var(--height-sm);
+  border-radius: var(--radius-full, 999px);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-primary);
+  font: var(--font-label-small);
+}
+
+.node-selector__browse-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  font: var(--font-label-small);
+  color: var(--md-sys-color-primary);
+  opacity: var(--opacity-80);
+}
+
+.node-selector__browse-all:hover,
+.node-selector__browse-all--highlighted {
+  background: var(--md-sys-color-hover-overlay);
+}
+
 /* Pill-row mode (original) */
 
 .node-selector__add-wrapper {

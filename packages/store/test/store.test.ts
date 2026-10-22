@@ -25,6 +25,7 @@ import { newEnvelope, type ContentAst, type Envelope } from "@notees/protocol";
 
 import {
   CycleError,
+  LockedSystemClassError,
   migrate,
   MoveGuardError,
   NotFoundError,
@@ -59,11 +60,15 @@ function loadFixture(name: string): Record<string, unknown>[] {
  * under a block parent and fails loud by design;
  * property-validation-rules.json pins its reject tail (below-min/above-max,
  * pattern rejects, one bad multi element, one un compilable pattern) after
- * an accepting prefix — all applied deliberately in their own tests). */
+ * an accepting prefix — all applied deliberately in their own tests;
+ * object-delete-class-routing.json pins the locked-system-class delete arm
+ * (LockedSystemClassError) after its accepting prefix — the arms are
+ * asserted deliberately in the routing suite below). */
 const REPLAY_EXCLUDED_FIXTURES = new Set([
   "class-extends-cycle.json",
   "class-extends-system-lock.json",
   "is-embedded-parent-page.json",
+  "object-delete-class-routing.json",
   "property-validation-rules.json",
 ]);
 
@@ -2634,22 +2639,212 @@ describe("cross-backend snapshot restore", () => {
 });
 
 for (const adapter of adapters) {
-  describe(`class delete on ${adapter.name} strips membership`, () => {
-    it("class.delete removes the class from every node's class_ids", () => {
+  describe(`object.update active (archival) on ${adapter.name}`, () => {
+    it("archives then unarchives a page: is_active flips, NO trash row ever", () => {
       const store = Store.open(adapter.makeBackend());
-      const page = "0192a000-0000-7000-8000-000000000501";
-      const cls = "0192a000-0000-7000-8000-000000000502";
-      store.apply(env("object.create", { objectId: page, contentAst: [{ type: "text", text: "P" }]}, 1727200001000));
-      store.apply(env("class.create", { classId: cls, contentAst: [{ type: "text", text: "Genre" }]}, 1727200001100));
-      store.apply(env("object.create", { objectId: page, classIds: [cls] }, 1727200001200));
-      expect(store.getNode(page)!.class_ids).toBe(JSON.stringify([cls]));
-      store.apply(env("class.delete", { classId: cls }, 1727200001300));
-      expect(store.getNode(page)!.class_ids).toBe("[]");
+      const page = "0192a000-0000-7000-8000-000000000511";
+      const other = "0192a000-0000-7000-8000-000000000512";
+      store.apply(env("object.create", { objectId: page, contentAst: [{ type: "text", text: "P" }] }, 1727200001000));
+      store.apply(env("object.create", { objectId: other, contentAst: [{ type: "text", text: "Q" }] }, 1727200001100));
+      // Archive: the node leaves the default reads (roots) but carries no
+      // trash row — archival is a state, deletion is an event.
+      store.apply(env("object.update", { objectId: page, active: false }, 1727200001200));
+      expect(store.getNode(page)!.is_active).toBe(0);
+      expect(
+        store.database.prepare("SELECT 1 FROM trash WHERE node_id = ?").get(page),
+      ).toBeUndefined();
+      expect(store.roots(WS).map((n) => n.id)).toEqual([other]);
+      // Unarchive revives it.
+      store.apply(env("object.update", { objectId: page, active: true }, 1727200001300));
+      expect(store.getNode(page)!.is_active).toBe(1);
+      expect(store.roots(WS).map((n) => n.id)).toEqual([page, other].sort());
+      store.close();
+    });
+
+    it("archived children leave children() but stay parented (the tree is kept)", () => {
+      const store = Store.open(adapter.makeBackend());
+      const page = "0192a000-0000-7000-8000-000000000513";
+      const child = "0192a000-0000-7000-8000-000000000514";
+      store.apply(env("object.create", { objectId: page, contentAst: [{ type: "text", text: "P" }] }, 1727200001000));
+      store.apply(env("object.create", { objectId: child, parentId: page, contentAst: [{ type: "text", text: "c" }] }, 1727200001100));
+      store.apply(env("object.update", { objectId: child, active: false }, 1727200001200));
+      expect(store.children(page)).toEqual([]);
+      expect(store.getNode(child)!.parent_id).toBe(page);
+      store.close();
+    });
+
+    it("on a class node the bit mirrors to the class registry projection", () => {
+      const store = Store.open(adapter.makeBackend());
+      const cls = "0192a000-0000-7000-8000-000000000515";
+      store.apply(env("class.create", { classId: cls, contentAst: [{ type: "text", text: "Genre" }] }, 1727200001000));
+      const registryActive = () =>
+        (store.database.prepare("SELECT active FROM class WHERE id = ?").get(cls) as { active: number }).active;
+      expect(registryActive()).toBe(1);
+      store.apply(env("object.update", { objectId: cls, active: false }, 1727200001100));
+      expect(store.getNode(cls)!.is_active).toBe(0);
+      expect(registryActive()).toBe(0);
+      store.apply(env("object.update", { objectId: cls, active: true }, 1727200001200));
+      expect(store.getNode(cls)!.is_active).toBe(1);
+      expect(registryActive()).toBe(1);
+      store.close();
+    });
+
+    it("a LOCKED system class can never be archived (fails loud); unarchiving stays legal", () => {
+      const store = Store.open(adapter.makeBackend());
+      const year = "00000000-0000-0000-0001-000000000003";
+      store.apply(env("class.create", { classId: year, contentAst: [{ type: "text", text: "Year" }] }, 1727200001000));
+      expect(() =>
+        store.apply(env("object.update", { objectId: year, active: false }, 1727200001100)),
+      ).toThrow(LockedSystemClassError);
+      expect(store.getNode(year)!.is_active).toBe(1);
+      expect(() =>
+        store.apply(env("object.update", { objectId: year, active: true }, 1727200001200)),
+      ).not.toThrow();
+      store.close();
+    });
+
+    it("a family base class refuses a direct archival write (toggle-managed); unarchive stays legal", () => {
+      const store = Store.open(adapter.makeBackend());
+      const task = "00000000-0000-0000-0001-000000000012";
+      store.apply(env("class.create", { classId: task, contentAst: [{ type: "text", text: "Task" }] }, 1727200001000));
+      // The Features toggle is the single archive path for the families.
+      expect(() =>
+        store.apply(env("object.update", { objectId: task, active: false }, 1727200001100)),
+      ).toThrow(MoveGuardError);
+      expect(store.getNode(task)!.is_active).toBe(1);
+      expect(() =>
+        store.apply(env("object.update", { objectId: task, active: true }, 1727200001200)),
+      ).not.toThrow();
+      store.close();
+    });
+
+    it("archive ≠ trash: object.restore is NOT the unarchive path (safe no-op)", () => {
+      const store = Store.open(adapter.makeBackend());
+      const page = "0192a000-0000-7000-8000-000000000516";
+      store.apply(env("object.create", { objectId: page, contentAst: [{ type: "text", text: "P" }] }, 1727200001000));
+      store.apply(env("object.update", { objectId: page, active: false }, 1727200001100));
+      // No trash row → nothing to restore: the op no-ops, the bit stands.
+      store.apply(env("object.restore", { objectId: page }, 1727200001200));
+      expect(store.getNode(page)!.is_active).toBe(0);
+      // The unarchive path is the archival write itself.
+      store.apply(env("object.update", { objectId: page, active: true }, 1727200001300));
+      expect(store.getNode(page)!.is_active).toBe(1);
       store.close();
     });
   });
 }
 
+for (const adapter of adapters) {
+  describe(`class-node delete routing on ${adapter.name} (object.delete, membership rides)`, () => {
+    const TASK = "00000000-0000-0000-0001-000000000012";
+    const YEAR = "00000000-0000-0000-0001-000000000003";
+    const QUOTE = "00000000-0000-0000-0001-000000000006";
+    const GENRE = "0192a000-0000-7000-8000-000000000a23";
+    const TASK_MEMBER = "0192a000-0000-7000-8000-000000000a22";
+    const GENRE_MEMBER = "0192a000-0000-7000-8000-000000000a24";
+
+    it("the canonical fixture exercises all four arms; membership survives each", () => {
+      const store = Store.open(adapter.makeBackend());
+      const fixture = loadFixture("object-delete-class-routing.json");
+      const lockedDelete = fixture[5]!; // the year delete — arm 1 fails loud
+      store.applyMany([...fixture.slice(0, 5), ...fixture.slice(6)]);
+      // Arm 2 — family base (task): routed to the toggle, NOT trashed; the
+      // family archives membership-preserving.
+      expect(store.isFeatureEnabled(WS, "tasks")).toBe(false);
+      expect(store.getFeatureRow(WS, "tasks")!.enabled).toBe(false);
+      expect(store.getNode(TASK)!.is_active).toBe(0);
+      expect(store.database.prepare("SELECT 1 FROM trash WHERE node_id = ?").get(TASK)).toBeUndefined();
+      expect(store.getNode(TASK_MEMBER)!.class_ids).toBe(JSON.stringify([TASK]));
+      // Arm 3 — system class (quote): archived, NOT trashed.
+      expect(store.getNode(QUOTE)!.is_active).toBe(0);
+      expect(store.database.prepare("SELECT 1 FROM trash WHERE node_id = ?").get(QUOTE)).toBeUndefined();
+      expect(
+        (store.database.prepare("SELECT active FROM class WHERE id = ?").get(QUOTE) as { active: number }).active,
+      ).toBe(0);
+      // Arm 4 — user class (Genre): plain trash row, memberships intact.
+      expect(store.getNode(GENRE)!.is_active).toBe(0);
+      expect(store.database.prepare("SELECT 1 FROM trash WHERE node_id = ?").get(GENRE)).toBeDefined();
+      expect(store.getNode(GENRE_MEMBER)!.class_ids).toBe(JSON.stringify([GENRE]));
+      // Arm 1 — the locked delete still throws when applied deliberately.
+      expect(() => store.apply(lockedDelete)).toThrow(LockedSystemClassError);
+      expect(store.getNode(YEAR)!.is_active).toBe(1);
+      store.close();
+    });
+
+    it("arm 1: a LOCKED system class delete fails loud, never applied", () => {
+      const store = Store.open(adapter.makeBackend());
+      const year = "00000000-0000-0000-0001-000000000003";
+      const table = "00000000-0000-0000-0001-000000000015";
+      for (const [id, title, at] of [
+        [year, "Year", 1727200001000],
+        [table, "Table", 1727200001100],
+      ] as const) {
+        store.apply(env("class.create", { classId: id, contentAst: [{ type: "text", text: title }] }, at));
+        expect(() =>
+          store.apply(env("object.delete", { objectId: id }, at + 100)),
+        ).toThrow(LockedSystemClassError);
+        expect(() =>
+          store.apply(env("object.delete", { objectId: id, permanent: true }, at + 200)),
+        ).toThrow(LockedSystemClassError);
+        expect(store.getNode(id)!.is_active).toBe(1);
+      }
+      store.close();
+    });
+
+    it("arm 2: the routed delete and a racing toggle converge under either order", () => {
+      const base = [
+        env("class.create", { classId: TASK, contentAst: [{ type: "text", text: "Task" }] }, 1727200011000),
+        env("object.create", { objectId: TASK_MEMBER, classIds: [TASK], contentAst: [{ type: "text", text: "Buy milk" }] }, 1727200011100),
+      ];
+      const routedDelete = env("object.delete", { objectId: TASK }, 1727200011200);
+      const reenable = env("workspace.feature.set", { feature: "tasks", enabled: true }, 1727200011300);
+      const forward = Store.open(adapter.makeBackend());
+      forward.applyMany([...base, routedDelete, reenable]);
+      const backward = Store.open(adapter.makeBackend());
+      backward.applyMany([...base, reenable, routedDelete]);
+      expect(dumpDb(forward)).toEqual(dumpDb(backward));
+      // The enable (@11300) wins the (ws, tasks) slot over the routed
+      // delete (@11200); the class revives with its membership intact.
+      expect(forward.isFeatureEnabled(WS, "tasks")).toBe(true);
+      expect(forward.getNode(TASK)!.is_active).toBe(1);
+      expect(forward.getNode(TASK_MEMBER)!.class_ids).toBe(JSON.stringify([TASK]));
+      forward.close();
+      backward.close();
+    });
+
+    it("arm 4: a trashed user class restores with every assignment intact", () => {
+      const store = Store.open(adapter.makeBackend());
+      const cls = "0192a000-0000-7000-8000-0000000000e1";
+      const member = "0192a000-0000-7000-8000-0000000000e2";
+      store.apply(env("class.create", { classId: cls, contentAst: [{ type: "text", text: "Genre" }] }, 1727200011000));
+      store.apply(env("object.create", { objectId: member, classIds: [cls], contentAst: [{ type: "text", text: "X" }] }, 1727200011100));
+      store.apply(env("object.delete", { objectId: cls }, 1727200011200));
+      // Membership RIDES: the pair survives the trash event.
+      expect(store.getNode(member)!.class_ids).toBe(JSON.stringify([cls]));
+      expect(
+        store.database.prepare("SELECT 1 FROM class_member_set WHERE node_id = ? AND class_id = ? AND present = 1").get(member, cls),
+      ).toBeDefined();
+      store.apply(env("object.restore", { objectId: cls }, 1727200011300));
+      expect(store.getNode(cls)!.is_active).toBe(1);
+      expect(store.getNode(member)!.class_ids).toBe(JSON.stringify([cls]));
+      store.close();
+    });
+
+    it("arm 4 permanent: a permanently deleted user class leaves memberships as the dangling-reference state", () => {
+      const store = Store.open(adapter.makeBackend());
+      const cls = "0192a000-0000-7000-8000-0000000000e3";
+      const member = "0192a000-0000-7000-8000-0000000000e4";
+      store.apply(env("class.create", { classId: cls, contentAst: [{ type: "text", text: "Genre" }] }, 1727200011000));
+      store.apply(env("object.create", { objectId: member, classIds: [cls], contentAst: [{ type: "text", text: "X" }] }, 1727200011100));
+      store.apply(env("object.delete", { objectId: cls, permanent: true }, 1727200011200));
+      // Membership rides even here: the pairs stand (the class pill renders
+      // the dangling reference — SCHEMA.md "Content grammar", Fork 3).
+      expect(store.getNode(cls)).toBeUndefined();
+      expect(store.getNode(member)!.class_ids).toBe(JSON.stringify([cls]));
+      store.close();
+    });
+  });
+}
 for (const adapter of adapters) {
   describe(`tags on ${adapter.name} (page-scoped page assignments)`, () => {
     it("assign via create carrier, unassign tombstones, re-add wins; tag_ids derived", () => {
@@ -2872,46 +3067,21 @@ for (const adapter of adapters) {
       backward.close();
     });
 
-    it("F4: class.delete on a managed class routes to the toggle (memberships survive)", () => {
+    it("journal: a surfaces-only toggle — LWW row, no family derivation, no instance count", () => {
       const store = makeAdapterStore();
-      store.applyMany(loadFixture("class-delete-managed.json"));
-      const member = "0192a000-0000-7000-8000-000000000615";
-      // The final re-enable revived the class…
-      expect(store.isFeatureEnabled(WS, "tasks")).toBe(true);
-      expect(store.getNode(TASK_CLASS)!.is_active).toBe(1);
-      // …and the membership pair survived the routed delete untouched.
-      expect(store.getNode(member)!.class_ids).toBe(JSON.stringify([TASK_CLASS]));
-      store.close();
-    });
-
-    it("F4: the routed delete and the racing toggle converge under either order", () => {
-      const fixture = loadFixture("class-delete-managed.json");
-      const base = fixture.slice(0, 2); // causal base: class.create + member
-      const routedDelete = fixture[2]!;
-      const reenable = fixture[3]!;
-      const forward = makeAdapterStore();
-      forward.applyMany([...base, routedDelete, reenable]);
-      const backward = makeAdapterStore();
-      backward.applyMany([...base, reenable, routedDelete]);
-      expect(dumpDb(forward)).toEqual(dumpDb(backward));
-      // The enable (@11300) wins the (ws, tasks) slot over the delete (@11200).
-      expect(forward.isFeatureEnabled(WS, "tasks")).toBe(true);
-      expect(forward.getNode(TASK_CLASS)!.is_active).toBe(1);
-      forward.close();
-      backward.close();
-    });
-
-    it("a plain class.delete on a NON-managed class keeps the lossy semantics", () => {
-      const store = makeAdapterStore();
-      const cls = "0192a000-0000-7000-8000-0000000000e1";
-      const member = "0192a000-0000-7000-8000-0000000000e2";
-      store.apply(env("class.create", { classId: cls, contentAst: [{ type: "text", text: "Genre" }] }, 1727200011000));
-      store.apply(env("object.create", { objectId: member, classIds: [cls], contentAst: [{ type: "text", text: "X" }] }, 1727200011100));
-      store.apply(env("class.delete", { classId: cls }, 1727200011200));
-      // Lossy path: memberships tombstone, class_ids recompute to empty, and
-      // NO workspace_feature row appears (the class is not managed).
-      expect(store.getNode(member)!.class_ids).toBe("[]");
-      expect(store.listFeatureRows(WS)).toEqual([]);
+      // The date chain stays always-on: the toggle manages views, not classes.
+      const year = "00000000-0000-0000-0001-000000000003";
+      store.apply(env("class.create", { classId: year, contentAst: [{ type: "text", text: "Year" }] }, 1727200001000));
+      store.apply(env("workspace.feature.set", { feature: "journal", enabled: false }, 1727200001100));
+      expect(store.isFeatureEnabled(WS, "journal")).toBe(false);
+      expect(store.getFeatureRow(WS, "journal")).toEqual({ feature: "journal", enabled: false });
+      // No family classes derive from it: the year node is untouched.
+      expect(store.getNode(year)!.is_active).toBe(1);
+      expect(store.featureInstanceCount(WS, "journal")).toBe(0);
+      // LWW: a later enable wins.
+      store.apply(env("workspace.feature.set", { feature: "journal", enabled: true }, 1727200001200));
+      expect(store.isFeatureEnabled(WS, "journal")).toBe(true);
+      expect(store.getNode(year)!.is_active).toBe(1);
       store.close();
     });
 

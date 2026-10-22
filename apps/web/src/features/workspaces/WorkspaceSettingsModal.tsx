@@ -17,6 +17,7 @@ import {
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_UUIDS,
   WORKSPACE_FEATURE_MAP,
+  type FamilyFeature,
 } from "@notees/domain";
 
 import type { AnyClient } from "../../ui/app/Sidebar.js";
@@ -282,7 +283,7 @@ export function WorkspaceSettingsModal({
                 <>
                   {(
                     Object.entries(WORKSPACE_FEATURE_MAP) as Array<
-                      [WorkspaceFeature, (typeof WORKSPACE_FEATURE_MAP)[WorkspaceFeature]]
+                      [FamilyFeature, (typeof WORKSPACE_FEATURE_MAP)[FamilyFeature]]
                     >
                   ).map(([feature, spec]) => {
                     const enabled = client!.isFeatureEnabled(feature);
@@ -326,6 +327,37 @@ export function WorkspaceSettingsModal({
                       </div>
                     );
                   })}
+                  {/* The journal toggle (owner ruling 2026-10-22) is NOT a
+                      class family — it gates the journal SURFACES (the
+                      journal view, Today-page management) while the date
+                      classes stay always-on. No instance count, no family
+                      icon: a calendar glyph row with surfaces-only copy. */}
+                  {(() => {
+                    const journalEnabled = client!.isFeatureEnabled("journal");
+                    return (
+                      <div className="settings-item settings-feature-row" key="journal">
+                        <span className="settings-feature-row__icon">
+                          <Icon path="mdi-calendar-clock" size={1} />
+                        </span>
+                        <span className="settings-feature-row__text">
+                          <span className="settings-feature-row__title">Journal</span>
+                          <span className="settings-feature-row__powers">
+                            The journal view and Today-page management — the date classes stay
+                            always-on.
+                          </span>
+                        </span>
+                        <ToggleSwitch
+                          leftLabel="Off"
+                          rightLabel="On"
+                          checked={journalEnabled}
+                          onChange={(next) => handleFeatureToggle("journal", "Journal", 0, next)}
+                          disabled={!FEATURE_TOGGLE_WRITES_ENABLED || client === null}
+                          size="sm"
+                          aria-label="Journal feature"
+                        />
+                      </div>
+                    );
+                  })()}
                   {/* The write issues a workspace.feature.set through the
                       normal client op path (lockstep SHIPPED: GTK/Flutter
                       v3.0.0). F3's disable confirmation gates the OFF write

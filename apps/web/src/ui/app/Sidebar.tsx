@@ -42,14 +42,14 @@ import "./Sidebar.css";
 
 export type { AnyClient };
 
-export type NavKey = "today" | "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets" | "queries" | "graph" | "trash" | "shares";
+export type NavKey = "today" | "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets" | "queries" | "graph" | "trash" | "archived" | "shares";
 
 /**
  * The nav register: labels, icons, and `/`-paths for every hub — the tab
  * title and the URL table read it. `menuOnly` marks hubs that don't render
- * a sidebar row: they open from the account popup (Trash, Shares — owner
- * 2026-10-19), but they keep their entry so the routing/title machinery
- * names them.
+ * a sidebar row: they open from the account popup (Trash, Archived, Shares
+ * — owner 2026-10-19 / the classes-gallery batch 2026-10-22), but they keep
+ * their entry so the routing/title machinery names them.
  */
 export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string; menuOnly?: boolean }> = [
   { key: "today", label: "Today", icon: "mdi-calendar-today-outline" },
@@ -64,6 +64,7 @@ export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string; menu
   { key: "queries", label: "Queries", icon: "mdi-database-search-outline" },
   { key: "graph", label: "Graph", icon: "mdi-graph-outline" },
   { key: "trash", label: "Trash", icon: "mdi-delete-outline", menuOnly: true },
+  { key: "archived", label: "Archived", icon: "mdi-archive-outline", menuOnly: true },
   { key: "shares", label: "Shares", icon: "mdi-share-variant", menuOnly: true },
 ];
 
@@ -179,7 +180,11 @@ export function Sidebar({
                 (entry.key !== "calendar" || showCalendar) &&
                 // The Tasks hub is task-family chrome — hidden while
                 // the family is off (live read; absent row = enabled).
-                (entry.key !== "tasks" || client.isFeatureEnabled("tasks")),
+                (entry.key !== "tasks" || client.isFeatureEnabled("tasks")) &&
+                // The journal surfaces ride the journal toggle (owner ruling
+                // 2026-10-22): the journal view AND Today-page management
+                // hide while it is off — the date classes stay always-on.
+                (entry.key !== "journal" && entry.key !== "today" || client.isFeatureEnabled("journal")),
             ).map((entry) => (
               <li key={entry.key} className="nt-side-row">
                 <button
@@ -321,6 +326,17 @@ export function Sidebar({
             >
               <Icon path="mdi-delete-outline" size={0.9} />
               <span>Trash</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAccountMenu(false);
+                onSelectNav("archived");
+              }}
+            >
+              <Icon path="mdi-archive-outline" size={0.9} />
+              <span>Archived</span>
             </button>
             <Separator />
             {showSettings && (

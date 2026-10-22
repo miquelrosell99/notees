@@ -23,7 +23,6 @@ const LISTING_AFFECTING_OPS: ReadonlySet<string> = new Set([
   "object.move",
   "class.create",
   "class.update",
-  "class.delete",
   "class.setExtends",
   "class.property.set",
   "class.property.unset",
@@ -43,10 +42,11 @@ export function isListingAffectingOp(opType: string): boolean {
 
 /**
  * Envelope-level classification: like isListingAffectingOp, but also catches
- * `object.update` carriers whose payload toggles presentAsMain — that moves a
- * node in/out of the page listings even though the op type is the content
- * carrier. (Store ChangeSummaries do not carry the payload, so the remote
- * path classifies off the envelopes instead.)
+ * `object.update` carriers whose payload moves a node in/out of the page
+ * listings — the `isEmbedded` promotion/demotion toggle (Revision 12) and
+ * the `active` archival bit (owner ruling 2026-10-22) — even though the op
+ * type is the content carrier. (Store ChangeSummaries do not carry the
+ * payload, so the remote path classifies off the envelopes instead.)
  */
 export function isListingAffectingEnvelope(envelope: {
   opType: string;
@@ -57,7 +57,7 @@ export function isListingAffectingEnvelope(envelope: {
     envelope.opType === "object.update" &&
     typeof envelope.payload === "object" &&
     envelope.payload !== null &&
-    "presentAsMain" in envelope.payload
+    ("isEmbedded" in envelope.payload || "active" in envelope.payload)
   );
 }
 

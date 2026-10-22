@@ -9,7 +9,8 @@
  * @notees/protocol); the op-log home is `workspace.feature.set`; the
  * derived home is the store's `workspace_feature` table (schema v10).
  *
- * Semantics (F1–F4, owner-confirmed):
+ * Semantics (F1–F3 + the class-node delete routing, owner-confirmed;
+ * superseding F4 — the retired class.delete op, owner ruling 2026-10-22):
  *  - Toggle-off is NEVER deletion (F3): the applier flips the family
  *    classes' registry `active` bit + class-node `is_active`, leaving
  *    `class_member_set` untouched — instances keep their class_ids and
@@ -19,12 +20,15 @@
  *    EVENTS is off, a birthday-classed one when EVENTS is off).
  *  - An absent `workspace_feature` row means ENABLED (F2 — all families
  *    default ON; the empty table is the pre-toggle state, zero migration).
- *  - A `class.delete` addressed at a family's BASE class is routed to the
- *    toggle (F4): applied as a feature-disable, so the Features setting is
- *    the single archive path and the lossy plain delete (membership
- *    tombstoning) never runs on managed classes. Family CHILDREN (book,
- *    meeting, …) are NOT F4 bases — a delete on those keeps plain
- *    semantics (the owner mapped F4 to the five bases exactly).
+ *  - Class-node delete routing (owner ruling 2026-10-22): `object.delete`
+ *    on a LOCKED system class (LOCKED_SYSTEM_CLASSES below) fails loud; on
+ *    a family BASE class it is routed to the toggle (applied as a
+ *    feature-disable — the Features setting is the single archive path
+ *    for the families); on any other non-locked system class it archives
+ *    (`active = false`), never trash; on a user class it is a plain trash
+ *    row. Membership RIDES in every arm — `class_member_set` is never
+ *    touched by class removal (archive or trash); stripping a class from
+ *    nodes stays the explicit per-node `class.unassign`.
  *  - The base system stays always-on (F1): journals (year/month/day),
  *    assets, whiteboard, the structural + admonition classes, and the
  *    classes of the DROPPED pre-reshape features (readItLater/library/
@@ -42,7 +46,7 @@ import {
 } from "./seeds.js";
 
 export interface WorkspaceFeatureSpec {
-  /** The family's base system class (the F4 routing target). */
+  /** The family's base system class (the delete-routing target). */
   baseClass: SystemClassName;
   /** Settings-tab label. */
   label: string;
@@ -50,8 +54,16 @@ export interface WorkspaceFeatureSpec {
   powers: string;
 }
 
+/**
+ * The family toggles: the five core class families. The `journal` toggle is
+ * NOT a family — it gates the journal SURFACES (nav view, Today-page
+ * management) while the date classes stay always-on structural seeds; it has
+ * no base class and derives no archival bits.
+ */
+export type FamilyFeature = Exclude<WorkspaceFeature, "journal">;
+
 /** The core class families (owner directive 2026-10-04). */
-export const WORKSPACE_FEATURE_MAP: Record<WorkspaceFeature, WorkspaceFeatureSpec> = {
+export const WORKSPACE_FEATURE_MAP: Record<FamilyFeature, WorkspaceFeatureSpec> = {
   tasks: {
     baseClass: "task",
     label: "Tasks",
@@ -115,6 +127,55 @@ export const ALWAYS_ON_SYSTEM_CLASSES: readonly SystemClassName[] = [
   "highlight",
 ];
 
+/**
+ * Locked system classes (owner ruling 2026-10-22, the classes-gallery batch):
+ * the core seeds that can NEVER be archived or deleted — `object.delete`
+ * fails loud (LockedSystemClassError) and an archival write
+ * (`object.update {active: false}`) is rejected the same way. This is the
+ * always-on set's locked CORE: the date chain + table, asset, query, code,
+ * template, comment. The other always-on classes (callouts, quote,
+ * whiteboard, …) are gallery-toggleable — disabling them archives
+ * (`active = false`), it never deletes. Membership rides; nothing here is
+ * ever feature-managed.
+ */
+export const LOCKED_SYSTEM_CLASSES: readonly SystemClassName[] = [
+  "year",
+  "month",
+  "day",
+  "table",
+  "asset",
+  "query",
+  "code",
+  "template",
+  "comment",
+];
+
+const LOCKED_CLASS_ID_SET: ReadonlySet<string> = new Set(
+  LOCKED_SYSTEM_CLASSES.map((name) => SYSTEM_CLASS_UUIDS[name]),
+);
+
+/** True when `classId` is a LOCKED system class (never archivable/deletable). */
+export function isLockedSystemClassId(classId: string): boolean {
+  return LOCKED_CLASS_ID_SET.has(classId);
+}
+
+const SYSTEM_CLASS_NAME_BY_ID = new Map<string, SystemClassName>(
+  (Object.entries(SYSTEM_CLASS_UUIDS) as Array<[SystemClassName, string]>).map(([name, id]) => [
+    id,
+    name,
+  ]),
+);
+
+/** The seed name for a system-class id, else null (user/unknown classes). */
+export function systemClassNameForId(classId: string): SystemClassName | null {
+  return SYSTEM_CLASS_NAME_BY_ID.get(classId) ?? null;
+}
+
+/** True when `feature` is a family toggle (derives class archival bits). */
+export function isFamilyFeature(feature: WorkspaceFeature): feature is FamilyFeature {
+  return feature in WORKSPACE_FEATURE_MAP;
+}
+
 const BASE_FEATURE_BY_CLASS = new Map<SystemClassName, WorkspaceFeature>(
   (Object.entries(WORKSPACE_FEATURE_MAP) as Array<[WorkspaceFeature, WorkspaceFeatureSpec]>).map(
     ([feature, spec]) => [spec.baseClass, feature],
@@ -126,13 +187,13 @@ export function featureForBaseClass(name: SystemClassName): WorkspaceFeature | n
   return BASE_FEATURE_BY_CLASS.get(name) ?? null;
 }
 
-let familyCache: Map<WorkspaceFeature, ReadonlyArray<SystemClassName>> | null = null;
+let familyCache: Map<FamilyFeature, ReadonlyArray<SystemClassName>> | null = null;
 
-function familyMap(): Map<WorkspaceFeature, ReadonlyArray<SystemClassName>> {
+function familyMap(): Map<FamilyFeature, ReadonlyArray<SystemClassName>> {
   if (familyCache !== null) return familyCache;
   const all = Object.keys(SYSTEM_CLASS_UUIDS) as SystemClassName[];
   familyCache = new Map(
-    (Object.entries(WORKSPACE_FEATURE_MAP) as Array<[WorkspaceFeature, WorkspaceFeatureSpec]>).map(
+    (Object.entries(WORKSPACE_FEATURE_MAP) as Array<[FamilyFeature, WorkspaceFeatureSpec]>).map(
       ([feature, spec]) => {
         const children = all.filter(
           (name) => name !== spec.baseClass && systemClassAncestors(name).has(spec.baseClass),
@@ -150,23 +211,23 @@ function familyMap(): Map<WorkspaceFeature, ReadonlyArray<SystemClassName>> {
  * extends-children (deterministic, sorted after the base). Disabling the
  * family archives exactly this set.
  */
-export function familyClassNames(feature: WorkspaceFeature): ReadonlyArray<SystemClassName> {
+export function familyClassNames(feature: FamilyFeature): ReadonlyArray<SystemClassName> {
   return familyMap().get(feature)!;
 }
 
 /** Resolved UUIDs of the family's full class set (the applier's flip list). */
-export function managedClassIds(feature: WorkspaceFeature): string[] {
+export function managedClassIds(feature: FamilyFeature): string[] {
   return familyClassNames(feature).map((name) => SYSTEM_CLASS_UUIDS[name]);
 }
 
 /**
- * F4 routing: the owning feature when `classId` is a family's BASE class,
- * else null. Children (book, meeting, birthday, …) deliberately do NOT
- * route — the owner mapped F4 to the five bases exactly.
+ * Class-node delete routing: the owning feature when `classId` is a family's
+ * BASE class, else null. Children (book, meeting, birthday, …) deliberately
+ * do NOT route — the owner mapped the routing to the five bases exactly.
  */
-export function featureForManagedClass(classId: string): WorkspaceFeature | null {
+export function featureForManagedClass(classId: string): FamilyFeature | null {
   for (const [feature, spec] of Object.entries(WORKSPACE_FEATURE_MAP) as Array<
-    [WorkspaceFeature, WorkspaceFeatureSpec]
+    [FamilyFeature, WorkspaceFeatureSpec]
   >) {
     if (SYSTEM_CLASS_UUIDS[spec.baseClass] === classId) return feature;
   }

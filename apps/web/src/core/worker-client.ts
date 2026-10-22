@@ -18,6 +18,7 @@ import { startTransition } from "react";
 import type { WorkspaceFeature } from "@notees/protocol";
 import type { GraphOptions, GraphTopology } from "@notees/store";
 import type {
+  ArchivedEntry,
   AssetInfo,
   AssetUploadResult,
   BlockTreeNode,
@@ -423,6 +424,16 @@ export class WorkerClient {
     return this.cachedRead<TrashedEntry[]>("listTrashed", [], []);
   }
 
+  /** The Archived surface's read: archived nodes (no trash row), newest first. */
+  listArchived(): ArchivedEntry[] {
+    return this.cachedRead<ArchivedEntry[]>("listArchived", [], []);
+  }
+
+  /** Archived CLASS nodes (the class picker's dimmed enable matches). */
+  listArchivedClasses(): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("listArchivedClasses", [], []);
+  }
+
   listClasses(): ClientNode[] {
     return this.cachedRead<ClientNode[]>("listClasses", [], []);
   }
@@ -661,6 +672,11 @@ export class WorkerClient {
 
   async updateObject(id: string, fields: UpdateObjectInput): Promise<void> {
     await this.call("updateObject", [id, fields]);
+  }
+
+  /** Archive / unarchive a node (object.update {active}). */
+  async setArchived(id: string, active: boolean): Promise<void> {
+    await this.call("setArchived", [id, active]);
   }
 
   async deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void> {

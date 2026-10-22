@@ -22,14 +22,16 @@
  * ensureTaskFamily — deployment delegates to it after the class node
  * exists.
  *
- * The deployment CATALOG (which classes the ClassCreateModal offers) is
- * the domain feature gate: DEPLOYABLE_SYSTEM_CLASSES in
- * @notees/domain (features.ts) — this module never mints the list.
+ * The deployment CATALOG (which classes the gallery offers, owner ruling
+ * 2026-10-22) is this module's `gallerySections` — the domain supplies the
+ * seed manifest + the locked set; this module never mints new vocabulary.
  */
 
 import {
-  DEPLOYABLE_SYSTEM_CLASSES,
+  featureForBaseClass,
+  LOCKED_SYSTEM_CLASSES,
   SYSTEM_CLASS_DISPLAY_NAMES,
+  SYSTEM_CLASS_DESCRIPTIONS,
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_UUIDS,
@@ -41,6 +43,8 @@ import {
   type SystemPropertyName,
 } from "@notees/domain";
 
+import type { WorkspaceFeature } from "@notees/protocol";
+
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
@@ -49,24 +53,19 @@ import { ensureTaskFamily } from "./taskFamily.js";
 type AnyClient = WorkspaceClient | WorkerClient;
 
 /**
- * The seeded system classes a workspace does not have yet — the
- * ClassCreateModal's deploy catalog (#14). Read through getNodeRaw so an
- * existing class (server-seeded or previously deployed) never reappears.
- */
-export function deployableSystemClasses(
-  client: Pick<AnyClient, "getNodeRaw">,
-): SystemClassName[] {
-  return DEPLOYABLE_SYSTEM_CLASSES.filter(
-    (name) => client.getNodeRaw(SYSTEM_CLASS_UUIDS[name]) === undefined,
-  );
-}
-
-/**
  * Deploy one system class at its fixed seed uuid: ancestors first, then
  * the class node, then the extends edges, then the property family. A
  * complete no-op once present (including a dropped edge or binding — the
  * per-step existence checks re-author whatever is missing). The recursion
  * guard is defensive: the seed's extends graph is a DAG by construction.
+ *
+ * Enable semantics (owner ruling 2026-10-22, the classes-gallery batch):
+ * picking a class in the gallery ENABLES it. A family base picked while
+ * its feature toggle is off writes `workspace.feature.set {enabled: true}`
+ * FIRST (the F4 inverse — the toggle derivation revives the whole family,
+ * membership rides); any other archived seed is un-archived with
+ * `object.update {active: true}` after the rows exist. Disable is the
+ * delete gesture's routing (never this helper).
  */
 export async function deploySystemClass(
   client: AnyClient,
@@ -85,11 +84,26 @@ export async function deploySystemClass(
     await deploySystemClass(client, parent, guard);
   }
 
+  // The F4 inverse: a family base deploy ENABLES its feature — the toggle
+  // derivation archives/revives the whole family, so a disabled family
+  // revives with this one write (the class rows below land active).
+  const ownFeature = featureForBaseClass(key);
+  if (ownFeature !== null && !client.isFeatureEnabled(ownFeature)) {
+    await client.setFeatureEnabled(ownFeature, true);
+  }
+
   if (client.getNodeRaw(classId) === undefined) {
     await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES[key], {
       id: classId,
       icon: SYSTEM_CLASS_ICONS[key],
     });
+  }
+
+  // Un-archive an archived seed (the gallery's enable pick). The family
+  // rows were revived by the toggle derivation above; this covers every
+  // other archived class (and is a no-op when the bit already stands).
+  if (client.getNodeRaw(classId)?.isActive === false) {
+    await client.updateObject(classId, { active: true });
   }
 
   if (parents.length > 0) {
@@ -189,4 +203,145 @@ export async function ensureWeblinkExtendsSource(client: AnyClient): Promise<voi
   const current = client.getClassParents(SYSTEM_CLASS_UUIDS.weblink);
   if (current.includes(SYSTEM_CLASS_UUIDS.source)) return;
   await deploySystemClass(client, "weblink");
+}
+
+// --- the classes gallery (owner ruling 2026-10-22) --------------------------------
+//
+// The class-creation entry point is a Capacities-style gallery: a card grid
+// of the system classes the workspace does not have ENABLED, grouped in
+// sections, where picking a card ENABLES the class (deploySystemClass — the
+// F4 inverse for family bases, un-archive for archived seeds). Locked
+// classes never appear (un-removable platform structure); enabled classes
+// are managed on their class pages, not here.
+
+/** Section grouping for the gallery card grid (presentation only). */
+const GALLERY_SECTIONS: Array<{ id: string; title: string; members: SystemClassName[] }> = [
+  {
+    id: "people",
+    title: "People",
+    members: ["person", "organization", "agent"],
+  },
+  {
+    id: "sources",
+    title: "Sources",
+    members: ["source", "book", "paper", "article", "thesis", "document", "weblink", "conference"],
+  },
+  {
+    id: "events-tasks",
+    title: "Events & tasks",
+    members: ["event", "meeting", "birthday", "trip", "task"],
+  },
+  {
+    id: "knowledge",
+    title: "Knowledge",
+    members: [
+      "quote",
+      "definition",
+      "idea",
+      "project",
+      "place",
+      "collection",
+      "highlight",
+      "card",
+      "cloze",
+      "note",
+      "tip",
+      "info",
+      "warning",
+      "danger",
+      "success",
+    ],
+  },
+  {
+    id: "media",
+    title: "Media",
+    members: ["movie", "song", "tv_series"],
+  },
+  {
+    id: "more",
+    title: "More",
+    members: ["whiteboard"],
+  },
+];
+
+const LOCKED_SET: ReadonlySet<SystemClassName> = new Set(LOCKED_SYSTEM_CLASSES);
+
+export interface GalleryEntry {
+  key: SystemClassName;
+  /** False when the class node exists but is archived (pick re-enables). */
+  missing: boolean;
+}
+
+export interface GallerySection {
+  id: string;
+  title: string;
+  entries: GalleryEntry[];
+}
+
+/**
+ * The gallery's catalog: every non-locked system class the workspace does
+ * not have enabled — the node missing entirely, or present but archived
+ * (the gallery's disabled state). Enabled classes (node exists, active)
+ * are managed on their class pages and never listed. Read through
+ * getNodeRaw; the modal re-reads on every render so a pick drops the card
+ * out of the grid.
+ */
+export function gallerySections(
+  client: Pick<AnyClient, "getNodeRaw">,
+): GallerySection[] {
+  const offered = new Set<SystemClassName>();
+  const sections: GallerySection[] = [];
+  for (const section of GALLERY_SECTIONS) {
+    const entries: GalleryEntry[] = [];
+    for (const key of section.members) {
+      if (LOCKED_SET.has(key) || offered.has(key)) continue;
+      offered.add(key);
+      const node = client.getNodeRaw(SYSTEM_CLASS_UUIDS[key]);
+      if (node !== undefined && node.isActive) continue;
+      entries.push({ key, missing: node === undefined });
+    }
+    if (entries.length > 0) sections.push({ id: section.id, title: section.title, entries });
+  }
+  return sections;
+}
+
+/** The card text pair (display name + one-line description). */
+export function galleryCardText(key: SystemClassName): { label: string; description: string } {
+  return {
+    label: SYSTEM_CLASS_DISPLAY_NAMES[key],
+    description: SYSTEM_CLASS_DESCRIPTIONS[key],
+  };
+}
+
+/**
+ * Enable one ARCHIVED system class (the picker's dimmed Enable row) — the
+ * gallery pick semantics for a class whose node already exists: a family
+ * base writes the toggle's `{enabled: true}` (the F4 inverse — the toggle
+ * derivation revives the whole family's rows); any other archived class
+ * un-archives (`object.update {active: true}`). The minimal seam (no
+ * deploy/ensure — the node exists, only its bit is off).
+ */
+export interface EnableArchivedClient {
+  isFeatureEnabled?(feature: string): boolean;
+  setFeatureEnabled?(feature: WorkspaceFeature, enabled: boolean): Promise<void>;
+  updateObject(id: string, fields: { active?: boolean }): Promise<void>;
+}
+
+export async function enableArchivedSystemClass(
+  client: EnableArchivedClient,
+  key: SystemClassName,
+): Promise<void> {
+  const feature = featureForBaseClass(key);
+  // Absent read / absent writer = enabled / best-effort (minimal seams):
+  // a family base with the toggle off goes through the F4 inverse when the
+  // toggle write is available; the unarchive below is the catch-all.
+  if (
+    feature !== null &&
+    client.setFeatureEnabled !== undefined &&
+    client.isFeatureEnabled?.(feature) === false
+  ) {
+    await client.setFeatureEnabled(feature, true);
+    return;
+  }
+  await client.updateObject(SYSTEM_CLASS_UUIDS[key], { active: true });
 }

@@ -67,7 +67,18 @@ export class WorkspaceClientWrites {
     if (fields.aliasedNodeId !== undefined) payload.aliasedNodeId = fields.aliasedNodeId;
     if (fields.description !== undefined) payload.description = fields.description;
     if (fields.listStyle !== undefined) payload.listStyle = fields.listStyle;
+    if (fields.active !== undefined) payload.active = fields.active;
     this.ctx.enqueueLocal(this.ctx.buildEnvelope("object.update", payload, [id]));
+  }
+
+  /**
+   * Archive / unarchive a node (object.update {active} — the classes-gallery
+   * batch): false archives (reversible; the node leaves every default read
+   * with no trash row), true unarchives. The store refuses the archival
+   * direction for locked system classes and family bases (fail loud).
+   */
+  async setArchived(id: string, active: boolean): Promise<void> {
+    await this.updateObject(id, { active });
   }
 
   /** Trash (default) or permanently delete an object and its subtree. */

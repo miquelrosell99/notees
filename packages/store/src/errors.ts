@@ -48,6 +48,16 @@ export class CycleError extends StoreError {}
 export class SystemExtendsLockError extends StoreError {}
 
 /**
+ * object.delete (or an archival `object.update {active: false}`) addressed
+ * at a LOCKED system class — the date chain (year/month/day) + table, asset,
+ * query, code, template, comment (owner ruling 2026-10-22, the
+ * classes-gallery batch; LOCKED_SYSTEM_CLASSES in @notees/domain). Locked
+ * classes are platform structure: they can never be archived or deleted.
+ * Fails loud, never applied.
+ */
+export class LockedSystemClassError extends StoreError {}
+
+/**
  * object.update arrived with the canonical CRDT wire carrier
  * (contentDeltaB64) but no readable contentAst mirror. The Yjs port is
  * still-owed store/sync work; until it lands this carrier cannot be interpreted, so the

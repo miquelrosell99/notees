@@ -202,7 +202,7 @@ describe("PageView rendering", () => {
     expect(link.classList.contains("nt-chip")).toBe(false);
   });
 
-  it("a class_link whose class was DELETED renders pending; clicking re-assigns", async () => {
+  it("a class_link the node does NOT carry renders pending; clicking re-assigns", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Divergence" });
     const classId = await client.createClass("correo");
@@ -210,12 +210,17 @@ describe("PageView rendering", () => {
       parentId: pageId,
       contentAst: [{ type: "class_link", classId }],
     });
-    // The content assertion assigned the class at create — and class.unassign
-    // refuses while the content references it, so the ONLY reachable
-    // divergence is a deleted class: the delete sweeps memberships, the
-    // content link remains.
+    // Membership RIDES since the 2026-10-22 classes-gallery batch: every
+    // write path (content assertion, unassign-refusal) keeps membership and
+    // content in lockstep, and no class removal tombstones the pair — so
+    // the "referenced, not assigned" divergence is now ONLY a legacy /
+    // migrated-log state. Reproduce it at the projection level (a
+    // pre-migration store where the sweep ran but the content link
+    // remained), exactly the tolerance the renderer exists for.
     expect(client.getNode(blockId)?.classIds).toEqual([classId]);
-    await client.deleteObject(classId); // trash: the class-delete sweep clears memberships, the content link remains
+    client.store.database
+      .prepare("UPDATE node SET class_ids = '[]' WHERE id = ?")
+      .run(blockId);
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const tree = container.querySelector(".nt-block-tree") as HTMLElement;

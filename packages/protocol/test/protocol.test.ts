@@ -42,11 +42,10 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the thirty-seven required fixtures", () => {
+  it("has exactly the thirty-eight required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
-      "class-delete-managed.json",
       "class-extends-cycle.json",
       "class-extends-m2m.json",
       "class-extends-system-lock.json",
@@ -64,11 +63,13 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "link-embedded.json",
       "object-color.json",
       "object-create.json",
+      "object-delete-class-routing.json",
       "object-is-embedded.json",
       "object-list-style.json",
       "object-move-before.json",
       "object-move.json",
       "object-restore.json",
+      "object-update-active.json",
       "object-wire-fields.json",
       "property-asset-type.json",
       "property-date-qualifier.json",
@@ -462,22 +463,82 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     ).toBe(false);
   });
 
-  it("class-delete-managed fixture: the delete addresses the seeded task class (F4 routing target)", () => {
-    const fixture = fixtures.find((f) => f.name === "class-delete-managed.json")!;
-    const [create, member, del, reenable] = fixture.envelopes;
-    expect(create!.opType).toBe("class.create");
-    expect((create!.payload as { classId: string }).classId).toBe(
-      "00000000-0000-0000-0001-000000000012",
+  it("workspace-feature-set fixture also exercises the journal toggle: surfaces-only, off then on", () => {
+    const fixture = fixtures.find((f) => f.name === "workspace-feature-set.json")!;
+    const journal = fixture.envelopes.filter(
+      (env) => (env.payload as { feature: string }).feature === "journal",
     );
-    expect((member!.payload as { classIds: string[] }).classIds).toEqual([
-      "00000000-0000-0000-0001-000000000012",
+    // The journal toggle rides the same LWW row as the families: an
+    // off→on pair — the re-enable wins (the date classes stay always-on;
+    // the toggle gates surfaces, not classes).
+    expect(journal.map((env) => (env.payload as { enabled: boolean }).enabled)).toEqual([
+      false,
+      true,
     ]);
-    expect(del!.opType).toBe("class.delete");
-    expect(reenable!.opType).toBe("workspace.feature.set");
-    expect((reenable!.payload as { feature: string; enabled: boolean })).toEqual({
-      feature: "tasks",
-      enabled: true,
-    });
+    const hlcA = journal[0]!.hlc as { physical: number; logical: number };
+    const hlcB = journal[1]!.hlc as { physical: number; logical: number };
+    expect(compareHlc(hlcA, hlcB)).toBeLessThan(0);
+    // Strict schema: the plural spelling stays rejected outright.
+    expect(
+      payloadSchemaFor("workspace.feature.set")!.safeParse({ feature: "journals", enabled: false })
+        .success,
+    ).toBe(false);
+  });
+
+  it("object-update-active fixture archives then unarchives via the active bit", () => {
+    const fixture = fixtures.find((f) => f.name === "object-update-active.json")!;
+    const page = "0192a000-0000-7000-8000-000000000a20";
+    const other = "0192a000-0000-7000-8000-000000000a21";
+    const updates = fixture.envelopes.filter((env) => env.opType === "object.update");
+    // Archive page, archive the other page, unarchive page — one archived
+    // node remains at the end (the default read hides it; the unarchived
+    // one is back).
+    expect(updates.map((env) => env.payload as Record<string, unknown>)).toEqual([
+      { objectId: page, active: false },
+      { objectId: other, active: false },
+      { objectId: page, active: true },
+    ]);
+    // Strict schema: a non-boolean active is rejected outright.
+    expect(
+      objectUpdatePayload.safeParse({ objectId: page, active: "yes" }).success,
+    ).toBe(false);
+    // The bit is object.update-only — object.create carries no
+    // appearance/fundamental fields (the wire-fields precedent).
+    expect(
+      payloadSchemaFor("object.create")!.safeParse({ objectId: page, active: false }).success,
+    ).toBe(false);
+    // Applicable in sequence: HLCs strictly ascend.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("object-delete-class-routing fixture addresses all four class-node delete arms", () => {
+    const fixture = fixtures.find((f) => f.name === "object-delete-class-routing.json")!;
+    const TASK = "00000000-0000-0000-0001-000000000012";
+    const YEAR = "00000000-0000-0000-0001-000000000003";
+    const QUOTE = "00000000-0000-0000-0001-000000000006";
+    const GENRE = "0192a000-0000-7000-8000-000000000a23";
+    const deletes = fixture.envelopes.filter((env) => env.opType === "object.delete");
+    // Family base (task) → routed to the tasks toggle; locked system class
+    // (year) → fails loud at the applier; other system class (quote) →
+    // archival, not trash; user class (Genre) → plain trash row. The
+    // payload is unchanged in every arm — routing is applier semantics.
+    expect(deletes.map((env) => env.payload as Record<string, unknown>)).toEqual([
+      { objectId: TASK, permanent: false },
+      { objectId: YEAR, permanent: false },
+      { objectId: QUOTE, permanent: false },
+      { objectId: GENRE, permanent: false },
+    ]);
+    // Membership carriers ride along: the task member and the Genre member
+    // exist, and the class.delete op is retired — rejected outright like
+    // any unknown op type (the strict registry carries no schema for it).
+    expect(KNOWN_OP_TYPES).not.toContain("class.delete");
+    expect(payloadSchemaFor("class.delete")).toBeUndefined();
+    const creates = fixture.envelopes.filter((env) => env.opType === "object.create");
+    expect(
+      creates.map((env) => (env.payload as { classIds: string[] }).classIds),
+    ).toEqual([[TASK], [GENRE]]);
+    // Applicable in sequence: HLCs strictly ascend.
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
   });

@@ -203,7 +203,7 @@ function renderFeaturesTab(client: AnyClient | undefined) {
 }
 
 describe("Workspace Settings Features tab (lockstep SHIPPED)", () => {
-  it("lists the five core families with icon, powers line, and a LIVE ToggleSwitch", () => {
+  it("lists the five core families plus the journal toggle, each with a LIVE ToggleSwitch", () => {
     renderFeaturesTab(featureClient({}));
     const entries = Object.entries(WORKSPACE_FEATURE_MAP);
     expect(entries).toHaveLength(5);
@@ -211,8 +211,12 @@ describe("Workspace Settings Features tab (lockstep SHIPPED)", () => {
       expect(screen.getByText(spec.label)).toBeInTheDocument();
       expect(screen.getByText(new RegExp(spec.powers.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).toBeInTheDocument();
     }
+    // The journal toggle (owner ruling 2026-10-22) rides below the families
+    // — surfaces-only copy, no class family.
+    expect(screen.getByText("Journal")).toBeInTheDocument();
+    expect(screen.getByText(/journal view and Today-page management/i)).toBeInTheDocument();
     const switches = screen.getAllByRole("switch");
-    expect(switches).toHaveLength(5);
+    expect(switches).toHaveLength(6);
     for (const toggle of switches) {
       // Lockstep shipped (GTK/Flutter v3.0.0): the toggles write.
       expect(toggle).toBeEnabled();

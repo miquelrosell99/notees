@@ -60,6 +60,8 @@ interface MenuClient extends CloneReadSurface, CloneWriteSurface {
   updateObject(id: string, fields: { listStyle?: ListStyle | null }): Promise<void>;
   /** Content rewrites — the heading conversion rides this (headingConvert). */
   updateObject(id: string, fields: { contentAst?: ContentAst }): Promise<void>;
+  /** The archival bit — the Archive gesture (owner ruling 2026-10-22). */
+  updateObject(id: string, fields: { active?: boolean }): Promise<void>;
   /** Reparenting — the block→page extraction rides this (extractToPage). */
   moveObject(
     id: string,
@@ -524,6 +526,23 @@ export function NodeContextMenu({
     });
   }
   items.push({ id: "s2", label: "", separator: true });
+  // Archive (owner ruling 2026-10-22): a reversible state, not deletion —
+  // no confirmation. Class nodes are excluded: class disable rides the
+  // gallery (the routing refuses direct archival for locked classes and
+  // family bases anyway).
+  if (!node.isClass) {
+    items.push({
+      id: "archive",
+      label: "Archive",
+      icon: "mdi-archive-arrow-down-outline",
+      onClick: () => {
+        void client.updateObject(node.id, { active: false }).then(() => {
+          notificationStore.success("Archived", name);
+          onDeleted?.(node);
+        });
+      },
+    });
+  }
   // Inline blocks delete instantly; pages and classes ask in the reusable
   // ConfirmationModal (danger) — the menu closes, the modal decides.
   const confirmDelete = !rendersAsInlineBlock(node, parentFacts);

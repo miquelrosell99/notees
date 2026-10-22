@@ -28,6 +28,7 @@ import { CalendarView } from "../../features/calendar/CalendarView.js";
 import { QueriesHub } from "../../features/collection/QueriesHub.js";
 import { GraphView } from "../../features/collection/graph/GraphView.js";
 import { TrashHub } from "../../features/trash/TrashHub.js";
+import { ArchivedHub } from "../../features/archived/ArchivedHub.js";
 import { SharesHub } from "../../features/sharing/SharesHub.js";
 import { NodeCardFrame } from "../../features/collection/NodeCardFrame.js";
 import { todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
@@ -148,7 +149,11 @@ export function AppBody(props: AppBodyProps) {
           // entry before Journal): ensure the chain and open the day page.
           if (key === "today") {
             const live = clientRef.current;
-            if (live !== null) {
+            // The journal toggle gates Today-page management (owner ruling
+            // 2026-10-22): while it is off the Today writer stays silent —
+            // no chain auto-creation. The sidebar hides the entry too; this
+            // guard covers palette/deep-link routes.
+            if (live !== null && live.isFeatureEnabled("journal")) {
               void live.ensureDateChain(todayIsoLocal()).then(({ day }) => openPage(day));
             }
             return;
@@ -223,6 +228,13 @@ export function AppBody(props: AppBodyProps) {
              sidebar surface restored for the web). Reached from the
              account popup since 2026-10-19. */
           <TrashHub client={client} onOpenNode={openPage} />
+        ) : activeNav === "archived" ? (
+          /* The Archived hub (owner ruling 2026-10-22, the classes-gallery
+             batch): the archival side of the liveness bit — archived nodes
+             (no trash row) with unarchive / delete actions. Reached from
+             the account popup, beside Trash. Owns /archived + the tab
+             title through the nav register. */
+          <ArchivedHub client={client} onOpenNode={openPage} />
         ) : activeNav === "shares" ? (
           /* The Shares hub (owner 2026-10-19): the v1 SharesUnifiedView's
              Shared-Out tab over the v2 public-link share register —

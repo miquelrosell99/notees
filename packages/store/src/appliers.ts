@@ -37,15 +37,19 @@ import {
   gatingFeaturesForClass,
   dateChainClassId,
   dateChainParentId,
+  isFamilyFeature,
+  isLockedSystemClassId,
   managedClassIds,
   parseDateNodeId,
   plainTextExcerpt,
   stringifyContentAst,
+  systemClassNameForId,
   SYSTEM_CLASS_EXTENDS_IDS,
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
   TASK_FAMILY_SEED,
+  type FamilyFeature,
 } from "@notees/domain";
 
 import { reindexNode, removeSearchIndexEntry } from "./search.js";
@@ -62,6 +66,7 @@ import {
   CycleError,
   EnvelopeValidationError,
   isSqliteError,
+  LockedSystemClassError,
   MoveGuardError,
   NotFoundError,
   PropertyValueShapeError,
@@ -799,6 +804,42 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     sets.push("list_style = ?");
     values.push(p.listStyle);
   }
+  // Archival bit (owner ruling 2026-10-22, the classes-gallery batch):
+  // presence writes — `false` archives, `true` unarchives. A reversible
+  // STATE, distinct from the trash table (deletion). Archival REFUSALS:
+  // the locked system classes can never be archived, and family bases are
+  // toggle-managed (the Features setting is their single archive path) —
+  // both fail loud below; unarchiving is harmless and stays legal. Class
+  // rows mirror the bit to the registry projection below (the
+  // feature-derivation pattern).
+  if (p.active !== undefined) {
+    if (p.active === false && row.is_class === 1) {
+      // Locked system classes can never be archived (the delete routing's
+      // locked arm applies to the archival write path too).
+      if (isLockedSystemClassId(p.objectId)) {
+        throw new LockedSystemClassError(
+          `${opType}: ${systemClassNameForId(p.objectId)} is a locked system class — it can never be archived ` +
+            "(archival is gallery-toggleable for every OTHER system class)",
+          opType,
+        );
+      }
+      // Family bases are toggle-managed: the Features setting is the single
+      // archive path for the families (the delete routing's arm 2). A direct
+      // archival write would diverge the class bit from the toggle until the
+      // next re-derivation — refused, fail loud. (Unarchiving stays legal:
+      // it heals, never diverges harmfully.)
+      const managedFeature = featureForManagedClass(p.objectId);
+      if (managedFeature !== null) {
+        throw new MoveGuardError(
+          `${opType}: ${systemClassNameForId(p.objectId)} is a family base class — archival is toggle-managed ` +
+            `(workspace.feature.set {feature: "${managedFeature}", enabled: false}); direct archival writes are refused`,
+          opType,
+        );
+      }
+    }
+    sets.push("is_active = ?");
+    values.push(p.active ? 1 : 0);
+  }
   let assertedClassIds: string[] = [];
   if (p.contentAst !== undefined) {
     // Class content stays text-only; every other node keeps the rich token
@@ -865,6 +906,19 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   if (p.aliasedNodeId !== undefined) {
     reresolveEdgeTargets(db, [p.objectId]);
   }
+  // An archival flip changes node liveness, which gates alias-chain
+  // resolution (the walk is live-aware) — re-materialize the edge rows whose
+  // chains touch the node. On a class row the bit ALSO mirrors to the
+  // registry projection (`class.active`, the pickers/class-hubs read — the
+  // feature-derivation pattern): the class node's bit is the authority, the
+  // registry column its direct projection. No HLC/timestamp writes on the
+  // registry row — the op's HLC already landed on the node row above.
+  if (p.active !== undefined) {
+    if (row.is_class === 1) {
+      db.prepare("UPDATE class SET active = ? WHERE id = ?").run(p.active ? 1 : 0, p.objectId);
+    }
+    reresolveEdgeTargets(db, [p.objectId]);
+  }
   return summary(opType, [p.objectId]);
 }
 
@@ -874,16 +928,69 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   requireNode(db, p.objectId, opType);
   const ts = env.timestamp;
   const affected = new Set<string>([p.objectId, ...ancestorIds(db, p.objectId)]);
-  // Class-node deletion sweeps memberships (the no-divergence law): the
-  // class leaves every node's class_ids — a trashed class tombstones the
-  // pairs (restore brings the class back, not the memberships — the same
-  // lossy semantics class.delete documents), a permanent delete purges
-  // them. class_links in survivors' content survive and render pending
-  // (dangling references to a deleted class are a render-side state, not a
-  // membership lie).
-  const deletedIsClass =
-    (db.prepare("SELECT is_class FROM node WHERE id = ?").get(p.objectId) as { is_class: number } | undefined)
-      ?.is_class === 1;
+  // Class-node delete routing (owner ruling 2026-10-22 — the retired
+  // class.delete op's routing, moved here; SCHEMA.md "Workspace features").
+  // Classes are nodes: one delete op, four applier-decided outcomes, all a
+  // pure function of the class id so every replica takes the same branch.
+  // MEMBERSHIP RIDES in every arm — `class_member_set` rows are never
+  // touched by class removal (archive or trash); stripping a class from
+  // nodes stays the explicit per-node `class.unassign`.
+  const nodeRow = db
+    .prepare("SELECT is_class FROM node WHERE id = ?")
+    .get(p.objectId) as { is_class: number } | undefined;
+  const deletedIsClass = nodeRow?.is_class === 1;
+
+  if (deletedIsClass) {
+    // Arm 1 — LOCKED system classes (the date chain + table, asset, query,
+    // code, template, comment): platform structure, never archivable or
+    // deletable. Fails loud, never applied — regardless of `permanent`.
+    if (isLockedSystemClassId(p.objectId)) {
+      throw new LockedSystemClassError(
+        `${opType}: ${systemClassNameForId(p.objectId)} is a locked system class — it can never be deleted`,
+        opType,
+      );
+    }
+    // Arm 2 — a family BASE class (task, event, meeting, source, person):
+    // routed to the toggle, applied as a feature-disable (the LWW row + the
+    // family re-derivation — the Features setting stays the single archive
+    // path for the families, and the whole extends family archives with the
+    // base). The route decision rides the envelope's HLC, so a racing
+    // toggle converges under either delivery order (the row gate).
+    const managedFeature = featureForManagedClass(p.objectId);
+    if (managedFeature !== null) {
+      const wrote = lwwWriteFeatureRow(db, env, managedFeature, false);
+      if (wrote) {
+        deriveFamilyClassBits(db, env.workspaceId, managedFeature);
+      }
+      return summary(
+        opType,
+        wrote ? managedClassIds(managedFeature) : [p.objectId],
+        !wrote,
+      );
+    }
+    // Arm 3 — any OTHER non-locked system class: re-wired to ARCHIVAL
+    // (`active = false`), NOT trash (the gallery's disable gesture; the
+    // system picks the most reversible interpretation — disable = delete).
+    // No trash row: the node is restorable with `object.update
+    // {active: true}`, not `object.restore` (archive is not deletion).
+    // `permanent` is ignored on this arm — archival is the only delete a
+    // system class admits.
+    if (systemClassNameForId(p.objectId) !== null) {
+      db.prepare("UPDATE node SET is_active = 0, updated_at = ? WHERE id = ?").run(
+        ts,
+        p.objectId,
+      );
+      db.prepare("UPDATE class SET active = 0, updated_at = ? WHERE id = ?").run(ts, p.objectId);
+      // The archival flip gates alias-chain resolution (the walk is
+      // live-aware) — re-materialize the edge rows touching the class node.
+      reresolveEdgeTargets(db, [p.objectId]);
+      rebuildNodeStats(db, [...affected]);
+      return summary(opType, [...affected]);
+    }
+    // Arm 4 — a USER class: falls through to the plain trash path below
+    // (soft delete with a trash row, restorable from the Trash hub — the
+    // whole subtree rides, exactly like any node).
+  }
 
   if (!p.permanent) {
     // Soft delete: trash the subtree (SCHEMA.md deletion
@@ -900,37 +1007,11 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
     // THROUGH a trashed node collapse to their last live link.
     reresolveEdgeTargets(db, ids);
     rebuildNodeStats(db, [...affected]);
-    if (deletedIsClass) {
-      sweepClassMembership(db, p.objectId, false);
-    }
     return summary(opType, [...affected]);
   }
 
   permanentlyDeleteSubtree(db, p.objectId, ts);
-  if (deletedIsClass) {
-    sweepClassMembership(db, p.objectId, true);
-  }
   return summary(opType, [...affected]);
-}
-
-/**
- * A deleted class leaves every node's class_ids (the no-divergence law's
- * deletion arm): `purge` deletes the membership rows outright (permanent
- * delete / trash.empty), otherwise the pairs are tombstoned with the op's
- * HLC (trash — restore brings the class node back; membership is
- * re-assertable from content or re-assignable). Shared by object.delete's
- * class path; class.delete's own applier keeps its F4 feature routing.
- */
-function sweepClassMembership(db: StoreDatabase, classId: string, purge: boolean): void {
-  const members = db
-    .prepare("SELECT node_id FROM class_member_set WHERE class_id = ? AND present = 1")
-    .all(classId) as Array<{ node_id: string }>;
-  if (purge) {
-    db.prepare("DELETE FROM class_member_set WHERE class_id = ?").run(classId);
-  } else {
-    db.prepare("UPDATE class_member_set SET present = 0 WHERE class_id = ?").run(classId);
-  }
-  for (const row of members) recomputeClassIds(db, row.node_id);
 }
 
 /**
@@ -1025,9 +1106,9 @@ function applyTrashEmpty(db: StoreDatabase, env: Envelope): ChangeSummary {
     affected.add(node_id);
     for (const id of ancestorIds(db, node_id)) affected.add(id);
     permanentlyDeleteSubtree(db, node_id, ts);
-    // A class emptied from the trash purges its memberships with it (the
-    // no-divergence law's deletion arm — same sweep object.delete runs).
-    if (row.is_class === 1) sweepClassMembership(db, node_id, true);
+    // A class emptied from the trash keeps its memberships (owner ruling
+    // 2026-10-22 — membership rides): the surviving pairs become the
+    // dangling-reference render state (SCHEMA.md "Content grammar", Fork 3).
   }
   rebuildNodeStats(db, [...affected]);
   return summary(opType, [...affected]);
@@ -1041,7 +1122,11 @@ function applyTrashEmpty(db: StoreDatabase, env: Envelope): ChangeSummary {
  * and stays trashed — so the reactivation set is "subtree minus the
  * independently-trashed branches", computed by walking up from each id to
  * the root and bailing at the first own-trash-row ancestor. The root's own
- * trash row is consumed. Corner: parent row missing (permanently deleted —
+ * trash row is consumed. With NO trash row on the root there is nothing to
+ * restore: a safe no-op (archive is not trash — an archived node's
+ * unarchive path is `object.update {active: true}`, never object.restore;
+ * restoring a live node stays the promote-gesture no-op). Corner: parent
+ * row missing (permanently deleted —
  * the chain above is unknowable from the derived store) → reparent to the
  * workspace root; a present-but-inactive parent is left alone (transient
  * state that restoring the parent heals — never data loss). LWW against
@@ -1062,6 +1147,15 @@ function applyObjectRestore(db: StoreDatabase, env: Envelope): ChangeSummary {
       db.prepare("UPDATE node SET parent_id = NULL WHERE id = ?").run(p.objectId);
       root.parent_id = null;
     }
+  }
+
+  // Archive is not trash (owner ruling 2026-10-22): without a trash row on
+  // the root there is no trash event to restore from — the op is a safe
+  // no-op (the promote-gesture precedent: restoring a live carrier no-ops).
+  // An ARCHIVED node (is_active = 0, no trash row) is therefore NOT
+  // reactivated here: unarchive rides `object.update {active: true}`.
+  if (db.prepare("SELECT 1 FROM trash WHERE node_id = ?").get(p.objectId) === undefined) {
+    return summary(opType, [p.objectId]);
   }
 
   const ids = subtreeIds(db, p.objectId);
@@ -1404,40 +1498,6 @@ function applyClassUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   // A title change re-renders the class unfindable under its old text —
   // reindex whenever the indexed fields may have changed.
   if (p.contentAst !== undefined) reindexNode(db, p.classId);
-  return summary(opType, [p.classId]);
-}
-
-function applyClassDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
-  const opType = "class.delete";
-  const p = env.payload as OpPayload<"class.delete">;
-  // F4: a delete addressed at a family BASE class is routed
-  // to the toggle — applied as a feature-disable so the Features setting is
-  // the single archive path for the families and the lossy plain delete
-  // (membership tombstoning below) never runs on them. Only the five bases
-  // route (owner mapping); family children (book, meeting, …) keep plain
-  // semantics. The route decision is a pure function of the class id (fixed
-  // vocabulary), so every replica takes the same branch; the LWW row gate
-  // keeps the derived state convergent under either delivery order.
-  const managedFeature = featureForManagedClass(p.classId);
-  if (managedFeature !== null) {
-    const wrote = lwwWriteFeatureRow(db, env, managedFeature, false);
-    if (wrote) {
-      deriveFamilyClassBits(db, env.workspaceId, managedFeature);
-    }
-    return summary(opType, wrote ? managedClassIds(managedFeature) : [p.classId], !wrote);
-  }
-  db.prepare("UPDATE class SET active = 0, updated_at = ? WHERE id = ?").run(env.timestamp, p.classId);
-  db.prepare("UPDATE node SET is_active = 0, updated_at = ? WHERE id = ?").run(env.timestamp, p.classId);
-  // The archival flips node liveness, which gates alias-chain resolution —
-  // re-materialize the edge rows whose chains touch the class node.
-  reresolveEdgeTargets(db, [p.classId]);
-  // The class leaves every node's class_ids: tombstone the membership rows
-  // and recompute the affected nodes (otherwise pills render dangling ids).
-  const affected = db
-    .prepare("SELECT node_id FROM class_member_set WHERE class_id = ? AND present = 1")
-    .all(p.classId) as Array<{ node_id: string }>;
-  db.prepare("UPDATE class_member_set SET present = 0 WHERE class_id = ?").run(p.classId);
-  for (const row of affected) recomputeClassIds(db, row.node_id);
   return summary(opType, [p.classId]);
 }
 
@@ -2459,13 +2519,16 @@ function applyCollectionMember(
 // and the applier derives the membership-preserving archival of the
 // feature's managed system classes from it. Toggle-off is hide-surfaces-
 // keep-data (F3): `class.active` + the class node's `is_active` flip,
-// `class_member_set` rows NEVER touched (constraint 1 — plain class.delete
-// tombstones every membership pair and is lossy; the toggle must not).
+// `class_member_set` rows NEVER touched (membership rides, owner ruling
+// 2026-10-22 — class removal, archive or trash, never tombstones a pair).
 // An absent row means ENABLED (F2): the empty table is the all-ON default,
-// so pre-toggle workspaces converge with zero migration. A class.delete
-// addressed at a managed class is ROUTED here (F4): applied as a
+// so pre-toggle workspaces converge with zero migration. An object.delete
+// addressed at a family base class is ROUTED here (the retired class.delete
+// op's F4 rule, moved into the object.delete applier): applied as a
 // feature-disable so the Features setting is the single archive path for
-// managed classes.
+// the families. The `journal` toggle gates SURFACES only (the journal nav
+// view, Today-page management) — the date classes stay always-on and it
+// derives no class bits (isFamilyFeature is the guard).
 
 /**
  * LWW-write one feature row. Returns true when the incoming envelope won
@@ -2510,7 +2573,7 @@ function lwwWriteFeatureRow(
  * workspace_feature rows, and a wall-of-envelope timestamp here would
  * diverge under reversed delivery of racing toggles).
  */
-function deriveFamilyClassBits(db: StoreDatabase, workspaceId: string, feature: WorkspaceFeature): void {
+function deriveFamilyClassBits(db: StoreDatabase, workspaceId: string, feature: FamilyFeature): void {
   for (const name of familyClassNames(feature)) {
     const enabled = gatingFeaturesForClass(name).every((f) =>
       featureEnabledNow(db, workspaceId, f),
@@ -2614,9 +2677,13 @@ function featureEnabledNow(db: StoreDatabase, workspaceId: string, feature: Work
 function applyWorkspaceFeatureSet(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "workspace.feature.set";
   const p = env.payload as OpPayload<"workspace.feature.set">;
+  // Family toggles derive class archival bits; the journal toggle gates
+  // SURFACES only (the date classes stay always-on) — no family, no
+  // derivation, just the LWW row.
+  const family = isFamilyFeature(p.feature) ? p.feature : null;
   const wrote = lwwWriteFeatureRow(db, env, p.feature, p.enabled);
-  if (wrote) {
-    deriveFamilyClassBits(db, env.workspaceId, p.feature);
+  if (wrote && family !== null) {
+    deriveFamilyClassBits(db, env.workspaceId, family);
   }
   // The ensure rides every enable PAYLOAD (not only the LWW winner): both
   // delivery orders of a racing toggle pair must author the identical row
@@ -2624,9 +2691,9 @@ function applyWorkspaceFeatureSet(db: StoreDatabase, env: Envelope): ChangeSumma
   // the CURRENT row state on every path.
   if (p.enabled && p.feature === "tasks") {
     ensureTaskFamilyRows(db, env);
-    deriveFamilyClassBits(db, env.workspaceId, p.feature);
+    deriveFamilyClassBits(db, env.workspaceId, "tasks");
   }
-  return summary(opType, wrote ? managedClassIds(p.feature) : [], !wrote);
+  return summary(opType, wrote && family !== null ? managedClassIds(family) : [], !wrote);
 }
 
 // --- dispatch ------------------------------------------------------------------------
@@ -2643,7 +2710,6 @@ const APPLIERS: Record<
   "trash.empty": applyTrashEmpty,
   "class.create": applyClassCreate,
   "class.update": applyClassUpdate,
-  "class.delete": applyClassDelete,
   "class.unassign": applyClassUnassign,
   "class.reorder": applyClassReorder,
   "tag.unassign": applyTagUnassign,

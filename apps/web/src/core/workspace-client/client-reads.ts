@@ -23,6 +23,7 @@ import {
   type ClassBinding,
   type ClientNode,
   type ParentRenderFacts,
+  type ArchivedEntry,
   type TrashedEntry,
 } from "./types.js";
 import type { ClientContext } from "./client-context.js";
@@ -114,6 +115,48 @@ export class WorkspaceClientReads {
         )
         .all(this.ctx.workspaceId) as Array<NodeRow & { deleted_at: string }>;
       return rows.map((row) => ({ node: this.ctx.mapNodeCached(row), deletedAt: row.deleted_at }));
+    });
+  }
+
+  /**
+   * The Archived surface's read (owner ruling 2026-10-22): nodes with
+   * `is_active = 0` and NO trash row — the archival side of the liveness
+   * bit, distinct from the Trash hub's deletion side. Trashed subtrees stay
+   * out (they have their own hub); newest archival first (the node's
+   * `updated_at` rides the archival write).
+   */
+  listArchived(): ArchivedEntry[] {
+    return this.cachedListRead("listArchived", () => {
+      const rows = this.ctx.store.database
+        .prepare(
+          `SELECT n.*, n.updated_at AS archived_at FROM node n
+           WHERE n.workspace_id = ? AND n.is_active = 0
+             AND NOT EXISTS (SELECT 1 FROM trash t WHERE t.node_id = n.id)
+           ORDER BY n.updated_at DESC, n.id`,
+        )
+        .all(this.ctx.workspaceId) as Array<NodeRow & { archived_at: string }>;
+      return rows.map((row) => ({ node: this.ctx.mapNodeCached(row), archivedAt: row.archived_at }));
+    });
+  }
+
+  /**
+   * Archived CLASS nodes (the class picker's dimmed enable matches and the
+   * gallery's disabled set): class rows on the archival side of the
+   * liveness bit. Family-base classes archived by their feature toggle ride
+   * here too — the picker's Enable row re-enables through the toggle (the
+   * F4 inverse), not a raw unarchive.
+   */
+  listArchivedClasses(): ClientNode[] {
+    return this.cachedListRead("listArchivedClasses", () => {
+      const rows = this.ctx.store.database
+        .prepare(
+          `SELECT n.* FROM node n
+           WHERE n.workspace_id = ? AND n.is_class = 1 AND n.is_active = 0
+             AND NOT EXISTS (SELECT 1 FROM trash t WHERE t.node_id = n.id)
+           ORDER BY COALESCE(n.name, n.id), n.id`,
+        )
+        .all(this.ctx.workspaceId) as NodeRow[];
+      return rows.map((row) => this.ctx.mapNodeCached(row));
     });
   }
 

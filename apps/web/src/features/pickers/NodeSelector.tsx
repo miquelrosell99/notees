@@ -43,7 +43,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { chainNodeIds, parseDateNodeId, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
+import {
+  chainNodeIds,
+  parseDateNodeId,
+  rendersAsInlineBlock,
+  rendersWithDocumentChrome,
+  systemClassNameForId,
+  type SystemClassName,
+} from "@notees/domain";
+import type { WorkspaceFeature } from "@notees/protocol";
 import { foldSearchText } from "@notees/store";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
@@ -57,6 +65,7 @@ import { NodeResultItem } from "./NodeResultItem.js";
 import { useKeyboardListNav } from "./useKeyboardListNav.js";
 import { useViewportPosition } from "./useViewportPosition.js";
 import { QuickCreateModal } from "../modals/QuickCreateModal.js";
+import { enableArchivedSystemClass } from "../classview/systemClassDeploy.js";
 import type { QuickCreateClient, QuickCreatePlan } from "../modals/quickCreate.js";
 import { resolveQuickCreate } from "../modals/quickCreate.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
@@ -87,6 +96,16 @@ export interface NodeSelectorClient extends QuickCreateClient {
    */
   searchPending?(query: string): boolean;
   createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string>;
+  /** The archival bit (the archived-class Enable row, 2026-10-22). */
+  updateObject(id: string, fields: { active?: boolean }): Promise<void>;
+  /**
+   * The F4 inverse for an archived family base (the Enable row). Optional:
+   * minimal seams (the outliner's context client) omit it — they degrade
+   * to no archived-class rows.
+   */
+  setFeatureEnabled?(feature: WorkspaceFeature, enabled: boolean): Promise<void>;
+  /** Archived class nodes (the classes picker's dimmed Enable matches). */
+  listArchivedClasses?(): ClientNode[];
 }
 
 /**
@@ -249,6 +268,12 @@ interface NodeSelectorProps {
   /** Custom label for the create row (default: `Create "<query>"`). */
   createLabel?: string | undefined;
   /**
+   * Classes picker only — the "Browse all types…" footer row's host hook:
+   * opens the classes gallery (the ClassCreateModal), carrying the typed
+   * query. The return resolves like onCreateNew's (created id → assigned).
+   */
+  onBrowseAllTypes?: ((query: string) => void | Promise<string | undefined>) | undefined;
+  /**
    * Faint one-line mode banner rendered above the search field — the
    * editor's selection-link gestures use it to announce what the pending
    * pick will do ("Replacing selection with link" / 'Link with custom label
@@ -296,6 +321,7 @@ export function NodeSelector({
   anchorRect,
   onClose,
   createLabel,
+  onBrowseAllTypes,
   hint,
   id,
   rightIconHoverReveal = false,
@@ -770,6 +796,42 @@ export function NodeSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesInlineFilters derives from inlineFilters (debouncedQuery); matchesScopeTab derives from scope/scopeTabs/searchMode.
   }, [client, debouncedQuery, searchMode, classRefine, effectiveClassIds, scopeTabs, scope, dataVersion]);
 
+  // The classes picker's disabled-class matches (owner ruling 2026-10-22):
+  // the query names an ARCHIVED system class — listClasses() filters
+  // active, so the dimmed Enable row rides the archived read. The row
+  // enables via the gallery pick semantics (the F4 inverse for family
+  // bases), then assigns like any pick.
+  const archivedMatches = useMemo(() => {
+    if (searchMode !== "classes" || effectiveQuery === "") return [] as ClientNode[];
+    if (client.listArchivedClasses === undefined) return [] as ClientNode[];
+    const q = foldSearchText(effectiveQuery.toLowerCase());
+    return client
+      .listArchivedClasses()
+      .filter((cls) => foldSearchText((nodeDisplayName(cls) ?? "").toLowerCase()).includes(q));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dataVersion rides the async landing notify like the search memo.
+  }, [client, searchMode, effectiveQuery, dataVersion]);
+
+  const handleEnableArchived = (node: ClientNode): void => {
+    if (client.listArchivedClasses === undefined) return;
+    const key = systemClassNameForId(node.id) as SystemClassName | null;
+    if (key === null) return;
+    void enableArchivedSystemClass(client, key)
+      .then(() => handleAdd(node))
+      .catch(() => {});
+  };
+
+  const handleBrowseAllTypes = (): void => {
+    if (onBrowseAllTypes === undefined) return;
+    const result = onBrowseAllTypes(effectiveQuery);
+    if (result instanceof Promise) {
+      result.then((created) => {
+        if (created !== undefined) resolveCreateResult(created);
+      }).catch(() => {});
+    }
+    if (trigger === "pill-row") setIsPickerOpen(false);
+    setSearchQuery("");
+  };
+
   // "Searching…" state: on an async client the current query's read may be
   // in flight while the memo already returned the empty default — without
   // this the picker showed "No matches found" for results that were simply
@@ -881,12 +943,19 @@ export function NodeSelector({
   // Total selectable items. The optional empty-query escape rides before the
   // date suggestion; both offset the ordinary result list.
   const leadingOffset = (emptyQueryOptionActive ? 1 : 0) + (dateSuggestion ? 1 : 0);
-  const createIndex = leadingOffset + visibleResults.length;
-  const showMoreIndex = createIndex + (showCreateOption ? 1 : 0);
+  const archivedCount = archivedMatches.length;
+  // Row order: results, then the archived-class Enable rows, the create row,
+  // the browse-all-types row, and the show-more pager.
+  const createIndex = leadingOffset + visibleResults.length + archivedCount;
+  const showBrowseAll = searchMode === "classes" && onBrowseAllTypes !== undefined;
+  const browseAllIndex = createIndex + (showCreateOption ? 1 : 0);
+  const showMoreIndex = browseAllIndex + (showBrowseAll ? 1 : 0);
   const totalItems =
     visibleResults.length +
     leadingOffset +
+    archivedCount +
     (showCreateOption ? 1 : 0) +
+    (showBrowseAll ? 1 : 0) +
     (showMoreOption ? 1 : 0);
 
   const handleSelectByIndex = (index: number, modifiers: { ctrlKey: boolean; metaKey: boolean }) => {
@@ -902,11 +971,19 @@ export function NodeSelector({
     if (adjusted < visibleResults.length) {
       const node = visibleResults[adjusted]!;
       handleAdd(node, modifiers.ctrlKey || modifiers.metaKey);
-    } else if (showCreateOption && adjusted === visibleResults.length) {
+    } else if (adjusted < visibleResults.length + archivedCount) {
+      handleEnableArchived(archivedMatches[adjusted - visibleResults.length]!);
+    } else if (showCreateOption && adjusted === visibleResults.length + archivedCount) {
       handleCreateNew();
     } else if (
+      showBrowseAll &&
+      adjusted === visibleResults.length + archivedCount + (showCreateOption ? 1 : 0)
+    ) {
+      handleBrowseAllTypes();
+    } else if (
       showMoreOption &&
-      adjusted === visibleResults.length + (showCreateOption ? 1 : 0)
+      adjusted ===
+        visibleResults.length + archivedCount + (showCreateOption ? 1 : 0) + (showBrowseAll ? 1 : 0)
     ) {
       setDisplayLimit((prev) => prev + 20);
     }
@@ -1048,6 +1125,31 @@ export function NodeSelector({
           />
         );
       })}
+      {archivedMatches.map((node, index) => {
+        const globalIndex = leadingOffset + visibleResults.length + index;
+        const name = nodeDisplayName(node) ?? node.id;
+        return (
+          <NodeResultItem
+            key={node.id}
+            node={node}
+            isHighlighted={globalIndex === selectedIndex}
+            onClick={() => handleEnableArchived(node)}
+            onMouseEnter={() => setSelectedIndex(globalIndex)}
+            className="node-selector__archived-match"
+            after={
+              <span className="node-selector__enable-badge">
+                <Icon path="mdi-archive-arrow-up-outline" size={0.7} />
+                Enable
+              </span>
+            }
+            iconOverride={
+              <span title={`${name} is disabled`}>
+                <Icon path={node.icon ?? "mdi-shape-outline"} size={createIconSize} />
+              </span>
+            }
+          />
+        );
+      })}
       {showCreateOption && (
         <NodeResultItem
           key="__create"
@@ -1058,6 +1160,17 @@ export function NodeSelector({
           className="node-result-item--create"
           iconOverride={<Icon path="mdi-plus" size={createIconSize} />}
         />
+      )}
+      {showBrowseAll && (
+        <button
+          type="button"
+          className={`node-selector__browse-all ${selectedIndex === browseAllIndex ? "node-selector__browse-all--highlighted" : ""}`}
+          onClick={handleBrowseAllTypes}
+          onMouseEnter={() => setSelectedIndex(browseAllIndex)}
+        >
+          <Icon path="mdi-shape-outline" size={0.7} />
+          Browse all types…
+        </button>
       )}
       {showMoreOption && (
         <button

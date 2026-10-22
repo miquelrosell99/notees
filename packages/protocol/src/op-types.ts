@@ -97,6 +97,19 @@ export const objectUpdatePayload = z
      * null CLEARS the node's color. */
     color: colorValueSchema.nullish(),
     /**
+     * Archival state (owner ruling 2026-10-22, the classes-gallery batch):
+     * `false` ARCHIVES the node, `true` UNARCHIVES it — a reversible STATE,
+     * distinct from the trash table (deletion: object.delete/object.restore).
+     * Platform-fixed, cardinality-1 node fundamental (the icon/color
+     * precedent; the class registry `active` is a projection of the class
+     * node's bit). Presence writes — absent = no write. The applier
+     * projects the bit to `node.is_active`; it hides the node from every
+     * DEFAULT read (active = 1 AND no trash row — SCHEMA.md "Node
+     * structure"), while archived nodes stay restorable. Archive-anything:
+     * any node may carry the bit, classes included (the system-class
+     * gallery disable gesture rides it for non-locked system classes). */
+    active: z.boolean().optional(),
+    /**
      * Wire node fields (the icon/color precedent): platform-fixed node
      * fundamentals that core chrome or navigation reads/writes — an asset
      * node for the page cover, an asset node for the page banner, and the
@@ -229,8 +242,6 @@ export const classUpdatePayload = z
     description: z.string().max(4096).optional(),
   })
   .strict();
-
-export const classDeletePayload = z.object({ classId: uuid }).strict();
 
 /**
  * Class membership removal (SCHEMA.md "Class properties"): the OR-Set remove
@@ -632,24 +643,35 @@ export const collectionMemberRemovePayload = z
  * Per-workspace feature toggles (the Features settings tab): the
  * synced semantic state behind each toggle. `feature` is fixed protocol
  * vocabulary (the WORKSPACE_FEATURES set below — feature ids, not UUIDs;
- * these name protocol-level switches, not nodes). The enum IS the core
- * class families (owner directive 2026-10-04): tasks=task,
+ * these name protocol-level switches, not nodes). The five family entries
+ * ARE the core class families (owner directive 2026-10-04): tasks=task,
  * events=event, meetings=meeting, sources=source, persons=person — each a
  * seeded system-class family with built-in product logic; the
  * extends-children ride the base class (disabling events archives meetings
- * and birthdays with it — see @notees/domain features.ts). LWW by envelope
- * HLC on (workspaceId, feature): a later toggle always wins whatever the
- * arrival order. The derived `workspace_feature` table stores the winning
- * row; an ABSENT row means enabled (all features default ON — the
- * empty-table default, F2), so pre-toggle workspaces need no migration.
- * Applying the toggle derives the membership-preserving archival of the
- * family's classes (class registry `active` + the class node's `is_active`
- * flip; `class_member_set` rows are NEVER touched — instances keep their
+ * and birthdays with it — see @notees/domain features.ts). The `journal`
+ * entry (owner ruling 2026-10-22) gates the journal SURFACES (the journal
+ * nav view, Today-page management/auto-creation), NOT the date classes —
+ * year/month/day stay always-on structural seeds (F1 intact: the toggle
+ * manages views, not classes). LWW by envelope HLC on (workspaceId,
+ * feature): a later toggle always wins whatever the arrival order. The
+ * derived `workspace_feature` table stores the winning row; an ABSENT row
+ * means enabled (all features default ON — the empty-table default, F2),
+ * so pre-toggle workspaces need no migration. Applying a family toggle
+ * derives the membership-preserving archival of the family's classes
+ * (class registry `active` + the class node's `is_active` flip;
+ * `class_member_set` rows are NEVER touched — instances keep their
  * class_ids and stay in the graph; toggle-off is hide-surfaces-keep-data,
- * F3). A `class.delete` addressed at a family's BASE class is ROUTED to
- * the toggle (F4): the delete is applied as a feature-disable instead, so
- * the Features setting is the single archive path for managed classes and
- * the lossy plain delete (membership tombstoning) never runs on them.
+ * F3). Class-node delete routing (owner ruling 2026-10-22 — the retired
+ * class.delete op's F4 rule, moved into the object.delete applier):
+ * `object.delete` on a LOCKED system class (year, month, day, table,
+ * asset, query, code, template, comment) FAILS LOUD (write-time guard,
+ * never applied); on a family BASE class it is ROUTED to the toggle —
+ * applied as `workspace.feature.set {feature, enabled: false}`,
+ * archiving the whole extends family (membership rides); on any OTHER
+ * non-locked system class it is RE-WIRED to archival (`active = false`),
+ * NOT trash — reversible from the gallery; on a user class it stays a
+ * plain trash row (soft delete, restorable; membership rides). See
+ * SCHEMA.md "Workspace features".
  */
 export const WORKSPACE_FEATURES = [
   "tasks",
@@ -657,6 +679,7 @@ export const WORKSPACE_FEATURES = [
   "meetings",
   "sources",
   "persons",
+  "journal",
 ] as const;
 export type WorkspaceFeature = (typeof WORKSPACE_FEATURES)[number];
 export const workspaceFeatureSchema = z.enum(WORKSPACE_FEATURES);
@@ -679,7 +702,6 @@ export const OP_PAYLOAD_SCHEMAS = {
   "trash.empty": trashEmptyPayload,
   "class.create": classCreatePayload,
   "class.update": classUpdatePayload,
-  "class.delete": classDeletePayload,
   "class.unassign": classUnassignPayload,
   "class.reorder": classReorderPayload,
   "tag.unassign": tagUnassignPayload,
