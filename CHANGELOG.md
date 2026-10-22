@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-22
 
+- **feat(scripts): the batch-migration orchestrator — one stopped-stack
+  window for every pending stored-log migration.** Running
+  `scripts/migrate-*.mts` one at a time costs one stack-stop + one full
+  derived-store rehydration per migration, and the rehydration is the pain,
+  not the rewrite. `scripts/migrate-pending.mts` surveys the
+  `schema_meta` idempotency markers (`--db <path>`, dry-run by default),
+  reports each registered migration pending/applied, and in `--apply` runs
+  every pending entry's own `--apply` sequentially — the batch pays one
+  backup/epoch/restart cycle. Safety first: `--apply` aborts while
+  `docker compose ps notees-sync` reports the container running (never edit
+  `relay.db` under a live server) unless `--assume-stopped`; the orchestrator
+  itself never writes the DB — each entry script keeps its own timestamped
+  backup + quick_check + epoch bump. The registry carries the four
+  marker-keyed rewrite scripts (`migrate-node-type`, `migrate-color-tokens`,
+  `migrate-is-embedded`, `migrate-class-delete`); scripts without a marker
+  row (the append-only kind-A pass, the pre-marker rewrites, and
+  `repair-log-conformance` — a repair tool, not a pending-check migration)
+  stay per-script invocations. New marker-keyed migrations must add their
+  registry entry (kind: "rewrite" vs "marker-only"). Tests:
+  `packages/store/test/migrate-pending.test.ts` — pure classification plus an
+  end-to-end arm on a synthetic relay DB (child-process `--apply` lands the
+  marker; a second pass plans nothing; the running-stack arm refuses).
+  Runbook: `docs/developers/migrations.md` "Running migrations".
+
 - **feat(web): the hub surfaces restructure — flush card-border scrollbars
   and the headers into a pinned in-card top bar.** The main content card's
   generic 800px centered cap pushed every internally-scrolling hub view's
