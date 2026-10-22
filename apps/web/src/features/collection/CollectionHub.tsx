@@ -1,22 +1,29 @@
 /**
- * CollectionHub — the hub shell behind a sidebar entry: header (icon,
- * title, count, view switcher) over a NodeCollection of the hub's nodes.
- * View mode persists per hub device-locally when `persistKey` is given
- * (never an op); without a key it stays session-local. The
- * pages/classes hubs ride the outline mode; tasks defaults to table; assets
- * to cards with a cover-top cover fallback (owner rules). The outline (list)
- * mode renders the full block-row surface — inline-editable when `editable`
- * is set (the tasks hub), read-only-inert otherwise (the content click does
- * nothing; the bullet opens the node).
+ * CollectionHub — the hub shell behind a sidebar entry: the shared
+ * SurfaceTopBar chrome (icon, title, count, view switcher, header actions)
+ * pinned above a NodeCollection of the hub's nodes. View mode persists per
+ * hub device-locally when `persistKey` is given (never an op); without a
+ * key it stays session-local. The pages/classes hubs ride the outline
+ * mode; tasks defaults to table; assets to cards with a cover-top cover
+ * fallback (owner rules). The outline (list) mode renders the full
+ * block-row surface — inline-editable when `editable` is set (the tasks
+ * hub), read-only-inert otherwise (the content click does nothing; the
+ * bullet opens the node).
+ *
+ * The surface shape (owner 2026-10-22): the root is full-bleed in the main
+ * content card (the PageCard.css hub-surface exception) — the bar pins at
+ * the card's top and the body scrolls at the CARD's right border, the
+ * collection's measure riding the capped content column inside.
  */
 
 import { useEffect, useState, type ReactNode } from "react";
 
-import { Icon } from "../../ui/Icon.js";
 import { useViewModePreference } from "../../ui/viewPrefs.js";
 import { NodeCollection, ViewToolbar } from "./index.js";
 import type { NodeCollectionItem, SortSpec, TableColumn, ViewMode } from "./index.js";
 import type { AnyClient, CoverLayout } from "./types.js";
+import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
+import "./CollectionHub.css";
 
 export interface CollectionHubProps {
   client: AnyClient;
@@ -58,6 +65,12 @@ export interface CollectionHubProps {
   emptyTitle?: string | undefined;
   /** Right-aligned header extras (#14's "New class" button et al.). */
   headerActions?: ReactNode;
+  /**
+   * Content rendered inside the scrolling body ABOVE the collection (the
+   * tasks hub's bucketed surface rides this — owner 2026-10-22); the whole
+   * block scrolls with the collection at the card border.
+   */
+  prepend?: ReactNode | undefined;
   onOpenNode: (nodeId: string) => void;
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
 }
@@ -78,6 +91,7 @@ export function CollectionHub({
   editable = false,
   emptyTitle,
   headerActions,
+  prepend,
   onOpenNode,
   onOpenInSidebar,
 }: CollectionHubProps) {
@@ -90,32 +104,37 @@ export function CollectionHub({
   );
   return (
     <div className="nt-hub">
-      <header className="nt-hub-header">
-        <Icon path={icon} size={1.2} className="nt-hub-icon" />
-        <h1 className="nt-hub-title">{title}</h1>
-        <span className="nt-hub-count">{items.length}</span>
-        {modes.length > 1 && (
-          <span className="nt-hub-switcher">
-            <ViewToolbar modes={modes} value={mode} onChange={setMode} />
-          </span>
-        )}
-        {headerActions !== undefined && <span className="nt-hub-actions">{headerActions}</span>}
-      </header>
-      <NodeCollection
-        viewMode={mode}
-        client={client}
-        items={items}
-        tableColumns={tableColumns}
-        defaultCoverLayout={defaultCoverLayout}
-        propertiesOf={(id) => client.getEffectiveProperties(id)}
-        tableEditable={tableEditable}
-        {...(defaultSort !== undefined ? { defaultSort } : {})}
-        groupByProperty={groupByProperty}
-        emptyTitle={emptyTitle}
-        editable={editable}
-        onNodeClick={onOpenNode}
-        onNodeShiftClick={onOpenInSidebar}
+      <SurfaceTopBar
+        icon={icon}
+        title={title}
+        count={items.length}
+        actions={
+          <>
+            {modes.length > 1 && <ViewToolbar modes={modes} value={mode} onChange={setMode} />}
+            {headerActions}
+          </>
+        }
       />
+      <div className="nt-hub__body">
+        <div className="nt-hub__content">
+          {prepend}
+          <NodeCollection
+            viewMode={mode}
+            client={client}
+            items={items}
+            tableColumns={tableColumns}
+            defaultCoverLayout={defaultCoverLayout}
+            propertiesOf={(id) => client.getEffectiveProperties(id)}
+            tableEditable={tableEditable}
+            {...(defaultSort !== undefined ? { defaultSort } : {})}
+            groupByProperty={groupByProperty}
+            emptyTitle={emptyTitle}
+            editable={editable}
+            onNodeClick={onOpenNode}
+            onNodeShiftClick={onOpenInSidebar}
+          />
+        </div>
+      </div>
     </div>
   );
 }

@@ -34,6 +34,7 @@ import { NodeResultItem } from "../features/pickers/NodeResultItem.js";
 import { Button } from "../components/ui/fleet/Button.js";
 import { Dropdown } from "../components/ui/fleet/Dropdown.js";
 import { SearchField } from "../components/ui/fleet/SearchField.js";
+import { SurfaceTopBar } from "../components/ui/fleet/SurfaceTopBar.js";
 import { Tabs } from "../components/ui/fleet/Tabs.js";
 import "./SearchPage.css";
 
@@ -237,82 +238,87 @@ export function SearchPage({
   };
 
   return (
-    <div className="nt-hub search-page">
-      <header className="nt-hub-header">
-        <h1 className="nt-hub-title">Search</h1>
-      </header>
-      <SearchField
-        autoFocus
-        value={input}
-        placeholder="Search everything… (“…” exact, ^ prefix)"
-        aria-label="Search everything"
-        onChange={(event) => setInput(event.target.value)}
-        onClear={() => setInput("")}
-      />
-      <div className="search-page__filters">
-        <Tabs
-          value={scope}
-          onChange={(next) => setScope(next as Scope)}
-          className="search-page__scope-tabs"
-        >
-          <Tabs.List variant="ghost" className="search-page__scope-tablist">
-            <Tabs.Tab value="all">All</Tabs.Tab>
-            <Tabs.Tab value="main">Main</Tabs.Tab>
-            <Tabs.Tab value="blocks">Blocks</Tabs.Tab>
-          </Tabs.List>
-          <Tabs.Panel value={scope}>
-            <div className="search-page__results" aria-label="Search results">
-              {query === "" ? (
-                <div className="search-page__hint">
-                  Type to search the whole workspace. Query modes: "…" quotes match the exact
-                  phrase; a ^ prefix matches titles that start with the rest.
-                </div>
-              ) : visible.length === 0 && !loading ? (
-                <>
-                  <div className="search-page__empty">No matches found</div>
-                  {showMoreButton}
-                </>
-              ) : (
-                <>
-                  {visible.map((node) => {
-                    const snippet =
-                      query === "" ? null : client.getSearchSnippet(node.id, query);
-                    return (
-                      <div className="search-page__result" key={node.id}>
-                        <NodeResultItem
-                          node={node}
-                          parentPath={
-                            rendersWithDocumentChrome(node, parentRenderFacts(client, node))
-                              ? buildParentPath(node)
-                              : buildContainingPagePath(node)
-                          }
-                          displayClasses={getDisplayClasses(node)}
-                          onClick={() => onOpenNode(node.id)}
-                        />
-                        {snippet !== null && (
-                          <div className="search-page__snippet">
-                            <SnippetText snippet={snippet} />
+    <div className="search-page">
+      {/* The hub chrome rides the shared SurfaceTopBar (owner 2026-10-22),
+          pinned above the body; the field, filters, and results scroll at
+          the card border inside the capped content column below. */}
+      <SurfaceTopBar title="Search" />
+      <div className="search-page__body">
+        <div className="search-page__content">
+          <SearchField
+            autoFocus
+            value={input}
+            placeholder="Search everything… (“…” exact, ^ prefix)"
+            aria-label="Search everything"
+            onChange={(event) => setInput(event.target.value)}
+            onClear={() => setInput("")}
+          />
+          <div className="search-page__filters">
+            <Tabs
+              value={scope}
+              onChange={(next) => setScope(next as Scope)}
+              className="search-page__scope-tabs"
+            >
+              <Tabs.List variant="ghost" className="search-page__scope-tablist">
+                <Tabs.Tab value="all">All</Tabs.Tab>
+                <Tabs.Tab value="main">Main</Tabs.Tab>
+                <Tabs.Tab value="blocks">Blocks</Tabs.Tab>
+              </Tabs.List>
+              <Tabs.Panel value={scope}>
+                <div className="search-page__results" aria-label="Search results">
+                  {query === "" ? (
+                    <div className="search-page__hint">
+                      Type to search the whole workspace. Query modes: "…" quotes match the exact
+                      phrase; a ^ prefix matches titles that start with the rest.
+                    </div>
+                  ) : visible.length === 0 && !loading ? (
+                    <>
+                      <div className="search-page__empty">No matches found</div>
+                      {showMoreButton}
+                    </>
+                  ) : (
+                    <>
+                      {visible.map((node) => {
+                        const snippet =
+                          query === "" ? null : client.getSearchSnippet(node.id, query);
+                        return (
+                          <div className="search-page__result" key={node.id}>
+                            <NodeResultItem
+                              node={node}
+                              parentPath={
+                                rendersWithDocumentChrome(node, parentRenderFacts(client, node))
+                                  ? buildParentPath(node)
+                                  : buildContainingPagePath(node)
+                              }
+                              displayClasses={getDisplayClasses(node)}
+                              onClick={() => onOpenNode(node.id)}
+                            />
+                            {snippet !== null && (
+                              <div className="search-page__snippet">
+                                <SnippetText snippet={snippet} />
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {showMoreButton}
-                </>
-              )}
-              {query !== "" && loading && (
-                <div className="search-page__loading">Searching…</div>
-              )}
-            </div>
-          </Tabs.Panel>
-        </Tabs>
-        <Dropdown
-          className="search-page__class-filter"
-          ariaLabel="Filter by class"
-          options={classOptions}
-          value={classFilter ?? ""}
-          onChange={(value) => setClassFilter(value === "" ? null : value)}
-        />
+                        );
+                      })}
+                      {showMoreButton}
+                    </>
+                  )}
+                  {query !== "" && loading && (
+                    <div className="search-page__loading">Searching…</div>
+                  )}
+                </div>
+              </Tabs.Panel>
+            </Tabs>
+            <Dropdown
+              className="search-page__class-filter"
+              ariaLabel="Filter by class"
+              options={classOptions}
+              value={classFilter ?? ""}
+              onChange={(value) => setClassFilter(value === "" ? null : value)}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

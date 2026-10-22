@@ -1,9 +1,35 @@
 /**
- * SharesHub styles — the Shares hub's row list: icon + node name + link
+ * SharesHub styles — the Shares hub. The row list: icon + node name + link
  * meta + the copy / open / revoke actions, the loading and error states.
- * Token-only (the hub chrome classes — nt-hub / nt-hub-header /
- * nt-hub-title / nt-hub-count — are CollectionHub's, reused unchanged).
+ * Token-only. The root's full-bleed layout is the shared hub-surface shape
+ * from PageCard.css (owner 2026-10-22); the hub chrome composes the fleet
+ * SurfaceTopBar.
  */
+
+/* The scrolling body: full card width so the scrollbar rides the card
+   border; the rows keep their measure via the capped content column. */
+.nt-shares-hub__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-shares-hub__content {
+  flex: 1 0 auto;
+  width: 100%;
+  max-width: var(--layout-size-13xl);
+  margin-inline: auto;
+  padding: 0 var(--spacing-6) var(--spacing-6);
+  box-sizing: border-box;
+}
+
+@media (width <= 768px) {
+  .nt-shares-hub__content {
+    padding: 0 var(--spacing-4) var(--spacing-6);
+  }
+}
 
 .nt-shares-hub__loading {
   display: flex;

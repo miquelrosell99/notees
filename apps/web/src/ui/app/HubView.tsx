@@ -134,9 +134,11 @@ export function HubView({
     const modes: ViewMode[] = ["outline", "cards", "table"];
     return (
       <div className="nt-hub-tasks">
-        {/* The bucketed surface (Overdue/Today/Upcoming/
-            Unscheduled/Completed) over the same members; device-collapse. */}
-        <TaskBuckets client={client} onOpenNode={onOpenNode} />
+        {/* ONE bar for the whole hub: CollectionHub's SurfaceTopBar carries
+            the title/count/switcher (owner 2026-10-22 — the hub-surface
+            restructure); the bucketed surface (Overdue/Today/Upcoming/
+            Unscheduled/Completed) prepends the collection inside the shared
+            scrolling body, device-collapse and all. */}
         <CollectionHub
           client={client}
           icon={entry?.icon ?? "mdi-format-list-checks"}
@@ -151,6 +153,7 @@ export function HubView({
           groupByProperty={groupByProperty}
           editable
           emptyTitle="No tasks yet"
+          prepend={<TaskBuckets client={client} onOpenNode={onOpenNode} />}
           onOpenNode={onOpenNode}
           onOpenInSidebar={onOpenInSidebar}
         />

@@ -1,18 +1,38 @@
 /**
  * SearchPage styles — the full-page search surface at /search.
- *
- * Rides the nav-hub chrome conventions (.nt-hub padding + header) from
- * app.css; everything here is token-only (variables.css), adaptive values
- * (em/rem/ch/%), no hard-coded px.
+ * The root's full-bleed layout (SurfaceTopBar pinned above a card-border
+ * scroller) is the shared hub-surface shape from PageCard.css (owner
+ * 2026-10-22); everything here is token-only (variables.css), adaptive
+ * values (em/rem/ch/%), no hard-coded px.
  */
 
-.search-page {
+/* The scrolling body: full card width so the scrollbar rides the card
+   border; the field + filters + results keep their measure via the capped
+   content column. */
+.search-page__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.search-page__content {
+  flex: 1 0 auto;
+  width: 100%;
+  max-width: var(--layout-size-13xl);
+  margin-inline: auto;
+  padding: 0 var(--spacing-6) var(--spacing-6);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
-  height: 100%;
-  overflow-y: auto;
-  box-sizing: border-box;
+}
+
+@media (width <= 768px) {
+  .search-page__content {
+    padding: 0 var(--spacing-4) var(--spacing-6);
+  }
 }
 
 /* The filter row: scope tabs left, class dropdown right; the results

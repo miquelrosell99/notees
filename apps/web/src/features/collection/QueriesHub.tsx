@@ -24,10 +24,10 @@ import type { QueryAst } from "@notees/query";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
-import { Icon } from "../../ui/Icon.js";
 import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { useDeviceSetting, writeDeviceSetting } from "../settings/deviceSettings.js";
 import { Button, EmptyState } from "../../components/ui/fleet/index.js";
+import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import { FilterBuilderModal } from "./FilterBuilderModal.js";
 import { ViewTabs } from "./ViewTabs.js";
 import { NodeCollection, ViewSwitcher } from "./index.js";
@@ -52,6 +52,7 @@ import {
   updateQueryTokenAst,
   type TokenWriteClient,
 } from "../../ui/queryTokens.js";
+import "./QueriesHub.css";
 
 const HOST_PAGE_SETTING = "queriesHostPageId";
 
@@ -248,92 +249,108 @@ export function QueriesHub({
   const isAdhoc = effectiveView?.kind === "adhoc";
 
   return (
-    <div className="nt-hub nt-queries-hub">
-      <header className="nt-hub-header">
-        <Icon path="mdi-database-search-outline" size={1.2} className="nt-hub-icon" />
-        <h1 className="nt-hub-title">Queries</h1>
-        {effectiveView !== null && (
-          <span className="nt-hub-switcher">
-            <ViewSwitcher
-              modes={["outline", "table"]}
-              value={
+    <div className="nt-queries-hub">
+      {/* The hub chrome rides the shared SurfaceTopBar (owner 2026-10-22):
+          the mode switcher + the query actions join the right cluster; the
+          saved-view tabs and the results stay in the scrolling body. */}
+      <SurfaceTopBar
+        icon="mdi-database-search-outline"
+        title="Queries"
+        actions={
+          <>
+            {effectiveView !== null && (
+              <ViewSwitcher
+                modes={["outline", "table"]}
+                value={
+                  isAdhoc
+                    ? adhocMode
+                    : selectedRecord?.mode === "table"
+                      ? "table"
+                      : "outline"
+                }
+                onChange={(mode) => {
+                  if (isAdhoc) {
+                    setAdhocMode(mode);
+                  } else if (effectiveView.kind === "saved") {
+                    void patchTokenView(client, hostId ?? "", effectiveView.index, {
+                      mode: mode === "table" ? "table" : "list",
+                    });
+                  }
+                }}
+              />
+            )}
+            {effectiveView?.kind === "saved" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setEditing(effectiveView.index);
+                  setModalOpen(true);
+                }}
+              >
+                Edit query
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                setEditing(null);
+                setModalOpen(true);
+              }}
+            >
+              New query
+            </Button>
+          </>
+        }
+      />
+      <div className="nt-queries-hub__body">
+        <div className="nt-queries-hub__content">
+          {hostId !== null && tokens.length > 0 && (
+            <ViewTabs
+              client={client as unknown as TokenWriteClient & { subscribe(listener: () => void): () => void }}
+              ownerId={hostId}
+              activeIndex={effectiveView?.kind === "saved" ? effectiveView.index : null}
+              onSelect={(index) => setView({ kind: "saved", index })}
+              onReordered={handleReorder}
+            />
+          )}
+          {effectiveView === null ? (
+            <EmptyState
+              title="No saved views yet"
+              description="Build a query with New query — run it ad hoc, or save it as a view and it lives here (and on the host page, like any content)."
+            />
+          ) : (
+            <QueryResults
+              client={client}
+              onOpenInSidebar={onOpenInSidebar}
+              ast={effectiveView.kind === "adhoc" ? effectiveView.ast : effectiveToken?.queryAst}
+              viewMode={
                 isAdhoc
                   ? adhocMode
                   : selectedRecord?.mode === "table"
                     ? "table"
                     : "outline"
               }
-              onChange={(mode) => {
-                if (isAdhoc) {
-                  setAdhocMode(mode);
-                } else if (effectiveView.kind === "saved") {
-                  void patchTokenView(client, hostId ?? "", effectiveView.index, {
-                    mode: mode === "table" ? "table" : "list",
-                  });
-                }
+              onViewMode={(mode) => {
+                if (isAdhoc) setAdhocMode(mode);
               }}
+              onOpenNode={onOpenNode}
             />
-          </span>
-        )}
-        <span className="nt-hub-actions">
-          {effectiveView?.kind === "saved" && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setEditing(effectiveView.index);
-                setModalOpen(true);
-              }}
-            >
-              Edit query
-            </Button>
           )}
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              setEditing(null);
-              setModalOpen(true);
-            }}
-          >
-            New query
-          </Button>
-        </span>
-      </header>
-      {hostId !== null && tokens.length > 0 && (
-        <ViewTabs
-          client={client as unknown as TokenWriteClient & { subscribe(listener: () => void): () => void }}
-          ownerId={hostId}
-          activeIndex={effectiveView?.kind === "saved" ? effectiveView.index : null}
-          onSelect={(index) => setView({ kind: "saved", index })}
-          onReordered={handleReorder}
-        />
-      )}
-      {effectiveView === null ? (
-        <EmptyState
-          title="No saved views yet"
-          description="Build a query with New query — run it ad hoc, or save it as a view and it lives here (and on the host page, like any content)."
-        />
-      ) : (
-        <QueryResults
-          client={client}
-          onOpenInSidebar={onOpenInSidebar}
-          ast={effectiveView.kind === "adhoc" ? effectiveView.ast : effectiveToken?.queryAst}
-          viewMode={
-            isAdhoc
-              ? adhocMode
-              : selectedRecord?.mode === "table"
-                ? "table"
-                : "outline"
-          }
-          onViewMode={(mode) => {
-            if (isAdhoc) setAdhocMode(mode);
-          }}
-          onOpenNode={onOpenNode}
-        />
-      )}
+          {hostId !== null && (
+            <p className="nt-queries-host">
+              Saved views live on the{" "}
+              <button type="button" className="nt-link-button" onClick={() => onOpenNode(hostId)}>
+                Queries page
+              </button>{" "}
+              (a normal page — the tokens render as query blocks there too).
+            </p>
+          )}
+        </div>
+      </div>
       <FilterBuilderModal
         client={client}
         isOpen={modalOpen}
@@ -346,15 +363,6 @@ export function QueriesHub({
         onRun={(ast) => setView({ kind: "adhoc", ast, name: "" })}
         onSaveAsView={handleSaveAsView}
       />
-      {hostId !== null && (
-        <p className="nt-queries-host">
-          Saved views live on the{" "}
-          <button type="button" className="nt-link-button" onClick={() => onOpenNode(hostId)}>
-            Queries page
-          </button>{" "}
-          (a normal page — the tokens render as query blocks there too).
-        </p>
-      )}
     </div>
   );
 }

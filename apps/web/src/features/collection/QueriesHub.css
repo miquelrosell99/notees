@@ -1,0 +1,33 @@
+/**
+ * QueriesHub styles — the query hub's surface shape (owner 2026-10-22).
+ * The root's full-bleed layout (SurfaceTopBar pinned above a card-border
+ * scroller) is the shared hub-surface shape from PageCard.css; the
+ * saved-view tabs, the results, and the host-page footnote ride the capped
+ * content column inside the body. Token-only (variables.css).
+ */
+
+.nt-queries-hub__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-queries-hub__content {
+  flex: 1 0 auto;
+  width: 100%;
+  max-width: var(--layout-size-13xl);
+  margin-inline: auto;
+  padding: 0 var(--spacing-6) var(--spacing-6);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+@media (width <= 768px) {
+  .nt-queries-hub__content {
+    padding: 0 var(--spacing-4) var(--spacing-6);
+  }
+}

@@ -80,6 +80,7 @@ import { Button } from "../../components/ui/fleet/Button.js";
 import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import { Pill } from "../../components/ui/fleet/Pill.js";
+import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
 import { MonthCalendar } from "./MonthCalendar.js";
 import { WeekStrip } from "./WeekStrip.js";
@@ -439,20 +440,21 @@ export function CalendarView({
 
   return (
     <div className="calendar-view">
-      <div className="calendar-view__main">
-        <header className="calendar-view__header">
-          <div className="calendar-view__heading">
-            <h1 className="calendar-view__title">
-              <Icon path="mdi-calendar-today" size={1.1} />
-              Calendar
-            </h1>
-            <div className="calendar-view__date-line">
-              <span className="calendar-view__weekday">{weekdayLabel(selectedIso)}</span>
-              {isToday && <span className="calendar-view__today-marker">Today</span>}
-              <span className="calendar-view__date">{formattedDate}</span>
-              <span className="calendar-view__week">Week {isoWeekNumber(selectedIso)}</span>
-            </div>
+      {/* The hub chrome rides the shared SurfaceTopBar (owner 2026-10-22),
+          pinned above both columns; the quick-create row and the filter
+          Tabs are content-level controls and stay in the body. */}
+      <SurfaceTopBar
+        icon="mdi-calendar-today"
+        title="Calendar"
+        context={
+          <div className="calendar-view__date-line">
+            <span className="calendar-view__weekday">{weekdayLabel(selectedIso)}</span>
+            {isToday && <span className="calendar-view__today-marker">Today</span>}
+            <span className="calendar-view__date">{formattedDate}</span>
+            <span className="calendar-view__week">Week {isoWeekNumber(selectedIso)}</span>
           </div>
+        }
+        actions={
           <div className="calendar-view__nav">
             <Button
               variant="ghost"
@@ -472,176 +474,180 @@ export function CalendarView({
               onClick={() => setSelectedIso((iso) => addDaysIso(iso, 1))}
             />
           </div>
-        </header>
+        }
+      />
 
-        {chips.length > 0 && (
-          <div className="calendar-view__quick-create" aria-label="Quick create">
-            {chips.map((chip) => (
-              <Button
-                key={chip.classId}
-                variant="ghost"
-                size="sm"
-                onClick={() => void quickCreate(chip)}
-              >
-                {chip.label}
-              </Button>
-            ))}
-            <span className="calendar-view__quick-repeat">
-              <RepeatPicker
-                value={quickRepeat}
-                onChange={setQuickRepeat}
-                ariaLabel="Repeat new events"
-              />
-            </span>
-          </div>
-        )}
-
-        <Tabs value={filter} onChange={setFilter} className="calendar-view__filter">
-          <Tabs.List>
-            {FILTERS.map((entry) => (
-              <Tabs.Tab key={entry.value} value={entry.value}>
-                {entry.label}
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-        </Tabs>
-
-        <div className="calendar-view__sections">
-          {show("daily") && (
-            <section className="calendar-view__section" aria-label="Daily note">
-              <h2 className="calendar-view__section-title">Daily Note</h2>
-              {hasDailyNote ? (
-                <PageView client={client} pageId={dayId} onOpenPage={onOpenPage} embedded />
-              ) : (
-                <div className="calendar-view__empty-block">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon="mdi-plus"
-                    onClick={() => void client.ensureDateChain(selectedIso)}
-                  >
-                    Daily Note
+      <div className="calendar-view__body">
+        <div className="calendar-view__main">
+          {chips.length > 0 && (
+            <div className="calendar-view__quick-create" aria-label="Quick create">
+              {chips.map((chip) => (
+                <Button
+                  key={chip.classId}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void quickCreate(chip)}
+                >
+                  {chip.label}
+                </Button>
+              ))}
+              <span className="calendar-view__quick-repeat">
+                <RepeatPicker
+                  value={quickRepeat}
+                  onChange={setQuickRepeat}
+                  ariaLabel="Repeat new events"
+                />
+              </span>
+            </div>
+          )}
+  
+          <Tabs value={filter} onChange={setFilter} className="calendar-view__filter">
+            <Tabs.List>
+              {FILTERS.map((entry) => (
+                <Tabs.Tab key={entry.value} value={entry.value}>
+                  {entry.label}
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+          </Tabs>
+  
+          <div className="calendar-view__sections">
+            {show("daily") && (
+              <section className="calendar-view__section" aria-label="Daily note">
+                <h2 className="calendar-view__section-title">Daily Note</h2>
+                {hasDailyNote ? (
+                  <PageView client={client} pageId={dayId} onOpenPage={onOpenPage} embedded />
+                ) : (
+                  <div className="calendar-view__empty-block">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon="mdi-plus"
+                      onClick={() => void client.ensureDateChain(selectedIso)}
+                    >
+                      Daily Note
+                    </Button>
+                  </div>
+                )}
+              </section>
+            )}
+  
+            {show("tasks") && (
+              <section className="calendar-view__section" aria-label="Tasks">
+                <div className="calendar-view__section-head">
+                  <h2 className="calendar-view__section-title">Tasks</h2>
+                  <span className="calendar-view__count">{openCount} open</span>
+                  <Button variant="ghost" size="sm" icon="mdi-plus" onClick={() => void createTask()}>
+                    New
                   </Button>
                 </div>
-              )}
-            </section>
-          )}
-
-          {show("tasks") && (
-            <section className="calendar-view__section" aria-label="Tasks">
-              <div className="calendar-view__section-head">
-                <h2 className="calendar-view__section-title">Tasks</h2>
-                <span className="calendar-view__count">{openCount} open</span>
-                <Button variant="ghost" size="sm" icon="mdi-plus" onClick={() => void createTask()}>
-                  New
-                </Button>
-              </div>
-              {queryError !== null && <p className="calendar-view__error">{queryError}</p>}
-              {queryError === null && openCount === 0 && (
-                <p className="calendar-view__muted">Nothing scheduled for this day.</p>
-              )}
-              {partitioned.overdue.length > 0 && (
-                <div className="calendar-view__group">
-                  <h3 className="calendar-view__group-title calendar-view__group-title--overdue">
-                    Overdue
-                  </h3>
-                  <ul className="calendar-view__rows">
-                    {partitioned.overdue.map((row) => renderTaskRow(row, "overdue"))}
-                  </ul>
-                </div>
-              )}
-              {partitioned.scheduled.length > 0 && (
-                <div className="calendar-view__group">
-                  <h3 className="calendar-view__group-title">Scheduled</h3>
-                  <ul className="calendar-view__rows">
-                    {partitioned.scheduled.map((row) => renderTaskRow(row, "scheduled"))}
-                  </ul>
-                </div>
-              )}
-            </section>
-          )}
-
-          {show("dated") &&
-            (datedDayRows.length > 0 ? (
-              <section className="calendar-view__section" aria-label="Dated">
-                <h2 className="calendar-view__section-title">Dated</h2>
-                <ul className="calendar-view__rows">{datedDayRows.map(renderDatedRow)}</ul>
-              </section>
-            ) : (
-              filter === "dated" && <EmptyState title="Nothing references this day yet." />
-            ))}
-
-          {show("created") &&
-            (createdRows.length > 0 ? (
-              <section className="calendar-view__section" aria-label="Created">
-                <h2 className="calendar-view__section-title">Created</h2>
-                <ul className="calendar-view__rows">
-                  {createdRows.map((node) => (
-                    <li key={node.id} className="calendar-view__row">
-                      <button
-                        type="button"
-                        className="calendar-view__row-name"
-                        onClick={() => onOpenPage(node.id)}
-                      >
-                        {displayNameFromClient(client, node.id) ?? node.id}
-                      </button>
-                      <RowClassChips client={client} classIds={node.classIds} />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : (
-              filter === "created" && <EmptyState title="There's nothing here (yet)." />
-            ))}
-        </div>
-      </div>
-
-      <aside className="calendar-view__side">
-        <MonthCalendar
-          selectedDate={selectedIso}
-          onSelectDate={setSelectedIso}
-          firstDayOfWeek={firstDayOfWeek}
-          hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
-          extraMarks={dayExtraMarks}
-        />
-        <WeekStrip
-          days={weekDays}
-          selectedDate={selectedIso}
-          hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
-          extraMarks={dayExtraMarks}
-          onSelectDay={setSelectedIso}
-        />
-        <div className="calendar-view__agenda" aria-label="Week agenda">
-          <h2 className="calendar-view__agenda-title">This week</h2>
-          {weekAgenda.every((day) => day.rows.length === 0) ? (
-            <p className="calendar-view__muted">Nothing dated this week.</p>
-          ) : (
-            weekAgenda
-              .filter((day) => day.rows.length > 0)
-              .map(({ iso, rows }) => {
-                const [y, m, d] = iso.split("-").map(Number);
-                return (
-                  <div key={iso} className="calendar-view__agenda-day">
-                    <button
-                      type="button"
-                      className="calendar-view__agenda-day-title"
-                      onClick={() => setSelectedIso(iso)}
-                    >
-                      {new Date(y!, m! - 1, d!, 12).toLocaleDateString(undefined, {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </button>
+                {queryError !== null && <p className="calendar-view__error">{queryError}</p>}
+                {queryError === null && openCount === 0 && (
+                  <p className="calendar-view__muted">Nothing scheduled for this day.</p>
+                )}
+                {partitioned.overdue.length > 0 && (
+                  <div className="calendar-view__group">
+                    <h3 className="calendar-view__group-title calendar-view__group-title--overdue">
+                      Overdue
+                    </h3>
                     <ul className="calendar-view__rows">
-                      {rows.map(renderDatedRow)}
+                      {partitioned.overdue.map((row) => renderTaskRow(row, "overdue"))}
                     </ul>
                   </div>
-                );
-              })
-          )}
+                )}
+                {partitioned.scheduled.length > 0 && (
+                  <div className="calendar-view__group">
+                    <h3 className="calendar-view__group-title">Scheduled</h3>
+                    <ul className="calendar-view__rows">
+                      {partitioned.scheduled.map((row) => renderTaskRow(row, "scheduled"))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            )}
+  
+            {show("dated") &&
+              (datedDayRows.length > 0 ? (
+                <section className="calendar-view__section" aria-label="Dated">
+                  <h2 className="calendar-view__section-title">Dated</h2>
+                  <ul className="calendar-view__rows">{datedDayRows.map(renderDatedRow)}</ul>
+                </section>
+              ) : (
+                filter === "dated" && <EmptyState title="Nothing references this day yet." />
+              ))}
+  
+            {show("created") &&
+              (createdRows.length > 0 ? (
+                <section className="calendar-view__section" aria-label="Created">
+                  <h2 className="calendar-view__section-title">Created</h2>
+                  <ul className="calendar-view__rows">
+                    {createdRows.map((node) => (
+                      <li key={node.id} className="calendar-view__row">
+                        <button
+                          type="button"
+                          className="calendar-view__row-name"
+                          onClick={() => onOpenPage(node.id)}
+                        >
+                          {displayNameFromClient(client, node.id) ?? node.id}
+                        </button>
+                        <RowClassChips client={client} classIds={node.classIds} />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : (
+                filter === "created" && <EmptyState title="There's nothing here (yet)." />
+              ))}
+          </div>
         </div>
-      </aside>
+
+        <aside className="calendar-view__side">
+          <MonthCalendar
+            selectedDate={selectedIso}
+            onSelectDate={setSelectedIso}
+            firstDayOfWeek={firstDayOfWeek}
+            hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
+            extraMarks={dayExtraMarks}
+          />
+          <WeekStrip
+            days={weekDays}
+            selectedDate={selectedIso}
+            hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
+            extraMarks={dayExtraMarks}
+            onSelectDay={setSelectedIso}
+          />
+          <div className="calendar-view__agenda" aria-label="Week agenda">
+            <h2 className="calendar-view__agenda-title">This week</h2>
+            {weekAgenda.every((day) => day.rows.length === 0) ? (
+              <p className="calendar-view__muted">Nothing dated this week.</p>
+            ) : (
+              weekAgenda
+                .filter((day) => day.rows.length > 0)
+                .map(({ iso, rows }) => {
+                  const [y, m, d] = iso.split("-").map(Number);
+                  return (
+                    <div key={iso} className="calendar-view__agenda-day">
+                      <button
+                        type="button"
+                        className="calendar-view__agenda-day-title"
+                        onClick={() => setSelectedIso(iso)}
+                      >
+                        {new Date(y!, m! - 1, d!, 12).toLocaleDateString(undefined, {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </button>
+                      <ul className="calendar-view__rows">
+                        {rows.map(renderDatedRow)}
+                      </ul>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+        </aside>
+      </div>
 
       {pendingCreate !== null && (
         <TemplatePickerModal

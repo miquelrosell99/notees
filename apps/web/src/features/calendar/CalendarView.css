@@ -1,11 +1,14 @@
-/* CalendarView — the Capacities-style Day view. Tokens from variables.css. */
+/* CalendarView — the Capacities-style Day view. Tokens from variables.css.
+   The root's full-bleed layout lives in PageCard.css (the hub-surface
+   exception, owner 2026-10-22): the SurfaceTopBar pins above, the body's
+   columns scroll flush to their own edges — no horizontal padding on the
+   root so nothing indents the scrollbars. */
 
-.calendar-view {
-  height: 100%;
+.calendar-view__body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   gap: var(--spacing-5);
-  min-height: 0;
-  padding: var(--spacing-3) var(--spacing-6) var(--spacing-6);
 }
 
 .calendar-view__main {
@@ -16,6 +19,10 @@
   gap: var(--spacing-3);
   overflow-y: auto;
   min-height: 0;
+  /* The lateral inset the root used to carry (owner 2026-10-22: padding
+     rides inside the columns now, so the main column's scrollbar stays at
+     its border — the card edge minus the side column). */
+  padding: 0 var(--spacing-6) var(--spacing-6);
 }
 
 .calendar-view__side {
@@ -26,30 +33,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
-}
-
-.calendar-view__header {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-3);
-  flex-shrink: 0;
-}
-
-.calendar-view__heading {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.calendar-view__title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  margin: 0;
-  font: var(--font-title-large);
-  color: var(--md-sys-color-on-surface);
+  padding: 0 var(--spacing-6) var(--spacing-6) 0;
 }
 
 .calendar-view__date-line {
@@ -302,13 +286,17 @@
 }
 
 @media (width <= 768px) {
-  .calendar-view {
+  .calendar-view__body {
     flex-direction: column;
-    padding: var(--spacing-3) var(--spacing-4) var(--spacing-6);
+  }
+
+  .calendar-view__main {
+    padding: 0 var(--spacing-4) var(--spacing-6);
   }
 
   .calendar-view__side {
     width: 100%;
     order: -1;
+    padding: 0 var(--spacing-4) var(--spacing-6);
   }
 }

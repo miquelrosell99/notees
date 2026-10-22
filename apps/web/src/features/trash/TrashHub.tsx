@@ -29,6 +29,7 @@ import { relativeTime } from "../page-sections/ActivityLogSection.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
+import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import "./TrashHub.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -49,13 +50,16 @@ export function TrashHub({
   const entries = client.listTrashed();
 
   return (
-    <div className="nt-hub nt-trash-hub">
-      <header className="nt-hub-header">
-        <Icon path="mdi-delete-outline" size={1.2} className="nt-hub-icon" />
-        <h1 className="nt-hub-title">Trash</h1>
-        <span className="nt-hub-count">{entries.length}</span>
-        {entries.length > 0 && (
-          <span className="nt-hub-actions">
+    <div className="nt-trash-hub">
+      {/* The hub chrome rides the shared SurfaceTopBar (owner 2026-10-22),
+          pinned above the body; the rows scroll at the card border inside
+          the capped content column below. */}
+      <SurfaceTopBar
+        icon="mdi-delete-outline"
+        title="Trash"
+        count={entries.length}
+        actions={
+          entries.length > 0 ? (
             <Button
               type="button"
               variant="ghost"
@@ -65,18 +69,20 @@ export function TrashHub({
             >
               Empty trash
             </Button>
-          </span>
-        )}
-      </header>
+          ) : undefined
+        }
+      />
 
-      {entries.length === 0 ? (
-        <EmptyState
-          icon={<Icon path="mdi-delete-outline" size={2} />}
-          title="Trash is empty."
-          description="Deleted pages and their subtrees land here; restore brings them back."
-        />
-      ) : (
-        <ul className="nt-trash-hub__rows">
+      <div className="nt-trash-hub__body">
+        <div className="nt-trash-hub__content">
+          {entries.length === 0 ? (
+            <EmptyState
+              icon={<Icon path="mdi-delete-outline" size={2} />}
+              title="Trash is empty."
+              description="Deleted pages and their subtrees land here; restore brings them back."
+            />
+          ) : (
+            <ul className="nt-trash-hub__rows">
           {entries.map((entry) => {
             const name = deriveDisplayName(entry.node) || "Untitled";
             return (
@@ -116,8 +122,10 @@ export function TrashHub({
               </li>
             );
           })}
-        </ul>
-      )}
+            </ul>
+          )}
+        </div>
+      </div>
 
       {permanentTarget !== null && (
         <ConfirmationModal

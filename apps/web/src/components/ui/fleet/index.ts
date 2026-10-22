@@ -153,3 +153,6 @@ export { usePopupDismissal } from './usePopupDismissal.js';
 export type { UsePopupDismissalOptions } from './usePopupDismissal.js';
 
 export { useDelayedVisible } from './useDelayedVisible.js';
+
+export { SurfaceTopBar } from './SurfaceTopBar.js';
+export type { SurfaceTopBarProps } from './SurfaceTopBar.js';

@@ -84,7 +84,7 @@ describe("SharesHub", () => {
     expect(await screen.findByText("Alpha")).not.toBeNull();
     expect(screen.queryByText("Beta")).toBeNull();
     // The live link count rides the header.
-    expect(document.querySelector(".nt-hub-count")?.textContent).toBe("1");
+    expect(document.querySelector(".surface-topbar__count")?.textContent).toBe("1");
     // The absolute URL prefixes the server origin.
     expect(screen.getByText("http://server/public/n/t1")).not.toBeNull();
   });

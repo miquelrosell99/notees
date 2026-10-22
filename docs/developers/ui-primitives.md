@@ -102,6 +102,10 @@ over the parent line on pointer-fine devices — the tap stays the explicit
 toggle on touch — and the chevron rides the icon-role token, never the
 outline border token), `Separator`, `ErrorBoundary`, `ListSortable` (+ the
 `useListDragSort` hook), `FloatingButtonArray`,
+`SurfaceTopBar` (the in-card top bar for full-bleed hub surfaces, owner
+2026-10-22: icon + title + muted count + context + right-aligned actions,
+pinned above the surface's card-border scrolling body — every hub view
+composes it instead of a hand-rolled header),
 `PresentationOverlay` (the fullscreen presentation host: dark
 stage, auto-hiding toolbar, edge zones, Esc/focus-trap, owned keymap).
 

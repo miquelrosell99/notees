@@ -2146,15 +2146,9 @@ select:focus-visible {
   gap: 2px;
 }
 
-/* Queries hub: header actions beside the switcher, the saved-
-   views tab bar, and the host-page footnote. */
-.nt-hub-actions {
-  display: flex;
-  gap: 6px;
-  margin-left: auto;
-  align-items: center;
-}
-
+/* Queries hub: the saved-views tab bar and the host-page footnote (the
+   header actions moved into the SurfaceTopBar's actions cluster, owner
+   2026-10-22). */
 .nt-view-tabs {
   margin: 4px 0 8px;
 }
@@ -3687,59 +3681,21 @@ mark {
   box-shadow: var(--shadow-focus-ring-primary);
 }
 
-/* Nav hubs (Journal / Inbox / Pages / Whiteboards / Tasks). */
-.nt-hub {
-  padding: var(--spacing-8) var(--spacing-6);
-}
-
-/* The tasks hub stacks the bucket section above its collection;
-   both scroll as one hub body. */
+/* The tasks hub root (owner 2026-10-22, the hub-surface restructure): a
+   pass-through flex root over the hub's CollectionHub — the SurfaceTopBar
+   and the card-border scrolling body live in CollectionHub (CollectionHub.css),
+   and the bucketed surface prepends the collection inside that shared body. */
 .nt-hub-tasks {
   height: 100%;
-  overflow-y: auto;
-  padding: var(--spacing-8) var(--spacing-6);
-}
-
-.nt-hub-tasks .nt-hub {
-  padding: 0;
-}
-
-.nt-hub-header {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  margin-bottom: var(--spacing-4);
-  color: var(--md-sys-color-on-surface);
+  flex-direction: column;
+  min-height: 0;
 }
 
-.nt-hub-title {
-  margin: 0;
-  font: var(--font-headline-medium);
-}
-
-.nt-hub-count {
-  flex-shrink: 0;
-  font-size: var(--font-size-sm);
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-/* The view switcher rides the header row, right-aligned. */
-.nt-hub-switcher {
-  margin-left: auto;
-  display: inline-flex;
-}
-
-/* Extra hub actions (#14's "New class" button et al.): right-aligned after
-   the switcher (or in its place when no switcher rendered). */
-.nt-hub-actions {
-  margin-left: auto;
-  display: inline-flex;
-  gap: var(--spacing-2);
-}
-
-.nt-hub-switcher + .nt-hub-actions {
-  margin-left: 0;
-}
+/* The shared .nt-hub-header / .nt-hub-title / .nt-hub-count /
+   .nt-hub-switcher / .nt-hub-actions registers retired with the
+   SurfaceTopBar primitive (owner 2026-10-22): every hub's header composes
+   the fleet bar now — verified no user remains. */
 
 /* Sidebar section header toggle (transparent, archive-style). */
 .nt-side-header-toggle {

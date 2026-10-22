@@ -1,0 +1,44 @@
+/**
+ * CollectionHub styles — the nav hubs' shared surface shape (owner
+ * 2026-10-22). The root is full-bleed in the main content card (the
+ * PageCard.css hub-surface exception); the SurfaceTopBar pins at the card's
+ * top, the body scrolls at the CARD's right border, and the collection
+ * keeps the former .nt-hub measure (800px cap, spacing-6 inset) via the
+ * capped content column. Token-only (variables.css).
+ */
+
+/* The root: a full-height flex column both as the PageCard's direct child
+   (the PageCard.css hub-surface exception) and nested inside the tasks
+   hub's .nt-hub-tasks wrapper — the bar pins, the body scrolls in both. */
+.nt-hub {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.nt-hub__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-hub__content {
+  flex: 1 0 auto;
+  width: 100%;
+  max-width: var(--layout-size-13xl);
+  margin-inline: auto;
+  padding: 0 var(--spacing-6) var(--spacing-6);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+@media (width <= 768px) {
+  .nt-hub__content {
+    padding: 0 var(--spacing-4) var(--spacing-6);
+  }
+}

@@ -16,12 +16,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SYSTEM_CLASS_UUIDS, parseDateNodeId } from "@notees/domain";
 
 import { PageView } from "../../ui/PageView.js";
-import { Icon } from "../../ui/Icon.js";
 import { rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import { addDaysIso, isoOfDateParts, todayIsoLocal } from "./calendarViewUtils.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
+import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import "./JournalsView.css";
 
 /** Entries mounted around today before the sentinels take over. */
@@ -181,33 +181,38 @@ export function JournalsView({
 
   return (
     <div className="journals-view">
-      <header className="journals-view__header">
-        <h1 className="journals-view__title">
-          <Icon path="mdi-notebook-outline" size={1.1} />
-          Journal
-        </h1>
-        <span className="journals-view__nav">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="mdi-chevron-left"
-            aria-label="Previous day"
-            onClick={() => openDay(addDaysIso(anchorIso, -1))}
-          />
-          {pages.length > 0 && (
-            <button type="button" className="journals-view__today-btn" onClick={scrollToToday}>
-              Today
-            </button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="mdi-chevron-right"
-            aria-label="Next day"
-            onClick={() => openDay(addDaysIso(anchorIso, 1))}
-          />
-        </span>
-      </header>
+      {/* The hub chrome rides the shared SurfaceTopBar (owner 2026-10-22):
+          pinned above the feed, full card width, so the feed's scrollbar
+          stays at the card border. The ±1 day nav closes over the same
+          openDay/scrollToToday handlers — plain composition, no
+          re-registering. */}
+      <SurfaceTopBar
+        icon="mdi-notebook-outline"
+        title="Journal"
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="mdi-chevron-left"
+              aria-label="Previous day"
+              onClick={() => openDay(addDaysIso(anchorIso, -1))}
+            />
+            {pages.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={scrollToToday}>
+                Today
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="mdi-chevron-right"
+              aria-label="Next day"
+              onClick={() => openDay(addDaysIso(anchorIso, 1))}
+            />
+          </>
+        }
+      />
       {pages.length === 0 ? (
         /* The sentence-as-title follows the CalendarView EmptyState
            precedent; the CTA is the kit Button (the primary register). */

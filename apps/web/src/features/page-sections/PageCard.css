@@ -73,6 +73,32 @@
   flex-direction: column;
 }
 
+/* The hub surfaces (owner 2026-10-22): Journal, Calendar, the collection
+   hubs (Pages / Classes / Inbox / Whiteboards / Assets / Tasks), Trash,
+   Archived, Shares, Search, and Queries. Same full-bleed treatment as the
+   graph surface: no centered column cap — each hub pins a SurfaceTopBar
+   header row at the card's top and its body scrolls at the CARD's right
+   border (the generic 800px cap put internal scrollbars at the floating
+   column's edge); each hub's content measure rides an inner cap inside its
+   own CSS. */
+.nt-page-card > .journals-view,
+.nt-page-card > .calendar-view,
+.nt-page-card > .nt-hub,
+.nt-page-card > .nt-hub-tasks,
+.nt-page-card > .nt-trash-hub,
+.nt-page-card > .nt-archived-hub,
+.nt-page-card > .nt-shares-hub,
+.nt-page-card > .search-page,
+.nt-page-card > .nt-queries-hub {
+  max-width: none;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 /* The settings page: a full-card surface like the panelled nodeview — the
    generic centered 800px cap squeezed the nav rail + content into a
    floating mid-card band. The page frame carries its own inset (SettingsPage.css)

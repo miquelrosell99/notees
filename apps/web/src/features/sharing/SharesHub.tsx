@@ -28,6 +28,7 @@ import { Button } from "../../components/ui/fleet/Button.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import { InlineConfirmButton } from "../../components/ui/fleet/InlineConfirmButton.js";
 import { Spinner } from "../../components/ui/fleet/Spinner.js";
+import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import { copyToClipboard } from "../modals/clipboard.js";
 import { listShares, revokeShare, type ShareEntry } from "./shareApi.js";
 import "./SharesHub.css";
@@ -84,33 +85,34 @@ export function SharesHub({
   }
 
   return (
-    <div className="nt-hub nt-shares-hub">
-      <header className="nt-hub-header">
-        <Icon path="mdi-share-variant" size={1.2} className="nt-hub-icon" />
-        <h1 className="nt-hub-title">Shares</h1>
-        <span className="nt-hub-count">{liveShares.length}</span>
-      </header>
+    <div className="nt-shares-hub">
+      {/* The hub chrome rides the shared SurfaceTopBar (owner 2026-10-22),
+          pinned above the body; the rows scroll at the card border inside
+          the capped content column below. */}
+      <SurfaceTopBar icon="mdi-share-variant" title="Shares" count={liveShares.length} />
 
-      {shares === null && error === null ? (
-        <div className="nt-shares-hub__loading">
-          <Spinner />
-        </div>
-      ) : error !== null && shares === null ? (
-        <EmptyState
-          icon={<Icon path="mdi-cloud-off-outline" size={2} />}
-          title="Failed to load shared links"
-          description={error}
-          actionLabel="Try again"
-          onAction={load}
-        />
-      ) : liveShares.length === 0 ? (
-        <EmptyState
-          icon={<Icon path="mdi-share-variant" size={2} />}
-          title="No shared links yet"
-          description="Share a page from its Share dialog (the page menu → Share) to publish a read-only link; the link lands here."
-        />
-      ) : (
-        <ul className="nt-shares-hub__rows">
+      <div className="nt-shares-hub__body">
+        <div className="nt-shares-hub__content">
+          {shares === null && error === null ? (
+            <div className="nt-shares-hub__loading">
+              <Spinner />
+            </div>
+          ) : error !== null && shares === null ? (
+            <EmptyState
+              icon={<Icon path="mdi-cloud-off-outline" size={2} />}
+              title="Failed to load shared links"
+              description={error}
+              actionLabel="Try again"
+              onAction={load}
+            />
+          ) : liveShares.length === 0 ? (
+            <EmptyState
+              icon={<Icon path="mdi-share-variant" size={2} />}
+              title="No shared links yet"
+              description="Share a page from its Share dialog (the page menu → Share) to publish a read-only link; the link lands here."
+            />
+          ) : (
+            <ul className="nt-shares-hub__rows">
           {liveShares.map((entry) => {
             const node = client.getNode(entry.nodeId);
             const name = node !== undefined ? deriveDisplayName(node) || "Untitled" : "Untitled";
@@ -166,8 +168,10 @@ export function SharesHub({
               </li>
             );
           })}
-        </ul>
-      )}
+            </ul>
+          )}
+        </div>
+      </div>
       {error !== null && shares !== null && <p className="nt-error">{error}</p>}
     </div>
   );

@@ -126,10 +126,19 @@ describe("hub/list row names ride the §7 list-row register", () => {
 });
 
 describe("custom buttons carry the pressed layer (skill §6 tactile press)", () => {
-  it("the journals Today button presses with the overlay", () => {
-    const pressed = /\.journals-view__today-btn:active \{[^}]*\}/.exec(journalsCss);
-    expect(pressed).not.toBeNull();
-    expect(pressed![0]).toContain("background: var(--md-sys-color-pressed-overlay)");
+  it("the journals Today button composes the kit Button — no custom pill (owner 2026-10-22)", () => {
+    // The hand-rolled .journals-view__today-btn retired with the hub-surface
+    // restructure: Today is a fleet ghost Button inside the SurfaceTopBar's
+    // actions cluster now. Its pressed register lives in the kit Button —
+    // pinned at the source by the empty-state CTA test below — so the view
+    // CSS must carry no today-button rule of its own.
+    expect(journalsCss).not.toMatch(/\.journals-view__today-btn/);
+    const journalsSrc = fs.readFileSync(
+      path.join(process.cwd(), "src", "features", "calendar", "JournalsView.tsx"),
+      "utf8",
+    );
+    expect(journalsSrc).toContain('variant="ghost"');
+    expect(journalsSrc).toContain("scrollToToday");
   });
 
   it("the journals empty state composes the kit EmptyState — the CTA register lives in the kit Button", () => {

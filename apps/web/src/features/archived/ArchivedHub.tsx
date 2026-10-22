@@ -28,6 +28,7 @@ import { Icon } from "../../ui/Icon.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 import { relativeTime } from "../page-sections/ActivityLogSection.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
+import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import "./ArchivedHub.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -46,21 +47,22 @@ export function ArchivedHub({
   const entries = client.listArchived();
 
   return (
-    <div className="nt-hub nt-archived-hub">
-      <header className="nt-hub-header">
-        <Icon path="mdi-archive-outline" size={1.2} className="nt-hub-icon" />
-        <h1 className="nt-hub-title">Archived</h1>
-        <span className="nt-hub-count">{entries.length}</span>
-      </header>
+    <div className="nt-archived-hub">
+      {/* The hub chrome rides the shared SurfaceTopBar (owner 2026-10-22),
+          pinned above the body; the rows scroll at the card border inside
+          the capped content column below. */}
+      <SurfaceTopBar icon="mdi-archive-outline" title="Archived" count={entries.length} />
 
-      {entries.length === 0 ? (
-        <EmptyState
-          icon={<Icon path="mdi-archive-outline" size={2} />}
-          title="Nothing archived."
-          description="Archived pages and classes hide from every default read; unarchive brings them back."
-        />
-      ) : (
-        <ul className="nt-archived-hub__rows">
+      <div className="nt-archived-hub__body">
+        <div className="nt-archived-hub__content">
+          {entries.length === 0 ? (
+            <EmptyState
+              icon={<Icon path="mdi-archive-outline" size={2} />}
+              title="Nothing archived."
+              description="Archived pages and classes hide from every default read; unarchive brings them back."
+            />
+          ) : (
+            <ul className="nt-archived-hub__rows">
           {entries.map((entry: ArchivedEntry) => {
             const name = deriveDisplayName(entry.node) || "Untitled";
             // System classes have no trash interpretation — the delete
@@ -111,14 +113,15 @@ export function ArchivedHub({
               </li>
             );
           })}
-        </ul>
-      )}
-
-      {entries.length > 0 && (
-        <p className="nt-archived-hub__footer">
-          Delete moves an item to the trash — restore it from there.
-        </p>
-      )}
+            </ul>
+          )}
+          {entries.length > 0 && (
+            <p className="nt-archived-hub__footer">
+              Delete moves an item to the trash — restore it from there.
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
