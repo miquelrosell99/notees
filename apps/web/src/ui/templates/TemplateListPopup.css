@@ -5,7 +5,10 @@
   flex-direction: column;
   min-width: 16rem;
   max-width: 22rem;
-  background: var(--md-sys-color-surface);
+  /* The elevated popup register (owner 2026-10-22 sweep): transient
+     floating chrome rides surface-container-high — plain surface blended
+     into the content behind. */
+  background: var(--md-sys-color-surface-container-high);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-elevation-2);

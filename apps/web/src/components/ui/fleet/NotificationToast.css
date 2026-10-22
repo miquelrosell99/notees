@@ -30,12 +30,14 @@
   gap: var(--spacing-2);
   padding: var(--spacing-3);
   border-radius: var(--shape-floating-panel);
-  background: var(--md-sys-color-surface);
+  background: var(--md-sys-color-surface-container-high);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 
-  /* No elevation shadow by local choice (flagged for the follow-up
-     elevation audit — the M3 ruling, owner 2026-10-16, gives transient
-     popovers level 2 elsewhere). */
+  /* The elevation audit this was flagged for (owner 2026-10-22): transient
+     floating chrome rides surface-container-high + the level-2 shadow, the
+     register the calendar-popup fix proved — plain surface blended into the
+     content behind. */
+  box-shadow: var(--elevation-2);
   pointer-events: auto;
   animation: slideInRight var(--motion-duration-medium) var(--motion-easing-decelerate);
 }

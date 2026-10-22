@@ -27,18 +27,20 @@
    carry their own radius. The .card qualification beats the radius
    class's overflow without !important.
 
-   The menu rides surface-container-low per the M3 menu spec (owner ruling
-   2026-10-16: menus sit at elevation level 2 on surfaceContainerLow —
-   m3.material.io menus) — with the level-2 shadow from the elevation table
-   (Card elevation="medium"). Both are Material roles cited directly; the
-   md-sys namespace is for Material roles only, never app aliases like
-   --md-sys-color-sidebar-card (the css-token-drift gate enforces this). The
-   4dp container shape rides --radius-menu (the M3 menu-corner ruling),
+   The menu rides the elevated popup register (owner report 2026-10-22:
+   surface-container-low blended into the dark content behind — the same
+   issue the calendar-popup fix solved for pickers; menus move up to the
+   proven step, surface-container-high + the level-2 shadow the transient
+   popovers carry). Both are Material roles cited directly; the md-sys
+   namespace is for Material roles only, never app aliases like
+   --md-sys-color-sidebar-card (the css-token-drift gate enforces this).
+   The 4dp container shape rides --radius-menu (the M3 menu-corner ruling),
    overriding the Card radius class below with the .card qualification. */
 .card.context-menu {
   overflow: visible;
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--md-sys-color-surface-container-high);
   border-radius: var(--radius-menu);
+  box-shadow: var(--elevation-2);
 }
 
 .context-menu-title {
@@ -160,14 +162,15 @@ button.context-menu-item:hover:not(.disabled) {
    in the component: right side by default, flipped left at the viewport
    edge, vertically clamped. Absolutely positioned inside the card, it
    never changes the menu's own box — so opening/closing it can never
-   re-fit the menu the way the old inline expansion did. Rides the same
-   surface and corner as the menu root (see .card.context-menu) — M3's
-   menu spec: surfaceContainerLow + the 4dp container shape. */
+   re-fit the menu the way the old inline expansion did. Rides the menu
+   root's elevated register (see .card.context-menu) — the proven popup
+   step: surface-container-high + the level-2 shadow. */
 .card.context-menu-submenu-flyout {
   min-width: 11.25rem;
   max-width: var(--layout-size-6xl);
-  background: var(--md-sys-color-surface-container-low);
+  background: var(--md-sys-color-surface-container-high);
   border-radius: var(--radius-menu);
+  box-shadow: var(--elevation-2);
   padding: var(--spacing-1);
   z-index: 1;
   animation: panelFadeIn var(--motion-duration-long) var(--motion-easing-standard);

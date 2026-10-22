@@ -3,10 +3,13 @@
   top: calc(var(--topbar-height) + var(--spacing-2));
   right: var(--spacing-2);
   z-index: var(--z-1000);
-  background: var(--md-sys-color-surface-bright);
+  /* The elevated popup register (owner 2026-10-22 sweep): a floating widget
+     rides surface-container-high + level-2 shadow — surface-bright blended
+     into the content behind (this was the flagged elevation audit). */
+  background: var(--md-sys-color-surface-container-high);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
-  box-shadow: none;
+  box-shadow: var(--elevation-2);
   padding: var(--spacing-2);
   display: flex;
   flex-direction: column;

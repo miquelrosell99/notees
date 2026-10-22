@@ -80,6 +80,42 @@ describe("ContextMenu submenu hover (owner 2026-10-16)", () => {
     expect(queryByText("Markdown")).toBeNull();
   });
 
+  it("leaving the menu card closes the open flyout (owner 2026-10-22)", () => {
+    stubHover(true);
+    const { getByText, queryByText } = renderMenu();
+
+    fireEvent.mouseEnter(getByText("Copy"));
+    expect(queryByText("Markdown")).not.toBeNull();
+    // The pointer walks off the menu entirely: the flyout must not linger
+    // over the page. The menu root itself stays open (dismissal rides
+    // onClose, not hover) — only the submenu closes. (The menu portaled to
+    // document.body — the queries ride `document`.)
+    const menuCard = document.querySelector(".context-menu")!;
+    fireEvent.mouseLeave(menuCard);
+    expect(queryByText("Markdown")).toBeNull();
+    expect(queryByText("Open")).not.toBeNull();
+  });
+
+  it("the flyout is a DOM child of the menu card — the leave-close never fires while the pointer is over it", () => {
+    stubHover(true);
+    const { getByText, queryByText } = renderMenu();
+
+    fireEvent.mouseEnter(getByText("Copy"));
+    expect(queryByText("Markdown")).not.toBeNull();
+    // The structural invariant the leave-close relies on: the flyout rides
+    // INSIDE the card's DOM subtree (no Portal), so a real pointerleave on
+    // the card cannot fire while the pointer travels its rows. (Both ride
+    // the portal to document.body — the assertion is about the flyout's
+    // position relative to the card within that tree.)
+    const menuCard = document.querySelector(".context-menu")!;
+    const flyout = document.querySelector(".context-menu-submenu-flyout")!;
+    expect(menuCard.contains(flyout)).toBe(true);
+    // A subitem row carries no enter-seam handler of its own — moving
+    // through the flyout leaves it open.
+    fireEvent.mouseEnter(getByText("Markdown"));
+    expect(queryByText("Markdown")).not.toBeNull();
+  });
+
   it("hover does not open on touch devices — the tap stays the toggle", () => {
     stubHover(false);
     const { getByText, queryByText } = renderMenu();
@@ -130,20 +166,24 @@ describe("chevron visibility (owner 2026-10-16 feedback)", () => {
     expect(menuCss).not.toContain("context-menu-submenu-inline");
     const menuRootBlock = menuCss.split(".card.context-menu {")[1]!.split("}")[0]!;
     expect(menuRootBlock).toContain("overflow: visible");
-    // The menu and its flyout ride surface-container-low per the M3 menu
-    // spec (owner ruling 2026-10-16: menus sit at elevation level 2 on
-    // surfaceContainerLow — m3.material.io menus) and cite the Material role
-    // directly (the md-sys namespace is Material-only; the css-token-drift
-    // gate's check 7 rejects surface aliases like --md-sys-color-sidebar-card
-    // outside their own surface).
-    expect(menuRootBlock).toContain("var(--md-sys-color-surface-container-low)");
+    // The menu and its flyout ride the elevated popup register (owner
+    // report 2026-10-22: surface-container-low blended into the dark
+    // content behind — the same issue the calendar-popup fix solved for
+    // pickers; menus move up to the proven step) and cite the Material
+    // role directly (the md-sys namespace is Material-only; the
+    // css-token-drift gate's check 7 rejects surface aliases like
+    // --md-sys-color-sidebar-card outside their own surface).
+    expect(menuRootBlock).toContain("var(--md-sys-color-surface-container-high)");
     expect(menuRootBlock).not.toContain("sidebar-card");
     // …with the M3 menu-spec 4dp container shape (the --radius-menu token,
-    // overriding the Card radius class).
+    // overriding the Card radius class) and the level-2 shadow the transient
+    // popovers carry.
     expect(menuRootBlock).toContain("border-radius: var(--radius-menu)");
+    expect(menuRootBlock).toContain("box-shadow: var(--elevation-2)");
     const flyoutSurface = menuCss.split(".context-menu-submenu-flyout {")[1]!.split("}")[0]!;
-    expect(flyoutSurface).toContain("var(--md-sys-color-surface-container-low)");
+    expect(flyoutSurface).toContain("var(--md-sys-color-surface-container-high)");
     expect(flyoutSurface).toContain("border-radius: var(--radius-menu)");
+    expect(flyoutSurface).toContain("box-shadow: var(--elevation-2)");
 
     // Card's levels map to the M3 elevation table (owner ruling 2026-10-16:
     // static cards carry level 1, menus/popovers level 2, dialogs level 3).
