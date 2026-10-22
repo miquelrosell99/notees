@@ -42,6 +42,69 @@ predating this file.
     replay VERIFY-PASS; live `verify-min.mjs` VERIFY-PASS; fresh-client boot
     probe against the repaired workspace PROBE-PASS.
 
+
+- **feat(protocol,store,web)!: the classes gallery, the archival `active`
+  bit, and the retired `class.delete` op — two lifecycles, never conflated.**
+  Owner rulings (2026-10-22, the classes-gallery batch): the app ships a
+  Capacities-style **classes gallery** — the class-creation dialog's second
+  tab is now a card grid (icon chip + name + one-line description, grouped in
+  sections, a "Create your own" card) of the seeded system classes the
+  workspace does not have ENABLED; picking a card enables it. Disabling is
+  the delete gesture, and deletion is now routed: `object.delete` on a class
+  node is decided by the applier — a LOCKED system class (the date chain +
+  table, asset, query, code, template, comment) fails loud; a family base
+  (task, event, meeting, source, person) applies as its feature toggle off;
+  any other system class is re-wired to **archival** (`active = false`,
+  reversible from the gallery), never trash; a user class takes the plain
+  trash row. **Membership rides in every arm** — class removal never
+  tombstones `class_member_set`; restoring a class brings back every
+  assignment (the old `class.delete` sweep is dead). Archival generalizes to
+  ANY node: `object.update` gains the presence-write `active` bit
+  (false = archive, true = unarchive — locked classes and family bases
+  refuse the archival direction), the page/block context menu archives
+  without a confirmation, and the new **Archived** hub (the account popup,
+  beside Trash — owns `/archived` + the tab title) lists archived nodes with
+  Unarchive and Delete; `object.restore` is explicitly NOT the unarchive
+  path (no trash row → no-op). Every default read filters `active = 1` AND
+  no trash row — the query compiler already rode `is_active`, the web
+  `children()` read joined it, and the class picker surfaces disabled-system-
+  class matches as dimmed rows with an Enable affordance plus a "Browse all
+  types…" row into the gallery. The **journal** toggle joins
+  `WORKSPACE_FEATURES` — it gates the journal surfaces (the nav view, Today-
+  page management/auto-creation, both hidden while off) while the date
+  classes stay always-on; it renders as a surfaces-only row in Settings →
+  Features (no class family, no instance count). The `class.delete` op is
+  retired outright (strict schemas + registry reject it — no wire compat);
+  the undo journal's inverses compose the routing (class.create inverts as
+  toggle-restore / archive / trash by kind; class-node deletes invert
+  likewise). Wire + model: `packages/protocol` (payload key, feature enum,
+  four-arm routing in SCHEMA.md, fixtures `object-update-active.json` +
+  `object-delete-class-routing.json`; `class-delete-managed.json` retires
+  with the op), `packages/store` (routing applier, `LockedSystemClassError`,
+  the family-base archival guard, `children()` liveness filter, restore
+  no-trash-row no-op), `packages/domain` (`LOCKED_SYSTEM_CLASSES`,
+  `FamilyFeature`, `isFamilyFeature`, the gallery descriptions manifest),
+  `packages/sync` (listing-affecting envelope carriers `isEmbedded`/`active`),
+  `apps/web` (gallery modal, Archived hub, archive gesture, picker rows,
+  Features-tab journal row, journal surface gating), and
+  `scripts/migrate-class-delete.mts` — the one-time stored-log rewrite
+  (family bases → the toggle op, other system classes → `object.update
+  {active:false}`, user classes → `object.delete`, locked/orphan deletes
+  dropped) with the membership-rides semantics documented honestly in its
+  header.
+  - **LOCKSTEP-PENDING (the clients)**: GTK/Flutter must converge on the new
+    fixtures (`object-update-active.json`, `object-delete-class-routing.json`,
+    the extended `workspace-feature-set.json`) and the retired `class.delete`
+    before the live stored-log migration runs — the new server rejects the
+    old op outright, so the migration is a deploy-time step (stack stopped →
+    new images → `migrate-class-delete.mts --apply` → restart), not a live
+    one.
+  - **Verification**: fixture gate 38/38; store 646/646 (routing arms,
+    membership-rides, archival LWW, archive ≠ trash, migration planner +
+    replay convergence); web 1952/1952 (gallery, Archived hub, undo-journal
+    routing inverses, picker rows, Features tab); `pnpm typecheck` green;
+    `pnpm test` full gate green.
+
 - **feat(sync,server)!: WS admission tickets — bearer credentials no longer
   ride any URL; the `?token=` query fallback is retired.** Owner ruling
   (2026-10-22, "best practice implementation, no hacks"): a session token or
