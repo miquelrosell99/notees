@@ -7,6 +7,21 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **docs(changelog): the WS-admission-ticket lockstep converged — GTK
+  `8269285`, Flutter `f9cfe75`, CLI `e8c2c39`.** All three implementations now
+  speak the 0ea18fcd5 contract; the LOCKSTEP-PENDING note in that entry is
+  closed. GTK (`notees-gtk`): the socket sends `Authorization: Bearer` on the
+  upgrade (`websockets` `additional_headers`), URL carries no credential,
+  verified LIVE against this server — `tests/test_live_server_e2e.py` 3/3
+  handshakes via the header. Flutter (`notees-flutter`): `WsConnector` gained
+  a headers map threaded from the account credential,
+  `IOWebSocketChannel.connect(url, headers: …)`, analyze clean + 681/681.
+  CLI (`notees-cli`): vendor re-pinned `33e4af5e2 → bc3f856e7`, zero CLI-code
+  delta (the `packages/sync` transport mints tickets internally), gate 87/87.
+  Client release tags remain each client repo's own release step.
+  - **Verification**: the three client gates as recorded in each repo's
+    changelog this day.
+
 - **fix(sync): the test workspace's relay log repaired — 50,001 envelopes the
   relay had accepted but no strict applier could ever apply.** Owner directive
   (2026-10-22, "repair the log"): fresh clients syncing the shared test
