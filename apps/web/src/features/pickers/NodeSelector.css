@@ -658,3 +658,23 @@
   white-space: nowrap;
   opacity: var(--opacity-70);
 }
+
+/* ==================== `/` filter mode ==================== */
+
+/* The applied-filter chip row rides under the search field, inset to the
+   result-row grid (the fleet FilterChips compose the Pill primitive — the
+   panel-context inset and wrap live here only). */
+.node-selector__filter-chips {
+  padding: 0 var(--spacing-2) var(--spacing-1);
+}
+
+.node-selector__filter-chips:empty {
+  display: none;
+}
+
+/* The option menu scrolls inside the results viewport (the fleet
+   FilterMenu owns the row look). */
+.node-selector__options .filter-menu {
+  max-height: var(--layout-size-2xl);
+  overflow-y: auto;
+}

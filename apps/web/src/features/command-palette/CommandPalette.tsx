@@ -15,8 +15,8 @@
  *               seen-ids dedupe like Commands (#8)
  *  - Date Pages date pages matching the query: formatted/raw keywords plus a
  *               parsed-date suggestion ("feb 14" → the deterministic date
- *               chain). The `is_daily:` prefix scopes the whole
- *               palette to this section.
+ *               chain). The `is_daily:` prefix and the Daily pages chip
+ *               scope the whole palette to this section.
  *  - Pages      (client.listPages, asset-classed pages excluded)
  *  - Classes    (client.listClasses)
  *  - Properties (client.listPropertySchemas; the host's `onOpenProperty`
@@ -38,6 +38,17 @@
  *               page is open), Toggle theme, Sign
  *               out (a contribution point)
  *
+ *  - `/` filter mode (owner 2026-10-22): a leading `/` swaps the results for
+ *    a Filters section — the filter kinds (Daily pages, Pages, Blocks,
+ *    Classes, With class…, Commands) narrowed by the slash text; classes the
+ *    text names surface directly, and the "With class…" row browses the full
+ *    class list. Applying an option renders it as a removable chip under the
+ *    search field and scopes the results: kind chips restrict the sections
+ *    (Commands = the action registry only), memberOf chips restrict every
+ *    node section to the class's members. Chips compose (AND), dedupe, and
+ *    Backspace on an empty query pops the last chip. The picker family
+ *    shares the model (`features/search-filters/filterModel.ts`).
+ *
  * Full keyboard navigation: ArrowUp/Down cycles, Enter selects, Esc closes;
  * the mouse hovers and clicks. Theme toggling dispatches the same
  * data-theme/localStorage flip as ThemeToggle. Rendered through the shared
@@ -57,7 +68,18 @@ import { Icon } from "../../ui/Icon.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { flipTheme, toggleFocusMode } from "../settings/deviceSettings.js";
 import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
+import {
+  bestScore,
+  filterChipIcon,
+  filterChipLabel,
+  filterKey,
+  listClassOptions,
+  listFilterOptions,
+} from "../search-filters/filterModel.js";
+import type { FilterOption, SearchFilter } from "../search-filters/filterModel.js";
 import { Button } from "../../components/ui/fleet/Button.js";
+import { FilterChips } from "../../components/ui/fleet/FilterChips.js";
+import { FilterMenu } from "../../components/ui/fleet/FilterMenu.js";
 import { SearchField } from "../../components/ui/fleet/SearchField.js";
 import "./Modal.css";
 import "./CommandPalette.css";
@@ -91,45 +113,6 @@ interface PaletteAction {
   icon: string;
   keywords: string;
   run: () => void;
-}
-
-/**
- * Ordered-subsequence fuzzy score, or null when the query does not match.
- * Word-start and consecutive matches score higher; shorter targets win ties.
- */
-function fuzzyScore(query: string, target: string): number | null {
-  const q = query.trim().toLowerCase();
-  const t = target.toLowerCase();
-  if (q === "") return 0;
-  let score = 0;
-  let ti = 0;
-  let lastMatch = -2;
-  for (let qi = 0; qi < q.length; qi += 1) {
-    const ch = q[qi]!;
-    let found = -1;
-    while (ti < t.length) {
-      if (t[ti] === ch) {
-        found = ti;
-        break;
-      }
-      ti += 1;
-    }
-    if (found === -1) return null;
-    score += 1;
-    if (found === 0 || /[\s\-_/.@·]/.test(t[found - 1]!)) score += 3;
-    if (found === lastMatch + 1) score += 2;
-    lastMatch = found;
-    ti = found + 1;
-  }
-  return score - t.length * 0.01;
-}
-
-function bestScore(query: string, label: string, keywords: string): number | null {
-  const labelScore = fuzzyScore(query, label);
-  const keywordScore = fuzzyScore(query, keywords);
-  return labelScore !== null && keywordScore !== null
-    ? Math.max(labelScore, keywordScore)
-    : (labelScore ?? keywordScore);
 }
 
 /** Snippet excerpt with the match spans highlighted (the shared nt-search-* styles). */
@@ -321,6 +304,13 @@ export function CommandPalette({
   const [contentItems, setContentItems] = useState<Array<PaletteItem & { queryTag: string }>>([]);
   const [contentLoading, setContentLoading] = useState(false);
   const contentGeneration = useRef(0);
+  /**
+   * `/` filter mode: the applied chips (compose AND, dedupe by filterKey)
+   * and the "With class…" browse sub-state (the class listing replaces the
+   * option list until a class is picked or the slash text is cleared).
+   */
+  const [activeFilters, setActiveFilters] = useState<SearchFilter[]>([]);
+  const [filterBrowse, setFilterBrowse] = useState<"options" | "classes">("options");
   const listRef = useRef<HTMLDivElement>(null);
 
   // Global Ctrl/Cmd+K toggle (capture so browser-default find-in-page loses).
@@ -345,19 +335,50 @@ export function CommandPalette({
   }, []);
 
   // Query parsing: the `is_daily:` prefix scopes the palette to date pages;
-  // the rest is the fuzzy/FTS text.
-  const dailyOnly = /^is_daily:\s*/i.test(query);
-  const text = query.replace(/^is_daily:\s*/i, "").trim();
+  // a leading `/` enters filter mode (the slash text narrows the filter
+  // options, the results list steps aside); the rest is the fuzzy/FTS text.
+  const filterMode = query.startsWith("/");
+  const narrowText = filterMode ? query.slice(1) : "";
+
+  // Chip state: kind chips gate whole sections; memberOf chips restrict
+  // every node section to the classes' members.
+  const chip = useMemo(
+    () => ({
+      daily: activeFilters.some((f) => f.kind === "daily"),
+      pages: activeFilters.some((f) => f.kind === "pages"),
+      blocks: activeFilters.some((f) => f.kind === "blocks"),
+      classes: activeFilters.some((f) => f.kind === "classes"),
+      commands: activeFilters.some((f) => f.kind === "commands"),
+      memberOf: activeFilters.flatMap((f) =>
+        f.kind === "memberOf" && f.classId !== undefined ? [f.classId] : [],
+      ),
+    }),
+    [activeFilters],
+  );
+  const anyChip = activeFilters.length > 0;
+  const memberOfSet = useMemo(() => new Set(chip.memberOf), [chip.memberOf]);
+  const hasMemberOf = chip.memberOf.length > 0;
+
+  const dailyOnly = /^is_daily:\s*/i.test(query) || chip.daily;
+  const text = filterMode ? "" : query.replace(/^is_daily:\s*/i, "").trim();
+  /** The empty-query home: no slash, no prefix, no chips — Recent/Random live here. */
+  const home = !filterMode && !dailyOnly && text === "" && !anyChip;
+
+  // The class cache doubles as the chip label/icon + filter menu source.
+  const classesCache = useMemo(() => client.listClasses(), [client, cacheVersion]);
 
   // --- synchronous sections -------------------------------------------------
 
   const syncItems = useMemo<PaletteItem[]>(() => {
-    const classes = client.listClasses();
+    const classes = classesCache;
     const assetClassId =
       classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
+    const memberOfMatch = (node: ClientNode) =>
+      !hasMemberOf || node.classIds.some((id) => memberOfSet.has(id));
     const pages = client
       .listPages()
-      .filter((page) => !page.classIds.includes(assetClassId));
+      .filter((page) => !page.classIds.includes(assetClassId))
+      .filter(memberOfMatch);
     const themeIsDark = document.documentElement.dataset.theme !== "light";
     const focusIsOn = document.documentElement.dataset.focus === "true";
     const items: PaletteItem[] = [];
@@ -388,7 +409,7 @@ export function CommandPalette({
       }
     };
 
-    if (!dailyOnly && text === "") {
+    if (home) {
       const recentPool: Array<{ id: string; label: string; keywords: string; icon: string; run: () => void }> = [];
       const seenRecent = new Set<string>();
       for (const id of recentIds.slice(0, 8)) {
@@ -407,7 +428,7 @@ export function CommandPalette({
       addFuzzy("Recent", recentPool);
     }
 
-    if (dailyOnly || text !== "") {
+    if (!chip.commands && !chip.classes && !chip.blocks && (dailyOnly || text !== "")) {
       // Parsed-date suggestion: formatted keywords ("feb 14", "2026-02-09",
       // "yesterday") map onto the deterministic date chain — offered even
       // when the chain nodes do not exist yet (ensureDateChain creates them).
@@ -445,7 +466,9 @@ export function CommandPalette({
       addFuzzy("Date Pages", datePool);
     }
 
-    if (!dailyOnly && text !== "") {
+    // Pages answer a non-empty query, the Pages chip — or a With-class chip
+    // alone (its members are the natural candidate set at an empty query).
+    if (!chip.commands && !chip.classes && !chip.blocks && !dailyOnly && (chip.pages || hasMemberOf || text !== "")) {
       addFuzzy(
         "Pages",
         pages.map((page) => ({
@@ -456,6 +479,9 @@ export function CommandPalette({
           run: () => onOpenNode(page.id),
         })),
       );
+    }
+
+    if (!anyChip && !dailyOnly && text !== "") {
       addFuzzy(
         "Classes",
         classes.map((cls) => ({
@@ -482,146 +508,198 @@ export function CommandPalette({
       }
     }
 
+    if (chip.classes && !chip.commands) {
+      // The Classes chip: only the class section answers.
+      addFuzzy(
+        "Classes",
+        classes.map((cls) => ({
+          id: cls.id,
+          label: nodeDisplayName(cls) || "Untitled class",
+          icon: cls.icon ?? "mdi-shape-outline",
+          keywords: `${nodeDisplayName(cls)}`,
+          run: () => onOpenNode(cls.id),
+        })),
+      );
+    }
+
     // Action registry: static rows + a query-scoped typed creation +
     // the session journal's Undo/Redo rows (present only when the
-    // journal has something to (re)apply; the row IS the label).
-    const actions: PaletteAction[] = [
-      {
-        key: "new-page",
-        label: "New page",
-        icon: "mdi-file-plus-outline",
-        keywords: "new create page add",
-        run: () => onNewPage(),
-      },
-      ...(onOpenClassCreate !== undefined
-        ? [
-            {
-              key: "new-class",
-              label: "New class…",
-              icon: "mdiShapePlus",
-              keywords: "new create class add deploy system",
-              run: () => onOpenClassCreate(),
-            },
-          ]
-        : []),
-      ...(onOpenMerge !== undefined && currentNodeId !== undefined
-        ? (() => {
-            const current = client.getNode(currentNodeId);
-            const mergeable =
-              current !== undefined &&
-              !current.isClass &&
-              rendersWithDocumentChrome(current, parentRenderFacts(client, current));
-            return mergeable
-              ? [
-                  {
-                    key: "merge-page",
-                    label: "Merge current page into…",
-                    icon: "mdiMerge",
-                    keywords: "merge combine absorb move into",
-                    run: () => onOpenMerge(),
-                  },
-                ]
-              : [];
-          })()
-        : []),
-      ...(text !== ""
-        ? [
-            {
-              key: "create-titled",
-              // A bare year the date system doesn't claim reads as a year
-              // page ("Create year "1711""), not a generic numbered page.
-              label: isPlainYearQuery(text) ? `Create year "${text}"` : `Create page "${text}"`,
-              icon: "mdi-file-plus",
-              keywords: `new create page add ${text}`,
-              run: () => onNewPage(text),
-            },
-          ]
-        : []),
-      ...(undoState.undoLabel !== null
-        ? [
-            {
-              key: "undo",
-              label: undoState.undoLabel,
-              icon: "mdi-undo-variant",
-              keywords: "undo revert journal",
-              run: onUndo,
-            },
-          ]
-        : []),
-      ...(undoState.redoLabel !== null
-        ? [
-            {
-              key: "redo",
-              label: undoState.redoLabel,
-              icon: "mdi-redo-variant",
-              keywords: "redo repeat journal",
-              run: onRedo,
-            },
-          ]
-        : []),
-      {
-        key: "toggle-focus",
-        label: focusIsOn ? "Focus mode: exit" : "Focus mode: enter",
-        icon: focusIsOn ? "mdiFullscreenExit" : "mdiEyeOutline",
-        keywords: "focus mode distraction minimal writing dim",
-        run: () => {
-          toggleFocusMode();
+    // journal has something to (re)apply; the row IS the label). With node
+    // chips active the registry would only be noise — only the Commands
+    // chip (or no chips at all) builds it. The typed create row needs a
+    // class path the palette's `onNewPage(title)` does not have, so it
+    // stays hidden under a memberOf chip.
+    if (!anyChip || chip.commands) {
+      const actions: PaletteAction[] = [
+        {
+          key: "new-page",
+          label: "New page",
+          icon: "mdi-file-plus-outline",
+          keywords: "new create page add",
+          run: () => onNewPage(),
         },
-      },
-      ...(onToggleCondensed !== undefined
-        ? [
-            {
-              key: "toggle-condensed",
-              label: condensedActive === true ? "Condensed: exit" : "Condensed: enter",
-              icon: condensedActive === true ? "mdiUnfoldMoreHorizontal" : "mdiUnfoldLessHorizontal",
-              keywords: "condensed stretchtext excerpt summary layer view",
-              run: () => onToggleCondensed(),
-            },
-          ]
-        : []),
-      {
-        key: "toggle-theme",
-        label: themeIsDark ? "Toggle theme: switch to light" : "Toggle theme: switch to dark",
-        icon: themeIsDark ? "mdi-white-balance-sunny" : "mdi-weather-night",
-        keywords: "theme dark light appearance",
-        run: () => {
-          flipTheme();
+        ...(onOpenClassCreate !== undefined
+          ? [
+              {
+                key: "new-class",
+                label: "New class…",
+                icon: "mdiShapePlus",
+                keywords: "new create class add deploy system",
+                run: () => onOpenClassCreate(),
+              },
+            ]
+          : []),
+        ...(onOpenMerge !== undefined && currentNodeId !== undefined
+          ? (() => {
+              const current = client.getNode(currentNodeId);
+              const mergeable =
+                current !== undefined &&
+                !current.isClass &&
+                rendersWithDocumentChrome(current, parentRenderFacts(client, current));
+              return mergeable
+                ? [
+                    {
+                      key: "merge-page",
+                      label: "Merge current page into…",
+                      icon: "mdiMerge",
+                      keywords: "merge combine absorb move into",
+                      run: () => onOpenMerge(),
+                    },
+                  ]
+                : [];
+            })()
+          : []),
+        ...(text !== "" && !hasMemberOf
+          ? [
+              {
+                key: "create-titled",
+                // A bare year the date system doesn't claim reads as a year
+                // page ("Create year "1711""), not a generic numbered page.
+                label: isPlainYearQuery(text) ? `Create year "${text}"` : `Create page "${text}"`,
+                icon: "mdi-file-plus",
+                keywords: `new create page add ${text}`,
+                run: () => onNewPage(text),
+              },
+            ]
+          : []),
+        ...(undoState.undoLabel !== null
+          ? [
+              {
+                key: "undo",
+                label: undoState.undoLabel,
+                icon: "mdi-undo-variant",
+                keywords: "undo revert journal",
+                run: onUndo,
+              },
+            ]
+          : []),
+        ...(undoState.redoLabel !== null
+          ? [
+              {
+                key: "redo",
+                label: undoState.redoLabel,
+                icon: "mdi-redo-variant",
+                keywords: "redo repeat journal",
+                run: onRedo,
+              },
+            ]
+          : []),
+        {
+          key: "toggle-focus",
+          label: focusIsOn ? "Focus mode: exit" : "Focus mode: enter",
+          icon: focusIsOn ? "mdiFullscreenExit" : "mdiEyeOutline",
+          keywords: "focus mode distraction minimal writing dim",
+          run: () => {
+            toggleFocusMode();
+          },
         },
-      },
-      {
-        key: "sign-out",
-        label: "Sign out",
-        icon: "mdi-logout-variant",
-        keywords: "sign out logout exit account",
-        run: () => onSignOut(),
-      },
-    ];
-    const matchedActions = actions
-      .map((action) => ({ action, score: bestScore(text, action.label, action.keywords) }))
-      .filter((m): m is { action: PaletteAction; score: number } => m.score !== null)
-      .sort((a, b) => b.score - a.score || a.action.label.localeCompare(b.action.label));
-    for (const { action } of matchedActions) {
-      items.push({
-        key: `action:${action.key}`,
-        group: "Commands",
-        label: action.label,
-        icon: action.icon,
-        keywords: action.keywords,
-        run: action.run,
-      });
+        ...(onToggleCondensed !== undefined
+          ? [
+              {
+                key: "toggle-condensed",
+                label: condensedActive === true ? "Condensed: exit" : "Condensed: enter",
+                icon: condensedActive === true ? "mdiUnfoldMoreHorizontal" : "mdiUnfoldLessHorizontal",
+                keywords: "condensed stretchtext excerpt summary layer view",
+                run: () => onToggleCondensed(),
+              },
+            ]
+          : []),
+        {
+          key: "toggle-theme",
+          label: themeIsDark ? "Toggle theme: switch to light" : "Toggle theme: switch to dark",
+          icon: themeIsDark ? "mdi-white-balance-sunny" : "mdi-weather-night",
+          keywords: "theme dark light appearance",
+          run: () => {
+            flipTheme();
+          },
+        },
+        {
+          key: "sign-out",
+          label: "Sign out",
+          icon: "mdi-logout-variant",
+          keywords: "sign out logout exit account",
+          run: () => onSignOut(),
+        },
+      ];
+      const matchedActions = actions
+        .map((action) => ({ action, score: bestScore(text, action.label, action.keywords) }))
+        .filter((m): m is { action: PaletteAction; score: number } => m.score !== null)
+        .sort((a, b) => b.score - a.score || a.action.label.localeCompare(b.action.label));
+      for (const { action } of matchedActions) {
+        items.push({
+          key: `action:${action.key}`,
+          group: "Commands",
+          label: action.label,
+          icon: action.icon,
+          keywords: action.keywords,
+          run: action.run,
+        });
+      }
     }
 
     return items;
-    // cacheVersion: the cached reads resolve asynchronously after their seed;
-    // re-derive the sections when the worker cache refreshes.
-  }, [client, dailyOnly, text, onOpenNode, onNewPage, onOpenClassCreate, onOpenProperty, currentNodeId, onOpenMerge, onToggleCondensed, condensedActive, onSignOut, onClose, recentIds, cacheVersion, undoState, onUndo, onRedo]);
+    // cacheVersion rides through classesCache (the memo re-derives the
+    // sections when the worker cache refreshes).
+  }, [client, classesCache, home, dailyOnly, text, chip, anyChip, hasMemberOf, memberOfSet, onOpenNode, onNewPage, onOpenClassCreate, onOpenProperty, currentNodeId, onOpenMerge, onToggleCondensed, condensedActive, onSignOut, onClose, recentIds, undoState, onUndo, onRedo]);
+
+  // --- `/` filter mode: the option list -------------------------------------
+
+  const filterOptions = useMemo<FilterOption[]>(() => {
+    if (!filterMode) return [];
+    return filterBrowse === "classes"
+      ? listClassOptions(classesCache, narrowText)
+      : listFilterOptions({ narrowText, classes: classesCache, mode: "palette" });
+  }, [filterMode, filterBrowse, narrowText, classesCache]);
+
+  const applyFilterOption = (option: FilterOption) => {
+    if (option.filter.kind === "memberOf" && option.filter.classId === undefined) {
+      // The "With class…" family row: swap the menu to the class browse.
+      setFilterBrowse("classes");
+      setQuery("/");
+      setActiveIndex(0);
+      return;
+    }
+    const key = filterKey(option.filter);
+    setActiveFilters((prev) =>
+      prev.some((f) => filterKey(f) === key) ? prev : [...prev, option.filter],
+    );
+    setQuery("");
+    setFilterBrowse("options");
+    setActiveIndex(0);
+  };
+
+  const chipItems = activeFilters.map((filter) => ({
+    id: filterKey(filter),
+    label: filterChipLabel(filter, classesCache),
+    icon: filterChipIcon(filter, classesCache),
+  }));
 
   // --- Content section: debounced ranked FTS with snippets ------------------
 
   useEffect(() => {
     if (!open) return;
     const mine = ++contentGeneration.current;
-    if (dailyOnly || text === "") {
+    if (dailyOnly || text === "" || chip.commands || chip.classes) {
       setContentItems([]);
       setContentLoading(false);
       return;
@@ -637,6 +715,9 @@ export function CommandPalette({
           setContentItems(
             page.nodes
               .filter((node) => !node.classIds.includes(assetClassId))
+              .filter((node) => !chip.blocks || rendersAsInlineBlock(node, parentRenderFacts(client, node)))
+              .filter((node) => !chip.pages || rendersWithDocumentChrome(node, parentRenderFacts(client, node)))
+              .filter((node) => !hasMemberOf || node.classIds.some((id) => memberOfSet.has(id)))
               .map((node) => ({
                 queryTag: text,
                 key: `content:${node.id}`,
@@ -662,7 +743,7 @@ export function CommandPalette({
         });
     }, 150);
     return () => clearTimeout(timer);
-  }, [open, dailyOnly, text, client, onOpenNode, cacheVersion]);
+  }, [open, dailyOnly, text, chip, hasMemberOf, memberOfSet, client, onOpenNode, cacheVersion]);
 
   // Dedupe + flatten: the cross-group node-id dedupe, stale content pages
   // (answered query ≠ current) dropped, content ids already surfaced as
@@ -684,12 +765,12 @@ export function CommandPalette({
       out.push(item);
     };
     for (const item of syncItems) push(item);
-    if (text === "" && !dailyOnly) out.push(...randomRows);
+    if (home) out.push(...randomRows);
     for (const item of contentItems) {
       if (item.queryTag !== text) continue;
       push(item);
     }
-    const emptyQuery = text === "" && !dailyOnly;
+    const emptyQuery = home;
     const groupRank = (group: Group): number => {
       if (emptyQuery) return group === "Recent" ? 0 : group === "Random" ? 1 : 2;
       switch (group) {
@@ -702,22 +783,17 @@ export function CommandPalette({
       }
     };
     return out.sort((a, b) => groupRank(a.group) - groupRank(b.group));
-  }, [syncItems, contentItems, text, randomRows, dailyOnly]);
+  }, [syncItems, contentItems, text, randomRows, home]);
 
-  const clampedActive = Math.min(activeIndex, Math.max(0, filtered.length - 1));
-
-  /**
-   * Random refresh (#8): re-shuffle the open-time pool — the same cached id
-   * list, never a fresh worker query.
-   */
-  const refreshRandomPages = () => {
-    setRandomRows(pickRandomRows(client, randomPoolRef.current, onOpenNode));
-  };
+  /** One flat list drives the keyboard: filter options in `/` mode, results otherwise. */
+  const flatCount = filterMode ? filterOptions.length : filtered.length;
+  const clampedActive = Math.min(activeIndex, Math.max(0, flatCount - 1));
 
   // Reset on open; keep the active row visible while arrowing. The Random
   // pool is captured here too — the cached page list, asset-classed pages
   // excluded (the same read the Pages section uses) — and the section's
-  // display rows are picked from it.
+  // display rows are picked from it. The chips and the filter browse reset
+  // with the query.
   //
   // Deps deliberately EXCLUDE the callbacks: App hands this component fresh
   // inline arrow identities every render, and during a background catch-up
@@ -739,6 +815,8 @@ export function CommandPalette({
     setQuery("");
     setActiveIndex(0);
     setContentItems([]);
+    setActiveFilters([]);
+    setFilterBrowse("options");
     const classes = client.listClasses();
     const assetClassId =
       classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
@@ -753,6 +831,14 @@ export function CommandPalette({
     active?.scrollIntoView?.({ block: "nearest" });
   }, [clampedActive]);
 
+  /**
+   * Random refresh (#8): re-shuffle the open-time pool — the same cached id
+   * list, never a fresh worker query.
+   */
+  const refreshRandomPages = () => {
+    setRandomRows(pickRandomRows(client, randomPoolRef.current, onOpenNode));
+  };
+
   if (!open) return null;
 
   const select = (item: PaletteItem) => {
@@ -763,19 +849,25 @@ export function CommandPalette({
   const onInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex((index) => (filtered.length === 0 ? 0 : (index + 1) % filtered.length));
+      setActiveIndex((index) => (flatCount === 0 ? 0 : (index + 1) % flatCount));
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActiveIndex((index) =>
-        filtered.length === 0 ? 0 : (index - 1 + filtered.length) % filtered.length,
-      );
+      setActiveIndex((index) => (flatCount === 0 ? 0 : (index - 1 + flatCount) % flatCount));
     } else if (event.key === "Enter") {
       event.preventDefault();
-      const item = filtered[clampedActive];
-      if (item !== undefined) select(item);
+      if (filterMode) {
+        const option = filterOptions[clampedActive];
+        if (option !== undefined) applyFilterOption(option);
+      } else {
+        const item = filtered[clampedActive];
+        if (item !== undefined) select(item);
+      }
     } else if (event.key === "Escape") {
       event.preventDefault();
       onClose();
+    } else if (!filterMode && event.key === "Backspace" && query === "" && activeFilters.length > 0) {
+      // The token-field contract: Backspace on an empty query pops the last chip.
+      setActiveFilters((prev) => prev.slice(0, -1));
     }
   };
 
@@ -802,65 +894,92 @@ export function CommandPalette({
           autoFocus
           className="search-field--borderless"
           value={query}
-          placeholder="Search pages, classes, actions… (is_daily: for dates)"
+          placeholder="Search pages, classes, actions… (/ for filters · is_daily: for dates)"
           aria-label="Command palette search"
           onChange={(event) => {
             setQuery(event.target.value);
             setActiveIndex(0);
+            if (!event.target.value.startsWith("/")) setFilterBrowse("options");
           }}
           onKeyDown={onInputKeyDown}
         />
+        <FilterChips
+          items={chipItems}
+          onRemove={(id) =>
+            setActiveFilters((prev) => prev.filter((filter) => filterKey(filter) !== id))
+          }
+          className="nt-palette-chips"
+        />
         <div className="nt-palette-results" ref={listRef}>
-          {filtered.map((item) => {
-            flatIndex += 1;
-            const index = flatIndex;
-            const groupLabel = item.group !== lastGroup ? item.group : null;
-            lastGroup = item.group;
-            return (
-              <div key={item.key} className="nt-palette-group">
-                {groupLabel !== null && (
-                  <div className="nt-palette-group-label-row">
-                    <span className="nt-palette-group-label">{groupLabel}</span>
-                    {groupLabel === "Random" && (
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        icon="mdiRefresh"
-                        aria-label="Refresh random pages"
-                        title="Refresh random pages"
-                        onClick={(event) => {
-                          // The row select gesture must not fire alongside.
-                          event.stopPropagation();
-                          refreshRandomPages();
-                        }}
-                      />
+          {filterMode ? (
+            <FilterMenu
+              title={filterBrowse === "classes" ? "Classes" : "Filters"}
+              options={filterOptions}
+              activeIndex={clampedActive}
+              onSelect={(id) => {
+                const option = filterOptions.find((entry) => entry.id === id);
+                if (option !== undefined) applyFilterOption(option);
+              }}
+              onHover={setActiveIndex}
+            />
+          ) : (
+            <>
+              {filtered.map((item) => {
+                flatIndex += 1;
+                const index = flatIndex;
+                const groupLabel = item.group !== lastGroup ? item.group : null;
+                lastGroup = item.group;
+                return (
+                  <div key={item.key} className="nt-palette-group">
+                    {groupLabel !== null && (
+                      <div className="nt-palette-group-label-row">
+                        <span className="nt-palette-group-label">{groupLabel}</span>
+                        {groupLabel === "Random" && (
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            icon="mdiRefresh"
+                            aria-label="Refresh random pages"
+                            title="Refresh random pages"
+                            onClick={(event) => {
+                              // The row select gesture must not fire alongside.
+                              event.stopPropagation();
+                              refreshRandomPages();
+                            }}
+                          />
+                        )}
+                      </div>
                     )}
+                    <button
+                      type="button"
+                      className="nt-palette-item"
+                      data-active={index === clampedActive}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => select(item)}
+                    >
+                      <span className="nt-palette-item-top">
+                        <Icon path={item.icon} size={0.9} className="nt-palette-item-icon" />
+                        <span className="nt-palette-item-label">{item.label}</span>
+                        {item.meta !== undefined && (
+                          <span className="nt-palette-item-meta">{item.meta}</span>
+                        )}
+                      </span>
+                      {item.snippet !== null && item.snippet !== undefined && (
+                        <SnippetLine snippet={item.snippet} />
+                      )}
+                    </button>
                   </div>
-                )}
-                <button
-                  type="button"
-                  className="nt-palette-item"
-                  data-active={index === clampedActive}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onClick={() => select(item)}
-                >
-                  <span className="nt-palette-item-top">
-                    <Icon path={item.icon} size={0.9} className="nt-palette-item-icon" />
-                    <span className="nt-palette-item-label">{item.label}</span>
-                    {item.meta !== undefined && (
-                      <span className="nt-palette-item-meta">{item.meta}</span>
-                    )}
-                  </span>
-                  {item.snippet !== null && item.snippet !== undefined && (
-                    <SnippetLine snippet={item.snippet} />
-                  )}
-                </button>
-              </div>
-            );
-          })}
-          {contentLoading && <div className="nt-palette-searching">Searching content…</div>}
-          {filtered.length === 0 && !contentLoading && (
-            <div className="nt-palette-empty">No results. Try a different search.</div>
+                );
+              })}
+              {contentLoading && <div className="nt-palette-searching">Searching content…</div>}
+              {filtered.length === 0 && !contentLoading && (
+                <div className="nt-palette-empty">
+                  {anyChip
+                    ? "Nothing matches these filters. Remove a filter or type to search within them."
+                    : "No results. Try a different search."}
+                </div>
+              )}
+            </>
           )}
         </div>
         {text !== "" && onOpenSearch !== undefined && (
@@ -880,6 +999,7 @@ export function CommandPalette({
           <span>↑↓ navigate</span>
           <span>↵ select</span>
           <span>esc close</span>
+          <span>/ filters</span>
           <span>is_daily: dates</span>
         </div>
       </div>

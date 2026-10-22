@@ -27,6 +27,19 @@
  * answers the rest of the query and carries the refined class. Data wiring
  * goes through the workspace client (search/list/create/class-assign).
  *
+ * `/` filter mode (owner 2026-10-22): a leading `/` swaps the results for
+ * a Filters option list (the fleet FilterMenu) — the filter kinds (Daily
+ * pages, Pages, Blocks, Classes, With class…) narrowed by the slash text,
+ * with a class browse behind "With class…". Applying an option renders it
+ * as a removable chip (the fleet FilterChips) above the list and scopes
+ * the results: the kind chips feed the same predicates as the inline
+ * text prefixes (`is_daily:`/`is_page:`/`is_class:` — they compose, AND)
+ * and a With-class chip joins `classFilters`/`class:<name>` in
+ * `effectiveClassIds`, so the empty-query member listing, the create row,
+ * and the QuickCreateModal reroute all honor it. Backspace on an empty
+ * query pops the last chip. The command palette shares the model
+ * (`features/search-filters/filterModel.ts`).
+ *
  * Async reads: the worker-backed client answers from a cache that converges
  * through a "changed" notify — the picker subscribes (search hits render
  * the moment they land, no retype needed) and renders a "Searching…" state
@@ -69,7 +82,17 @@ import { enableArchivedSystemClass } from "../classview/systemClassDeploy.js";
 import type { QuickCreateClient, QuickCreatePlan } from "../modals/quickCreate.js";
 import { resolveQuickCreate } from "../modals/quickCreate.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
+import { FilterChips } from "../../components/ui/fleet/FilterChips.js";
+import { FilterMenu } from "../../components/ui/fleet/FilterMenu.js";
 import { SearchField } from "../../components/ui/fleet/SearchField.js";
+import {
+  filterChipIcon,
+  filterChipLabel,
+  filterKey,
+  listClassOptions,
+  listFilterOptions,
+} from "../search-filters/filterModel.js";
+import type { FilterOption, SearchFilter } from "../search-filters/filterModel.js";
 import { Spinner } from "../../components/ui/fleet/Spinner.js";
 import { useDelayedVisible } from "../../components/ui/fleet/useDelayedVisible.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
@@ -340,6 +363,17 @@ export function NodeSelector({
   const [displayLimit, setDisplayLimit] = useState(DEFAULT_DISPLAY_LIMIT);
   /** Active scope-tab filter (only rendered when scopeTabs is set). */
   const [scope, setScope] = useState<"main" | "blocks">("main");
+  /**
+   * `/` filter mode: the applied chips and the "With class…" browse
+   * sub-state (the class listing replaces the option list until a class is
+   * picked or the slash text is cleared). Chips answer the debounce-free
+   * input — in filter mode the results list steps aside for the option
+   * menu, so nothing searched lags the typed slash text.
+   */
+  const [activeFilters, setActiveFilters] = useState<SearchFilter[]>([]);
+  const [filterBrowse, setFilterBrowse] = useState<"options" | "classes">("options");
+  const filterMode = searchQuery.startsWith("/");
+  const narrowText = filterMode ? searchQuery.slice(1) : "";
   const pickerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -404,6 +438,7 @@ export function NodeSelector({
         if (trigger === "pill-row") {
           setIsPickerOpen(false);
           setSearchQuery("");
+          resetFilters();
         }
         return;
       }
@@ -414,6 +449,7 @@ export function NodeSelector({
       } else if (trigger === "pill-row") {
         setIsPickerOpen(false);
         setSearchQuery("");
+        resetFilters();
       }
       return;
     }
@@ -427,6 +463,7 @@ export function NodeSelector({
     if (trigger === "pill-row") {
       setIsPickerOpen(false);
       setSearchQuery("");
+      resetFilters();
     }
   };
 
@@ -470,9 +507,30 @@ export function NodeSelector({
     return { filters, query: stripped };
   }, [debouncedQuery]);
 
+  /**
+   * The `/`-chip mirror of the inline prefixes — same predicate family, AND
+   * semantics (a chip and a contradictory prefix both hold, so nothing
+   * matches; the empty state says so honestly).
+   */
+  const chipFilterState = useMemo(
+    () => ({
+      daily: activeFilters.some((f) => f.kind === "daily"),
+      pages: activeFilters.some((f) => f.kind === "pages"),
+      blocks: activeFilters.some((f) => f.kind === "blocks"),
+      cls: activeFilters.some((f) => f.kind === "classes"),
+    }),
+    [activeFilters],
+  );
+
   /** The filter predicates over one candidate node (daily reads the deterministic date id). */
   const matchesInlineFilters = (node: ClientNode): boolean => {
     const { daily, page, cls } = inlineFilters.filters;
+    if (chipFilterState.daily && parseDateNodeId(node.id)?.precision !== "day") return false;
+    if (chipFilterState.pages && !rendersWithDocumentChrome(node, parentRenderFacts(client, node)))
+      return false;
+    if (chipFilterState.blocks && !rendersAsInlineBlock(node, parentRenderFacts(client, node)))
+      return false;
+    if (chipFilterState.cls && !node.isClass) return false;
     if (daily !== null && (parseDateNodeId(node.id)?.precision === "day") !== daily) return false;
     if (page !== null && rendersWithDocumentChrome(node, parentRenderFacts(client, node)) !== page)
       return false;
@@ -508,12 +566,20 @@ export function NodeSelector({
   }, [client, inlineFilters.query, searchMode]);
 
   // Effective class ids: caller-side classFilters plus the refined class —
-  // the create row and the empty-query member listing both honor them.
+  // the create row and the empty-query member listing both honor them. A
+  // With-class chip joins the same set: it scopes the results like
+  // `class:<name>` and the created node carries it.
+  const chipClassIds = useMemo(
+    () =>
+      activeFilters.flatMap((f) => (f.kind === "memberOf" && f.classId !== undefined ? [f.classId] : [])),
+    [activeFilters],
+  );
   const effectiveClassIds = useMemo(() => {
     const ids = new Set<string>(classFilters ?? []);
     if (classRefine.classId !== null) ids.add(classRefine.classId);
+    for (const id of chipClassIds) ids.add(id);
     return [...ids];
-  }, [classFilters, classRefine]);
+  }, [classFilters, classRefine, chipClassIds]);
 
   /**
    * 1172 — the class-aware create request: when the picker's create
@@ -617,6 +683,7 @@ export function NodeSelector({
       setIsPickerOpen(false);
     }
     setSearchQuery("");
+    resetFilters();
   };
 
   // Parse the query for date formats and offer the date-page suggestion
@@ -701,6 +768,46 @@ export function NodeSelector({
     return sub.subscribe(() => setDataVersion((v) => v + 1));
   }, [client]);
 
+  // --- `/` filter mode: options, chips, apply --------------------------------
+
+  /** The class cache behind the filter menu and the chip labels/icons. */
+  const classesCache = useMemo(() => client.listClasses(), [client, dataVersion]);
+
+  const filterOptions = useMemo<FilterOption[]>(() => {
+    if (!filterMode) return [];
+    return filterBrowse === "classes"
+      ? listClassOptions(classesCache, narrowText)
+      : listFilterOptions({ narrowText, classes: classesCache, mode: searchMode });
+  }, [filterMode, filterBrowse, narrowText, classesCache, searchMode]);
+
+  const applyFilterOption = (option: FilterOption): void => {
+    if (option.filter.kind === "memberOf" && option.filter.classId === undefined) {
+      // The "With class…" family row: swap the menu to the class browse.
+      setFilterBrowse("classes");
+      setSearchQuery("/");
+      setSelectedIndex(0);
+      return;
+    }
+    const key = filterKey(option.filter);
+    setActiveFilters((prev) =>
+      prev.some((f) => filterKey(f) === key) ? prev : [...prev, option.filter],
+    );
+    setSearchQuery("");
+    setFilterBrowse("options");
+    setSelectedIndex(0);
+    setDisplayLimit(DEFAULT_DISPLAY_LIMIT);
+  };
+
+  const removeFilterChip = (id: string): void => {
+    setActiveFilters((prev) => prev.filter((filter) => filterKey(filter) !== id));
+  };
+
+  const chipItems = activeFilters.map((filter) => ({
+    id: filterKey(filter),
+    label: filterChipLabel(filter, classesCache),
+    icon: filterChipIcon(filter, classesCache),
+  }));
+
   // Coalesce keystrokes before the query hits the ranked index — async
   // clients only (see SEARCH_DEBOUNCE_MS). Sync clients mirror immediately:
   // their search is a local call, and tests + small workspaces expect the
@@ -725,6 +832,8 @@ export function NodeSelector({
   // async client's landing notify re-computes the hits from the warmed
   // cache (see the subscription above).
   const searchResults = useMemo(() => {
+    // `/` filter mode steps aside for the option menu — no result set at all.
+    if (filterMode) return [];
     const q = foldSearchText(classRefine.query.trim().toLowerCase());
     if (searchMode === "classes") {
       const classes = client.listClasses().filter((node) => {
@@ -751,12 +860,18 @@ export function NodeSelector({
     if (q !== "") return filtered;
     // An empty effective query in a class-scoped picker lists the target
     // classes' members (the picker's natural candidate set); unfiltered
-    // pickers wait for input — EXCEPT when an inline filter prefix is live:
-    // `daily:` alone must list the matching pool (the filter IS the query).
+    // pickers wait for input — EXCEPT when an inline filter prefix or a
+    // `/` chip is live: `daily:` alone (or a Daily pages chip) must list
+    // the matching pool (the filter IS the query). A Blocks chip has no
+    // pool listing — blocks are not enumerable from the page list — so it
+    // waits for text like an unfiltered picker.
     const inlineActive =
       inlineFilters.filters.daily !== null ||
       inlineFilters.filters.page !== null ||
-      inlineFilters.filters.cls !== null;
+      inlineFilters.filters.cls !== null ||
+      chipFilterState.daily ||
+      chipFilterState.pages ||
+      chipFilterState.cls;
     if (inlineActive && searchMode !== "blocks") {
       const pool =
         searchMode === "all" ? [...client.listPages(), ...client.listClasses()] : client.listPages();
@@ -793,8 +908,8 @@ export function NodeSelector({
         return true;
       })
       .filter(matchesScopeTab);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesInlineFilters derives from inlineFilters (debouncedQuery); matchesScopeTab derives from scope/scopeTabs/searchMode.
-  }, [client, debouncedQuery, searchMode, classRefine, effectiveClassIds, scopeTabs, scope, dataVersion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesInlineFilters derives from inlineFilters (debouncedQuery) and chipFilterState (activeFilters); matchesScopeTab derives from scope/scopeTabs/searchMode.
+  }, [client, debouncedQuery, searchMode, classRefine, effectiveClassIds, scopeTabs, scope, dataVersion, filterMode, chipFilterState]);
 
   // The classes picker's disabled-class matches (owner ruling 2026-10-22):
   // the query names an ARCHIVED system class — listClasses() filters
@@ -830,6 +945,7 @@ export function NodeSelector({
     }
     if (trigger === "pill-row") setIsPickerOpen(false);
     setSearchQuery("");
+    resetFilters();
   };
 
   // "Searching…" state: on an async client the current query's read may be
@@ -877,6 +993,10 @@ export function NodeSelector({
     inlineFilters.filters.daily === null &&
     inlineFilters.filters.page === null &&
     inlineFilters.filters.cls === null &&
+    chipFilterState.daily === false &&
+    chipFilterState.pages === false &&
+    chipFilterState.cls === false &&
+    activeFilters.length === 0 &&
     effectiveClassIds.length === 0;
 
   /** The pinned escape owns index 0 only while the query is empty. */
@@ -900,6 +1020,11 @@ export function NodeSelector({
     { popupRef: pickerRef, edgePadding: PICKER_EDGE_PADDING },
   );
 
+  const resetFilters = () => {
+    setActiveFilters([]);
+    setFilterBrowse("options");
+  };
+
   const handleClosePicker = () => {
     if (isAnchored) {
       onClose?.();
@@ -908,6 +1033,7 @@ export function NodeSelector({
       // always-visible search field keeps its query on outside press.
       setIsPickerOpen(false);
       setSearchQuery("");
+      resetFilters();
     }
   };
 
@@ -950,15 +1076,22 @@ export function NodeSelector({
   const showBrowseAll = searchMode === "classes" && onBrowseAllTypes !== undefined;
   const browseAllIndex = createIndex + (showCreateOption ? 1 : 0);
   const showMoreIndex = browseAllIndex + (showBrowseAll ? 1 : 0);
-  const totalItems =
-    visibleResults.length +
-    leadingOffset +
-    archivedCount +
-    (showCreateOption ? 1 : 0) +
-    (showBrowseAll ? 1 : 0) +
-    (showMoreOption ? 1 : 0);
+  const totalItems = filterMode
+    ? filterOptions.length
+    : visibleResults.length +
+      leadingOffset +
+      archivedCount +
+      (showCreateOption ? 1 : 0) +
+      (showBrowseAll ? 1 : 0) +
+      (showMoreOption ? 1 : 0);
 
   const handleSelectByIndex = (index: number, modifiers: { ctrlKey: boolean; metaKey: boolean }) => {
+    if (filterMode) {
+      // `/` mode: the flat index answers the filter option list.
+      const option = filterOptions[index];
+      if (option !== undefined) applyFilterOption(option);
+      return;
+    }
     if (emptyQueryOptionActive && index === 0) {
       emptyQueryOption.onPick();
       return;
@@ -1061,6 +1194,16 @@ export function NodeSelector({
   const handleSearchChange = (newQuery: string) => {
     setSearchQuery(newQuery);
     setDisplayLimit(DEFAULT_DISPLAY_LIMIT);
+    // Leaving `/` mode drops any half-entered class browse.
+    if (!newQuery.startsWith("/")) setFilterBrowse("options");
+  };
+
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    // The token-field contract: Backspace on an empty query pops the last chip.
+    if (event.key === "Backspace" && searchQuery === "" && activeFilters.length > 0) {
+      setActiveFilters((prev) => prev.slice(0, -1));
+    }
+    handleKeyDown(event);
   };
 
   // The loading-timing rule (<300ms nothing): a fast worker round-trip never
@@ -1219,12 +1362,27 @@ export function NodeSelector({
           aria-label={searchPlaceholder}
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
-          onKeyDown={handleKeyDown}
+          onKeyDown={handleSearchKeyDown}
           onClear={() => handleSearchChange("")}
         />
+        <FilterChips items={chipItems} onRemove={removeFilterChip} className="node-selector__filter-chips" />
         <Tabs.Panel value={scope}>
           <div className="node-selector__options" ref={listRef}>
-            {renderResults("node-selector__no-results", createIconSize)}
+            {filterMode ? (
+              <FilterMenu
+                title={filterBrowse === "classes" ? "Classes" : "Filters"}
+                options={filterOptions}
+                activeIndex={selectedIndex}
+                onSelect={(id) => {
+                  const option = filterOptions.find((entry) => entry.id === id);
+                  if (option !== undefined) applyFilterOption(option);
+                }}
+                onHover={setSelectedIndex}
+                emptyText="No filters in this picker"
+              />
+            ) : (
+              renderResults("node-selector__no-results", createIconSize)
+            )}
           </div>
         </Tabs.Panel>
         {assignedHintFooter}
@@ -1242,11 +1400,26 @@ export function NodeSelector({
           aria-label={searchPlaceholder}
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
-          onKeyDown={handleKeyDown}
+          onKeyDown={handleSearchKeyDown}
           onClear={() => handleSearchChange("")}
         />
+        <FilterChips items={chipItems} onRemove={removeFilterChip} className="node-selector__filter-chips" />
         <div className="node-selector__options" ref={listRef}>
-          {renderResults("node-selector__no-results", createIconSize)}
+          {filterMode ? (
+            <FilterMenu
+              title={filterBrowse === "classes" ? "Classes" : "Filters"}
+              options={filterOptions}
+              activeIndex={selectedIndex}
+              onSelect={(id) => {
+                const option = filterOptions.find((entry) => entry.id === id);
+                if (option !== undefined) applyFilterOption(option);
+              }}
+              onHover={setSelectedIndex}
+              emptyText="No filters in this picker"
+            />
+          ) : (
+            renderResults("node-selector__no-results", createIconSize)
+          )}
         </div>
         {assignedHintFooter}
       </>

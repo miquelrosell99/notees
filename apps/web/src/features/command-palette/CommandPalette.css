@@ -26,6 +26,12 @@
   background: var(--md-sys-color-background);
 }
 
+/* The applied `/`-filter chips ride under the search field, inset to the
+   results list padding. */
+.nt-palette-chips {
+  padding: 0 var(--spacing-1);
+}
+
 .nt-palette-results {
   overflow-y: auto;
   min-height: 0;
