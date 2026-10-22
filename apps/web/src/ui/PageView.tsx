@@ -234,10 +234,11 @@ export function PageView({
   /** Presentation mode: "Present" decks this page's subtree read-only. */
   onPresent?: ((pageId: string) => void) | undefined;
   /**
-   * Embedded mode (journals feed): the title renders as a static button that
-   * navigates to the full page view instead of the inline editable title
-   * row, and the page-level find/replace shortcut stays off so stacked
-   * feeds don't install one document listener per entry.
+   * Embedded mode (journals feed): the title renders as a plain heading
+   * with an explicit "Open page" button beside it (navigating to the full
+   * page view) instead of the inline editable title row, and the
+   * page-level find/replace shortcut stays off so stacked feeds don't
+   * install one document listener per entry.
    */
   embedded?: boolean;
   layout?: "default" | "compact";

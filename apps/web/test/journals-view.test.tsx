@@ -149,16 +149,17 @@ describe("JournalsView", () => {
     expect(shown[0]).toBe(dayNodeId(shiftDays(today, -1)));
   });
 
-  it("clicking an entry's title button opens the page view", async () => {
+  it("clicking an entry's open-page button opens the page view", async () => {
     const client = await seedClient();
     const today = todayIso();
     await createDayPage(client, today);
 
     const onOpenPage = vi.fn();
     const { container } = render(<JournalsView client={client} onOpenPage={onOpenPage} />);
-    const title = container.querySelector(".nt-page-title-link");
-    expect(title).not.toBeNull();
-    fireEvent.click(title!);
+    // The feed title is a plain heading; navigation rides the button.
+    expect(container.querySelector(".nt-page-title-embed__text")).not.toBeNull();
+    const open = screen.getByRole("button", { name: "Open page" });
+    fireEvent.click(open);
     expect(onOpenPage).toHaveBeenCalledWith(dayNodeId(today));
   });
 

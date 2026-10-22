@@ -237,15 +237,17 @@ describe("the final sweep notes close (2026-10-16)", () => {
     expect(years![0]).toContain("repeat(3, 1fr)");
   });
 
-  it("the journals page-title link hovers with the overlay, never accent ink", () => {
-    const hover = /\.nt-page-title-link:hover \{[^}]*\}/.exec(journalsCss);
-    expect(hover).not.toBeNull();
-    expect(hover![0]).toContain("background: var(--md-sys-color-hover-overlay)");
-    expect(hover![0]).not.toContain("color:");
-    // The overlay sits on the base rule's small radius.
-    const base = /\.nt-page-title-link \{[^}]*\}/.exec(journalsCss);
-    expect(base).not.toBeNull();
-    expect(base![0]).toContain("border-radius: var(--shape-small)");
+  it("the embedded feed title is a plain heading — no hover overlay, no pointer cursor", () => {
+    // Owner 2026-10-22: the feed title stopped being a navigation link;
+    // the hover register rides the explicit "Open page" ghost button
+    // (the kit Button's own overlay), not the headline.
+    expect(/\.nt-page-title-link/.test(journalsCss)).toBe(false);
+    const text = /\.nt-page-title-embed__text \{[^}]*\}/.exec(journalsCss);
+    expect(text).not.toBeNull();
+    expect(text![0]).toContain("font: var(--font-headline-medium)");
+    expect(text![0]).not.toContain("cursor");
+    const hover = /\.nt-page-title-embed(?!_)[^{]*:hover/.exec(journalsCss);
+    expect(hover).toBeNull();
   });
 
   it("the settings badge rides the §7 tag/badge radius tier (the kit Badge's --shape-large)", () => {
