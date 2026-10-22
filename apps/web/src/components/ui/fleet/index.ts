@@ -146,6 +146,9 @@ export type { InputProps, InputSize } from './Input.js';
 export { FloatingButtonArray, ToolbarDivider } from './FloatingButtonArray.js';
 export type { FloatingButtonArrayProps, ToolbarDividerProps } from './FloatingButtonArray.js';
 
+export { FloatingToolbar } from './FloatingToolbar.js';
+export type { FloatingToolbarProps } from './FloatingToolbar.js';
+
 export { MonthCalendar } from '../../../features/calendar/MonthCalendar.js';
 export type { MonthCalendarProps } from '../../../features/calendar/MonthCalendar.js';
 

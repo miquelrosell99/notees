@@ -2,11 +2,15 @@
  * FloatingToolbar — floating formatting bar shown while a text selection is
  * active inside the editor root.
  *
- * Ported from the archived editor chrome: same DOM (`.floating-toolbar` >
- * card > `.floating-toolbar__actions` > ghost icon buttons) and the same
- * behavior — a `selectionchange` listener with a 150 ms show debounce, the
- * toolbar anchored to the live selection Range, and `mousedown` prevented so
- * the contentEditable never blurs (a blur would unmount the editor mid-click).
+ * Ported from the archived editor chrome: same behavior — a
+ * `selectionchange` listener with a 150 ms show debounce, the toolbar
+ * anchored to the live selection Range, and `mousedown` prevented so the
+ * contentEditable never blurs (a blur would unmount the editor mid-click).
+ * The chrome composes the fleet kit: the panel is the fleet
+ * `FloatingToolbar` (the elevated popup register — surface-container-high,
+ * level-2 shadow, 4dp menu corner) and every action is a fleet ghost
+ * `Button` (icon-only, sm — the visible box rides the button size token,
+ * the 48dp floor lives on the invisible hit-area overlay).
  *
  * Positioning adaptations for this app shell (no Floating UI dependency):
  * placement is computed manually — below the selection rect with an 8 px
@@ -18,6 +22,12 @@
  * Mark set: the marks this editor's token grammar supports (bold / italic /
  * strike / highlight / code — see packages/protocol content grammar). A verb
  * button opens the typed-link VerbPopover, mirroring the Cmd+K gesture.
+ *
+ * The @ button carries two modes (owner 2026-10-22): a plain click opens
+ * the node picker searching on the selected text (the Ctrl+L / @ contract);
+ * Shift- or Ctrl/Cmd-click opens it with an EMPTY search — the pick links
+ * the node with the original selected text as its custom label (the same
+ * "label" mode as Ctrl/Cmd+Shift+L).
  */
 
 import {
@@ -33,9 +43,9 @@ import { createPortal } from "react-dom";
 
 import type { Mark } from "@notees/protocol";
 
-import { Icon } from "../Icon.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { FloatingToolbar as FloatingToolbarPanel } from "../../components/ui/fleet/FloatingToolbar.js";
 import { clampOverlayLeft, flipOverlayTop, rangeAnchorRect } from "./overlay-position.js";
-import "./FloatingToolbar.css";
 
 const MARKS: { mark: Mark; label: string; icon: string }[] = [
   { mark: "bold", label: "Bold (Ctrl+B)", icon: "mdi-format-bold" },
@@ -46,7 +56,11 @@ const MARKS: { mark: Mark; label: string; icon: string }[] = [
 ];
 
 const VERB_LABEL = "Link verb (Cmd+K)";
-const MENTION_LABEL = "Add link from text selection (Ctrl+L / @)";
+const MENTION_LABEL =
+  "Add link from text selection (Ctrl+L / @). Shift- or Ctrl-click: search empty and keep the selected text as the link label";
+
+/** The @ button's two modes (see openMentionFromSelection in BlockTextEditor). */
+export type MentionMode = "query" | "label";
 
 interface FloatingToolbarProps {
   /** The editor root: the toolbar only shows for selections inside it. */
@@ -54,9 +68,10 @@ interface FloatingToolbarProps {
   /** Marks every covered run carries (button active state). */
   activeMarks: ReadonlySet<Mark>;
   onToggleMark: (mark: Mark) => void;
-  /** Turns the selected text into a link: opens the mention picker over the
-   *  selection (the @ gesture — owner 2026-10-06). */
-  onMention: () => void;
+  /** Turns the selected text into a link: opens the node picker over the
+   *  selection. "query" searches on the selected text; "label" searches
+   *  empty and keeps the text as the link's custom label. */
+  onMention: (mode: MentionMode) => void;
   /** Opens the typed-link verb popover over the selection. */
   onVerb: () => void;
 }
@@ -153,17 +168,18 @@ export function FloatingToolbar({ rootRef, activeMarks, onToggleMark, onMention,
     e.preventDefault();
   }, []);
 
+  const handleMentionClick = useCallback(
+    (e: MouseEvent<HTMLButtonElement>) => {
+      onMention(e.shiftKey || e.ctrlKey || e.metaKey ? "label" : "query");
+    },
+    [onMention],
+  );
+
   if (!isVisible) return null;
 
-  const buttonClass = (active: boolean) =>
-    active
-      ? "btn btn--ghost btn--sm btn--icon-only btn--active floating-toolbar__button"
-      : "btn btn--ghost btn--sm btn--icon-only floating-toolbar__button";
-
   const toolbar = (
-    <div
+    <FloatingToolbarPanel
       ref={toolbarRef}
-      className="floating-toolbar"
       data-editor-companion="true"
       style={{
         position: "fixed",
@@ -179,42 +195,36 @@ export function FloatingToolbar({ rootRef, activeMarks, onToggleMark, onMention,
       tabIndex={-1}
       aria-label="Text formatting"
     >
-      <div className="card card--elevation-high card--variant-default card--padded card--padding-sm card--radius-md floating-toolbar__card">
-        <div className="floating-toolbar__actions">
-          {MARKS.map(({ mark, label, icon }) => (
-            <button
-              key={mark}
-              type="button"
-              aria-label={label}
-              title={label}
-              aria-pressed={activeMarks.has(mark)}
-              className={buttonClass(activeMarks.has(mark))}
-              onClick={() => onToggleMark(mark)}
-            >
-              <Icon path={icon} size={0.7} className="btn__icon btn__icon--left" />
-            </button>
-          ))}
-          <button
-            type="button"
-            aria-label={MENTION_LABEL}
-            title={MENTION_LABEL}
-            className="btn btn--ghost btn--sm btn--icon-only floating-toolbar__button"
-            onClick={onMention}
-          >
-            <Icon path="mdi-at" size={0.7} className="btn__icon btn__icon--left" />
-          </button>
-          <button
-            type="button"
-            aria-label={VERB_LABEL}
-            title={VERB_LABEL}
-            className="btn btn--ghost btn--sm btn--icon-only floating-toolbar__button"
-            onClick={onVerb}
-          >
-            <Icon path="mdi-link-variant" size={0.7} className="btn__icon btn__icon--left" />
-          </button>
-        </div>
-      </div>
-    </div>
+      {MARKS.map(({ mark, label, icon }) => (
+        <Button
+          key={mark}
+          icon={icon}
+          variant="ghost"
+          size="sm"
+          aria-label={label}
+          title={label}
+          aria-pressed={activeMarks.has(mark)}
+          active={activeMarks.has(mark)}
+          onClick={() => onToggleMark(mark)}
+        />
+      ))}
+      <Button
+        icon="mdi-at"
+        variant="ghost"
+        size="sm"
+        aria-label={MENTION_LABEL}
+        title={MENTION_LABEL}
+        onClick={handleMentionClick}
+      />
+      <Button
+        icon="mdi-link-variant"
+        variant="ghost"
+        size="sm"
+        aria-label={VERB_LABEL}
+        title={VERB_LABEL}
+        onClick={onVerb}
+      />
+    </FloatingToolbarPanel>
   );
 
   return createPortal(toolbar, document.body);

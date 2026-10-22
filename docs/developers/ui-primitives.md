@@ -107,7 +107,12 @@ subitems fire their own onClick, then close the whole menu unless
 over the parent line on pointer-fine devices — the tap stays the explicit
 toggle on touch — and the chevron rides the icon-role token, never the
 outline border token), `Separator`, `ErrorBoundary`, `ListSortable` (+ the
-`useListDragSort` hook), `FloatingButtonArray`,
+`useListDragSort` hook), `FloatingButtonArray`, `FloatingToolbar` (the
+transient toolbar panel — one elevated row of fleet `Button`s riding the
+popup register the menus ride, surface-container-high + level-2 shadow +
+4dp menu corner; presentational only, the caller owns positioning, so the
+editor's selection formatting bar portals it and writes top/left
+imperatively against the live selection Range),
 `SurfaceTopBar` (the in-card top bar for full-bleed hub surfaces, owner
 2026-10-22: icon + title + muted count + context + right-aligned actions,
 pinned above the surface's card-border scrolling body — every hub view

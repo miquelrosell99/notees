@@ -9,6 +9,35 @@ predating this file.
 
 ## 2026-10-22
 
+- **feat(web): the selection edit toolbar composes the kit — fleet
+  `FloatingToolbar` panel + fleet `Button` actions, and the @ action grows a
+  Shift-/Ctrl-click label mode.**
+  1. *The panel.* The floating formatting bar over a text selection used the
+     archived chrome's stand-in class names with its own scoped CSS supplying
+     the register — and it rode plain `surface` + a border, blending into the
+     page behind it. New fleet primitive `FloatingToolbar`
+     (`components/ui/fleet/`): one elevated panel hosting a single row of
+     buttons, riding the popup register the 2026-10-22 sweep proved for
+     transient panels (surface-container-high + the level-2 shadow + the M3
+     4dp menu corner — the same step ContextMenu/Dropdown carry); the row's
+     height rides the composing buttons' size token (icon-only ghost `Button`
+     sm — the visible box takes the size token, the 48dp floor stays on the
+     invisible hit-area overlay). The feature component
+     (`ui/editor-popups/FloatingToolbar.tsx`) keeps its behavior untouched —
+     the 150 ms selectionchange debounce, the imperative top/left writes
+     against the live selection Range, the mousedown guard — and forwards
+     ref/style/aria through the panel root; its CSS file is gone (every rule
+     moved into the kit).
+  2. *The @ label mode.* The toolbar's @ button was query-only. Now a plain
+     click keeps the Ctrl+L / @ contract (search on the selected text), while
+     Shift- or Ctrl/Cmd-click opens the picker with an EMPTY search and keeps
+     the original selected text as the inserted link's custom label — the
+     same "label" mode Ctrl/Cmd+Shift+L already rides (same `fixedLabel`
+     write, same mode banner). The hover tooltip states the modifier.
+  - **Verification**: `pnpm typecheck` + `pnpm test` green; toolbar exercised
+    in the test workspace (select text → bar appears; plain @ = query mode,
+    Shift-@ = label mode with the mode banner).
+
 - **docs(runbooks): the "adding a default property to a system class"
   recipe joins `docs/developers/development.md` §3** (owner question: how do
   we proceed when more default properties are needed). Seven steps, proven by

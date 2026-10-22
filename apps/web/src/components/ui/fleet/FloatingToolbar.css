@@ -1,0 +1,36 @@
+/**
+ * FloatingToolbar Component Styles
+ *
+ * The elevated popup register (owner 2026-10-22 sweep — the same step
+ * ContextMenu and Dropdown ride): a transient panel floating over editor
+ * content takes surface-container-high + the level-2 shadow + the M3 4dp
+ * menu corner. The row height rides the buttons' size token
+ * (h-button-sm on the composing icon buttons); the panel adds the 4px
+ * padding. Tokens only — no new values.
+ */
+
+.floating-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  width: fit-content;
+  padding: var(--spacing-1);
+  pointer-events: auto;
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-menu);
+  box-shadow: var(--elevation-2);
+  animation: floating-toolbar-fade-in var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+@keyframes floating-toolbar-fade-in {
+  from {
+    opacity: var(--opacity-0);
+    transform: translateY(var(--spacing-1));
+  }
+
+  to {
+    opacity: var(--opacity-100);
+    transform: translateY(0);
+  }
+}

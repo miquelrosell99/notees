@@ -1174,7 +1174,8 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
    * there is no selection to ride.
    *
    * mode "query" (the @ / Ctrl+L contract above) carries the selection as
-   * the search query. mode "label" (Ctrl/Cmd+Shift+L) opens with an EMPTY
+   * the search query. mode "label" (Ctrl/Cmd+Shift+L, or Shift-/Ctrl-click
+   * on the toolbar's @ button — owner 2026-10-22) opens with an EMPTY
    * query — the selection is kept as the inserted link's custom label
    * (fixedLabel), never fed to the search. Both render a faint mode banner
    * (hint) above the picker's search field so the pending write is legible.
@@ -2142,7 +2143,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
         rootRef={rootRef}
         activeMarks={new Set(activeMarks)}
         onToggleMark={toggleMark}
-        onMention={() => openMentionFromSelection(false)}
+        onMention={(mode) => {
+          openMentionFromSelection(false, mode);
+        }}
         onVerb={openVerb}
       />
       )}
