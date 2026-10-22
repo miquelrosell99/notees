@@ -317,11 +317,20 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
       // pointer leave) funnel through the same onOpenChange. The
       // SubContent renders WITHOUT a Portal — an inline, absolutely
       // positioned child of the menu card (never re-fits the menu's box,
-      // stays under .context-menu for feature CSS).
+      // stays under .context-menu for feature CSS) — and only WHILE the
+      // state says open (`forceMount` + a conditional render): the DOM
+      // lifecycle then rides our state, not Radix Presence's unmount
+      // heuristic. That heuristic proved unreliable in the live browser
+      // (owner report 2026-10-22: the flyout lingered, alternating
+      // open/close cycles, with the Sub's data-state already "closed" —
+      // Presence simply never detached the node; the jsdom suite cannot
+      // catch it: jsdom models no animation lifecycle). No exit animation
+      // is lost — the register carries enter-only panelFadeIn.
+      const isOpen = activeSubmenu === item.id;
       return (
         <ContextMenuPrimitive.Sub
           key={item.id}
-          open={activeSubmenu === item.id}
+          open={isOpen}
           onOpenChange={(open) => setActiveSubmenu(open ? item.id : null)}
         >
           <ContextMenuPrimitive.SubTrigger
@@ -329,7 +338,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
               'context-menu-item has-submenu',
               item.danger && 'danger',
               item.disabled && 'disabled',
-              (isActive || activeSubmenu === item.id) && 'active',
+              (isActive || isOpen) && 'active',
             )}
             disabled={item.disabled === true}
             onMouseEnter={() => handleItemEnter(item)}
@@ -340,24 +349,27 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
               <Icon path="mdi-chevron-right" size={0.8} />
             </span>
           </ContextMenuPrimitive.SubTrigger>
-          <ContextMenuPrimitive.SubContent
-            className="context-menu-submenu-flyout card"
-            sideOffset={0}
-            collisionPadding={VIEWPORT_PADDING}
-            onEscapeKeyDown={(event) => event.preventDefault()}
-            // Focus leaving the flyout (e.g. into a confirmation modal the
-            // row spawned) must not close it — this menu is caller-
-            // controlled; dismissal rides onClose, not focus (Radix's
-            // default closes a sub on focus-outside).
-            onFocusOutside={(event) => event.preventDefault()}
-            onFocus={(e: FocusEvent) => e.stopPropagation()}
-            onMouseDown={(e: MouseEvent) => e.stopPropagation()}
-            onClick={(e: MouseEvent) => e.stopPropagation()}
-          >
-            {item.submenu !== undefined
-              ? item.submenu
-              : item.submenuItems!.map(renderSubitem)}
-          </ContextMenuPrimitive.SubContent>
+          {isOpen && (
+            <ContextMenuPrimitive.SubContent
+              forceMount
+              className="context-menu-submenu-flyout card"
+              sideOffset={0}
+              collisionPadding={VIEWPORT_PADDING}
+              onEscapeKeyDown={(event) => event.preventDefault()}
+              // Focus leaving the flyout (e.g. into a confirmation modal the
+              // row spawned) must not close it — this menu is caller-
+              // controlled; dismissal rides onClose, not focus (Radix's
+              // default closes a sub on focus-outside).
+              onFocusOutside={(event) => event.preventDefault()}
+              onFocus={(e: FocusEvent) => e.stopPropagation()}
+              onMouseDown={(e: MouseEvent) => e.stopPropagation()}
+              onClick={(e: MouseEvent) => e.stopPropagation()}
+            >
+              {item.submenu !== undefined
+                ? item.submenu
+                : item.submenuItems!.map(renderSubitem)}
+            </ContextMenuPrimitive.SubContent>
+          )}
         </ContextMenuPrimitive.Sub>
       );
     }

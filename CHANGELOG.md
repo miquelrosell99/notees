@@ -7,6 +7,24 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): the context-menu flyout actually leaves the DOM on close —
+  the mount lifecycle rides our state, not Radix Presence.** Owner report
+  (2026-10-22): an open submenu flyout stayed visible after hovering a
+  different menu entry — sometimes. Live-browser probes (Playwright against
+  the running stack, fresh disposable workspaces) pinned it: the controlled
+  `Sub`'s state DID close every time (`data-state="closed"`, the `active`
+  class dropped), but Radix `Presence` only detached the `SubContent` node on
+  alternate close cycles — the flyout element lingered, fully interactive,
+  over the page. The jsdom suite couldn't catch it (no animation lifecycle in
+  jsdom). Fix: `SubContent` now renders only while our `activeSubmenu` state
+  says open, with `forceMount` — React owns the mount/unmount and Presence's
+  unmount heuristic is out of the picture. No exit animation is lost (the
+  register carries enter-only `panelFadeIn`).
+  - **Verification**: `submenu-chevron` / `copy-submenu` /
+    `block-context-menu` suites green (14/14); `tsc --noEmit` clean; the
+    Playwright hover probe (8 dwell timings × open→hover-sibling) fails 8/8
+    before the fix and passes 8/8 after, against the redeployed stack.
+
 - **chore(docs)!: `releases.md` retired — each client owns its releases; the
   file scrubbed from all of git history (all SHAs changed again).** Owner
   ruling (2026-10-22): the main repo documents only that the clients exist —
