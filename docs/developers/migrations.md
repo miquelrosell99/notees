@@ -2,7 +2,7 @@
 
 How to change data the live relay log already carries. Read this before writing
 or running any `scripts/migrate-*.mts`. Companion docs: `architecture.md` (the log/derived split),
-`development.md` (the fixture gate), `releases.md` (client lockstep ordering).
+`development.md` (the fixture gate + the client lockstep law).
 
 ## 0. The law that creates migrations
 
@@ -83,7 +83,8 @@ The immutable log gains envelopes; every replica applies them in order.
 ## 2. Client lockstep ordering (strict-payload changes)
 
 1. Ship the TS reference (schemas, store, appliers, fixtures, tests).
-2. Port GTK + Flutter, run their suites, tag both (`releases.md`).
+2. Port GTK + Flutter, run their suites, tag both (the clients + their
+   release mechanics: `docs/developers/README.md`).
 3. Only then run the live migration / flip settings — a pre-batch client
    rejects the new envelopes and its sync stalls until updated.
 4. Option-record additions (strip-safe) may migrate BEFORE the clients — they

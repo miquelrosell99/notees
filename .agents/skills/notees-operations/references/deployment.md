@@ -1,6 +1,6 @@
 # Deployment
 
-Canonical: `docs/developers/deployment.md` + `releases.md`.
+Canonical: `docs/developers/deployment.md`.
 
 ## Standard deploy (from repo root)
 

@@ -3,7 +3,7 @@
 Self-hosting the Notees server (`@notees-sync`): a single-binary Fastify server with an
 embedded SQLite relay log and per-workspace derived databases. Companion docs:
 [architecture.md](architecture.md) (the system), [development.md](development.md)
-(hacking), [releases.md](releases.md) (the deploy runbook used on the fleet host).
+(hacking), [README.md](README.md) (the companion clients — each owns its releases).
 
 **Security posture.** The server carries accounts and sessions (the web app signs in;
 the initial setup creates the admin account), an operator API key for headless access,
