@@ -1,6 +1,6 @@
 # Maintenance
 
-Canonical: `docs/developers/deployment.md` + `releases.md`.
+Canonical: `docs/developers/deployment.md`.
 
 ## Routine
 
@@ -37,5 +37,5 @@ snapshot bytes** (migrations.md step 5). Snapshot deletes are safe;
 ## Health of the law
 
 Any change to how the stack is deployed, backed up, or migrated updates
-`docs/developers/deployment.md` / `releases.md` / `migrations.md` and this
+`docs/developers/deployment.md` / `migrations.md` and this
 skill's references in the same pass — docs and skills are part of the change.

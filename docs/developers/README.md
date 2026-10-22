@@ -15,14 +15,11 @@ change it describes.
    conventions.
 3. **[deployment.md](deployment.md)** — self-hosting the server: requirements,
    configuration, the data directory, backups, upgrades, security posture.
-4. **[releases.md](releases.md)** — how this repo and the GTK/Flutter clients
-   ship: the tag/CI mechanics, the three-client lockstep law and batch
-   history, and the fleet-host deploy + smoke runbook.
-5. **[migrations.md](migrations.md)** — changing data the live relay log
+4. **[migrations.md](migrations.md)** — changing data the live relay log
    already carries: the append-only vs in-place-rewrite decision, the
    snapshot/restore-epoch/restart sequence, and the catalog of every
    `scripts/migrate-*.mts`.
-6. **[workflows.md](workflows.md)** — the server-side workflow-rules engine
+5. **[workflows.md](workflows.md)** — the server-side workflow-rules engine
    (issue #13): "when X on nodes matching Y, do Z" as coordination state,
    the evaluation point, the depth-1 loop policy, and the run audit.
 
@@ -37,6 +34,29 @@ computed-style dumps, the react-pdf/jsdom limits).
 
 [sdk-publishing.md](sdk-publishing.md) is archived reference for the parked
 npm-distribution program.
+
+## Clients
+
+The companion clients are sibling repos, checked out next to this one; each
+owns its own releases (tags, CI publishing, changelog) — this repo documents
+only that they exist and how the wire stays convergent between them:
+
+- **notees-gtk** (`/root/projects/notees-gtk`) — the GTK4 desktop client:
+  Python lockstep port of the protocol, derived SQLite appliers, sync
+  engine. Releases: annotated `v*` tags → CI publishes sdist/wheel + Arch
+  package + GitHub Release.
+- **notees-flutter** (`/root/projects/notees-flutter`) — the mobile client:
+  Dart port, hand-rolled validators. Releases: `v*` tags → CI
+  production-signed APK + GitHub Release.
+- **notees-cli** (`/root/projects/notees-cli`) — the command-line client:
+  consumes this repo's packages via a pinned `vendor/notees` submodule; the
+  pin is the lockstep boundary. Releases: `v*` tags → CI attaches the
+  `cli.mjs` bundle to the GitHub Release.
+
+The convergence law they all follow is the **fixture gate + three-way
+lockstep** in [development.md](development.md); wire-affecting changes are
+not done until the TS reference, GTK, and Flutter apply byte-identical
+fixtures.
 
 The normative model and wire spec live in
 [packages/protocol/SCHEMA.md](../../packages/protocol/SCHEMA.md); the

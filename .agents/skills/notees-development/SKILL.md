@@ -53,7 +53,7 @@ summary here.
    plugins, TreeCrdt port, the outliner editor program, etc. are not shipped.
    Never document, test, or build against them as if they existed.
 7. **Code wins over design docs** where they disagree — fix the doc in the
-   same pass (freshness cues: `releases.md`'s current-wire line for the wire,
+   same pass (freshness cues: `packages/protocol/WIRE.md` for the wire,
    `packages/store/src/schema.ts` for the derived schema).
 8. **The test workspace is the only workspace for agent work**. Anything that touches a live workspace — API calls, browser
    probes (seed `notees.workspaceId`, don't click through the picker), CLI

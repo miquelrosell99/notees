@@ -38,7 +38,9 @@ it.
 
 ## Releases & the client lockstep
 
-Full runbook: `docs/developers/releases.md`. The load-bearing laws in
+Full runbook: `docs/developers/deployment.md`; the clients themselves (each
+owns its releases, tags, and CI publishing) are listed in
+`docs/developers/README.md`. The load-bearing laws in
 short:
 
 - Git tags are the release mechanism — no GitHub Releases on this repo;

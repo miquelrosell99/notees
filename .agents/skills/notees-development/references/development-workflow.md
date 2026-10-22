@@ -140,8 +140,9 @@ is not done until all three implementations converge.
 
 Additive = no `PROTOCOL_VERSION` bump (WIRE.md). A breaking change bumps the
 version + fixtures + all three clients together (lockstep law,
-`docs/developers/releases.md`): **TS reference with fixtures → GTK + Flutter
-ports and tags → live migration.**
+`docs/developers/development.md`'s fixture gate — the clients themselves are
+listed in `docs/developers/README.md`): **TS reference with fixtures → GTK +
+Flutter ports and tags → live migration.**
 
 ## The v1 archive (v1 ports read from here)
 
