@@ -3,8 +3,11 @@
  * `<origin>/<uuid>` (block editor and page title) with a confirmation
  * toast; pasting that link — or a bare uuid — inserts a mention token (the
  * title row edits with the full block editor, so block and title share the
- * contract), both with a toast. Text selections and non-link clipboard text
- * keep the browser default. The jsdom harness mirrors outliner-editor.test.tsx.
+ * contract), both with a toast. Multi-line plain text paste splits into
+ * sibling blocks at the caret (first line joins the head, last line
+ * absorbs the tail); single-line text, the title row, and unresolvable
+ * links keep the browser default. The jsdom harness mirrors
+ * outliner-editor.test.tsx.
  */
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -308,6 +311,180 @@ describe("block editor node-link clipboard", () => {
 
     expect(allowed).toBe(true);
     expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "hello" }]);
+    expect(notificationStore.notifications).toHaveLength(0);
+  });
+});
+
+/** Place a collapsed caret at a PROSE offset (walks runs and pill elements). */
+function setProseCaret(el: HTMLElement, proseOffset: number): void {
+  let acc = 0;
+  let target: Node | null = null;
+  let inner = 0;
+  for (const child of Array.from(el.childNodes)) {
+    const len = child.textContent?.length ?? 0;
+    if (acc + len >= proseOffset) {
+      target = child;
+      inner = Math.max(0, proseOffset - acc);
+      break;
+    }
+    acc += len;
+  }
+  const range = document.createRange();
+  if (target === null) {
+    range.selectNodeContents(el);
+    range.collapse(false);
+  } else {
+    const textNode = target instanceof HTMLElement ? (target.firstChild ?? target) : target;
+    const max = (textNode.textContent ?? "").length;
+    range.setStart(textNode, Math.min(inner, max));
+    range.collapse(true);
+  }
+  const selection = window.getSelection();
+  if (selection === null) throw new Error("no window selection in jsdom");
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+describe("multi-line paste splits into sibling blocks", () => {
+  it("pastes each line as its own block after the current one", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "P" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    selectContents(editor, "end");
+    let allowed = true;
+    act(() => {
+      allowed = pasteWithClipboard(editor, "one\ntwo\nthree");
+    });
+    await act(async () => {});
+
+    expect(allowed).toBe(false); // the default paste was prevented
+    const tree = client.getBlockTree(pageId);
+    expect(tree.map((row) => row.node.id)).toEqual([blockId, expect.any(String), expect.any(String)]);
+    expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "helloone" }]);
+    expect(tree[1]!.node.contentAst).toEqual([{ type: "text", text: "two" }]);
+    expect(tree[2]!.node.contentAst).toEqual([{ type: "text", text: "three" }]);
+    // The caret took over the last pasted block (the empty tail sits at
+    // offset 0 of it — here that's the end of "three").
+    const active = document.activeElement;
+    expect(active).not.toBeNull();
+    expect(active!.classList.contains("nt-block-text")).toBe(true);
+    expect(active!.textContent).toBe("three");
+    expect(notificationStore.notifications).toHaveLength(0);
+  });
+
+  it("mid-text: the head keeps the first line, the last line absorbs the tail", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "P" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "abcdef" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    setProseCaret(editor, 3); // "abc|def"
+    let allowed = true;
+    act(() => {
+      allowed = pasteWithClipboard(editor, "X\nY");
+    });
+    await act(async () => {});
+
+    expect(allowed).toBe(false);
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(2);
+    expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "abcX" }]);
+    expect(tree[1]!.node.contentAst).toEqual([{ type: "text", text: "Ydef" }]);
+    // Caret at the start of the absorbed tail inside the last block.
+    const active = document.activeElement;
+    expect(active).not.toBeNull();
+    expect(active!.textContent).toBe("Ydef");
+  });
+
+  it("an empty middle line becomes an empty block", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "P" });
+    await client.createObject({ parentId: pageId, contentAst: [] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    selectContents(editor, "end");
+    act(() => {
+      pasteWithClipboard(editor, "a\n\nb");
+    });
+    await act(async () => {});
+
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(3);
+    expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "a" }]);
+    expect(tree[1]!.node.contentAst).toEqual([]);
+    expect(tree[2]!.node.contentAst).toEqual([{ type: "text", text: "b" }]);
+  });
+
+  it("trailing blank lines are copy noise, not empty blocks", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "P" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    selectContents(editor, "end");
+    let allowed = true;
+    act(() => {
+      allowed = pasteWithClipboard(editor, "one\ntwo\n\n");
+    });
+    await act(async () => {});
+
+    expect(allowed).toBe(false);
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(2);
+    expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "helloone" }]);
+    expect(tree[1]!.node.contentAst).toEqual([{ type: "text", text: "two" }]);
+    expect(tree[1]!.node.id).not.toBe(blockId);
+  });
+
+  it("a single trailing newline on one line keeps the default paste", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "P" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    selectContents(editor, "end");
+    let allowed = true;
+    act(() => {
+      allowed = pasteWithClipboard(editor, "only\n");
+    });
+
+    expect(allowed).toBe(true); // nothing to split — the browser default runs
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "hello" }]);
+  });
+
+  it("multi-line paste in the title row keeps the default", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Title Page" });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const title = clickIntoTitle(container);
+    selectContents(title, "end");
+    let allowed = true;
+    act(() => {
+      allowed = pasteWithClipboard(title, "a\nb");
+    });
+
+    expect(allowed).toBe(true);
+    expect(client.getBlockTree(pageId)).toHaveLength(0);
     expect(notificationStore.notifications).toHaveLength(0);
   });
 });
