@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-22
 
+- **fix(web): search pills lose their stacked block padding — the command
+  palette's search box was the last tall one.** The picker fix (2026-10-21)
+  compacted the anchored pickers' search bars by zeroing the sm pill's
+  block padding, but the root cause was universal: the SearchField wrapper
+  carried `py-2` ON TOP of the input's fixed `h-button-md` height, stacking
+  16px of padding on a 36px input (52px pills — most visible in the command
+  palette, which ships no `size="sm"`). Now the wrapper carries NO block
+  padding at any size: the pill's block size IS the input's button-height
+  token (md 36px, sm 30px), so every search box — palette, full-page
+  search, class-create and template-gallery filters included — stands at
+  its register height with no per-callsite opt-in. The sm CSS drops its
+  now-redundant zeroing and keeps only the inline-padding tighten; the
+  catalog doc records the law.
+  - **Verification**: `pnpm typecheck` clean; `pnpm test` green (the sm
+    class assertions from the picker fix still hold — the marker class is
+    unchanged); the running stack's command palette reviewed at the new
+    36px register height.
+
 - **fix(web): the journal's Today jump materializes today instead of
   landing on a past day.** The feed's anchor is "today, else the nearest
   day at or before" — so with no page written yet for the 22nd, Jump to
