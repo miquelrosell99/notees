@@ -46,13 +46,19 @@ lockstep first. Retired keys/moved fields → in-place rewrite.
 
 ## Script catalog
 
-`scripts/migrate-*.mts` (9 scripts; `migrations.md` has the per-script
-table). All: **dry-run by default, `--apply` to write**, `--data-dir` +
-`--workspace` flags (owner workspace default), run from repo root:
+`scripts/migrate-*.mts`, catalogued per-script in `docs/developers/migrations.md`
+(canonical — this skill does not duplicate the table). Default entry point is
+the **batch orchestrator** — one stopped-stack window for every pending
+marker-bearing migration:
 
 ```sh
-pnpm --filter @notees/server exec tsx ../../scripts/<name>.mts --apply
+pnpm --filter @notees/server exec tsx ../../scripts/migrate-pending.mts --db <relay.db> --apply
 ```
+
+It aborts while `notees-sync` is running, delegates `--apply` to each pending
+script's own tested path, and bumps the epoch once per script (harmless within
+one window). Per-script invocation stays for targeted re-runs (`--force`) and
+the pre-marker scripts the orchestrator cannot classify.
 
 ## Lockstep ordering
 
