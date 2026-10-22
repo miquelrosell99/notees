@@ -4,6 +4,41 @@ How to change data the live relay log already carries. Read this before writing
 or running any `scripts/migrate-*.mts`. Companion docs: `architecture.md` (the log/derived split),
 `development.md` (the fixture gate + the client lockstep law).
 
+## Running migrations
+
+`scripts/migrate-pending.mts` is the **default entry point** for the
+stored-log rewrite class (kind B below). It reads the `schema_meta`
+idempotency markers, reports what is pending, and in `--apply` mode runs
+every pending entry's own `--apply` in ONE maintenance window — the stack
+stops once, the batch pays one backup/epoch/restart cycle, and every client
+full re-syncs a single time (the rehydration is the cost, not the rewrite):
+
+```
+docker compose stop notees-sync        # apply refuses while it runs — repo law
+pnpm --filter @notees/server exec tsx ../../scripts/migrate-pending.mts \
+  --db ../../config/notees/sync/relay.db --apply
+docker compose up -d                   # one rehydration for the whole batch
+```
+
+The orchestrator is read-only until `--apply`, and `--apply` never edits
+`relay.db` itself: it aborts while `docker compose ps notees-sync` reports
+the container running (unless `--assume-stopped`, after verifying by hand)
+and delegates every actual rewrite to the entry script's own
+backup + quick_check + epoch bump. Per-script invocation
+(`pnpm --filter @notees/server exec tsx ../../scripts/<name>.mts --db …`)
+stays the path for targeted re-runs and for the scripts the orchestrator does
+not track (see the registry contract).
+
+**Registry contract**: any new `scripts/migrate-*.mts` that rewrites the
+stored log adds a `{ script, markerKey, kind }` entry to
+`MIGRATION_REGISTRY` in `migrate-pending.mts` — `markerKey` is the script's
+own `schema_meta` key. Kind classification: **"rewrite"** when the script
+rewrites envelopes (replay divergence — needs the stopped stack + the epoch
+bump); **"marker-only"** when it only backfills/marks with no replay
+divergence (safe with the stack up). Scripts without a marker row cannot be
+classified pending vs applied, so the orchestrator cannot track them — keep
+the per-script invocation for those.
+
 ## 0. The law that creates migrations
 
 **No backward compatibility** (owner directive, sole user): strict payload
