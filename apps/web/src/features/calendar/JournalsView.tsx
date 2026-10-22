@@ -176,7 +176,16 @@ export function JournalsView({
         title="Journal"
         actions={
           pages.length > 0 ? (
-            <Button variant="ghost" size="sm" onClick={scrollToToday}>
+            /* The outline variant + "Jump to today" title/aria: the bordered button reads
+               clickable where the ghost idiom doesn't, and the short
+               "Today" label names the destination, not the jump. */
+            <Button
+              variant="outline"
+              size="sm"
+              title="Jump to today"
+              aria-label="Jump to today"
+              onClick={scrollToToday}
+            >
               Today
             </Button>
           ) : undefined
