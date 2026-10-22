@@ -7,6 +7,19 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **docs(changelog): the classes-gallery lockstep converged — GTK `0537d39`,
+  Flutter `7b07a01`, CLI `6214b26`.** All three clients now speak the `1423ce2c2`
+  contract; the LOCKSTEP-PENDING note in that entry is closed. GTK
+  (`notees-gtk`): the four-arm class-node delete routing, the archival
+  `active` bit with both refusal guards, the `journal` feature, the retired
+  `class.delete` op — 894 tests, ruff/mypy clean, fixture corpus
+  byte-identical. Flutter (`notees-flutter`): same port — 689 tests,
+  `flutter analyze` clean, corpus byte-identical both directions. CLI
+  (`notees-cli`): vendor re-pinned at `1423ce2c2` — zero CLI-code delta (it
+  consumes the store applier whole and never issued `class.delete`), 87/87.
+  The stored-log migration (`scripts/migrate-class-delete.mts`) is unblocked
+  and runs at the operator's next maintenance window.
+
 - **docs(changelog): the WS-admission-ticket lockstep converged — GTK
   `8269285`, Flutter `f9cfe75`, CLI `e8c2c39`.** All three implementations now
   speak the 0ea18fcd5 contract; the LOCKSTEP-PENDING note in that entry is
