@@ -279,6 +279,7 @@ describe("Class View", () => {
     );
     // PURE ALPHABETICAL by property name (binding
     // sequence retired; the seeded class panel has no configurable order).
+    // URL joined the source family as a default property (// the url binding moved from weblink-only to the family base).
     expect(names).toEqual([
       "Attachments",
       "Authors",
@@ -287,6 +288,7 @@ describe("Class View", () => {
       "ISBN",
       "Publication date",
       "Publisher",
+      "URL",
     ]);
 
     const rows = [...container.querySelectorAll(".nt-propdef")];

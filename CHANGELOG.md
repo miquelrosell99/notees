@@ -27,6 +27,41 @@ predating this file.
     the class-create dialog at 1440 and reads the computed border-radius
     live (16px on both surfaces, PROBE-PASS).
 
+- **feat(domain): `url` becomes a default property of the `source` system
+  class, globally scoped.** The `url` property seed (…0000-000000000024)
+  previously bound ONLY to `weblink`; now the binding row lands on the
+  `source` family base, so every source subclass (book, paper, article,
+  thesis, document, movie, song, TV series, conference, weblink) lists a URL
+  by default — matching what the docs already described (SCHEMA.md's source
+  section lists `url` among the family's bibliographic fields). The SCHEMA
+  stays GLOBAL scope per the 2026-10-20 seed-scope audit (only the binding
+  row's class changes; a url remains generically reusable — availability
+  semantics never lived in bindings). weblink's class-local row is re-emitted
+  via `SYSTEM_EXTRA_CLASS_BINDINGS` (`url→weblink`, the birthday→eventDate
+  shape), so own-first resolution keeps naming weblink and the existing
+  weblink deploy test shape is unchanged. Zero wire cost — binding rows are
+  ordinary `class.property.set` config ops, no new op type, no fixture gate;
+  new workspaces receive the row from the server seed, live workspaces
+  materialize it through `deploySystemClass("source")` (the classes-gallery
+  deploy / the web ensures).
+  - **Verification**: `pnpm typecheck` + `pnpm test` clean (the domain
+    seed-scope pin updated: `url` binds `source` + the weblink extra row;
+    the properties-panel own-first test already sharpened this exact shape);
+    the weblink-deploy binding test (url schema global + the weblink row)
+    green unchanged — `deploySystemClass` recurses ancestors first, so the
+    source deploy authors the schema and the extra row keeps weblink's. Two
+    test fallouts pinned the new shape: the Class View's source panel now
+    lists URL alphabetically, and the weblink→source heal test surfaced a
+    real convergence gap — `deploySystemClass`'s family step now converges a
+    stored schema whose scope drifted from the seed (the pre-ruling
+    [weblink]-scoped url) BEFORE authoring the binding row, else R5 dead-
+    config rejects the family base's binding (the offline-first twin of
+    `scripts/migrate-seed-scope-flips.mts`).
+  - **Docs**: SCHEMA.md (the seed-manifest entry + the citations section —
+    `url` now a documented default of the family base); the GTK/Flutter seed
+    manifests converge by the same constant (non-blocking follow-up, the
+    weblink-extends precedent).
+
 - **feat(web): multi-line plain-text paste splits into sibling blocks.**
   Pasting clipboard text containing newlines into a block used to ride the
   browser default — one block whose newlines became `hard_break` tokens.
