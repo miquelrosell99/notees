@@ -1,0 +1,20 @@
+/* FilterChips — the applied-filter token row under a search field. A
+   wrapping flex row; the tokens are composed Pills (their own primitive
+   styles), tightened here to the compact search-chrome density. */
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.filter-chips__pill {
+  /* One step tighter than the default Pill padding so a full chip row
+     keeps the search chrome compact; the metrics still ride the
+     type scale (label-medium), never fixed px. */
+  padding-top: var(--spacing-hairline);
+  padding-bottom: var(--spacing-hairline);
+  max-width: 100%;
+}
