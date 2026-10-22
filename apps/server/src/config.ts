@@ -49,6 +49,11 @@ export interface ServerConfig {
    * NOTEES_CORS_ORIGIN). Empty means no CORS headers are sent at all.
    */
   corsOrigins: string[];
+  /**
+   * WS admission-ticket lifetime (`POST /tickets`, WIRE.md). Internal test
+   * hook — not env-configurable; unset means the 60 s default.
+   */
+  wsTicketTtlMs?: number;
 }
 
 export function generateApiKey(): string {

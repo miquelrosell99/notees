@@ -22,6 +22,7 @@ import { PluginRegistry } from "./routes-plugins.js";
 import { seedWorkspace, type SeedResult } from "./seed.js";
 import { ShareStorage } from "./shares.js";
 import { SubscriptionBus } from "./bus.js";
+import { TicketStore } from "./tickets.js";
 import { WorkflowEngine, WorkflowStorage } from "./workflows.js";
 import type { WorkflowEvaluationContext } from "./workflows.js";
 import { WorkspaceManager } from "./workspace-store.js";
@@ -58,6 +59,8 @@ export class ServerContext {
   };
   /** Idempotency-Key → first-successful-response replay store. */
   readonly idempotency: IdempotencyStore;
+  /** Short-lived single-use WS admission tickets (WIRE.md §2). */
+  readonly tickets: TicketStore;
   readonly defaultWorkspace: string;
   readonly serverVersion: string;
   /**
@@ -98,6 +101,7 @@ export class ServerContext {
       login: new FixedWindowLimiter(),
     };
     this.idempotency = new IdempotencyStore();
+    this.tickets = new TicketStore(config.wsTicketTtlMs);
     this.defaultWorkspace = defaultWorkspaceId();
     void hashPassword(randomBytesForDummy()).then((hash) => {
       this.dummyPasswordHash = hash;

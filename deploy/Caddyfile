@@ -14,10 +14,10 @@ https://{$NOTEES_EDGE_NAME} {
 
 	# Human-readable logs: the console encoder with the request and response
 	# header dumps filtered out (they were most of every line and carried no
-	# diagnostic value). The request line keeps method/URI/proto/client —
-	# note the sync token travels in the WS URL query, so it still appears in
-	# request.uri, as in any access log. Reverse-proxy errors use this encoder
-	# too.
+	# diagnostic value). The request line keeps method/URI/proto/client; the
+	# WS URL carries only a single-use 60 s admission ticket (minted at
+	# POST /api/relay/v2/tickets), never the credential — and it dies on
+	# first use. Reverse-proxy errors use this encoder too.
 	log {
 		format filter {
 			wrap console

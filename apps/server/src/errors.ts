@@ -11,6 +11,7 @@
 
 export type ErrorCode =
   | "unauthenticated"
+  | "invalid_ticket"
   | "forbidden"
   | "scope_denied"
   | "validation_failed"
@@ -59,6 +60,7 @@ export const ERROR_TAXONOMY: Readonly<
   Record<ErrorCode, { status: number; aliases?: readonly number[]; description: string }>
 > = {
   unauthenticated: { status: 401, description: "missing, unknown, or expired credentials" },
+  invalid_ticket: { status: 401, description: "WS admission ticket unknown, expired, or bound to another workspace (single-use; consumed on attempt)" },
   forbidden: { status: 403, description: "authenticated but not allowed (membership, role, self-revocation rules)" },
   scope_denied: { status: 403, description: "a scoped API key called a route outside its scope set" },
   validation_failed: {
