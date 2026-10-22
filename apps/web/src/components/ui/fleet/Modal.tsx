@@ -281,7 +281,8 @@ export function Modal({
             isSheet && 'modal--sheet',
             // The Card surface the modal used to compose (elevation high,
             // radius sheet) — now token utilities on the dialog content.
-            'bg-surface border border-outline-variant rounded-sheet shadow-level3 overflow-visible',
+            // Dialog register (owner 2026-10-22): 16px, not the sheet's 28.
+            'bg-surface border border-outline-variant rounded-dialog shadow-level3 overflow-visible',
             className,
           )}
         >

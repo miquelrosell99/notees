@@ -22,8 +22,11 @@
 .nt-modal {
   background: var(--md-sys-color-surface-container-low);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  /* Dialog register: 28px, per the 2026-10-15 ruling (was 12px). */
-  border-radius: var(--shape-sheet);
+  /* Dialog register (owner ruling 2026-10-22): 16px — the 28px sheet
+     rounding (2026-10-15) read too round on dialog surfaces; the 12px it
+     replaced read too sharp. Centered dialogs only — bottom sheets keep
+     --shape-sheet. */
+  border-radius: var(--shape-dialog);
   width: var(--modal-width-md);
   max-width: 100%;
   max-height: 80vh;

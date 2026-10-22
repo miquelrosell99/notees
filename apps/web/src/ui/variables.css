@@ -379,6 +379,10 @@
   --shape-button: 16px;
   --shape-button-small: 12px;
   --shape-sheet: 28px;
+  /* Dialog register (owner ruling 2026-10-22): centered dialogs sit at 16px —
+     the 28px sheet rounding read too round on dialog surfaces, 12px (the
+     pre-2026-10-15 value) read too sharp. Bottom SHEETS keep --shape-sheet. */
+  --shape-dialog: 16px;
   --shape-button-compact: 10px;
   --shape-floating-panel: var(--shape-large);  /* 8px — small floating surfaces (popovers, previews) */
   --radius-menu: var(--shape-small);  /* 4px — M3 menu/popover container shape (m3.material.io menus: menu container 4dp). Scoped to the kit menu/popover panels only; --shape-floating-panel's other consumers keep 8px. */
@@ -596,6 +600,7 @@
      view-mode switcher; popovers 4px, cards 20px, sheets 28px). */
   --radius-card: var(--shape-card);
   --radius-sheet: var(--shape-sheet);
+  --radius-dialog: var(--shape-dialog);
   --radius-button-lg: var(--shape-medium);
   --radius-button-sm: var(--shape-medium);
   --radius-input: var(--shape-extra-large);

@@ -172,8 +172,9 @@ describe("Modal", () => {
     );
     const dialog = screen.getByRole("dialog");
     // The dialog chrome (modal, modal--md) + the token surface utilities the
-    // old Card composition carried (elevation high, radius sheet).
-    expect(dialog).toHaveClass("modal", "modal--md", "bg-surface", "rounded-sheet", "shadow-level3");
+    // old Card composition carried (elevation high, the 16px dialog radius —
+    // owner ruling 2026-10-22).
+    expect(dialog).toHaveClass("modal", "modal--md", "bg-surface", "rounded-dialog", "shadow-level3");
     expect(screen.getByRole("heading", { name: "Settings" })).toHaveClass("modal__title");
     expect(dialog.querySelector(".modal__content")).toHaveTextContent("Body text");
     expect(dialog.querySelector(".modal__footer")).not.toBeNull();

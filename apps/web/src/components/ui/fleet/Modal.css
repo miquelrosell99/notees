@@ -153,7 +153,10 @@
 .modal__header {
   display: flex;
   align-items: center;
-  padding: var(--spacing-4);
+  /* Dialog-density ruling (owner 2026-10-22, the radius pass): 12px vertical
+     — 16px top/bottom read too tall for a chrome row carrying one
+     title-medium line. Horizontal stays at spacing-4. */
+  padding: var(--spacing-3) var(--spacing-4);
   border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   flex-shrink: 0;
   gap: var(--spacing-2);
