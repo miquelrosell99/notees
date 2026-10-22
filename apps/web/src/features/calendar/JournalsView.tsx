@@ -2,8 +2,8 @@
  * JournalsView — the journal feed: a continuous, today-centered scroll of
  * page views, one per existing day-classed page, newest first. Scrolling up
  * reveals future existing day pages, scrolling down older ones; reloading
- * re-centers on today. Clicking an entry's date header opens that page in
- * the full page view.
+ * re-centers on today. Each entry's date header is a plain heading; the
+ * "Open page" button beside it opens that page in the full page view.
  *
  * Every day page exists in the local store, so "loading" is purely a
  * rendering window: a small slice around today mounts first and

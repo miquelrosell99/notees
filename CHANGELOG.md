@@ -7,6 +7,24 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): embedded feed titles (journal + calendar day pages) are plain
+  headings again — navigation rides an explicit "Open page" button.** the headline-sized clickable title with its state-layer
+  hover read as noise. The embedded render of `PageHeaderChrome` now renders
+  the title as a static `.nt-page-title-embed__text` heading and a kit ghost
+  icon button (`mdi-arrow-right`, aria-label/title "Open page") that navigates
+  to the full page view — the hover register stays at the icon-button scale,
+  the heading stays selectable, and the pattern covers every embedded surface
+  (the journal feed and the calendar's daily-note embed share the one
+  `PageHeaderChrome` branch). The old `.nt-page-title-link` button + hover
+  rule are gone; the right-click node menu on the title row is unchanged.
+  - **Files**: `apps/web/src/ui/PageChrome.tsx`,
+    `apps/web/src/features/calendar/JournalsView.css` (the `.nt-page-title-embed`
+    styles), `apps/web/src/ui/PageView.tsx` + `JournalsView.tsx` (doc comments),
+    `apps/web/test/title-editor.test.tsx`, `apps/web/test/journals-view.test.tsx`,
+    `apps/web/test/hover-press-register.test.ts` (the register test now asserts
+    the title carries NO hover rule — the old contract is inverted).
+  - **Verification**: `pnpm typecheck && pnpm test` from the repo root.
+
 - **feat(web): the New-node picker offers “No class,” and its search text
   joins the picker row grid.**“Blank page”
   named the page’s content; the choice is classification, so the pinned
