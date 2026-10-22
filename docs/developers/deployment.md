@@ -223,16 +223,23 @@ operation it performs is reproducible with the commands below).
 
 **Source/stack split:** the app source is the git repo;
 a deployment host may hold a thin **live stack outside the checkout** (a
-compose copy + `.env` + `config/`, Komodo-managed). Both compose files share
-the project name (`notees`) — **on such a host always `build`/`up` from the
-LIVE STACK FOLDER, never from the checkout**: compose reconciles containers
-by project name, so a raw `docker compose up` from the checkout hijacks the
-live containers and recreates them against the checkout's config path — and
-when that bind source is missing, docker silently creates a fresh EMPTY dir,
-so the sync server crash-loops on an empty data dir (incident 2026-10-20;
-the live data itself, on the stack folder's own bind, is untouched). On a
-fresh host with no live stack, the repo-root compose is the template — build
-the images, then `up -d`:
+compose copy + `.env` + `config/`, Komodo-managed). Each compose file names
+its project EXPLICITLY: the live stack carries
+`name: notees`, the repo-root template carries `name: notees-dev` — so a raw
+`docker compose` from the checkout lands on an isolated dev project and can
+never reconcile against the live containers. Before the names were explicit,
+both files derived `notees` from the folder name, and a raw `docker compose
+up` from the checkout hijacked the live containers and recreated them against
+the checkout's config path — and when that bind source is missing, docker
+silently creates a fresh EMPTY dir, so the sync server crash-loops on an
+empty data dir (incident 2026-10-20; the live data itself, on the stack
+folder's own bind, was untouched). Even with the names explicit, **on such a
+host always `build`/`up` from the LIVE STACK FOLDER**: a dev `up` from the
+checkout would collide on the pinned host ports (8377/8378) rather than
+serve — fail loud, but still not the deployment path. On a fresh host with
+no live stack, the repo-root compose is the template — set the production
+`name:` (one line) if the project should not ride `notees-dev`, build the
+images, then `up -d`:
 
 ```sh
 docker build -f apps/server/Dockerfile -t ghcr.io/miquelrosell99/notees-sync:latest . \
