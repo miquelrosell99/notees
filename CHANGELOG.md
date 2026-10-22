@@ -7,6 +7,68 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **fix(web): the embedded feed's "Open page" button reveals on title-row
+  hover.** the button beside the journal/calendar
+  feed titles shows only while the pointer is on the title row — hidden at
+  rest (opacity, not visibility, so it stays in the tab order), revealed by
+  `.nt-page-title-wrap:hover` (the wrap spans the row's free width, so the
+  words AND the space beside them trigger it) and by `:focus-within` for
+  keyboard users; coarse pointers (touch) keep it always visible. The reserved
+  width means the reveal never shifts the title, and a pointer over the
+  button's box is necessarily hovering the row — no invisible-click trap.
+  - **Files**: `apps/web/src/ui/PageChrome.tsx` (the button takes
+    `.nt-page-title-embed__open`),
+    `apps/web/src/features/calendar/JournalsView.css` (the reveal block),
+    `apps/web/test/hover-press-register.test.ts` (the reveal contract).
+  - **Verification**: the affected suites (48 tests across the four files);
+    the FULL web suite green.
+
+- **fix(web): menus and floating chrome ride the elevated popup register —
+  the surface-container-low blend the calendar-popup fix solved returns; plus
+  context-menu flyouts close when the pointer leaves the menu.** the context menu and its Copy flyout rendered on a
+  surface indistinguishable from the dark content behind. `surface-container-
+  low` (+3 L* over surface) was not enough on the flat night; every menu and
+  floating panel now rides the register the calendar-popup fix proved:
+  `surface-container-high` + the level-2 shadow. Sweep: the ContextMenu card +
+  flyout, the Dropdown menu + catalog command, the NotificationToast (the
+  flagged "follow-up elevation audit" this closes), the block FloatingToolbar,
+  the block TriggerPopup, the TemplateListPopup, the FloatingEditor windows,
+  and the find/replace widget (surface-bright + no shadow → elevated + level
+  2). The M3 menus-sit-on-surfaceContainerLow ruling is superseded in practice
+  by the owner's readability report. Second fix (same report): an open
+  flyout stayed up when the pointer walked off the menu entirely — the menu
+  card now carries an `onMouseLeave` that closes the submenu (the menu itself
+  still rides onClose; the flyout is a no-Portal DOM child of the card, so
+  entering it never fires the leave). The enter-only BETWEEN-items seam is
+  unchanged.
+  - **Files**: `apps/web/src/components/ui/fleet/ContextMenu.css` (+ the
+    `onMouseLeave` in `ContextMenu.tsx`), `components/ui/fleet/Dropdown.css`,
+    `components/ui/fleet/NotificationToast.css`,
+    `ui/editor-popups/FloatingToolbar.css`, `ui/editor-popups/TriggerPopup.css`,
+    `ui/templates/TemplateListPopup.css`, `features/block-editor/FloatingEditor.css`,
+    `ui/editor-popups/FindReplaceWidget.css`,
+    `apps/web/test/submenu-chevron.test.tsx` (register assertions moved to
+    -high + elevation-2; new tests: leave-closes-flyout, flyout-is-DOM-child).
+  - **Verification**: the affected suites; the FULL web suite green.
+
+- **chore(deploy): the compose projects are named explicitly — `notees` prod,
+  `notees-dev` template — closing the 2026-10-20 hijack class structurally.**
+  Owner decision (2026-10-22): the repo-root `compose.yaml` names its project
+  `notees-dev`, so any raw `docker compose` from the checkout lands on an
+  isolated dev project (it fails loudly on the pinned 8377/8378 ports rather
+  than hijacking the live containers); the live stack's compose names its
+  project `notees` explicitly instead of deriving it from the folder name.
+  Fresh deployments set their own production `name:` (one line). Host-local
+  convenience: `notees-deploy` / `noteessync-deploy` / `notees-ps` aliases in
+  `~/.bashrc` run compose against the live stack from any cwd. Verified live:
+  both files resolve to their named project (`docker compose config`), the
+  running stack is untouched (container set + health identical), and the
+  alias lists the live containers from a foreign cwd.
+  - **Files**: `compose.yaml` (repo template), `/etc/periphery/stacks/notees/
+    compose.yaml` (live stack — host-local, the stacks repo gitignores
+    `notees/`), `docs/developers/deployment.md`, `AGENTS.md`, `~/.bashrc`
+    (host-local).
+
 - **fix(web): embedded feed titles (journal + calendar day pages) are plain
   headings again — navigation rides an explicit "Open page" button.** the headline-sized clickable title with its state-layer
   hover read as noise. The embedded render of `PageHeaderChrome` now renders
