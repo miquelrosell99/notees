@@ -1,7 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    // The migration-script unit test imports scripts/migrate-class-delete.mts,
+    // whose protocol/domain imports use explicit .ts extensions (the
+    // migrate-script convention) — permitted under noEmit (vitest runs it).
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
   "include": ["src", "test"]
 }
