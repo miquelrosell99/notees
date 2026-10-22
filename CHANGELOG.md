@@ -7,6 +7,30 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **chore(deploy)!: live deployment files are host-local artifacts — the
+  committed `compose.yaml` is untracked; the repo ships the example family
+  only.** Owner ruling (2026-10-22), now enforced fleet-wide by the
+  `rosellramos-coding-standards` skill's new "Deployment artifacts" section:
+  the actual `compose.yaml` + `.env` are gitignored, never committed; repos
+  carry `compose.example.yaml` (+ `compose.dev.example.yaml`: ports
+  8379/8380, its own data dir, sync-URL prefill, no tailscale edge — an
+  isolated second instance from its own folder) and `.env.example` only.
+  Fresh hosts bootstrap with `cp compose.example.yaml compose.yaml && cp
+  .env.example .env`. The `name: notees` pin is gone too — the compose
+  project derives from the folder name (fleet convention, matching every
+  other stack); keep the repo folder `notees` on production hosts. `.env`
+  example rewritten to the current variable set (`NOTEES_SYNC_HTTP` /
+  `NOTEES_WEB_HTTP` / `NOTEES_DATA_DIR` — the old `*_PORT`/`*_LAN_PORT`
+  names were stale). The live file on the fleet host is untouched (gitignored
+  now, same content minus `name:`); `docker compose config` still resolves
+  project `notees` from the folder, so the running stack is unaffected.
+  - **Files**: `.gitignore` (`/compose.yaml`, `/compose.override.yaml`),
+    `compose.yaml` (untracked — deletion from the index only, working file
+    kept), `compose.example.yaml` + `compose.dev.example.yaml` (new),
+    `.env.example` (rewritten), `docs/developers/deployment.md`, `AGENTS.md`,
+    `.agents/skills/notees-operations/references/deployment.md`, and the
+    `rosellramos-coding-standards` skill (fleet rule, separate repo push).
+
 - **chore(deploy)!: the repo-root compose IS the deployment — the
   source/stack split retires; one compose file, one project (`notees`), the
   data dir the single host-local override.** Owner decision (2026-10-22):

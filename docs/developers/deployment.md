@@ -222,24 +222,33 @@ Two images build from this monorepo (context = the repo root):
 Komodo remains an optional convenience over the same compose file — every
 operation it performs is reproducible with the commands below).
 
-**Deployment = the repo-root compose (owner 2026-10-22, collapsed):** the
-git repo's `compose.yaml` IS the production file — explicit `name: notees`,
-no separate live-stack copy. Build/up from the repo root; the version-pin
-procedure below works on every host as written. The **data dir** is the one
-host-local piece: it binds `${NOTEES_DATA_DIR:-./config/notees/sync}` — fresh
-hosts keep the repo-local default; the fleet host sets
-`NOTEES_DATA_DIR=/etc/periphery/stacks/notees/config/notees/sync` in the
-gitignored `.env`, keeping the live dataset (and the borgmatic `notees`
-backup source) at the fleet's stacks location, outside the dev repo where a
-`git clean` could never reach `relay.db`. The old source/stack split (a
-compose copy outside the checkout, owner 2026-10-19) and its hijack incident
-(2026-10-20, both files deriving the project name `notees` from the folder
-name) retired with this collapse — one compose file, one project, template
-and production identical. Komodo manages the fleet host's data folder but
-not the compose file; to re-enable UI-managed redeploys, point the Komodo
-`notees` stack resource at the repo root (run directory
-`/root/projects/notees`) — optional per the Komodo ruling below. On any
-host:
+**Deployment files are host-local artifacts (owner ruling 2026-10-22,
+enforced fleet-wide by the `rosellramos-coding-standards` skill):** the live
+`compose.yaml` and `.env` are **gitignored, never committed**. The repo ships
+only the templates — `compose.example.yaml` (production shape), a dev variant
+(`compose.dev.example.yaml`: ports 8379/8380, its own data dir, no tailscale
+edge), and `.env.example`. Bootstrap a fresh host from a checkout:
+
+```sh
+cp compose.example.yaml compose.yaml && cp .env.example .env   # then adjust .env
+```
+
+The compose **project name derives from the folder name** (fleet convention —
+no `name:` pin), so keep the repo folder named `notees` on production hosts;
+a dev instance gets its own folder (e.g. `notees-dev`) so the two projects
+never collide. Keep `compose.example.yaml` in sync with the live file by
+hand. The **data dir** binds `${NOTEES_DATA_DIR:-./config/notees/sync}` —
+fresh hosts default repo-local; the fleet host sets
+`NOTEES_DATA_DIR=/etc/periphery/stacks/notees/config/notees/sync` in `.env`,
+keeping the live dataset (and the borgmatic `notees` backup source) at the
+fleet's stacks location, outside the dev repo where a `git clean` could never
+reach `relay.db`. The old source/stack split (a compose copy outside the
+checkout, owner 2026-10-19) and its hijack incident (2026-10-20) retired with
+the collapse — one live file, living beside the source it builds. Komodo
+manages the fleet host's data folder but not the compose file; to re-enable
+UI-managed redeploys, point the Komodo `notees` stack resource at the repo
+root (run directory `/root/projects/notees`) — optional per the Komodo ruling
+below. Build/up from the repo root:
 
 ```sh
 docker build -f apps/server/Dockerfile -t ghcr.io/miquelrosell99/notees-sync:latest . \

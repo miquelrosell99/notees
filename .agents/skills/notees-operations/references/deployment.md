@@ -4,11 +4,14 @@ Canonical: `docs/developers/deployment.md` + `releases.md`.
 
 ## Standard deploy (from repo root)
 
-The repo-root `compose.yaml` IS the production file (owner 2026-10-22:
-the source/stack split retired — one compose, one project `notees`, no
-live-stack copy). The live data dir binds
-`${NOTEES_DATA_DIR:-./config/notees/sync}`; hosts keeping the data at the
-fleet stacks location (the fleet host:
+The live `compose.yaml` + `.env` at the repo root are **gitignored host-local
+artifacts — never committed** (owner ruling 2026-10-22, enforced by the
+`rosellramos-coding-standards` skill); the repo ships `compose.example.yaml`
+(+ `compose.dev.example.yaml`) and `.env.example`. Fresh hosts:
+`cp compose.example.yaml compose.yaml && cp .env.example .env`. The compose
+project name derives from the folder name (no `name:` pin). The live data
+dir binds `${NOTEES_DATA_DIR:-./config/notees/sync}`; hosts keeping the data
+at the fleet stacks location (the fleet host:
 `/etc/periphery/stacks/notees/config/notees/sync`, the borgmatic backup
 source) set `NOTEES_DATA_DIR` in the gitignored repo-root `.env`.
 
