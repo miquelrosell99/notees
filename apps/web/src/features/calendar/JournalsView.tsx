@@ -13,12 +13,12 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { SYSTEM_CLASS_UUIDS, parseDateNodeId } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { PageView } from "../../ui/PageView.js";
 import { rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
-import { addDaysIso, isoOfDateParts, todayIsoLocal } from "./calendarViewUtils.js";
+import { todayIsoLocal } from "./calendarViewUtils.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
@@ -162,55 +162,24 @@ export function JournalsView({
     onOpenPage(day);
   };
 
-  /**
-   * The journal header date bar: ±1 day over the deterministic
-   * date-node ids (ensure-chain is idempotent, so stepping into a day with
-   * no page materializes it and opens it), anchored on the feed's anchor
-   * entry; no pages at all falls back to today.
-   */
-  const anchorIso = (() => {
-    const anchor = pages[anchorIndex];
-    if (anchor === undefined) return todayIsoLocal();
-    const parsed = parseDateNodeId(anchor.id);
-    return parsed !== null ? isoOfDateParts(parsed) : todayIsoLocal();
-  })();
-
-  const openDay = (iso: string) => {
-    void client.ensureDateChain(iso).then(({ day }) => onOpenPage(day));
-  };
-
   return (
     <div className="journals-view">
       {/* The hub chrome rides the shared SurfaceTopBar (owner 2026-10-22):
           pinned above the feed, full card width, so the feed's scrollbar
-          stays at the card border. The ±1 day nav closes over the same
-          openDay/scrollToToday handlers — plain composition, no
-          re-registering. */}
+          stays at the card border. The lone action is Today (a scroll-to —
+          the feed is a continuous stream, so discrete day-steppers were
+          retired: they stepped from the fixed anchor, not the visible day,
+          and day-jumping rides the calendar popup / sidebar / each entry's
+          Open-page button). */}
       <SurfaceTopBar
         icon="mdi-notebook-outline"
         title="Journal"
         actions={
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="mdi-chevron-left"
-              aria-label="Previous day"
-              onClick={() => openDay(addDaysIso(anchorIso, -1))}
-            />
-            {pages.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={scrollToToday}>
-                Today
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="mdi-chevron-right"
-              aria-label="Next day"
-              onClick={() => openDay(addDaysIso(anchorIso, 1))}
-            />
-          </>
+          pages.length > 0 ? (
+            <Button variant="ghost" size="sm" onClick={scrollToToday}>
+              Today
+            </Button>
+          ) : undefined
         }
       />
       {pages.length === 0 ? (

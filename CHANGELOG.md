@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-22
 
+- **feat(web): the journal feed is a plain continuous stream — the hairline
+  separators and the ‹ / › day-stepping arrows retired.** Two owner calls on
+  the feed's look: the full-width hairline rules between entries "didn't feel
+  right", and a per-entry-card replacement (built to the flat-panel recipe —
+  surface-container-low + outline-variant hairline + the card shape, no
+  elevation) was captured A/B against the whitespace-only look and lost: a
+  journal is one continuous chronological stream, not a stack of day-records,
+  and the card framing surfaced a real chrome seam — the sticky page
+  header/footer mask themselves with the card SURFACE color, which only holds
+  while entries sit directly on the surface. So the hairlines are simply
+  gone; whitespace + the date headings carry the day rhythm, and the text
+  measure is untouched (the 46rem cap rides the entry's `.nt-page` as
+  before). The top bar's ‹ / › arrows went with them: discrete day-steppers
+  are the wrong idiom on a continuous feed, they stepped from the feed's
+  fixed anchor rather than the day actually on screen, and they navigated
+  away from the feed — day-jumping rides the calendar popup, the sidebar
+  Today row, and each entry's Open-page button. Today's lone top-bar action
+  is the Today scroll-to-anchor button (a fleet ghost Button). Dead code
+  out: `anchorIso`/`openDay` and the `addDaysIso`/`isoOfDateParts`/
+  `parseDateNodeId` imports.
+  - **Verification**: `pnpm typecheck` clean; `pnpm test` green (1952 web
+    tests, the drift gate over the edited CSS included); screenshot captures
+    of the running stack (test workspace, 1440/768/390) reviewed — the A/B
+    pair (cards vs whitespace) captured from the live feed before the call.
+
 - **feat(scripts): the batch-migration orchestrator — one stopped-stack
   window for every pending stored-log migration.** Running
   `scripts/migrate-*.mts` one at a time costs one stack-stop + one full

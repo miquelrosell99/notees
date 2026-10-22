@@ -24,16 +24,15 @@
 .journal-entry {
   /* The list is a column flex container with a fixed height; without this
      the items shrink to fit and their taller page content paints over the
-     siblings below. */
+     siblings below. The full-width hairline separators retired (owner
+     2026-10-22): whitespace + the date headings carry the day rhythm —
+     the per-entry-card variant was judged against this and lost (the
+     journal is one continuous stream, not a stack of records; and the
+     sticky page header/footer mask themselves with the card SURFACE,
+     which only holds while entries sit on the surface). */
   flex-shrink: 0;
-  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  padding-bottom: var(--spacing-8);
   position: relative;
   min-height: var(--layout-size-xs);
-}
-
-.journal-entry:last-child {
-  border-bottom: none;
 }
 
 .journal-entry .nt-page {
@@ -91,8 +90,5 @@
   .journals-list {
     gap: var(--spacing-6);
     padding: var(--spacing-4) 0;
-  }
-  .journal-entry {
-    padding-bottom: var(--spacing-4);
   }
 }
