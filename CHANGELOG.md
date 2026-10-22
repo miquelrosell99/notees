@@ -7,6 +7,67 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **chore(repo)!: history rewritten — every live compose file scrubbed from
+  all of git history; 12 stale merged remote branches pruned; `main`
+  protection recreated as a ruleset.** Owner directive (2026-10-22): the
+  old tracked `compose.yaml` (and its historical siblings `compose.yml`,
+  `docker-compose*.yml`, `compose.dev/prod/web.*`, `compose.override.yaml`)
+  were removed from every commit, branch, and tag with `git filter-repo` —
+  the committed `compose.example.yaml` / `compose.dev.example.yaml` carry
+  forward. Verified: zero refs contain the scrubbed paths. **All commit SHAs
+  changed** (releases re-tagged; `v1-archive` and every `v*` tag re-pointed) —
+  any clone, submodule pin (notees-cli's vendored copy), or citation of old
+  SHAs must re-fetch/re-pin. Unmerged branches `backlink-stats-heal`,
+  `embedded-model`, `ui/audit-fixes` were fetched in, rewritten, and
+  force-updated (content preserved minus the compose files). Merged-and-stale
+  remote branches pruned: `brand-margin-green`, the six `condensed-*`,
+  `graph-rail`, `greenfield/m1-core`, `hr-rule`, `link-embedded`, `list-style`.
+  No content leaked (historic compose files were env-var templates; `.env`
+  was never tracked). `main` protection (deleted to permit the force push,
+  PATCH/POST on the classic endpoint 404s for this account) recreated as
+  repository ruleset `main-protection` (id 25619313): pull_request +
+  non_fast_forward, owner bypass — functionally the old rule; one deliberate
+  delta: PRs now need 1 approving review for non-bypassed actors (the old
+  rule required 0).
+  - **Verification**: `git log --all -- <compose paths>` empty locally;
+    `main` forced to the rewritten tip; all tags force-updated; ruleset
+    active on `refs/heads/main`.
+
+- **feat(store,web): the system-extends lock — a system class's extends mapping
+  is frozen to the seeded set; deviations fail loud with
+  `SystemExtendsLockError`.** Owner ruling (2026-10-22): the seeded extends
+  edges (`meeting`/`birthday`/`trip` → `event`, the source family, `weblink` →
+  `source`, `person`/`organization` → `agent`, …) are platform structure that
+  TWO product behaviors derive from — the feature-toggle cascade
+  (`systemClassAncestors`) and binding inheritance (the `class_extends`
+  walk) — so a user edit would silently diverge the toggle's assumptions from
+  the store's actual hierarchy. `class.setExtends` on a system class now
+  applies ONLY when the payload's parent set equals the seeded set (compared
+  as sets — the seed/ensure re-issue convergence path,
+  `apps/server/src/seed.ts` + the web `deploySystemClass`/`meetingFamily`
+  ensures); every deviation (detaching a seeded parent, adding an extra
+  parent, parenting a parentless system base) throws and is never applied.
+  User classes stay freely extensible onto system bases (a runtime subclass
+  of `source`/`meeting` is the designed extension point). Enforcement is
+  never retroactive — the lock gates new writes only, so no live migration.
+  The web class page's extends corner renders READ-ONLY (static pills) for
+  system classes instead of advertising edits that must fail. New canonical
+  fixture `class-extends-system-lock.json` (gate 36→37; accepting prefix =
+  user→system extension + the seeded re-issue, rejecting tail = detach /
+  extra parent / parenting a system base).
+  - **Files**: `packages/domain/src/seeds.ts` (`SYSTEM_CLASS_EXTENDS_IDS` +
+    `isSystemClassId`), `packages/store/src/errors.ts`
+    (`SystemExtendsLockError`), `packages/store/src/appliers.ts`
+    (`applyClassSetExtends` guard), `packages/protocol/fixtures/`, the
+    protocol/store gate tests, `apps/web/src/features/page-sections/pageVariant.ts`
+    (the read-only corner), `packages/protocol/SCHEMA.md`,
+    `docs/developers/development.md` + `releases.md`. **Verification:** full
+    gate green — `pnpm typecheck` clean; `pnpm test` all suites (protocol 546
+    incl. the 37-fixture exact list; store 627 on both adapters incl. the new
+    lock test; web 1948 incl. the read-only corner test). **Lockstep:**
+    GTK 870 passed + ruff + mypy; Flutter analyze clean + 679 tests; fixture
+    sha256-matched in both (gate 37/37).
+
 - **chore(deploy)!: live deployment files are host-local artifacts — the
   committed `compose.yaml` is untracked; the repo ships the example family
   only.** Owner ruling (2026-10-22), now enforced fleet-wide by the

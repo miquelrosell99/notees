@@ -40,6 +40,14 @@ export class MoveGuardError extends StoreError {}
 export class CycleError extends StoreError {}
 
 /**
+ * class.setExtends attempted to modify a system class's frozen extends
+ * mapping (SCHEMA.md "Class properties" — system mappings are seeded platform
+ * structure; only an idempotent re-issue of the seeded parent set applies,
+ * every deviation fails loud and is never applied).
+ */
+export class SystemExtendsLockError extends StoreError {}
+
+/**
  * object.update arrived with the canonical CRDT wire carrier
  * (contentDeltaB64) but no readable contentAst mirror. The Yjs port is
  * still-owed store/sync work; until it lands this carrier cannot be interpreted, so the

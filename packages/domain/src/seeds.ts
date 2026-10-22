@@ -248,6 +248,33 @@ export function systemClassAncestors(name: SystemClassName): ReadonlySet<SystemC
   return ancestors;
 }
 
+/**
+ * The frozen extends parent set per system class UUID (name-keyed
+ * SYSTEM_CLASS_EXTENDS resolved to ids) — the system-extends lock authority
+ * (SCHEMA.md "Class properties"): a system class's extends mapping is seeded
+ * platform structure the feature-toggle cascade (`systemClassAncestors`) and
+ * binding inheritance (the store's `class_extends` walk) both derive from, so
+ * `class.setExtends` on a system class only applies when the payload's parent
+ * set EQUALS the seeded set (the seed/ensure re-issue convergence path);
+ * every deviation fails loud at the applier. Classes absent from
+ * SYSTEM_CLASS_EXTENDS are frozen to the empty set. User classes stay freely
+ * extensible, including onto system bases.
+ */
+export const SYSTEM_CLASS_EXTENDS_IDS: Readonly<Record<string, readonly string[]>> =
+  Object.fromEntries(
+    (Object.entries(SYSTEM_CLASS_UUIDS) as Array<[SystemClassName, string]>).map(
+      ([name, id]) => [
+        id,
+        (SYSTEM_CLASS_EXTENDS[name] ?? []).map((parent) => SYSTEM_CLASS_UUIDS[parent]),
+      ],
+    ),
+  );
+
+/** True when the id is a fixed system-class seed UUID. */
+export function isSystemClassId(id: string): boolean {
+  return Object.hasOwn(SYSTEM_CLASS_EXTENDS_IDS, id);
+}
+
 // Owner ruling 2026-10-05: the scratchpad page is WITHDRAWN — "not wanted
 // for notees". It is no longer seeded and its UUID is never reused;
 // workspaces seeded before the withdrawal still carry the page, so the

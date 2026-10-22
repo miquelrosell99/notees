@@ -721,6 +721,7 @@ describe("fixture convergence (property-wire batch)", () => {
         (f) =>
           f.endsWith(".json") &&
           f !== "class-extends-cycle.json" &&
+          f !== "class-extends-system-lock.json" &&
           f !== "is-embedded-parent-page.json" &&
           f !== "property-validation-rules.json",
       )

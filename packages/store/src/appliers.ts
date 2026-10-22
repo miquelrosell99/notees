@@ -41,6 +41,7 @@ import {
   parseDateNodeId,
   plainTextExcerpt,
   stringifyContentAst,
+  SYSTEM_CLASS_EXTENDS_IDS,
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
@@ -65,6 +66,7 @@ import {
   NotFoundError,
   PropertyValueShapeError,
   StoreError,
+  SystemExtendsLockError,
   translateSqliteError,
   UnsupportedCarrierError,
 } from "./errors.js";
@@ -1587,6 +1589,29 @@ function applyClassSetExtends(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "class.setExtends";
   const p = env.payload as OpPayload<"class.setExtends">;
   requireNode(db, p.classId, opType);
+
+  // System-extends lock (SCHEMA.md "Class properties"): a system class's
+  // extends mapping is seeded platform structure — the feature-toggle cascade
+  // (systemClassAncestors) and binding inheritance (the class_extends walk)
+  // both derive from it. The payload's parent set must EQUAL the seeded set
+  // (compared as sets — the seed/ensure re-issue convergence path); any
+  // deviation fails loud and is never applied. System classes without seeded
+  // parents are frozen to the empty set. User classes stay freely extensible,
+  // including onto system bases.
+  const seededParents = SYSTEM_CLASS_EXTENDS_IDS[p.classId];
+  if (seededParents !== undefined) {
+    const next = new Set(p.parentClassIds);
+    const seeded = new Set(seededParents);
+    const same = next.size === seeded.size && [...next].every((id) => seeded.has(id));
+    if (!same) {
+      const fmt = (ids: Set<string>) => [...ids].sort().join(", ");
+      throw new SystemExtendsLockError(
+        `${opType}: system class ${p.classId} has a frozen extends mapping; ` +
+          `payload parents [${fmt(next)}] deviate from the seeded set [${fmt(seeded)}]`,
+        opType,
+      );
+    }
+  }
 
   for (const parentClassId of p.parentClassIds) {
     requireNode(db, parentClassId, opType);

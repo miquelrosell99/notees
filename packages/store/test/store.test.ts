@@ -31,6 +31,7 @@ import {
   PropertyValueShapeError,
   SCHEMA_VERSION,
   Store,
+  SystemExtendsLockError,
   UnsupportedCarrierError,
 } from "../src/index.js";
 import { betterSqlite3Backend } from "../src/adapters/better-sqlite3.js";
@@ -51,13 +52,17 @@ function loadFixture(name: string): Record<string, unknown>[] {
 
 /** Fixtures whose application must THROW — never part of the all-fixtures
  * replay/determinism sets (class-extends-cycle.json closes cycles and fails
- * loud by design; is-embedded-parent-page.json claims the render bit
+ * loud by design; class-extends-system-lock.json pins the system-extends
+ * lock's reject tail (detach/extra-parent/deviate) after an accepting prefix
+ * — all applied deliberately in their own tests;
+ * is-embedded-parent-page.json claims the render bit
  * under a block parent and fails loud by design;
  * property-validation-rules.json pins its reject tail (below-min/above-max,
  * pattern rejects, one bad multi element, one un compilable pattern) after
  * an accepting prefix — all applied deliberately in their own tests). */
 const REPLAY_EXCLUDED_FIXTURES = new Set([
   "class-extends-cycle.json",
+  "class-extends-system-lock.json",
   "is-embedded-parent-page.json",
   "property-validation-rules.json",
 ]);
@@ -665,6 +670,61 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(
         (store.database.prepare("SELECT COUNT(*) AS n FROM class_extends").get() as { n: number }).n,
       ).toBe(1);
+    });
+
+    it("class-extends-system-lock fixture throws the lock error on apply", () => {
+      const [
+        createEvent,
+        createMeeting,
+        createUserClass,
+        userExtendsMeeting,
+        meetingReissue,
+        meetingDetach,
+        meetingExtraParent,
+        eventGainsParent,
+      ] = loadFixture("class-extends-system-lock.json");
+      const eventId = "00000000-0000-0000-0001-000000000040";
+      const meetingId = "00000000-0000-0000-0001-000000000039";
+      const userClassId = "0192a000-0000-7000-8000-0000000000e1";
+      const store = makeStore();
+      // The prefix applies cleanly: user classes extend system bases, and an
+      // idempotent re-issue of the seeded edge (the seed/ensure convergence
+      // path) applies.
+      store.applyMany([createEvent!, createMeeting!, createUserClass!, userExtendsMeeting!]);
+      store.apply(meetingReissue!);
+      expect(
+        store.database
+          .prepare(
+            "SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id",
+          )
+          .all(userClassId),
+      ).toEqual([{ parent_class_id: meetingId }]);
+      expect(
+        store.database
+          .prepare(
+            "SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id",
+          )
+          .all(meetingId),
+      ).toEqual([{ parent_class_id: eventId }]);
+
+      // Detaching meeting's seeded parent, adding an extra parent to meeting,
+      // and adding a parent to event (no seeded parents — frozen to empty)
+      // each fail loud and roll back.
+      expect(() => store.apply(meetingDetach!)).toThrow(SystemExtendsLockError);
+      expect(() => store.apply(meetingExtraParent!)).toThrow(SystemExtendsLockError);
+      expect(() => store.apply(eventGainsParent!)).toThrow(SystemExtendsLockError);
+
+      // The rejected writes left the derived closure exactly at the prefix state.
+      expect(
+        store.database
+          .prepare(
+            "SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id",
+          )
+          .all(eventId),
+      ).toEqual([]);
+      expect(
+        (store.database.prepare("SELECT COUNT(*) AS n FROM class_extends").get() as { n: number }).n,
+      ).toBe(2);
     });
 
     it("is-embedded-parent-page fixture throws the parent-page guard on apply", () => {

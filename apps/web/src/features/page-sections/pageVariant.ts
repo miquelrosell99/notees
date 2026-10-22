@@ -29,7 +29,7 @@
 
 import { createElement, type ReactNode } from "react";
 
-import { parseDateNodeId, rendersWithDocumentChrome } from "@notees/domain";
+import { isSystemClassId, parseDateNodeId, rendersWithDocumentChrome } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
@@ -77,6 +77,12 @@ export interface CornerPillsConfig {
   listClassName: string;
   /** False for deterministic relations (extends order). */
   sortable: boolean;
+  /**
+   * Read-only projection (no add/remove chrome) — the system-extends lock:
+   * a system class's extends mapping is frozen seeded platform structure
+   * (SCHEMA.md "Class properties"), so the corner renders static pills.
+   */
+  readOnly?: boolean;
 }
 
 /**
@@ -238,6 +244,11 @@ export function extendsCornerPills(
     remove: (parentId) =>
       replace(client.getClassParents(classId).filter((id) => id !== parentId)),
     sortable: false,
+    // The system-extends lock (SCHEMA.md "Class properties"): a system
+    // class's extends mapping is frozen seeded platform structure and the
+    // applier rejects any deviation (SystemExtendsLockError), so the corner
+    // renders read-only instead of advertising edits that must fail.
+    readOnly: isSystemClassId(classId),
     addLabel: "Add class extension",
     removeLabel: (label) => `Remove extension ${label}`,
     excludePickerNodeId: classId,
