@@ -9,6 +9,36 @@ predating this file.
 
 ## 2026-10-22
 
+- **feat(web): outline rows ride the containing-page breadcrumbs again — the
+  `showBreadcrumbs` collection prop (default ON), opt-out in four sections.**
+  The 2026-10-21 ruling retired the Logseq-era reference rows — a breadcrumb
+  trail plus an inline editable subtree per backlink row — as a snowflake next
+  to every other section's shared rows; the owner wants the breadcrumbs back,
+  now as shared outline chrome, not a backlinks snowflake. The outline view
+  (both paths: the flat list and the read-only tree) renders the existing
+  `Breadcrumbs` component ABOVE every result row by default: ancestors only,
+  read-only navigation context (crumb clicks open through the container's
+  `onNodeClick` / the enclosing view's `openNode`), small and muted per the
+  picker's crumb-line precedent; a parentless row's trail renders empty and
+  the line collapses. A reference row carrying `meta.containingPageId` (the
+  backlinks/unlinked entries) truncates AT that page and drops its crumb —
+  the containing-page group header, or the page-source row itself, already
+  names it — so the trail shows only the in-page path (the exact 2026-10-21
+  pre-retirement breadcrumbs rendering, recovered). `showBreadcrumbs={false}`
+  rides the classed-nodes section, the page body (child blocks), the Class
+  View's Extended-by section, and the Child pages section — their rows
+  already carry their ancestry (nesting or the surrounding chrome). The prop
+  lived in `NodeCollectionProps` since the v1 port but no surface consumed it
+  (the cards view took the breadcrumb row as permanent chrome instead). The
+  focused-block parent display and prose/cards/table modes are untouched.
+  Docs: the prop's contract in `features/collection/types.ts` + the
+  OutlineView file header. **Verification**: new
+  `apps/web/test/outline-breadcrumbs.test.tsx` (6 specs: default-on trail +
+  crumb navigation, the opt-out prop, the breadcrumb-on tree wrapper, the
+  page-body/Child-pages and classed-nodes/Extended-by opt-outs, the backlink
+  trail minus the containing-page crumb); `pnpm --filter @notees/web
+  typecheck` + the full web suite green.
+
 - **feat(web): the selection edit toolbar composes the kit — fleet
   `FloatingToolbar` panel + fleet `Button` actions, and the @ action grows a
   Shift-/Ctrl-click label mode.**
