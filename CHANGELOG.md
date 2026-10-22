@@ -7,6 +7,24 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+- **chore(docs)!: `releases.md` retired — each client owns its releases; the
+  file scrubbed from all of git history (all SHAs changed again).** Owner
+  ruling (2026-10-22): the main repo documents only that the clients exist —
+  `docs/developers/README.md` gains a Clients section (GTK/Flutter/CLI
+  siblings, one line each on their release mechanics, the lockstep law stays
+  in `development.md`); `docs/developers/releases.md` is deleted and every
+  live reference repointed (AGENTS.md, the project skills, parked-decisions,
+  migrations, deployment). The client checkouts live as siblings under
+  `/root/projects` (moved from the retired periphery `notees-clients`
+  folder). The history scrub is the second rewrite of the day — **all commit
+  SHAs changed, every tag re-pointed**; any clone, submodule pin (the CLI's
+  vendored copy re-pinned the same day), or citation of old SHAs must
+  re-fetch/re-pin. The `block-grip` / `classes-gallery` worktrees and any
+  other stale clone re-sync from the rewritten remote.
+  - **Verification**: zero refs contain the scrubbed path (verified in a
+    fresh mirror clone); the rewritten tip's tree is byte-identical to the
+    pre-scrub tip; CLI vendor re-pin gate green (87/87).
+
 - **chore(repo)!: history rewritten — every live compose file scrubbed from
   all of git history; 12 stale merged remote branches pruned; `main`
   protection recreated as a ruleset.** Owner directive (2026-10-22): the
