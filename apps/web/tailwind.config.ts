@@ -126,6 +126,7 @@ export default {
            shape-medium; popovers 4px, cards 20px, sheets 28px). */
         card: "var(--radius-card)",
         sheet: "var(--radius-sheet)",
+        dialog: "var(--radius-dialog)",
         button: "var(--radius-button-lg)",
         "button-sm": "var(--radius-button-sm)",
         input: "var(--radius-input)",
