@@ -11,6 +11,12 @@ apps/server/data/
 scripts/migrated-verify/
 .worktrees/
 
+# Deployment artifacts (never tracked — ship compose.example.yaml /
+# compose.dev.example.yaml / .env.example only; fleet rule,
+# enforced by the rosellramos-coding-standards skill)
+/compose.yaml
+/compose.override.yaml
+
 # Playwright
 apps/web/test-results/
 apps/web/playwright-report/
