@@ -309,7 +309,7 @@ describe("page title row", () => {
     expect(screen.getByRole("menuitem", { name: /^Copy/ })).not.toBeNull();
   });
 
-  it("renders no editable title row for embedded entries (the static link button)", async () => {
+  it("renders no editable title row for embedded entries (static heading + open button)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({
       isEmbedded: false,
@@ -321,9 +321,11 @@ describe("page title row", () => {
     );
 
     expect(container.querySelector(".nt-block--title")).toBeNull();
-    const link = container.querySelector<HTMLElement>(".nt-page-title-link")!;
-    expect(link.textContent).toBe("Feed Entry");
-    fireEvent.click(link);
+    // The title is a plain heading; navigation rides the explicit button.
+    const text = container.querySelector<HTMLElement>(".nt-page-title-embed__text")!;
+    expect(text.textContent).toBe("Feed Entry");
+    const open = screen.getByRole("button", { name: "Open page" });
+    fireEvent.click(open);
     expect(onOpenPage).toHaveBeenCalledWith(pageId);
   });
 });

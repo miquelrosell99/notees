@@ -163,8 +163,8 @@ export function NodeTopbar({
  * beside the cover card aside. Day pages render the DayPageHeader as the
  * whole title row (driven by the variant's `dayIso`); every other page
  * renders the shared title BlockRow (the shared row machinery over the page
- * node itself — an embedded render gets the static "open page" link
- * instead), and the tags row. Right-click on the icon or the title reports
+ * node itself — an embedded render gets a plain heading title plus an
+ * explicit "Open page" button instead), and the tags row. Right-click on the icon or the title reports
  * the pointer position through onHeaderMenu — the host owns the node context
  * menu state. Focus mode suppresses everything but the title; the cover
  * aside renders whenever the page can carry a cover. The full-width banner
@@ -362,14 +362,24 @@ export function PageHeaderChrome({
               }}
             >
             {embedded ? (
-              <button
-                type="button"
-                className="nt-page-title-link"
-                title="Open page"
-                onClick={() => onOpenPage?.(pageId)}
-              >
-                {nodeDisplayName(page)}
-              </button>
+              /* The feed title is a plain heading, not a link:
+                 navigation rides the explicit "Open page" ghost
+                 button beside it (the headline
+                 hover overlay read as noise; the hover register
+                 stays at the icon-button scale). */
+              <span className="nt-page-title-embed">
+                <span className="nt-page-title-embed__text">
+                  {nodeDisplayName(page)}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="mdi-arrow-right"
+                  aria-label="Open page"
+                  title="Open page"
+                  onClick={() => onOpenPage?.(pageId)}
+                />
+              </span>
             ) : (
               /* The title is a bullet-less BlockRow over the page node itself
                  (no children — the body tree stays the separate collection

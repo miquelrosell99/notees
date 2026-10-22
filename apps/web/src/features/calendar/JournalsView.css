@@ -99,25 +99,21 @@
   flex: 1;
 }
 
-/* The embedded page title is a navigation button, not an editor. */
-.nt-page-title-link {
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  text-align: left;
-  font: var(--font-headline-medium);
-  color: var(--md-sys-color-on-surface);
-  cursor: pointer;
+/* The embedded feed title is a plain heading, not a link — the
+   navigation rides the explicit "Open page" ghost button beside it
+. */
+.nt-page-title-embed {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
   min-width: 0;
-  border-radius: var(--shape-small);
 }
 
-/* Hover rides the state-layer overlay (the hover register, foundations.md
-   §4) — the link keeps its on-surface ink; the accent is never a hover
-   signal. The base rule already carries the small radius. */
-.nt-page-title-link:hover {
-  background: var(--md-sys-color-hover-overlay);
+.nt-page-title-embed__text {
+  font: var(--font-headline-medium);
+  color: var(--md-sys-color-on-surface);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 @media (width <= 768px) {
