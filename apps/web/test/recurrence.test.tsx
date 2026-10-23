@@ -4,10 +4,10 @@
  * rows; the sections render through the shared outline collections since
  * 2026-10-23 — row texts via the BlockRow machinery, no repeats marker), a
  * repeating task schedules on occurrence days without ever going overdue,
- * the month grid dots every occurrence day, the quick-create +
- * property-panel pickers write the `repeat` metadata (and a date re-pick
- * preserves it), non-recurring events stay plain, and a corrupt rule fails
- * loud in the read scan.
+ * the month grid dots every occurrence day, the property-panel picker
+ * writes the `repeat` metadata (and a date re-pick preserves it; the
+ * quick-create bar's repeat stamping retired the same day), non-recurring
+ * events stay plain, and a corrupt rule fails loud in the read scan.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -16,7 +16,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { newEnvelope, type Envelope } from "@notees/protocol";
-import { parseDateNodeId, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/features/calendar/CalendarView.js";
@@ -73,6 +73,11 @@ function seededRelay(): MemoryRelay {
       { classId: SYSTEM_CLASS_UUIDS.task, contentAst: [{ type: "text", text: "task" }], icon: "mdiCheckboxMarkedCircleOutline" },
       [SYSTEM_CLASS_UUIDS.task],
     ),
+    seedEnvelope(
+      "class.create",
+      { classId: SYSTEM_CLASS_UUIDS.event, contentAst: [{ type: "text", text: "event" }] },
+      [SYSTEM_CLASS_UUIDS.event],
+    ),
   ]);
   return relay;
 }
@@ -88,10 +93,11 @@ async function seedClient(relay: MemoryRelay = seededRelay()): Promise<Workspace
   return client;
 }
 
-/** A user class with a day-precision date binding ("gathering" — meeting is system vocabulary). */
+/** A user class on the event family with a day-precision date binding ("gathering" — meeting is system vocabulary). */
 async function eventFamily(client: WorkspaceClient): Promise<{ classId: string; schemaId: string }> {
   const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
   const classId = await client.createClass("gathering");
+  await client.setClassExtends(classId, [SYSTEM_CLASS_UUIDS.event]);
   await client.setClassProperty(classId, schemaId, {});
   return { classId, schemaId };
 }
@@ -241,34 +247,6 @@ describe("CalendarView recurrence", () => {
       expect(dayCell(container, "10").classList.contains("dated")).toBe(true);
     });
     expect(dayCell(container, "13").classList.contains("dated")).toBe(false);
-  });
-
-  it("quick-create with the repeat picker writes metadata.repeat on the new event", async () => {
-    const client = await seedClient();
-    const { schemaId } = await eventFamily(client);
-    const today = todayIsoLocal();
-
-    const { onOpenPage } = renderCalendar(client);
-    const quickCreate = within(await screen.findByLabelText("Quick create"));
-    // The bar's picker: "Does not repeat" → Weekly.
-    fireEvent.click(quickCreate.getByText("Does not repeat"));
-    await repeatPickerOption("Weekly");
-    fireEvent.click(quickCreate.getByRole("button", { name: "gathering" }));
-
-    await waitFor(() => expect(onOpenPage).toHaveBeenCalledTimes(1));
-    const newId = onOpenPage.mock.calls[0]![0] as string;
-    const when = client
-      .getEffectiveProperties(newId)
-      .find((prop) => prop.propertySchemaId === schemaId);
-    expect(when?.metadata?.repeat).toBe("weekly");
-    // The anchor day still links at the picked day (the rule rides metadata).
-    const parsed = parseDateNodeId((when?.value as { nodeId: string }).nodeId);
-    expect(
-      parsed !== null &&
-        `${String(parsed.year).padStart(4, "0")}-${String(parsed.month).padStart(2, "0")}-${String(
-          parsed.day,
-        ).padStart(2, "0")}`,
-    ).toBe(today);
   });
 
   it("the property panel picker writes the rule and a date re-pick preserves it", async () => {
