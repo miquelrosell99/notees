@@ -9,6 +9,47 @@ predating this file.
 
 ## 2026-10-23
 
+- **fix(store)!: the class registry `active` bit becomes a full projection of
+  the class node's liveness — every `object.delete`/`object.restore`/purge arm
+  mirrors it, and a schema-v28 migrate step scrubs the ghost rows the
+  pre-mirror era left behind.** Trigger: the owner's Notas workspace carried
+  three ACTIVE registry rows with no live class node — `class` (…0001,
+  withdrawn 2026-10-07; node trashed 2026-10-22 via the user-class arm),
+  `page` (…0002, v1 legacy; node archived), `cover` (…0042, withdrawn
+  2026-10-04) — all listing in `GET /api/classes` / `notees class list` as
+  0-member ghosts (the web pickers never showed them: `listClasses` reads the
+  node table, not the registry). Root cause: the "registry `active` is a
+  projection of the class node's bit" invariant (owner ruling 2026-10-22) was
+  only maintained on the ARCHIVAL arms — `object.update {active}` and the
+  system-class delete re-wire — while the user-class arms diverged: a trash
+  (arm 4) left the registry row ACTIVE under a trashed node, a restore never
+  mirrored back, and a permanent purge / `trash.empty` deleted the node row
+  but left the registry row behind forever (no `DELETE FROM class` in
+  `permanentlyDeleteSubtree`). The slice closes every arm: arm 4 soft-trash
+  mirrors `active = 0` (`packages/store/src/appliers.ts`), `object.restore`
+  mirrors `active = 1` back, and the permanent purge deletes the registry row
+  with the node — so replay converges with no ghost minted on any path. The
+  existing divergent rows (any workspace that trashed or purged a class under
+  the old appliers) are healed by a one-time derived-state scrub in
+  `migrate()` (schema v27 → v28): every registry row with no live class node
+  behind it flips to `active = 0` (idempotent; no log change — the op log is
+  untouched, the fix is projection-side). Store schema v28; wire unchanged.
+  `packages/store` (the three mirror arms + `permanentlyDeleteSubtree` purge +
+  the v28 ladder step), `packages/protocol` (SCHEMA.md "Workspace features" —
+  the projection invariant stated for every arm; `object-delete-class-routing.
+  json` extended: user-class trash → restore → registry back on, and a
+  permanent purge that takes the registry row with the node), store tests
+  (canonical fixture assertions + the v28 scrub describe: archived ghost,
+  node-less ghost, live rows untouched, idempotent second migrate).
+  - **LOCKSTEP-PENDING (the clients)**: GTK/Flutter must mirror the same three
+    writes (arm-4 trash → registry `active = 0`; restore → `active = 1`;
+    permanent purge → registry row deleted) and pick up the extended
+    `object-delete-class-routing.json` (the TS reference now carries 5 extra
+    envelopes — the fixture hash changes) before their next release.
+  - **Verification**: store 657/657 (both adapters — routing arms, the
+    trash/restore/purge mirror assertions, the v28 scrub cases, full fixture
+    gate); `pnpm typecheck` green; `pnpm test` full gate green.
+
 - **docs(changelog): the catch-up convergence flag retracted — the clean
   repro converges.** The 2026-10-22 Today-jump entry flagged a possible
   convergence gap (a fresh-boot browser seemingly holding a soft-trashed row

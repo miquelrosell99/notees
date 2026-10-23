@@ -2742,6 +2742,8 @@ for (const adapter of adapters) {
     const GENRE = "0192a000-0000-7000-8000-000000000a23";
     const TASK_MEMBER = "0192a000-0000-7000-8000-000000000a22";
     const GENRE_MEMBER = "0192a000-0000-7000-8000-000000000a24";
+    const SHELF = "0192a000-0000-7000-8000-000000000a25";
+    const MOOD = "0192a000-0000-7000-8000-000000000a27";
 
     it("the canonical fixture exercises all four arms; membership survives each", () => {
       const store = Store.open(adapter.makeBackend());
@@ -2765,6 +2767,16 @@ for (const adapter of adapters) {
       expect(store.getNode(GENRE)!.is_active).toBe(0);
       expect(store.database.prepare("SELECT 1 FROM trash WHERE node_id = ?").get(GENRE)).toBeDefined();
       expect(store.getNode(GENRE_MEMBER)!.class_ids).toBe(JSON.stringify([GENRE]));
+      // The registry projection mirrors the user-class lifecycle end to end:
+      // the trashed Genre's row mirrored OFF…
+      expect(registryRow(store, GENRE).active).toBe(0);
+      // …the trashed-then-restored Shelf's row mirrored OFF then back ON…
+      expect(store.getNode(SHELF)!.is_active).toBe(1);
+      expect(store.database.prepare("SELECT 1 FROM trash WHERE node_id = ?").get(SHELF)).toBeUndefined();
+      expect(registryRow(store, SHELF).active).toBe(1);
+      // …the permanently purged Mood's node AND registry row are both gone.
+      expect(store.getNode(MOOD)).toBeUndefined();
+      expect(store.database.prepare("SELECT 1 FROM class WHERE id = ?").get(MOOD)).toBeUndefined();
       // Arm 1 — the locked delete still throws when applied deliberately.
       expect(() => store.apply(lockedDelete)).toThrow(LockedSystemClassError);
       expect(store.getNode(YEAR)!.is_active).toBe(1);
@@ -2824,9 +2836,13 @@ for (const adapter of adapters) {
       expect(
         store.database.prepare("SELECT 1 FROM class_member_set WHERE node_id = ? AND class_id = ? AND present = 1").get(member, cls),
       ).toBeDefined();
+      // The registry projection follows the node into the trash…
+      expect(registryRow(store, cls).active).toBe(0);
       store.apply(env("object.restore", { objectId: cls }, 1727200011300));
       expect(store.getNode(cls)!.is_active).toBe(1);
       expect(store.getNode(member)!.class_ids).toBe(JSON.stringify([cls]));
+      // …and mirrors back with the restore.
+      expect(registryRow(store, cls).active).toBe(1);
       store.close();
     });
 
@@ -2841,6 +2857,8 @@ for (const adapter of adapters) {
       // the dangling reference — SCHEMA.md "Content grammar", Fork 3).
       expect(store.getNode(cls)).toBeUndefined();
       expect(store.getNode(member)!.class_ids).toBe(JSON.stringify([cls]));
+      // The registry projection dies with the node — no ghost row.
+      expect(store.database.prepare("SELECT 1 FROM class WHERE id = ?").get(cls)).toBeUndefined();
       store.close();
     });
   });
@@ -4709,6 +4727,53 @@ describe.each(adapters)("$name: property-schema scope + update fields", ({ makeB
     // Null clears.
     store.apply(env("propertySchema.update", { propertySchemaId: num, validationRules: null }, 1727200002700));
     expect(rulesOf(num)).toBeNull();
+    store.close();
+  });
+});
+
+// --- v28: the class-registry ghost-row scrub -----------------------------------
+
+describe.each(adapters)("$name: v28 — registry rows deactivated when no live class node backs them", ({ makeBackend }) => {
+  const LIVE = "0192a000-0000-7000-8000-000000000b20";
+  const ARCHIVED = "0192a000-0000-7000-8000-000000000b21";
+  const PURGED = "0192a000-0000-7000-8000-000000000b22";
+
+  it("deactivates ghost rows (archived or node-less) and leaves live rows alone", () => {
+    const store = Store.open(makeBackend());
+    // A live class: node active, registry active — untouched by the scrub.
+    store.apply(env("class.create", { classId: LIVE, contentAst: [{ type: "text", text: "Live" }] }, 1727200001000));
+    // An archived class via the pre-mirror era state: node archived by direct
+    // write, registry row left active (the divergent projection the scrub fixes).
+    store.apply(env("class.create", { classId: ARCHIVED, contentAst: [{ type: "text", text: "Archived" }] }, 1727200001100));
+    store.database.prepare("UPDATE node SET is_active = 0 WHERE id = ?").run(ARCHIVED);
+    // A purged class: the node row is GONE, the registry row left active
+    // (the withdrawn-system-class ghost — `class`/`page`/`cover` in the live
+    // workspaces). Unreachable by any op (requireNode), so raw SQL.
+    store.database
+      .prepare(
+        "INSERT INTO class (id, workspace_id, name, active, created_at, updated_at) VALUES (?, 'ws', 'Ghost', 1, '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')",
+      )
+      .run(PURGED);
+    store.database.pragma("user_version = 27");
+
+    migrate(store.database, "fts5");
+    expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
+    expect(registryRow(store, LIVE).active).toBe(1);
+    expect(registryRow(store, ARCHIVED).active).toBe(0);
+    expect(registryRow(store, PURGED).active).toBe(0);
+    // Idempotent: a second migrate no-ops on current version.
+    migrate(store.database, "fts5");
+    expect(registryRow(store, LIVE).active).toBe(1);
+    store.close();
+  });
+
+  it("does not mint ghosts: registry rows replayed from the log are purged with their node", () => {
+    const store = Store.open(makeBackend());
+    // The purge mirror (object.delete permanent) deletes the registry row,
+    // so a full replay of a class lifecycle converges WITHOUT the scrub.
+    store.apply(env("class.create", { classId: PURGED, contentAst: [{ type: "text", text: "Ghost" }] }, 1727200001000));
+    store.apply(env("object.delete", { objectId: PURGED, permanent: true }, 1727200001100));
+    expect(store.database.prepare("SELECT 1 FROM class WHERE id = ?").get(PURGED)).toBeUndefined();
     store.close();
   });
 });

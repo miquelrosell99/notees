@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 27;
+export const SCHEMA_VERSION = 28;
 
 /**
  * The render-path list-reads index: composite for the
@@ -1244,4 +1244,22 @@ export function migrate(
       `);
     }
   }
+  // v27 -> v28 (owner ruling 2026-10-23): the class registry `active` bit is
+  // a PURE PROJECTION of the class node's liveness — mirrored on every arm
+  // (archival, family toggles, user-class trash/restore, permanent purge) —
+  // but rows written before the trash/restore/purge mirrors existed can
+  // diverge: a registry row left ACTIVE after its class node was archived or
+  // PURGED (the withdrawn system classes — `class` …0001, `page` …0002,
+  // `cover` …0042 — minted exactly these ghosts, visible in every registry
+  // read: node gone, `class.active = 1`). Pure derived-state scrub, no log
+  // change: deactivate every registry row with no live class node behind it.
+  // Idempotent — the NOT EXISTS predicate only ever flips rows to 0.
+  db.exec(`
+    UPDATE class SET active = 0, updated_at = '2026-10-23T00:00:00.000Z'
+    WHERE active = 1
+      AND NOT EXISTS (
+        SELECT 1 FROM node
+        WHERE node.id = class.id AND node.is_class = 1 AND node.is_active = 1
+      );
+  `);
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

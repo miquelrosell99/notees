@@ -518,16 +518,23 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     const YEAR = "00000000-0000-0000-0001-000000000003";
     const QUOTE = "00000000-0000-0000-0001-000000000006";
     const GENRE = "0192a000-0000-7000-8000-000000000a23";
+    const SHELF = "0192a000-0000-7000-8000-000000000a25";
+    const MOOD = "0192a000-0000-7000-8000-000000000a27";
     const deletes = fixture.envelopes.filter((env) => env.opType === "object.delete");
     // Family base (task) → routed to the tasks toggle; locked system class
     // (year) → fails loud at the applier; other system class (quote) →
     // archival, not trash; user class (Genre) → plain trash row. The
     // payload is unchanged in every arm — routing is applier semantics.
+    // The user-class arm then runs the full lifecycle: a trashed-then-
+    // restored Shelf (registry projection off and back on) and a permanently
+    // purged Mood (registry row dies with the node).
     expect(deletes.map((env) => env.payload as Record<string, unknown>)).toEqual([
       { objectId: TASK, permanent: false },
       { objectId: YEAR, permanent: false },
       { objectId: QUOTE, permanent: false },
       { objectId: GENRE, permanent: false },
+      { objectId: SHELF, permanent: false },
+      { objectId: MOOD, permanent: true },
     ]);
     // Membership carriers ride along: the task member and the Genre member
     // exist, and the class.delete op is retired — rejected outright like

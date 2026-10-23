@@ -989,7 +989,10 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
     }
     // Arm 4 — a USER class: falls through to the plain trash path below
     // (soft delete with a trash row, restorable from the Trash hub — the
-    // whole subtree rides, exactly like any node).
+    // whole subtree rides, exactly like any node). The registry projection
+    // mirrors the node's liveness in BOTH directions on this arm (trash →
+    // active = 0, restore → active = 1, purge → row gone) — the class node's
+    // bit is the authority on every arm, never only the archival ones.
   }
 
   if (!p.permanent) {
@@ -998,6 +1001,12 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
     const ids = subtreeIds(db, p.objectId);
     const placeholders = ids.map(() => "?").join(",");
     db.prepare(`UPDATE node SET is_active = 0 WHERE id IN (${placeholders})`).run(...ids);
+    if (deletedIsClass) {
+      // The registry projection follows the node into the trash (the picker
+      // read filters on it — an active registry row under a trashed node is
+      // the ghost-row state the withdrawn-system-class cleanup hit).
+      db.prepare("UPDATE class SET active = 0, updated_at = ? WHERE id = ?").run(ts, p.objectId);
+    }
     db.prepare(
       "INSERT OR REPLACE INTO trash (node_id, deleted_at, is_permanent) VALUES (?, ?, 0)",
     ).run(p.objectId, ts);
@@ -1045,6 +1054,11 @@ function permanentlyDeleteSubtree(db: StoreDatabase, objectId: string, ts: strin
   ).map((r) => r.target_id);
   const ancestors = ancestorIds(db, objectId);
   db.prepare(`DELETE FROM node WHERE id IN (${placeholders})`).run(...ids);
+  // The registry row is a projection of the class node's liveness: a
+  // permanently purged class takes it along (otherwise the row ghosts in
+  // registry reads forever — the withdrawn-system-class lesson: node gone,
+  // `class.active = 1` left behind by the pre-mirror purge).
+  db.prepare(`DELETE FROM class WHERE id IN (${placeholders})`).run(...ids);
   db.prepare(
     `DELETE FROM node_child_order WHERE parent_id IN (${placeholders}) OR child_id IN (${placeholders})`,
   ).run(...ids, ...ids);
@@ -1190,6 +1204,12 @@ function applyObjectRestore(db: StoreDatabase, env: Envelope): ChangeSummary {
 
   const placeholders = toReactivate.map(() => "?").join(",");
   db.prepare(`UPDATE node SET is_active = 1 WHERE id IN (${placeholders})`).run(...toReactivate);
+  // The registry projection mirrors back with the node (the trash arm
+  // mirrored it off — a restored class re-enters the pickers).
+  db.prepare(`UPDATE class SET active = 1, updated_at = ? WHERE id IN (${placeholders})`).run(
+    env.timestamp,
+    ...toReactivate,
+  );
   db.prepare("DELETE FROM trash WHERE node_id = ?").run(p.objectId);
   // Restored rows re-enter alias chains (the resolution walk is live-aware):
   // re-materialize every edge row whose chain touches the reactivated set.
