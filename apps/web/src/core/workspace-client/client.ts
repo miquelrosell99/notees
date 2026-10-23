@@ -608,6 +608,14 @@ export class WorkspaceClient {
     return this.writes.unsetProperty(objectId, propertySchemaId, idx);
   }
 
+  assignProperty(objectId: string, propertySchemaId: string) {
+    return this.writes.assignProperty(objectId, propertySchemaId);
+  }
+
+  unassignProperty(objectId: string, propertySchemaId: string) {
+    return this.writes.unassignProperty(objectId, propertySchemaId);
+  }
+
   promotePropertyCarrier(objectId: string, propertySchemaId: string, idx = 0) {
     return this.writes.promotePropertyCarrier(objectId, propertySchemaId, idx);
   }

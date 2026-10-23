@@ -76,6 +76,10 @@ export function PropertiesTable({
         void client.unsetProperty(nodeId, schemaId, row.idx);
       }
     }
+    // The assignment declaration dies with the row — an assigned-but-valueless property disappears instead
+    // of lingering as an empty row; unassign never touches authored values
+    // (the unset loop above handles those).
+    void client.unassignProperty(nodeId, schemaId);
   };
 
   const menuItems = (schemaId: string) => {

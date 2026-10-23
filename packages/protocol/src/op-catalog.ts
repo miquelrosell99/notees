@@ -135,6 +135,18 @@ export const OP_CATALOG: OpCatalogEntry[] = [
     affected: "objectId",
   },
   {
+    opType: "property.assign",
+    description: "Declare a node→property assignment WITHOUT a value (the v1 node_property lineage) — the panel row renders empty and the row's editor authors the first value later. Presence LWW per (object, schema); scope stays the sole locality authority (R3 rejects ineligible nodes).",
+    example: { objectId: "<uuid>", propertySchemaId: "<schema-uuid>" },
+    affected: "objectId",
+  },
+  {
+    opType: "property.unassign",
+    description: "Remove a node→property assignment (authored values survive — never retroactive).",
+    example: { objectId: "<uuid>", propertySchemaId: "<schema-uuid>" },
+    affected: "objectId",
+  },
+  {
     opType: "asset.attach",
     description: "Attach a CAS asset to a node (inline embed vs attachment rides metadata).",
     example: { objectId: "<uuid>", assetId: "<asset-uuid>" },

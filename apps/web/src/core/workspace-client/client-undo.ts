@@ -208,6 +208,14 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
         .get(collectionId, objectId) as { present: number } | undefined;
       return row !== undefined && row.present === 1;
     },
+    propertyAssignment: (objectId, propertySchemaId) => {
+      const row = db()
+        .prepare(
+          "SELECT 1 FROM node_property WHERE node_id = ? AND property_schema_id = ?",
+        )
+        .get(objectId, propertySchemaId);
+      return row !== undefined;
+    },
     featureEnabled: (feature) => {
       const row = db()
         .prepare(
