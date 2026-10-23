@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-23
 
+- **perf(web): one worker notification per burst — the notify coalescer goes
+  trailing-only, so a multi-op gesture costs one refresh cycle instead of
+  two.** Trigger: the op-lag perf plan (slice 1). The old leading+trailing
+  pair emitted the burst's first scope immediately and the merged remainder
+  one window later; each emission makes the main thread re-run its dirty
+  read cache (~200–500 ms at real scale), and the second cycle re-fetched
+  identical data. The single trailing emission is sound by construction —
+  the worker thread serializes messages, so the refresh it kicks
+  happens-after every op in the burst. `flush()`/`close()` still force the
+  pending emission synchronously (save & close loses no notification).
+  `apps/web/src/worker/worker-core.ts` (the coalescer + its doc comments),
+  `apps/web/test/worker-core.test.ts` (the coalescing specs rewritten to the
+  trailing contract: one merged emission per window, structural flags never
+  lost, flush flushes).
 - **fix(server): the object API stops truncating `name` at DISPLAY_NAME_MAX —
   the full title on the machine surface.** `nodeToApi` (get / list /
   children), the query-language row projection, and the class-members

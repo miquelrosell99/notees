@@ -128,10 +128,11 @@ const DEFAULT_DEBOUNCE_MS = 500;
  * Notification coalescing window: the client notifies per applied
  * batch, and a sync burst (local apply + push + echo + ack) can fire hundreds
  * of notifications per second — each of which used to make the main thread
- * refetch its whole read cache. One emission on the leading edge plus at most
- * one trailing emission per window caps the message rate at ~2/window while
- * keeping first-paint immediacy and burst convergence; payloads merge
- * (affected-union, structural-OR).
+ * refetch its whole read cache. One trailing emission per window (see
+ * WorkerCore.scheduleNotify) caps the message rate at 1/window: the merged
+ * payload covers the whole burst, and the second emission the old
+ * leading+trailing pair sent per multi-op gesture only re-fetched identical
+ * data. Payloads merge (affected-union, structural-OR).
  */
 const DEFAULT_NOTIFY_DEBOUNCE_MS = 50;
 
@@ -258,7 +259,7 @@ export class WorkerCore {
   private readonly notifyDebounceMs: number;
 
   private timer: ReturnType<typeof setTimeout> | null = null;
-  /** Coalescing window timer; non-null between the leading and trailing emit. */
+  /** Coalescing window timer; non-null from the first notify of a burst until the single trailing emit. */
   private notifyTimer: ReturnType<typeof setTimeout> | null = null;
   /** Payload merged from notifications that arrived inside the current window. */
   private notifyPending: ChangeNotification | null = null;
@@ -375,24 +376,27 @@ export class WorkerCore {
   // --- notification coalescing ---------------------------------------------------
 
   /**
-   * Leading+trailing coalescer over the client's notifications. The first
-   * notification in a quiet period emits immediately; notifications inside
-   * the window merge into `notifyPending` and re-arm one trailing emission,
-   * so a burst of N notifies costs at most 2 messages per window and the
-   * merged payload never loses a structural flag or an affected id.
+   * Trailing-edge coalescer over the client's notifications. The first
+   * notification in a quiet period arms one window; every notification
+   * inside the window merges into `notifyPending`; a single emission at
+   * window end carries the merged payload, so a burst of N notifies costs
+   * exactly one message and the merged payload never loses a structural
+   * flag or an affected id. Sound by construction: the worker thread
+   * serializes messages, so the main-thread refresh this emission kicks
+   * happens-after every op in the burst — the old leading+trailing pair's
+   * second cycle (a second full multiRead of the same dirty keys) was pure
+   * redundancy. The one-window delay per gesture is the accepted price; the
+   * refresh cycle it triggers dwarfs it.
    */
   private scheduleNotify(change: ChangeNotification): void {
     if (this.closed) return;
-    if (this.notifyTimer !== null) {
-      this.notifyPending = WorkerCore.mergeChangeNotifications(this.notifyPending, change);
-      return;
-    }
-    this.emitNotify(change);
+    this.notifyPending = WorkerCore.mergeChangeNotifications(this.notifyPending, change);
+    if (this.notifyTimer !== null) return;
     this.notifyTimer = this.setTimer(() => {
       this.notifyTimer = null;
       const pending = this.notifyPending;
       this.notifyPending = null;
-      if (pending !== null) this.scheduleNotify(pending);
+      if (pending !== null) this.emitNotify(pending);
     }, this.notifyDebounceMs);
   }
 
