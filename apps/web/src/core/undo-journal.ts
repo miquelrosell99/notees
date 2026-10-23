@@ -60,6 +60,9 @@
  *                         inverse never touches authored values).
  *  - property.unassign    → property.assign restoring the declaration
  *                         (nothing to restore → no-op, not journaled).
+ *  - property.empty       → one property.set per captured pre-clear row —
+ *                         the whole property's values restore (nothing to
+ *                         restore → no-op, not journaled).
  *  - class.unassign       → the add carrier: object.create {classIds:[id]}.
  *  - tag.unassign         → the add carrier: object.create {tagIds:[id]}.
  *  - class.reorder        → class.reorder with the prior effective order.
@@ -240,6 +243,9 @@ export interface UndoCaptureSource {
     elementId: string | undefined,
     idx: number,
   ): UndoPropertyValueSnapshot | null;
+  /** EVERY live property_value row of one property on a node — the
+   *  property.empty inverse restores them all. */
+  propertyValues(objectId: string, propertySchemaId: string): UndoPropertyValueSnapshot[];
   classBinding(classId: string, propertySchemaId: string): UndoBindingSnapshot | null;
   /** The node→property assignment declaration (node_property row present). */
   propertyAssignment(objectId: string, propertySchemaId: string): boolean;
@@ -723,6 +729,29 @@ export function invertEnvelope(
         },
       ];
     }
+    case "property.empty": {
+      const objectId = asString(p.objectId);
+      const propertySchemaId = asString(p.propertySchemaId);
+      if (objectId === null || propertySchemaId === null) return null;
+      // The clear is addressed at the whole property — the inverse restores
+      // EVERY captured pre-empty row (nothing to restore → no-op, not
+      // journaled).
+      const prior = capture.propertyValues(objectId, propertySchemaId);
+      if (prior.length === 0) return null;
+      return prior.map((row) => {
+        const payload: Record<string, unknown> = {
+          objectId,
+          propertySchemaId,
+          value: row.value,
+          idx: row.idx,
+        };
+        if (row.elementId !== positionalElementId(objectId, propertySchemaId, row.idx)) {
+          payload.elementId = row.elementId;
+        }
+        if (row.metadata !== null) payload.metadata = row.metadata;
+        return { opType: "property.set", payload, affected: [objectId] };
+      });
+    }
     case "asset.attach": {
       const objectId = asString(p.objectId);
       const assetId = asString(p.assetId);
@@ -841,6 +870,7 @@ const OP_VERBS: Record<string, string> = {
   "property.unset": "clear property",
   "property.assign": "assign property",
   "property.unassign": "unassign property",
+  "property.empty": "empty property",
   "asset.attach": "attach asset",
   "asset.detach": "detach asset",
   "collection.member.add": "add to collection",

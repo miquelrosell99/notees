@@ -824,6 +824,11 @@ export class WorkerClient {
     await this.call("unassignProperty", [objectId, propertySchemaId]);
   }
 
+  /** Clear every authored value of one property, keeping the assignment (property.empty). */
+  async emptyProperty(objectId: string, propertySchemaId: string): Promise<void> {
+    await this.call("emptyProperty", [objectId, propertySchemaId]);
+  }
+
   /** Ensure the year/month/day chain for a date; returns the three node ids. */
   async ensureDateChain(
     isoDate: string,

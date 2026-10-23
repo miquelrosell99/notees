@@ -60,6 +60,13 @@ function fakeCapture(overrides: {
     value: unknown;
     metadata: Record<string, unknown> | null;
   } | null;
+  /** The whole-property snapshot list (the property.empty inverse). */
+  properties?: {
+    elementId: string;
+    idx: number;
+    value: unknown;
+    metadata: Record<string, unknown> | null;
+  }[];
   binding?: {
     active: boolean;
   } | null;
@@ -113,6 +120,7 @@ function fakeCapture(overrides: {
       overrides.placement !== undefined ? overrides.placement : defaultPlacement,
     classDescription: () => overrides.description ?? null,
     propertyValue: () => (overrides.property !== undefined ? overrides.property : null),
+    propertyValues: () => overrides.properties ?? [],
     classBinding: () => (overrides.binding !== undefined ? overrides.binding : null),
     classParents: () => overrides.parents ?? [CLASS_B],
     schemaSnapshot: () =>
@@ -414,6 +422,51 @@ describe("invertEnvelope — the inversion matrix", () => {
       invertEnvelope(
         env("property.unassign", { objectId: NODE, propertySchemaId: SCHEMA }),
         fakeCapture({ assignment: false }),
+      ),
+    ).toBeNull();
+  });
+
+  it("property.empty inverts as one property.set per captured pre-clear row; an empty clear is a no-op", () => {
+    const positional = {
+      elementId: "0192a000-0000-7000-8000-0000000000a1:0192a000-0000-7000-8000-0000000000d1:0",
+      idx: 0,
+      value: "https://a.org",
+      metadata: null,
+    };
+    const element = {
+      elementId: "0192a000-0000-7000-8000-0000000000e9",
+      idx: 1,
+      value: "https://b.org",
+      metadata: { since: "2020" },
+    };
+    expect(
+      invertEnvelope(
+        env("property.empty", { objectId: NODE, propertySchemaId: SCHEMA }),
+        fakeCapture({ properties: [positional, element] }),
+      ),
+    ).toEqual([
+      {
+        opType: "property.set",
+        payload: { objectId: NODE, propertySchemaId: SCHEMA, value: "https://a.org", idx: 0 },
+        affected: [NODE],
+      },
+      {
+        opType: "property.set",
+        payload: {
+          objectId: NODE,
+          propertySchemaId: SCHEMA,
+          value: "https://b.org",
+          idx: 1,
+          elementId: element.elementId,
+          metadata: { since: "2020" },
+        },
+        affected: [NODE],
+      },
+    ]);
+    expect(
+      invertEnvelope(
+        env("property.empty", { objectId: NODE, propertySchemaId: SCHEMA }),
+        fakeCapture({ properties: [] }),
       ),
     ).toBeNull();
   });

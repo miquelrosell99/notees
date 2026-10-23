@@ -475,6 +475,19 @@ export class WorkspaceClientWrites {
   }
 
   /**
+   * Clear EVERY authored value of one property on a node while KEEPING the
+   * assignment (property.empty — owner ruling 2026-10-23, the "Empty
+   * property" gesture): the assigned-empty row renders again; a bound
+   * default resurfaces. Addressed at (objectId, propertySchemaId) — all
+   * values, every idx and element.
+   */
+  async emptyProperty(objectId: string, propertySchemaId: string): Promise<void> {
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope("property.empty", { objectId, propertySchemaId }, [objectId]),
+    );
+  }
+
+  /**
    * "Promote to block" (SCHEMA.md "Node-backed text properties"): detach a
    * node-backed text property value and surface the carrier in the owner's
    * body as an ordinary child. Composed from existing ops — property.unset

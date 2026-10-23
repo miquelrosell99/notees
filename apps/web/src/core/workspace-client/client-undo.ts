@@ -98,6 +98,30 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
             : null,
       };
     },
+    propertyValues: (objectId, propertySchemaId) => {
+      const rows = db()
+        .prepare(
+          "SELECT id, idx, value, metadata FROM property_value WHERE node_id = ? AND property_schema_id = ? ORDER BY idx, id",
+        )
+        .all(objectId, propertySchemaId) as Array<{
+        id: string;
+        idx: number;
+        value: string;
+        metadata: string | null;
+      }>;
+      return rows.map((row) => {
+        const metadata = parseJson(row.metadata);
+        return {
+          elementId: row.id,
+          idx: row.idx,
+          value: parseJson(row.value),
+          metadata:
+            typeof metadata === "object" && metadata !== null
+              ? (metadata as Record<string, unknown>)
+              : null,
+        };
+      });
+    },
     classBinding: (classId, propertySchemaId) => {
       const row = db()
         .prepare(

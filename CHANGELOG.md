@@ -9,6 +9,38 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(protocol,store,web): `property.empty` — clear every value of a
+  property, KEEP the assignment (owner ruling, the assign/empty companion).**
+  The assignment slice shipped earlier today with a 2×2 missing its
+  (declaration kept, values cleared) quadrant: "Empty property" faked it by
+  writing empty strings, and values could only die one `property.unset` at a
+  time. One ADDITIVE wire op (envelope v3): `property.empty {objectId,
+  propertySchemaId}` clears EVERY authored value of the property on the node
+  while the `node_property` declaration survives — the effective read renders
+  the assigned-empty row again, and a bound default resurfaces (the same read
+  rule a single unset follows). Causality mirrors the per-value removes
+  applied to each live row: BOTH tombstone families upsert at the empty's
+  (hlc, actor) — the PG5 element tombstone and the legacy slot tombstone — so
+  older adds at OBSERVED slots stay dead on either carrier; a concurrent
+  NEWER set survives; adds at slots the empty never touched ride the house
+  add-wins rule; orphaned exclusive text carriers ride the unset's trash
+  contract. Web: the "Empty property" row action (properties table AND the
+  sidebar — the sidebar's remove also gains the unassign the assignment
+  slice missed) emits the one op instead of looping empty-string sets; the
+  undo journal inverts it as one restoring `property.set` per captured
+  pre-clear row. Fixture: the `property-assign.json` tail gains the empty
+  (the lifecycle now runs assign → set → unassign → re-assign → empty).
+  LOCKSTEP-PENDING rides the assignment slice's record (GTK/Flutter converge
+  on the same fixture); no migration — old logs replay unchanged.
+  - **Verification**: `pnpm typecheck` clean; `@notees/protocol` 601/601
+    (the extended fixture pin); `@notees/store` 695/695 on both adapters
+    (new empty suite: single/multi sweep, observed-slot suppression vs
+    unobserved-slot survival, newer-set survival, default resurface, no-op);
+    `apps/web` suite green (new undo-journal inversion specs).
+  - **Docs**: SCHEMA.md (the assignment bullet gains the empty op + its
+    causality), AGENTS.md (the invariant clause), `docs/features/properties.md`
+    (the three-gesture row menu), architecture.md (op registry 26 → 27).
+
 - **feat(web): MainContentFrame panel widths become a per-view override —
   the calendar's agenda panel gets its 320px column back.** The shared
   panel clamp (13–22rem) read too narrow for the calendar's seven-column

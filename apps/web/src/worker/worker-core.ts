@@ -828,6 +828,8 @@ export class WorkerCore {
         return this.client.assignProperty(args[0] as string, args[1] as string);
       case "unassignProperty":
         return this.client.unassignProperty(args[0] as string, args[1] as string);
+      case "emptyProperty":
+        return this.client.emptyProperty(args[0] as string, args[1] as string);
       case "ensureDateChain":
         return this.client.ensureDateChain(args[0] as string);
       case "setDatetimeProperty":

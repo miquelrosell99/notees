@@ -147,6 +147,12 @@ export const OP_CATALOG: OpCatalogEntry[] = [
     affected: "objectId",
   },
   {
+    opType: "property.empty",
+    description: "Clear EVERY authored value of one property on a node while KEEPING the assignment (the empty-row renders again; a bound default resurfaces) — tombstones both addressing families at the empty's HLC, so older concurrent adds stay dead.",
+    example: { objectId: "<uuid>", propertySchemaId: "<schema-uuid>" },
+    affected: "objectId",
+  },
+  {
     opType: "asset.attach",
     description: "Attach a CAS asset to a node (inline embed vs attachment rides metadata).",
     example: { objectId: "<uuid>", assetId: "<asset-uuid>" },

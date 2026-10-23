@@ -61,6 +61,7 @@ import {
   nodeRefOfValue,
   normalizeQualifierMetadata,
   type PropertySchemaValidationRow,
+  visiblePropertyValueRows,
 } from "./property-values.js";
 import {
   CycleError,
@@ -2569,6 +2570,90 @@ function applyPropertyUnassign(db: StoreDatabase, env: Envelope): ChangeSummary 
   return summary(opType, [p.objectId]);
 }
 
+/**
+ * CLEAR every authored value of one property on a node while KEEPING the
+ * assignment (owner ruling 2026-10-23 — the property.assign companion; the
+ * context menu's "Empty property" gesture). Addressed at (node, schema) —
+ * ALL values, every idx and every PG5 element.
+ *
+ * Causality mirrors the per-value removes, applied to each live row: BOTH
+ * tombstone families upsert at the empty's (hlc, actor) — the PG5 element
+ * tombstone (element-addressed adds stay dead) and the legacy slot
+ * tombstone (positional adds stay dead) — and the live row is deleted only
+ * when the empty is the strictly newer writer (a concurrent newer set
+ * survives). Add-wins on exact HLC ties, exactly like property.unset.
+ * Orphaned exclusive text carriers ride the unset's trash contract.
+ */
+function applyPropertyEmpty(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "property.empty";
+  const p = env.payload as OpPayload<"property.empty">;
+  const incoming = winnerFromEnvelope(env);
+
+  const rows = visiblePropertyValueRows(db, p.objectId).filter(
+    (row) => row.property_schema_id === p.propertySchemaId,
+  );
+
+  const elementTombstone = db.prepare(
+    `INSERT INTO property_value_element_tombstone
+       (element_id, node_id, property_schema_id, hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(element_id) DO UPDATE SET
+       node_id = excluded.node_id, property_schema_id = excluded.property_schema_id,
+       hlc_physical = excluded.hlc_physical, hlc_logical = excluded.hlc_logical,
+       actor_id = excluded.actor_id
+     WHERE excluded.hlc_physical > hlc_physical
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical > hlc_logical)
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical = hlc_logical
+            AND excluded.actor_id > COALESCE(actor_id, ''))`,
+  );
+  const slotTombstone = db.prepare(
+    `INSERT INTO property_value_tombstone (node_id, property_schema_id, idx, hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(node_id, property_schema_id, idx) DO UPDATE SET
+       hlc_physical = excluded.hlc_physical, hlc_logical = excluded.hlc_logical,
+       actor_id = excluded.actor_id
+     WHERE excluded.hlc_physical > hlc_physical
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical > hlc_logical)
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical = hlc_logical
+            AND excluded.actor_id > COALESCE(actor_id, ''))`,
+  );
+
+  for (const row of rows) {
+    elementTombstone.run(
+      row.id,
+      p.objectId,
+      p.propertySchemaId,
+      env.hlc.physical,
+      env.hlc.logical,
+      env.actorId,
+    );
+    slotTombstone.run(
+      p.objectId,
+      p.propertySchemaId,
+      row.idx,
+      env.hlc.physical,
+      env.hlc.logical,
+      env.actorId,
+    );
+    if (compareLww(incoming, rowWinner(row)) > 0) {
+      db.prepare("DELETE FROM property_value WHERE id = ?").run(row.id);
+      trashTextCarrierIfOrphaned(
+        db,
+        p.objectId,
+        p.propertySchemaId,
+        row.value,
+        env.timestamp,
+      );
+    }
+  }
+
+  // The owner's indexed text includes its property values — reindex. Edge
+  // rebuild rides along for node-typed values (the property.unset precedent).
+  reindexNode(db, p.objectId);
+  const emptyEdges = rebuildEdges(db, p.objectId, env.timestamp);
+  return summary(opType, [p.objectId, ...emptyEdges.affectedNodeIds]);
+}
+
 // --- asset.* ----------------------------------------------------------------------
 
 function applyAssetAttach(db: StoreDatabase, env: Envelope): ChangeSummary {
@@ -2834,6 +2919,7 @@ const APPLIERS: Record<
   "property.unset": applyPropertyUnset,
   "property.assign": applyPropertyAssign,
   "property.unassign": applyPropertyUnassign,
+  "property.empty": applyPropertyEmpty,
   "asset.attach": applyAssetAttach,
   "asset.detach": applyAssetDetach,
   "collection.member.add": (db, env) => applyCollectionMember(db, env, 1),

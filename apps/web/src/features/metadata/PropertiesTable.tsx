@@ -65,11 +65,10 @@ export function PropertiesTable({
   // 2026-10-21 — the render contract retired from the wire/store).
   const isReadonly = (schemaId: string): boolean => isReadonlyProperty(schemaId);
   const emptyProperty = (schemaId: string) => {
-    for (const row of rows) {
-      if (row.propertySchemaId === schemaId && row.source === "authored") {
-        void client.setProperty(nodeId, schemaId, "", row.idx);
-      }
-    }
+    // One op clears every value; the declaration survives (owner ruling
+    // 2026-10-23 — property.empty) — an assigned row lingers as the empty
+    // cell, a bound default resurfaces.
+    void client.emptyProperty(nodeId, schemaId);
   };
   const removeFromNode = (schemaId: string) => {
     for (const row of rows) {

@@ -632,6 +632,30 @@ export const propertyUnassignPayload = z
   })
   .strict();
 
+/**
+ * CLEAR every authored value of one property on a node while KEEPING the
+ * declaration (owner ruling 2026-10-23 — the `property.assign` companion):
+ * the assignment row survives and the effective read renders the
+ * assigned-empty row again; with a bound default the default resurfaces
+ * (the same read rule a single `property.unset` follows). The clear is
+ * addressed at (objectId, propertySchemaId) — ALL values, every idx and
+ * every PG5 element.
+ *
+ * Causality mirrors the per-value removes: for each live row the applier
+ * upserts BOTH tombstone families at the empty's (hlc, actor) — the PG5
+ * element tombstone (element-addressed adds stay dead) and the legacy slot
+ * tombstone (positional adds stay dead) — and deletes the live row when the
+ * empty is strictly newer (a concurrent newer set survives). Add-wins on
+ * exact HLC ties, exactly like `property.unset`. Orphaned exclusive text
+ * carriers ride the unset's trash contract.
+ */
+export const propertyEmptyPayload = z
+  .object({
+    objectId: uuid,
+    propertySchemaId: uuid,
+  })
+  .strict();
+
 // --- associations ------------------------------------------------------------
 // First-class relation entities were deleted 2026-09-25:
 // associations are node-typed property values (m2o/m2m) or typed-link word
@@ -747,6 +771,7 @@ export const OP_PAYLOAD_SCHEMAS = {
   "property.unset": propertyUnsetPayload,
   "property.assign": propertyAssignPayload,
   "property.unassign": propertyUnassignPayload,
+  "property.empty": propertyEmptyPayload,
   "asset.attach": assetAttachPayload,
   "asset.detach": assetDetachPayload,
   "collection.member.add": collectionMemberAddPayload,
