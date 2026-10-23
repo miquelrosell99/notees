@@ -25,6 +25,8 @@ Snapshot bytes (`application/octet-stream`) — a serialized derived-state SQLit
 ### `PUT /snapshot/data?workspaceId=…&physical=…&logical=…`
 Upload a client-produced snapshot (owner-only in multi-user; single-user today: any key with write scope). Raw body bytes. Body cap: **512 MiB route-local** — the app-global request cap is 128 MiB, and this route is the one deliberate exception (an authenticated, workspace-scoped full projection is the largest body the API carries). Over-cap answers `413 entity_too_large` (the error envelope); a client that sees it reports once and keeps syncing normally (the server-side snapshot covers restore) — it MUST NOT treat the refusal as sync failure.
 
+`&mode=import` turns the upload into an **import**: the image may come from any workspace (or any `@notees/store` export) — the server rewrites the baked `workspace_id` to the target and installs it as the target's derived file + snapshot. The target MUST be envelope-empty (else 409 `conflict`): an imported workspace's log starts empty, so the snapshot is load-bearing for rebuilds (hydrate restores it when the derived cache is wiped; the log alone no longer converges the imported content). A node-less image is refused (422) at any log size. `scripts/import-snapshot.mjs` is the reference driver; `POST /api/workspaces/:id/clone` (account API, owner-only) is the server-side equivalent for duplicating an existing workspace.
+
 ### `POST /compact`
 Owner/admin: `{"workspaceId", "upToHlc": {physical, logical}, "prune": true, "dataBase64": "..."}` — snapshot the derived state up to an HLC and optionally prune covered envelopes. `prune: true` requires non-empty `dataBase64`. Single checkpoint flow (replacing the three divergent snapshot endpoints of the first system).
 
