@@ -9,6 +9,49 @@ predating this file.
 
 ## 2026-10-23
 
+- **docs(changelog): the catch-up convergence flag retracted — the clean
+  repro converges.** The 2026-10-22 Today-jump entry flagged a possible
+  convergence gap (a fresh-boot browser seemingly holding a soft-trashed row
+  the server had permanently deleted). The clean reproduction shows none:
+  with NO browser connected, a node created then permanently deleted via the
+  API; one fresh-profile browser booting afterwards converges — the ghost is
+  absent from the Pages hub AND a direct navigation to its id renders the
+  missing-page state (the local store has no live row). The original
+  observation was an artifact of interleaved probing (API purges racing
+  already-open browser sessions before their realtime/catch-up delivered).
+  No sync-layer follow-up needed.
+
+- **fix(web): the never-a-bare-UUID label seam — `labelFromClient` — with a
+  full sweep of the raw-id fallbacks.** Trigger: the owner deleted the
+  RETIRED `class` meta-class node (…0001, withdrawn 2026-10-07 — unknown to
+  the current seed map, so its delete took the plain user-class trash arm
+  while the membership rows ride every arm), and the dangling bindings
+  rendered as raw UUID chips across the Extended-by list. Identity is never
+  user-facing, so `dateDisplay` grows `labelFromClient`: the live display
+  name; else the RAW read's derived name (an archived or trashed node KEEPS
+  its name — only permanent deletion leaves no row); a live node with empty
+  content reads "Untitled <render-state>" (renderStateLabel's convention).
+  Null ONLY when no row exists at all — callers pick their honest fallback:
+  class pills read "Deleted class" and stay ×-removable (the dangling
+  binding is removable debt until the retire-class-class migration runs),
+  name cells read "Untitled". ~25 fallback sites swept: NodePills (shell +
+  overflow rows), the metadata property rows (object/datetime/asset/alias/
+  tags/comments), the property-definitions inheritance attribution, table
+  cells + chips, the calendar/day-page/task-bucket rows, the embed views,
+  the dnd chips, the link-edit modal, the convert/sync/import/floating-
+  editor modals. Deliberate broken-reference DEBUG surfaces keep their raw
+  ids by ruling (the id IS the information there): the filter builder's
+  broken pill, the table's broken chip, the broken embed card, the broken
+  alias row. The retire-class-class migration itself stays LOCKSTEP-GATED
+  (GTK/Flutter class.create conversion — no convergence record yet), so the
+  owner's bindings convert when the gate clears; until then they render as
+  "Deleted class", never UUIDs.
+  - **Verification**: `pnpm typecheck` clean; the full web suite green; the
+    leak grep (`displayNameFromClient(...) ?? <id>` and siblings) returns
+    only the four deliberate debug surfaces; live-verified on the running
+    stack (a class node bound, permanently deleted, and its pill reads the
+    placeholder, not the id).
+
 - **feat(web): the nodeview panels swap sides — context column left,
   properties panel right — and the panelled content column holds the
   Journal measure (46rem, centered) instead of stretching full-bleed.**
