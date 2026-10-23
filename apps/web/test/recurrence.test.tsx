@@ -1,11 +1,13 @@
 /**
  * Recurrence web tests (compute-on-read engine):
- * the day view lists virtual occurrences with the honest repeats marker
- * (one row per series, never phantom rows), a repeating task schedules on
- * occurrence days without ever going overdue, the month grid dots every
- * occurrence day, the quick-create + property-panel pickers write the
- * `repeat` metadata (and a date re-pick preserves it), non-recurring events
- * stay plain, and a corrupt rule fails loud in the read scan.
+ * the day view lists virtual occurrences (one row per series, never phantom
+ * rows; the sections render through the shared outline collections since
+ * 2026-10-23 — row texts via the BlockRow machinery, no repeats marker), a
+ * repeating task schedules on occurrence days without ever going overdue,
+ * the month grid dots every occurrence day, the quick-create +
+ * property-panel pickers write the `repeat` metadata (and a date re-pick
+ * preserves it), non-recurring events stay plain, and a corrupt rule fails
+ * loud in the read scan.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -127,13 +129,18 @@ function labeledSection(label: string): HTMLElement {
   return el as HTMLElement;
 }
 
+/** The outline-collection row texts under a root (BlockRow machinery). */
+function rowTexts(root: HTMLElement): string[] {
+  return [...root.querySelectorAll(".nt-block-content")].map((el) => el.textContent ?? "");
+}
+
 const repeatPickerOption = async (label: string) => {
   const option = await screen.findByText(label);
   fireEvent.click(option);
 };
 
 describe("CalendarView recurrence", () => {
-  it("lists a weekly event on virtual occurrence days with the repeats marker — one row, no phantoms", async () => {
+  it("lists a weekly event on virtual occurrence days — one row, no phantoms", async () => {
     const client = await seedClient();
     const { classId, schemaId } = await eventFamily(client);
     const today = todayIsoLocal();
@@ -143,14 +150,8 @@ describe("CalendarView recurrence", () => {
     await screen.findByLabelText("Dated");
     const anchorSection = labeledSection("Dated");
     await waitFor(() => {
-      expect(within(anchorSection).getByText("Standup")).toBeDefined();
+      expect(rowTexts(anchorSection)).toContain("Standup");
     });
-    // The anchor day shows the honest marker.
-    const anchorRow = within(anchorSection).getByText("Standup").closest("li")!;
-    expect(anchorRow.querySelector(".calendar-view__repeat")).not.toBeNull();
-    expect(anchorRow.querySelector(".calendar-view__repeat")?.getAttribute("title")).toBe(
-      "Repeats weekly",
-    );
 
     // +7 is a pure virtual occurrence: no backlink exists on that day, the
     // expansion puts it there.
@@ -160,9 +161,9 @@ describe("CalendarView recurrence", () => {
     });
     const occurrenceSection = labeledSection("Dated");
     await waitFor(() => {
-      expect(within(occurrenceSection).getByText("Standup")).toBeDefined();
+      expect(rowTexts(occurrenceSection)).toContain("Standup");
     });
-    expect(within(occurrenceSection).getAllByText("Standup")).toHaveLength(1);
+    expect(rowTexts(occurrenceSection).filter((t) => t === "Standup")).toHaveLength(1);
 
     // +3 more is NOT an occurrence: the series does not list.
     for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole("button", { name: "Next day" }));
@@ -206,18 +207,20 @@ describe("CalendarView recurrence", () => {
     await waitFor(() => {
       expect(within(section).getByText("2 open")).toBeDefined();
     });
-    expect(within(section).getByText("Water plants")).toBeDefined();
     // The repeating task is Scheduled (not Overdue) on its occurrence day…
     expect(within(section).getByText("Scheduled")).toBeDefined();
-    const row = within(section).getByText("Water plants").closest("li")!;
-    expect(row.querySelector(".calendar-view__repeat")).not.toBeNull();
+    await waitFor(() => {
+      expect(rowTexts(section)).toContain("Water plants");
+    });
     // …while the plain task two days past is honestly overdue, and the
     // repeating task never appears in that group.
     const overdueGroup = within(section)
       .getByText("Overdue")
       .closest("div") as HTMLElement;
-    expect(within(overdueGroup).getByText("Plain overdue")).toBeDefined();
-    expect(within(overdueGroup).queryByText("Water plants")).toBeNull();
+    await waitFor(() => {
+      expect(rowTexts(overdueGroup)).toContain("Plain overdue");
+    });
+    expect(rowTexts(overdueGroup)).not.toContain("Water plants");
   });
 
   it("dots every occurrence day on the month grid, even without a backlink", async () => {
@@ -304,7 +307,7 @@ describe("CalendarView recurrence", () => {
     });
   });
 
-  it("non-recurring events stay plain: no marker, no extra dots, anchor day only", async () => {
+  it("non-recurring events stay plain: anchor day only, no extra dots", async () => {
     const client = await seedClient();
     const { classId, schemaId } = await eventFamily(client);
     // Anchor on the 2nd: the +7 probe cell always exists in the month.
@@ -317,9 +320,8 @@ describe("CalendarView recurrence", () => {
     fireEvent.click(dayCell(container, "2"));
     const section = labeledSection("Dated");
     await waitFor(() => {
-      expect(within(section).getByText("One-off")).toBeDefined();
+      expect(rowTexts(section)).toContain("One-off");
     });
-    expect(section.querySelector(".calendar-view__repeat")).toBeNull();
 
     // Only the anchor day dots (its real backlink); +7 has nothing.
     await waitFor(() => {

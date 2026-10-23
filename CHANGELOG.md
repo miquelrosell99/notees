@@ -9,6 +9,38 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(web): calendar sections ride the shared outline collections — plain
+  editable rows everywhere, breadcrumb trails on Dated/Created, the Daily
+  Note becomes a standalone child-blocks outline (owner pass).** The day
+  sections retire their bespoke row renderers: **Daily Note** no longer
+  embeds PageView — `DailyNoteOutline` renders the day page's child blocks
+  through the shared `NodeCollection` (outline/tree/editable) under its own
+  OutlinerContext + EditThread host (the FocusedBlockView precedent, minus
+  the parent row — the top bar names the day), with the one trailing
+  add-block ghost. **Tasks / Dated / Created** render as plain editable
+  outline rows — the checkbox, status pill, repeat marker, and class chips
+  retired (owner: "no custom UI for tasks"); Tasks keeps only its
+  Overdue/Scheduled group headings and the New affordance, and opts out of
+  breadcrumbs — **Dated/Created (and the week agenda) ride the
+  containing-page breadcrumb trail** (the collection default, owner
+  2026-10-22). The **week agenda** renders as collection groups (one
+  collapsible group per day, the header click selects the day). The
+  **mini-month title** gains the popup's exact title buttons — clickable
+  month (prominent) and year (greyed), opening the monthly/yearly
+  date-chain pages (`calendar-title-btn` moves to the shared
+  calendar-grid.css convention); without the callbacks the same classes
+  render inert. **Kit Tabs**: pointer activation blurs the trigger so the
+  focus-visible ring no longer reads as a selection border (keyboard
+  activation keeps focus + ring + arrow navigation). The earlier
+  `hideHeader` PageView prop from the superseded embed approach was
+  reverted, never shipped.
+  - **Verification**: `pnpm typecheck` clean; calendar suites green
+    (calendar-view/day-features/calendar-hit-area/journals-view — the
+    row-text assertions moved to the BlockRow `.nt-block-content`
+    machinery; the done-toggle assertion retired with the checkbox);
+    `docs/features/calendar.md` reworded (no day-view checkbox, outline
+    sections, clickable title, grouped agenda).
+
 - **refactor(web): calendar chrome streamline — the agenda panel drops the
   week strip, the mini-month drops its Today button, titles and hit-states
   converge (owner pass).** Four owner nits, one slice: (1) the **week

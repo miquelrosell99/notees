@@ -616,7 +616,14 @@ describe("CalendarView breadth (dots, agenda)", () => {
     }
     fireEvent.click(dayCell(container, String(Number(future.slice(8)))));
     const agenda = await screen.findByLabelText("Week agenda");
-    await waitFor(() => expect(within(agenda).getByText("Agenda meeting")).toBeDefined());
+    // The agenda renders as collection groups (a group per day with dated
+    // rows); the row text rides the BlockRow machinery.
+    await waitFor(() => {
+      const titles = [...agenda.querySelectorAll(".nt-block-content")].map(
+        (el) => el.textContent ?? "",
+      );
+      expect(titles).toContain("Agenda meeting");
+    });
     // The grid's outlined selection moved with the selection (the week
     // strip that mirrored this retired, owner 2026-10-23).
     expect(

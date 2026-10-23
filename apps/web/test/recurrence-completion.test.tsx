@@ -1,24 +1,28 @@
 /**
- * Per-occurrence completion for recurring tasks: the Calendar day view's
- * done-toggle on a recurring task's occurrence records the DATE in the taskScheduled value's metadata
+ * Per-occurrence completion for recurring tasks: the done-toggle on a
+ * recurring task's occurrence (the calendar day view's checkbox before the
+ * 2026-10-23 outline-collections pass retired it — the write path is
+ * shared, still driven by the day page's Tasks section and the tasks hub)
+ * records the DATE in the taskScheduled value's metadata
  * (`completedOccurrences`) instead of the node-level status — the occurrence
  * renders done on that day while every other occurrence stays open, and
  * reopening removes the date. Occurrences stay virtual (no nodes). A plain
  * task's toggle keeps the hub's exact status write. Harness: in-process
- * WorkspaceClient + MemoryRelay, jsdom over CalendarView.
+ * WorkspaceClient + MemoryRelay; the write path is exercised directly
+ * (`setTaskDone`, the same call the checkbox surfaces make).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { CalendarView } from "../src/features/calendar/CalendarView.js";
 import { addDaysIso, todayIsoLocal } from "../src/features/calendar/calendarViewUtils.js";
 import { partitionOpenTasks } from "../src/features/calendar/calendarViewUtils.js";
+import { setTaskDone, taskRowsOf } from "../src/features/calendar/calendarRows.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
@@ -98,15 +102,15 @@ describe("per-occurrence completion", () => {
     expect(nextWeek.scheduled[0]!.occurrenceDone).toBe(false);
   });
 
-  it("the day view's done-toggle on a recurring occurrence writes the date into metadata — not the status", async () => {
+  it("the done-toggle on a recurring occurrence writes the date into metadata — not the status", async () => {
     const client = await seedClient();
     const id = await makeRecurringTask(client, "Water plants");
     const today = todayIsoLocal();
+    const statusSchema = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus);
 
-    render(<CalendarView client={client} onOpenPage={vi.fn()} />);
-    const section = await screen.findByRole("region", { name: "Tasks" });
-    const checkbox = within(section).getByRole("checkbox", { name: "Mark task done" });
-    fireEvent.click(checkbox);
+    await setTaskDone(client, statusSchema, id, true, today);
 
     await waitFor(() => {
       expect(scheduledValueOf(client, id)?.metadata?.completedOccurrences).toEqual([today]);
@@ -122,14 +126,10 @@ describe("per-occurrence completion", () => {
         .some((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus && prop.source === "authored"),
     ).toBe(false);
 
-    // The occurrence renders done on that day…
-    await waitFor(() => {
-      expect(within(section).getByRole("checkbox", { name: "Reopen task" })).toBeDefined();
-    });
-    expect(within(section).getByText("0 open")).toBeDefined();
-
-    // …and reopening removes the date.
-    fireEvent.click(within(section).getByRole("checkbox", { name: "Reopen task" }));
+    // The partition reads the recorded date as done on its day, and
+    // reopening removes the date.
+    expect(partitionOpenTasks(taskRowsOfId(client, id), today).scheduled[0]?.occurrenceDone).toBe(true);
+    await setTaskDone(client, statusSchema, id, false, today);
     await waitFor(() => {
       expect(scheduledValueOf(client, id)?.metadata?.completedOccurrences).toBeUndefined();
     });
@@ -150,9 +150,7 @@ describe("per-occurrence completion", () => {
     await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.taskScheduled, { iso: todayIsoLocal() }, 0);
     await client.setProperty(id, SYSTEM_PROPERTY_UUIDS.taskStatus, pendingId, 0);
 
-    render(<CalendarView client={client} onOpenPage={vi.fn()} />);
-    const section = await screen.findByRole("region", { name: "Tasks" });
-    fireEvent.click(within(section).getByRole("checkbox", { name: "Mark task done" }));
+    await setTaskDone(client, status, id, true, todayIsoLocal());
 
     await waitFor(() => {
       expect(
@@ -169,25 +167,30 @@ describe("per-occurrence completion", () => {
     const id = await makeRecurringTask(client, "Weekly review");
     const today = todayIsoLocal();
     const nextWeek = addDaysIso(today, 7);
+    const statusSchema = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus);
 
-    render(<CalendarView client={client} onOpenPage={vi.fn()} />);
-    const section = await screen.findByRole("region", { name: "Tasks" });
     // Complete today's occurrence.
-    fireEvent.click(within(section).getByRole("checkbox", { name: "Mark task done" }));
+    await setTaskDone(client, statusSchema, id, true, today);
     await waitFor(() => {
       expect(scheduledValueOf(client, id)?.metadata?.completedOccurrences).toEqual([today]);
     });
 
-    // Jump a week: the occurrence there is still open (its own checkbox).
-    for (let i = 0; i < 7; i += 1) {
-      fireEvent.click(screen.getByRole("button", { name: "Next day" }));
-    }
-    await waitFor(() => {
-      expect(within(section).getByText("1 open")).toBeDefined();
-    });
-    expect(within(section).getByRole("checkbox", { name: "Mark task done" })).toBeDefined();
-    // No second entry: still one row for the series.
-    expect(within(section).getAllByText("Weekly review")).toHaveLength(1);
+    // A week out: the next occurrence is still open — one row per series,
+    // its own toggle, no second entry.
+    const nextRows = partitionOpenTasks(taskRowsOfId(client, id), nextWeek);
+    expect(nextRows.scheduled).toHaveLength(1);
+    expect(nextRows.scheduled[0]?.occurrenceDone).toBe(false);
     expect(nextWeek).not.toBe(today);
   });
 });
+
+/** The client's open-task rows for one node (the partition's input shape). */
+function taskRowsOfId(client: WorkspaceClient, id: string) {
+  return taskRowsOf(
+    client,
+    client.listPropertySchemas().find((s) => s.id === SYSTEM_PROPERTY_UUIDS.taskStatus),
+    [id],
+  );
+}

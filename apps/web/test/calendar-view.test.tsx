@@ -100,6 +100,11 @@ function dayCell(container: HTMLElement, dayNumber: string): HTMLElement {
   return cell as HTMLElement;
 }
 
+/** The outline-collection row texts under a root (BlockRow machinery). */
+function rowTitles(root: HTMLElement): string[] {
+  return [...root.querySelectorAll(".nt-block-content")].map((el) => el.textContent ?? "");
+}
+
 describe("CalendarView", () => {
   it("shows the Today marker and the local date only for today", async () => {
     const client = await seedClient();
@@ -171,7 +176,7 @@ describe("CalendarView", () => {
     void container;
   });
 
-  it("partitions open tasks into Overdue/Scheduled with a count and toggles done like the hub", async () => {
+  it("partitions open tasks into Overdue/Scheduled groups with a count", async () => {
     const client = await seedClient();
     await ensureTaskFamily(client);
     const status = client
@@ -191,7 +196,7 @@ describe("CalendarView", () => {
       await client.setProperty(id, SYSTEM_PROPERTY_UUIDS.taskStatus, statusId, 0);
       return id;
     };
-    const todayOpen = await makeTask("Task today", today, pendingId);
+    await makeTask("Task today", today, pendingId);
     await makeTask("Task overdue", addDaysIso(today, -3), pendingId);
     await makeTask("Task done", today, doneId);
 
@@ -201,20 +206,14 @@ describe("CalendarView", () => {
       expect(within(section).getByText("2 open")).toBeDefined();
     });
     expect(within(section).getByText("Overdue")).toBeDefined();
-    expect(within(section).getByText("Task overdue")).toBeDefined();
-    expect(within(section).getByText("Task today")).toBeDefined();
-    expect(within(section).queryByText("Task done")).toBeNull();
-
-    // The checkbox write mirrors the tasks hub's cell edit: the status
-    // option id via property.set.
-    const row = within(section).getByText("Task today").closest("li")!;
-    fireEvent.click(within(row as HTMLElement).getByRole("checkbox"));
+    // Plain editable outline rows (owner 2026-10-23): the title rides the
+    // BlockRow machinery, no checkbox or status chrome.
+    const titles = () => rowTitles(section);
     await waitFor(() => {
-      const value = client
-        .getEffectiveProperties(todayOpen)
-        .find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus)?.value;
-      expect(value).toBe(doneId);
+      expect(titles()).toContain("Task overdue");
+      expect(titles()).toContain("Task today");
     });
+    expect(titles()).not.toContain("Task done");
   });
 
   it("creates the daily note in place via the empty-state button", async () => {
@@ -245,7 +244,7 @@ describe("CalendarView", () => {
     renderCalendar(client);
     const section = await screen.findByRole("region", { name: "Created" });
     await waitFor(() => {
-      expect(within(section).getByText("Fresh object")).toBeDefined();
+      expect(rowTitles(section)).toContain("Fresh object");
     });
     expect(within(section).queryByText(today.replace(/-/g, ""))).toBeNull();
   });
@@ -290,7 +289,9 @@ describe("CalendarView", () => {
       expect(screen.queryByRole("region", { name: "Daily note" })).toBeNull();
     });
     // The seed-authored task class node was created today, so it lists here.
-    expect(within(created).getByText("task")).toBeDefined();
+    await waitFor(() => {
+      expect(rowTitles(created)).toContain("task");
+    });
 
     fireEvent.click(screen.getByRole("tab", { name: "All" }));
     await waitFor(() => {

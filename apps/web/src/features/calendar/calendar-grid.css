@@ -61,6 +61,47 @@
   pointer-events: auto;
 }
 
+/* The calendar title register (owner 2026-10-23) — ONE convention for every
+   calendar surface (the top-bar popup and the Calendar view's MonthCalendar
+   panel): the container centers the period name(s); the month rides
+   prominent, the year greyed; both are clickable buttons opening the
+   month/year pages when the host wires the callbacks (inert spans wear the
+   same classes, cursor aside). */
+.calendar-title {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+  gap: var(--spacing-1);
+  font: var(--font-title-small);
+  color: var(--md-sys-color-on-surface);
+}
+
+.calendar-title-btn {
+  background: none;
+  border: none;
+  padding: 0 var(--spacing-1);
+  font: var(--font-title-small);
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  border-radius: var(--shape-small);
+}
+
+.calendar-title-btn:hover {
+  color: var(--md-sys-color-primary);
+}
+
+.calendar-title-btn--month {
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+}
+
+span.calendar-title-btn,
+span.calendar-title-btn--month {
+  cursor: default;
+}
+
 /* The has-note fill is the genuine active identity (a day page exists): the
    combined rule keeps primary-container while hovered — the hover ruling's
    pattern; hover must not wash the active fill away. */

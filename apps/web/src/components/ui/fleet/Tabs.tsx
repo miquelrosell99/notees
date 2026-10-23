@@ -178,6 +178,12 @@ function Tab<TValue extends string = string>({
         // mousedown); the controlled root makes both paths converge.
         if (!disabled) onChange(String(tabValue));
         onClick?.(event);
+        // Radix focuses the activated trigger, and the programmatic focus
+        // draws the focus-visible ring — read as a selection border after
+        // a pointer click (owner 2026-10-23). POINTER activation (detail >
+        // 0) blurs; keyboard activation keeps focus — the ring and the
+        // arrow-key navigation stay for keyboard users.
+        if (event.detail > 0) event.currentTarget.blur();
       }}
       {...props}
     >

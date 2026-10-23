@@ -1,14 +1,24 @@
 /**
  * CalendarView — the Capacities-style Day view behind the sidebar's
  * Calendar entry: a selected day (local ISO, default today) with the daily
- * note embedded, open tasks scheduled for the day (overdue surfaced above),
- * general date references fanning into the day node, everything created
- * that day, quick-create chips (configurable per workspace in Workspace
+ * note's child blocks embedded as a standalone editable outline
+ * (DailyNoteOutline — no page chrome; the top bar names the day), open
+ * tasks scheduled for the day (overdue surfaced above), general date
+ * references fanning into the day node, everything created that day,
+ * quick-create chips (configurable per workspace in Workspace
  * Settings; defaults = every class with a date-typed binding), and the
  * month grid in the right column (MonthCalendar) — the breadth pass:
  * range-aware dots (date refs and range ends fan out to the
  * deterministic day node) plus the reviewed tint on day cells and the
  * week agenda beneath the grid.
+ *
+ * The day sections (Daily note, Tasks, Dated, Created) and the week
+ * agenda render through the shared NodeCollection in outline mode —
+ * plain editable block rows, no bespoke row chrome (owner 2026-10-23):
+ * the rows inline-edit like every outline, Dated/Created/agenda ride
+ * the containing-page breadcrumb trail (the family default), Tasks opts
+ * out (standalone rows). Tasks keeps only its section-level organization
+ * (the Overdue group above Scheduled) and the New affordance.
  *
  * The composition (owner 2026-10-23): the calendar is the MainContentFrame's
  * second host — the day content rides the middle cell, the mini-month +
@@ -41,15 +51,12 @@ import {
   occurrenceIsosOf,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
-  type RecurrenceRule,
 } from "@notees/domain";
 
 import type { ClientNode, QueryRunResult } from "@/core/workspace-client/index.js";
 
 import { instantiateTemplate } from "@/core/clone.js";
-import { displayNameFromClient, labelFromClient, formatDateName } from "../../ui/dateDisplay.js";
-import { Icon } from "../../ui/Icon.js";
-import { PageView } from "../../ui/PageView.js";
+import { displayNameFromClient, formatDateName } from "../../ui/dateDisplay.js";
 import { MainContentFrame } from "../../ui/MainContentFrame.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
 import { TemplatePickerModal } from "../templates/TemplatePickerModal.js";
@@ -67,32 +74,28 @@ import {
   hasDatedRefs,
   isoWeekNumber,
   partitionOpenTasks,
-  repeatLabelOf,
   todayIsoLocal,
   weekDaysOfIso,
   weekdayLabel,
-  type OpenTaskRow,
 } from "./calendarViewUtils.js";
 import {
   datedRowsForDay,
   recurringRowsOf,
-  setTaskDone,
   taskRowsOf,
-  taskStatusLabel,
-  type DatedRow,
 } from "./calendarRows.js";
 import {
   resolveQuickCreateChipClasses,
   useQuickCreateClassesSetting,
 } from "./calendarQuickCreateSettings.js";
+import { NodeCollection } from "../collection/index.js";
+import type { NodeCollectionItem } from "../collection/index.js";
 import { RepeatPicker } from "../date-pickers/RepeatPicker.js";
 import { Button } from "../../components/ui/fleet/Button.js";
-import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
-import { Pill } from "../../components/ui/fleet/Pill.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
 import { MonthCalendar } from "./MonthCalendar.js";
+import { DailyNoteOutline } from "./DailyNoteOutline.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import "./CalendarView.css";
 
@@ -106,35 +109,16 @@ const FILTERS: Array<{ value: DayFilter; label: string }> = [
   { value: "created", label: "Created" },
 ];
 
-/** Read-only class chips (the table view's idiom) on a calendar row. */
-function RowClassChips({ client, classIds }: { client: AnyClient; classIds: string[] }) {
-  const classes = classIds
-    .map((classId) => client.getNode(classId))
-    .filter((node): node is ClientNode => node !== undefined);
-  if (classes.length === 0) return null;
-  return (
-    <span className="calendar-view__chips">
-      {classes.map((cls) => (
-        <span key={cls.id} className="calendar-view__chip">
-          {labelFromClient(client, cls.id) ?? "Untitled"}
-        </span>
-      ))}
-    </span>
-  );
-}
-
 /**
- * The honest repeats marker: ONE row represents the whole series —
- * the icon + label say "repeats", never N phantom rows for N occurrences.
+ * A node's collection item, undefined filtered — the sections feed the
+ * shared NodeCollection plain `{node}` rows (no bespoke row chrome,
+ * owner 2026-10-23).
  */
-function RepeatMarker({ rule }: { rule: RecurrenceRule }) {
-  const label = repeatLabelOf(rule);
-  return (
-    <span className="calendar-view__repeat" title={`Repeats ${label.toLowerCase()}`}>
-      <Icon path="mdi-repeat" size={0.8} />
-      <span className="calendar-view__repeat-label">{label}</span>
-    </span>
-  );
+function itemsOf(client: AnyClient, ids: string[]): NodeCollectionItem[] {
+  return ids
+    .map((id) => client.getNode(id))
+    .filter((node): node is ClientNode => node !== undefined)
+    .map((node) => ({ node }));
 }
 
 export function CalendarView({
@@ -215,7 +199,7 @@ export function CalendarView({
 
   // --- tasks: client-side partition of the one query -------------------------
   const partitioned = useMemo(() => {
-    if (tasksResult === null) return { overdue: [] as OpenTaskRow[], scheduled: [] as OpenTaskRow[] };
+    if (tasksResult === null) return { overdue: [], scheduled: [] };
     return partitionOpenTasks(
       taskRowsOf(
         client,
@@ -229,13 +213,18 @@ export function CalendarView({
   const openCount =
     partitioned.overdue.length + partitioned.scheduled.filter((row) => !row.occurrenceDone).length;
 
-  const statusLabelOf = (id: string): string | null =>
-    taskStatusLabel(
-      statusSchema,
-      client
-        .getEffectiveProperties(id)
-        .find((entry) => entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus)?.value,
-    );
+  // The Tasks section's plain outline rows (owner 2026-10-23: no checkbox,
+  // status pill, or repeat marker — the shared editable outline row, like
+  // Dated/Created, no breadcrumbs). Overdue keeps its own group above
+  // Scheduled — section-level organization, not row chrome.
+  const overdueItems = useMemo(
+    () => itemsOf(client, partitioned.overdue.map((row) => row.id)),
+    [client, partitioned, version],
+  );
+  const scheduledItems = useMemo(
+    () => itemsOf(client, partitioned.scheduled.map((row) => row.id)),
+    [client, partitioned, version],
+  );
 
   // --- recurrence (compute-on-read) -------------------------------------------
   // Every date value carrying a `repeat` rule, scanned once per store change.
@@ -249,9 +238,11 @@ export function CalendarView({
   );
 
   // The Dated rows for the selected day: materialized backlinks UNION the
-  // recurring events occurring on this day (deduped by id).
-  const datedDayRows = useMemo(
-    () => datedRowsForDay(client, selectedIso, recurringEvents),
+  // recurring events occurring on this day (deduped by id). The section
+  // renders them as plain editable outline rows riding the breadcrumb
+  // trail (the collection default).
+  const datedItems = useMemo(
+    () => datedRowsForDay(client, selectedIso, recurringEvents).map((row) => ({ node: row.node })),
     [client, selectedIso, recurringEvents, version],
   );
 
@@ -285,6 +276,10 @@ export function CalendarView({
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "") || a.id.localeCompare(b.id));
   }, [client, createdResult, selectedIso, version]);
 
+  // Created renders as plain editable outline rows with the breadcrumb
+  // trail (the collection default), newest first.
+  const createdItems = useMemo(() => createdRows.map((node) => ({ node })), [createdRows]);
+
   // --- day marks + week breadth -------------------------------------------
   // Range-aware dots + the reviewed tint read the same materialized state as
   // the sections: one backlink read per day cell (the edge projection fans
@@ -307,16 +302,31 @@ export function CalendarView({
     [selectedIso, firstDayOfWeek],
   );
 
-  // The week agenda: each visible day's dated references (non-task — tasks
-  // have their own section) UNION its recurring occurrences, non-empty days
-  // only.
-  const weekAgenda = useMemo(
+  // The week agenda as collection groups: each visible day with dated rows
+  // is a collapsible group (its formatted date the header, the click
+  // selecting the day); the rows are plain editable outline rows with the
+  // breadcrumb trail — the same collection grammar as the Dated section
+  // (owner 2026-10-23).
+  const weekAgendaGroups = useMemo(
     () =>
-      weekDays.map((iso) => ({
-        iso,
-        rows: datedRowsForDay(client, iso, recurringEvents),
-      })),
-    [client, weekDays, recurringEvents, version],
+      weekDays
+        .map((iso) => {
+          const rows = datedRowsForDay(client, iso, recurringEvents);
+          if (rows.length === 0) return null;
+          const [y, m, d] = iso.split("-").map(Number);
+          return {
+            id: iso,
+            label: new Date(y!, m! - 1, d!, 12).toLocaleDateString(undefined, {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            }),
+            items: rows.map((row) => ({ node: row.node })),
+            onHeaderClick: () => setSelectedIso(iso),
+          };
+        })
+        .filter((group) => group !== null),
+    [client, weekDays, recurringEvents, setSelectedIso, version],
   );
 
   // --- quick-create chips ------------------------------------------------------
@@ -405,59 +415,6 @@ export function CalendarView({
   const formattedDate = formatDateName(selectedIso.replace(/-/g, "")) ?? selectedIso;
   const show = (section: DayFilter) => filter === "all" || filter === section;
 
-  const renderTaskRow = (row: OpenTaskRow, group: "overdue" | "scheduled") => {
-    // A recurring task's checkbox reflects THIS occurrence (the
-    // viewed day) — done occurrences render checked and reopen from there;
-    // the node-level status stays untouched.
-    const checked = row.closed || row.occurrenceDone;
-    return (
-    <li
-      key={row.id}
-      className={`calendar-view__row${
-        group === "overdue" ? " calendar-view__row--overdue" : ""
-      }${row.occurrenceDone ? " calendar-view__row--done" : ""}`}
-    >
-      <Checkbox
-        size="sm"
-        checked={checked}
-        disabled={statusSchema === undefined}
-        aria-label={checked ? "Reopen task" : "Mark task done"}
-        onChange={(checked) =>
-          void setTaskDone(client, statusSchema, row.id, checked, selectedIso)
-        }
-      />
-      <button
-        type="button"
-        className="calendar-view__row-name"
-        onClick={() => onOpenPage(row.id)}
-      >
-        {labelFromClient(client, row.id) ?? "Untitled"}
-      </button>
-      {row.repeat !== null && <RepeatMarker rule={row.repeat} />}
-      {statusSchema !== undefined && statusLabelOf(row.id) !== null && (
-        <Pill text={statusLabelOf(row.id)!} />
-      )}
-      {group === "overdue" && row.scheduledIso !== null && (
-        <span className="calendar-view__row-day">{row.scheduledIso}</span>
-      )}
-    </li>
-    );
-  };
-
-  const renderDatedRow = (row: DatedRow) => (
-    <li key={row.node.id} className="calendar-view__row">
-      <button
-        type="button"
-        className="calendar-view__row-name"
-        onClick={() => onOpenPage(row.node.id)}
-      >
-        {displayNameFromClient(client, row.node.id) ?? row.node.id}
-      </button>
-      {row.rule !== null && <RepeatMarker rule={row.rule} />}
-      <RowClassChips client={client} classIds={row.node.classIds} />
-    </li>
-  );
-
   return (
     <div className="calendar-view">
       {/* The composition rides the shared MainContentFrame (owner
@@ -538,35 +495,35 @@ export function CalendarView({
                 firstDayOfWeek={firstDayOfWeek}
                 hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
                 extraMarks={dayExtraMarks}
+                /* The popup's title-button wiring (owner 2026-10-23): the
+                   month/year buttons open the monthly/yearly date-chain
+                   pages. */
+                onSelectMonth={(year, month) => {
+                  const iso = `${year}-${String(month).padStart(2, "0")}-01`;
+                  void client.ensureDateChain(iso).then(({ month: monthId }) => onOpenPage(monthId));
+                }}
+                onSelectYear={(year) => {
+                  void client
+                    .ensureDateChain(`${year}-01-01`)
+                    .then(({ year: yearId }) => onOpenPage(yearId));
+                }}
               />
               <div className="calendar-view__agenda" aria-label="Week agenda">
                 <h2 className="calendar-view__agenda-title">This week</h2>
-                {weekAgenda.every((day) => day.rows.length === 0) ? (
+                {weekAgendaGroups.length === 0 ? (
                   <p className="calendar-view__muted">Nothing dated this week.</p>
                 ) : (
-                  weekAgenda
-                    .filter((day) => day.rows.length > 0)
-                    .map(({ iso, rows }) => {
-                      const [y, m, d] = iso.split("-").map(Number);
-                      return (
-                        <div key={iso} className="calendar-view__agenda-day">
-                          <button
-                            type="button"
-                            className="calendar-view__agenda-day-title"
-                            onClick={() => setSelectedIso(iso)}
-                          >
-                            {new Date(y!, m! - 1, d!, 12).toLocaleDateString(undefined, {
-                              weekday: "short",
-                              month: "short",
-                              day: "numeric",
-                            })}
-                          </button>
-                          <ul className="calendar-view__rows">
-                            {rows.map(renderDatedRow)}
-                          </ul>
-                        </div>
-                      );
-                    })
+                  <NodeCollection
+                    viewMode="outline"
+                    client={client}
+                    /* The flattened rows ride `items` too — the outline's
+                       grouped path still gates on a non-empty item list
+                       (the grouped hosts' contract). */
+                    items={weekAgendaGroups.flatMap((group) => group.items)}
+                    groups={weekAgendaGroups}
+                    editable
+                    onNodeClick={onOpenPage}
+                  />
                 )}
               </div>
             </div>
@@ -611,7 +568,7 @@ export function CalendarView({
               <section className="calendar-view__section" aria-label="Daily note">
                 <h2 className="calendar-view__section-title">Daily Note</h2>
                 {hasDailyNote ? (
-                  <PageView client={client} pageId={dayId} onOpenPage={onOpenPage} embedded />
+                  <DailyNoteOutline client={client} dayId={dayId} onOpenPage={onOpenPage} />
                 ) : (
                   <div className="calendar-view__empty-block">
                     <Button
@@ -626,7 +583,7 @@ export function CalendarView({
                 )}
               </section>
             )}
-  
+
             {show("tasks") && (
               <section className="calendar-view__section" aria-label="Tasks">
                 <div className="calendar-view__section-head">
@@ -640,55 +597,64 @@ export function CalendarView({
                 {queryError === null && openCount === 0 && (
                   <p className="calendar-view__muted">Nothing scheduled for this day.</p>
                 )}
-                {partitioned.overdue.length > 0 && (
+                {overdueItems.length > 0 && (
                   <div className="calendar-view__group">
                     <h3 className="calendar-view__group-title calendar-view__group-title--overdue">
                       Overdue
                     </h3>
-                    <ul className="calendar-view__rows">
-                      {partitioned.overdue.map((row) => renderTaskRow(row, "overdue"))}
-                    </ul>
+                    <NodeCollection
+                      viewMode="outline"
+                      client={client}
+                      items={overdueItems}
+                      editable
+                      showBreadcrumbs={false}
+                      onNodeClick={onOpenPage}
+                    />
                   </div>
                 )}
-                {partitioned.scheduled.length > 0 && (
+                {scheduledItems.length > 0 && (
                   <div className="calendar-view__group">
                     <h3 className="calendar-view__group-title">Scheduled</h3>
-                    <ul className="calendar-view__rows">
-                      {partitioned.scheduled.map((row) => renderTaskRow(row, "scheduled"))}
-                    </ul>
+                    <NodeCollection
+                      viewMode="outline"
+                      client={client}
+                      items={scheduledItems}
+                      editable
+                      showBreadcrumbs={false}
+                      onNodeClick={onOpenPage}
+                    />
                   </div>
                 )}
               </section>
             )}
-  
+
             {show("dated") &&
-              (datedDayRows.length > 0 ? (
+              (datedItems.length > 0 ? (
                 <section className="calendar-view__section" aria-label="Dated">
                   <h2 className="calendar-view__section-title">Dated</h2>
-                  <ul className="calendar-view__rows">{datedDayRows.map(renderDatedRow)}</ul>
+                  <NodeCollection
+                    viewMode="outline"
+                    client={client}
+                    items={datedItems}
+                    editable
+                    onNodeClick={onOpenPage}
+                  />
                 </section>
               ) : (
                 filter === "dated" && <EmptyState title="Nothing references this day yet." />
               ))}
-  
+
             {show("created") &&
-              (createdRows.length > 0 ? (
+              (createdItems.length > 0 ? (
                 <section className="calendar-view__section" aria-label="Created">
                   <h2 className="calendar-view__section-title">Created</h2>
-                  <ul className="calendar-view__rows">
-                    {createdRows.map((node) => (
-                      <li key={node.id} className="calendar-view__row">
-                        <button
-                          type="button"
-                          className="calendar-view__row-name"
-                          onClick={() => onOpenPage(node.id)}
-                        >
-                          {labelFromClient(client, node.id) ?? "Untitled"}
-                        </button>
-                        <RowClassChips client={client} classIds={node.classIds} />
-                      </li>
-                    ))}
-                  </ul>
+                  <NodeCollection
+                    viewMode="outline"
+                    client={client}
+                    items={createdItems}
+                    editable
+                    onNodeClick={onOpenPage}
+                  />
                 </section>
               ) : (
                 filter === "created" && <EmptyState title="There's nothing here (yet)." />

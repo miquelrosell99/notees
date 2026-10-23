@@ -7,9 +7,11 @@
  * day-grid implementation, and the pickers/ family stays untouched.
  *
  * Chrome: prev/next period stepping, a days/months/years zoom
- * (SelectionButton, the popup's control), the month + year title rendered
- * as two separate elements like the popup's (owner 2026-10-23), and the
- * Mo–Su weekday header honoring the first-day-of-week device setting.
+ * (SelectionButton, the popup's control), the month + year title as the
+ * popup's exact title buttons — clickable, the month prominent and the
+ * year greyed (`calendar-title-btn`, owner 2026-10-23; without the
+ * callbacks they render as the same-looking inert spans), and the Mo–Su
+ * weekday header honoring the first-day-of-week device setting.
  * Clicking a day selects it (the host owns what selection means); the
  * visible month follows the selected date across month boundaries. The
  * panel's own Today button retired (owner 2026-10-23): the view's top bar
@@ -35,6 +37,10 @@ export interface MonthCalendarProps {
   hasNote: (isoDate: string) => boolean;
   /** Secondary marks beyond has-note (range-aware dots, reviewed). */
   extraMarks?: ((isoDate: string) => CalendarDayExtraMarks) | undefined;
+  /** Open the month page (month is 1-indexed) — the popup's title-button wiring. */
+  onSelectMonth?: ((year: number, month: number) => void) | undefined;
+  /** Open the year page — the popup's title-button wiring. */
+  onSelectYear?: ((year: number) => void) | undefined;
 }
 
 export function MonthCalendar({
@@ -43,6 +49,8 @@ export function MonthCalendar({
   firstDayOfWeek = 1,
   hasNote,
   extraMarks,
+  onSelectMonth,
+  onSelectYear,
 }: MonthCalendarProps) {
   const [year, month] = (() => {
     const [y, m] = selectedDate.split("-").map(Number);
@@ -68,18 +76,55 @@ export function MonthCalendar({
           aria-label="Previous period"
           onClick={goPrev}
         />
-        <span className="month-calendar__title">
+        {/* The popup's title register exactly (owner 2026-10-23) — the shared
+            calendar-title classes from calendar-grid.css: the month
+            prominent, the year greyed, both clickable buttons opening the
+            month/year pages when the host wired the callbacks (inert spans
+            with the identical look otherwise). */}
+        <span className="calendar-title">
           {mode === "days" && (
             <>
-              <span className="month-calendar__title-month">{MONTHS_SHORT[currentMonth]}</span>
-              <span className="month-calendar__title-year">{currentYear}</span>
+              {onSelectMonth !== undefined ? (
+                <button
+                  type="button"
+                  className="calendar-title-btn calendar-title-btn--month"
+                  title="Open monthly page"
+                  onClick={() => onSelectMonth(currentYear, currentMonth + 1)}
+                >
+                  {MONTHS_SHORT[currentMonth]}
+                </button>
+              ) : (
+                <span className="calendar-title-btn--month">{MONTHS_SHORT[currentMonth]}</span>
+              )}
+              {onSelectYear !== undefined ? (
+                <button
+                  type="button"
+                  className="calendar-title-btn"
+                  title="Open yearly page"
+                  onClick={() => onSelectYear(currentYear)}
+                >
+                  {currentYear}
+                </button>
+              ) : (
+                <span className="calendar-title-btn">{currentYear}</span>
+              )}
             </>
           )}
-          {mode === "months" && (
-            <span className="month-calendar__title-year">{currentYear}</span>
-          )}
+          {mode === "months" &&
+            (onSelectYear !== undefined ? (
+              <button
+                type="button"
+                className="calendar-title-btn"
+                title="Open yearly page"
+                onClick={() => onSelectYear(currentYear)}
+              >
+                {currentYear}
+              </button>
+            ) : (
+              <span className="calendar-title-btn">{currentYear}</span>
+            ))}
           {mode === "years" && (
-            <span className="month-calendar__title-year">
+            <span className="calendar-year-range">
               {yearWindowStart}–{yearWindowStart + 11}
             </span>
           )}
