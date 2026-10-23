@@ -17,11 +17,19 @@
  * Post-replay, a workspace whose log has no snapshot at all gets one from
  * the freshly converged store so the next fresh client restores
  * instead of replaying the whole log.
+ *
+ * Workspace images (clone/import): snapshotImage takes a consistent online
+ * backup of a live store; installImage rewrites a cloned image's
+ * workspace_id rows into an ENVELOPE-EMPTY workspace's derived file (the
+ * next storeFor hydrates from it — the snapshot fast path only fires while
+ * the log is empty, so installing into a workspace with seed envelopes would
+ * silently never apply).
  */
 
-import { mkdirSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import Database from "better-sqlite3";
 import { isEncryptedPayload, type Envelope } from "@notees/protocol";
 import { Store, StoreError } from "@notees/store";
 import type { ChangeSummary } from "@notees/store";
@@ -49,6 +57,51 @@ export interface ApplyOutcome {
   savedIds: string[];
   seqs: Record<string, number>;
   summaries: ChangeSummary[];
+}
+
+/**
+ * Snapshot-image refusal (clone/import). `status` is the HTTP status the
+ * route surfaces: 409 `conflict` for a workspace-state clash (open handle,
+ * non-empty log), 422 `validation_failed` for an unusable image or source.
+ */
+export type WorkspaceImageErrorCode =
+  | "no_store_file"
+  | "empty_workspace"
+  | "workspace_open"
+  | "workspace_not_empty"
+  | "invalid_image";
+
+export class WorkspaceImageError extends Error {
+  constructor(
+    readonly code: WorkspaceImageErrorCode,
+    message: string,
+    readonly status: 409 | 422,
+  ) {
+    super(message);
+    this.name = new.target.name;
+  }
+}
+
+type Db = InstanceType<typeof Database>;
+
+const SQLITE_MAGIC = Buffer.from("SQLite format 3\0");
+
+/**
+ * Re-point every workspace-scoped row of a store image at `workspaceId`.
+ * An image cloned from another workspace still carries the source's
+ * workspace_id everywhere; every table with such a column is rewritten in
+ * place (measured ~0.1 s for 54k rows on a 125 MB image).
+ */
+function rewriteImageWorkspaceId(db: Db, workspaceId: string): void {
+  const tables = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+    .all() as Array<{ name: string }>;
+  for (const { name } of tables) {
+    const quoted = `"${name.replace(/"/g, '""')}"`;
+    const columns = db.prepare(`PRAGMA table_info(${quoted})`).all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "workspace_id")) continue;
+    db.prepare(`UPDATE ${quoted} SET workspace_id = ?`).run(workspaceId);
+  }
 }
 
 export class WorkspaceManager {
@@ -197,6 +250,138 @@ export class WorkspaceManager {
     } catch {
       // File already gone — nothing to unlink.
     }
+  }
+
+  /**
+   * A consistent byte image of a workspace's derived store: drain the
+   * workspace's write queue, then an online backup of the LIVE database to a
+   * temp file under the derived dir (better-sqlite3's backup API — a plain
+   * file copy could tear mid-write). Throws when the workspace has no
+   * derived store file or carries no node rows (nothing to clone).
+   */
+  async snapshotImage(workspaceId: string): Promise<Buffer> {
+    let handle = this.handles.get(workspaceId);
+    if (handle === undefined) {
+      if (!existsSync(this.pathFor(workspaceId))) {
+        throw new WorkspaceImageError(
+          "no_store_file",
+          `workspace ${workspaceId} has no derived store — nothing to snapshot`,
+          422,
+        );
+      }
+      handle = this.handle(workspaceId);
+    }
+    await handle.queue.catch(() => undefined);
+    const nodeCount = (
+      handle.store.database.prepare("SELECT COUNT(*) AS n FROM node").get() as { n: number }
+    ).n;
+    if (nodeCount === 0) {
+      throw new WorkspaceImageError(
+        "empty_workspace",
+        `workspace ${workspaceId} has no nodes — nothing to snapshot`,
+        422,
+      );
+    }
+    mkdirSync(this.derivedDir, { recursive: true });
+    const tempPath = join(this.derivedDir, `.image-${workspaceId}-${uuidv7()}.tmp.db`);
+    try {
+      try {
+        unlinkSync(tempPath);
+      } catch {
+        // Fresh temp name — nothing to unlink.
+      }
+      // `database` is the store package's backend-neutral wrapper; the
+      // server always runs the better-sqlite3 file backend, whose raw
+      // connection's backup API takes the consistent online snapshot.
+      const wrapped = handle.store.database as unknown as { raw?: Db };
+      if (wrapped.raw === undefined || typeof wrapped.raw.backup !== "function") {
+        throw new Error("workspace store is not backed by better-sqlite3 — cannot snapshot");
+      }
+      await wrapped.raw.backup(tempPath);
+      return readFileSync(tempPath);
+    } finally {
+      try {
+        unlinkSync(tempPath);
+      } catch {
+        // Temp already gone — nothing to unlink.
+      }
+    }
+  }
+
+  /**
+   * Install a snapshot image (serialized @notees/store bytes, usually cloned
+   * from another workspace) as this workspace's derived store file, rewriting
+   * every workspace_id row to `workspaceId`. The workspace must be
+   * ENVELOPE-EMPTY: the next storeFor hydrates by restoring the snapshot, and
+   * that fast path only fires while the log is empty (up_to_seq >= maxSeq).
+   * Refuses when a handle is open here (the live store would shadow the file)
+   * or the relay log already carries envelopes. Opens nothing — the next
+   * storeFor hydrates from the file. A stale derived file from a previous
+   * process is overwritten.
+   */
+  installImage(workspaceId: string, bytes: Buffer): { nodeCount: number } {
+    if (this.handles.has(workspaceId)) {
+      throw new WorkspaceImageError(
+        "workspace_open",
+        `workspace ${workspaceId} has an open derived store in this process — drop it before installing an image`,
+        409,
+      );
+    }
+    if (this.relay.envelopeCount(workspaceId) > 0) {
+      throw new WorkspaceImageError(
+        "workspace_not_empty",
+        `workspace ${workspaceId} already has a relay log — images only install into envelope-empty workspaces`,
+        409,
+      );
+    }
+    if (bytes.length < SQLITE_MAGIC.length || !bytes.subarray(0, SQLITE_MAGIC.length).equals(SQLITE_MAGIC)) {
+      throw new WorkspaceImageError(
+        "invalid_image",
+        "image is not a serialized @notees/store database (bad SQLite magic)",
+        422,
+      );
+    }
+    mkdirSync(this.derivedDir, { recursive: true });
+    const tempPath = join(this.derivedDir, `.install-${workspaceId}-${uuidv7()}.tmp.db`);
+    let nodeCount = 0;
+    try {
+      writeFileSync(tempPath, bytes);
+      const db = new Database(tempPath);
+      try {
+        rewriteImageWorkspaceId(db, workspaceId);
+        nodeCount = (db.prepare("SELECT COUNT(*) AS n FROM node").get() as { n: number }).n;
+      } catch (error) {
+        throw new WorkspaceImageError(
+          "invalid_image",
+          `image is not a @notees/store database with a node table: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          422,
+        );
+      } finally {
+        db.close();
+      }
+      if (nodeCount === 0) {
+        throw new WorkspaceImageError(
+          "invalid_image",
+          "image carries no node rows — refusing to install an empty workspace image",
+          422,
+        );
+      }
+      try {
+        unlinkSync(this.pathFor(workspaceId));
+      } catch {
+        // No stale file — nothing to unlink.
+      }
+      renameSync(tempPath, this.pathFor(workspaceId));
+    } finally {
+      try {
+        unlinkSync(tempPath);
+      } catch {
+        // Installed (renamed) or already removed — nothing to clean.
+      }
+    }
+    return { nodeCount };
   }
 
   async close(): Promise<void> {

@@ -44,6 +44,7 @@ import type { NodeRow } from "@notees/store";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { zipSync } from "fflate";
+import { uuidv7 } from "uuidv7";
 
 import { readAssetBytes } from "./assets.js";
 import type { ServerContext } from "./context.js";
@@ -52,6 +53,7 @@ import { actorIdForUser, type Principal } from "./identity.js";
 import { hashPassword, verifyPassword } from "./auth.js";
 import { parseApiScopes } from "./scopes.js";
 import { fullObject } from "./routes-objects.js";
+import { WorkspaceImageError } from "./workspace-store.js";
 
 const emailSchema = z.string().trim().email();
 const passwordSchema = z.string().min(8).max(256);
@@ -286,6 +288,18 @@ export function requireUser(
     throw new AppError(401, "unauthenticated", "a valid session or API key is required");
   }
   return resolved.principal as Extract<Principal, { kind: "user" }>;
+}
+
+/** Maps a WorkspaceManager image refusal onto the error envelope; rethrows anything else. */
+export function rethrowImageError(error: unknown): never {
+  if (error instanceof WorkspaceImageError) {
+    throw new AppError(
+      error.status,
+      error.status === 409 ? "conflict" : "validation_failed",
+      error.message,
+    );
+  }
+  throw error;
 }
 
 export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): void {
@@ -553,6 +567,66 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     ctx.relay.deleteWorkspaceData(id);
     ctx.auth.deleteWorkspace(id);
     return { ok: true };
+  });
+
+  // POST /workspaces/:id/clone — snapshot-image clone into a FRESH workspace:
+  // a consistent image of the source's derived store becomes the target's
+  // initial state (workspace_id rewritten; the source must carry node rows).
+  // The clone's relay log starts EMPTY — the snapshot row installed below is
+  // load-bearing: a derived wipe rehydrates from the snapshot, not a log
+  // that has nothing but the import-time checkpoint. Owner-only, same
+  // membership shape as DELETE; a failure after createWorkspace rolls the
+  // half workspace back best-effort.
+  app.post("/workspaces/:id/clone", async (request, reply) => {
+    const { principal } = requireAccount(ctx, request);
+    const { id: sourceId } = request.params as { id: string };
+    const role = ctx.auth.membership(sourceId, principal.userId);
+    if (role === null) {
+      throw new AppError(404, "not_found", "no such workspace");
+    }
+    if (role !== "owner") {
+      throw new AppError(403, "forbidden", "only the workspace owner can clone it");
+    }
+    const parsed = createWorkspaceSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid clone request");
+    }
+    let bytes: Buffer;
+    try {
+      bytes = await ctx.workspaces.snapshotImage(sourceId);
+    } catch (error) {
+      rethrowImageError(error);
+    }
+    const name = parsed.data.name ?? null;
+    const id = ctx.auth.createWorkspace({ name, createdBy: principal.userId });
+    ctx.auth.addMember(id, principal.userId, "owner");
+    let nodeCount: number;
+    try {
+      ({ nodeCount } = ctx.workspaces.installImage(id, bytes));
+      ctx.relay.saveSnapshot(
+        id,
+        uuidv7(),
+        ctx.relay.maxHlc(sourceId),
+        ctx.relay.latestSeq(id),
+        bytes,
+      );
+    } catch (error) {
+      // Best-effort rollback — a failed clone must not leave a half workspace.
+      try {
+        await ctx.workspaces.drop(id);
+      } catch {
+        // Cleanup is best-effort.
+      }
+      try {
+        ctx.relay.deleteWorkspaceData(id);
+        ctx.auth.deleteWorkspace(id);
+      } catch {
+        // Cleanup is best-effort.
+      }
+      rethrowImageError(error);
+    }
+    reply.code(201);
+    return { id, name, nodeCount };
   });
 
   // GET /workspaces/:id/export.zip — full-workspace ZIP export:
