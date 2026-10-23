@@ -8,7 +8,10 @@ coverage/
 .env
 config/
 apps/server/data/
-scripts/migrated-verify/
+scripts/migrated-verify/*
+# ...except the source-library roster scratch seed harness — the tracked
+# rehearsal tool for scripts/migrate-source-library-roster.mts (/tmp only).
+!scripts/migrated-verify/seed-source-roster-scratch.mts
 .worktrees/
 
 # Deployment artifacts (never tracked — ship compose.example.yaml /
