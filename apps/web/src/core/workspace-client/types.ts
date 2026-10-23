@@ -488,7 +488,9 @@ export interface EffectiveProperty {
   value: unknown;
   /** Authored qualifiers (date-node refs or legacy ISO strings). */
   metadata: Record<string, unknown> | null;
-  source: "authored" | "default";
+  /** "assigned" = an assignment WITHOUT a value (*  property.assign; the row renders empty and the editor authors the
+   *  first value later); the value reads null on those rows. */
+  source: "authored" | "default" | "assigned";
   boundBy: string | null;
   /** R4: false on authored rows whose schema's
    *  scopeClassIds excludes the node — the row SURVIVES (never retroactive)
