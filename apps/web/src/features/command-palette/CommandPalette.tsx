@@ -63,7 +63,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { UndoUiState } from "@/core/undo-journal.js";
 
-import { nodeDisplayName, isDatePageNode, rawDateKeywordOf } from "../../ui/dateDisplay.js";
+import { nodeDisplayName, displayNameFromClient, isDatePageNode, rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { flipTheme, toggleFocusMode } from "../settings/deviceSettings.js";
@@ -455,7 +455,10 @@ export function CommandPalette({
         if (!isDatePageNode(page)) continue;
         datePool.push({
           id: page.id,
-          label: nodeDisplayName(page) || "Untitled",
+          // The title re-reads fresh per row (scope-classed getNode): the
+          // listPages pool is structure-classed, so a pooled row's own
+          // contentAst can lag a rename.
+          label: displayNameFromClient(client, page.id) || "Untitled",
           icon: page.icon ?? "mdi-calendar",
           // The raw compact label stays a keyword: display is formatted, but
           // users still type YYYYMMDD to find a date page.
@@ -473,7 +476,9 @@ export function CommandPalette({
         "Pages",
         pages.map((page) => ({
           id: page.id,
-          label: nodeDisplayName(page) || "Untitled page",
+          // Fresh per-row title read (scope-classed getNode) — the pool's
+          // own contentAst can lag a rename (listPages is structure-classed).
+          label: displayNameFromClient(client, page.id) || "Untitled page",
           icon: page.icon ?? "mdi-file-document-outline",
           keywords: rawDateKeywordOf(page),
           run: () => onOpenNode(page.id),
@@ -484,13 +489,19 @@ export function CommandPalette({
     if (!anyChip && !dailyOnly && text !== "") {
       addFuzzy(
         "Classes",
-        classes.map((cls) => ({
-          id: cls.id,
-          label: nodeDisplayName(cls) || "Untitled class",
-          icon: cls.icon ?? "mdi-shape-outline",
-          keywords: `${nodeDisplayName(cls)}`,
-          run: () => onOpenNode(cls.id),
-        })),
+        classes.map((cls) => {
+          // Fresh per-row title read (scope-classed getNode): the class pool
+          // is structure-classed, so a rename would otherwise leave both the
+          // label AND the fuzzy keywords stale.
+          const fresh = displayNameFromClient(client, cls.id);
+          return {
+            id: cls.id,
+            label: fresh || "Untitled class",
+            icon: cls.icon ?? "mdi-shape-outline",
+            keywords: fresh ?? "",
+            run: () => onOpenNode(cls.id),
+          };
+        }),
       );
       if (onOpenProperty !== undefined) {
         // Property schemas are registry rows, not nodes; the type name stays
@@ -512,13 +523,19 @@ export function CommandPalette({
       // The Classes chip: only the class section answers.
       addFuzzy(
         "Classes",
-        classes.map((cls) => ({
-          id: cls.id,
-          label: nodeDisplayName(cls) || "Untitled class",
-          icon: cls.icon ?? "mdi-shape-outline",
-          keywords: `${nodeDisplayName(cls)}`,
-          run: () => onOpenNode(cls.id),
-        })),
+        classes.map((cls) => {
+          // Fresh per-row title read (scope-classed getNode): the class pool
+          // is structure-classed, so a rename would otherwise leave both the
+          // label AND the fuzzy keywords stale.
+          const fresh = displayNameFromClient(client, cls.id);
+          return {
+            id: cls.id,
+            label: fresh || "Untitled class",
+            icon: cls.icon ?? "mdi-shape-outline",
+            keywords: fresh ?? "",
+            run: () => onOpenNode(cls.id),
+          };
+        }),
       );
     }
 

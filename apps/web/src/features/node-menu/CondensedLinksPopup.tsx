@@ -98,6 +98,7 @@ export function CondensedLinksPopup({
             <NodeResultItem
               key={`${link.targetNodeId}-${link.start}`}
               node={node}
+              client={client}
               {...(parentPath !== null ? { parentPath } : {})}
               onClick={() => {
                 onClose();

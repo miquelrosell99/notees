@@ -12,7 +12,7 @@ import { useQuickAdd } from "./useQuickAdd.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import "./QuickAddModal.css";
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
 
 export type QuickAddDestination = "today" | "inbox";
 
@@ -38,7 +38,10 @@ interface QuickAddModalProps {
   isOpen: boolean;
   onClose: () => void;
   /** The workspace data surface the quick capture writes through. */
-  client: Pick<WorkspaceClient | WorkerClient, "createObject" | "listPages" | "ensureDateChain">;
+  client: Pick<
+    WorkspaceClient | WorkerClient,
+    "createObject" | "listPages" | "ensureDateChain" | "getNode" | "getDisplayName"
+  >;
 }
 
 export function QuickAddModal({ isOpen, onClose, client }: QuickAddModalProps) {
@@ -115,9 +118,12 @@ export function QuickAddModal({ isOpen, onClose, client }: QuickAddModalProps) {
     if (!isOpen) return;
     let cancelled = false;
     if (quickAddDestination === "inbox") {
+      // The name resolves through the fresh per-node read (scope-classed),
+      // not the pooled row: listPages is structure-classed and can lag a
+      // rename.
       const inbox = client
         .listPages()
-        .find((p) => nodeDisplayName(p) === "Inbox");
+        .find((p) => displayNameFromClient(client, p.id) === "Inbox");
       if (!cancelled) setDestinationPageUuid(inbox?.id ?? null);
     } else {
       void client

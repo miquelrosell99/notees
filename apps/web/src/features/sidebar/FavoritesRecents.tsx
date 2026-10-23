@@ -161,8 +161,13 @@ export function FavoritesRecents({
     // chips and marks fold into their words, markdown links reduce to their
     // label, nothing inside the label is clickable or styled — the row is
     // one button. Date pages keep the setting-aware name via the same
-    // derivation; empty content falls back to the untitled label.
-    const text = plainTitleOf(node, (classId) => client.getDisplayName(classId));
+    // derivation; empty content falls back to the untitled label. The node
+    // is re-read fresh per row (the scope-classed getNode): the listPages
+    // pool feeding `byId` is a structure-classed cached read, so a pooled
+    // row's own contentAst can be stale after a rename — the title never
+    // renders from the pool.
+    const fresh = client.getNode(node.id);
+    const text = plainTitleOf(fresh ?? node, (classId) => client.getDisplayName(classId));
     return (
       <span className="nt-side-item-label">{text === "" ? untitledLabelOf(node) : text}</span>
     );

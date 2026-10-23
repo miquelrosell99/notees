@@ -22,7 +22,10 @@ type AnyClient = WorkspaceClient | WorkerClient;
 export function QuickCreateFab({
   client,
 }: {
-  client: Pick<AnyClient, "createObject" | "listPages" | "ensureDateChain">;
+  client: Pick<
+    AnyClient,
+    "createObject" | "listPages" | "ensureDateChain" | "getNode" | "getDisplayName"
+  >;
 }) {
   const [open, setOpen] = useState(false);
   return (
