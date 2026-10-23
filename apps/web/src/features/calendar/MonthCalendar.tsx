@@ -7,28 +7,22 @@
  * day-grid implementation, and the pickers/ family stays untouched.
  *
  * Chrome: prev/next period stepping, a days/months/years zoom
- * (SelectionButton, the popup's control), a Today button, and the Mo–Su
- * weekday header honoring the first-day-of-week device setting. Clicking a
- * day selects it (the host owns what selection means); the visible month
- * follows the selected date across month boundaries.
+ * (SelectionButton, the popup's control), the month + year title rendered
+ * as two separate elements like the popup's (owner 2026-10-23), and the
+ * Mo–Su weekday header honoring the first-day-of-week device setting.
+ * Clicking a day selects it (the host owns what selection means); the
+ * visible month follows the selected date across month boundaries. The
+ * panel's own Today button retired (owner 2026-10-23): the view's top bar
+ * already jumps to today.
  */
 
 import { useEffect } from "react";
 
 import { Button } from "../../components/ui/fleet/Button.js";
 import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
-import { CalendarDayGrid, MONTHS_SHORT, isoLocal, type CalendarDayExtraMarks } from "./dayGrid.js";
+import { CalendarDayGrid, MONTHS_SHORT, type CalendarDayExtraMarks } from "./dayGrid.js";
 import { useCalendarMode } from "./useCalendarMode.js";
 import "./MonthCalendar.css";
-
-function todayLocal(): { year: number; month: number; iso: string } {
-  const now = new Date();
-  return {
-    year: now.getFullYear(),
-    month: now.getMonth(),
-    iso: isoLocal(now.getFullYear(), now.getMonth(), now.getDate()),
-  };
-}
 
 export interface MonthCalendarProps {
   /** The selected day (local YYYY-MM-DD); the grid outlines it. */
@@ -64,20 +58,6 @@ export function MonthCalendar({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- follow selection only
   }, [selectedDate]);
 
-  const today = todayLocal();
-  const goToday = () => {
-    onSelectDate(today.iso);
-    goTo(today.year, today.month);
-    setMode("days");
-  };
-
-  const title =
-    mode === "days"
-      ? `${MONTHS_SHORT[currentMonth]} ${currentYear}`
-      : mode === "months"
-        ? String(currentYear)
-        : `${yearWindowStart}–${yearWindowStart + 11}`;
-
   return (
     <section className="month-calendar" aria-label="Month calendar">
       <div className="month-calendar__header">
@@ -88,7 +68,22 @@ export function MonthCalendar({
           aria-label="Previous period"
           onClick={goPrev}
         />
-        <span className="month-calendar__title">{title}</span>
+        <span className="month-calendar__title">
+          {mode === "days" && (
+            <>
+              <span className="month-calendar__title-month">{MONTHS_SHORT[currentMonth]}</span>
+              <span className="month-calendar__title-year">{currentYear}</span>
+            </>
+          )}
+          {mode === "months" && (
+            <span className="month-calendar__title-year">{currentYear}</span>
+          )}
+          {mode === "years" && (
+            <span className="month-calendar__title-year">
+              {yearWindowStart}–{yearWindowStart + 11}
+            </span>
+          )}
+        </span>
         <Button
           variant="ghost"
           size="sm"
@@ -108,9 +103,6 @@ export function MonthCalendar({
             onChange={(value) => setMode(value as "days" | "months" | "years")}
           />
         </span>
-        <Button variant="ghost" size="sm" className="month-calendar__today" onClick={goToday}>
-          Today
-        </Button>
       </div>
 
       {mode === "days" && (

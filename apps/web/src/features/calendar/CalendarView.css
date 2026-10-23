@@ -1,16 +1,19 @@
 /* CalendarView — the Capacities-style Day view. Tokens from variables.css.
    The composition rides the shared MainContentFrame (owner 2026-10-23 — the
-   calendar is the frame's second host): the root carries the panelled
-   surface inset (the nodeview's .nt-page--panelled register — top spacing-2,
-   sides spacing-4), the top bar's horizontal padding zeroes itself below
+   calendar is the frame's second host): the root carries the sides inset
+   (spacing-4; the top inset retired 2026-10-23 — the bar hugs the card
+   top), the top bar's horizontal padding zeroes itself below
    (the same .surface-topbar two-class reconciliation the nodeview bar
    rides), the day content scrolls in the middle cell, and the mini-month +
    week strip + week agenda ride the frame's raised-card right panel. */
 
-/* The panelled surface inset (the .nt-page--panelled register): the top bar
-   hugs the card top, the columns ride at spacing-4. */
+/* The panelled surface inset (the .nt-page--panelled register) with one
+   deviation (owner 2026-10-23): the top inset retires — the calendar's
+   SurfaceTopBar hugs the card top directly (its own vertical padding
+   carries the gap), one step tighter than the nodeview's spacing-2. The
+   sides keep spacing-4: they carry the columns' side inset. */
 .calendar-view {
-  padding: var(--spacing-2) var(--spacing-4) 0;
+  padding: 0 var(--spacing-4);
 }
 
 /* The bar's horizontal padding retires on this surface (the nodeview bar's

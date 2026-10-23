@@ -92,6 +92,15 @@
   box-shadow: var(--shadow-focus-ring-primary);
 }
 
+/* Today + selected: the primary ring is invisible on the primary today
+   fill (and its antialiased seam read as a double edge, owner 2026-10-23)
+   — the ring switches to on-primary so the outlined selection stays
+   legible on the filled disc. */
+.calendar-day.btn.today.selected,
+.calendar-day.btn.today.selected:hover {
+  box-shadow: 0 0 0 2px var(--md-sys-color-on-primary);
+}
+
 /* Range-aware dot: objects (date refs, date_range ends) point at
    this day but no day page exists — a small primary dot under the number,
    composing with the has-note fill and the today fill. A real span (not

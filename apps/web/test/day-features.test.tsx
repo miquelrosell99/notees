@@ -571,7 +571,7 @@ describe("TaskBuckets (tasks hub)", () => {
 
 // --- #11/#15 calendar breadth -------------------------------------------------------
 
-describe("CalendarView breadth (dots, week strip, agenda)", () => {
+describe("CalendarView breadth (dots, agenda)", () => {
   it("marks days with dated objects (range-aware dots)", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
@@ -602,7 +602,7 @@ describe("CalendarView breadth (dots, week strip, agenda)", () => {
     expect(bareCell.classList.contains("dated")).toBe(false);
   });
 
-  it("renders the week strip and the week agenda around the selected day", async () => {
+  it("renders the week agenda around the selected day", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const future = addDaysIso(today, 2);
@@ -610,20 +610,17 @@ describe("CalendarView breadth (dots, week strip, agenda)", () => {
     await flushWrites();
 
     const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
-    // The strip shows the 7 days of the selected (today's) week.
-    const stripDays = container.querySelectorAll(".week-strip__day");
-    expect(stripDays.length).toBe(7);
-
-    // Select the meeting's day: the strip + agenda follow the selection.
+    // Select the meeting's day: the agenda follows the selection.
     if (future.slice(0, 7) !== today.slice(0, 7)) {
       fireEvent.click(screen.getByRole("button", { name: "Next period" }));
     }
     fireEvent.click(dayCell(container, String(Number(future.slice(8)))));
     const agenda = await screen.findByLabelText("Week agenda");
     await waitFor(() => expect(within(agenda).getByText("Agenda meeting")).toBeDefined());
-    // The selected day moved.
+    // The grid's outlined selection moved with the selection (the week
+    // strip that mirrored this retired, owner 2026-10-23).
     expect(
-      container.querySelector(".week-strip__day.selected")?.getAttribute("aria-label"),
+      container.querySelector(".calendar-day.selected")?.getAttribute("aria-label"),
     ).toContain(String(Number(future.slice(8))));
   });
 });

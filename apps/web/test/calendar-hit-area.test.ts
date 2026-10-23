@@ -1,7 +1,7 @@
 /**
  * Calendar hit-area floor (owner ruling 2026-10-16, the 100%-alignment
  * program): every calendar cell — the shared day grid (top-bar popup +
- * MonthCalendar panel), the WeekStrip, the month/year picks — keeps its
+ * MonthCalendar panel) and the month/year picks — keeps its
  * visible grid geometry EXACTLY as-is and reaches M3's 48×48dp touch
  * floor (the owner ruling 2026-10-16: "I want M3's approach, not the
  * fleet") through the invisible ::after hit-area overlay (the pattern the
@@ -37,7 +37,6 @@ function expectOverlay(css: string, selector: string): void {
 }
 
 const gridCss = readCss("features", "calendar", "calendar-grid.css");
-const stripCss = readCss("features", "calendar", "WeekStrip.css");
 const monthCss = readCss("features", "calendar", "MonthCalendar.css");
 const popupCss = readCss("features", "calendar", "TopBarCalendarPopup.css");
 
@@ -59,10 +58,12 @@ describe("calendar cells carry the 48px invisible hit-area overlay", () => {
     expect(gridCss).toContain(".calendar-day.btn.today .calendar-day__dot");
   });
 
-  it("the WeekStrip cells carry the same overlay contract", () => {
-    expectOverlay(stripCss, ".week-strip__day.btn");
-    expect(stripCss).toContain(".week-strip__dot");
-    expect(stripCss).not.toContain(".week-strip__day.dated::after");
+  it("the today-selected ring swaps to on-primary (legible on the today fill)", () => {
+    const rule = /\.calendar-day\.btn\.today\.selected,\s*\.calendar-day\.btn\.today\.selected:hover \{[^}]*\}/.exec(
+      gridCss,
+    );
+    expect(rule).not.toBeNull();
+    expect(rule![0]).toContain("var(--md-sys-color-on-primary)");
   });
 
   it("the MonthCalendar month/year picks carry the overlay", () => {

@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-23
 
+- **refactor(web): calendar chrome streamline — the agenda panel drops the
+  week strip, the mini-month drops its Today button, titles and hit-states
+  converge (owner pass).** Four owner nits, one slice: (1) the **week
+  strip** under the month grid retired — redundant with the grid + the week
+  agenda beneath it (`WeekStrip` deleted, the fleet barrel + feature index
+  exports with it; the week agenda stays). (2) The mini-month's **Today
+  button retired** — the view's top bar already jumps to today; the top-bar
+  Today button takes the **outline variant** (the Journals view's register:
+  the bordered button reads clickable where the ghost idiom doesn't).
+  (3) The mini-month's title renders **month and year as two separate
+  elements** (the top-bar popup's register) instead of one concatenated
+  string. (4) The **today-selected day cell** stops doubling: the selected
+  ring was primary-on-primary over the today fill (its antialiased seam
+  read as a double edge) — `today.selected` now rings in `on-primary`, so
+  the outlined selection stays legible on the filled disc. Also the
+  calendar surface's top inset retires (`calendar-view` padding-top 0): the
+  bar hugs the card top, one step tighter than the nodeview register.
+  Docs: `docs/features/calendar.md`'s month-grid bullet reworded (no week
+  strip, no panel Today button).
+  - **Verification**: `pnpm typecheck` + `pnpm test` green; visual pass on
+    the redeployed stack (`pnpm verify:min` → VERIFY-PASS).
+
 - **feat(store,web): bound-but-empty rows — virtual class properties SHOW
   on the node, scalar types included (owner ruling, the virtual/realized
   assessment).** Confirming the unrealize semantics surfaced the gap:

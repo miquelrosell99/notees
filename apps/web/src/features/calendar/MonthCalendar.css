@@ -17,19 +17,21 @@
   gap: var(--spacing-1);
 }
 
+/* The title: month and year are two separate elements (the popup's
+   register, owner 2026-10-23) — a centered row with a one-step gap, not
+   one concatenated string. */
 .month-calendar__title {
   flex: 1;
   min-width: 0;
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: var(--spacing-2);
   font: var(--font-title-small);
   color: var(--md-sys-color-on-surface);
 }
 
 .month-calendar__zoom {
-  flex-shrink: 0;
-}
-
-.month-calendar__today.btn {
   flex-shrink: 0;
 }
 
