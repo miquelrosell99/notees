@@ -207,13 +207,13 @@ describe("WorkerCore OPFS persistence", () => {
 });
 
 describe("notification coalescing", () => {
-  // The coalescer is leading+trailing with a re-armed window: after ANY
-  // emission the window stays open one more interval, so continuous traffic
-  // caps at one emission per window and a notify arriving mid-window merges
-  // into the next emission. A quiet period disarms only after a full empty
-  // window elapses.
+  // The coalescer is trailing-only: the first notify of a burst arms one
+  // window, notifies inside it merge, and a single emission at window end
+  // carries the merged payload. One emission per burst (never a leading
+  // duplicate), and a quiet period disarms after the window elapses with
+  // nothing pending.
 
-  it("emits leading + one trailing merged notification per burst window", async () => {
+  it("emits one merged notification per burst window", async () => {
     vi.useFakeTimers();
     try {
       const emitted: import("../src/core/workspace-client/index.js").ChangeNotification[] = [];
@@ -225,20 +225,23 @@ describe("notification coalescing", () => {
         notifyDebounceMs: 50,
         onNotify: (change) => emitted.push(change),
       });
-      // Settle the whole bootstrap chain (emissions + re-armed windows).
+      // Settle the whole bootstrap chain (emissions + windows).
       await vi.advanceTimersByTimeAsync(200);
       emitted.length = 0;
 
       await core.createObject({ isEmbedded: false, name: "A" });
-      expect(emitted).toHaveLength(1); // leading edge after the quiet period
+      expect(emitted).toHaveLength(0); // trailing edge: nothing until the window elapses
+      await vi.advanceTimersByTimeAsync(50);
+      expect(emitted).toHaveLength(1);
+      expect(emitted[0]!.structural).toBe(true);
       await core.createObject({ isEmbedded: false, name: "B" });
       await core.createObject({ isEmbedded: false, name: "C" });
-      expect(emitted).toHaveLength(1); // burst merged into the trailing slot
+      expect(emitted).toHaveLength(1); // burst merges into the pending payload
       await vi.advanceTimersByTimeAsync(50);
       expect(emitted).toHaveLength(2);
       expect(emitted[1]!.structural).toBe(true);
       expect(emitted[1]!.revision).toBeGreaterThan(emitted[0]!.revision);
-      // One empty window disarms: no further trailing emissions.
+      // One empty window disarms: no further emissions.
       await vi.advanceTimersByTimeAsync(500);
       expect(emitted).toHaveLength(2);
       await core.close();
@@ -286,15 +289,14 @@ describe("notification coalescing", () => {
       core.applyBatch([
         remote("object.update", { objectId: blockId, contentAst: [{ type: "text", text: "edited" }] }, 1_800_000_000_000),
       ]);
-      expect(emitted).toHaveLength(1); // leading: content-scoped
-      expect(emitted[0]!.structural).not.toBe(true);
-      expect(emitted[0]!.affectedNodeIds ?? []).toContain(blockId);
+      expect(emitted).toHaveLength(0); // merged into the window, not emitted yet
       core.applyBatch([
         remote("object.move", { objectId: blockId, parentId: null }, 1_800_000_000_010),
       ]);
       await vi.advanceTimersByTimeAsync(50);
-      expect(emitted).toHaveLength(2);
-      expect(emitted[1]!.structural).toBe(true);
+      expect(emitted).toHaveLength(1); // ONE emission carries the whole burst
+      expect(emitted[0]!.structural).toBe(true);
+      expect(emitted[0]!.affectedNodeIds ?? []).toContain(blockId);
       await core.close();
     } finally {
       vi.useRealTimers();
@@ -319,9 +321,9 @@ describe("notification coalescing", () => {
       await core.createObject({ isEmbedded: false, name: "A" });
       await core.createObject({ isEmbedded: false, name: "B" });
       await core.flush(); // before the window elapses
-      expect(emitted).toHaveLength(2); // leading + flush-flushed trailing
+      expect(emitted).toHaveLength(1); // flush-flushed merged payload
       await vi.advanceTimersByTimeAsync(500);
-      expect(emitted).toHaveLength(2); // no duplicate trailing emission
+      expect(emitted).toHaveLength(1); // no duplicate trailing emission
       await core.close();
     } finally {
       vi.useRealTimers();
