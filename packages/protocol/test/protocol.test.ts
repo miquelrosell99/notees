@@ -147,15 +147,29 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     expect(sets).toHaveLength(1);
     expect(sets[0]!.payload).toMatchObject({ value: "https://example.org", idx: 0 });
     expect(compareHlc(hlcB, sets[0]!.hlc as { physical: number; logical: number })).toBeLessThan(0);
-    // …the unassign addresses the pair, and the final re-assign is the newest op.
+    // …the unassign addresses the pair, the re-assign precedes the tail…
     expect(unassigns).toHaveLength(1);
     expect(unassigns[0]!.payload).toEqual({
       objectId: "0192a000-0000-7000-8000-000000000902",
       propertySchemaId: "0192a000-0000-7000-8000-000000000901",
     });
     expect(compareHlc(unassigns[0]!.hlc as { physical: number; logical: number }, assigns[2]!.hlc as { physical: number; logical: number })).toBeLessThan(0);
-    // The assignment payload is a bare pair — no value/order keys at all.
-    for (const env of [...assigns, ...unassigns]) {
+    // …and the property.empty tail is the newest op: the value clears, the
+    // assignment survives (the fixture comment's end state).
+    const empties = fixture.envelopes.filter((env) => env.opType === "property.empty");
+    expect(empties).toHaveLength(1);
+    expect(empties[0]!.payload).toEqual({
+      objectId: "0192a000-0000-7000-8000-000000000902",
+      propertySchemaId: "0192a000-0000-7000-8000-000000000901",
+    });
+    expect(
+      compareHlc(
+        assigns[2]!.hlc as { physical: number; logical: number },
+        empties[0]!.hlc as { physical: number; logical: number },
+      ),
+    ).toBeLessThan(0);
+    // The assignment/empty payloads are bare pairs — no value/order keys.
+    for (const env of [...assigns, ...unassigns, ...empties]) {
       expect(Object.keys(env.payload as Record<string, unknown>).sort()).toEqual([
         "objectId",
         "propertySchemaId",
@@ -166,6 +180,13 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
         objectId: "0192a000-0000-7000-8000-000000000902",
         propertySchemaId: "0192a000-0000-7000-8000-000000000901",
         value: "x",
+      }).success,
+    ).toBe(false);
+    expect(
+      payloadSchemaFor("property.empty")!.safeParse({
+        objectId: "0192a000-0000-7000-8000-000000000902",
+        propertySchemaId: "0192a000-0000-7000-8000-000000000901",
+        idx: 0,
       }).success,
     ).toBe(false);
     // Applicable in sequence: HLCs strictly ascend.

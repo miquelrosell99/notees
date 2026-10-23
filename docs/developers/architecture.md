@@ -44,12 +44,13 @@ Node, browser WASM worker, CLI) so semantics cannot drift between them.
   (`web`, `cli`, `agent:<id>`), `hlc`, `affectedNodeIds`, `opType`, `timestamp`, `payload`.
   `seq` is deliberately **absent** from envelopes: server-assigned ordering rides on
   catch-up responses and WS frames, never inside the envelope.
-- **Payloads** — `packages/protocol/src/op-types.ts`. Twenty-six op types in the registry:
+- **Payloads** — `packages/protocol/src/op-types.ts`. Twenty-seven op types in the registry:
   `object.create` / `object.update` / `object.delete` / `object.restore` / `object.move`,
   `trash.empty`, `class.create` / `class.update` / `class.unassign` / `class.reorder`,
   `tag.unassign`, `class.setExtends`, `class.property.set` / `class.property.unset`,
   `propertySchema.create` / `propertySchema.update` / `propertySchema.delete`,
-  `property.set` / `property.unset` / `property.assign` / `property.unassign`,
+  `property.set` / `property.unset` / `property.assign` / `property.unassign` /
+  `property.empty`,
   `asset.attach` / `asset.detach`, `collection.member.add` / `collection.member.remove`,
   `workspace.feature.set`. Each has a strict
   zod payload schema; `payloadSchemaFor(opType)` is the single lookup. There are **no
