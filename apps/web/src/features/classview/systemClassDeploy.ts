@@ -9,7 +9,8 @@
  * fixed seed uuid — the class node, its extends edges (ancestors deployed
  * first: an edge has nothing to attach to without the parent row), and its
  * property family from the seed manifest (SYSTEM_PROPERTY_SPECS bound to
- * the class + the SYSTEM_EXTRA_CLASS_BINDINGS rows). Every step checks
+ * the class + the SYSTEM_EXTRA_CLASS_BINDINGS and
+ * SYSTEM_SOURCE_CLASS_BINDINGS rows). Every step checks
  * existence first, so re-running is a complete no-op — and the binding
  * steps check the REGISTRY rows only (getRegistryBindings), never the
  * seed-spec fallback read: the fallback makes a class LOOK bound while no
@@ -39,6 +40,7 @@ import {
   SYSTEM_PROPERTY_DISPLAY_NAMES,
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
+  SYSTEM_SOURCE_CLASS_BINDINGS,
   type SystemClassName,
   type SystemPropertyName,
 } from "@notees/domain";
@@ -200,6 +202,23 @@ export async function deploySystemClass(
       .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[extra.property]);
     if (bound) continue;
     await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[extra.property], {});
+  }
+
+  // The source library's per-class rows (SYSTEM_SOURCE_CLASS_BINDINGS, owner
+  // 2026-10-23): the class's Zotero field list re-bound on the class itself
+  // (the pool schemas ride the source base — the recursive parent deploy
+  // above authors them + the base rows). Registry-only check, the same
+  // own-row precedent: an extends-aware check would mistake the inherited
+  // base row for this class's class-local row.
+  const sourceBindings = SYSTEM_SOURCE_CLASS_BINDINGS[key];
+  if (sourceBindings !== undefined) {
+    for (const property of sourceBindings) {
+      const bound = client
+        .getRegistryBindings(classId)
+        .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[property]);
+      if (bound) continue;
+      await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[property], {});
+    }
   }
 
   return classId;

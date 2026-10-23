@@ -9,6 +9,70 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(store,web,server): source library materializes — classes, bindings,
+  archived-by-default seeding (source-library slice 1, task 6).** The 39
+  source type-classes now materialize in derived stores with their per-class
+  Zotero field rows and the archived-by-default bit:
+  - **`apps/server/src/seed.ts`** emits `class.property.set` rows per
+    `SYSTEM_SOURCE_CLASS_BINDINGS` (alongside the
+    `SYSTEM_EXTRA_CLASS_BINDINGS` loop — same mechanism, data-driven) and the
+    archived flips: each `SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES` name gets an
+    `object.update {active: false}` after its rows land (`class.create`
+    carries no active field; the flip is the wire's archival op). 21 family
+    classes seed active, the 18 long-tail types seed archived.
+  - **Web `deploySystemClass`** (`apps/web/src/features/classview/
+    systemClassDeploy.ts`) authors the same per-class rows idempotently on
+    the gallery-pick/ensure path (registry-only existence check, the
+    own-row precedent) — the recursive parent deploy already authors the
+    pool schemas + the source base's rows. The gallery's enable pick keeps
+    its semantics: deploy un-archives (the F4-inverse pattern).
+  - **Store archival-semantics fixes** (`packages/store/src/appliers.ts`) —
+    the audit found two paths conflating archival with absence:
+    `rebuildClassHierarchy` rebuilt the closure from `class WHERE active =
+    1`, so ANY later `class.setExtends` (a live workspace keeps extending
+    classes) dropped archived classes — and their descendants' ancestor
+    edges — from `class_hierarchy`, breaking `class:`/`classAny` matches,
+    the family-members read, scope eligibility, and the effective-properties
+    reach for archived types. The closure now carries EVERY class row (the
+    default reads filter the bit; the closure never does). And
+    `applyClassCreate`'s registry conflict arm set `active = 1`
+    unconditionally — a re-issued `class.create` (the seed/ensure idempotent
+    re-run) revived archived classes, defeating no-op ensure. The conflict
+    arm now preserves the bit; revival rides `object.update {active: true}`,
+    the feature derivation, and `object.restore` only. Paths audited CLEAN:
+    the query compiler's class conditions (probe the closure), `effective.ts`
+    + `property-values.ts` (membership via `class_member_set`, reach via the
+    closure), export's CSL predicate (node `classIds` membership), backlinks
+    (node-level liveness), the web gallery/enable surfaces (visibility reads
+    that SHOULD filter the bit). Known interaction (documented, not changed):
+    a `sources` feature toggle re-derivation sweeps the whole family, so an
+    explicit sources re-enable revives the seeded-archived types — the
+    documented family semantic ("the toggle archives/revives the family").
+  - **Tests**: new `packages/store/test/source-seed.test.ts` (both adapters)
+    replays the seed op stream from the domain manifests and pins the full
+    converged state — 40 class rows, 39 `extends [source]` edges, the 18
+    archived rows (`class.active = 0` + node `is_active = 0`, 21 active),
+    every `SYSTEM_SOURCE_CLASS_BINDINGS` row, closure survival across a LATER
+    unrelated `setExtends` rebuild, `classMembers(source)` and effective
+    properties (the source-base `citekey` default) resolving through an
+    archived type, and whole-seed re-apply byte-identity. New archived-class
+    block in `packages/query/test/query.test.ts` pins compiled `class:` /
+    `classAny` / the aggregate class dimension matching archived-type nodes.
+    `apps/web/test/system-class-deploy-bindings.test.ts` gains the
+    book_section deploy test (rows per the table, sibling classes untouched,
+    re-deploy no-op) and its web_page expectation amends to the new shape
+    (url + the 9 Zotero rows). SCHEMA.md amended same-pass (the source
+    family's archived-by-default paragraph + the normative `active` section
+    gains the never-absence / no-revival clauses). No wire change — no
+    fixture gate; the two applier semantics are a GTK/Flutter applier
+    convergence item, recorded here per the lockstep law (the clients'
+    hierarchy rebuild + class-create conflict arm must match; non-blocking
+    follow-up, the task-3/task-4 precedent).
+  - **Verification**: store 721/721 (incl. 16 new), query 208/208 (incl. 8
+    new), web deploy-bindings 6/6 (incl. 1 new, 1 amended); store dist
+    rebuilt (dev-condition exports); root `pnpm typecheck` + full `pnpm
+    test` green.
+
 - **feat(domain): per-class source field bindings (source-library slice 1,
   task 5).** New `packages/domain/src/source-class-bindings.ts` (barrel-
   exported): `SYSTEM_SOURCE_CLASS_BINDINGS` — the per-class field-binding

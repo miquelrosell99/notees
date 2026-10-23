@@ -30,7 +30,11 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import {
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
+  SYSTEM_SOURCE_CLASS_BINDINGS,
+} from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import {
@@ -244,11 +248,16 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
     // Owner ruling 2026-10-20 (the seed-scope audit): a url is generically
     // reusable — global scope (NULL scopeClassIds), NOT local to web_page…
     expect(url).toMatchObject({ name: "URL", type: "url", scopeClassIds: null });
-    // …while the binding row still lands on the web_page class (bindings are
-    // per-class config, zero availability semantics).
-    expect(client.getRegistryBindings(SYSTEM_CLASS_UUIDS.web_page).map((b) => b.propertySchemaId)).toEqual([
+    // …while the binding rows land on the web_page class (bindings are
+    // per-class config, zero availability semantics): the url row plus the
+    // source library's web_page entry (SYSTEM_SOURCE_CLASS_BINDINGS).
+    const expected = [
       SYSTEM_PROPERTY_UUIDS.url,
-    ]);
+      ...SYSTEM_SOURCE_CLASS_BINDINGS.web_page!.map((property) => SYSTEM_PROPERTY_UUIDS[property]),
+    ].sort();
+    expect(
+      client.getRegistryBindings(SYSTEM_CLASS_UUIDS.web_page).map((b) => b.propertySchemaId).sort(),
+    ).toEqual(expected);
   });
 
   it("composes with the birthday ensure: the calendar chip row rides either path", async () => {
@@ -283,5 +292,46 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
       registryAfter.find((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.eventDate)
         ?.active,
     ).toBe(true);
+  });
+
+  it("deploys a source type-class with its SYSTEM_SOURCE_CLASS_BINDINGS rows", async () => {
+    const client = await seedClient();
+    const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
+    // book_section is archived-by-default: deploying it is the gallery's
+    // enable pick — the class lands active, its parent (source) deploys
+    // first (pool schemas + the base's own binding rows).
+    await deploySystemClass(client, "book_section");
+    await flushSync();
+
+    expect(client.getNodeRaw(SYSTEM_CLASS_UUIDS.book_section)).toMatchObject({
+      isActive: true,
+    });
+    // The class-local rows are exactly the manifest's table entry — the
+    // pool schemas ride the source base (inherited bindings are not own
+    // rows, so they never satisfy this registry-only read).
+    const expected = SYSTEM_SOURCE_CLASS_BINDINGS.book_section!.map(
+      (property) => SYSTEM_PROPERTY_UUIDS[property],
+    ).sort();
+    const registry = client
+      .getRegistryBindings(SYSTEM_CLASS_UUIDS.book_section)
+      .map((binding) => binding.propertySchemaId);
+    expect(registry.sort()).toEqual(expected);
+    // The base's own rows exist on source.
+    expect(client.getRegistryBindings(SYSTEM_CLASS_UUIDS.source).length).toBeGreaterThan(0);
+    // An archived-by-default sibling keeps its bit: deploying ONE class
+    // never touches the others.
+    expect(client.getNodeRaw(SYSTEM_CLASS_UUIDS.patent)).toBeUndefined();
+
+    // Re-deploying is a complete no-op.
+    const snapshot = client
+      .getRegistryBindings(SYSTEM_CLASS_UUIDS.book_section)
+      .map((binding) => ({ id: binding.propertySchemaId, active: binding.active }));
+    await deploySystemClass(client, "book_section");
+    await flushSync();
+    expect(
+      client
+        .getRegistryBindings(SYSTEM_CLASS_UUIDS.book_section)
+        .map((binding) => ({ id: binding.propertySchemaId, active: binding.active })),
+    ).toEqual(snapshot);
   });
 });

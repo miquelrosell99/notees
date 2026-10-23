@@ -1937,3 +1937,84 @@ describe.each(adapters)("$name: the v1 hierarchy/reference blocks", ({ makeStore
     ).toEqual([FR_BLOCK, PARIS_BLOCK].sort());
   });
 });
+
+// --- archived classes resolve through extends (visibility is not absence) ---------
+//
+// Archival (`object.update {active: false}`, the gallery/picker visibility
+// bit) must NOT change what a class IS: an archived-by-default type still
+// IS-A source — class:/classAny conditions, the aggregate class dimension,
+// and the family-members read all probe the class_hierarchy closure, which
+// carries every class row regardless of the bit (owner ruling 2026-10-23,
+// the source-library slice). The world applies a LATER unrelated setExtends
+// AFTER the archival flip — any live workspace keeps extending classes,
+// which rebuilds the whole closure; the archived class must survive it.
+
+describe.each(adapters)("$name: archived class resolution", ({ makeStore }) => {
+  const SOURCE_CLASS = "0192a000-0000-7000-8000-0000000006a1";
+  const BOOK_SECTION = "0192a000-0000-7000-8000-0000000006a2";
+  const ARTWORK = "0192a000-0000-7000-8000-0000000006a3";
+  const LATER_CLASS = "0192a000-0000-7000-8000-0000000006a4";
+  const CHAPTER = "0192a000-0000-7000-8000-0000000006b1";
+  const PAINTING = "0192a000-0000-7000-8000-0000000006b2";
+  const T0 = 1727300000000;
+
+  function archivedWorld(): Store {
+    const store = makeStore();
+    const text = (s: string) => [{ type: "text", text: s }];
+    store.applyMany([
+      env("class.create", { classId: SOURCE_CLASS, contentAst: text("Source") }, T0),
+      env("class.create", { classId: BOOK_SECTION, contentAst: text("Book section") }, T0 + 1000),
+      env("class.create", { classId: ARTWORK, contentAst: text("Artwork") }, T0 + 2000),
+      env("class.setExtends", { classId: BOOK_SECTION, parentClassIds: [SOURCE_CLASS] }, T0 + 3000),
+      env("class.setExtends", { classId: ARTWORK, parentClassIds: [SOURCE_CLASS] }, T0 + 4000),
+      // Archival: the visibility bit (the source library's
+      // archived-by-default seed shape — class rows land, then the flip).
+      env("object.update", { objectId: BOOK_SECTION, active: false }, T0 + 5000),
+      // A LATER unrelated extends write rebuilds the whole closure.
+      env("class.create", { classId: LATER_CLASS, contentAst: text("Tag") }, T0 + 6000),
+      env("class.setExtends", { classId: LATER_CLASS, parentClassIds: [SOURCE_CLASS] }, T0 + 7000),
+      // Members: one per archived type.
+      env("object.create", { objectId: CHAPTER, contentAst: text("A chapter"), classIds: [BOOK_SECTION] }, T0 + 8000),
+      env("object.create", { objectId: PAINTING, contentAst: text("A painting"), classIds: [ARTWORK] }, T0 + 9000),
+    ]);
+    return store;
+  }
+
+  it("class: matches a node classed by an archived type", () => {
+    const { ids } = runQuery(
+      archivedWorld(),
+      ast(entire, [{ type: "class", classId: BOOK_SECTION }]),
+    );
+    expect(ids).toEqual([CHAPTER]);
+  });
+
+  it("class: on the family base matches archived-type members through extends", () => {
+    const { ids } = runQuery(
+      archivedWorld(),
+      ast(entire, [{ type: "class", classId: SOURCE_CLASS }]),
+    );
+    expect(ids.sort()).toEqual([CHAPTER, PAINTING].sort());
+  });
+
+  it("classAny matches archived-type members closure-aware", () => {
+    const { ids } = runQuery(
+      archivedWorld(),
+      ast(entire, [{ type: "classAny", classIds: [BOOK_SECTION, ARTWORK] }]),
+    );
+    expect(ids.sort()).toEqual([CHAPTER, PAINTING].sort());
+  });
+
+  it("the aggregate class dimension counts archived-type members", () => {
+    const result = runAggregate(archivedWorld(), {
+      ...ast(entire, [{ type: "class", classId: SOURCE_CLASS }]),
+      aggregation: {
+        dimensions: [{ kind: "class", id: SOURCE_CLASS }],
+        measures: [{ function: "count" }],
+      },
+    });
+    // One group: members of the source family (both archived-type nodes) — the
+    // boolean dimension key is 1 (in the family) for both.
+    expect(result.columns).toEqual([`class:${SOURCE_CLASS}`, "count"]);
+    expect(result.rows).toEqual([[1, 2]]);
+  });
+});

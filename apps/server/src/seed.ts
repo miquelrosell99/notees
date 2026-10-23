@@ -8,6 +8,7 @@
 
 import {
   SEEDED_SYSTEM_CLASSES,
+  SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES,
   SYSTEM_CLASS_DISPLAY_NAMES,
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
@@ -17,6 +18,7 @@ import {
   SYSTEM_PROPERTY_DISPLAY_NAMES,
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
+  SYSTEM_SOURCE_CLASS_BINDINGS,
   type SystemClassName,
   type SystemPropertyName,
 } from "@notees/domain";
@@ -132,6 +134,48 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
           classId,
           propertySchemaId: SYSTEM_PROPERTY_UUIDS[extra.property],
         },
+        affectedNodeIds: [classId],
+        client: "seed",
+      }),
+    );
+  }
+  // The source library's per-class binding rows (SYSTEM_SOURCE_CLASS_BINDINGS,
+  // owner 2026-10-23 slice 1 task 6): each source type-class re-binds its
+  // Zotero field list — the pool schemas ride the source base via the SPECS
+  // loop above (every pool spec is scoped to source), so the rows are
+  // extends-eligible on every family member. The web self-heal
+  // (deploySystemClass) authors the same rows idempotently — convergent
+  // either way.
+  for (const [name, properties] of Object.entries(SYSTEM_SOURCE_CLASS_BINDINGS)) {
+    const classId = SYSTEM_CLASS_UUIDS[name as SystemClassName];
+    for (const property of properties) {
+      envelopes.push(
+        factory.make({
+          workspaceId,
+          opType: "class.property.set",
+          payload: {
+            classId,
+            propertySchemaId: SYSTEM_PROPERTY_UUIDS[property],
+          },
+          affectedNodeIds: [classId],
+          client: "seed",
+        }),
+      );
+    }
+  }
+  // Archived-by-default seeding (SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES): the
+  // long-tail source types land with `active = false` — a VISIBILITY state,
+  // not an absence (they still resolve through extends for queries, export,
+  // and backlinks). Archival rides object.update (the wire's archival op;
+  // class.create carries no active field) AFTER the rows exist; the
+  // gallery/ensure enable path un-archives with object.update {active: true}.
+  for (const name of SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES) {
+    const classId = SYSTEM_CLASS_UUIDS[name];
+    envelopes.push(
+      factory.make({
+        workspaceId,
+        opType: "object.update",
+        payload: { objectId: classId, active: false },
         affectedNodeIds: [classId],
         client: "seed",
       }),

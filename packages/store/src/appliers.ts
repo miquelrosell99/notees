@@ -1443,7 +1443,11 @@ function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   // PRESERVE the stored registry values on re-declaration (COALESCE around a
   // NULLIF sentinel), they never wipe. The fresh INSERT's empty-name case is
   // backfilled from the node's existing title below (title-is-content: the
-  // node row is the authority).
+  // node row is the authority). The conflict arm never touches `active`:
+  // archival is log state of its own (object.update / the feature
+  // derivation / restore are the revival paths), so a re-issued class.create
+  // — the seed/ensure idempotent re-run — must NOT revive an archived class
+  // (owner ruling 2026-10-23, the source-library archived-by-default seed).
   const titleText = p.contentAst !== undefined ? (plainTextExcerpt(p.contentAst as never) ?? "") : null;
   db.prepare(
     `INSERT INTO class (id, workspace_id, name, icon, color, description, active, created_at, updated_at)
@@ -1452,7 +1456,8 @@ function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
        name = COALESCE(NULLIF(excluded.name, ''), class.name),
        icon = COALESCE(excluded.icon, class.icon),
        color = COALESCE(excluded.color, class.color),
-       description = class.description, active = 1, updated_at = excluded.updated_at`,
+       description = class.description,
+       updated_at = excluded.updated_at`,
   ).run(p.classId, env.workspaceId, titleText, p.icon ?? null, p.color ?? null, env.timestamp, env.timestamp);
   if (titleText === null) {
     // Title-less declaration (the conversion path — a bare classId payload):
@@ -1638,10 +1643,18 @@ function applyTagUnassign(db: StoreDatabase, env: Envelope): ChangeSummary {
  * pure set (no order, no depth) — diamond resolution happens at read time
  * in the bindings read model. Historical cycles terminate via the visited
  * set instead of looping.
+ *
+ * EVERY class row participates — archival (`class.active = 0`, the
+ * gallery/picker visibility bit) is NOT an absence: an archived class must
+ * still resolve through extends for class:/classAny queries, the
+ * family-members read, scope eligibility, and the effective-properties
+ * reach (owner ruling 2026-10-23, the source-library slice — an archived
+ * by-default type still IS-A source). The default reads filter the bit;
+ * the closure never does.
  */
 function rebuildClassHierarchy(db: StoreDatabase): void {
   const classes = db
-    .prepare("SELECT id FROM class WHERE active = 1 ORDER BY id")
+    .prepare("SELECT id FROM class ORDER BY id")
     .all() as { id: string }[];
   const parentsById = new Map<string, string[]>();
   const edges = db
