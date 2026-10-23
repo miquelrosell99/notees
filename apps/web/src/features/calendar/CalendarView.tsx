@@ -7,12 +7,12 @@
  * Settings; defaults = every class with a date-typed binding), and the
  * month grid in the right column (MonthCalendar) — the breadth pass:
  * range-aware dots (date refs and range ends fan out to the
- * deterministic day node) plus the reviewed tint on day cells, the
- * week strip, and the week agenda beneath the grid.
+ * deterministic day node) plus the reviewed tint on day cells and the
+ * week agenda beneath the grid.
  *
  * The composition: the calendar is the MainContentFrame's
  * second host — the day content rides the middle cell, the mini-month +
- * week strip + week agenda ride the frame's raised-card right panel
+ * week agenda ride the frame's raised-card right panel
  * (toggled from the top bar, device-local collapse like the nodeview's
  * properties panel; the panel's width rides the host override —
  * `var(--layout-size-8xl)`, the mini-month's old 320px column). The view's own two-column body retired; the frame
@@ -92,7 +92,6 @@ import { Pill } from "../../components/ui/fleet/Pill.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
 import { MonthCalendar } from "./MonthCalendar.js";
-import { WeekStrip } from "./WeekStrip.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import "./CalendarView.css";
 
@@ -152,7 +151,7 @@ export function CalendarView({
   /**
    * The agenda panel's device-local collapse (the MainContentFrame opt-in,
    * the calendar is the frame's second host): the
-   * mini-month / week strip / week-agenda column rides the frame's raised-
+   * mini-month / week-agenda column rides the frame's raised-
    * card right panel, toggled from the top bar like the nodeview's
    * properties panel.
    */
@@ -255,7 +254,7 @@ export function CalendarView({
     [client, selectedIso, recurringEvents, version],
   );
 
-  // Occurrence days around the visible month, for the grid dots + week strip.
+  // Occurrence days around the visible month, for the grid dots.
   // The grid follows the selected day across month boundaries, so ±40 days
   // covers the whole visible month in every steady state.
   const recurringDayIsos = useMemo(() => {
@@ -463,8 +462,8 @@ export function CalendarView({
       {/* The composition rides the shared MainContentFrame: the top
           bar spans the whole card above the column split (the agenda
           toggle at its right end, above the panel it reveals), the day
-          content rides the middle cell, and the mini-month + week strip +
-          week agenda ride the frame's raised-card right panel. The quick-
+          content rides the middle cell, and the mini-month + week agenda
+          ride the frame's raised-card right panel. The quick-
           create row and the filter Tabs are content-level controls and
           stay in the body. */}
       <MainContentFrame
@@ -491,7 +490,17 @@ export function CalendarView({
                     aria-label="Previous day"
                     onClick={() => setSelectedIso((iso) => addDaysIso(iso, -1))}
                   />
-                  <Button variant="ghost" size="sm" onClick={() => setSelectedIso(todayIsoLocal())}>
+                  {/* The outline variant + "Jump to today" title/aria (the
+                     Journals view's register): the
+                     bordered button reads clickable where the ghost idiom
+                     doesn't. */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    title="Jump to today"
+                    aria-label="Jump to today"
+                    onClick={() => setSelectedIso(todayIsoLocal())}
+                  >
                     Today
                   </Button>
                   <Button
@@ -527,13 +536,6 @@ export function CalendarView({
                 firstDayOfWeek={firstDayOfWeek}
                 hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
                 extraMarks={dayExtraMarks}
-              />
-              <WeekStrip
-                days={weekDays}
-                selectedDate={selectedIso}
-                hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
-                extraMarks={dayExtraMarks}
-                onSelectDay={setSelectedIso}
               />
               <div className="calendar-view__agenda" aria-label="Week agenda">
                 <h2 className="calendar-view__agenda-title">This week</h2>
