@@ -1,10 +1,10 @@
 /**
  * CalendarView tests: the day header (Today marker only on today, prev/next
- * stepping), the quick-create chips (create + date-property + open), the
- * tasks section (scheduled/overdue partition, "N open", the checkbox done
- * toggle writing the status option id like the tasks hub), the daily-note
- * embed via ensureDateChain, the created-today list, and the MonthCalendar
- * day pick.
+ * stepping), the events element (event-family nodes dated into the scope or
+ * embedded in the scope day pages, the day/week/month zoom), the tasks
+ * section (scheduled/overdue partition, "N open", the checkbox done toggle
+ * writing the status option id like the tasks hub), the daily-note embed via
+ * ensureDateChain, the created-today list, and the MonthCalendar day pick.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -19,7 +19,6 @@ import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/features/calendar/CalendarView.js";
 import { addDaysIso, todayIsoLocal } from "../src/features/calendar/calendarViewUtils.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
-import { writeQuickCreateClassesSetting } from "../src/features/calendar/calendarQuickCreateSettings.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000d2";
@@ -137,53 +136,109 @@ describe("CalendarView", () => {
     });
   });
 
-  it("quick-create chips follow the per-workspace setting", async () => {
+  it("the events element lists event-family nodes dated into the scope, not mere date carriers", async () => {
     const client = await seedClient();
+    const today = todayIsoLocal();
     const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
     // A generic user class — "meeting" is system-class vocabulary — on the
-    // event family (the bar is event-family-only, owner 2026-10-23).
-    const classId = await client.createClass("gathering");
-    await client.setClassExtends(classId, [SYSTEM_CLASS_UUIDS.event]);
-    await client.setClassProperty(classId, schemaId, {});
-    // Explicit empty list for this workspace: no chips render.
-    writeQuickCreateClassesSetting(WS, []);
+    // event family; and a class that merely carries a date property.
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+    await client.setClassProperty(gatheringClass, schemaId, {});
+    const plainClass = await client.createClass("anime");
+    await client.setClassProperty(plainClass, schemaId, {});
+
+    const gathering = await client.createObject({
+      isEmbedded: false,
+      name: "Launch party",
+      classIds: [gatheringClass],
+    });
+    await client.setDatetimeProperty(gathering, schemaId, { iso: today }, 0);
+    const anime = await client.createObject({
+      isEmbedded: false,
+      name: "Episode 12",
+      classIds: [plainClass],
+    });
+    await client.setDatetimeProperty(anime, schemaId, { iso: today }, 0);
 
     renderCalendar(client);
-    await screen.findByText("Calendar");
-    expect(screen.queryByLabelText("Quick create")).toBeNull();
-
-    // Back to defaults (null): the eligible class renders again (the task
-    // class is NOT event family — the Tasks section's New owns it).
-    writeQuickCreateClassesSetting(WS, null);
-    const quickCreate = () => within(screen.getByLabelText("Quick create"));
+    const events = await screen.findByLabelText("Events");
     await waitFor(() => {
-      expect(quickCreate().getByRole("button", { name: "gathering" })).toBeDefined();
+      expect(rowTitles(events)).toContain("Launch party");
     });
-    expect(quickCreate().queryByRole("button", { name: "task" })).toBeNull();
+    expect(rowTitles(events)).not.toContain("Episode 12");
   });
 
-  it("quick-create chip authors a classed object with the date property and opens it", async () => {
+  it("the events element lists event-family blocks embedded at any depth inside the day page", async () => {
     const client = await seedClient();
+    const today = todayIsoLocal();
+    const { day } = await client.ensureDateChain(today);
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+
+    const block = await client.createObject({
+      isEmbedded: true,
+      parentId: day,
+      name: "Embedded gathering",
+      classIds: [gatheringClass],
+    });
+    // Depth two: a nested block under the embedded block.
+    await client.createObject({
+      isEmbedded: true,
+      parentId: block,
+      name: "Nested gathering",
+      classIds: [gatheringClass],
+    });
+    // A plain block with no class: never an event row.
+    await client.createObject({
+      isEmbedded: true,
+      parentId: day,
+      contentAst: [{ type: "text", text: "Plain note" }],
+    });
+
+    renderCalendar(client);
+    const events = await screen.findByLabelText("Events");
+    await waitFor(() => {
+      expect(rowTitles(events)).toContain("Embedded gathering");
+      expect(rowTitles(events)).toContain("Nested gathering");
+    });
+    expect(rowTitles(events)).not.toContain("Plain note");
+  });
+
+  it("the events zoom switches the scope: day follows the selected day, month widens to it", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
     const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
-    // A generic user class — "meeting" is system-class vocabulary — on the
-    // event family.
-    const classId = await client.createClass("gathering");
-    await client.setClassExtends(classId, [SYSTEM_CLASS_UUIDS.event]);
-    await client.setClassProperty(classId, schemaId, {});
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+    await client.setClassProperty(gatheringClass, schemaId, {});
+    const gathering = await client.createObject({
+      isEmbedded: false,
+      name: "Launch party",
+      classIds: [gatheringClass],
+    });
+    await client.setDatetimeProperty(gathering, schemaId, { iso: today }, 0);
 
-    const { onOpenPage, container } = renderCalendar(client);
-    const chip = await screen.findByRole("button", { name: "gathering" });
-    fireEvent.click(chip);
+    const { container } = renderCalendar(client);
+    const events = await screen.findByLabelText("Events");
+    // Week zoom (the default) contains today: the row lists.
+    await waitFor(() => {
+      expect(rowTitles(events)).toContain("Launch party");
+    });
 
-    await waitFor(() => expect(onOpenPage).toHaveBeenCalledTimes(1));
-    const newId = onOpenPage.mock.calls[0]![0] as string;
-    const node = client.getNode(newId)!;
-    expect(node.classIds).toContain(classId);
-    const when = client
-      .getEffectiveProperties(newId)
-      .find((prop) => prop.propertySchemaId === schemaId);
-    expect(when?.value).toBeDefined();
-    void container;
+    // Day zoom + a different selected day of the same month: the row leaves.
+    fireEvent.click(screen.getByRole("button", { name: "Day" }));
+    const otherDay = new Date().getDate() === 20 ? "21" : "20";
+    fireEvent.click(dayCell(container, otherDay));
+    await waitFor(() => {
+      expect(within(events).getByText("No events this day.")).toBeDefined();
+    });
+
+    // Month zoom widens the scope back over the whole month: the row returns.
+    fireEvent.click(screen.getByRole("button", { name: "Month" }));
+    await waitFor(() => {
+      expect(rowTitles(events)).toContain("Launch party");
+    });
   });
 
   it("partitions open tasks into Overdue/Scheduled groups with a count", async () => {

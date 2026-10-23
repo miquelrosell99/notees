@@ -9,6 +9,41 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(web): the calendar's right-panel events element — day/week/month
+  zoom over the event family, replacing the quick-create pill bar and the
+  week agenda (owner 2026-10-23).** The pills row above the section tabs
+  retires same-day: creation rides the day page outline, the Tasks New
+  button (with its template picker), and the ordinary hubs. In its panel
+  spot beneath the mini-month, the week agenda ("Nothing dated this
+  week.") becomes the **events list**: a NodeCollection in outline mode
+  with a **Day / Week / Month zoom** (device-local setting; the scope is
+  the selected day, its week, or its whole month). Membership (the
+  owner's register): nodes classed as the system `event` class or a class
+  extending it transitively (`isEventFamilyClass`, the cached
+  `getClassParents` walk), matched by EITHER family — **dated**: a
+  date-typed property value fanning into a scope day (the day node's
+  materialized backlink set, the Dated section's exact read); or
+  **embedded**: the node lives as a block at any parent level inside one
+  of the scope day pages (a client-side subtree walk over the
+  scope-classed cached `getChildren`). The recurring union rides on top
+  (a virtual occurrence inside the scope lists the series). Rows group
+  **by containing page** (`groupByContainingPage` — embedded blocks group
+  under their day page, standalone event pages stand alone) with the
+  breadcrumb trail on (the collection default). Tasks and date-chain
+  nodes never list; a class that merely carries a date property stays in
+  Dated, not here. The quick-create machinery goes with the bar:
+  `dateChipCandidates` and `calendarQuickCreateSettings` (module deleted)
+  and the Workspace Settings → Calendar Quick-Create section (the
+  Features tab's live toggles keep the modal's client prop);
+  `isEventFamilyClass` stays as the events register. The create-with-
+  template flow (TemplatePickerModal) is still reachable — through the
+  Tasks section's New, which the specs now drive.
+  - **Verification**: `pnpm typecheck` clean; the calendar suites green
+    (chips specs replaced by events-element specs: dated membership,
+    embedded-at-any-depth membership, the zoom scope switch; the
+    meeting/birthday family breadth specs re-asserted through
+    `eventRowsForDays`; the create-with-template specs re-driven through
+    Tasks New) — full gate below.
 - **feat(web): calendar quick-create — event family only, colored class
   pills, the bar's repeat picker retired (owner pass).** The bar's chip
   eligibility was "every class with a date-typed binding", so any class

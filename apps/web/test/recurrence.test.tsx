@@ -238,7 +238,7 @@ describe("CalendarView recurrence", () => {
     await createEvent(client, classId, schemaId, "Standup", anchorIso, "weekly");
 
     const { container } = renderCalendar(client);
-    await screen.findByLabelText("Quick create");
+    await screen.findByText("Calendar");
     fireEvent.click(dayCell(container, "3"));
     await screen.findByLabelText("Dated");
     // The anchor dots via its real backlink; +7 dots purely from the virtual
@@ -294,7 +294,7 @@ describe("CalendarView recurrence", () => {
     await createEvent(client, classId, schemaId, "One-off", anchorIso);
 
     const { container } = renderCalendar(client);
-    await screen.findByLabelText("Quick create");
+    await screen.findByText("Calendar");
     fireEvent.click(dayCell(container, "2"));
     const section = labeledSection("Dated");
     await waitFor(() => {

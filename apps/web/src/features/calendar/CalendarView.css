@@ -86,13 +86,6 @@
   flex-shrink: 0;
 }
 
-.calendar-view__quick-create {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-2);
-  flex-shrink: 0;
-}
-
 .calendar-view__filter {
   flex-shrink: 0;
 }
@@ -162,14 +155,22 @@
   color: var(--md-sys-color-on-surface-variant);
 }
 
-/* Week breadth: the agenda under the month grid lists the week's dated
-   references (non-task) as collection groups — one collapsible group per
-   day, the header click selecting the day (owner 2026-10-23). */
+/* The events element under the month grid: the events list with its
+   day/week/month zoom — event-family nodes dated into the scope days or
+   embedded inside the scope day pages, grouped by containing page with
+   breadcrumbs (owner 2026-10-23). */
 .calendar-view__agenda {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
   margin-top: var(--spacing-3);
+}
+
+.calendar-view__agenda-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
 }
 
 .calendar-view__agenda-title {
@@ -178,6 +179,12 @@
   letter-spacing: var(--letter-spacing-label);
   text-transform: uppercase;
   color: var(--md-sys-color-on-surface-variant);
+}
+
+.calendar-view__zoom {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
 }
 
 .calendar-view__error {

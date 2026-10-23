@@ -18,6 +18,7 @@ import {
   dayNodeId,
   parseDateNodeId,
   recurrenceRuleOf,
+  rendersWithDocumentChrome,
   withCompletedOccurrence,
   type RecurrenceRule,
 } from "@notees/domain";
@@ -26,7 +27,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import { occursOnDay, scheduledIsoOf, type TaskBucketRow } from "./calendarViewUtils.js";
+import { isEventFamilyClass, occursOnDay, scheduledIsoOf, type TaskBucketRow } from "./calendarViewUtils.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -253,4 +254,120 @@ export function datedRowsForDay(
       ) || a.node.id.localeCompare(b.node.id),
   );
   return merged;
+}
+
+// --- events list (the panel's events element) --------------------------------
+
+/**
+ * The Events-list rows for a scope of days (the calendar panel's events
+ * element below the mini-month, owner 2026-10-23): event-family nodes — the
+ * system `event` class and every class extending it transitively — matched
+ * by EITHER family:
+ *
+ *  - DATED — a date-typed property value fanning into a scope day (the day
+ *    node's materialized backlink set, the same read the Dated section
+ *    uses, so a range end or a plain day-precision ref lands the same way);
+ *  - EMBEDDED — the node lives as a block at any parent level inside one of
+ *    the scope day pages (a client-side subtree walk over the scope-classed
+ *    cached `getChildren`; day pages are shallow, and month scope is ~31
+ *    walks).
+ *
+ * The recurring union rides on top (a virtual occurrence inside any scope
+ * day lists the series, the Dated grammar). Tasks never list (their own
+ * section), date-chain nodes neither, non-event classes neither (a node
+ * that merely carries a date property stays in Dated, not here). Deduped
+ * by id (dated beats embedded — one row per node), sorted by display name.
+ */
+export function eventRowsForDays(
+  client: AnyClient,
+  isos: readonly string[],
+  recurringRows: readonly RecurringRow[],
+): DatedRow[] {
+  const parentsCache = new Map<string, readonly string[]>();
+  const parentsOf = (classId: string): readonly string[] => {
+    let parents = parentsCache.get(classId);
+    if (parents === undefined) {
+      parents = client.getClassParents(classId);
+      parentsCache.set(classId, parents);
+    }
+    return parents;
+  };
+  const isEventNode = (node: ClientNode): boolean =>
+    node.classIds.some((classId) => isEventFamilyClass(classId, parentsOf));
+
+  const rows = new Map<string, DatedRow>();
+  const addNode = (node: ClientNode, rule: RecurrenceRule | null): void => {
+    const existing = rows.get(node.id);
+    if (existing !== undefined) {
+      if (existing.rule === null && rule !== null) existing.rule = rule;
+      return;
+    }
+    rows.set(node.id, { node, rule });
+  };
+
+  for (const iso of isos) {
+    const dayId = dayNodeId(iso);
+    for (const node of datedRowNodes(client, dayId)) {
+      if (isEventNode(node)) addNode(node, null);
+    }
+    // The embedded family: every descendant of the day page (the day node
+    // itself excluded — a date-chain node is never an event). The walk
+    // covers blocks at ANY parent level, classes included — an
+    // event-classed block nested under a plain block lists.
+    if (client.getNodeRaw(dayId) !== undefined) {
+      const seen = new Set<string>([dayId]);
+      const queue = [dayId];
+      while (queue.length > 0) {
+        const current = queue.pop()!;
+        for (const child of client.getChildren(current)) {
+          if (seen.has(child.id)) continue;
+          seen.add(child.id);
+          queue.push(child.id);
+          if (parseDateNodeId(child.id) !== null) continue;
+          if (child.classIds.length === 0 || !isEventNode(child)) continue;
+          addNode(child, null);
+        }
+      }
+    }
+    for (const entry of recurringRows) {
+      if (!isEventNode(entry.node)) continue;
+      if (entry.anchorIso <= iso && rows.has(entry.node.id)) {
+        rows.get(entry.node.id)!.rule = entry.rule;
+        continue;
+      }
+      if (entry.anchorIso > iso) continue; // series hasn't started
+      if (!occursOnDay(entry.rule, entry.anchorIso, iso)) continue;
+      addNode(entry.node, entry.rule);
+    }
+  }
+
+  const merged = [...rows.values()];
+  merged.sort(
+    (a, b) =>
+      (displayNameFromClient(client, a.node.id) ?? a.node.id).localeCompare(
+        displayNameFromClient(client, b.node.id) ?? b.node.id,
+      ) || a.node.id.localeCompare(b.node.id),
+  );
+  return merged;
+}
+
+/**
+ * The containing page for the group-by-page key — referenceEntry's walk,
+ * client-side: the nearest ancestor rendering with document chrome (the
+ * node itself when it already matches; the parent-page condition rides
+ * along, owner ruling 2026-10-15). A dated standalone event groups under
+ * itself (the collection's standalone path); an embedded block groups
+ * under its day page.
+ */
+export function containingPageIdOf(client: AnyClient, node: ClientNode): string {
+  let current = node;
+  for (let guard = 0; guard < 64; guard += 1) {
+    if (current.parentId === null) break;
+    const parent = client.getNode(current.parentId);
+    // The parent-page condition rides along: a bit under a non-page parent
+    // is inert, so the walk continues past it to the real containing page.
+    if (parent === undefined || rendersWithDocumentChrome(current, parent)) break;
+    current = parent;
+  }
+  return current.id;
 }

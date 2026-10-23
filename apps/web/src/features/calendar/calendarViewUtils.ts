@@ -380,57 +380,6 @@ export interface ChipCandidateInput {
 }
 
 /**
- * Classes that qualify for a quick-create chip: any bound property schema
- * with type "datetime" (the unified date type). The task class prefers its
- * taskScheduled schema; other classes with several datetime bindings take the
- * first by sorted schema id. Excluded by design: the year/month/day
- * date-chain classes (a chip there would fight the deterministic chain
- * ids). Every other class rides on its bindings — that is what makes a
- * meeting-classed page one click away. The Calendar view and the
- * workspace-settings editor share this helper so the two surfaces never
- * drift; `propertyName` names the driving date property for settings rows
- * (null for nameless inputs).
- */
-export function dateChipCandidates(
-  classes: ReadonlyArray<{ id: string; name: string | null }>,
-  bindingsOf: (classId: string) => ReadonlyArray<{ propertySchemaId: string; type: string; name?: string }>,
-  /**
-   * The class's extends parents (class_extends rows) — the event-family
-   * eligibility walk (owner 2026-10-23: the quick-create bar is for
-   * EVENT-type classes only, see isEventFamilyClass).
-   */
-  parentsOf: (classId: string) => readonly string[],
-): Array<{ classId: string; schemaId: string; label: string; propertyName: string | null }> {
-  const excluded = new Set<string>([
-    SYSTEM_CLASS_UUIDS.year,
-    SYSTEM_CLASS_UUIDS.month,
-    SYSTEM_CLASS_UUIDS.day,
-  ]);
-  const chips: Array<{ classId: string; schemaId: string; label: string; propertyName: string | null }> = [];
-  for (const cls of classes) {
-    if (excluded.has(cls.id)) continue;
-    // EVENT FAMILY ONLY (owner 2026-10-23): the quick-create bar creates
-    // events — the system `event` class and everything extending it
-    // (meeting, birthday, user event subclasses like "call"). A class that
-    // merely carries a date property (anime, report) is not quick-create
-    // material; tasks ride the Tasks section's New button.
-    if (!isEventFamilyClass(cls.id, parentsOf)) continue;
-    const dateBindings = bindingsOf(cls.id).filter((binding) => binding.type === "datetime");
-    if (dateBindings.length === 0) continue;
-    const pick = [...dateBindings.map((binding) => binding.propertySchemaId)].sort()[0]!;
-    const driving = dateBindings.find((binding) => binding.propertySchemaId === pick);
-    chips.push({
-      classId: cls.id,
-      schemaId: pick,
-      label: cls.name ?? "Untitled",
-      propertyName: driving?.name ?? null,
-    });
-  }
-  chips.sort((a, b) => a.label.localeCompare(b.label) || a.classId.localeCompare(b.classId));
-  return chips;
-}
-
-/**
  * Event-family test: the class IS the system `event` class or extends it
  * transitively (the extends DAG walk, cycle-guarded by the seen set; the
  * DAG law makes cycles impossible, the guard is the depth-safety belt).

@@ -2,27 +2,31 @@
  * CalendarView — the Capacities-style Day view behind the sidebar's
  * Calendar entry: a selected day (local ISO, default today) with the daily
  * note's child blocks embedded as a standalone editable outline
- * (DailyNoteOutline — no page chrome; the top bar names the day), open
- * tasks scheduled for the day (overdue surfaced above), general date
- * references fanning into the day node, everything created that day,
- * quick-create chips (configurable per workspace in Workspace
- * Settings; defaults = every class with a date-typed binding), and the
- * month grid in the right column (MonthCalendar) — the breadth pass:
- * range-aware dots (date refs and range ends fan out to the
- * deterministic day node) plus the reviewed tint on day cells and the
- * week agenda beneath the grid.
+ * (no page chrome; the top bar names the day), open tasks scheduled for
+ * the day (overdue surfaced above), general date references fanning into
+ * the day node, everything created that day, and the month grid in the
+ * right column (MonthCalendar) with the events element beneath it — the
+ * breadth pass: range-aware dots (date refs and range ends fan out to the
+ * deterministic day node) plus the reviewed tint on day cells.
  *
- * The day sections (Daily note, Tasks, Dated, Created) and the week
- * agenda render through the shared NodeCollection in outline mode —
+ * The events element (owner 2026-10-23) replaces the retired
+ * quick-create pill bar: a NodeCollection in outline mode with
+ * day/week/month zoom — event-family nodes (the system `event` class and
+ * everything extending it) dated into the scope days OR embedded as blocks
+ * at any parent level inside the scope day pages, grouped by containing
+ * page with breadcrumbs (calendarRows.eventRowsForDays).
+ *
+ * The day sections (Daily note, Tasks, Dated, Created) and the events
+ * element render through the shared NodeCollection in outline mode —
  * plain editable block rows, no bespoke row chrome (owner 2026-10-23):
- * the rows inline-edit like every outline, Dated/Created/agenda ride
- * the containing-page breadcrumb trail (the family default), Tasks opts
+ * the rows inline-edit like every outline, Dated/Created ride the
+ * containing-page breadcrumb trail (the family default), Tasks opts
  * out (standalone rows). Tasks keeps only its section-level organization
  * (the Overdue group above Scheduled) and the New affordance.
  *
  * The composition (owner 2026-10-23): the calendar is the MainContentFrame's
  * second host — the day content rides the middle cell, the mini-month +
- * week agenda ride the frame's raised-card right panel
+ * events element ride the frame's raised-card right panel
  * (toggled from the top bar, device-local collapse like the nodeview's
  * properties panel; the panel's width rides the host override —
  * `var(--layout-size-8xl)`, the mini-month's old 320px column, owner
@@ -32,10 +36,10 @@
  * Recurrence (compute-on-read ruling): date values
  * carrying a `repeat` rule (metadata, additive — no wire change) expand
  * into VIRTUAL occurrences here — the Dated/Tasks sections, the month
- * dots, and the week agenda consult the expansion; recurring rows wear an
+ * dots, and the events element consult the expansion; recurring rows wear an
  * honest repeats marker, never one phantom row per occurrence. Editing the
- * event edits the series (the rule rides the value; the quick-create bar
- * and the property panel's date pills author it).
+ * event edits the series (the rule rides the value; the property panel's
+ * date pills author it).
  *
  * Data flow follows the JournalsView pattern: synchronous reads off the
  * local store plus client.subscribe re-render; the two structured queries
@@ -62,14 +66,12 @@ import { useDeviceSetting } from "../settings/deviceSettings.js";
 import { TemplatePickerModal } from "../templates/TemplatePickerModal.js";
 import { ensureTaskFamily } from "../classview/taskFamily.js";
 import { ensureTemplateProperty, listClassTemplates } from "../templates/templateFamily.js";
-import { isClassFamilyEnabled } from "../settings/featureGates.js";
 import {
   addDaysIso,
   buildCreatedTodayAst,
   buildOpenTasksAst,
   chainNodeIds,
   closedStatusOptionIds,
-  dateChipCandidates,
   dayNodeId,
   hasDatedRefs,
   isoWeekNumber,
@@ -79,17 +81,14 @@ import {
   weekdayLabel,
 } from "./calendarViewUtils.js";
 import {
+  containingPageIdOf,
   datedRowsForDay,
+  eventRowsForDays,
   recurringRowsOf,
   taskRowsOf,
 } from "./calendarRows.js";
-import {
-  resolveQuickCreateChipClasses,
-  useQuickCreateClassesSetting,
-} from "./calendarQuickCreateSettings.js";
-import { NodeCollection } from "../collection/index.js";
+import { NodeCollection, groupByContainingPage } from "../collection/index.js";
 import type { NodeCollectionItem } from "../collection/index.js";
-import { NodePill } from "../metadata/NodePills.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
@@ -99,6 +98,15 @@ import type { AnyClient } from "../../ui/app/Sidebar.js";
 import "./CalendarView.css";
 
 type DayFilter = "all" | "daily" | "tasks" | "dated" | "created";
+
+/** The events element's zoom levels (owner 2026-10-23): the scope of days. */
+type EventsZoom = "day" | "week" | "month";
+
+const EVENTS_ZOOMS: ReadonlyArray<{ value: EventsZoom; label: string }> = [
+  { value: "day", label: "Day" },
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
+];
 
 const FILTERS: Array<{ value: DayFilter; label: string }> = [
   { value: "all", label: "All" },
@@ -301,58 +309,48 @@ export function CalendarView({
     [selectedIso, firstDayOfWeek],
   );
 
-  // The week agenda as collection groups: each visible day with dated rows
-  // is a collapsible group (its formatted date the header, the click
-  // selecting the day); the rows are plain editable outline rows with the
-  // breadcrumb trail — the same collection grammar as the Dated section
-  // (owner 2026-10-23).
-  const weekAgendaGroups = useMemo(
-    () =>
-      weekDays
-        .map((iso) => {
-          const rows = datedRowsForDay(client, iso, recurringEvents);
-          if (rows.length === 0) return null;
-          const [y, m, d] = iso.split("-").map(Number);
-          return {
-            id: iso,
-            label: new Date(y!, m! - 1, d!, 12).toLocaleDateString(undefined, {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-            }),
-            items: rows.map((row) => ({ node: row.node })),
-            onHeaderClick: () => setSelectedIso(iso),
-          };
-        })
-        .filter((group) => group !== null),
-    [client, weekDays, recurringEvents, setSelectedIso, version],
+  // --- events element (the panel's events list, owner 2026-10-23) -------------
+  // Replaces the retired week agenda / quick-create bar: a NodeCollection
+  // outline with day/week/month zoom over event-family nodes — dated into
+  // the scope days OR embedded at any parent level inside the scope day
+  // pages. The zoom rides a device-local setting; the scope follows the
+  // selected day (day = the day, week = its week, month = its whole month).
+  const [eventsZoom, setEventsZoom] = useDeviceSetting<EventsZoom>(
+    "calendarEventsZoom",
+    "week",
+  );
+  const eventsIsos = useMemo(() => {
+    if (eventsZoom === "day") return [selectedIso];
+    if (eventsZoom === "week") return weekDays;
+    const [y, m] = selectedIso.split("-").map(Number);
+    const dayCount = new Date(y!, m!, 0).getDate(); // Date(y, m, 0) = last of month m
+    const mm = String(m).padStart(2, "0");
+    return Array.from(
+      { length: dayCount },
+      (_, i) => `${y}-${mm}-${String(i + 1).padStart(2, "0")}`,
+    );
+  }, [eventsZoom, selectedIso, weekDays]);
+
+  const eventRows = useMemo(
+    () => eventRowsForDays(client, eventsIsos, recurringEvents),
+    [client, eventsIsos, recurringEvents, version],
   );
 
-  // --- quick-create chips ------------------------------------------------------
-  // EVENT FAMILY ONLY (owner 2026-10-23): the bar creates events — the
-  // system event class and everything extending it (meeting, birthday,
-  // user event subclasses). A class that merely carries a date property
-  // is not quick-create material. Defaults follow current eligibility; a
-  // per-workspace device-local setting narrows the list, and the
-  // settings-changed event re-renders this memo live.
-  const [storedChips] = useQuickCreateClassesSetting(client.getWorkspaceId());
-  const chips = useMemo(() => {
-    const classes = client
-      .listClasses()
-      .map((cls) => ({ id: cls.id, name: displayNameFromClient(client, cls.id) }));
-    const all = dateChipCandidates(
-      classes,
-      (classId) => client.getClassBindings(classId),
-      (classId) => client.getClassParents(classId),
-    ).filter((chip) => isClassFamilyEnabled(client, chip.classId));
-    const effective = new Set(
-      resolveQuickCreateChipClasses(
-        storedChips,
-        all.map((chip) => chip.classId),
-      ),
-    );
-    return all.filter((chip) => effective.has(chip.classId));
-  }, [client, version, storedChips]);
+  // Group by containing page (the shared grouping): embedded blocks group
+  // under their day page, standalone event pages stand alone; rows ride
+  // the breadcrumb trail (the collection default).
+  const eventItems = useMemo<NodeCollectionItem[]>(
+    () =>
+      eventRows.map((row) => ({
+        node: row.node,
+        meta: { containingPageId: containingPageIdOf(client, row.node) },
+      })),
+    [client, eventRows],
+  );
+  const { standalone: standaloneEvents, groups: eventGroups } = useMemo(
+    () => groupByContainingPage(client, eventItems, onOpenPage),
+    [client, eventItems, onOpenPage],
+  );
 
   // --- create flow (create-with-template) ---------------------------------------
   // A class with bound has-template values opens the picker; a class without
@@ -396,10 +394,6 @@ export function CalendarView({
     setPendingCreate(null);
     if (pending === null) return;
     void createClassed(pending.classId, pending.schemaId, templateId);
-  };
-
-  const quickCreate = async (chip: { classId: string; schemaId: string }) => {
-    await offerCreate(chip.classId, chip.schemaId);
   };
 
   const createTask = async () => {
@@ -503,10 +497,26 @@ export function CalendarView({
                     .then(({ year: yearId }) => onOpenPage(yearId));
                 }}
               />
-              <div className="calendar-view__agenda" aria-label="Week agenda">
-                <h2 className="calendar-view__agenda-title">This week</h2>
-                {weekAgendaGroups.length === 0 ? (
-                  <p className="calendar-view__muted">Nothing dated this week.</p>
+              <div className="calendar-view__agenda" aria-label="Events">
+                <div className="calendar-view__agenda-head">
+                  <h2 className="calendar-view__agenda-title">Events</h2>
+                  <div className="calendar-view__zoom" role="group" aria-label="Events scope">
+                    {EVENTS_ZOOMS.map((zoom) => (
+                      <Button
+                        key={zoom.value}
+                        variant="ghost"
+                        size="sm"
+                        active={eventsZoom === zoom.value}
+                        aria-pressed={eventsZoom === zoom.value}
+                        onClick={() => setEventsZoom(zoom.value)}
+                      >
+                        {zoom.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                {eventRows.length === 0 ? (
+                  <p className="calendar-view__muted">No events this {eventsZoom}.</p>
                 ) : (
                   <NodeCollection
                     viewMode="outline"
@@ -514,8 +524,9 @@ export function CalendarView({
                     /* The flattened rows ride `items` too — the outline's
                        grouped path still gates on a non-empty item list
                        (the grouped hosts' contract). */
-                    items={weekAgendaGroups.flatMap((group) => group.items)}
-                    groups={weekAgendaGroups}
+                    items={eventItems}
+                    groups={eventGroups}
+                    ungroupedItems={standaloneEvents}
                     editable
                     onNodeClick={onOpenPage}
                   />
@@ -526,26 +537,6 @@ export function CalendarView({
         }
       >
         <div className="calendar-view__main">
-          {chips.length > 0 && (
-            /* The chips wear the colored class-pill register (owner
-               2026-10-23): effective color + icon, the class's own look —
-               a click creates the event. The repeat picker is gone (the
-               bar's null-state "Does not repeat" read as noise); a rule
-               is authored from the created event's Properties date pill. */
-            <div className="calendar-view__quick-create" aria-label="Quick create">
-              {chips.map((chip) => (
-                <NodePill
-                  key={chip.classId}
-                  color={client.effectiveClassColor(chip.classId)}
-                  icon={client.effectiveClassIcon(chip.classId) || null}
-                  label={chip.label}
-                  hoverReveal={false}
-                  onOpen={() => void quickCreate(chip)}
-                />
-              ))}
-            </div>
-          )}
-  
           <Tabs value={filter} onChange={setFilter} className="calendar-view__filter">
             <Tabs.List>
               {FILTERS.map((entry) => (

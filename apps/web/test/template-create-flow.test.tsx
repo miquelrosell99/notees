@@ -1,10 +1,10 @@
 /**
- * Create-with-template flow tests: the Calendar day view's
- * quick-create offers the TemplatePickerModal only when the picked class has
- * bound templates; picking one instantiates through the clone engine (fresh
+ * Create-with-template flow tests: the Calendar day view's Tasks New
+ * affordance offers the TemplatePickerModal only when the class has bound
+ * templates; picking one instantiates through the clone engine (fresh
  * object, grafted root, cloned children, template-authored values beating
- * binding defaults per SCHEMA.md D2); the Blank row and template-less classes
- * create directly, exactly as before.
+ * binding defaults per SCHEMA.md D2); the Blank row and template-less
+ * classes create directly, exactly as before.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -18,6 +18,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/features/calendar/CalendarView.js";
 import { dayNodeId, todayIsoLocal } from "../src/features/calendar/calendarViewUtils.js";
+import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 import { ensureTemplateProperty } from "../src/features/templates/templateFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000b1";
@@ -72,11 +73,6 @@ function seededRelay(): MemoryRelay {
       },
       [SYSTEM_CLASS_UUIDS.template],
     ),
-    seedEnvelope(
-      "class.create",
-      { classId: SYSTEM_CLASS_UUIDS.event, contentAst: [{ type: "text", text: "event" }] },
-      [SYSTEM_CLASS_UUIDS.event],
-    ),
   ]);
   return relay;
 }
@@ -93,20 +89,14 @@ async function seedClient(relay: MemoryRelay = seededRelay()): Promise<Workspace
 }
 
 /**
- * A gathering class (a generic user class — "meeting" is system vocabulary)
- * with a date binding (quick-create eligibility), a Priority
- * binding whose SCHEMA-level default "low" the template overrides with
- * "high" (D2), and the "Sync template" bound via has-template with one child
- * block.
+ * The task family with a Priority binding whose SCHEMA-level default "low"
+ * a template overrides with "high" (D2), and the "Sync template" bound via
+ * has-template with one child block.
  */
-async function setupMeetingWithTemplate(client: WorkspaceClient) {
-  const meetingId = await client.createClass("gathering");
-  // Event family (the bar is event-family-only, owner 2026-10-23).
-  await client.setClassExtends(meetingId, [SYSTEM_CLASS_UUIDS.event]);
-  const whenId = await client.createPropertySchema({ name: "When", type: "datetime" });
-  await client.setClassProperty(meetingId, whenId, {});
+async function setupTaskWithTemplate(client: WorkspaceClient) {
+  await ensureTaskFamily(client);
   const prioId = await client.createPropertySchema({ name: "Priority", type: "select" });
-  await client.setClassProperty(meetingId, prioId, {});
+  await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, prioId, {});
   await client.updatePropertySchema(prioId, { defaultValue: "low" });
 
   const templateId = await client.createObject({
@@ -116,41 +106,37 @@ async function setupMeetingWithTemplate(client: WorkspaceClient) {
   });
   await client.createObject({
     parentId: templateId,
-    contentAst: [{ type: "text", text: "Recurring agenda" }],
+    contentAst: [{ type: "text", text: "Recurring checklist" }],
   });
   await client.setProperty(templateId, prioId, "high", 0);
 
   await ensureTemplateProperty(client);
-  await client.setProperty(meetingId, SYSTEM_PROPERTY_UUIDS.hasTemplate, { nodeId: templateId }, 0);
-  return { meetingId, whenId, prioId, templateId };
-}
-
-async function setupPlainClass(client: WorkspaceClient) {
-  const plainId = await client.createClass("plain");
-  // Event family (the bar is event-family-only, owner 2026-10-23).
-  await client.setClassExtends(plainId, [SYSTEM_CLASS_UUIDS.event]);
-  const whenId = await client.createPropertySchema({ name: "Dated", type: "datetime" });
-  await client.setClassProperty(plainId, whenId, {});
-  return { plainId, whenId };
+  await client.setProperty(
+    SYSTEM_CLASS_UUIDS.task,
+    SYSTEM_PROPERTY_UUIDS.hasTemplate,
+    { nodeId: templateId },
+    0,
+  );
+  return { prioId, templateId };
 }
 
 describe("CalendarView create-with-template", () => {
   it("offers the picker for a class with templates; picking instantiates via the clone engine", async () => {
     const client = await seedClient();
-    const { meetingId, whenId, prioId, templateId } = await setupMeetingWithTemplate(client);
+    const { prioId, templateId } = await setupTaskWithTemplate(client);
     const onOpenPage = vi.fn();
     render(<CalendarView client={client} onOpenPage={onOpenPage} />);
 
-    const chip = await screen.findByRole("button", { name: "gathering" });
-    fireEvent.click(chip);
+    const tasks = await screen.findByRole("region", { name: "Tasks" });
+    fireEvent.click(within(tasks).getByRole("button", { name: "New" }));
 
     // The picker names the picked class and lists blank + the bound template.
     // (Scoped within the dialog: a template created today also rows in the
     // calendar's Created section with the same name.)
     const dialog = await screen.findByRole("dialog");
-    expect(dialog.textContent).toContain("New gathering");
+    expect(dialog.textContent).toContain("New Task");
     const options = within(dialog);
-    expect(options.getByRole("button", { name: "Blank gathering" })).toBeDefined();
+    expect(options.getByRole("button", { name: "Blank Task" })).toBeDefined();
     expect(options.getByRole("button", { name: "Sync template" })).toBeDefined();
 
     fireEvent.click(options.getByRole("button", { name: "Sync template" }));
@@ -159,20 +145,20 @@ describe("CalendarView create-with-template", () => {
     const newId = onOpenPage.mock.calls[0]![0] as string;
     const created = client.getNode(newId);
     expect(created).toBeDefined();
-    expect(created!.classIds).toEqual([meetingId]);
+    expect(created!.classIds).toEqual([SYSTEM_CLASS_UUIDS.task]);
     expect(created!.classIds).not.toContain(SYSTEM_CLASS_UUIDS.template);
     // Grafted root content (the template's title IS its content).
     expect(created!.contentAst).toEqual([{ type: "text", text: "Sync template" }]);
     // Children cloned beneath in order; the template itself is untouched.
     const children = client.getChildren(newId);
     expect(children.map((child) => child.contentAst)).toEqual([
-      [{ type: "text", text: "Recurring agenda" }],
+      [{ type: "text", text: "Recurring checklist" }],
     ]);
     expect(client.getChildren(templateId)).toHaveLength(1);
     // The calendar flow's date write landed on the selected day.
     const when = client
       .getEffectiveProperties(newId)
-      .find((entry) => entry.propertySchemaId === whenId);
+      .find((entry) => entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled);
     expect(when?.value).toEqual({ nodeId: dayNodeId(todayIsoLocal()) });
     // D2: the template-authored Priority beats the binding default.
     const prio = client
@@ -184,30 +170,30 @@ describe("CalendarView create-with-template", () => {
 
   it("creates directly (no picker) when the class has no templates", async () => {
     const client = await seedClient();
-    const { plainId } = await setupPlainClass(client);
+    await ensureTaskFamily(client);
     const onOpenPage = vi.fn();
     render(<CalendarView client={client} onOpenPage={onOpenPage} />);
 
-    const chip = await screen.findByRole("button", { name: "plain" });
-    fireEvent.click(chip);
+    const tasks = await screen.findByRole("region", { name: "Tasks" });
+    fireEvent.click(within(tasks).getByRole("button", { name: "New" }));
 
     await waitFor(() => expect(onOpenPage).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("dialog")).toBeNull();
     const created = client.getNode(onOpenPage.mock.calls[0]![0] as string);
-    expect(created!.classIds).toEqual([plainId]);
+    expect(created!.classIds).toEqual([SYSTEM_CLASS_UUIDS.task]);
     expect(client.getChildren(created!.id)).toEqual([]);
   });
 
   it("the Blank row creates a fresh object without instantiation", async () => {
     const client = await seedClient();
-    const { prioId } = await setupMeetingWithTemplate(client);
+    const { prioId } = await setupTaskWithTemplate(client);
     const onOpenPage = vi.fn();
     render(<CalendarView client={client} onOpenPage={onOpenPage} />);
 
-    const chip = await screen.findByRole("button", { name: "gathering" });
-    fireEvent.click(chip);
+    const tasks = await screen.findByRole("region", { name: "Tasks" });
+    fireEvent.click(within(tasks).getByRole("button", { name: "New" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Blank gathering" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Blank Task" }));
 
     await waitFor(() => expect(onOpenPage).toHaveBeenCalledTimes(1));
     const created = client.getNode(onOpenPage.mock.calls[0]![0] as string);
