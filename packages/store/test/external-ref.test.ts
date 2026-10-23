@@ -24,9 +24,10 @@
  */
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
@@ -35,6 +36,22 @@ import { newEnvelope, type Envelope } from "@notees/protocol";
 import { EnvelopeValidationError, Store, type StoreBackend } from "../src/index.js";
 import { betterSqlite3Backend } from "../src/adapters/better-sqlite3.js";
 import { sqljsBackend } from "../src/adapters/sqljs.js";
+
+const FIXTURES_DIR = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "protocol",
+  "fixtures",
+);
+
+/** The house fixture loader (store.test.ts's pattern): real envelopes. */
+function loadFixture(name: string): Record<string, unknown>[] {
+  const raw = JSON.parse(readFileSync(join(FIXTURES_DIR, name), "utf8")) as {
+    envelopes: Record<string, unknown>[];
+  };
+  return raw.envelopes;
+}
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -286,44 +303,41 @@ for (const adapter of adapters) {
     });
 
     it("the canonical fixture converges under forward and reverse delivery of the mapping ops", () => {
+      // The REAL fixture replayed (the house loader) — not a hand-built
+      // stand-in: the GTK/Flutter ports pin this exact end state.
+      const fixture = loadFixture("external-ref.json") as unknown as Envelope[];
+      const WS_F = "0192a000-0000-7000-8000-000000000001";
       const A = "0192a000-0000-7000-8000-000000000b10";
       const B = "0192a000-0000-7000-8000-000000000b11";
+      const GCAL = "gcal:event:abc123@google.com";
+      const READITLATER = "readitlater:entry:7788";
+
       // The node creates and the permanent delete are causally ordered (a
-      // hard delete cannot apply before its node's create) — the convergence
-      // claim under reordering covers the MAPPING ops, whose only
-      // interdependencies are the LWW tuples.
-      const creates = [createPage(A, 1727200050000), createPage(B, 1727200050100)];
-      const mappingOps = [
-        env("external_ref.set", { ref: REF_GCAL, nodeId: A }, 1727200050200),
-        env("external_ref.set", { ref: REF_READWISE, nodeId: A }, 1727200050300),
-        env("external_ref.set", { ref: REF_GCAL, nodeId: B }, 1727200050400),
-        env("external_ref.delete", { ref: REF_READWISE }, 1727200050500),
-        // A delete race: the delete wins, then a stale set is dropped.
-        env("external_ref.set", { ref: REF_READITLATER, nodeId: A }, 1727200050600),
-        env("external_ref.set", { ref: REF_READITLATER, nodeId: B }, 1727200050700),
-        env("external_ref.delete", { ref: REF_READITLATER }, 1727200050800),
-      ];
-      const purge = env("object.delete", { objectId: A, permanent: true }, 1727200050900);
-      const fixture = [...creates, ...mappingOps, purge];
+      // hard delete cannot apply before its node's create) — the reorder
+      // covers the MAPPING ops, whose only interdependencies are the LWW
+      // tuples (fixture ops 3..10).
+      const ordered = [...fixture];
+      const mappingOps = ordered.slice(2, -1);
+      const backwardFixture = [...ordered.slice(0, 2), ...[...mappingOps].reverse(), ordered[ordered.length - 1]!];
 
-      const forward = Store.open(adapter.makeBackend());
-      forward.applyMany(fixture);
-      const backward = Store.open(adapter.makeBackend());
-      backward.applyMany([...creates, ...[...mappingOps].reverse(), purge]);
-
-      for (const store of [forward, backward]) {
-        expect(store.resolveExternalRef(WS, REF_GCAL)).toBe(B);
-        // The delete won the readitlater race; the middle set lost to it.
-        expect(store.resolveExternalRef(WS, REF_READITLATER)).toBeNull();
-        expect(store.resolveExternalRef(WS, REF_READWISE)).toBeNull();
-        expect(store.externalRefsOf(WS, A)).toEqual([]);
-        expect(store.externalRefsOf(WS, B)).toEqual([REF_GCAL]);
+      for (const envelopes of [ordered, backwardFixture]) {
+        const store = Store.open(adapter.makeBackend());
+        store.applyMany(envelopes);
+        // True fixture end state: abc123 moved A→B; readitlater's phone
+        // set (higher HLC) beat the laptop set → B; readwise + def456 are
+        // tombstoned; ghi789 rode node A into the hard-delete purge.
+        expect(store.resolveExternalRef(WS_F, GCAL)).toBe(B);
+        expect(store.resolveExternalRef(WS_F, READITLATER)).toBe(B);
+        expect(store.resolveExternalRef(WS_F, "readwise:highlight:12345")).toBeNull();
+        expect(store.resolveExternalRef(WS_F, "gcal:event:def456@google.com")).toBeNull();
+        expect(store.resolveExternalRef(WS_F, "gcal:event:ghi789@google.com")).toBeNull();
+        expect(store.externalRefsOf(WS_F, A)).toEqual([]);
+        expect(store.externalRefsOf(WS_F, B)).toEqual([GCAL, READITLATER]);
         // Idempotent replay.
-        store.applyMany(fixture);
-        expect(store.externalRefsOf(WS, B)).toEqual([REF_GCAL]);
+        store.applyMany(envelopes);
+        expect(store.externalRefsOf(WS_F, B)).toEqual([GCAL, READITLATER]);
+        store.close();
       }
-      forward.close();
-      backward.close();
     });
   });
 }

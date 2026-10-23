@@ -59,14 +59,10 @@ predating this file.
   `external-ref.json` (fixture gate 39→40) pins set/move/delete, the
   racing-set winner, the tombstone's stale-set drop after reorder, and
   the hard-delete purge.
-  - **LOCKSTEP-PENDING**: the GTK / Flutter appliers converge on
-    `external-ref.json` (vendored byte-identical) before the marker clears
-    — the 2026-10-13 date-chain precedent (TS reference lands first, the
-    ports follow); the sibling-client seed-manifest check does not apply
-    (no seed change). Sibling repos: `notees-gtk`
-    (`tests/fixtures/wire/` + `tests/test_store_fixtures.py`),
-    `notees-flutter` (`test/fixtures/wire/` +
-    `test/fixture_replay_test.dart`).
+  - **LOCKSTEP SHIPPED**: GTK `23bcc28` + Flutter `fdf14fd` vendored the fixture
+    byte-identical (sha256-matched on all three) and converged their appliers
+    (912 + 695 tests green); the store's fixture test now replays the real
+    fixture JSON forward and reversed.
   - **Verification**: `pnpm typecheck` clean; protocol gate (fixture set
     39→40, strict-schema reject tails, the fixture's LWW races), store
     suites on both adapters (LWW convergence under both delivery orders,
