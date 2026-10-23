@@ -21,7 +21,7 @@ import type { Envelope } from "@notees/protocol";
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
 import type { Principal } from "./identity.js";
-import { resolvePrincipal } from "./routes-auth.js";
+import { resolvePrincipal, rethrowImageError } from "./routes-auth.js";
 import { RelayValidationError, validateRelayBatch } from "./validate.js";
 import { countSnapshotNodes } from "./relay-storage.js";
 import { SNAPSHOT_REBUILD_MIN_ENVELOPES } from "./workspace-store.js";
@@ -54,6 +54,8 @@ const snapshotPutQuerySchema = z.object({
   workspaceId: z.string().uuid(),
   physical: z.coerce.number().int().nonnegative(),
   logical: z.coerce.number().int().nonnegative(),
+  /** `import` installs the body as the workspace's derived store instead of publishing it as a client checkpoint. */
+  mode: z.enum(["import"]).optional(),
 });
 
 /**
@@ -213,11 +215,45 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", "workspaceId, physical and logical query parameters required");
     }
-    const { workspaceId, physical, logical } = parsed.data;
+    const { workspaceId, physical, logical, mode } = parsed.data;
     requireCredential(ctx, request, workspaceId, "write");
     const body = request.body;
     if (!Buffer.isBuffer(body) || body.length === 0) {
       throw new AppError(422, "validation_failed", "snapshot data must be a non-empty binary body");
+    }
+    // mode=import: install the body as the workspace's DERIVED STORE (a
+    // snapshot image — usually produced by POST /api/workspaces/:id/clone's
+    // source side or a store export), not as a client checkpoint. The
+    // workspace must be envelope-empty (hydration's snapshot fast path only
+    // fires while the log is empty) and the sanity gate applies REGARDLESS
+    // of the envelope threshold — an imported image below the threshold must
+    // still be a derived store with node rows.
+    if (mode === "import") {
+      const nodes = countSnapshotNodes(body);
+      if (nodes === null || nodes === 0) {
+        throw new AppError(
+          422,
+          "validation_failed",
+          "import failed the sanity gate: the body must be a derived store with node rows — refusing to install an empty or foreign image",
+        );
+      }
+      let nodeCount: number;
+      try {
+        ({ nodeCount } = ctx.workspaces.installImage(workspaceId, body));
+      } catch (error) {
+        rethrowImageError(error);
+      }
+      const snapshotId = uuidv7();
+      const upToSeq = ctx.relay.latestSeq(workspaceId);
+      ctx.relay.saveSnapshot(workspaceId, snapshotId, { physical, logical }, upToSeq, body);
+      reply.code(201);
+      return {
+        snapshotId,
+        workspaceId,
+        upToHlc: { physical, logical },
+        upToSeq,
+        nodeCount,
+      };
     }
     // The sanity gate (owner incident 2026-10-21): for a workspace with a
     // real log, the uploaded checkpoint must be a parseable derived store

@@ -487,6 +487,19 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     tags: ["Workspaces"],
     errors: ["not_found", "conflict"],
   }],
+  ["post", "/api/workspaces/:id/clone", {
+    summary: "Clone a workspace from its derived snapshot image (owner-only; session required)",
+    description:
+      "Creates a FRESH envelope-empty workspace and installs a consistent snapshot image of the source's derived store (every workspace_id row rewritten). The clone's relay log starts EMPTY — the history is not in the log; the installed snapshot row is load-bearing (a derived wipe rehydrates from the snapshot, not the log). The source must carry node rows (422 otherwise); a failure after the workspace row is created rolls the half workspace back best-effort.",
+    tags: ["Workspaces"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      properties: { name: { type: "string" } },
+    },
+    success: { status: 201, description: "the new workspace id, name, and node count" },
+    errors: ["validation_failed", "not_found", "forbidden", "conflict"],
+  }],
   ["get", "/api/workspaces/:id/export.zip", {
     summary: "Full-workspace Markdown zip (one file per page, manifest, optional assets/)",
     description:
@@ -825,15 +838,18 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["validation_failed", "not_found"],
   }],
   ["put", "/api/relay/v2/snapshot/data", {
-    summary: "Publish snapshot bytes (raw body)",
+    summary: "Publish snapshot bytes (raw body); mode=import installs them as the workspace's derived store",
+    description:
+      "Default mode publishes a client-produced checkpoint (sanity-gated above the envelope threshold). mode=import instead INSTALLS the body as the target workspace's derived store — a snapshot image, usually from POST /api/workspaces/:id/clone's source side — rewriting every workspace_id row; the target must be envelope-empty (409 otherwise) and the body must carry node rows at ANY log size (422 otherwise). An imported workspace's log starts empty: the snapshot is load-bearing for rebuilds.",
     tags: ["Relay"],
     query: {
       workspaceId: { description: "workspace uuid", type: "string", required: true },
       physical: { description: "HLC physical component", type: "integer", required: true },
       logical: { description: "HLC logical component", type: "integer", required: true },
+      mode: { description: '"import" installs the body as the workspace derived store (workspace_id rewritten) instead of publishing a checkpoint', type: "string" },
     },
-    success: { status: 201, description: "the new snapshot id" },
-    errors: ["validation_failed"],
+    success: { status: 201, description: "the new snapshot id (plus nodeCount in import mode)" },
+    errors: ["validation_failed", "conflict"],
   }],
   ["post", "/api/relay/v2/compact", {
     summary: "Snapshot the derived state up to an HLC and optionally prune covered envelopes",
