@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(web): the nodeview top bar composes the fleet SurfaceTopBar — the
+  bottom divider returns on the shared register.** The 2026-10-22 hub-surface
+  commit extracted the in-card top bar from the NodeView's `.nt-node-topbar`
+  register into the fleet `SurfaceTopBar` primitive (with a bottom hairline:
+  a body scrolling tight under the bar read as cut); the nodeview bar itself
+  stayed a hand-rolled row, and its divider had been retired 2026-10-13 —
+  before the body scrolled under it. This slice closes the loop the extraction
+  announced: `SurfaceTopBar` gains an optional `title` (freeform `lead` slot
+  replaces the title block) and a `className` passthrough, and `NodeTopbar`
+  (PageChrome.tsx) composes it — left cluster (context-panel toggle + classes
+  pills) through `lead`, right cluster (view switcher, condense-all, properties
+  toggle, "…" menu) through `actions`. The hairline rides the primitive's
+  `border-bottom`; the app.css `.surface-topbar.nt-node-topbar` two-class
+  override zeroes the primitive's own padding (the panelled page's padding
+  carries the bar's inset) and beats the base rule plus its small-width
+  variant without `!important`. The retired `.nt-node-topbar__spacer` rule
+  goes (the primitive's spacer carries the push). Hubs untouched — additive
+  props only. Verified: `pnpm typecheck` + `pnpm test` green.
+
 - **feat(protocol+store+web): node-level property ASSIGNMENT — assign a
   property without a value, set the value later (owner ruling, the v1
   `node_property` lineage).** The trigger: adding a property to a node whose

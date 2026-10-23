@@ -116,7 +116,13 @@ imperatively against the live selection Range),
 `SurfaceTopBar` (the in-card top bar for full-bleed hub surfaces, owner
 2026-10-22: icon + title + muted count + context + right-aligned actions,
 pinned above the surface's card-border scrolling body — every hub view
-composes it instead of a hand-rolled header),
+composes it instead of a hand-rolled header; the bottom hairline marks the
+seam, a body scrolling tight under the bar read as cut. Extended
+2026-10-23: `title` optional with a freeform `lead` slot + `className`
+passthrough — the nodeview top bar (NodeTopbar, PageChrome.tsx) composes it
+with its own toggle/pills cluster through `lead`, closing the loop the
+extraction announced: every in-card top bar rides one element and one
+hairline register),
 `PresentationOverlay` (the fullscreen presentation host: dark
 stage, auto-hiding toolbar, edge zones, Esc/focus-trap, owned keymap).
 

@@ -40,6 +40,7 @@ import { BlockRow } from "./BlockRow.js";
 import { Icon } from "./Icon.js";
 import { AddPill } from "../components/ui/fleet/AddPill.js";
 import { Button } from "../components/ui/fleet/Button.js";
+import { SurfaceTopBar } from "../components/ui/fleet/SurfaceTopBar.js";
 import { TextField } from "../components/ui/fleet/TextField.js";
 import { nodeDisplayName, displayNameFromClient } from "./dateDisplay.js";
 
@@ -55,10 +56,13 @@ type AnyClient = WorkspaceClient | WorkerClient;
  * collapse toggle, and the "…" node menu. Each panel toggle sits in the
  * cluster above the column it reveals — the context toggle top-left, the
  * properties toggle top-right (the owner 2026-10-23 swap moved the
- * columns; the toggles followed). The divider
- * border under the row retired (owner 2026-10-13) — the spacing-3 margin
- * below the bar is its whole separation from the columns. Full-width so
- * the bar never rescales when a panel column shows or hides. Focus mode
+ * columns; the toggles followed). The bar composes the fleet SurfaceTopBar
+ * primitive (owner 2026-10-23 — the register the 2026-10-22 hub commit
+ * generalized FROM this bar; composing it closes the loop): the bottom
+ * hairline rides the primitive's border-bottom, and the app.css
+ * `.surface-topbar.nt-node-topbar` override zeroes the primitive's own
+ * padding — the panelled page's padding carries the bar's inset. Full-width
+ * so the bar never rescales when a panel column shows or hides. Focus mode
  * (#12) keeps the bar but hides BOTH panel toggles and the classes pills —
  * the toggles would control panels the mode hides, and the classes are
  * exactly the chrome it suppresses; the view switcher + the node menu stay
@@ -116,49 +120,53 @@ export function NodeTopbar({
   focusMode?: boolean;
 }) {
   return (
-    <div className="nt-node-topbar">
-      {!focusMode && (
-        <>
-          {onToggleContextPanel !== undefined && (
+    <SurfaceTopBar
+      className="nt-node-topbar"
+      lead={
+        !focusMode ? (
+          <>
+            {onToggleContextPanel !== undefined && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon="mdi mdi-information-outline"
+                aria-label={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
+                aria-pressed={!contextPanelCollapsed}
+                title={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
+                active={!contextPanelCollapsed}
+                onClick={onToggleContextPanel}
+              />
+            )}
+            <div className="nt-node-topbar__classes">
+              {classesCorner ?? (
+                <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
+              )}
+            </div>
+          </>
+        ) : undefined
+      }
+      actions={
+        <div className="nt-node-topbar__right">
+          {chromeModes}
+          {condensedChrome}
+          {!focusMode && (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              icon="mdi mdi-information-outline"
-              aria-label={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
-              aria-pressed={!contextPanelCollapsed}
-              title={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
-              active={!contextPanelCollapsed}
-              onClick={onToggleContextPanel}
+              icon="mdi mdi-format-list-bulleted"
+              aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+              aria-pressed={!sidePanelCollapsed}
+              title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+              active={!sidePanelCollapsed}
+              onClick={onToggleSidePanel}
             />
           )}
-          <div className="nt-node-topbar__classes">
-            {classesCorner ?? (
-              <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
-            )}
-          </div>
-        </>
-      )}
-      <span className="nt-node-topbar__spacer" aria-hidden="true" />
-      <div className="nt-node-topbar__right">
-        {chromeModes}
-        {condensedChrome}
-        {!focusMode && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            icon="mdi mdi-format-list-bulleted"
-            aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
-            aria-pressed={!sidePanelCollapsed}
-            title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
-            active={!sidePanelCollapsed}
-            onClick={onToggleSidePanel}
-          />
-        )}
-        {chromeMenu}
-      </div>
-    </div>
+          {chromeMenu}
+        </div>
+      }
+    />
   );
 }
 

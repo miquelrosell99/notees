@@ -12,6 +12,14 @@
  * The actions cluster composes fleet Buttons (`variant="ghost" size="sm"`);
  * text actions like the journal's "Today" are Buttons with children, never
  * custom pills.
+ *
+ * Two additive extensions (owner 2026-10-23): `title` became OPTIONAL with a
+ * freeform `lead` slot — the nodeview top bar (NodeTopbar, PageChrome.tsx)
+ * composes this primitive with its own left cluster (the context-panel toggle
+ * + the classes pills) instead of a hand-rolled row, so every in-card top bar
+ * rides ONE element and ONE hairline register; and `className` passes through
+ * to the root (the fleet Button precedent) so a host can carry its own
+ * register overrides (the panelled page's padding-carrying override).
  */
 
 import type { ReactNode } from 'react';
@@ -22,24 +30,38 @@ import './SurfaceTopBar.css';
 export interface SurfaceTopBarProps {
   /** Optional mdi icon path rendered before the title. */
   icon?: string | undefined;
-  title: string;
+  /** The bar's heading; omit when `lead` carries the left cluster instead. */
+  title?: string | undefined;
   /** Optional muted count after the title. */
   count?: number | undefined;
   /** Optional extra lead content after the title/count (e.g. a date line). */
   context?: ReactNode;
+  /**
+   * Freeform left-cluster content replacing the whole title block (the
+   * nodeview top bar's toggle + classes pills). Wins over title/count/context.
+   */
+  lead?: ReactNode;
   /** Right-aligned control cluster. */
   actions?: ReactNode;
+  /** Extra class merged onto the root (host register overrides). */
+  className?: string | undefined;
 }
 
-export function SurfaceTopBar({ icon, title, count, context, actions }: SurfaceTopBarProps) {
+export function SurfaceTopBar({ icon, title, count, context, lead, actions, className }: SurfaceTopBarProps) {
   return (
-    <div className="surface-topbar">
-      <h1 className="surface-topbar__title">
-        {icon !== undefined && <Icon path={icon} size={1.1} />}
-        {title}
-      </h1>
-      {count !== undefined && <span className="surface-topbar__count">{count}</span>}
-      {context !== undefined && <div className="surface-topbar__context">{context}</div>}
+    <div className={["surface-topbar", className].filter(Boolean).join(" ")}>
+      {lead !== undefined ? (
+        lead
+      ) : (
+        title !== undefined && (
+          <h1 className="surface-topbar__title">
+            {icon !== undefined && <Icon path={icon} size={1.1} />}
+            {title}
+          </h1>
+        )
+      )}
+      {lead === undefined && count !== undefined && <span className="surface-topbar__count">{count}</span>}
+      {lead === undefined && context !== undefined && <div className="surface-topbar__context">{context}</div>}
       <span className="surface-topbar__spacer" aria-hidden="true" />
       {actions !== undefined && <div className="surface-topbar__actions">{actions}</div>}
     </div>

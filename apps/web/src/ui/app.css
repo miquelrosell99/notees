@@ -696,11 +696,19 @@ select:focus-visible {
    2026-10-09): its controls act on the layout's columns, so it must not
    rescale when a panel shows or hides — the page's own horizontal padding
    carries both edges, and each panel toggle sits directly above the column
-   it reveals. No vertical padding (owner 2026-10-13): the panelled page's
-   padding-top carries the bar's top gap. No divider border either (owner
-   2026-10-13). Both gaps are spacing-2 (owner 2026-10-13, second pass): the
-   bar is chrome and reads best hugging its content — top gap 8, bottom gap
-   8. */
+   it reveals.
+   The bar composes the fleet SurfaceTopBar primitive (owner 2026-10-23 —
+   the register the hub commit generalized FROM this bar): the bottom
+   hairline rides the primitive's own border-bottom (the divider returns —
+   the 2026-10-13 retirement predated the body scrolling tight under the
+   bar; the hub commit's second pass established the seam rule, the clipped
+   content read as cut). No vertical padding: the two-class override below
+   zeroes the primitive's own padding (the panelled page's padding-top
+   carries the bar's top gap, owner 2026-10-13), and the primitive's base
+   padding rules — the base rule and its small-width variant — both lose to
+   the higher specificity. The bottom gap stays the margin-bottom spacing-2
+   (owner 2026-10-13, second pass): the bar is chrome and reads best
+   hugging its content — top gap 8, bottom gap 8. */
 .nt-node-topbar {
   display: flex;
   align-items: center;
@@ -708,6 +716,10 @@ select:focus-visible {
   flex-shrink: 0;
   padding: 0;
   margin-bottom: var(--spacing-2);
+}
+
+.surface-topbar.nt-node-topbar {
+  padding: 0;
 }
 
 .nt-node-topbar__classes {
@@ -719,9 +731,10 @@ select:focus-visible {
   display: none;
 }
 
-.nt-node-topbar__spacer {
-  flex: 1;
-}
+/* The bar's spacer retires with the SurfaceTopBar composition (owner
+   2026-10-23): the primitive's own .surface-topbar__spacer carries the
+   push, and the right cluster renders through the primitive's actions
+   slot. */
 
 .nt-node-topbar__right {
   display: flex;
