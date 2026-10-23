@@ -137,7 +137,7 @@ import { TocSection } from "./app/sidebarSections.js";
 import { CommentsSection } from "../features/page-sections/CommentsSection.js";
 import { EmbedBoundary } from "./EmbedView.js";
 import { Icon } from "./Icon.js";
-import { BlockRow } from "./BlockRow.js";
+import { BlockRow, useStableIdArray } from "./BlockRow.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext } from "./outliner-context.js";
 import { NodeCollection } from "../features/collection/index.js";
@@ -382,6 +382,10 @@ export function PageView({
   const headerIcon =
     page !== undefined ? definedNodeIcon(page, client.effectiveClassIcons()) : null;
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
+  // Stable identity for dnd-kit's SortableContext (a fresh array per render
+  // would re-render every sortable row through context — the row memo's
+  // defeat). Structural share: replaced only when the id sequence changes.
+  const stableTreeIds = useStableIdArray(tree.map((child) => child.node.id));
   /** The same tree in the view system's input shape (session view state). */
   const blockItems = childQuery(client, pageId);
   /**
@@ -634,7 +638,7 @@ export function PageView({
       ) : (
         <>
           <EmbedBoundary rootId={pageId}>
-            <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
+            <SortableContext items={stableTreeIds} strategy={verticalListSortingStrategy}>
               <div
                 ref={selectionRootRef}
                 className="nt-select-surface nt-edit-thread-host"
