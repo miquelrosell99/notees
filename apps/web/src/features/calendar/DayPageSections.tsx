@@ -186,6 +186,7 @@ export function DayPageSections({
           client={client}
           title="Tasks"
           icon={<Icon path="mdi-format-list-checks" size={0.9} />}
+          badge={openCount}
           defaultCollapsed
           load={() => tasksPartition}
           emptyText="Nothing scheduled for this day."
@@ -219,6 +220,7 @@ export function DayPageSections({
           client={client}
           title="Dated"
           icon={<Icon path="mdi-calendar-range" size={0.9} />}
+          badge={datedRows.length}
           defaultCollapsed
           load={() => datedRows}
           emptyText="Nothing references this day yet."

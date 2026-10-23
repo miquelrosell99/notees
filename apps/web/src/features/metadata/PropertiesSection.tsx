@@ -46,6 +46,7 @@ export function PropertiesSection({
     <NodeViewSection
       title="Properties"
       icon={<Icon path="mdi-format-list-bulleted-square" size={0.9} />}
+      count={count}
       className="node-metadata-section nt-properties-panel"
       defaultExpanded={false}
     >

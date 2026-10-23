@@ -19,9 +19,10 @@
  * tabs, the structured panel dropping a wrapped full-width line beneath),
  * the section's FilterQuery filters the resolved members before the
  * collection's windowing sees them, and the section renders even empty
- * (the create affordance stays visible) — with no header count anywhere
- * (owner ruling 2026-10-21): the count rides the hosted tab bar's
- * active-tab badge, naming the displayed rows. The query is
+ * (the create affordance stays visible) — a hosted section: the count rides
+ * the hosted tab bar's active-tab badge, naming the displayed rows, and the
+ * header stays bare (owner ruling 2026-10-21, refined 2026-10-23 — the
+ * header badge is the count's home only where tabs are absent). The query is
  * component state — one instance per class page,
  * lost on reload, nothing persisted. The member set opens pure
  * ALPHABETICAL (owner 2026-10-13) in every mode — the list view's Name A–Z

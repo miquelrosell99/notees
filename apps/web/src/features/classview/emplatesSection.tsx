@@ -84,6 +84,7 @@ export function TemplatesSection({
     <NodeViewSection
       title="Templates"
       icon={<Icon path="mdi-clipboard-text" size={0.9} />}
+      count={templateBindings.length}
       defaultExpanded={templateBindings.length === 0}
       className="nt-templates"
     >

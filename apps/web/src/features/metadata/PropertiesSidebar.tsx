@@ -11,7 +11,7 @@ import { PropertyView } from "./PropertyView.js";
 import { PropertyHistoryModal } from "./PropertyHistoryModal.js";
 import { AliasedNodeRow } from "./AliasedNodeRow.js";
 import type { AnyClient } from "./shared.js";
-import { propertyGroupsOf } from "./propertyGroups.js";
+import { propertiesCountOf, propertyGroupsOf } from "./propertyGroups.js";
 import { AliasesRow } from "./AliasesRow.js";
 import { GroupedPropertyRow } from "./GroupedPropertyRow.js";
 import { ScalarPropertyValue } from "./ScalarPropertyValue.js";
@@ -26,7 +26,7 @@ import { PropertySettingsModal } from "./PropertySettingsModal.js";
  * right edge runs the card's full height, no top or bottom gap). The rows
  * ride a collapsible NodeViewSection (owner 2026-10-09, expanded by
  * default): the section header names the column — dotted-list icon +
- * "Metadata" — and collapsing keeps the
+ * "Metadata" + the effective row count — and collapsing keeps the
  * column's divider while the rows step aside. The panel's FIRST section is
  * the aliases row (relocated from the title-row button): every alias of the
  * page as pills with an × each, "+ Add alias" riding the pages-only picker
@@ -50,6 +50,7 @@ export function PropertiesSidebar({
 }) {
   const groups = propertyGroupsOf(client, nodeId);
   const { rendered, emptyObjectBindings } = groups;
+  const count = propertiesCountOf(groups);
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const [viewFor, setViewFor] = useState<string | null>(null);
   const [historyFor, setHistoryFor] = useState<string | null>(null);
@@ -143,6 +144,7 @@ export function PropertiesSidebar({
       <NodeViewSection
         title="Properties"
         icon={<Icon path="mdi-format-list-bulleted" size={0.9} />}
+        count={count}
         className="nt-props-sidebar__section"
         defaultExpanded={true}
       >

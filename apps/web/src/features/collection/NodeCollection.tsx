@@ -23,6 +23,10 @@
  * The ACTIVE tab's displayed row count rides its name as a small badge
  * (owner ruling 2026-10-21 — the count moved off the filter panel's foot;
  * computed here post-refinement, so the badge names the open tab's rows).
+ * A collection WITHOUT hosted tabs has no tab row — its section host names
+ * the count in the section-header badge instead (owner refinement
+ * 2026-10-23: the count is named exactly once per section, on the tab when
+ * tabs exist, on the header when they don't).
  * `tabBarTrailing` rides the tab bar's far right (owner 2026-10-12) — the
  * host section's filter/view chrome joins the tabs' row; it renders ONLY
  * in the hosted tab bar (a non-hosted collection has no tab row). The

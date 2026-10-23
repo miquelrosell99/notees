@@ -94,6 +94,19 @@
   text-overflow: ellipsis;
 }
 
+/* The header count badge — the count's home on sections without hosted
+   tabs (owner refinement 2026-10-23): a quiet pill riding the title. */
+.node-view-section__count {
+  font: var(--font-label-medium);
+  font-size: var(--font-size-xs);
+  line-height: 1;
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: var(--shape-medium);
+  padding: 3px 8px;
+  flex-shrink: 0;
+}
+
 /* The header's trailing action — the section-scoped create affordance
    (owner 2026-10-09): icon-only, quiet, rides the header row's far right. */
 .node-view-section__action {

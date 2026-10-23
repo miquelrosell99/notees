@@ -7,6 +7,33 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-23
+
+- **feat(web): the section count moves to the section header when tabs are
+  disabled — one count per section, named exactly once.** Owner refinement
+  2026-10-23 of the 2026-10-21 ruling (which retired every section-header
+  count on the theory that the hosted tab bar's active-tab badge is the one
+  count): sections WITHOUT hosted tabs — Child pages, Created, Extended by,
+  Comments, the day-page Tasks/Dated sections, the TOC, Class
+  properties/Inherited, Templates, the graph Selection rail, the
+  Properties/metadata surfaces, Bound classes, References (property view) —
+  lost their count entirely, nowhere left to name it. The rule is now: a
+  hosted section names its displayed-rows count on the active tab's badge
+  and keeps the header bare; a section with tabs disabled names it in the
+  section-header count badge. `NodeViewSection` regains its optional `count`
+  prop and the `.node-view-section__count` register; `Section` regains its
+  `badge` prop (both restored from the e8d9f2a97 removal, comments updated
+  to the refined ruling); every non-hosted callsite rewires the eager read
+  it already had for the hide-when-empty gate (the gate feeds the badge —
+  "is there anything" and "how many" are the same number). Hosted sections
+  (Backlinks, Unlinked mentions, Classed nodes) are untouched — the tab
+  badge already names their count. Docs: `docs/features/links.md` +
+  `docs/features/queries.md` + the affected file-header comments.
+  **Verification**: `pnpm typecheck` green; `pnpm test` green (one
+  windowing spec updated — the Child pages header badge now reads the full
+  120 while the tree windows at 100, the assertion flipped from absence to
+  the honest count).
+
 ## 2026-10-22
 
 - **feat(web): outline rows ride the containing-page breadcrumbs again — the

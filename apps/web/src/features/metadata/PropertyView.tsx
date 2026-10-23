@@ -168,6 +168,7 @@ export function PropertyView({
         <NodeViewSection
           title="Bound classes"
           icon={<Icon path="mdi-shape-outline" size={0.9} />}
+          count={boundClasses.length}
           defaultExpanded
         >
           {boundClasses.length === 0 ? (
@@ -184,6 +185,7 @@ export function PropertyView({
         <NodeViewSection
           title="References"
           icon={<Icon path="mdi-link-variant" size={0.9} />}
+          count={references.length}
           defaultExpanded
         >
           <NodeCollection

@@ -17,8 +17,10 @@
  * 2026-10-12) when the collection props carry `hostedViews` — and applies
  * its FilterQuery through the hook — post-resolution, pre-windowing. The
  * count rides the hosted tab bar's active-tab badge (displayed rows), never
- * a section-header number (owner ruling 2026-10-21 — the header carries no
- * count anywhere); the gate below stays UNFILTERED (the hook's `total` is
+ * a section-header number (owner ruling 2026-10-21, refined 2026-10-23: the
+ * header badge is the count's home only when the collection has NO hosted
+ * tabs — every skin instance today is hosted); the gate below stays
+ * UNFILTERED (the hook's `total` is
  * the pre-filter resolved count): an active filter shows "0 of N" in the bar
  * and never hides the section. The query is this component's state — one
  * skin instance per section view, lost on reload, nothing persisted.
@@ -51,7 +53,8 @@ export interface CollectionSectionProps {
    * from the lazy contract). Omit to gate on the resolved row count instead
    * (undefined until the first resolution). Either way the gate stays
    * UNFILTERED — an active transient filter narrows the rows, never the
-   * gate (and no count displays on the header, owner ruling 2026-10-21).
+   * gate (a hosted skin names the count on the active tab's badge, never
+   * the header — owner ruling 2026-10-21, refined 2026-10-23).
    */
   count?: number | undefined;
   /** Collapsed on first render unless overridden. */

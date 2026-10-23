@@ -326,6 +326,7 @@ export function PropertyDefinitionsSection({
       <NodeViewSection
         title="Class properties"
         icon={<Icon path="mdi-format-list-bulleted-square" size={0.9} />}
+        count={direct.length}
         defaultExpanded={direct.length === 0}
         className="nt-propdefs"
       >
@@ -422,6 +423,7 @@ export function PropertyDefinitionsSection({
         <NodeViewSection
           title="Inherited"
           icon={<Icon path="mdi-family-tree" size={0.9} />}
+          count={inherited.length}
           defaultExpanded={false}
           className="nt-propdefs-inherited"
         >
