@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-23
 
+- **refactor(web): the standalone editable outline is NodeCollection's
+  bundle — self-hosted context + edit thread; DailyNoteOutline deleted
+  (owner rulings 2026-10-23, the ghost ruling consummated).** Three host
+  concerns move into the collection for editable outlines: (1) the
+  **outliner context** — an editable outline/tree collection without a
+  host `OutlinerContext` self-hosts one (the `FlatRows` precedent; the
+  tree path threw without one, so a bare editable collection needed a
+  PageView before); (2) the **edit thread** — an editable OUTLINE
+  collection without a host `EditThreadProvider` provides its own and
+  mounts the measured ancestor-path overlay on the collection container
+  (`nt-edit-thread-host`), the walk rooted at the focused block or the
+  first item's parent; (3) the **ghost write** — `addGhost` narrows to
+  `{ parentId }`: the collection owns the create + caret hand-off through
+  the ACTIVE outliner session (the host's when provided, else the
+  self-hosted one). Host-provided contexts always win — PageView keeps
+  injecting its machinery context (now provider-only), FocusedBlockView
+  keeps its outliner context + `parentTrailing` ghost, and the reference
+  subtree's bespoke `trailingGhost` still overrides. PageView and
+  FocusedBlockView drop their `EditThreadProvider`/overlay host code; the
+  calendar's Daily Note renders an inline bare `<NodeCollection>` — the
+  glue file was deleted three commits after it shipped, the owner's
+  question ("could/should it be dropped?") answered in code.
+  - **Verification**: `pnpm typecheck` clean; full suite green — 173 files /
+    2009 tests — including the eight most-affected suites (outliner-editor,
+    block-selection, render-cascade, system-sections, calendar-view,
+    day-features, node-hover-preview, context-column) against the
+    self-hosted bundle.
+
 - **refactor(web): the add-block ghost is NodeCollection's chrome — the
   view mode decides its UI (owner ruling, the earlier discussion
   consummated).** Until now the trailing "+ Add block" affordance was

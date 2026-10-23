@@ -270,15 +270,16 @@ export interface NodeCollectionProps {
   /**
    * The trailing "+ Add block" ghost — the COLLECTION's own chrome (owner
    * ruling 2026-10-23: the ghost is the collection's, the view mode decides
-   * its UI): the host supplies only the WRITE (the parent id + the realize
-   * callback) and the collection renders the mode-appropriate affordance —
-   * cards passes the twin GhostCard through the grid's last cell, every
-   * other mode trails a GhostRow (prose drops the gutter). Absent = no
-   * ghost (read-only projections, hub sections, embedded renders). Ignored
-   * in the focused grammar (`parent` set) — the focused view owns its
+   * its UI): the host names only the PARENT; the collection renders the
+   * mode-appropriate affordance (cards passes the twin GhostCard through
+   * the grid's last cell, every other mode trails a GhostRow — prose drops
+   * the gutter) AND owns the write (the click creates the empty child and
+   * hands the caret to the active outliner session). Absent = no ghost
+   * (read-only projections, hub sections, embedded renders). Ignored in
+   * the focused grammar (`parent` set) — the focused view owns its
    * children-container ghost via `parentTrailing`.
    */
-  addGhost?: { parentId: string; onRealize: () => void } | undefined;
+  addGhost?: { parentId: string } | undefined;
   /**
    * The raw trailing-affordance slot the CARDS view consumes (the grid's
    * last cell). Collection-internal: `addGhost` is the host contract — the

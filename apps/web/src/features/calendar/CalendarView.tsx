@@ -88,6 +88,7 @@ import {
   useQuickCreateClassesSetting,
 } from "./calendarQuickCreateSettings.js";
 import { NodeCollection } from "../collection/index.js";
+import { childQuery } from "../collection/childQuery.js";
 import type { NodeCollectionItem } from "../collection/index.js";
 import { RepeatPicker } from "../date-pickers/RepeatPicker.js";
 import { Button } from "../../components/ui/fleet/Button.js";
@@ -95,7 +96,6 @@ import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
 import { MonthCalendar } from "./MonthCalendar.js";
-import { DailyNoteOutline } from "./DailyNoteOutline.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import "./CalendarView.css";
 
@@ -568,7 +568,21 @@ export function CalendarView({
               <section className="calendar-view__section" aria-label="Daily note">
                 <h2 className="calendar-view__section-title">Daily Note</h2>
                 {hasDailyNote ? (
-                  <DailyNoteOutline client={client} dayId={dayId} onOpenPage={onOpenPage} />
+                  /* The standalone editable outline (owner rulings
+                     2026-10-23): the collection self-hosts the outliner
+                     context, the edit thread, and the add-block ghost —
+                     the host names only the ghost's parent. No PageView,
+                     no date header: the top bar names the day. */
+                  <NodeCollection
+                    viewMode="outline"
+                    client={client}
+                    items={childQuery(client, dayId)}
+                    tree
+                    editable
+                    showBreadcrumbs={false}
+                    onNodeClick={onOpenPage}
+                    addGhost={{ parentId: dayId }}
+                  />
                 ) : (
                   <div className="calendar-view__empty-block">
                     <Button
