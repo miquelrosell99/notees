@@ -234,6 +234,7 @@ export function ClassedNodesSection({
           viewMode={membersMode}
           client={client}
           items={memberItems}
+          showBreadcrumbs={false}
           tableColumns={memberColumns}
           propertiesOf={(id) => client.getEffectiveProperties(id)}
           tableEditable

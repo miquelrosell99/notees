@@ -54,6 +54,17 @@
  * page sources: a page mentioning the node from its own body). They render
  * FIRST, as a separated flat outline list of block rows, before the group
  * sections — never inside a self-named one-row group.
+ *
+ * BREADCRUMBS (owner 2026-10-22): every result row rides the containing-page
+ * breadcrumb trail ABOVE it by default (`showBreadcrumbs`, default true) —
+ * the breadcrumbs retired with the Logseq-era reference rows (2026-10-21)
+ * are back as shared outline chrome, not a backlinks snowflake. The trail
+ * is ancestors only, read-only navigation context; a reference row carrying
+ * `meta.containingPageId` truncates at that page and drops its crumb (the
+ * group header / the row itself already names it). The classed-nodes
+ * section, the page body (child blocks), the Class View's Extended-by
+ * section, and the Child pages section opt out — their rows already carry
+ * their ancestry.
  */
 
 import { useContext, useMemo, useState, type ReactNode } from "react";
@@ -64,6 +75,7 @@ import { BlockRow } from "../../ui/BlockRow.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
+import { Breadcrumbs } from "../node-menu/Breadcrumbs.js";
 import { SortMenuButton, type SortMenuOption } from "../../components/ui/fleet/index.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
@@ -100,9 +112,50 @@ function isTree(items: NodeCollectionItem[]): boolean {
   return items.some((item) => (item.children?.length ?? 0) > 0);
 }
 
+/**
+ * The containing-page breadcrumb trail above a result row (the
+ * `showBreadcrumbs` prop, default on — owner 2026-10-22). The trail is
+ * ancestors only, read-only navigation context (the card's breadcrumb-row
+ * precedent). A reference row carrying `meta.containingPageId` truncates AT
+ * that page and drops its crumb — the page the block lives on is named by
+ * the group header (the containing-page grouping) or the row itself (a page
+ * source), so the trail shows only the in-page path above the row (the
+ * pre-2026-10-21 backlinks rendering, recovered as shared outline chrome).
+ */
+function RowBreadcrumbs({
+  client,
+  item,
+  onOpenNode,
+}: {
+  client: NodeCollectionProps["client"];
+  item: NodeCollectionItem;
+  onOpenNode: (nodeId: string) => void;
+}) {
+  const metaPage = item.meta?.containingPageId;
+  const containingPageId = typeof metaPage === "string" ? metaPage : undefined;
+  return (
+    <div className="outline-row__breadcrumbs">
+      <Breadcrumbs
+        client={client}
+        nodeId={item.node.id}
+        onOpenNode={onOpenNode}
+        stopAfterId={containingPageId}
+        excludeIds={containingPageId !== undefined ? [containingPageId] : undefined}
+        editable={false}
+        addParent={false}
+      />
+    </div>
+  );
+}
+
 function TreeRows({ items, props, resetKey }: { items: NodeCollectionItem[]; props: NodeCollectionProps; resetKey?: string | undefined }) {
   const { client, editable = false, readOnly = !editable, renderItem } = props;
   const resolveName = (id: string) => displayNameFromClient(client, id);
+  // Breadcrumb rows (default on — owner 2026-10-22) navigate like the row
+  // click: the container's onNodeClick, else the enclosing view's openNode.
+  const outer = useContext(OutlinerContext);
+  const openNode = (id: string) => (props.onNodeClick ?? outer?.openNode ?? (() => {}))(id);
+  const showBreadcrumbs = props.showBreadcrumbs ?? true;
   // Only the READ-ONLY tree windows its top-level set (the child-
   // pages projection and friends); the editable outliner stays whole — it
   // is the live editing surface, and a window could hide a just-created
@@ -120,11 +173,22 @@ function TreeRows({ items, props, resetKey }: { items: NodeCollectionItem[]; pro
         const row = (
           <BlockRow key={item.node.id} tree={toBlockTree(item)} client={client} resolveName={resolveName} readOnly={readOnly} hideBacklinks={props.hideBacklinkCount} condensed={props.condensed} />
         );
-        if (renderItem === undefined) return row;
+        // Opted-out trees (the page body, Child pages, Extended by) keep the
+        // bare row — no wrapper, their DOM/CSS is untouched. Breadcrumb-on
+        // trees wrap the row in a column entry, the crumb trail above.
+        if (!showBreadcrumbs) {
+          if (renderItem === undefined) return row;
+          return (
+            <span className="outline-tree-row" key={item.node.id}>
+              {renderItem(item, row)}
+            </span>
+          );
+        }
         return (
-          <span className="outline-tree-row" key={item.node.id}>
-            {renderItem(item, row)}
-          </span>
+          <div className="outline-tree-entry" key={item.node.id}>
+            <RowBreadcrumbs client={client} item={item} onOpenNode={openNode} />
+            {renderItem !== undefined ? renderItem(item, row) : row}
+          </div>
         );
       })}
       {readOnly && <ShowMoreButton remaining={remaining} onShowMore={showMore} />}
@@ -210,6 +274,7 @@ function FlatRows({
     defaultCollapsed,
   });
   const resolveName = (id: string) => displayNameFromClient(client, id);
+  const showBreadcrumbs = props.showBreadcrumbs ?? true;
   return (
     <OutlinerContext.Provider value={outliner}>
       <SortableContext items={visible.map((row) => row.node.id)} strategy={verticalListSortingStrategy}>
@@ -229,7 +294,14 @@ function FlatRows({
                 {trailingAction?.(item)}
               </span>
             );
-            return <li key={item.node.id}>{renderItem !== undefined ? renderItem(item, row) : row}</li>;
+            return (
+              <li key={item.node.id}>
+                {showBreadcrumbs && (
+                  <RowBreadcrumbs client={client} item={item} onOpenNode={outliner.openNode} />
+                )}
+                {renderItem !== undefined ? renderItem(item, row) : row}
+              </li>
+            );
           })}
         </ul>
         <ShowMoreButton remaining={remaining} onShowMore={showMore} />

@@ -627,6 +627,7 @@ export function PageView({
                   tree
                   editable={!preview}
                   condensed={layerActive}
+                  showBreadcrumbs={false}
                   maxDepth={preview ? PREVIEW_BODY_DEPTH : undefined}
                   onNodeClick={(id) => onOpenPage?.(id)}
                   onNodeShiftClick={(id) => onOpenInSidebar?.(id)}

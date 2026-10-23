@@ -279,9 +279,14 @@ describe("query block (live query token)", () => {
       makeAst(WORKSPACE(), [{ type: "content", op: "contains", value: "capital" }]),
     );
     // Re-render reflects the new filter: only the body block matches now.
+    // (Paris drops out as a ROW — its name legitimately survives in the
+    // row's containing-page breadcrumb trail, owner 2026-10-22.)
     await screen.findByText("The capital city");
-    expect(container.querySelectorAll(".outline-flat > li").length).toBe(1);
-    expect(screen.queryByText("Paris")).toBeNull();
+    const rows = container.querySelectorAll(".outline-flat > li");
+    expect(rows.length).toBe(1);
+    const ownContent = rows[0]!.querySelector(".nt-block-content")?.textContent ?? "";
+    expect(ownContent).toContain("The capital city");
+    expect(ownContent).not.toContain("Paris");
   });
 
   it("builder scope select writes the this-page subtree scope", async () => {

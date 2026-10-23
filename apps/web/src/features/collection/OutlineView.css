@@ -25,6 +25,27 @@
   min-width: 0;
 }
 
+/* The containing-page breadcrumb trail above a result row (the
+   `showBreadcrumbs` prop, default on — owner 2026-10-22): small, muted,
+   navigation context — the picker's crumb line (NodeResultItem) precedent.
+   The trail rides ABOVE the row (a block row is multi-line; a left rail
+   crumb would misalign), tight to the row it names. A parentless row's
+   trail renders empty and the line collapses on its own. */
+.outline-row__breadcrumbs {
+  margin-bottom: var(--spacing-micro);
+}
+
+.outline-row__breadcrumbs .node-breadcrumbs {
+  font: var(--font-label-small);
+  opacity: var(--opacity-55);
+}
+
+/* The breadcrumb-on tree row's column wrapper (crumb trail + the row). */
+.outline-tree-entry {
+  display: flex;
+  flex-direction: column;
+}
+
 /* Grouped rendering (groupBy): collapsible group sections over the flat
    rows — the references grouping rides this (containing-page headers). */
 

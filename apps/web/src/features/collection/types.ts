@@ -220,7 +220,16 @@ export interface NodeCollectionProps {
   /** Depth cap for recursive tree rendering (the outline surface; cards and
    *  table ignore it — cards always resolve children, table never shows them). */
   maxDepth?: number | undefined;
-  /** Flat rows show containing-page breadcrumbs above the label. */
+  /**
+   * Outline rows show the containing-page breadcrumb trail ABOVE each result
+   * row (the Breadcrumbs component, ancestors only — the row names itself;
+   * read-only, navigation context like the card's breadcrumb row). Default
+   * ON (owner 2026-10-22: the breadcrumbs retired with the Logseq-era
+   * reference rows are back, now as shared outline chrome); the classed-nodes
+   * section, the page body (child blocks), the Class View's Extended-by
+   * section, and the Child pages section opt out — their rows already carry
+   * their ancestry (nesting or the surrounding chrome).
+   */
   showBreadcrumbs?: boolean | undefined;
   /**
    * Escape hatch: wrap/replace a row's default rendering.
