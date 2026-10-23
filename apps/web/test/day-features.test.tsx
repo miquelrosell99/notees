@@ -590,6 +590,7 @@ describe("CalendarView breadth (dots, agenda)", () => {
     const { day: _todayDay } = await client.ensureDateChain(today);
     await flushWrites();
 
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
     const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
     // Navigate the month grid when the targets land in the next month.
     if (future.slice(0, 7) !== today.slice(0, 7)) {
@@ -616,6 +617,7 @@ describe("CalendarView breadth (dots, agenda)", () => {
     await createDatedMeeting(client, "Agenda meeting", future);
     await flushWrites();
 
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
     const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
     // Select the meeting's day: the events element follows the selection
     // (week zoom covers the whole week around the selected day).
