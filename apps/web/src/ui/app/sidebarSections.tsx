@@ -49,6 +49,7 @@ export function TocSection({
     <NodeViewSection
       title="Table of content"
       icon={<Icon path="mdi-table-of-contents" size={0.9} />}
+      count={entries.length}
       className="nt-toc"
       defaultExpanded={false}
     >

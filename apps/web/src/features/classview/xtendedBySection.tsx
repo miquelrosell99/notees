@@ -59,6 +59,7 @@ export function ExtendedBySection({
       client={client}
       title="Extended by"
       icon={<Icon path="mdi-file-tree" size={0.9} />}
+      badge={children.length}
       defaultCollapsed={false}
       load={() => items}
       emptyText="No subclasses."

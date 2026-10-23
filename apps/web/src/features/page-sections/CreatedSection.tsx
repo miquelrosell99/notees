@@ -88,6 +88,7 @@ export function CreatedSection({
     <NodeViewSection
       title="Created"
       icon={<Icon path="mdi-plus-circle-outline" size={0.9} />}
+      count={rows.length}
       className="nt-section"
       expanded={expanded}
       onExpandedChange={setExpanded}
