@@ -9,6 +9,50 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(scripts): `migrate-source-library-roster.mts` — live workspaces
+  converge to the source-library roster (source-library slice 1, task 7).**
+  Path A append (migrations.md — the relay log is never edited), dry-run by
+  default, `--apply` ingests through `RelayStorage.ingest` and verifies
+  against a fresh scratch store. Four drifts heal in one pass, each
+  existence-checked against the converged log state so a second run plans
+  nothing: **(a)** nodes classed `paper` (…0025, withdrawn) — `class.unassign
+  {paper}` + the re-issued `object.create` OR-Set add carrier with
+  `classIds: [journal_article]` (there is no `class.assign` op; the carrier
+  is the wire path, and its `>=` comparator beats the remove in either
+  delivery order); **(b)** the renamed classes' titles — "Article" →
+  "Journal article" (…0026), "Web link" → "Web page" (…0034), "Movie" →
+  "Film" (…0035) via `class.update` content rewrites (title-is-content; the
+  UUIDs are unchanged, so saved query ASTs keyed on them survive — review
+  focus #5 is asserted in the post-apply verification); **(c)** the task-4/5/6
+  materialization for drifted workspaces, data-driven from the manifests —
+  missing seeded class nodes (`class.create` + `class.setExtends`), the
+  missing pool property schemas (`propertySchema.create` with the seed
+  mapping + the spec's `bindTo` binding row), every missing manifest binding
+  row (`SYSTEM_PROPERTY_SPECS` bindTo rows, `SYSTEM_EXTRA_CLASS_BINDINGS`,
+  `SYSTEM_SOURCE_CLASS_BINDINGS`), and the `SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES`
+  flips (`object.update {active: false}`, after the rows exist). Planned
+  bindings are R5 pre-checked at plan time (a binding whose schema scope
+  excludes the class fails loud at apply — the plan never emits one).
+  Verification: the new envelopes read back protocol-valid, a FRESH scratch
+  store replays the tail with zero StoreError throws, paper is gone from node
+  class sets, the migrated nodes carry journal_article, the renamed titles /
+  every seeded class node / every manifest binding row / the archived flags
+  all read back, and the pre-migration saved query view (a class condition on
+  …0026) still matches the migrated nodes. Scratch-only development harness
+  `scripts/migrated-verify/seed-source-roster-scratch.mts` seeds a throwaway
+  pre-roster workspace under /tmp (old titles, four classed nodes, the saved
+  view, a partially-converged abstract+url corner proving the per-row
+  no-ops). 897-envelope scratch apply verified; second run plans nothing.
+  Historical scripts untouched: `migrate-url-source-binding.mts` /
+  `migrate-seed-scope-flips.mts` still name `weblink`, which no gate
+  compiles (per-package tsconfigs cover src+test only) — recorded, not
+  rewritten. No wire/model change — no fixture gate; the appended ops are
+  ordinary config every port applies (no lockstep item). Cataloged in
+  `docs/developers/migrations.md`.
+  - **Verification**: scratch dry-run → `--apply` → verify (review focus #5
+    asserted) → second-run idempotency proof, all green; full `pnpm test`
+    green.
+
 - **feat(store,web,server): source library materializes — classes, bindings,
   archived-by-default seeding (source-library slice 1, task 6).** The 39
   source type-classes now materialize in derived stores with their per-class
