@@ -33,7 +33,7 @@
  *    assets, whiteboard, the structural + admonition classes, and the
  *    classes of the DROPPED pre-reshape features (readItLater/library/
  *    collections/people → highlight, collection, agent, organization, …)
- *    — never feature-managed. (`weblink` USED to live here — it now
+ *    — never feature-managed. (`web_page` USED to live here — it now
  *    extends `source` and rides the sources toggle with the family.)
  */
 
@@ -97,7 +97,7 @@ export const WORKSPACE_FEATURE_MAP: Record<FamilyFeature, WorkspaceFeatureSpec> 
  * table, cloze, whiteboard, the admonition set) plus the classes of the
  * DROPPED pre-reshape features (highlight, collection, agent, organization).
  * The five family bases (task/event/meeting/source/person), their
- * extends-children, and weblink (now a source-family child) are NOT here —
+ * extends-children, and web_page (now a source-family child) are NOT here —
  * they are the toggle set. (The retired `class` meta class left the
  * manifest with its 2026-10-07 retirement — it is nobody's anchor anymore.)
  */
@@ -240,7 +240,7 @@ export function featureForManagedClass(classId: string): FamilyFeature | null {
  * every family-base ANCESTOR (systemClassAncestors walk). Empty for
  * always-on/unmanaged classes. A class's chrome shows only when EVERY
  * listed feature is enabled (a meeting surface hides when MEETINGS or
- * EVENTS is off; a birthday surface hides when EVENTS is off; book/paper/…
+ * EVENTS is off; a birthday surface hides when EVENTS is off; book/journal_article/…
  * hide when SOURCES is off).
  */
 export function gatingFeaturesForClass(name: SystemClassName): WorkspaceFeature[] {
@@ -280,11 +280,10 @@ export const DEPLOYABLE_SYSTEM_CLASSES: readonly SystemClassName[] = [
   "agent",
   "source",
   "book",
-  "paper",
-  "article",
+  "journal_article",
   "thesis",
   "document",
-  "movie",
+  "film",
   "song",
   "tv_series",
   "conference",
@@ -295,7 +294,7 @@ export const DEPLOYABLE_SYSTEM_CLASSES: readonly SystemClassName[] = [
   "task",
   "collection",
   "highlight",
-  "weblink",
+  "web_page",
   // #14 follow-up: the owner's list — everyday classes that were
   // missing from the catalog; definition/idea/place/project are standalone,
   // trip extends event (calendar-bound, events-toggle cascades).

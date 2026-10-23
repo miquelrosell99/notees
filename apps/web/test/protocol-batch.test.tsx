@@ -346,11 +346,11 @@ describe("feature chrome gates", () => {
     // Sources off hides the whole source family; persons off the person class.
     expect(isClassFamilyEnabled(client(["sources"]), SYSTEM_CLASS_UUIDS.book)).toBe(false);
     expect(isClassFamilyEnabled(client(["sources"]), SYSTEM_CLASS_UUIDS.conference)).toBe(false);
-    // The web link rides the cascade (weblink extends source)…
-    expect(isClassFamilyEnabled(client(["sources"]), SYSTEM_CLASS_UUIDS.weblink)).toBe(false);
-    expect(isClassFamilyEnabled(client([]), SYSTEM_CLASS_UUIDS.weblink)).toBe(true);
+    // The web page rides the cascade (web_page extends source)…
+    expect(isClassFamilyEnabled(client(["sources"]), SYSTEM_CLASS_UUIDS.web_page)).toBe(false);
+    expect(isClassFamilyEnabled(client([]), SYSTEM_CLASS_UUIDS.web_page)).toBe(true);
     // …while unrelated toggles leave it alone.
-    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.weblink)).toBe(true);
+    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.web_page)).toBe(true);
     expect(isClassFamilyEnabled(client(["persons"]), SYSTEM_CLASS_UUIDS.person)).toBe(false);
     // Always-on vocabulary and user classes gate on nothing.
     expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.day)).toBe(true);
