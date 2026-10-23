@@ -113,18 +113,20 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
 
 /**
  * ReferenceList — the page's references as an ORDINARY outline collection
- * (owner ruling 2026-10-21: "Backlinks should be like any other section"):
- * the shared inert block rows over the referencing nodes — one row per
- * entry, children folded behind the chevron like every other collection
- * list, the bullet opening the source (the block itself in focused view
- * when the edge is direct, otherwise the containing page). The Logseq-era
- * bespoke row (a breadcrumb trail + an inline editable subtree per row) is
- * retired; the grouping by containing page, the ungrouped-page-sources-first
- * ruling (owner 2026-10-20), the hosted tabs, the sort button, and the
- * transient filter layer are the shared machinery already. What a row still
- * owns rides the shared trailing-action seam: the bound-verb badge
- * (bound-property backlinks name the schema the edge arrived through, never
- * the raw id) and, on the unlinked section only, the Promote/Ignore pair.
+ * (owner ruling 2026-10-21: "Backlinks should be like any other section"),
+ * its rows EDITABLE (owner ruling 2026-10-23: the reference rows answer
+ * content edits like the tasks hub — a content click swaps in the block
+ * editor; the bullet element still owns opening the source, the block
+ * itself in focused view when the edge is direct, otherwise the containing
+ * page): one row per entry, children folded behind the chevron like every
+ * other collection list. The Logseq-era bespoke row (a breadcrumb trail +
+ * an inline editable subtree per row) is retired; the grouping by
+ * containing page, the ungrouped-page-sources-first ruling (owner
+ * 2026-10-20), the hosted tabs, the sort button, and the transient filter
+ * layer are the shared machinery already. What a row still owns rides the
+ * shared trailing-action seam: the bound-verb badge (bound-property
+ * backlinks name the schema the edge arrived through, never the raw id)
+ * and, on the unlinked section only, the Promote/Ignore pair.
  *
  * `unlinkedPageId` enables the promote/ignore action pair on every row (the
  * unlinked section only): Promote converts the literal match into a mention;
@@ -209,6 +211,15 @@ export function ReferenceList({
       viewMode="outline"
       client={client}
       items={items}
+      /**
+       * Editable rows (owner ruling 2026-10-23 — reference rows answer
+       * content edits; an edit that removes the mention honestly moves the
+       * row to the other section or out of it). `readOnly={false}` rather
+       * than `editable`: this is NOT a drag-ordered editing surface, so
+       * the read-time sort button must stay (an `editable` surface hides
+       * it — there the sort would fight the drag order).
+       */
+      readOnly={false}
       groups={groups}
       ungroupedItems={standalone}
       defaultSortMode={defaultSortMode}

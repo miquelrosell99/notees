@@ -29,8 +29,10 @@ function toBlockTree(item: NodeCollectionItem): import("@/core/workspace-client/
 }
 
 export function ProseView(props: NodeCollectionProps) {
-  const { client, items = [], editable = false, condensed = false } = props;
-  const readOnly = !editable;
+  // The readOnly escape hatch mirrors OutlineView: containers that are not
+  // drag-ordered editing surfaces (the reference sections) pass
+  // `readOnly={false}` to make rows editable while `editable` stays false.
+  const { client, items = [], editable = false, readOnly = !editable, condensed = false } = props;
   const resolveName = (id: string) => displayNameFromClient(client, id);
   if (items.length === 0 && props.parent === undefined) return null;
   return (

@@ -329,6 +329,51 @@ describe("PageView system sections", () => {
     expect(within(backlinks).getAllByText("Plain Source")).not.toHaveLength(0);
   });
 
+  it("reference rows are editable: a content click swaps in the block editor, the bullet still opens (owner ruling 2026-10-23)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const linkedSource = await client.createObject({ isEmbedded: false, name: "Linked Source" });
+    await client.createObject({
+      parentId: linkedSource,
+      contentAst: [
+        { type: "text", text: "see " },
+        { type: "mention", targetNodeId: pageId, text: "Zebra" },
+      ],
+    });
+    const plainSource = await client.createObject({ isEmbedded: false, name: "Plain Source" });
+    await client.createObject({
+      parentId: plainSource,
+      contentAst: [{ type: "text", text: "Zebra plain" }],
+    });
+
+    const onOpenPage = vi.fn();
+    render(<PageView client={client} pageId={pageId} onOpenPage={onOpenPage} />);
+
+    // Backlinks (expanded on mount): the reference row renders read mode at
+    // rest — no editor anywhere in the section.
+    const backlinks = backlinksSection();
+    const rowOf = (scope: HTMLElement, text: string): HTMLElement =>
+      [...scope.querySelectorAll<HTMLElement>(".nt-block")].find((el) =>
+        el.textContent!.includes(text),
+      )!;
+    const linkedRow = rowOf(backlinks, "see");
+    expect(backlinks.querySelector(".nt-editor-root")).toBeNull();
+    // The content click swaps in the block editor (the editable-row
+    // contract — the inert read-only twin is retired on reference rows).
+    fireEvent.click(linkedRow.querySelector(".nt-block-content")!);
+    expect(linkedRow.querySelector(".nt-editor-root")).not.toBeNull();
+    // The bullet still owns opening: a click navigates to the source block.
+    fireEvent.click(linkedRow.querySelector(".nt-bullet")!);
+    expect(onOpenPage).toHaveBeenCalled();
+
+    // Unlinked mentions (expand first): its rows edit the same way.
+    const unlinked = expandUnlinkedMentions();
+    const plainRow = rowOf(unlinked, "Zebra plain");
+    expect(plainRow.querySelector(".nt-editor-root")).toBeNull();
+    fireEvent.click(plainRow.querySelector(".nt-block-content")!);
+    expect(plainRow.querySelector(".nt-editor-root")).not.toBeNull();
+  });
+
   it("blocks unlinked references for blocks (pages only)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });

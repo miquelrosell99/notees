@@ -64,6 +64,24 @@ describe("isListingAffectingEnvelope", () => {
     ).toBe(true);
   });
 
+  it("treats icon / color writes riding object.update as structural", () => {
+    // A class icon/color write must invalidate the web client's
+    // structure-classed icon/color map reads (row bullets, class pills,
+    // galleries) — owner ruling 2026-10-23.
+    expect(
+      isListingAffectingEnvelope({
+        opType: "object.update",
+        payload: { objectId: "n1", icon: "mdi-star" },
+      }),
+    ).toBe(true);
+    expect(
+      isListingAffectingEnvelope({
+        opType: "object.update",
+        payload: { objectId: "n1", color: "#ff0000" },
+      }),
+    ).toBe(true);
+  });
+
   it("keeps a pure content object.update non-structural", () => {
     expect(
       isListingAffectingEnvelope({

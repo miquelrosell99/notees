@@ -90,7 +90,10 @@
  *
  * Keyboard contract (docs/features/outliner.md):
  * - Enter mid-text → split at the caret: head stays, tail moves to a new
- *                  sibling right after.
+ *                  block right after — a SIBLING normally, the FIRST CHILD
+ *                  when this block has children (the Roam rule: the children
+ *                  stay with the head). A range selection is cut first; the
+ *                  split lands at its start.
  * - Enter at start → new empty block BEFORE this one (object.create with
  *                  beforeId — the W1 wire extension).
  * - Enter at end/empty → sibling after; a block WITH CHILDREN takes the new
@@ -106,7 +109,9 @@
  *                  the block's place, then delete it; empty without children
  *                  → delete the block and hand the caret to the previous
  *                  sibling (or the parent).
- * - Delete at end → merge a childless next sibling into this block.
+ * - Delete at end → merge a childless next sibling into this block; with NO
+ *                  next sibling, an ONLY CHILD merges into this block (its
+ *                  children move up into its place). Otherwise a no-op.
  * - Tab          → indent under the previous sibling (object.move, appended as
  *                  its last child). The caret hands back to the same block at
  *                  the same offset — the reparent remounts the row, so the
@@ -508,15 +513,37 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   /**
    * Delete-at-end: merge the NEXT SIBLING's content into this
    * block when the guard allows (same parent — by construction — and the
-   * next block is childless). The caret stays at the merge point.
+   * next block is childless). With NO next sibling, an ONLY CHILD merges
+   * INTO this block instead: its content splices at the end, its children
+   * move up into its place, and it is deleted. The caret stays at the merge
+   * point.
    */
   const mergeNextInto = (blockId: string) => {
     const node = client.getNode(blockId);
-    if (node === undefined || node.parentId === null) return;
-    const siblings = client.getChildren(node.parentId);
+    if (node === undefined) return;
+    const siblings = node.parentId === null ? [] : client.getChildren(node.parentId);
     const index = siblings.findIndex((sibling) => sibling.id === blockId);
     const next = index >= 0 ? siblings[index + 1] : undefined;
-    if (next === undefined) return;
+    if (next === undefined) {
+      const children = client.getChildren(blockId);
+      if (children.length !== 1) return;
+      const child = children[0]!;
+      const base = applyTextEdit(node.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+      const caretAt = proseFromAst(base, resolveClassName, resolveMentionName).length;
+      const merged = withCandidateSpans(
+        spliceTokens(base, caretAt, caretAt, child.contentAst, resolveClassName, resolveMentionName),
+      );
+      const grandChildren = client.getChildren(child.id);
+      commitAst(merged, caretAt);
+      // The child's children move up into its place before it goes.
+      let after: string | undefined;
+      grandChildren.forEach((grandChild) => {
+        void client.moveObject(grandChild.id, blockId, after);
+        after = grandChild.id;
+      });
+      void client.deleteObject(child.id);
+      return;
+    }
     if (client.getChildren(next.id).length > 0) return;
     const base = applyTextEdit(node.contentAst, draftRef.current, resolveClassName, resolveMentionName);
     const caretAt = proseFromAst(base, resolveClassName, resolveMentionName).length;
@@ -1908,11 +1935,20 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
         return;
       }
       const el = spanRef.current;
-      const caret = el === null ? null : caretOffset(el);
+      const range = el === null ? null : selectionOffsets(el);
+      const caret = range === null ? null : range.start;
       const draft = draftRef.current;
       const parentId = nodeRef.current.parentId;
       const currentId = nodeRef.current.id;
       const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName, resolveMentionName);
+      // A live range selection is cut first (the browser default is
+      // prevented): every branch below works over the cut text and the split
+      // lands at the range start.
+      const cut =
+        range !== null && range.start !== range.end
+          ? spliceTokens(base, range.start, range.end, [], resolveClassName, resolveMentionName)
+          : base;
+      const cutLen = proseFromAst(cut, resolveClassName, resolveMentionName).length;
       // Text-property carriers: multi Enter registers the new
       // sibling as the next VALUE; single Enter nests the new block as a
       // CHILD of the carrier (the value's lines). Ordinary blocks: the
@@ -1921,25 +1957,33 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       const singleCarrier = carrier !== null && !carrier.multi;
       const firstChildId = singleCarrier ? client.getChildren(currentId)[0]?.id : undefined;
       const childAnchor = firstChildId !== undefined ? { beforeId: firstChildId } : {};
-      if (caret !== null && caret > 0 && caret < draft.length) {
+      if (caret !== null && caret > 0 && caret < cutLen) {
         // MID-TEXT: split at the caret. The head stays in this block; the
-        // tail moves to a new block right after (the classic split) — a SIBLING
-        // normally, a CHILD of a single-value carrier. The head write
-        // supersedes the debounced flush — clear it so the unmount flush
-        // can't overwrite the split.
+        // tail moves to a new block right after — a SIBLING normally, the
+        // FIRST CHILD when this block has children (the children stay with
+        // the head). The head write supersedes the debounced flush — clear
+        // it so the unmount flush can't overwrite the split.
         if (timerRef.current !== null) {
           clearTimeout(timerRef.current);
           timerRef.current = null;
         }
         dirtyRef.current = false;
-        const head = spliceTokens(base, caret, draft.length, [], resolveClassName, resolveMentionName);
-        const tail = spliceTokens(base, 0, caret, [], resolveClassName, resolveMentionName);
+        const head = spliceTokens(cut, caret, cutLen, [], resolveClassName, resolveMentionName);
+        const tail = spliceTokens(cut, 0, caret, [], resolveClassName, resolveMentionName);
+        const firstChild = client.getChildren(currentId)[0]?.id;
+        const nest = !singleCarrier && firstChild !== undefined;
         void client.updateObject(currentId, { contentAst: withCandidateSpans(head) });
         void client
           .createObject({
-            parentId: singleCarrier ? currentId : parentId,
+            parentId: singleCarrier ? currentId : nest ? currentId : parentId,
             contentAst: withCandidateSpans(tail),
-            ...(singleCarrier ? childAnchor : parentId !== null ? { afterId: currentId } : {}),
+            ...(singleCarrier
+              ? childAnchor
+              : nest
+                ? { beforeId: firstChild }
+                : parentId !== null
+                  ? { afterId: currentId }
+                  : {}),
           })
           .then((id) => {
             if (carrier?.multi === true) registerCarrierValue(client, carrier, id);
@@ -1947,9 +1991,13 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
           });
         return;
       }
-      if (caret === 0 && draft.length > 0) {
+      if (caret === 0 && cutLen > 0) {
         // START: a new empty block BEFORE this one (W1 beforeId) — or a
-        // first CHILD for a single-value carrier.
+        // first CHILD for a single-value carrier. A cut selection commits
+        // first so the emptied text doesn't linger.
+        if (cut !== base) {
+          void client.updateObject(currentId, { contentAst: withCandidateSpans(cut) });
+        }
         void client
           .createObject({
             parentId: singleCarrier ? currentId : parentId,
@@ -1965,7 +2013,11 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       // END / EMPTY: a sibling after this block — but a block WITH CHILDREN
       // takes the new block as its FIRST child instead (the Roam rule); a
       // single-value carrier ALWAYS takes the child branch (its value is
-      // one block — Enter adds a line, never a sibling value).
+      // one block — Enter adds a line, never a sibling value). A cut
+      // selection commits first so the emptied text doesn't linger.
+      if (cut !== base) {
+        void client.updateObject(currentId, { contentAst: withCandidateSpans(cut) });
+      }
       const children = client.getChildren(currentId);
       if (singleCarrier || children.length > 0) {
         const firstChild = children[0]?.id;

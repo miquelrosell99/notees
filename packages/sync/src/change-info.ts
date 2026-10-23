@@ -50,7 +50,12 @@ export function isListingAffectingOp(opType: string): boolean {
  * and `aliasedNodeId` (the reresolve of every alias-family edge's
  * `resolved_target_id` changes those terminals' scope-classed backlink/
  * reference reads, and the summaries cannot see it — reresolveEdgeTargets
- * reports nothing) — even though the op type is the content carrier. (Store
+ * reports nothing) — even though the op type is the content carrier.
+ * `icon`/`color` join the carriers (owner ruling 2026-10-23): the web
+ * client's derived class-icon/color maps are structure-classed cached reads
+ * feeding every row bullet, class pill, and gallery — a class icon/color
+ * write must invalidate them, and the summaries cannot see the payload
+ * change. (Store
  * ChangeSummaries do not carry the payload, so the remote path classifies off
  * the envelopes instead.)
  */
@@ -63,7 +68,11 @@ export function isListingAffectingEnvelope(envelope: {
     envelope.opType === "object.update" &&
     typeof envelope.payload === "object" &&
     envelope.payload !== null &&
-    ("isEmbedded" in envelope.payload || "active" in envelope.payload || "aliasedNodeId" in envelope.payload)
+    ("isEmbedded" in envelope.payload ||
+      "active" in envelope.payload ||
+      "aliasedNodeId" in envelope.payload ||
+      "icon" in envelope.payload ||
+      "color" in envelope.payload)
   );
 }
 

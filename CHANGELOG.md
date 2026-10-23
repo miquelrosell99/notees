@@ -9,6 +9,54 @@ predating this file.
 
 ## 2026-10-23
 
+- **fix(web): the outliner's split / merge keyboard contract completes — the
+  mid-text Enter split nests the tail as the FIRST CHILD when the block has
+  children (the Roam rule; they stayed with the head only for the empty/end
+  Enter), Enter with a selected range cuts the selection before splitting at
+  its start (previously the range made the caret read as null and Enter fell
+  into the end-of-block branch, silently dropping the split the owner reported
+  as "not reliable"), and Delete at the end with NO next sibling merges an
+  ONLY CHILD into the block (content splices at the caret, the child's
+  children move up into its place, the child is deleted).** The Backspace
+  merge guards (previous sibling / only-child-into-parent) already matched
+  the ruling and are now pinned by tests. All eight gestures are covered by
+  new `outliner-editor` cases: mid-text split with children (tail lands
+  before the existing first child), end-Enter with children (already
+  correct), range-cut split, Backspace-at-start into the previous sibling,
+  Backspace-at-start as an only child into its parent, Delete-at-end into the
+  next sibling, Delete-at-end into a single child, and the several-children
+  no-op. The header contract in `BlockTextEditor` and the
+  `docs/features/outliner.md` gesture table say the same rules. Verification:
+  web `outliner-editor` suite 34 green, `tsc --noEmit` clean, full gate
+  below.
+- **fix(web): reference rows are editable again — Backlinks / Unlinked
+  mentions rows answer content clicks with the block editor (owner ruling
+  2026-10-23), and a class icon/color write propagates without a page
+  refresh.** Two owner reports. (1) The reference sections' outline rows
+  rendered the read-only INERT twin (content click dead, the bullet the only
+  open gesture) — the 2026-10-21 "like any other section" slice rendered them
+  inert while the table view's name cells went editable, so outline mode (the
+  default) could not edit. `ReferenceList` now passes `readOnly={false}` —
+  not `editable`: these sections are not drag-ordered editing surfaces, so
+  the read-time sort button must stay (an `editable` surface hides it); the
+  bullet still owns opening, and `ProseView` learns the same `readOnly`
+  escape hatch for prose-pinned section tabs. An edit that removes the
+  mention honestly moves the row to the other section or out of it. (2)
+  Assigning an icon (or color) to a class needed a full reload to show on
+  member bullets, class pills, and galleries: the derived icon/color maps
+  (`effectiveClassIcons` etc.) are `"structure"`-classed cached reads, but an
+  `object.update {icon}` / `{color}` classified as content-only (scoped,
+  non-structural), so no cache key dirtied. The envelope predicate now
+  classifies the `icon`/`color` carriers listing-affecting, like the
+  `isEmbedded`/`active`/`aliasedNodeId` toggles — a rare discrete gesture, so
+  the full refresh it triggers is cheap (the per-keystroke paths stay
+  scoped). Verification: `pnpm --filter @notees/sync test` (new icon/color
+  carrier cases), web `system-sections` suite (new test: a content click on
+  Backlinks and Unlinked-mentions rows swaps in `.nt-editor-root`, the
+  bullet still opens), `worker-client` structural-invalidation suite
+  unchanged; full gate below. Docs: `links.md` / `views.md` reference-row
+  contract, the stale 2026-10-21 "content stays read-only" ruling comments
+  (`BlockRow`, collection `types.ts`, `SystemSections`).
 - **perf(web): the reference-family cached reads leave the per-keystroke
   path — `getBacklinks` / `getLinkedReferences` / `getReferences` /
   `getReferenceCount` / `getUnlinkedReferences` / `getUnlinkedReferenceCount`

@@ -294,9 +294,10 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
   // The classes column's own lock: date-chain nodes carry their precision's
   // system class and nothing else (SCHEMA.md "Datetime"), so their pills
   // render static everywhere — otherwise the column is mutable on EVERY
-  // row, read-only projections included (owner ruling 2026-10-21: the
-  // backlinks/reference rows answer class edits — ×, "+", drag-sort — the
-  // content stays read-only, only class membership is a working surface).
+  // row, read-only projections included (owner ruling 2026-10-21: class
+  // membership answers edits from reference rows — ×, "+", drag-sort; the
+  // 2026-10-23 ruling made those rows' CONTENT editable too, so the column
+  // is simply mutable on every row that renders it).
   const classesLocked = parseDateNodeId(node.id) !== null;
   // The links-badge popup (condensed layer): position-free state — the
   // popup unmounts with the excerpt chrome when the row stretches.
