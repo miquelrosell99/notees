@@ -9,6 +9,27 @@ predating this file.
 
 ## 2026-10-23
 
+- **test(web): the read-cache dirty-key guard — a pinned spec over the
+  WorkerClient's invalidation classes, so slices 2 + 3 cannot silently
+  regress.** Trigger: the op-lag perf plan (slice 5) — the per-keystroke
+  wins live entirely in WHICH cached reads a change notification re-fetches;
+  a future edit to `READ_INVALIDATION` or the notify plumbing could undo
+  them with every targeted suite still green (the classes are only observed
+  end-to-end). The new spec rides the fake-worker harness: it seeds one
+  cached key per read class (roots/listPages/search/getNode/getBlockTree +
+  the Q-parameterized reference family), feeds a content-only scoped change
+  for node X and asserts the multiRead batch holds exactly X's scoped keys
+  + the content-global search — no roots/listPages, no P- or Q-parameterized
+  keys; a structural change re-fetches the listings too; an edge-target
+  payload (Q in the affected set, slice 3's store invariant) re-fetches
+  exactly the Q-parameterized reference family and not P's. No timing
+  assertions (a dirty-key set IS the deterministic guard; a budget would
+  only flake). `apps/web/test/read-invalidation-guard.test.ts` (new, 3
+  specs). No production code change.
+  - **Verification**: the new guard 3/3; `worker-client.test.ts` 10/10
+    alongside (12 + 1 files' worth of targeted suites for slices 4 + 5 all
+    green); `tsc --noEmit` clean. Full repo gate pending (parent session).
+
 - **perf(web): the PageView re-render is scoped — a notification that does
   not name the open page no longer re-renders the view or its block rows.**
   Trigger: the op-lag perf plan (slice 4) — PageView's subscription bumped a
