@@ -446,8 +446,10 @@ select:focus-visible {
 
 /* --- the panelled main layout (owner 2026-10-06, Capacities-style) -------- */
 
-/* The body row: the properties sidebar beside the nodeview column beside
-   the context column (three columns). */
+/* The body row: the context column beside the nodeview column beside the
+   properties sidebar (three columns; the swap owner 2026-10-23 — the
+   usually-open properties panel balances the main sidebar from the right,
+   the usually-closed context panel tucks in on the left). */
 .nt-page-body {
   display: flex;
   align-items: flex-start;
@@ -487,8 +489,8 @@ select:focus-visible {
    medium breakpoint the two panel cards' minima (13rem + 15rem = 28rem)
    outrun the content card and the document column, squeezed to zero,
    vanishes while the context panel clips. The page stacks instead:
-   document first, then the side panel, then the context column — each a
-   full-width block the body scrolls past. */
+   document first, then the context panel, then the properties panel —
+   each a full-width block the body scrolls past. */
 @media (width <= 768px) {
   .nt-page--panelled .nt-page-body {
     flex-direction: column;
@@ -620,6 +622,20 @@ select:focus-visible {
      the footer moved into the context column's bottom — the cell is a
      single auto-height scroll between the full-width top bar above and
      the card bottom below. */
+  /* The journal measure (owner 2026-10-23): the content column caps at
+     the compact layout's 46rem and CENTERS inside whatever space the
+     panels leave — with both panels closed it holds the Journal view
+     width instead of stretching side to side; with a panel open the slack
+     splits evenly, so toggling a panel never re-measures the text. The
+     focus-mode cap generalized (the 2026-10-15 ruling already read
+     full-bleed worse than the centered column). The spacing-6 lateral
+     padding rides inside the cap, matching the compact column's text
+     measure exactly. */
+  flex: 0 1 auto;
+  width: 100%;
+  max-width: 46rem;
+  margin-inline: auto;
+  padding-inline: var(--spacing-6);
 }
 
 /* The nodeview cell: auto height between the top bar and the card bottom;
@@ -668,24 +684,15 @@ select:focus-visible {
   min-width: 0;
 }
 
-/* Focus mode (#12, owner refinement 2026-10-15): the panelled layout stays
-   on (the normal spacing — the compact fallback's re-flow read condensed),
-   but the page body reads CENTERED, not full-bleed — the content column caps
-   at the compact layout's 46rem measure and centers inside the card, with
-   the compact layout's spacing-6 lateral padding carried inside the cap
-   (owner: full-bleed read worse than the old centered column). The nodeview
-   top bar above still spans the whole card — the view switcher + node menu
-   stay put at the card's right. */
-[data-focus="true"] .nt-page--panelled .nt-page-content {
-  flex: 0 1 46rem;
-  width: 100%;
-  margin-inline: auto;
-  padding-inline: var(--spacing-6);
-}
+/* Focus mode (#12) needs no content-cap rule of its own anymore: the
+   panelled cap above IS the focus-mode geometry (owner 2026-10-15
+   ruling), now the layout's measure everywhere. The nodeview top bar
+   above still spans the whole card — the view switcher + node menu stay
+   put at the card's right. */
 
-/* The nodeview top bar: the properties collapse toggle and the classes
-   pills on the left, the view-mode switcher + context toggle + node menu on
-   the right. The bar spans the WHOLE card, above the column split (owner
+/* The nodeview top bar: the context collapse toggle and the classes
+   pills on the left, the view-mode switcher + properties toggle + node
+   menu on the right. The bar spans the WHOLE card, above the column split (owner
    2026-10-09): its controls act on the layout's columns, so it must not
    rescale when a panel shows or hides — the page's own horizontal padding
    carries both edges, and each panel toggle sits directly above the column

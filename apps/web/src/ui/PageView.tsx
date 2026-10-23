@@ -35,7 +35,11 @@
  * entry.
  *
  * The panelled main layout
- * is now THREE columns — NodeView · properties · context. The context
+ * is now THREE columns — context · NodeView · properties (owner 2026-10-23:
+ * the properties sidebar moved to the RIGHT and the context column to the
+ * LEFT — the main sidebar already owns the far-left band, the usually-open
+ * properties panel balances it from the right, and the usually-closed
+ * context panel tucks in between). The context
  * column (`.nt-page-context`) hosts, top-down: LocalGraphCard, TocSection,
  * the Activity section (relocated from the card-bottom stack —
  * `SystemSections`' activity branch died with the move), the Version
@@ -588,8 +592,9 @@ export function PageView({
   /**
    * The page body: the whiteboard canvas, or the editable block tree + the
    * aggregation/system sections (all inside the same workspace drag zone).
-   * In the panelled main layout this rides the content column beside the left
-   * properties panel; compact layouts render it full-width.
+   * In the panelled main layout this rides the content column between the
+   * two panel columns (context left, properties right); compact layouts
+   * render it full-width.
    */
   const bodyContent = (
     <>
@@ -798,10 +803,11 @@ export function PageView({
   /**
    * The page chrome composed per layout mode. The panelled main layout
    * (owner 2026-10-06; the top bar lifted above the columns 2026-10-09) is
-   * a full-width nodeview top bar over a 3-column split: the properties
-   * sidebar rides the first column, the node view the second, and the
-   * context column (graph · TOC · Activity · Comments + the footer as its
-   * bottom section — the card-bottom bar retired 2026-10-09) the third.
+   * a full-width nodeview top bar over a 3-column split: the context column
+   * (graph · TOC · Activity · Comments + the footer as its bottom section)
+   * rides the first column, the node view the second, and the properties
+   * sidebar the third (the swap owner 2026-10-23 — context left, properties
+   * right; each panel toggle sits directly above its column in the top bar).
    * Each panel column keeps its own device-local collapse, toggled
    * from the nodeview top bar. Compact layouts render the same chrome
    * full-width, header first, with the top-right chrome in the absolute
@@ -920,36 +926,9 @@ export function PageView({
           <div className="nt-page-body">
             {/* Focus mode hides the panels (they are the chrome it
                 suppresses) while keeping the layout — the content column
-                simply takes the full width (owner 2026-10-15). The
-                collapse prefs stay untouched: exiting focus mode restores
-                the panels exactly as they were. */}
-            {!sidePanelCollapsed && !focusMode && (
-              <aside className="nt-page-side-panel" aria-label="Properties">
-                <PropertiesSidebar
-                  client={client}
-                  nodeId={pageId}
-                  onOpenPage={onOpenPage}
-                  onOpenPageRaw={(id) => (onOpenPageRaw ?? onOpenPage)?.(id)}
-                />
-                {/* The class variant's first-column stack (owner 2026-10-12):
-                    Class properties + Templates under the Metadata panel.
-                    Empty for every other variant. */}
-                {variantSidebarSections.length > 0 && (
-                  <div className="nt-page-side-panel__sections">{variantSidebarSections}</div>
-                )}
-              </aside>
-            )}
-            <div className="nt-page-content">
-              {/* The nodeview proper: auto height between the full-width
-                  top bar above the columns and the card bottom — it scrolls
-                  when the content outgrows the cell. The footer moved to
-                  the context column's bottom (owner 2026-10-09). */}
-              <div className="nt-nodeview-body">
-                {findInPageBar}
-                {headerChrome}
-                {mainChrome}
-              </div>
-            </div>
+                simply centers at the journal measure (the CSS cap, owner
+                2026-10-23). The collapse prefs stay untouched: exiting
+                focus mode restores the panels exactly as they were. */}
             {panelled && !contextPanelCollapsed && !focusMode && (
               <aside className="nt-page-context" aria-label="Context">
                 {/* The node-relevant widgets, relocated from the right
@@ -976,6 +955,33 @@ export function PageView({
                     card-bottom bar retired — the auto top margin on the
                     wrapper pins it to the card bottom. */}
                 <div className="nt-page-context__footer">{footerChrome}</div>
+              </aside>
+            )}
+            <div className="nt-page-content">
+              {/* The nodeview proper: auto height between the full-width
+                  top bar above the columns and the card bottom — it scrolls
+                  when the content outgrows the cell. The footer moved to the
+                  context column's bottom (owner 2026-10-09). */}
+              <div className="nt-nodeview-body">
+                {findInPageBar}
+                {headerChrome}
+                {mainChrome}
+              </div>
+            </div>
+            {!sidePanelCollapsed && !focusMode && (
+              <aside className="nt-page-side-panel" aria-label="Properties">
+                <PropertiesSidebar
+                  client={client}
+                  nodeId={pageId}
+                  onOpenPage={onOpenPage}
+                  onOpenPageRaw={(id) => (onOpenPageRaw ?? onOpenPage)?.(id)}
+                />
+                {/* The class variant's panel stack (owner 2026-10-12):
+                    Class properties + Templates under the Metadata panel.
+                    Empty for every other variant. */}
+                {variantSidebarSections.length > 0 && (
+                  <div className="nt-page-side-panel__sections">{variantSidebarSections}</div>
+                )}
               </aside>
             )}
           </div>

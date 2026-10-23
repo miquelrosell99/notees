@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(web): the nodeview panels swap sides — context column left,
+  properties panel right — and the panelled content column holds the
+  Journal measure (46rem, centered) instead of stretching full-bleed.**
+  Owner direction 2026-10-23: with the main sidebar always open on the
+  far left and the properties panel the usually-open nodeview panel, both
+  panels sitting left of the content left the right side dead — the
+  properties sidebar now rides the RIGHT column and the context column
+  (graph · TOC · Activity · Version history · Comments + footer) the LEFT,
+  so the common state (properties open, context closed) balances
+  sidebar-left against properties-right. The nodeview top bar's toggles
+  followed their columns: the context toggle sits top-left, the
+  properties toggle top-right (each still directly above the column it
+  reveals). The content cap generalizes the focus-mode ruling
+  (2026-10-15, "full-bleed read worse than the centered column") to the
+  whole panelled layout: `.nt-page--panelled .nt-page-content` caps at
+  46rem with the compact layout's spacing-6 padding inside the cap and
+  centers in the space the panels leave — with both panels closed the
+  page keeps the Journal view width instead of going side to side, and
+  toggling a panel never re-measures the text (the slack splits evenly).
+  The `[data-focus="true"]` cap rule folds into the general one (identical
+  geometry); the ≤768px stack and the compact/embedded/preview seams are
+  untouched. `PageView.tsx` (column order + module doc), `PageChrome.tsx`
+  (`NodeTopbar` cluster swap), `app.css` (cap + comments).
+  **Verification**: `pnpm typecheck` + `pnpm test` green; captures at
+  1440/768/390 attached to the session report.
+
 - **feat(web): the section count moves to the section header when tabs are
   disabled — one count per section, named exactly once.** Owner refinement
   2026-10-23 of the 2026-10-21 ruling (which retired every section-header

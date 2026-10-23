@@ -12,8 +12,9 @@
  * before the extraction.
  *
  * The panelled composition
- * is now THREE columns — NodeView · properties · context (PageView owns the
- * grid; the column-collapse choice is recorded there). The context column
+ * is now THREE columns — context · NodeView · properties (the swap owner
+ * 2026-10-23; PageView owns the grid and records the rationale). The context
+ * column
  * hosts LocalGraphCard, TocSection, the Activity section (relocated), and
  * CommentsSection. The dedupe check (the layout precondition):
  * the right rail's ReferencesSection and the page's own Backlinks section
@@ -46,21 +47,22 @@ type AnyClient = WorkspaceClient | WorkerClient;
 
 /**
  * NodeTopbar — the panelled main layout's pinned top row, spanning the
- * WHOLE card above the column split (owner 2026-10-09): the properties
+ * WHOLE card above the column split (owner 2026-10-09): the context
  * collapse toggle and the classes pills on the left; on the right the
  * host's blocks view switcher, the condensed layer's condense-all reset
  * (the layer TOGGLE lives in the app TopBar + palette — owner directive
- * 2026-10-15, one surface per action), the context
- * collapse toggle (absent on the class variant — no context column), and
- * the "…" node menu. The divider
+ * 2026-10-15, one surface per action), the properties
+ * collapse toggle, and the "…" node menu. Each panel toggle sits in the
+ * cluster above the column it reveals — the context toggle top-left, the
+ * properties toggle top-right (the owner 2026-10-23 swap moved the
+ * columns; the toggles followed). The divider
  * border under the row retired (owner 2026-10-13) — the spacing-3 margin
  * below the bar is its whole separation from the columns. Full-width so
- * the bar never rescales when a panel column shows or hides; each panel
- * toggle sits directly above the column it reveals. Focus mode (#12) keeps
- * the bar but hides the LEFT cluster — the panel toggles would control
- * panels the mode hides, and the classes pills are exactly the chrome it
- * suppresses; the view switcher + the node menu stay (the page is still
- * a working surface).
+ * the bar never rescales when a panel column shows or hides. Focus mode
+ * (#12) keeps the bar but hides BOTH panel toggles and the classes pills —
+ * the toggles would control panels the mode hides, and the classes are
+ * exactly the chrome it suppresses; the view switcher + the node menu stay
+ * (the page is still a working surface).
  */
 export function NodeTopbar({
   client,
@@ -108,27 +110,28 @@ export function NodeTopbar({
   onOpenPage?: ((pageId: string) => void) | undefined;
   /** Classes-cluster override (the class variant's extends pills). */
   classesCorner?: ReactNode;
-  /** Focus mode (#12): hides the left cluster (the properties-panel toggle
-   *  and the classes pills) — the panels are hidden and the classes are
-   *  the suppressed chrome; the right cluster (view switcher, node menu)
-   *  renders untouched. */
+  /** Focus mode (#12): hides both panel toggles and the classes pills —
+   *  the panels are hidden and the classes are the suppressed chrome; the
+   *  view switcher + node menu render untouched. */
   focusMode?: boolean;
 }) {
   return (
     <div className="nt-node-topbar">
       {!focusMode && (
         <>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            icon="mdi mdi-format-list-bulleted"
-            aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
-            aria-pressed={!sidePanelCollapsed}
-            title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
-            active={!sidePanelCollapsed}
-            onClick={onToggleSidePanel}
-          />
+          {onToggleContextPanel !== undefined && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-information-outline"
+              aria-label={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
+              aria-pressed={!contextPanelCollapsed}
+              title={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
+              active={!contextPanelCollapsed}
+              onClick={onToggleContextPanel}
+            />
+          )}
           <div className="nt-node-topbar__classes">
             {classesCorner ?? (
               <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
@@ -140,17 +143,17 @@ export function NodeTopbar({
       <div className="nt-node-topbar__right">
         {chromeModes}
         {condensedChrome}
-        {onToggleContextPanel !== undefined && (
+        {!focusMode && (
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            icon="mdi mdi-information-outline"
-            aria-label={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
-            aria-pressed={!contextPanelCollapsed}
-            title={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
-            active={!contextPanelCollapsed}
-            onClick={onToggleContextPanel}
+            icon="mdi mdi-format-list-bulleted"
+            aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+            aria-pressed={!sidePanelCollapsed}
+            title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+            active={!sidePanelCollapsed}
+            onClick={onToggleSidePanel}
           />
         )}
         {chromeMenu}
