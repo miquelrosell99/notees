@@ -23,6 +23,7 @@ import {
   SYSTEM_PROPERTY_DISPLAY_NAMES,
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
+  SYSTEM_SOURCE_CLASS_BINDINGS,
   systemClassAncestors,
   stringifyContentAst,
   type SystemPropertyName,
@@ -585,6 +586,124 @@ describe("system seeds (ported)", () => {
     // NOT make person part of the event hierarchy (no person gating).
     expect(systemClassAncestors("person").has("event")).toBe(false);
     expect(systemClassAncestors("birthday").has("person")).toBe(false);
+  });
+});
+
+describe("SYSTEM_SOURCE_CLASS_BINDINGS (source-library slice 1, task 5)", () => {
+  // The FULL expected per-class binding table — mechanically derived from
+  // `zotero/zotero-schema`'s itemTypes field lists (the task-snapshot JSON):
+  // every Zotero field maps to its pool key (abstractNote→abstract,
+  // type→workType, ISSN→issn), minus `title` (title-is-content), `citationKey`,
+  // and the source-base family riding SYSTEM_PROPERTY_SPECS bindTo (authors/
+  // linkedAuthors/editors/doi/isbn/publicationDate/publisher/citekey/url/
+  // attachments), intersected with the task-4 pool; fields with no pool
+  // property are skipped (full list: source-class-bindings.ts). This object
+  // IS the spec's data — a Zotero schema update forces a conscious decision
+  // here. Judgment calls (kept classes without an exact Zotero counterpart):
+  // song ← audioRecording, tv_series ← tvBroadcast, conference ← the
+  // conferencePaper + presentation union.
+  const expected: Record<string, readonly string[]> = {
+    artwork: ["abstract", "accessDate", "archive", "archiveLocation", "artworkMedium", "artworkSize", "callNumber", "eventPlace", "extra", "language", "rights", "shortTitle"],
+    audio_recording: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "label", "language", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "volume"],
+    bill: ["abstract", "accessDate", "code", "codePages", "codeVolume", "extra", "history", "language", "legislativeBody", "rights", "section", "session", "shortTitle"],
+    blog_post: ["abstract", "accessDate", "blogTitle", "extra", "issn", "language", "rights", "shortTitle", "websiteType"],
+    book: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "format", "issn", "language", "numPages", "numberOfVolumes", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
+    book_section: ["abstract", "accessDate", "archive", "archiveLocation", "bookTitle", "callNumber", "edition", "extra", "format", "issn", "language", "numberOfVolumes", "pages", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
+    computer_program: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "company", "extra", "place", "programmingLanguage", "rights", "seriesTitle", "shortTitle", "system", "versionNumber"],
+    conference: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "eventPlace", "extra", "issn", "issue", "language", "meetingName", "numberOfVolumes", "pages", "place", "proceedingsTitle", "rights", "series", "seriesNumber", "shortTitle", "volume"],
+    conference_paper: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "eventPlace", "extra", "issn", "issue", "language", "numberOfVolumes", "pages", "place", "proceedingsTitle", "rights", "series", "seriesNumber", "shortTitle", "volume"],
+    dataset: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "format", "identifier", "language", "repository", "repositoryLocation", "rights", "shortTitle", "versionNumber", "workType"],
+    dictionary_entry: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "language", "numberOfVolumes", "pages", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
+    document: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "language", "place", "rights", "shortTitle", "workType"],
+    email: ["abstract", "accessDate", "extra", "language", "rights", "shortTitle"],
+    encyclopedia_article: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "language", "numberOfVolumes", "pages", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
+    film: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "distributor", "extra", "genre", "language", "place", "rights", "runningTime", "shortTitle"],
+    forum_post: ["abstract", "accessDate", "extra", "forumTitle", "language", "postType", "rights", "shortTitle"],
+    hearing: ["abstract", "accessDate", "committee", "documentNumber", "extra", "history", "language", "legislativeBody", "numberOfVolumes", "pages", "place", "rights", "session", "shortTitle"],
+    instant_message: ["abstract", "accessDate", "extra", "language", "rights", "shortTitle"],
+    interview: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "interviewMedium", "language", "place", "rights", "shortTitle"],
+    journal_article: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "issn", "issue", "language", "pages", "place", "publicationTitle", "rights", "section", "series", "seriesTitle", "shortTitle", "volume"],
+    letter: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "eventPlace", "extra", "language", "letterType", "rights", "shortTitle"],
+    magazine_article: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "issn", "issue", "language", "pages", "place", "publicationTitle", "rights", "shortTitle", "volume"],
+    manuscript: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "institution", "language", "numPages", "number", "place", "rights", "shortTitle"],
+    map: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "language", "place", "rights", "scale", "seriesTitle", "shortTitle"],
+    newspaper_article: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "issn", "issue", "language", "pages", "place", "publicationTitle", "rights", "section", "shortTitle", "volume"],
+    patent: ["abstract", "accessDate", "applicationNumber", "assignee", "extra", "filingDate", "issueDate", "issuingAuthority", "language", "legalStatus", "pages", "patentNumber", "place", "priorityDate", "priorityNumbers", "references", "rights", "shortTitle"],
+    podcast: ["abstract", "accessDate", "episodeNumber", "extra", "language", "place", "rights", "runningTime", "seriesTitle", "shortTitle"],
+    preprint: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "genre", "language", "place", "repository", "rights", "series", "seriesNumber", "shortTitle"],
+    presentation: ["abstract", "accessDate", "extra", "language", "meetingName", "place", "rights", "series", "shortTitle"],
+    radio_broadcast: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "network", "place", "programTitle", "rights", "runningTime", "shortTitle"],
+    report: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "institution", "issn", "language", "pages", "place", "reportNumber", "reportType", "rights", "seriesNumber", "seriesTitle", "shortTitle"],
+    song: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "label", "language", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "volume"],
+    standard: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "committee", "edition", "extra", "language", "numPages", "number", "place", "rights", "shortTitle", "status", "versionNumber", "workType"],
+    statute: ["abstract", "accessDate", "code", "codeNumber", "dateEnacted", "extra", "history", "language", "nameOfAct", "pages", "publicLawNumber", "rights", "section", "session", "shortTitle"],
+    thesis: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "issn", "language", "numPages", "place", "rights", "series", "seriesNumber", "shortTitle", "thesisType", "university"],
+    tv_broadcast: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "network", "place", "programTitle", "rights", "runningTime", "shortTitle"],
+    tv_series: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "network", "place", "programTitle", "rights", "runningTime", "shortTitle"],
+    video_recording: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "language", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "studio", "volume"],
+    web_page: ["abstract", "accessDate", "extra", "language", "place", "rights", "shortTitle", "websiteTitle", "websiteType"],
+  };
+
+  it("pins the full 39-class table verbatim (key set included)", () => {
+    expect(SYSTEM_SOURCE_CLASS_BINDINGS).toEqual(expected);
+    expect(Object.keys(SYSTEM_SOURCE_CLASS_BINDINGS)).toHaveLength(39);
+  });
+
+  it("every listed property is a real SystemPropertyName; the source base is never repeated; per-class lists are sorted", () => {
+    const base = new Set([
+      "authors", "linkedAuthors", "editors", "doi", "isbn", "publicationDate",
+      "publisher", "citekey", "url", "attachments",
+    ]);
+    for (const [cls, fields] of Object.entries(expected)) {
+      expect(SYSTEM_CLASS_UUIDS, `${cls} must be a real system class`).toHaveProperty(cls);
+      expect(fields, `${cls} list must be sorted`).toEqual([...fields].sort());
+      for (const f of fields) {
+        expect(SYSTEM_PROPERTY_UUIDS, `${cls}.${f} must be a real SystemPropertyName`).toHaveProperty(f);
+        expect(base.has(f), `${cls} must not repeat the source base (${f})`).toBe(false);
+      }
+    }
+  });
+
+  it("no class lists a field its Zotero type does not have (spot types, raw schema field lists)", () => {
+    // Raw `itemTypes[].fields` lists, hand-copied from the Zotero schema
+    // snapshot for the drift-prone spot types (renames applied at the check,
+    // so abstract/workType/issn look up abstractNote/type/ISSN).
+    const rawZoteroFields: Record<string, readonly string[]> = {
+      journalArticle: ["title", "abstractNote", "publicationTitle", "publisher", "place", "date", "volume", "issue", "section", "partNumber", "partTitle", "pages", "series", "seriesTitle", "seriesText", "journalAbbreviation", "DOI", "citationKey", "url", "accessDate", "PMID", "PMCID", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      film: ["title", "abstractNote", "distributor", "place", "date", "genre", "videoRecordingFormat", "runningTime", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      patent: ["title", "abstractNote", "place", "country", "assignee", "issuingAuthority", "patentNumber", "filingDate", "pages", "applicationNumber", "priorityNumbers", "issueDate", "priorityDate", "references", "legalStatus", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
+      standard: ["title", "abstractNote", "organization", "committee", "type", "number", "versionNumber", "edition", "status", "date", "publisher", "place", "partNumber", "partTitle", "ISBN", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "numPages", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      webpage: ["title", "abstractNote", "websiteTitle", "websiteType", "date", "publisher", "place", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
+      book: ["title", "abstractNote", "series", "seriesNumber", "volume", "numberOfVolumes", "edition", "date", "publisher", "place", "originalDate", "originalPublisher", "originalPlace", "format", "numPages", "ISBN", "DOI", "citationKey", "url", "accessDate", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      thesis: ["title", "abstractNote", "thesisType", "university", "place", "date", "series", "seriesNumber", "numPages", "DOI", "ISBN", "citationKey", "url", "accessDate", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      document: ["title", "abstractNote", "type", "date", "publisher", "place", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      audioRecording: ["title", "abstractNote", "audioRecordingFormat", "seriesTitle", "volume", "numberOfVolumes", "label", "place", "date", "runningTime", "ISBN", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      tvBroadcast: ["title", "abstractNote", "programTitle", "episodeNumber", "videoRecordingFormat", "network", "place", "date", "runningTime", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      conferencePaper: ["title", "abstractNote", "proceedingsTitle", "conferenceName", "publisher", "place", "date", "eventPlace", "volume", "issue", "numberOfVolumes", "pages", "series", "seriesNumber", "DOI", "ISBN", "citationKey", "url", "accessDate", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      presentation: ["title", "abstractNote", "presentationType", "date", "meetingName", "place", "series", "sessionTitle", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
+    };
+    const RENAMED: Record<string, string> = { abstract: "abstractNote", workType: "type", issn: "ISSN" };
+    // The class → the Zotero type(s) backing it (the judgment-call kept
+    // classes map onto their counterparts; conference is the union).
+    const SPOT: Record<string, readonly string[]> = {
+      journal_article: ["journalArticle"],
+      film: ["film"],
+      patent: ["patent"],
+      standard: ["standard"],
+      web_page: ["webpage"],
+      book: ["book"],
+      thesis: ["thesis"],
+      document: ["document"],
+      song: ["audioRecording"],
+      tv_series: ["tvBroadcast"],
+      conference: ["conferencePaper", "presentation"],
+    };
+    for (const [cls, types] of Object.entries(SPOT)) {
+      const raw = new Set(types.flatMap((t) => rawZoteroFields[t]));
+      for (const f of expected[cls]!) {
+        expect(raw.has(RENAMED[f] ?? f), `${cls}.${f} must exist on its Zotero type(s)`).toBe(true);
+      }
+    }
   });
 });
 
