@@ -56,6 +56,12 @@ describe("isListingAffectingEnvelope", () => {
         payload: { objectId: "n1", active: false },
       }),
     ).toBe(true);
+    expect(
+      isListingAffectingEnvelope({
+        opType: "object.update",
+        payload: { objectId: "n1", aliasedNodeId: "n2" },
+      }),
+    ).toBe(true);
   });
 
   it("keeps a pure content object.update non-structural", () => {

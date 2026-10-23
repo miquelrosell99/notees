@@ -9,6 +9,60 @@ predating this file.
 
 ## 2026-10-23
 
+- **perf(web): the reference-family cached reads leave the per-keystroke
+  path — `getBacklinks` / `getLinkedReferences` / `getReferences` /
+  `getReferenceCount` / `getUnlinkedReferences` / `getUnlinkedReferenceCount`
+  reclassify from `"change"` to `"scope"`, sound because the store's
+  ChangeSummary now carries edge targets.** Trigger: the op-lag perf plan
+  (slice 3 — measured backlinksWithRollup ~28–78 ms + referencesWithRollup
+  ~20–50 ms + a literal-FTS pass per name re-running on EVERY content edit
+  workspace-wide, per keystroke, at 34k-node scale). The prerequisite the
+  soundness claim exposed: `rebuildEdges` computed the union of previous +
+  desired edge targets but all four applier call sites discarded it, so a
+  content op's ChangeSummary named only the edited node — under `"scope"`,
+  page X mentioning P would never have dirtied P's backlink reads. The four
+  carriers (object.update, object.create, property.set, property.unset) now
+  union the rebuild's affected set into their summaries (both notify paths
+  already consume the summary — the remote path pairs envelope + summary in
+  `summarizeAppliedChanges`). One more carrier-side gap closes the same
+  way: an `object.update` carrying `aliasedNodeId` re-chains the alias
+  family's `resolved_target_id` via `reresolveEdgeTargets`, which reports
+  nothing — so the envelope predicate classifies it listing-affecting
+  (structural), like the `isEmbedded`/`active` toggles. `CHANGE_AFFECT_CAP` rises 256 → 1024 so a
+  mention-dense edit's legitimately wider set does not collapse to
+  full-structure invalidation (the slice-2 regression; ~40 KB worst-case
+  payload, still bounded). Consumer freshness (slice-2 discipline):
+  `ReferenceList` re-reads each row's source through the scope-classed
+  `getNode` (a source edited without touching this page would otherwise
+  render its pooled snapshot's stale text) — one seam covers the page's
+  Backlinks and Unlinked-mentions sections and the block-level backlink
+  gutter; the containing-page group headers already read id-based.
+  **Accepted staleness (documented):** a freshly TYPED mention-shaped
+  literal of P's name elsewhere — no edge yet — appears in P's unlinked
+  list only on the next change touching P or a listing-affecting op;
+  renaming P IS covered (its own content edit lands in its affected set).
+  `packages/store/src/appliers.ts` (the four summary unions),
+  `apps/web/src/core/workspace-client/types.ts` (CHANGE_AFFECT_CAP),
+  `apps/web/src/core/worker-client.ts` (the READ_INVALIDATION table + doc
+  comments), `apps/web/src/core/workspace-client/client-reads-refs.ts`
+  (freshness contract on the linked/unlinked reads),
+  `apps/web/src/features/page-sections/SystemSections.tsx` (the per-row
+  fresh re-read), `packages/store/test/graph.test.ts` (ChangeSummary target
+  inclusion: mention add, plain edit, mention removal, create-with-mention),
+  `apps/web/test/worker-client.test.ts` (the reference reads are
+  scope-classed: an unrelated edit refetches none; a payload naming P
+  refetches exactly the P-parameterized keys). No wire/model change — the
+  summaries are store-internal invalidation metadata, not envelope content;
+  no client lockstep.
+  - **Verification**: `packages/store` 661/661 (4 new target-inclusion
+    specs); `@notees/sync` 26/26 (the aliasedNodeId carrier case added to
+    the existing spec); `apps/web` worker-client 10/10 (1 new scope-class
+    spec); block-backlinks +
+    system-sections + verb-backlinks + extended-by-section + section-views
+    64/64; client-path STEP-0 re-verification passed (mention edit notifies
+    `[A, P]` scoped; an unrelated edit notifies `[B]` only); full repo gate
+    (`pnpm typecheck && pnpm test`) green.
+
 - **perf(web): `roots`/`listPages` leave the per-keystroke refresh path —
   the worker read cache reclassifies both from `"change"` to `"structure"`,
   and every title surface that renders their rows re-reads the title via

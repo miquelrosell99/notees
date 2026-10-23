@@ -139,6 +139,12 @@ export class WorkspaceClientReadsRefs {
    * containment beats alias). The alias page's own view is unchanged: its
    * edges match on the raw target column, so it lists only edges targeting
    * the alias itself (SCHEMA.md "Node aliases").
+   *
+   * Worker-cache freshness (op-lag slice 3): the read is scope-classed —
+   * invalidated only when the target id is in the change's affected set
+   * (an edge landing on it, or an edit inside its subtree). Rows render
+   * through the scope-classed per-row getNode re-read (ReferenceList), so
+   * a source edited elsewhere still shows fresh text.
    */
   getLinkedReferences(id: string): ReferenceEntry[] {
     const seen = new Set<string>();
@@ -215,6 +221,14 @@ export class WorkspaceClientReadsRefs {
    * get this section): literal-text FTS matches of the node's display name
    * across the workspace, excluding the node itself and every node that
    * already links to it (the linked-references set).
+   *
+   * Worker-cache freshness (op-lag slice 3): scope-classed like the linked
+   * family. The exclusion side (a source becoming linked) is covered by
+   * edge-target inclusion. The DISCOVERY side is not: some other node's
+   * literal text newly containing this node's name does not touch this
+   * node, so the new row appears only on the next change affecting this
+   * node or a listing-affecting op (accepted staleness). Renaming this
+   * node IS covered — its own content edit lands in its affected set.
    */
   getUnlinkedReferences(id: string): ReferenceEntry[] {
     const entries: ReferenceEntry[] = [];
