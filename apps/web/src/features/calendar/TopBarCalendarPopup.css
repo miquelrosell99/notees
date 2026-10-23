@@ -31,36 +31,6 @@
   flex-shrink: 0;
 }
 
-.calendar-title {
-  display: flex;
-  flex: 1;
-  justify-content: center;
-  align-items: center;
-  min-width: 0;
-  gap: var(--spacing-1);
-  font: var(--font-title-small);
-  color: var(--md-sys-color-on-surface);
-}
-
-.calendar-title-btn {
-  background: none;
-  border: none;
-  padding: 0 var(--spacing-1);
-  font: var(--font-title-small);
-  color: var(--md-sys-color-on-surface-variant);
-  cursor: pointer;
-  border-radius: var(--shape-small);
-}
-
-.calendar-title-btn:hover {
-  color: var(--md-sys-color-primary);
-}
-
-.calendar-title-btn--month {
-  font-weight: 600;
-  color: var(--md-sys-color-on-surface);
-}
-
 .calendar-year-range {
   padding: var(--spacing-1) var(--spacing-2);
   color: var(--md-sys-color-on-surface-variant);
