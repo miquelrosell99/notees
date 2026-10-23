@@ -72,6 +72,11 @@ function seededRelay(): MemoryRelay {
       },
       [SYSTEM_CLASS_UUIDS.template],
     ),
+    seedEnvelope(
+      "class.create",
+      { classId: SYSTEM_CLASS_UUIDS.event, contentAst: [{ type: "text", text: "event" }] },
+      [SYSTEM_CLASS_UUIDS.event],
+    ),
   ]);
   return relay;
 }
@@ -96,6 +101,8 @@ async function seedClient(relay: MemoryRelay = seededRelay()): Promise<Workspace
  */
 async function setupMeetingWithTemplate(client: WorkspaceClient) {
   const meetingId = await client.createClass("gathering");
+  // Event family (the bar is event-family-only, owner 2026-10-23).
+  await client.setClassExtends(meetingId, [SYSTEM_CLASS_UUIDS.event]);
   const whenId = await client.createPropertySchema({ name: "When", type: "datetime" });
   await client.setClassProperty(meetingId, whenId, {});
   const prioId = await client.createPropertySchema({ name: "Priority", type: "select" });
@@ -120,6 +127,8 @@ async function setupMeetingWithTemplate(client: WorkspaceClient) {
 
 async function setupPlainClass(client: WorkspaceClient) {
   const plainId = await client.createClass("plain");
+  // Event family (the bar is event-family-only, owner 2026-10-23).
+  await client.setClassExtends(plainId, [SYSTEM_CLASS_UUIDS.event]);
   const whenId = await client.createPropertySchema({ name: "Dated", type: "datetime" });
   await client.setClassProperty(plainId, whenId, {});
   return { plainId, whenId };

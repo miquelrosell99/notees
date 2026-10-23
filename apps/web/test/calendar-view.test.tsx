@@ -63,7 +63,7 @@ function seedEnvelope(
   });
 }
 
-/** A real workspace is server-seeded: the task class node exists. */
+/** A real workspace is server-seeded: the task + event class nodes exist. */
 function seededRelay(): MemoryRelay {
   const relay = new MemoryRelay();
   relay.ingest([
@@ -71,6 +71,11 @@ function seededRelay(): MemoryRelay {
       "class.create",
       { classId: SYSTEM_CLASS_UUIDS.task, contentAst: [{ type: "text", text: "task" }], icon: "mdiCheckboxMarkedCircleOutline" },
       [SYSTEM_CLASS_UUIDS.task],
+    ),
+    seedEnvelope(
+      "class.create",
+      { classId: SYSTEM_CLASS_UUIDS.event, contentAst: [{ type: "text", text: "event" }] },
+      [SYSTEM_CLASS_UUIDS.event],
     ),
   ]);
   return relay;
@@ -135,8 +140,10 @@ describe("CalendarView", () => {
   it("quick-create chips follow the per-workspace setting", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
-    // A generic user class — "meeting" is system-class vocabulary.
+    // A generic user class — "meeting" is system-class vocabulary — on the
+    // event family (the bar is event-family-only, owner 2026-10-23).
     const classId = await client.createClass("gathering");
+    await client.setClassExtends(classId, [SYSTEM_CLASS_UUIDS.event]);
     await client.setClassProperty(classId, schemaId, {});
     // Explicit empty list for this workspace: no chips render.
     writeQuickCreateClassesSetting(WS, []);
@@ -145,20 +152,23 @@ describe("CalendarView", () => {
     await screen.findByText("Calendar");
     expect(screen.queryByLabelText("Quick create")).toBeNull();
 
-    // Back to defaults (null): both eligible classes render again.
+    // Back to defaults (null): the eligible class renders again (the task
+    // class is NOT event family — the Tasks section's New owns it).
     writeQuickCreateClassesSetting(WS, null);
     const quickCreate = () => within(screen.getByLabelText("Quick create"));
     await waitFor(() => {
       expect(quickCreate().getByRole("button", { name: "gathering" })).toBeDefined();
     });
-    expect(quickCreate().getByRole("button", { name: "task" })).toBeDefined();
+    expect(quickCreate().queryByRole("button", { name: "task" })).toBeNull();
   });
 
   it("quick-create chip authors a classed object with the date property and opens it", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
-    // A generic user class — "meeting" is system-class vocabulary.
+    // A generic user class — "meeting" is system-class vocabulary — on the
+    // event family.
     const classId = await client.createClass("gathering");
+    await client.setClassExtends(classId, [SYSTEM_CLASS_UUIDS.event]);
     await client.setClassProperty(classId, schemaId, {});
 
     const { onOpenPage, container } = renderCalendar(client);

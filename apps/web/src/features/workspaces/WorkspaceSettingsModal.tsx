@@ -194,9 +194,11 @@ export function WorkspaceSettingsModal({
     const classes = client
       .listClasses()
       .map((cls) => ({ id: cls.id, name: displayNameFromClient(client, cls.id) }));
-    return dateChipCandidates(classes, (classId) => client.getClassBindings(classId)).filter((chip) =>
-      isClassFamilyEnabled(client, chip.classId),
-    );
+    return dateChipCandidates(
+      classes,
+      (classId) => client.getClassBindings(classId),
+      (classId) => client.getClassParents(classId),
+    ).filter((chip) => isClassFamilyEnabled(client, chip.classId));
     // classesVersion keeps the enumeration fresh across store notifications.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, storedChips, setClassesVersion]);
@@ -517,14 +519,15 @@ export function WorkspaceSettingsModal({
               {clientMatches ? (
                 <>
                   <p className="settings-item__description">
-                    Classes offered as quick-create chips on the Calendar day view. By default
-                    every class with a date property appears — today that means the Task class.
-                    Uncheck to narrow the list for this workspace.
+                    Event-type classes offered as quick-create chips on the Calendar day view —
+                    the system Event family (Event, Meeting, Birthday) and classes extending it.
+                    By default every eligible class appears. Uncheck to narrow the list for this
+                    workspace.
                   </p>
                   {eligibleChips.length === 0 ? (
                     <p className="settings-item__description">
-                      No classes with a date property yet. The Task class appears here once the
-                      workspace has one — open the Calendar or Tasks view once to author it.
+                      No event-type classes with a date property yet. The Event family appears here
+                      once the workspace has one — open the Calendar once to author it.
                     </p>
                   ) : (
                     eligibleChips.map((chip) => (

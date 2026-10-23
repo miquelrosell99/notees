@@ -89,7 +89,7 @@ import {
 } from "./calendarQuickCreateSettings.js";
 import { NodeCollection } from "../collection/index.js";
 import type { NodeCollectionItem } from "../collection/index.js";
-import { RepeatPicker } from "../date-pickers/RepeatPicker.js";
+import { NodePill } from "../metadata/NodePills.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
@@ -329,17 +329,22 @@ export function CalendarView({
   );
 
   // --- quick-create chips ------------------------------------------------------
-  // Defaults follow current eligibility (every class with a date-typed
-  // binding); a per-workspace device-local setting narrows the list, and the
+  // EVENT FAMILY ONLY (owner 2026-10-23): the bar creates events — the
+  // system event class and everything extending it (meeting, birthday,
+  // user event subclasses). A class that merely carries a date property
+  // is not quick-create material. Defaults follow current eligibility; a
+  // per-workspace device-local setting narrows the list, and the
   // settings-changed event re-renders this memo live.
   const [storedChips] = useQuickCreateClassesSetting(client.getWorkspaceId());
   const chips = useMemo(() => {
     const classes = client
       .listClasses()
       .map((cls) => ({ id: cls.id, name: displayNameFromClient(client, cls.id) }));
-    const all = dateChipCandidates(classes, (classId) => client.getClassBindings(classId)).filter(
-      (chip) => isClassFamilyEnabled(client, chip.classId),
-    );
+    const all = dateChipCandidates(
+      classes,
+      (classId) => client.getClassBindings(classId),
+      (classId) => client.getClassParents(classId),
+    ).filter((chip) => isClassFamilyEnabled(client, chip.classId));
     const effective = new Set(
       resolveQuickCreateChipClasses(
         storedChips,
@@ -351,10 +356,7 @@ export function CalendarView({
 
   // --- create flow (create-with-template) ---------------------------------------
   // A class with bound has-template values opens the picker; a class without
-  // (the common case) creates directly, exactly as before. The quick-create
-  // bar's repeat picker stamps the new event's date value with the
-  // chosen rule — device state, never an op; absent = plain event.
-  const [quickRepeat, setQuickRepeat] = useState<string | null>(null);
+  // (the common case) creates directly, exactly as before.
   const [pendingCreate, setPendingCreate] = useState<{
     classId: string;
     schemaId: string;
@@ -375,13 +377,7 @@ export function CalendarView({
         { templateRootId: templateId, objectId: id },
       );
     }
-    await client.setDatetimeProperty(
-      id,
-      schemaId,
-      { iso: selectedIso },
-      0,
-      quickRepeat !== null ? { repeat: quickRepeat } : undefined,
-    );
+    await client.setDatetimeProperty(id, schemaId, { iso: selectedIso }, 0);
     onOpenPage(id);
   };
 
@@ -531,24 +527,22 @@ export function CalendarView({
       >
         <div className="calendar-view__main">
           {chips.length > 0 && (
+            /* The chips wear the colored class-pill register (owner
+               2026-10-23): effective color + icon, the class's own look —
+               a click creates the event. The repeat picker is gone (the
+               bar's null-state "Does not repeat" read as noise); a rule
+               is authored from the created event's Properties date pill. */
             <div className="calendar-view__quick-create" aria-label="Quick create">
               {chips.map((chip) => (
-                <Button
+                <NodePill
                   key={chip.classId}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void quickCreate(chip)}
-                >
-                  {chip.label}
-                </Button>
-              ))}
-              <span className="calendar-view__quick-repeat">
-                <RepeatPicker
-                  value={quickRepeat}
-                  onChange={setQuickRepeat}
-                  ariaLabel="Repeat new events"
+                  color={client.effectiveClassColor(chip.classId)}
+                  icon={client.effectiveClassIcon(chip.classId) || null}
+                  label={chip.label}
+                  hoverReveal={false}
+                  onOpen={() => void quickCreate(chip)}
                 />
-              </span>
+              ))}
             </div>
           )}
   

@@ -394,6 +394,12 @@ export interface ChipCandidateInput {
 export function dateChipCandidates(
   classes: ReadonlyArray<{ id: string; name: string | null }>,
   bindingsOf: (classId: string) => ReadonlyArray<{ propertySchemaId: string; type: string; name?: string }>,
+  /**
+   * The class's extends parents (class_extends rows) — the event-family
+   * eligibility walk (owner 2026-10-23: the quick-create bar is for
+   * EVENT-type classes only, see isEventFamilyClass).
+   */
+  parentsOf: (classId: string) => readonly string[],
 ): Array<{ classId: string; schemaId: string; label: string; propertyName: string | null }> {
   const excluded = new Set<string>([
     SYSTEM_CLASS_UUIDS.year,
@@ -403,16 +409,15 @@ export function dateChipCandidates(
   const chips: Array<{ classId: string; schemaId: string; label: string; propertyName: string | null }> = [];
   for (const cls of classes) {
     if (excluded.has(cls.id)) continue;
+    // EVENT FAMILY ONLY (owner 2026-10-23): the quick-create bar creates
+    // events — the system `event` class and everything extending it
+    // (meeting, birthday, user event subclasses like "call"). A class that
+    // merely carries a date property (anime, report) is not quick-create
+    // material; tasks ride the Tasks section's New button.
+    if (!isEventFamilyClass(cls.id, parentsOf)) continue;
     const dateBindings = bindingsOf(cls.id).filter((binding) => binding.type === "datetime");
     if (dateBindings.length === 0) continue;
-    const pick =
-      cls.id === SYSTEM_CLASS_UUIDS.task
-        ? (dateBindings
-            .map((binding) => binding.propertySchemaId)
-            .sort()
-            .find((id) => id === SYSTEM_PROPERTY_UUIDS.taskScheduled) ??
-          [...dateBindings.map((binding) => binding.propertySchemaId)].sort()[0]!)
-        : [...dateBindings.map((binding) => binding.propertySchemaId)].sort()[0]!;
+    const pick = [...dateBindings.map((binding) => binding.propertySchemaId)].sort()[0]!;
     const driving = dateBindings.find((binding) => binding.propertySchemaId === pick);
     chips.push({
       classId: cls.id,
@@ -423,6 +428,32 @@ export function dateChipCandidates(
   }
   chips.sort((a, b) => a.label.localeCompare(b.label) || a.classId.localeCompare(b.classId));
   return chips;
+}
+
+/**
+ * Event-family test: the class IS the system `event` class or extends it
+ * transitively (the extends DAG walk, cycle-guarded by the seen set; the
+ * DAG law makes cycles impossible, the guard is the depth-safety belt).
+ * The quick-create eligibility register (owner 2026-10-23).
+ */
+export function isEventFamilyClass(
+  classId: string,
+  parentsOf: (classId: string) => readonly string[],
+): boolean {
+  if (classId === SYSTEM_CLASS_UUIDS.event) return true;
+  const seen = new Set<string>([classId]);
+  const queue = [classId];
+  while (queue.length > 0) {
+    const current = queue.pop()!;
+    for (const parent of parentsOf(current)) {
+      if (parent === SYSTEM_CLASS_UUIDS.event) return true;
+      if (!seen.has(parent)) {
+        seen.add(parent);
+        queue.push(parent);
+      }
+    }
+  }
+  return false;
 }
 
 // --- recurrence (compute-on-read) -------------------------------------------------

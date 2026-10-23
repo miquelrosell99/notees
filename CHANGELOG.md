@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(web): calendar quick-create — event family only, colored class
+  pills, the bar's repeat picker retired (owner pass).** The bar's chip
+  eligibility was "every class with a date-typed binding", so any class
+  that happened to carry a date property (anime, report) showed a chip —
+  nonsense for an event-creation surface. New register: **event family
+  only** — the system `event` class and everything extending it
+  transitively (`isEventFamilyClass`, the extends-DAG walk over
+  `getClassParents`; the walk lives inside the shared
+  `dateChipCandidates` so the view and the Workspace Settings editor can
+  never drift). Tasks drop off the bar (the Tasks section's New owns task
+  creation); the `taskScheduled` pick special-case goes with them. The
+  chips also **wear the colored class-pill register** (`NodePill` —
+  effective color + icon, hover-reveal off), not the plain ghost buttons.
+  The **repeat picker leaves the quick-create bar** — its null-state
+  "Does not repeat" read as noise and recurrence is authored from the
+  created event's Properties date pill (the documented path); the
+  quick-create repeat stamping + its spec retire with it (the RepeatPicker
+  component stays for the property pill). Settings copy reworded ("Event
+  family… classes extending it"); docs same-pass.
+  - **Verification**: `pnpm typecheck` clean; full gate below (the six
+    quick-create/recurrence suites green — the chip specs rebuilt around
+    the family rule, test classes extending the seeded event class).
 - **refactor(web): NodeCollection BODY MODE — `rootId` + `ghost`; the last
   call-site glue folds into the collection (owner pass, the bundle
   consummated).** Three remaining host assemblies merge: (1) **item

@@ -156,10 +156,6 @@
   color: var(--md-sys-color-error);
 }
 
-.calendar-view__quick-repeat {
-  margin-left: auto;
-}
-
 .calendar-view__muted {
   margin: 0;
   font: var(--font-body-small);

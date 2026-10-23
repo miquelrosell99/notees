@@ -283,7 +283,11 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     const classes = client
       .listClasses()
       .map((cls) => ({ id: cls.id, name: displayNameFromClient(client, cls.id) }));
-    const chips = dateChipCandidates(classes, (classId) => client.getClassBindings(classId));
+    const chips = dateChipCandidates(
+      classes,
+      (classId) => client.getClassBindings(classId),
+      (classId) => client.getClassParents(classId),
+    );
 
     const eventChip = chips.find((chip) => chip.classId === EVENT_CLASS_ID);
     expect(eventChip).toMatchObject({
@@ -416,7 +420,11 @@ describe("ensureBirthdayFamily (birthday extends event, for persons)", () => {
     const classes = client
       .listClasses()
       .map((cls) => ({ id: cls.id, name: displayNameFromClient(client, cls.id) }));
-    const chips = dateChipCandidates(classes, (classId) => client.getClassBindings(classId));
+    const chips = dateChipCandidates(
+      classes,
+      (classId) => client.getClassBindings(classId),
+      (classId) => client.getClassParents(classId),
+    );
 
     const birthdayChip = chips.find((chip) => chip.classId === BIRTHDAY_CLASS_ID);
     expect(birthdayChip).toMatchObject({
