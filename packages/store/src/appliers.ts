@@ -611,9 +611,12 @@ const tagMemberUpsert = db.prepare(
   }
 
   reindexNode(db, p.objectId);
-  rebuildEdges(db, p.objectId, ts);
+  const createdEdges = rebuildEdges(db, p.objectId, ts);
   rebuildNodeStats(db, [p.objectId]);
-  return summary(opType, [p.objectId]);
+  // The summary carries the edge targets too: a mention/link/class chip on
+  // the new content changes those nodes' backlink/reference reads (the
+  // scope-classed invalidation depends on target inclusion).
+  return summary(opType, [p.objectId, ...createdEdges.affectedNodeIds]);
 }
 
 /** Recompute node.tag_ids from the tag OR-Set's present rows (sorted JSON). */
@@ -882,9 +885,13 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
 
   // Content writes reindex FTS (title search lives in the content now — a
   // page's title IS its content) and rebuild edges (derived from content).
+  // The rebuild's affected set (previous + desired edge targets) rides the
+  // summary: scope-classed invalidation keys on those nodes' backlink and
+  // reference reads changing.
+  let contentEdgeAffected: string[] = [];
   if (p.contentAst !== undefined) {
     reindexNode(db, p.objectId);
-    rebuildEdges(db, p.objectId, env.timestamp);
+    contentEdgeAffected = rebuildEdges(db, p.objectId, env.timestamp).affectedNodeIds;
   }
   // The content assertion lands with the write: every stored class_link
   // token is an OR-set membership add, so any writer converges (the inline
@@ -917,7 +924,7 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     }
     reresolveEdgeTargets(db, [p.objectId]);
   }
-  return summary(opType, [p.objectId]);
+  return summary(opType, [p.objectId, ...contentEdgeAffected]);
 }
 
 function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
@@ -2139,10 +2146,12 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
   }
 
   // The FTS row carries the node's text-ish property values too, so
-  // property writes reindex the owner exactly like content writes.
+  // property writes reindex the owner exactly like content writes. The
+  // edge rebuild's affected set (typed-link values reference other nodes)
+  // rides the summary for the same scope-invalidation reason as content.
   reindexNode(db, p.objectId);
-  rebuildEdges(db, p.objectId, env.timestamp);
-  return summary(opType, [p.objectId], dropped);
+  const setEdges = rebuildEdges(db, p.objectId, env.timestamp);
+  return summary(opType, [p.objectId, ...setEdges.affectedNodeIds], dropped);
 }
 
 /**
@@ -2304,10 +2313,12 @@ function applyPropertyUnset(db: StoreDatabase, env: Envelope): ChangeSummary {
     applyPositionalUnset(db, env, p);
   }
 
-  // The owner's indexed text includes its property values — reindex.
+  // The owner's indexed text includes its property values — reindex. The
+  // edge rebuild's affected set rides the summary (the property.set
+  // precedent above).
   reindexNode(db, p.objectId);
-  rebuildEdges(db, p.objectId, env.timestamp);
-  return summary(opType, [p.objectId]);
+  const unsetEdges = rebuildEdges(db, p.objectId, env.timestamp);
+  return summary(opType, [p.objectId, ...unsetEdges.affectedNodeIds]);
 }
 
 /**

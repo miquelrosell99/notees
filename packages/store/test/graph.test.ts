@@ -430,3 +430,61 @@ describe("graphTopology first-appearance stamps", () => {
     expect(edge(topology, "semantic", PAGE_B, PAGE_C)!.createdAt).toBeNull();
   });
 });
+
+describe("ChangeSummary target inclusion (the scope-invalidation contract)", () => {
+  it("object.update carrying a mention reports the mention target in affectedNodeIds", () => {
+    const store = setup(createPage(PAGE_A), createPage(PAGE_B));
+    const summary = store.apply(
+      env("object.update", {
+        objectId: PAGE_A,
+        contentAst: [{ type: "text", text: "hello " }, mention(PAGE_B, "B")],
+      }),
+    );
+    expect(summary.affectedNodeIds).toContain(PAGE_A);
+    expect(summary.affectedNodeIds).toContain(PAGE_B);
+  });
+
+  it("a plain content edit (no mention/link) reports only the edited node", () => {
+    const store = setup(createPage(PAGE_A), createPage(PAGE_B));
+    const summary = store.apply(
+      env("object.update", {
+        objectId: PAGE_A,
+        contentAst: [{ type: "text", text: "plain edit, no mention" }],
+      }),
+    );
+    expect(summary.affectedNodeIds).toEqual([PAGE_A]);
+  });
+
+  it("removing a mention reports the REMOVED target (previous-target inclusion)", () => {
+    const store = setup(
+      createPage(PAGE_A),
+      createPage(PAGE_B),
+      env("object.update", {
+        objectId: PAGE_A,
+        contentAst: [{ type: "text", text: "hello " }, mention(PAGE_B, "B")],
+      }),
+    );
+    const summary = store.apply(
+      env("object.update", {
+        objectId: PAGE_A,
+        contentAst: [{ type: "text", text: "mention removed" }],
+      }),
+    );
+    expect(summary.affectedNodeIds).toContain(PAGE_A);
+    expect(summary.affectedNodeIds).toContain(PAGE_B);
+  });
+
+  it("object.create whose seed content mentions a node carries the target too (embedded block — page content is text-only)", () => {
+    const store = setup(createPage(PAGE_A), createPage(PAGE_B));
+    const summary = store.apply(
+      env("object.create", {
+        objectId: BLOCK_B1,
+        parentId: PAGE_A,
+        isEmbedded: true,
+        contentAst: [{ type: "text", text: "hello " }, mention(PAGE_B, "B")],
+      }),
+    );
+    expect(summary.affectedNodeIds).toContain(BLOCK_B1);
+    expect(summary.affectedNodeIds).toContain(PAGE_B);
+  });
+});
