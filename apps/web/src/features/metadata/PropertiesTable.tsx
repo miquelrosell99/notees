@@ -159,7 +159,7 @@ export function PropertiesTable({
           {rendered.map((entry) => {
             if (entry === null) return null;
             if (entry.kind === "grouped") {
-              const schema = entry.groupRows[0]?.schema ?? null;
+              const schema = entry.schema ?? entry.groupRows[0]?.schema ?? null;
               return groupedRow(
                 entry.type,
                 entry.propertySchemaId,
