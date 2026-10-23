@@ -30,10 +30,12 @@
  * or a dead cell. The pass runs on every store-synced render and when focus
  * leaves the row; a carrier is skipped while focus is inside the row (an
  * Add/Enter just minted an empty value the user may be about to type into)
- * and a placeholder the "+ Add property" flow just minted is skipped via the
- * pending-carrier mark in propertyValueInit (that flow never focuses the row,
- * so the focus guard can't see it) until content lands or the user leaves the
- * row — and unsetting trashes the carrier — "Unset deletes the carrier".
+ * — and unsetting trashes the carrier — "Unset deletes the carrier".
+ *
+ * Assigned-empty rows (owner ruling 2026-10-23 — property.assign without a
+ * value): the row renders the same full-width "Type something" cell as a
+ * bound-but-empty row; first edit mints the carrier block and authors the
+ * {nodeId} value, exactly the Add-pill path.
  *
  * Block-to-property drop (S5, owner ruling 2026-10-20): the row registers
  * as a drop target of the ONE workspace drag session — dragging a
@@ -53,7 +55,6 @@ import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { NodeCollection, type NodeCollectionItem } from "../collection/index.js";
 import type { AnyClient } from "../collection/types.js";
-import { clearPendingTextCarrier, isPendingTextCarrier } from "./propertyValueInit.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
@@ -240,10 +241,8 @@ export function TextPropertyRow({
    * contentless — a scalar empty string, a dead carrier ref, or a carrier
    * with no text and no children. The unset trashes the carrier, so a
    * carrier is skipped while focus is anywhere inside THIS row (an Add/Enter
-   * just minted an empty value the user is about to type into) and while the
-   * placeholder is still pending from the panel add flow; the focusout
-   * handler clears the pending marks and re-runs the pass once the caret
-   * leaves.
+   * just minted an empty value the user is about to type into); the
+   * focusout handler re-runs the pass once the caret leaves.
    */
   const cleanupEmptyValues = (): void => {
     const rowHasFocus = rootRef.current?.contains(document.activeElement) === true;
@@ -262,17 +261,8 @@ export function TextPropertyRow({
         if (node === undefined) continue;
         const contentless =
           plainTextExcerpt(node.contentAst).trim() === "" && client.getChildren(state.id).length === 0;
-        if (!contentless) {
-          // Content (or a child) landed — the placeholder settled; the mark
-          // (if any) has done its job.
-          clearPendingTextCarrier(state.id);
-          continue;
-        }
+        if (!contentless) continue;
         if (rowHasFocus) continue;
-        // A placeholder the "+ Add property" flow just minted never had focus
-        // in the row — keep it until content lands or the row's blur pass
-        // clears the marks (that is "the user left it empty").
-        if (isPendingTextCarrier(state.id)) continue;
         void client.unsetProperty(nodeId, propertySchemaId, row.idx);
         continue;
       }
@@ -328,20 +318,11 @@ export function TextPropertyRow({
       onBlur={(event) => {
         // Focus truly left the row (React's onBlur is the bubbling focusout —
         // it also fires on carrier-to-carrier hops, so filter those): the
-        // user has LEFT any placeholder the add flow minted, so clear its
-        // pending mark and re-run the auto-unset pass — an abandoned empty
-        // placeholder goes now, not at the next unrelated store update.
-        // Read-only never writes.
+        // user has LEFT any freshly-minted empty carrier, so re-run the
+        // auto-unset pass — an abandoned empty value goes now, not at the
+        // next unrelated store update. Read-only never writes.
         if (readOnly) return;
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-        for (const row of client
-          .getEffectiveProperties(nodeId)
-          .filter(
-            (each) => each.propertySchemaId === propertySchemaId && each.source === "authored",
-          )) {
-          const state = carrierStateOf(client, row.value);
-          if (state.kind === "carrier") clearPendingTextCarrier(state.id);
-        }
         cleanupEmptyValues();
       }}
       className={
@@ -387,6 +368,40 @@ export function TextPropertyRow({
             // Carrier values render as the locked collection's root items
             // above; only the fallback cells ride this map.
             if (state.kind === "carrier") return null;
+            // Assigned-empty row (owner ruling 2026-10-23 — property.assign
+            // without a value): the declaration exists, no value yet — the
+            // cell authors the first CARRIER block on edit, the node-backed
+            // convention (the same handler the bound-but-empty cell rides).
+            if (row.value === null) {
+              if (readOnly) {
+                return (
+                  <span
+                    key={row.elementId}
+                    className="nt-property-value nt-property-value--readonly"
+                  />
+                );
+              }
+              return (
+                <input
+                  key={row.elementId}
+                  type="text"
+                  className="nt-property-value"
+                  placeholder="Type something"
+                  aria-label={`Property ${label}`}
+                  onBlur={(event) => {
+                    const text = event.target.value;
+                    if (text.trim() === "") return;
+                    void (async () => {
+                      const carrierId = await client.createObject({
+                        parentId: nodeId,
+                        contentAst: [{ type: "text", text }],
+                      });
+                      await client.setProperty(nodeId, propertySchemaId, { nodeId: carrierId }, 0);
+                    })();
+                  }}
+                />
+              );
+            }
             // Dead carrier (uuid value that no longer resolves): display
             // EMPTY, re-author a fresh carrier on edit, unset on empty blur.
             // Scalar values: the minimal text editor, writing the string.

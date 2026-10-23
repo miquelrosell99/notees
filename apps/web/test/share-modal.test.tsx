@@ -200,6 +200,7 @@ describe("NodeContextMenu Share… item", () => {
     getEffectiveProperties: () => [],
     createObject: async () => "unused",
     setProperty: async () => {},
+    assignProperty: async () => {},
     moveObject: async () => {},
     listPropertySchemas: () => [],
     effectiveClassColor: () => null,

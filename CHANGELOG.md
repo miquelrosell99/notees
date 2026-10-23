@@ -9,6 +9,59 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(protocol+store+web): node-level property ASSIGNMENT — assign a
+  property without a value, set the value later (owner ruling, the v1
+  `node_property` lineage).** The trigger: adding a property to a node whose
+  classes don't bind it silently did nothing for every type without a
+  placeholder write (url/email/select-without-options — the picker closed,
+  no op, no row), and the placeholder model itself authored values the user
+  never typed (boolean `false`, number `0`). The owner ruled the design
+  wrong: assignment and value authoring are two independent steps, exactly
+  like v1's `node_property` table where the (property, node) pair row exists
+  first and the value columns fill later. Two ADDITIVE wire ops (envelope
+  v3, `packages/protocol`): `property.assign {objectId, propertySchemaId}`
+  upserts a presence row per (node, schema) — LWW by the full (hlc, actor)
+  tuple, the `class_property` row precedent; `property.unassign` plain-
+  deletes it (the `class.property.unset` precedent). Semantics: assignment
+  carries ZERO availability semantics — `scopeClassIds` stays the sole
+  locality authority and the applier enforces the same R3 eligibility check
+  as `property.set` (fail loud); `property.set`/`unset` stay legal without a
+  declaration; `unassign` never touches authored values (never retroactive —
+  they render as unbound authored rows). The store gains the `node_property`
+  derived table (schema v29, additive migration) and the effective read
+  synthesizes an EMPTY row (`value: null`, `source: "assigned"`) for an
+  assigned schema with no authored rows and no derived default — shadowed
+  the moment a value/default exists, suppressed for deleted schemas and
+  `hideWhenEmpty`, ordered in the main alphabetical block (only unbound
+  authored rows still sort last); queries/exports never see it. Web: "+ Add
+  property" and the S1 create modal's node follow-up now ASSIGN for every
+  type (the placeholder-write machinery and its `pendingTextCarriers` guard
+  are gone — `propertyValueInit.ts` deleted); the assigned-empty row renders
+  the proven bound-but-empty cells (grouped types via the empty-group path;
+  url/email/number via a `value === null` arm in ScalarPropertyValue whose
+  empty blur writes nothing); "Remove from node" composes unset + unassign;
+  clone carries assignments; the undo journal inverts the pair; block-row
+  bullet/inline buttons treat assigned-empty display rows like bound-empty
+  ones. Fixture gate: `property-assign.json` (concurrent assigns converge on
+  one row, value lands later via `property.set`, unassign keeps the value, a
+  newer assign revives) — the corpus replays byte-identical on both
+  adapters; **LOCKSTEP-PENDING: GTK/Flutter converge on the fixture** (TS
+  reference is the gate; recorded per the embedding/PG5 precedent). No
+  migration: old logs replay unchanged. Client-manifest check (law 10): the
+  GTK/Flutter seed manifests carry no assignment machinery (the op arrives
+  through the log only) — nothing to align, recorded here.
+  - **Verification**: `pnpm typecheck` clean; `@notees/protocol` 599/599
+    (fixture-list pin 38 → 39 + the lifecycle pin); `@notees/store` 681/681
+    on both adapters (new `property-assign.test.ts`: LWW converge/drop, R3
+    rejection, unassign-keeps-values, effective-read shadowing/hideWhenEmpty/
+    ordering); `apps/web` 2000/2000 (the create-modal host test pins the
+    assigned-empty row; the text-property "+ Add property" block is rewritten
+    to the assignment semantics; new undo-journal inversion specs).
+  - **Docs**: SCHEMA.md (the assignment bullet in "Class properties" +
+    the read-surfaces source union), `docs/features/properties.md` (the
+    assign-then-set flow), AGENTS.md (the invariant clause), the server
+    object API's effective-properties comment.
+
 - **test(web): the read-cache dirty-key guard — a pinned spec over the
   WorkerClient's invalidation classes, so slices 2 + 3 cannot silently
   regress.** Trigger: the op-lag perf plan (slice 5) — the per-keystroke

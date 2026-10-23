@@ -56,6 +56,10 @@
  *                         element-addressed remove.
  *  - property.unset       → property.set restoring the captured row (nothing
  *                         to restore → the unset is a no-op, not journaled).
+ *  - property.assign      → property.unassign (the declaration dies; the
+ *                         inverse never touches authored values).
+ *  - property.unassign    → property.assign restoring the declaration
+ *                         (nothing to restore → no-op, not journaled).
  *  - class.unassign       → the add carrier: object.create {classIds:[id]}.
  *  - tag.unassign         → the add carrier: object.create {tagIds:[id]}.
  *  - class.reorder        → class.reorder with the prior effective order.
@@ -237,6 +241,8 @@ export interface UndoCaptureSource {
     idx: number,
   ): UndoPropertyValueSnapshot | null;
   classBinding(classId: string, propertySchemaId: string): UndoBindingSnapshot | null;
+  /** The node→property assignment declaration (node_property row present). */
+  propertyAssignment(objectId: string, propertySchemaId: string): boolean;
   /** Direct extends parents, deterministic order. */
   classParents(classId: string): string[];
   schemaSnapshot(propertySchemaId: string): UndoSchemaSnapshot | null;
@@ -691,6 +697,32 @@ export function invertEnvelope(
       if (prior.metadata !== null) payload.metadata = prior.metadata;
       return [{ opType: "property.set", payload, affected: [objectId] }];
     }
+    case "property.assign": {
+      const objectId = asString(p.objectId);
+      const propertySchemaId = asString(p.propertySchemaId);
+      if (objectId === null || propertySchemaId === null) return null;
+      if (!capture.propertyAssignment(objectId, propertySchemaId)) return null; // no-op
+      return [
+        {
+          opType: "property.unassign",
+          payload: { objectId, propertySchemaId },
+          affected: [objectId],
+        },
+      ];
+    }
+    case "property.unassign": {
+      const objectId = asString(p.objectId);
+      const propertySchemaId = asString(p.propertySchemaId);
+      if (objectId === null || propertySchemaId === null) return null;
+      if (!capture.propertyAssignment(objectId, propertySchemaId)) return null; // no-op
+      return [
+        {
+          opType: "property.assign",
+          payload: { objectId, propertySchemaId },
+          affected: [objectId],
+        },
+      ];
+    }
     case "asset.attach": {
       const objectId = asString(p.objectId);
       const assetId = asString(p.assetId);
@@ -807,6 +839,8 @@ const OP_VERBS: Record<string, string> = {
   "propertySchema.delete": "delete property schema",
   "property.set": "set property",
   "property.unset": "clear property",
+  "property.assign": "assign property",
+  "property.unassign": "unassign property",
   "asset.attach": "attach asset",
   "asset.detach": "detach asset",
   "collection.member.add": "add to collection",

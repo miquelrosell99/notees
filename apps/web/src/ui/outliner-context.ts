@@ -112,6 +112,9 @@ export interface OutlinerClient {
    * row idx.
    */
   unsetProperty(objectId: string, propertySchemaId: string, idx?: number): Promise<void>;
+  /** Assign a property without a value (property.assign — owner ruling
+   *  2026-10-23): the clone/menu write surface rides it. */
+  assignProperty(objectId: string, propertySchemaId: string): Promise<void>;
   /**
    * Patch a property schema's metadata (`propertySchema.update`) — the
    * task-cycle chord's family ensure rides the status-restyle pass.

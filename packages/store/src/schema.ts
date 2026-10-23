@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 28;
+export const SCHEMA_VERSION = 29;
 
 /**
  * The render-path list-reads index: composite for the
@@ -377,6 +377,26 @@ CREATE TABLE IF NOT EXISTS property_value_tombstone (
     actor_id TEXT,
     PRIMARY KEY (node_id, property_schema_id, idx)
 );
+
+-- Node-level property ASSIGNMENT (owner ruling 2026-10-23 — the v1
+-- node_property table lineage): the (node, property) pair declaration
+-- WITHOUT a value. The effective read synthesizes an empty panel row for a
+-- live assignment whose schema has no authored/default rows; the row's own
+-- editor authors the first value via an ordinary property.set. Presence row,
+-- LWW by the full (hlc, actor) tuple (the class_property precedent);
+-- property.unassign deletes the row (the class.property.unset precedent).
+-- Zero availability semantics — scope stays the sole locality authority,
+-- enforced at the applier (R3).
+CREATE TABLE IF NOT EXISTS node_property (
+    node_id TEXT NOT NULL,
+    property_schema_id TEXT NOT NULL,
+    hlc_physical INTEGER NOT NULL DEFAULT 0,
+    hlc_logical INTEGER NOT NULL DEFAULT 0,
+    actor_id TEXT,
+    PRIMARY KEY (node_id, property_schema_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_property_node ON node_property (node_id);
 
 -- Derived reference index (never authored). type: mention | typed_link |
 -- property. verb: the typed-link verb (string) or the bound propertySchemaId;
@@ -1261,5 +1281,20 @@ export function migrate(
         SELECT 1 FROM node
         WHERE node.id = class.id AND node.is_class = 1 AND node.is_active = 1
       );
+  `);
+  // v28 -> v29 (owner ruling 2026-10-23): node-level property assignment —
+  // the v1 `node_property` lineage. Purely additive: CREATE IF NOT EXISTS is
+  // a no-op for fresh v29 creates; existing databases gain the empty table
+  // (the workspace_feature precedent).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS node_property (
+        node_id TEXT NOT NULL,
+        property_schema_id TEXT NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        PRIMARY KEY (node_id, property_schema_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_node_property_node ON node_property (node_id);
   `);
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

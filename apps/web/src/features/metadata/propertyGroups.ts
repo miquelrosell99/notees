@@ -74,7 +74,14 @@ export function propertyGroupsOf(
       kind: "grouped" as const,
       propertySchemaId: row.propertySchemaId,
       type,
-      groupRows: rows.filter((r) => r.propertySchemaId === row.propertySchemaId),
+      // An ASSIGNED-EMPTY row (owner ruling 2026-10-23 — property.assign
+      // without a value) reduces to the bound-but-empty shape: the grouped
+      // row's add/set affordance authors the first value (the store shadows
+      // the synthetic row the moment a value exists, so an assigned row
+      // never coexists with authored carriers).
+      groupRows: rows.filter(
+        (r) => r.propertySchemaId === row.propertySchemaId && r.source !== "assigned",
+      ),
     };
   });
 

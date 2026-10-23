@@ -455,6 +455,26 @@ export class WorkspaceClientWrites {
   }
 
   /**
+   * Assign a property to a node WITHOUT a value (property.assign — owner
+   * ruling 2026-10-23, the v1 `node_property` lineage): the panel row renders
+   * empty and the row's editor authors the first value later via setProperty.
+   * Assignment carries zero availability semantics — scope stays the sole
+   * locality authority (the applier rejects ineligible nodes, fail loud).
+   */
+  async assignProperty(objectId: string, propertySchemaId: string): Promise<void> {
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope("property.assign", { objectId, propertySchemaId }, [objectId]),
+    );
+  }
+
+  /** Remove a node→property assignment (property.unassign) — authored values survive. */
+  async unassignProperty(objectId: string, propertySchemaId: string): Promise<void> {
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope("property.unassign", { objectId, propertySchemaId }, [objectId]),
+    );
+  }
+
+  /**
    * "Promote to block" (SCHEMA.md "Node-backed text properties"): detach a
    * node-backed text property value and surface the carrier in the owner's
    * body as an ordinary child. Composed from existing ops — property.unset

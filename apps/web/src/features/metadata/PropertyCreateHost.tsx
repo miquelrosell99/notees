@@ -9,9 +9,9 @@
  * does).
  *
  * The request carries the caller's context:
- *  - `nodeId`: after the create, the host initializes the placeholder
- *    value on the node (the panel's "+ Add property" follow-up — the row
- *    appears as today);
+ *  - `nodeId`: after the create, the host ASSIGNS the schema to the node
+ *    (owner ruling 2026-10-23 — assignment without a value; the panel row
+ *    renders empty and the row's editor authors the first value later);
  *  - `contextClassId`: the class page's add popover — the modal itself
  *    binds the schema to the class (+ the optional binding default);
  *  - `onCreated`: a caller-specific follow-up (the verb flow binds the
@@ -23,11 +23,11 @@
 import { useEffect, useState } from "react";
 
 import { PropertyCreateModal } from "./PropertyCreateModal.js";
-import { initializePropertyValue } from "./propertyValueInit.js";
 import type { AnyClient } from "./shared.js";
 
 export interface PropertyCreateRequest {
-  /** After the create, initialize the placeholder value on this node. */
+  /** After the create, assign the schema to this node (no value — the row
+   *  renders empty; the row's editor authors the first value later). */
   nodeId?: string | undefined;
   /** Class context: the modal binds the schema to this class. */
   contextClassId?: string | undefined;
@@ -84,11 +84,9 @@ export function PropertyCreateHost({ client }: { client: AnyClient }) {
       contextClassId={request.contextClassId}
       onCreated={(schemaId, type) => {
         if (request.nodeId !== undefined) {
-          void initializePropertyValue(client, request.nodeId, schemaId, type).catch(
-            (error: unknown) => {
-              console.warn("[property-create] placeholder value failed:", error);
-            },
-          );
+          void client.assignProperty(request.nodeId, schemaId).catch((error: unknown) => {
+            console.warn("[property-create] assignment failed:", error);
+          });
         }
         request.onCreated?.(schemaId, type);
       }}

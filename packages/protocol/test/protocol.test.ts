@@ -42,7 +42,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the thirty-eight required fixtures", () => {
+  it("has exactly the thirty-nine required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
@@ -72,6 +72,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "object-update-active.json",
       "object-wire-fields.json",
       "property-asset-type.json",
+      "property-assign.json",
       "property-date-qualifier.json",
       "property-datetime.json",
       "property-schema-scope.json",
@@ -126,6 +127,50 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     const payload = fixture.envelopes[0]!.payload as { contentAst: unknown };
     const ast = contentAstSchema.parse(payload.contentAst);
     expect(extractTypedLinkMarks(ast)).toHaveLength(0);
+  });
+
+  it("property-assign fixture pins the assignment lifecycle: concurrent assigns converge on one row, unassign keeps the authored value, a newer assign revives", () => {
+    const fixture = fixtures.find((f) => f.name === "property-assign.json")!;
+    const assigns = fixture.envelopes.filter((env) => env.opType === "property.assign");
+    const unassigns = fixture.envelopes.filter((env) => env.opType === "property.unassign");
+    const sets = fixture.envelopes.filter((env) => env.opType === "property.set");
+    // Two devices assign the same (node, schema) pair concurrently…
+    expect(assigns.map((env) => (env.payload as { objectId: string }).objectId)).toEqual([
+      "0192a000-0000-7000-8000-000000000902",
+      "0192a000-0000-7000-8000-000000000902",
+      "0192a000-0000-7000-8000-000000000902",
+    ]);
+    const hlcA = assigns[0]!.hlc as { physical: number; logical: number };
+    const hlcB = assigns[1]!.hlc as { physical: number; logical: number };
+    expect(compareHlc(hlcA, hlcB)).toBeLessThan(0);
+    // …the value arrives AFTER the assignment, through an ordinary set…
+    expect(sets).toHaveLength(1);
+    expect(sets[0]!.payload).toMatchObject({ value: "https://example.org", idx: 0 });
+    expect(compareHlc(hlcB, sets[0]!.hlc as { physical: number; logical: number })).toBeLessThan(0);
+    // …the unassign addresses the pair, and the final re-assign is the newest op.
+    expect(unassigns).toHaveLength(1);
+    expect(unassigns[0]!.payload).toEqual({
+      objectId: "0192a000-0000-7000-8000-000000000902",
+      propertySchemaId: "0192a000-0000-7000-8000-000000000901",
+    });
+    expect(compareHlc(unassigns[0]!.hlc as { physical: number; logical: number }, assigns[2]!.hlc as { physical: number; logical: number })).toBeLessThan(0);
+    // The assignment payload is a bare pair — no value/order keys at all.
+    for (const env of [...assigns, ...unassigns]) {
+      expect(Object.keys(env.payload as Record<string, unknown>).sort()).toEqual([
+        "objectId",
+        "propertySchemaId",
+      ]);
+    }
+    expect(
+      payloadSchemaFor("property.assign")!.safeParse({
+        objectId: "0192a000-0000-7000-8000-000000000902",
+        propertySchemaId: "0192a000-0000-7000-8000-000000000901",
+        value: "x",
+      }).success,
+    ).toBe(false);
+    // Applicable in sequence: HLCs strictly ascend.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
   });
 
   it("property-set-lww races the same slot; higher HLC is the LWW winner", () => {

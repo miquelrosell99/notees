@@ -2489,6 +2489,86 @@ function trashTextCarrierIfOrphaned(
   rebuildNodeStats(db, [target, ...ancestorIds(db, target)]);
 }
 
+// --- property.assign / property.unassign ----------------------------------------
+
+/**
+ * Node-level property ASSIGNMENT (owner ruling 2026-10-23 — the v1
+ * `node_property` lineage): the (node, property) pair declaration WITHOUT a
+ * value. Presence row, LWW by the full (hlc, actor) tuple (the
+ * class_property row precedent — an older or equal causal stamp is dropped,
+ * so concurrent assigns converge on one row). Assignment carries zero
+ * availability semantics, but scope stays the sole locality authority: the
+ * R3 eligibility check from applyPropertySet runs here too — a scoped schema
+ * rejects a node whose class closure misses the list, fail loud. Schema-less
+ * writes (unknown schema id) stay unchecked, exactly like property.set.
+ */
+function applyPropertyAssign(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "property.assign";
+  const p = env.payload as OpPayload<"property.assign">;
+  const incoming = winnerFromEnvelope(env);
+
+  const existing = db
+    .prepare(
+      "SELECT hlc_physical, hlc_logical, actor_id FROM node_property WHERE node_id = ? AND property_schema_id = ?",
+    )
+    .get(p.objectId, p.propertySchemaId) as
+    | { hlc_physical: number; hlc_logical: number; actor_id: string | null }
+    | undefined;
+
+  if (existing && compareLww(incoming, rowWinner(existing)) <= 0) {
+    return summary(opType, [p.objectId], true);
+  }
+
+  const schema = propertySchemaRowOf(db, p.propertySchemaId);
+  if (schema !== null) {
+    const scope = scopeClassIdsOfRow(schema);
+    if (scope !== null) {
+      const nodeRow = db.prepare("SELECT class_ids FROM node WHERE id = ?").get(p.objectId) as
+        | { class_ids: string | null }
+        | undefined;
+      const carried = nodeRow === undefined ? null : (nodeRow.class_ids ?? null);
+      if (!nodeEligibleForSchema(db, carried, scope)) {
+        throw new MoveGuardError(
+          `${opType}: node ${p.objectId} is not eligible for schema ${p.propertySchemaId} ` +
+            "(its classes — extends-aware — do not intersect the schema's scopeClassIds)",
+          opType,
+        );
+      }
+    }
+  }
+
+  if (!existing) {
+    db.prepare(
+      `INSERT INTO node_property
+         (node_id, property_schema_id, hlc_physical, hlc_logical, actor_id)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(p.objectId, p.propertySchemaId, env.hlc.physical, env.hlc.logical, env.actorId);
+  } else {
+    db.prepare(
+      `UPDATE node_property SET
+         hlc_physical = ?, hlc_logical = ?, actor_id = ?
+       WHERE node_id = ? AND property_schema_id = ?`,
+    ).run(env.hlc.physical, env.hlc.logical, env.actorId, p.objectId, p.propertySchemaId);
+  }
+  return summary(opType, [p.objectId]);
+}
+
+/**
+ * Assignment removal: plain DELETE — a presence declaration, last write wins,
+ * no tombstone (the class.property.unset precedent). Authored property_value
+ * rows are untouched by design: enforcement is never retroactive, an
+ * unassigned node's values render as ordinary unbound authored rows.
+ */
+function applyPropertyUnassign(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "property.unassign";
+  const p = env.payload as OpPayload<"property.unassign">;
+  db.prepare("DELETE FROM node_property WHERE node_id = ? AND property_schema_id = ?").run(
+    p.objectId,
+    p.propertySchemaId,
+  );
+  return summary(opType, [p.objectId]);
+}
+
 // --- asset.* ----------------------------------------------------------------------
 
 function applyAssetAttach(db: StoreDatabase, env: Envelope): ChangeSummary {
@@ -2752,6 +2832,8 @@ const APPLIERS: Record<
   "propertySchema.delete": applyPropertySchemaDelete,
   "property.set": applyPropertySet,
   "property.unset": applyPropertyUnset,
+  "property.assign": applyPropertyAssign,
+  "property.unassign": applyPropertyUnassign,
   "asset.attach": applyAssetAttach,
   "asset.detach": applyAssetDetach,
   "collection.member.add": (db, env) => applyCollectionMember(db, env, 1),

@@ -4,6 +4,7 @@
  *
  *   effective(node, schema, idx) = authored property_value
  *                                  ?? the SCHEMA's defaultValue
+ *                                  ?? an ASSIGNED empty row (value null)
  *
  * Authored rows always win and survive class removal (design law); derived
  * defaults are computed HERE, never materialized — the applier writes no
@@ -13,7 +14,14 @@
  * WHICH properties a class's nodes carry (and supplies boundBy),
  * but the default VALUE comes from the schema row. Presentation order is
  * PURE ALPHABETICAL by property name (owner ruling 2026-10-21 — `sequence`
- * retired from the binding; class panels have no configurable order).
+ * retired from the binding; class panels have no configurable order);
+ * UNBOUND AUTHORED rows (a value whose binding went away — never hidden,
+ * the not-retroactive law) sort after every bound/assigned/default row.
+ * A node-level ASSIGNMENT (owner ruling 2026-10-23 — the v1 `node_property`
+ * lineage) with no authored rows and no derived default synthesizes an
+ * EMPTY row (value null, source "assigned"): the panel renders it and the
+ * row's own editor authors the first value through an ordinary property.set
+ * — assignment and value authoring are independent by design.
  * Authored rows come
  * through the PG5 visible-set derivation
  * (property-values.ts: slot tombstones + element tombstones) and carry their
@@ -60,23 +68,30 @@ export interface EffectivePropertySchema {
 
 /**
  * One effective (schema, idx) row for a node. `source` tags authored vs
- * derived; `boundBy` is the class supplying the binding metadata — the
- * winning class for a default, the currently-binding class for an authored
- * row, or null when no current class binds the schema (an authored value
- * whose binding went away stays visible, marked unbound).
+ * derived vs assigned-empty; `boundBy` is the class supplying the binding
+ * metadata — the winning class for a default, the currently-binding class
+ * for an authored row, or null when no current class binds the schema (an
+ * authored value whose binding went away stays visible, marked unbound;
+ * an assigned row is unbound by construction — the declaration is the
+ * node's own).
  */
 export interface EffectiveProperty {
   propertySchemaId: string;
   idx: number;
   /** PG5: the value's stable element id (the property_value row id) — the
-   *  address multi-value removes target. */
+   *  address multi-value removes target. Assigned-empty rows carry a
+   *  deterministic synthetic id (`assigned:<schema-id>`). */
   elementId: string;
   schema: EffectivePropertySchema | null;
+  /** The authored/default value; NULL on an assigned-empty row (the
+   *  assignment declares the property without a value — owner ruling
+   *  2026-10-23). */
   value: unknown;
   /** Authored qualifiers (property.set metadata — PC6 date refs or legacy
-   *  ISO strings on dateQualified schemas); null for derived defaults. */
+   *  ISO strings on dateQualified schemas); null for derived defaults and
+   *  assigned-empty rows. */
   metadata: Record<string, unknown> | null;
-  source: "authored" | "default";
+  source: "authored" | "default" | "assigned";
   boundBy: string | null;
   /** PROPERTY-level: the schema's render contracts — the same for
    *  every carrier, class-bound or not. (Readonly-ness derives from the
@@ -135,6 +150,14 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
   //    live rows minus slot tombstones minus element tombstones — the same
   //    rule the applier enforces on write.
   const authoredRows = visiblePropertyValueRows(db, nodeId) as unknown as AuthoredRow[];
+
+  // 1b. Node-level ASSIGNMENT rows (owner ruling 2026-10-23 — the v1
+  //     `node_property` lineage): the (node, property) pair declarations.
+  //     An assigned schema with no authored rows and no derived default
+  //     synthesizes an empty row in step 5b.
+  const assignedRows = db
+    .prepare("SELECT property_schema_id FROM node_property WHERE node_id = ?")
+    .all(nodeId) as Array<{ property_schema_id: string }>;
 
   // 2. The node's classes in assignment order: OR-Set add HLC ascending
   //    (earliest first), ties by class id.
@@ -234,6 +257,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
   const schemaIds = new Set<string>([
     ...authoredRows.map((r) => r.property_schema_id),
     ...winnerBySchema.keys(),
+    ...assignedRows.map((r) => r.property_schema_id),
   ]);
   const schemas = new Map<string, EffectivePropertySchema>();
   /** The schema's stored default (parsed JSON; undefined = no default). */
@@ -323,8 +347,10 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
   //    (PC4 — inactive rows never became candidates) with a default and NO
   //    authored value at idx 0 derives a default row.
   const rows = new Map<string, EffectiveProperty>();
+  const schemasWithRows = new Set<string>();
   const push = (key: string, row: EffectiveProperty): void => {
     rows.set(key, row);
+    schemasWithRows.add(row.propertySchemaId);
   };
   const shadowedDefaultSchemas = new Set<string>();
 
@@ -384,14 +410,47 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     });
   }
 
+  // 5b. Node-level ASSIGNMENT (owner ruling 2026-10-23 — the v1
+  //     `node_property` lineage): an assigned schema with NO rows at all
+  //     (neither authored nor a derived default) synthesizes an EMPTY row —
+  //     the panel renders it and the row's own editor authors the first
+  //     value via an ordinary property.set. A schema-less assignment
+  //     (schema deleted after the assign — enforcement is never
+  //     retroactive) renders nothing; hideWhenEmpty schemas stay hidden
+  //     (the render contract is property-level).
+  for (const assignment of assignedRows) {
+    const schemaId = assignment.property_schema_id;
+    if (schemasWithRows.has(schemaId)) continue;
+    const schema = schemas.get(schemaId) ?? null;
+    if (schema === null) continue;
+    if (schema.hideWhenEmpty === true) continue;
+    push(`assigned:${schemaId}`, {
+      propertySchemaId: schemaId,
+      idx: 0,
+      elementId: `assigned:${schemaId}`,
+      schema,
+      value: null,
+      metadata: null,
+      source: "assigned",
+      boundBy: null,
+      hideWhenEmpty: schema.hideWhenEmpty,
+      display: schema.display,
+      eligible: eligibleOf(schemaId, schema),
+    });
+  }
+
   // 6. Deterministic presentation order: PURE ALPHABETICAL by property
   //    name (owner ruling 2026-10-21 — binding `sequence` retired; class
-  //    panels have no configurable order), unbound authored rows last;
-  //    (idx, element id) as the tiebreak (PG5: concurrent adds may share an
-  //    idx — the element id orders them identically on every replica).
+  //    panels have no configurable order), UNBOUND AUTHORED rows last
+  //    (assigned-empty rows join the main block — the declaration is the
+  //    node's own, not an orphan), (idx, element id) as the tiebreak (PG5:
+  //    concurrent adds may share an idx — the element id orders them
+  //    identically on every replica).
   const nameOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
+  const unboundAuthoredLast = (row: EffectiveProperty): boolean =>
+    row.boundBy === null && row.source === "authored";
   return [...rows.values()].sort((a, b) => {
-    const boundDelta = (a.boundBy === null ? 1 : 0) - (b.boundBy === null ? 1 : 0);
+    const boundDelta = (unboundAuthoredLast(a) ? 1 : 0) - (unboundAuthoredLast(b) ? 1 : 0);
     if (boundDelta !== 0) return boundDelta;
     const nameDelta = nameOf(a).localeCompare(nameOf(b));
     if (nameDelta !== 0) return nameDelta;

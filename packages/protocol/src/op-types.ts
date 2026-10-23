@@ -600,6 +600,38 @@ export const propertyUnsetPayload = z
   })
   .strict();
 
+/**
+ * Node-level property ASSIGNMENT (owner ruling 2026-10-23 — the v1
+ * `node_property` table lineage: the (node, property) pair row exists first,
+ * values land later). `property.assign` declares "this node carries this
+ * property" WITHOUT authoring a value: the effective read synthesizes an
+ * empty panel row and the row's own editor authors the first value via an
+ * ordinary `property.set` whenever the user fills it.
+ *
+ * A presence row per (objectId, propertySchemaId), LWW by the envelope's full
+ * (hlc, actor) tuple (the `class_property` row precedent); `property.unassign`
+ * deletes the row (the `class.property.unset` plain-DELETE precedent).
+ * Assignment carries ZERO availability semantics — `scopeClassIds` stays the
+ * sole locality authority, so the applier enforces the same R3 eligibility
+ * check as `property.set` (a scoped schema rejects an ineligible node, fail
+ * loud). `property.set`/`property.unset` stay legal without an assignment;
+ * `property.unassign` removes the declaration only — authored values survive
+ * (enforcement is never retroactive).
+ */
+export const propertyAssignPayload = z
+  .object({
+    objectId: uuid,
+    propertySchemaId: uuid,
+  })
+  .strict();
+
+export const propertyUnassignPayload = z
+  .object({
+    objectId: uuid,
+    propertySchemaId: uuid,
+  })
+  .strict();
+
 // --- associations ------------------------------------------------------------
 // First-class relation entities were deleted 2026-09-25:
 // associations are node-typed property values (m2o/m2m) or typed-link word
@@ -713,6 +745,8 @@ export const OP_PAYLOAD_SCHEMAS = {
   "propertySchema.delete": propertySchemaDeletePayload,
   "property.set": propertySetPayload,
   "property.unset": propertyUnsetPayload,
+  "property.assign": propertyAssignPayload,
+  "property.unassign": propertyUnassignPayload,
   "asset.attach": assetAttachPayload,
   "asset.detach": assetDetachPayload,
   "collection.member.add": collectionMemberAddPayload,

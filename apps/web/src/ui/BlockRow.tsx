@@ -534,9 +534,18 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     const selectDisplayGroups: typeof bulletDisplayGroups = [];
     {
       const seenGroups = new Set<string>();
+      const assignedDisplayRows: Array<{ row: EffectiveProperty; display: "bullet" | "inline" }> =
+        [];
       for (const row of effectiveRows) {
         const display = row.display;
         if (display !== "bullet" && display !== "inline") continue;
+        // An ASSIGNED-EMPTY row (owner ruling 2026-10-23 — property.assign
+        // without a value) joins the bound-but-empty button pass below —
+        // the block button is how the first value gets set.
+        if (row.source === "assigned") {
+          assignedDisplayRows.push({ row, display });
+          continue;
+        }
         const type = row.schema?.type;
         if (type !== "select" && type !== "multi_select" && type !== "boolean") continue;
         if (seenGroups.has(row.propertySchemaId)) continue;
@@ -582,6 +591,29 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
             display,
           });
         }
+      }
+      // Assigned-but-empty properties with a row display position ride the
+      // same button pass (owner ruling 2026-10-23): the assignment row is
+      // the only trace of the declaration — no binding pass sees it.
+      for (const { row, display } of assignedDisplayRows) {
+        const schemaRow = schemasById.get(row.propertySchemaId);
+        const type = schemaRow?.type;
+        if (type !== "select" && type !== "multi_select" && type !== "boolean") continue;
+        if (seenGroups.has(row.propertySchemaId)) continue;
+        if (schemaRow?.hideWhenEmpty === true) continue;
+        const isBoolean = type === "boolean";
+        const options = schemaRow?.options ?? [];
+        if (!isBoolean && options.length === 0) continue;
+        seenGroups.add(row.propertySchemaId);
+        selectDisplayGroups.push({
+          propertySchemaId: row.propertySchemaId,
+          label: row.schema?.name ?? row.propertySchemaId,
+          options,
+          rows: [],
+          multi: schemaRow?.multi ?? type === "multi_select",
+          boolean: isBoolean,
+          display,
+        });
       }
       selectDisplayGroups.sort((a, b) => a.label.localeCompare(b.label));
     }

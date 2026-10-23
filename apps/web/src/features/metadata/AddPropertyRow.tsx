@@ -5,16 +5,17 @@ import { foldSearchText } from "@notees/store";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { PropertyCreateModal } from "./PropertyCreateModal.js";
 import { eligibleSchemasForNode } from "./schemaEligibility.js";
-import { initializePropertyValue } from "./propertyValueInit.js";
 import type { AnyClient } from "./shared.js";
 
-/** "+ Add property": pick an existing schema (or create one) and realize an
- *  initial value on the node so the row appears. The candidate list is
- *  scope-gated (R1/R2 — a schema whose scopeClassIds excludes the node is
- *  not offered; the write path would fail loud anyway). The "Create …" row
- *  opens the S1 pre-creation modal (owner ruling 2026-10-20: creation is a
- *  modal, not an instant minimal create) with the typed query carried in;
- *  after the create the placeholder value initializes the row as before. */
+/** "+ Add property": assign an existing schema to the node — the row
+ *  renders empty (owner ruling 2026-10-23: assignment WITHOUT a value, the
+ *  v1 node_property lineage) and the row's own editor authors the first
+ *  value whenever the user fills it. The candidate list is scope-gated
+ *  (R1/R2 — a schema whose scopeClassIds excludes the node is not offered;
+ *  the write path would fail loud anyway). The "Create …" row opens the S1
+ *  pre-creation modal (owner ruling 2026-10-20: creation is a modal, not an
+ *  instant minimal create) with the typed query carried in; after the
+ *  create the schema is assigned as below. */
 export function AddPropertyRow({
   client,
   nodeId,
@@ -37,9 +38,9 @@ export function AddPropertyRow({
   // the schema "año".
   const nameQuery = foldSearchText(newName.trim().toLowerCase());
 
-  async function initializeValue(schemaId: string, type: string): Promise<void> {
+  async function assign(schemaId: string): Promise<void> {
     try {
-      await initializePropertyValue(client, nodeId, schemaId, type);
+      await client.assignProperty(nodeId, schemaId);
       setPickerOpen(false);
       setError(null);
     } catch (err) {
@@ -79,7 +80,7 @@ export function AddPropertyRow({
               .filter((schema) => nameQuery === "" || foldSearchText(schema.name.toLowerCase()).includes(nameQuery))
               .map((schema) => (
                 <li key={schema.id}>
-                  <button type="button" onClick={() => void initializeValue(schema.id, schema.type)}>
+                  <button type="button" onClick={() => void assign(schema.id)}>
                     <span className="nt-add-property-name">{schema.name}</span>
                     <span className="nt-add-property-type">{schema.type}</span>
                   </button>
@@ -103,8 +104,8 @@ export function AddPropertyRow({
           isOpen
           client={client}
           initialName={newName.trim()}
-          onCreated={(schemaId, type) => {
-            void initializeValue(schemaId, type).then(() => setCreateOpen(false));
+          onCreated={(schemaId) => {
+            void assign(schemaId).then(() => setCreateOpen(false));
           }}
           onClose={() => setCreateOpen(false)}
         />

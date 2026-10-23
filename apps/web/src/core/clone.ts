@@ -64,6 +64,7 @@ export interface CloneWriteSurface {
     idx?: number,
     metadata?: Record<string, unknown>,
   ): Promise<void>;
+  assignProperty(objectId: string, propertySchemaId: string): Promise<void>;
 }
 
 export interface CloneCreatePayload {
@@ -90,6 +91,11 @@ export interface ClonePropertySetPayload {
   metadata?: Record<string, unknown>;
 }
 
+export interface ClonePropertyAssignPayload {
+  objectId: string;
+  propertySchemaId: string;
+}
+
 /**
  * One composed op — plain data, assertable without a live sync. A bare
  * `object.create` on an EXISTING id (no parentId/contentAst) is the
@@ -99,7 +105,8 @@ export interface ClonePropertySetPayload {
 export type CloneOp =
   | { opType: "object.create"; payload: CloneCreatePayload }
   | { opType: "object.update"; payload: CloneUpdatePayload }
-  | { opType: "property.set"; payload: ClonePropertySetPayload };
+  | { opType: "property.set"; payload: ClonePropertySetPayload }
+  | { opType: "property.assign"; payload: ClonePropertyAssignPayload };
 
 /** A composed clone: the op list + the source→fresh id map. */
 export interface CloneComposition {
@@ -351,7 +358,19 @@ export function composeSubtreeClone(
       },
     });
     // Authored property values only — derived binding defaults are never
-    // materialized (SCHEMA.md D2 / "Class properties").
+    // materialized (SCHEMA.md D2 / "Class properties"). Assignments ride
+    // along first (owner ruling 2026-10-23): an assigned-but-valueless
+    // property declares the shape of the clone too.
+    for (const prop of reads.getEffectiveProperties(source.id)) {
+      if (prop.source !== "assigned") continue;
+      ops.push({
+        opType: "property.assign",
+        payload: {
+          objectId: idMap.get(source.id)!,
+          propertySchemaId: prop.propertySchemaId,
+        },
+      });
+    }
     for (const prop of reads.getEffectiveProperties(source.id)) {
       if (prop.source !== "authored") continue;
       ops.push({
@@ -419,6 +438,13 @@ export function composeTemplateGraft(
     });
   }
   for (const prop of reads.getEffectiveProperties(root.id)) {
+    if (prop.source === "assigned") {
+      ops.push({
+        opType: "property.assign",
+        payload: { objectId: opts.objectId, propertySchemaId: prop.propertySchemaId },
+      });
+      continue;
+    }
     if (prop.source !== "authored") continue;
     ops.push({
       opType: "property.set",
@@ -471,6 +497,8 @@ export async function submitCloneOps(
       });
     } else if (op.opType === "object.update") {
       await writes.updateObject(op.payload.objectId, { contentAst: op.payload.contentAst });
+    } else if (op.opType === "property.assign") {
+      await writes.assignProperty(op.payload.objectId, op.payload.propertySchemaId);
     } else {
       await writes.setProperty(
         op.payload.objectId,

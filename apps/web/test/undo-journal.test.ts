@@ -74,6 +74,7 @@ function fakeCapture(overrides: {
     originalName: string;
   } | null;
   member?: boolean;
+  assignment?: boolean;
   feature?: boolean;
 }): UndoCaptureSource {
   const defaultNode: UndoNodeSnapshot = {
@@ -118,6 +119,7 @@ function fakeCapture(overrides: {
       overrides.schema !== undefined ? { ...defaultSchema, ...overrides.schema } : defaultSchema,
     assetSnapshot: () => (overrides.asset !== undefined ? overrides.asset : null),
     collectionMembership: () => overrides.member ?? false,
+    propertyAssignment: () => overrides.assignment ?? false,
     featureEnabled: () => overrides.feature ?? true,
   };
 }
@@ -372,6 +374,46 @@ describe("invertEnvelope — the inversion matrix", () => {
       invertEnvelope(
         env("class.property.unset", { classId: CLASS_A, propertySchemaId: SCHEMA }),
         fakeCapture({ binding: null }),
+      ),
+    ).toBeNull();
+  });
+
+  it("property.assign inverts as unassign; property.unassign inverts as assign (owner ruling 2026-10-23)", () => {
+    expect(
+      invertEnvelope(
+        env("property.assign", { objectId: NODE, propertySchemaId: SCHEMA }),
+        fakeCapture({ assignment: true }),
+      ),
+    ).toEqual([
+      {
+        opType: "property.unassign",
+        payload: { objectId: NODE, propertySchemaId: SCHEMA },
+        affected: [NODE],
+      },
+    ]);
+    // A redundant assign (already assigned) is a no-op, not journaled.
+    expect(
+      invertEnvelope(
+        env("property.assign", { objectId: NODE, propertySchemaId: SCHEMA }),
+        fakeCapture({ assignment: false }),
+      ),
+    ).toBeNull();
+    expect(
+      invertEnvelope(
+        env("property.unassign", { objectId: NODE, propertySchemaId: SCHEMA }),
+        fakeCapture({ assignment: true }),
+      ),
+    ).toEqual([
+      {
+        opType: "property.assign",
+        payload: { objectId: NODE, propertySchemaId: SCHEMA },
+        affected: [NODE],
+      },
+    ]);
+    expect(
+      invertEnvelope(
+        env("property.unassign", { objectId: NODE, propertySchemaId: SCHEMA }),
+        fakeCapture({ assignment: false }),
       ),
     ).toBeNull();
   });

@@ -249,7 +249,7 @@ describe("S1 entry points", () => {
     expect((screen.getByLabelText("Property name") as HTMLInputElement).value).toBe("Mood");
   });
 
-  it("the host queue opens the modal; a nodeId request initializes the placeholder value", async () => {
+  it("the host queue opens the modal; a nodeId request assigns the new schema (no value)", async () => {
     const client = await seedClient();
     const page = await client.createObject({ isEmbedded: false, name: "Diary" });
     render(<PropertyCreateHost client={client} />);
@@ -263,9 +263,11 @@ describe("S1 entry points", () => {
     await flushWrites();
     const schema = client.listPropertySchemas().find((s) => s.name === "Vibe");
     expect(schema?.type).toBe("boolean");
-    // The host follow-up: the placeholder value realizes the row on the node.
+    // The host follow-up: the schema is ASSIGNED without a value (owner
+    // ruling 2026-10-23) — the row renders empty until the user sets one.
     const rows = client.getEffectiveProperties(page).filter((r) => r.propertySchemaId === schema!.id);
-    expect(rows.some((r) => r.source === "authored" && r.value === true)).toBe(true);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ source: "assigned", value: null });
   });
 
   it("the verb create-and-bind routes through the host modal (object/multi pre-selected)", async () => {

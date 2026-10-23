@@ -14,9 +14,11 @@ import { fromEditableText, toEditableText } from "./shared.js";
  * row: a node-backed carrier block renders its editable subtree; anything
  * else rides the minimal text editor (a dead carrier reference renders
  * EMPTY, never the raw uuid — typing authors a fresh carrier, leaving it
- * empty unsets the dead value). Shared by the properties table and the
- * sidebar; the row chrome (label, hints, li wrapper) stays at the call
- * sites.
+ * empty unsets the dead value). An ASSIGNED-EMPTY row (owner ruling
+ * 2026-10-23 — property.assign without a value) renders the same cell
+ * empty; the first edit authors the value, an empty blur writes nothing.
+ * Shared by the properties table and the sidebar; the row chrome (label,
+ * hints, li wrapper) stays at the call sites.
  */
 export function ScalarPropertyValue({
   client,
@@ -79,6 +81,11 @@ export function ScalarPropertyValue({
           aria-label={`Property ${row.schema?.name ?? row.propertySchemaId}`}
           onBlur={(event) => {
             const text = event.target.value;
+            // Assigned-empty row (owner ruling 2026-10-23 — property.assign
+            // without a value): nothing is authored yet — an empty blur
+            // keeps the declaration as-is (no empty-string value is minted);
+            // the first real edit authors the value through property.set.
+            if (row.value === null && text.trim() === "") return;
             if (deadCarrierRef) {
               // The old carrier is gone: typing authors a NEW carrier
               // (the established create-carrier pattern); leaving it empty unsets the dead

@@ -814,6 +814,16 @@ export class WorkerClient {
     await this.call("unsetProperty", [objectId, propertySchemaId, idx]);
   }
 
+  /** Assign a property without a value (property.assign — the row renders empty). */
+  async assignProperty(objectId: string, propertySchemaId: string): Promise<void> {
+    await this.call("assignProperty", [objectId, propertySchemaId]);
+  }
+
+  /** Remove a node→property assignment (property.unassign) — authored values survive. */
+  async unassignProperty(objectId: string, propertySchemaId: string): Promise<void> {
+    await this.call("unassignProperty", [objectId, propertySchemaId]);
+  }
+
   /** Ensure the year/month/day chain for a date; returns the three node ids. */
   async ensureDateChain(
     isoDate: string,

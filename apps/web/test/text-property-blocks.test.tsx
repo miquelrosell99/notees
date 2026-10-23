@@ -294,17 +294,16 @@ describe("auto-unset of contentless text values", () => {
   });
 });
 
-describe("the '+ Add property' placeholder (unbound text)", () => {
+describe("the '+ Add property' assignment (unbound text)", () => {
   /** Drive the real panel flow: open the picker, pick the schema. The host
    *  table carries no store subscription of its own (the rows do), so the
    *  rerender stands in for the surrounding view re-rendering — the moment
-   *  the new TextPropertyRow mounts and its auto-unset pass first runs. */
+   *  the new TextPropertyRow mounts. */
   async function addViaPanel(
     container: HTMLElement,
     /** Re-render the mounted host with current client state (the host table
      *  has no store subscription of its own — the rows do); this is the
-     *  moment the new TextPropertyRow mounts and its auto-unset pass first
-     *  runs. */
+     *  moment the new TextPropertyRow mounts. */
     rerenderHost: () => void,
     label: string,
   ): Promise<void> {
@@ -321,7 +320,13 @@ describe("the '+ Add property' placeholder (unbound text)", () => {
     rerenderHost();
   }
 
-  it("a text add leaves a stable, editable row — no instant self-unset", async () => {
+  function assignedRows(client: Awaited<ReturnType<typeof seedClient>>, pageId: string, schemaId: string) {
+    return client.getEffectiveProperties(pageId).filter(
+      (row) => row.propertySchemaId === schemaId && row.source === "assigned",
+    );
+  }
+
+  it("a text add ASSIGNS the schema without a value — the row renders the empty cell (owner ruling 2026-10-23)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
@@ -329,69 +334,60 @@ describe("the '+ Add property' placeholder (unbound text)", () => {
     const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);
     await addViaPanel(container, () => rerender(<PropertiesTable client={client} nodeId={pageId} />), "Summary");
 
-    // The placeholder value survives the auto-unset pass (the picker never
-    // focused the row, so the focus guard alone can't protect it) — the
-    // authored row is still there, the carrier node not trashed, and the
-    // carrier renders as an editable block.
+    // No value was authored (no placeholder carrier exists at all) — the
+    // declaration alone renders the row.
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+    const assigned = assignedRows(client, pageId, schemaId);
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0]!.value).toBeNull();
+    // The empty cell reads as a field, awaiting the first value.
+    const cell = container.querySelector<HTMLInputElement>('.nt-property-textcell input[placeholder="Type something"]');
+    expect(cell).not.toBeNull();
+  });
+
+  it("typing into the empty cell authors the first carrier — the value lands later", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+
+    const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    await addViaPanel(container, () => rerender(<PropertiesTable client={client} nodeId={pageId} />), "Summary");
+
+    const cell = container.querySelector<HTMLInputElement>('.nt-property-textcell input[placeholder="Type something"]')!;
+    fireEvent.change(cell, { target: { value: "the first line" } });
+    fireEvent.blur(cell);
+    await flushWrites();
+    await flushWrites();
+    rerender(<PropertiesTable client={client} nodeId={pageId} />);
+
     const rows = authoredTextRows(client, pageId, schemaId);
-    expect(rows.length).toBe(1);
+    expect(rows).toHaveLength(1);
     const carrier = (rows[0]!.value as { nodeId: string }).nodeId;
     expect(client.getNode(carrier)).toBeDefined();
-    expect(container.querySelector(`.nt-property-textcell [data-block-id="${carrier}"]`)).not.toBeNull();
+    // The assigned-empty shadow row is gone — the authored row wins.
+    expect(assignedRows(client, pageId, schemaId)).toHaveLength(0);
   });
 
-  it("the fresh placeholder unsets only once the user leaves it empty", async () => {
+  it("leaving the empty cell empty keeps the assignment — no fabricated value", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
 
     const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);
     await addViaPanel(container, () => rerender(<PropertiesTable client={client} nodeId={pageId} />), "Summary");
-    const carrier = (authoredTextRows(client, pageId, schemaId)[0]!.value as { nodeId: string }).nodeId;
 
-    // The user steps in… and leaves without typing.
-    const editor = clickIntoBlock(container, 0);
-    expect(document.activeElement).toBe(editor);
-    const outside = document.createElement("button");
-    document.body.appendChild(outside);
-    act(() => {
-      outside.focus();
-    });
+    const cell = container.querySelector<HTMLInputElement>('.nt-property-textcell input[placeholder="Type something"]')!;
+    fireEvent.change(cell, { target: { value: "" } });
+    fireEvent.blur(cell);
     await flushWrites();
     await flushWrites();
 
-    // Now the empty placeholder goes (and the carrier is trashed with it).
+    // The declaration stands; nothing was authored.
     expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
-    expect(client.getNode(carrier)).toBeUndefined();
+    expect(assignedRows(client, pageId, schemaId)).toHaveLength(1);
   });
 
-  it("content landing settles the placeholder — the row survives leaving it", async () => {
-    const client = await seedClient();
-    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
-    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
-
-    const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);
-    await addViaPanel(container, () => rerender(<PropertiesTable client={client} nodeId={pageId} />), "Summary");
-    const carrier = (authoredTextRows(client, pageId, schemaId)[0]!.value as { nodeId: string }).nodeId;
-
-    await act(async () => {
-      await client.updateObject(carrier, { contentAst: [{ type: "text", text: "settled" }] });
-    });
-    const editor = clickIntoBlock(container, 0);
-    expect(document.activeElement).toBe(editor);
-    const outside = document.createElement("button");
-    document.body.appendChild(outside);
-    act(() => {
-      outside.focus();
-    });
-    await flushWrites();
-    await flushWrites();
-
-    expect(authoredTextRows(client, pageId, schemaId).length).toBe(1);
-    expect(client.getNode(carrier)).toBeDefined();
-  });
-
-  it("the class-bound add flow keeps working (the binding's row appears and settles)", async () => {
+  it("the class-bound add flow keeps working (the binding's empty row appears; the add assigns idempotently)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
@@ -402,9 +398,10 @@ describe("the '+ Add property' placeholder (unbound text)", () => {
     const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);
     await addViaPanel(container, () => rerender(<PropertiesTable client={client} nodeId={pageId} />), "Summary");
 
-    const rows = authoredTextRows(client, pageId, schemaId);
-    expect(rows.length).toBe(1);
-    const carrier = (rows[0]!.value as { nodeId: string }).nodeId;
-    expect(client.getNode(carrier)).toBeDefined();
+    // Still no value anywhere — the bound-empty row renders (via the
+    // assignment or the binding, either way the cell awaits the first value).
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+    const cell = container.querySelector<HTMLInputElement>('.nt-property-textcell input[placeholder="Type something"]');
+    expect(cell).not.toBeNull();
   });
 });
