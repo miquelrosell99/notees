@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-23
 
+- **fix(server): the object API stops truncating `name` at DISPLAY_NAME_MAX —
+  the full title on the machine surface.** `nodeToApi` (get / list /
+  children), the query-language row projection, and the class-members
+  projection derived `name` via `deriveDisplayName`, which caps at 80 chars
+  — a dense-chrome budget that belongs to the UI layer, not the API: CLI
+  scripts and exports received silently truncated titles (found via an
+  import script whose exact-title idempotency guard failed on >80-char
+  tasks). All three projections now derive the name with `fullTitleOf` (the
+  uncapped full title; `deriveDisplayName` keeps its budget for chrome
+  renderers — web chips/tab titles — and the share-render surface). No wire,
+  applier, or schema change; additive read-path correction only.
+  - **Verification**: new server test (parent + >80-char child: `get` and
+    `children` return the full title); `pnpm typecheck && pnpm test` all
+    green.
+
 - **docs(classes): the "pill, inline chip, or mention?" taxonomy — which of
   the three class gestures to reach for, and why raw text is never the
   answer.** Owner ruling from a design discussion: `@Class` references the
