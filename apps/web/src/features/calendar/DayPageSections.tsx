@@ -24,7 +24,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Section } from "../../ui/Section.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { labelFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import {
   createdTodayBounds,
@@ -56,7 +56,7 @@ function RowClassChips({ client, classIds }: { client: AnyClient; classIds: stri
     <span className="day-page-sections__chips">
       {classes.map((cls) => (
         <span key={cls.id} className="day-page-sections__chip">
-          {displayNameFromClient(client, cls.id) ?? cls.id}
+          {labelFromClient(client, cls.id) ?? "Untitled"}
         </span>
       ))}
     </span>
@@ -76,7 +76,7 @@ function NodeRow({
   return (
     <li className="day-page-sections__row">
       <button type="button" className="day-page-sections__row-name" onClick={() => onOpenPage?.(node.id)}>
-        {displayNameFromClient(client, node.id) ?? node.id}
+        {labelFromClient(client, node.id) ?? "Untitled"}
       </button>
       <RowClassChips client={client} classIds={node.classIds} />
     </li>
@@ -166,7 +166,7 @@ export function DayPageSections({
         }
       />
       <button type="button" className="day-page-sections__row-name" onClick={() => onOpenPage?.(row.id)}>
-        {displayNameFromClient(client, row.id) ?? row.id}
+        {labelFromClient(client, row.id) ?? "Untitled"}
       </button>
       {statusSchema !== undefined && statusLabelOf(row.id) !== null && (
         <Pill text={statusLabelOf(row.id)!} />
