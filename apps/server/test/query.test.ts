@@ -46,7 +46,7 @@ async function createPaper(name: string, year?: number): Promise<string> {
         isEmbedded: false,
         // Title-is-content: the paper's own content IS its title.
         contentAst: [{ type: "text", text: name }],
-        classIds: [SYSTEM_CLASS_UUIDS.paper],
+        classIds: [SYSTEM_CLASS_UUIDS.journal_article],
       },
     })
   ).json();
@@ -84,7 +84,7 @@ describe("POST /api/query", () => {
     const res = await api("POST", "/api/query", {
       payload: {
         ast: ast([
-          { type: "class", classId: SYSTEM_CLASS_UUIDS.paper },
+          { type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article },
           { type: "property", schemaId: await ensureYearSchema(), op: "gt", value: 1900 },
         ]),
       },
@@ -110,7 +110,7 @@ describe("POST /api/query", () => {
     const res = await api("POST", "/api/query", {
       payload: {
         ast: ast([
-          { type: "class", classId: SYSTEM_CLASS_UUIDS.paper },
+          { type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article },
           { type: "property", schemaId: await ensureYearSchema(), op: "gte", value: 2010 },
         ]),
       },
@@ -126,7 +126,7 @@ describe("POST /api/query", () => {
     const res = await api("POST", "/api/query", {
       payload: {
         ast: {
-          ...ast([{ type: "class", classId: SYSTEM_CLASS_UUIDS.paper }]),
+          ...ast([{ type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article }]),
           aggregation: {
             dimensions: [{ kind: "property", id: await ensureYearSchema() }],
             measures: [{ function: "count" }],

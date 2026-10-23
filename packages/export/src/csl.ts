@@ -6,19 +6,19 @@
  *
  *  - BibTeX entry type → source class (owner decision 2026-09-27 over the
  *    seeded `source` family): book/inbook/incollection → book; article →
- *    article; inproceedings/conference/proceedings → conference;
- *    phdthesis/mastersthesis → thesis; song → song; movie/video → movie;
+ *    journal_article; inproceedings/conference/proceedings → conference;
+ *    phdthesis/mastersthesis → thesis; song → song; movie/video → film;
  *    series/tv → tv_series; anything else (incl. misc) → document.
- *  - source class ↔ CSL type: book → book; paper → article-journal;
- *    article → article; thesis → thesis; conference → paper-conference;
- *    song → song; movie → motion_picture; tv_series → broadcast; document →
+ *  - source class ↔ CSL type: book → book; journal_article → article;
+ *    thesis → thesis; conference → paper-conference;
+ *    song → song; film → motion_picture; tv_series → broadcast; document →
  *    article (the fallback — CSL has no document-ish type, so a document
  *    drifts to article on round-trip; documented deviation).
  *  - CSL type → BibTeX type for re-serialization: book → book;
  *    article-journal/article → article; paper-conference → inproceedings;
  *    thesis → phdthesis; song → song; motion_picture → movie;
  *    broadcast → series. The last three are nonstandard BibTeX entry types
- *    the tolerant parser re-imports onto song/movie/tv_series — round-trip
+ *    the tolerant parser re-imports onto song/film/tv_series — round-trip
  *    stable within Notees.
  *
  * Authorship (SCHEMA.md "Citations — source family and authorship", FINAL
@@ -77,22 +77,20 @@ export interface CslItem {
 
 export type SourceClassName =
   | "book"
-  | "paper"
-  | "article"
+  | "journal_article"
   | "thesis"
   | "document"
-  | "movie"
+  | "film"
   | "song"
   | "tv_series"
   | "conference";
 
 export const SOURCE_CLASS_IDS: Record<SourceClassName, string> = {
   book: SYSTEM_CLASS_UUIDS.book,
-  paper: SYSTEM_CLASS_UUIDS.paper,
-  article: SYSTEM_CLASS_UUIDS.article,
+  journal_article: SYSTEM_CLASS_UUIDS.journal_article,
   thesis: SYSTEM_CLASS_UUIDS.thesis,
   document: SYSTEM_CLASS_UUIDS.document,
-  movie: SYSTEM_CLASS_UUIDS.movie,
+  film: SYSTEM_CLASS_UUIDS.film,
   song: SYSTEM_CLASS_UUIDS.song,
   tv_series: SYSTEM_CLASS_UUIDS.tv_series,
   conference: SYSTEM_CLASS_UUIDS.conference,
@@ -105,15 +103,15 @@ export const BIB_TYPE_TO_CLASS_NAME: Record<string, SourceClassName> = {
   book: "book",
   inbook: "book",
   incollection: "book",
-  article: "article",
+  article: "journal_article",
   inproceedings: "conference",
   conference: "conference",
   proceedings: "conference",
   phdthesis: "thesis",
   mastersthesis: "thesis",
   song: "song",
-  movie: "movie",
-  video: "movie",
+  movie: "film",
+  video: "film",
   series: "tv_series",
   tv: "tv_series",
 };
@@ -127,11 +125,10 @@ export function bibTypeToClassName(entryType: string): SourceClassName {
 /** Source class name → CSL type (document → article is the fallback). */
 export const CLASS_NAME_TO_CSL_TYPE: Record<SourceClassName, CslType> = {
   book: "book",
-  paper: "article-journal",
-  article: "article",
+  journal_article: "article",
   thesis: "thesis",
   document: "article",
-  movie: "motion_picture",
+  film: "motion_picture",
   song: "song",
   tv_series: "broadcast",
   conference: "paper-conference",
@@ -155,9 +152,10 @@ export function cslTypeToClassName(type: CslType): SourceClassName {
     case "book":
       return "book";
     case "article-journal":
-      return "paper";
     case "article":
-      return "article";
+      // paper (withdrawn 2026-10-23) migrated onto journal_article — both
+      // CSL article types import there now.
+      return "journal_article";
     case "paper-conference":
       return "conference";
     case "thesis":
@@ -165,7 +163,7 @@ export function cslTypeToClassName(type: CslType): SourceClassName {
     case "song":
       return "song";
     case "motion_picture":
-      return "movie";
+      return "film";
     case "broadcast":
       return "tv_series";
     default:

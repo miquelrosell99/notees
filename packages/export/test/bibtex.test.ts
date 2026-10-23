@@ -155,7 +155,7 @@ describe("bibToCsl / cslToBib", () => {
   it("maps entry types to CSL types via the owner-decided source-family table", () => {
     const entries = parseBibtex(FIXTURE);
     expect(bibToCsl(entries[0]!).type).toBe("book");
-    expect(bibToCsl(entries[1]!).type).toBe("article"); // article class → CSL article
+    expect(bibToCsl(entries[1]!).type).toBe("article"); // journal_article class → CSL article
     expect(bibToCsl(entries[2]!).type).toBe("thesis");
     expect(bibToCsl(parseBibtex("@misc{w}")[0]!).type).toBe("article"); // document fallback
     // The extended source family (owner decision 2026-09-27).
@@ -176,20 +176,20 @@ describe("bibToCsl / cslToBib", () => {
     expect(cslToBib({ id: "tv", type: "broadcast", title: "TV" }).entryType).toBe("series");
   });
 
-  it("entry-type ↔ class table: article → article, conference family → conference, fallback → document", () => {
+  it("entry-type ↔ class table: article → journal_article, conference family → conference, fallback → document", () => {
     expect(BIB_TYPE_TO_CLASS_NAME).toMatchObject({
       book: "book",
       inbook: "book",
       incollection: "book",
-      article: "article",
+      article: "journal_article",
       inproceedings: "conference",
       conference: "conference",
       proceedings: "conference",
       phdthesis: "thesis",
       mastersthesis: "thesis",
       song: "song",
-      movie: "movie",
-      video: "movie",
+      movie: "film",
+      video: "film",
       series: "tv_series",
       tv: "tv_series",
     });
@@ -197,7 +197,8 @@ describe("bibToCsl / cslToBib", () => {
     expect(bibTypeToClassName("whatever")).toBe("document");
     expect(cslTypeToClassName("paper-conference")).toBe("conference");
     expect(cslTypeToClassName("song")).toBe("song");
-    expect(cslTypeToClassName("motion_picture")).toBe("movie");
+    expect(cslTypeToClassName("article-journal")).toBe("journal_article");
+    expect(cslTypeToClassName("motion_picture")).toBe("film");
     expect(cslTypeToClassName("broadcast")).toBe("tv_series");
   });
 
@@ -285,12 +286,12 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
 
   it("parses each resolved author name string to family/given (comma form wins)", () => {
     const item = nodeToCsl(
-      { id: "node-id", name: "Paper", classIds: [SOURCE_CLASS_IDS.paper] },
+      { id: "node-id", name: "A journal article", classIds: [SOURCE_CLASS_IDS.journal_article] },
       [],
       ["F. N. David", "Prince"],
     );
     expect(item.id).toBe("node-id");
-    expect(item.type).toBe("article-journal");
+    expect(item.type).toBe("article");
     expect(item.author).toEqual([{ family: "David", given: "F. N." }, { family: "Prince" }]);
   });
 
@@ -308,7 +309,7 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
   it("cslToNodeSpecs produces name strings; nodeToCsl(node, resolvedNames) round-trips the item", () => {
     const item: CslItem = {
       id: "david1962combinatorial",
-      type: "article-journal",
+      type: "article",
       title: "Combinatorial Chance",
       author: [{ family: "David", given: "F. N." }],
       issued: { "date-parts": [[1962]] },
@@ -316,7 +317,7 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
     };
     const spec = cslToNodeSpecs(item);
     expect(spec).toEqual({
-      className: "paper",
+      className: "journal_article",
       citekey: "david1962combinatorial",
       title: "Combinatorial Chance",
       authors: ["David, F. N."],
@@ -352,7 +353,7 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
 
   it("PG15: container fields complete the export mapping by schema-name convention", () => {
     const item = nodeToCsl(
-      { id: "paper-1", name: "A combinatorial paper", classIds: [SOURCE_CLASS_IDS.paper] },
+      { id: "paper-1", name: "A combinatorial paper", classIds: [SOURCE_CLASS_IDS.journal_article] },
       [
         { schemaId: "j1", schemaName: "journal", value: "Biometrika" },
         { schemaId: "v1", schemaName: "volume", value: "50" },
@@ -362,7 +363,7 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
       [],
     );
     expect(item).toMatchObject({
-      type: "article-journal",
+      type: "article",
       "container-title": "Biometrika",
       volume: "50",
       issue: "1/2",

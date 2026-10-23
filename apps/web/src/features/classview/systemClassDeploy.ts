@@ -171,7 +171,7 @@ export async function deploySystemClass(
         });
       } else if (!scopeEquals(stored.scopeClassIds, seededScope)) {
         // Pre-ruling drift (owner 2026-10-22: url bound to source now — a
-        // stored url schema still scoped [weblink] would make the family
+        // stored url schema still scoped [web_page] would make the family
         // base's binding dead config, R5 rejects it): converge the scope to
         // the seed BEFORE the binding row below (the offline-first twin of
         // scripts/migrate-seed-scope-flips.mts).
@@ -206,10 +206,10 @@ export async function deploySystemClass(
 }
 
 /**
- * Heal the weblink→source extension on EXISTING workspaces (the owner
- * ruling that made the web link a source-family class). The seed map
+ * Heal the web_page→source extension on EXISTING workspaces (the owner
+ * ruling that made the web page a source-family class). The seed map
  * carries the edge, so NEW workspaces receive it from the server seed;
- * a workspace that already has the weblink class but predates the edge
+ * a workspace that already has the web_page class but predates the edge
  * materializes it here — `deploySystemClass` is existence-checked per
  * step (ancestors first: the source root, then the class node, the edge,
  * the url family), so a converged workspace is a complete no-op and a
@@ -219,9 +219,9 @@ export async function deploySystemClass(
  * automatically — configure now, wire later.
  */
 export async function ensureWeblinkExtendsSource(client: AnyClient): Promise<void> {
-  const current = client.getClassParents(SYSTEM_CLASS_UUIDS.weblink);
+  const current = client.getClassParents(SYSTEM_CLASS_UUIDS.web_page);
   if (current.includes(SYSTEM_CLASS_UUIDS.source)) return;
-  await deploySystemClass(client, "weblink");
+  await deploySystemClass(client, "web_page");
 }
 
 // --- the classes gallery (owner ruling 2026-10-22) --------------------------------
@@ -243,7 +243,7 @@ const GALLERY_SECTIONS: Array<{ id: string; title: string; members: SystemClassN
   {
     id: "sources",
     title: "Sources",
-    members: ["source", "book", "paper", "article", "thesis", "document", "weblink", "conference"],
+    members: ["source", "book", "journal_article", "thesis", "document", "web_page", "conference"],
   },
   {
     id: "events-tasks",
@@ -274,7 +274,7 @@ const GALLERY_SECTIONS: Array<{ id: string; title: string; members: SystemClassN
   {
     id: "media",
     title: "Media",
-    members: ["movie", "song", "tv_series"],
+    members: ["film", "song", "tv_series"],
   },
   {
     id: "more",

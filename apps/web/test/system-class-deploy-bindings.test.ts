@@ -232,21 +232,21 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
     expect(await eventFamilyPresent(client)).toBe(true);
   });
 
-  it("deploys weblink's url schema at GLOBAL scope with the weblink binding row", async () => {
+  it("deploys web_page's url schema at GLOBAL scope with the web_page binding row", async () => {
     const client = await seedClient();
     const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
-    await deploySystemClass(client, "weblink");
+    await deploySystemClass(client, "web_page");
     await flushSync();
 
     const url = client
       .listPropertySchemas()
       .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.url);
     // Owner ruling 2026-10-20 (the seed-scope audit): a url is generically
-    // reusable — global scope (NULL scopeClassIds), NOT local to weblink…
+    // reusable — global scope (NULL scopeClassIds), NOT local to web_page…
     expect(url).toMatchObject({ name: "URL", type: "url", scopeClassIds: null });
-    // …while the binding row still lands on the weblink class (bindings are
+    // …while the binding row still lands on the web_page class (bindings are
     // per-class config, zero availability semantics).
-    expect(client.getRegistryBindings(SYSTEM_CLASS_UUIDS.weblink).map((b) => b.propertySchemaId)).toEqual([
+    expect(client.getRegistryBindings(SYSTEM_CLASS_UUIDS.web_page).map((b) => b.propertySchemaId)).toEqual([
       SYSTEM_PROPERTY_UUIDS.url,
     ]);
   });

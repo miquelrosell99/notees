@@ -9,6 +9,37 @@ predating this file.
 
 ## 2026-10-23
 
+- **refactor(domain): source roster renames — `article`/`weblink`/`movie`
+  become `journal_article`/`web_page`/`film`; `paper` withdrawn (owner ruling,
+  the source-library roster slice 1).** Three seeded system classes rekey at
+  their FIXED UUIDs (the …-0001- block is never renamed, only rekeyed):
+  `article` → `journal_article` (…0026), `weblink` → `web_page` (…0034),
+  `movie` → `film` (…0035) — display names "Journal article" / "Web page" /
+  "Film", ids/icons/extends/seeded manifests all rekeyed together.
+  **`paper` (…0025) is WITHDRAWN**: Zotero has no "paper" type, so the roster
+  drops it — existing nodes migrate to `journal_article`, and the …0025 slot
+  carries the withdrawal comment in `SYSTEM_CLASS_UUIDS` (never reuse, the
+  …0001/…0042 precedent). The sources family is now 10 classes (base + 9
+  children). Mechanical consumer sweep in the same pass: the deploy catalog +
+  classes-gallery sections (`features.ts` / `systemClassDeploy.ts`), the
+  extra-bindings row (`url→web_page`), quick-create subclass options, and the
+  export CSL tables (`csl.ts` minimal rename only — BibTeX `article` imports
+  to `journal_article`, CSL `article-journal` now imports there too since
+  paper's nodes migrated onto it; the bidirectional rework is a later slice).
+  Domain test pins the rekeys, the fixed UUIDs, the display names, and
+  paper's withdrawal (source-text assertion on the seeds, the readFileSync
+  precedent). SCHEMA.md + getting-started swept same-pass. **GTK/Flutter
+  seed-manifest check ran** (owner ruling 2026-10-22): both clients carry the
+  touched constants (`features.py`, `system.dart`, `workspace_features.dart`,
+  `local_workspace_seed.dart`) — their rekey is a recorded non-blocking
+  follow-up (the weblink-extends precedent), not done in this slice. The
+  one-shot `scripts/migrate-seed-scope-flips.mts` /
+  `migrate-url-source-binding.mts` still name `weblink` — historical Path A
+  migrations, not workspace members, noted for the follow-up.
+  - **Verification**: `pnpm --filter @notees/domain test` 107/107; domain
+    dist rebuilt (dev-condition exports); `pnpm typecheck` clean; full suite
+    green.
+
 - **refactor(web): NodeCollection BODY MODE — `rootId` + `ghost`; the last
   call-site glue folds into the collection (owner pass, the bundle
   consummated).** Three remaining host assemblies merge: (1) **item

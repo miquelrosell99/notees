@@ -37,8 +37,9 @@ export const SYSTEM_CLASS_UUIDS = {
   cloze: "00000000-0000-0000-0001-000000000022",
   source: "00000000-0000-0000-0001-000000000023",
   book: "00000000-0000-0000-0001-000000000024",
-  paper: "00000000-0000-0000-0001-000000000025",
-  article: "00000000-0000-0000-0001-000000000026",
+  // …0025 WITHDRAWN 2026-10-23 (source-library roster; Zotero has no "paper"
+  // — nodes migrate to journal_article) — never reuse.
+  journal_article: "00000000-0000-0000-0001-000000000026",
   thesis: "00000000-0000-0000-0001-000000000027",
   document: "00000000-0000-0000-0001-000000000028",
   agent: "00000000-0000-0000-0001-000000000029",
@@ -46,8 +47,8 @@ export const SYSTEM_CLASS_UUIDS = {
   organization: "00000000-0000-0000-0001-000000000031",
   collection: "00000000-0000-0000-0001-000000000032",
   highlight: "00000000-0000-0000-0001-000000000033",
-  weblink: "00000000-0000-0000-0001-000000000034",
-  movie: "00000000-0000-0000-0001-000000000035",
+  web_page: "00000000-0000-0000-0001-000000000034",
+  film: "00000000-0000-0000-0001-000000000035",
   song: "00000000-0000-0000-0001-000000000036",
   tv_series: "00000000-0000-0000-0001-000000000037",
   conference: "00000000-0000-0000-0001-000000000038",
@@ -104,8 +105,7 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
   cloze: "mdiEyeOff",
   source: "mdiBookshelf",
   book: "mdiBookOpenVariant",
-  paper: "mdiNewspaperVariantOutline",
-  article: "mdiNewspaper",
+  journal_article: "mdiNewspaper",
   thesis: "mdiSchoolOutline",
   document: "mdiFileOutline",
   agent: "mdiAccountGroupOutline",
@@ -115,8 +115,8 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
   // mdiFormatColorHighlight: "mdiFormatHighlight" was never a real MDI name —
   // stored rows with it still render via the Icon resolver's legacy alias.
   highlight: "mdiFormatColorHighlight",
-  weblink: "mdiLinkVariant",
-  movie: "mdiMovieOpenOutline",
+  web_page: "mdiLinkVariant",
+  film: "mdiMovieOpenOutline",
   song: "mdiMusicNote",
   tv_series: "mdiTelevisionClassic",
   conference: "mdiPresentation",
@@ -137,7 +137,7 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
  * seeds and self-heals author into class nodes' text content (title-is-
  * content) so every surface (class picker, quick-create, calendar chips,
  * Class View) reads normal wording. Title Case for classes; conventional
- * spellings for acronyms/compounds ("TV series", "Web link"). Live
+ * spellings for acronyms/compounds ("TV series", "Web page"). Live
  * workspaces seeded with the raw keys are renamed by the one-time
  * scripts/migrate-system-names.mts pass. One entry per SYSTEM_CLASS_UUIDS
  * key — the domain test pins completeness.
@@ -165,8 +165,7 @@ export const SYSTEM_CLASS_DISPLAY_NAMES: Record<SystemClassName, string> = {
   cloze: "Cloze",
   source: "Source",
   book: "Book",
-  paper: "Paper",
-  article: "Article",
+  journal_article: "Journal article",
   thesis: "Thesis",
   document: "Document",
   agent: "Agent",
@@ -174,8 +173,8 @@ export const SYSTEM_CLASS_DISPLAY_NAMES: Record<SystemClassName, string> = {
   organization: "Organization",
   collection: "Collection",
   highlight: "Highlight",
-  weblink: "Web link",
-  movie: "Movie",
+  web_page: "Web page",
+  film: "Film",
   song: "Song",
   tv_series: "TV series",
   conference: "Conference",
@@ -224,8 +223,7 @@ export const SYSTEM_CLASS_DESCRIPTIONS: Record<SystemClassName, string> = {
   cloze: "A text with hidden gaps for recall.",
   source: "A cited source with bibliographic fields.",
   book: "A book, with authors and edition fields.",
-  paper: "An academic paper, with DOI and venue.",
-  article: "A journal or magazine article.",
+  journal_article: "A journal or magazine article.",
   thesis: "A thesis or dissertation.",
   document: "Any other document — the family fallback.",
   agent: "An author or organization that creates sources.",
@@ -233,8 +231,8 @@ export const SYSTEM_CLASS_DESCRIPTIONS: Record<SystemClassName, string> = {
   organization: "A company, institution, or group.",
   collection: "A manual grouping of nodes.",
   highlight: "A highlighted passage from a source.",
-  weblink: "A bookmarked web page, cited as a source.",
-  movie: "A film, with director and cast fields.",
+  web_page: "A bookmarked web page, cited as a source.",
+  film: "A film, with director and cast fields.",
   song: "A song or track, with artist and album.",
   tv_series: "A TV series, with season and episode fields.",
   conference: "A conference or talk.",
@@ -256,11 +254,10 @@ export function systemClassDescription(name: SystemClassName): string {
 /** Canonical `extends` edges between system classes (multiple inheritance-ready). */
 export const SYSTEM_CLASS_EXTENDS: Partial<Record<SystemClassName, SystemClassName[]>> = {
   book: ["source"],
-  paper: ["source"],
-  article: ["source"],
+  journal_article: ["source"],
   thesis: ["source"],
   document: ["source"],
-  movie: ["source"],
+  film: ["source"],
   song: ["source"],
   tv_series: ["source"],
   conference: ["source"],
@@ -277,13 +274,13 @@ export const SYSTEM_CLASS_EXTENDS: Partial<Record<SystemClassName, SystemClassNa
   // events-family toggle cascades to it (SYSTEM_CLASS_EXTENDS is the
   // cascade authority).
   trip: ["event"],
-  // The web link IS a source (owner ruling): a bookmarked page is a cited
-  // web source — the weblink class inherits the source family's
+  // The web page IS a source (owner ruling): a bookmarked page is a cited
+  // web source — the web_page class inherits the source family's
   // bibliographic bindings, while its own `url` binding stays the
   // class-local winner (effective binding resolution is own-first,
-  // packages/store/src/effective.ts). Disabling `source` hides weblinks
+  // packages/store/src/effective.ts). Disabling `source` hides web pages
   // with the rest of the family.
-  weblink: ["source"],
+  web_page: ["source"],
 };
 
 /**
@@ -523,8 +520,8 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   familyName: { type: "text", bindTo: "person" },
   citekey: { type: "text", bindTo: "source", defaultValue: "" },
   // Owner 2026-10-22: url is a DEFAULT PROPERTY of the source family (a
-  // source of any kind carries a link), not weblink-only — bindTo moves to
-  // `source` with weblink re-bound class-locally via
+  // source of any kind carries a link), not web_page-only — bindTo moves to
+  // `source` with web_page re-bound class-locally via
   // SYSTEM_EXTRA_CLASS_BINDINGS (the birthday→eventDate shape). The SCHEMA
   // stays GLOBAL per the 2026-10-20 seed-scope audit — a url is generically
   // reusable (the binding row lands on source either way; bindings are
@@ -632,8 +629,8 @@ export function systemPropertyDisplayName(name: SystemPropertyName): string {
  * child duplicating the schema (birthday→eventDate: the date value itself
  * still resolves through the extends chain at read time); (2) a family-child
  * keeping its class-local row when the schema's primary binding moves to the
- * family base (weblink→url, owner 2026-10-22: url binds to `source` now;
- * weblink's own row survives so own-first resolution keeps naming weblink —
+ * family base (web_page→url, owner 2026-10-22: url binds to `source` now;
+ * web_page's own row survives so own-first resolution keeps naming web_page —
  * see SCHEMA.md "Citations").
  * (The cover→source row lived here until 2026-10-05 — owner ruling: a cover
  * makes no sense on sources; the binding is removed from the seeds and from
@@ -642,7 +639,7 @@ export function systemPropertyDisplayName(name: SystemPropertyName): string {
  */
 export const SYSTEM_EXTRA_CLASS_BINDINGS: { property: SystemPropertyName; bindTo: SystemClassName }[] = [
   { property: "eventDate", bindTo: "birthday" },
-  { property: "url", bindTo: "weblink" },
+  { property: "url", bindTo: "web_page" },
 ];
 
 /**
@@ -798,8 +795,7 @@ export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [
   "cloze",
   "source",
   "book",
-  "paper",
-  "article",
+  "journal_article",
   "thesis",
   "document",
   "agent",
@@ -807,8 +803,8 @@ export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [
   "organization",
   "collection",
   "highlight",
-  "weblink",
-  "movie",
+  "web_page",
+  "film",
   "song",
   "tv_series",
   "conference",

@@ -553,16 +553,16 @@ describe("the provenance flag (owner directive)", () => {
   });
 });
 
-describe("weblink extends source — inherited bindings + own-first resolution", () => {
-  it("a weblink-classed node inherits the source family (unset fields stay hidden); the own url binding beats an inherited one", async () => {
+describe("web_page extends source — inherited bindings + own-first resolution", () => {
+  it("a web_page-classed node inherits the source family (unset fields stay hidden); the own url binding beats an inherited one", async () => {
     const { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } = await import("@notees/domain");
     const client = await seedClient();
     // The server-seed shape an existing workspace carries: the source root
-    // with its family, the weblink class with its own url binding — plus
+    // with its family, the web_page class with its own url binding — plus
     // the extends edge this ruling adds (materialized on live workspaces
     // by the web self-heal, ensureWeblinkExtendsSource).
     await client.createClass("Source", { id: SYSTEM_CLASS_UUIDS.source });
-    await client.createClass("Web link", { id: SYSTEM_CLASS_UUIDS.weblink });
+    await client.createClass("Web link", { id: SYSTEM_CLASS_UUIDS.web_page });
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.doi,
       name: "DOI",
@@ -575,20 +575,20 @@ describe("weblink extends source — inherited bindings + own-first resolution",
       type: "url",
       // Global (no scopeClassIds): this scenario sharpens the seeded reality
       // by binding url on BOTH classes — under the scope law (owner ruling
-      // 2026-10-20) a weblink-scoped url would make source's row dead config
+      // 2026-10-20) a web_page-scoped url would make source's row dead config
       // (R5 rejects it), and the own-first resolution rule under test is
       // orthogonal to locality.
     });
     await client.setClassProperty(SYSTEM_CLASS_UUIDS.source, SYSTEM_PROPERTY_UUIDS.doi, {});
-    await client.setClassProperty(SYSTEM_CLASS_UUIDS.weblink, SYSTEM_PROPERTY_UUIDS.url, {});
-    await client.setClassExtends(SYSTEM_CLASS_UUIDS.weblink, [SYSTEM_CLASS_UUIDS.source]);
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.web_page, SYSTEM_PROPERTY_UUIDS.url, {});
+    await client.setClassExtends(SYSTEM_CLASS_UUIDS.web_page, [SYSTEM_CLASS_UUIDS.source]);
     await flushWrites();
 
-    const weblinkId = SYSTEM_CLASS_UUIDS.weblink;
+    const weblinkId = SYSTEM_CLASS_UUIDS.web_page;
     const sourceId = SYSTEM_CLASS_UUIDS.source;
 
     // Sharpening of the seeded reality for the resolution rule: source
-    // ALSO binds url — a weblink node's own url row must still win
+    // ALSO binds url — a web_page node's own url row must still win
     // (binding resolution is own-first: distance 0 beats distance 1).
     await client.setClassProperty(sourceId, SYSTEM_PROPERTY_UUIDS.url, {});
 

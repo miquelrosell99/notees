@@ -13,6 +13,7 @@ import {
   rendersAsInlineBlock,
   rendersWithDocumentChrome,
   SEEDED_SYSTEM_CLASSES,
+  SYSTEM_CLASS_DESCRIPTIONS,
   SYSTEM_CLASS_DISPLAY_NAMES,
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
@@ -82,12 +83,12 @@ describe("system seeds (ported)", () => {
   it("the seed-scope audit flips (owner 2026-10-20): url is global; citekey stays local; the task family is global", async () => {
     const { TASK_FAMILY_SEED } = await import("../src/index.js");
     // The url spec is bound (the source binding row lands — owner 2026-10-22:
-    // url is a default source-family property, not weblink-only) but
+    // url is a default source-family property, not web_page-only) but
     // explicitly global — a url is generically reusable.
     expect(SYSTEM_PROPERTY_SPECS.url).toMatchObject({ bindTo: "source", global: true });
-    // weblink keeps its class-local url row through the extra-bindings
-    // manifest (own-first resolution keeps naming weblink).
-    expect(SYSTEM_EXTRA_CLASS_BINDINGS).toContainEqual({ property: "url", bindTo: "weblink" });
+    // web_page keeps its class-local url row through the extra-bindings
+    // manifest (own-first resolution keeps naming web_page).
+    expect(SYSTEM_EXTRA_CLASS_BINDINGS).toContainEqual({ property: "url", bindTo: "web_page" });
     // citekey is the counter-precedent: explicitly ruled local to source +
     // extensions — no `global` flag.
     expect(SYSTEM_PROPERTY_SPECS.citekey).toMatchObject({ bindTo: "source" });
@@ -114,6 +115,10 @@ describe("system seeds (ported)", () => {
     ];
     expect(allIds).not.toContain("00000000-0000-0000-0000-000000000018");
     expect(allIds).not.toContain("00000000-0000-0000-0000-000000000025");
+    // (source-library roster, owner 2026-10-23): the `paper` class id is
+    // withdrawn too — same trailing block, the class …-0001-… slot. Nodes
+    // migrate to journal_article; never reuse.
+    expect(allIds).not.toContain("00000000-0000-0000-0001-000000000025");
     // (owner 2026-10-04): the cover system class duplicated the cover
     // property — covers are plain asset-classed nodes. Minted and withdrawn
     // the same day; never reuse.
@@ -128,6 +133,41 @@ describe("system seeds (ported)", () => {
     // to be re-seeded.
     expect(allIds).not.toContain("00000000-0000-0000-0002-000000000001");
     expect(SYSTEM_PAGE_UUIDS).not.toHaveProperty("scratchpad");
+  });
+
+  it("source-library roster (owner 2026-10-23): article/weblink/movie rekey to journal_article/web_page/film; paper (…0025) withdrawn", async () => {
+    // The rekeys KEEP their fixed UUIDs (the id block is never renamed)…
+    expect(SYSTEM_CLASS_UUIDS.journal_article).toBe("00000000-0000-0000-0001-000000000026");
+    expect(SYSTEM_CLASS_UUIDS.web_page).toBe("00000000-0000-0000-0001-000000000034");
+    expect(SYSTEM_CLASS_UUIDS.film).toBe("00000000-0000-0000-0001-000000000035");
+    for (const name of ["journal_article", "web_page", "film"] as const) {
+      expect(SYSTEM_CLASS_ICONS[name]).toMatch(/^mdi/);
+      expect(SYSTEM_CLASS_EXTENDS[name]).toEqual(["source"]);
+      expect(SEEDED_SYSTEM_CLASSES).toContain(name);
+    }
+    expect(SYSTEM_CLASS_DISPLAY_NAMES.journal_article).toBe("Journal article");
+    expect(SYSTEM_CLASS_DISPLAY_NAMES.web_page).toBe("Web page");
+    expect(SYSTEM_CLASS_DISPLAY_NAMES.film).toBe("Film");
+    // paper is withdrawn from EVERY manifest (Zotero has no "paper" type —
+    // nodes migrate to journal_article); the …0025 slot is never reused.
+    expect(SYSTEM_CLASS_UUIDS).not.toHaveProperty("paper");
+    expect(SYSTEM_CLASS_ICONS).not.toHaveProperty("paper");
+    expect(SYSTEM_CLASS_DISPLAY_NAMES).not.toHaveProperty("paper");
+    expect(SYSTEM_CLASS_DESCRIPTIONS).not.toHaveProperty("paper");
+    expect(SYSTEM_CLASS_EXTENDS).not.toHaveProperty("paper");
+    expect(SEEDED_SYSTEM_CLASSES).not.toContain("paper");
+    expect(SYSTEM_CLASS_UUIDS).not.toHaveProperty("article");
+    expect(SYSTEM_CLASS_UUIDS).not.toHaveProperty("weblink");
+    expect(SYSTEM_CLASS_UUIDS).not.toHaveProperty("movie");
+    // …and the …0025 slot carries the withdrawal comment in the seeds source
+    // (the established shorthand — the full UUID never appears again).
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const source = readFileSync(fileURLToPath(new URL("../src/seeds.ts", import.meta.url)), "utf8");
+    const slot = source.indexOf("…0025 WITHDRAWN 2026-10-23");
+    expect(slot).toBeGreaterThan(-1);
+    expect(source.slice(slot, slot + 400)).toContain("journal_article");
+    expect(source.slice(slot, slot + 400)).toContain("never reuse");
   });
 
   it("citations revision (2026-09-27, FINAL): source family + authorship seeds", () => {
@@ -306,10 +346,10 @@ describe("system seeds (ported)", () => {
     expect(systemClassAncestors("meeting").has("source")).toBe(false);
     expect(systemClassAncestors("meeting").has("task")).toBe(false);
     expect(systemClassAncestors("task").size).toBe(0);
-    // The web link IS a source: weblink inherits the ancestor (the sources
+    // The web page IS a source: web_page inherits the ancestor (the sources
     // toggle cascades to it); source does not see the child.
-    expect(systemClassAncestors("weblink").has("source")).toBe(true);
-    expect(systemClassAncestors("source").has("weblink")).toBe(false);
+    expect(systemClassAncestors("web_page").has("source")).toBe(true);
+    expect(systemClassAncestors("source").has("web_page")).toBe(false);
     // Persons stay always-on: the birthday family's person-typed filter does
     // NOT make person part of the event hierarchy (no person gating).
     expect(systemClassAncestors("person").has("event")).toBe(false);
@@ -665,26 +705,25 @@ describe("workspace feature map", () => {
     expect(managedClassIds("tasks")).toEqual([SYSTEM_CLASS_UUIDS.task]);
   });
 
-  it("the family set cascades through extends-children (events → meeting + birthday + trip; sources → the 10-strong family incl. weblink)", async () => {
+  it("the family set cascades through extends-children (events → meeting + birthday + trip; sources → the 10-strong family incl. web_page — paper withdrawn)", async () => {
     const { familyClassNames, managedClassIds } = await import("../src/index.js");
     expect(familyClassNames("events")).toEqual(["event", "birthday", "meeting", "trip"]);
     expect(familyClassNames("meetings")).toEqual(["meeting"]);
     expect(familyClassNames("sources")).toEqual([
       "source",
-      "article",
       "book",
       "conference",
       "document",
-      "movie",
-      "paper",
+      "film",
+      "journal_article",
       "song",
       "thesis",
       "tv_series",
-      "weblink",
+      "web_page",
     ]);
     expect(familyClassNames("persons")).toEqual(["person"]);
     expect(managedClassIds("events")).toHaveLength(4);
-    expect(managedClassIds("sources")).toHaveLength(11);
+    expect(managedClassIds("sources")).toHaveLength(10);
   });
 
   it("chrome gating: own feature + managed ancestors (meeting ← meetings AND events; birthday ← events only)", async () => {
@@ -695,8 +734,8 @@ describe("workspace feature map", () => {
     expect(gatingFeaturesForClass("event")).toEqual(["events"]);
     expect(gatingFeaturesForClass("book")).toEqual(["sources"]);
     expect(gatingFeaturesForClass("conference")).toEqual(["sources"]);
-    // The web link rides the sources toggle through its source ancestor.
-    expect(gatingFeaturesForClass("weblink")).toEqual(["sources"]);
+    // The web page rides the sources toggle through its source ancestor.
+    expect(gatingFeaturesForClass("web_page")).toEqual(["sources"]);
     expect(gatingFeaturesForClass("person")).toEqual(["persons"]);
     // Always-on / unmanaged classes gate on nothing.
     expect(gatingFeaturesForClass("day")).toEqual([]);
@@ -719,7 +758,7 @@ describe("workspace feature map", () => {
     }
     // Journals + assets stay always-on base system; the dropped features'
     // classes (highlight/collection/agent/organization) are plain
-    // vocabulary now. weblink LEFT the list — it extends source and rides
+    // vocabulary now. web_page LEFT the list — it extends source and rides
     // the sources toggle with the family.
     for (const name of [
       "year",
@@ -733,7 +772,7 @@ describe("workspace feature map", () => {
     ] as const) {
       expect(ALWAYS_ON_SYSTEM_CLASSES).toContain(name);
     }
-    expect(ALWAYS_ON_SYSTEM_CLASSES).not.toContain("weblink");
+    expect(ALWAYS_ON_SYSTEM_CLASSES).not.toContain("web_page");
     // whiteboard (class/token duality) stays always-on; the family bases don't.
     expect(ALWAYS_ON_SYSTEM_CLASSES).toContain("whiteboard");
     for (const name of ["task", "event", "meeting", "source", "person", "book", "birthday"] as const) {
