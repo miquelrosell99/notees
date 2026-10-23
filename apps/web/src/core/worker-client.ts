@@ -69,10 +69,15 @@ import type {
  * scope invalidates everything and never reaches this table):
  *
  *  - "change": read embeds titles/link marks from anywhere (search,
- *    reference edges, the page listings) — any content edit may alter it.
+ *    reference edges) — any content edit may alter it.
  *  - "structure": read resolves definitions/membership (class chains, pure
  *    node-snapshot functions like effectiveNodeIcon) — only
- *    listing-affecting ops invalidate it.
+ *    listing-affecting ops invalidate it. roots/listPages qualify too:
+ *    under title-is-content their ORDER is COALESCE(name, id) with name
+ *    always NULL, so a content edit cannot reorder them, and every title
+ *    surface that renders their rows reads the title via a scope-classed
+ *    per-node read (getNode/getDisplayName) — a pooled row's own title is
+ *    never rendered.
  *  - "scope": read is parameterized by a node/class id — invalidated when
  *    the id is in the (ancestor-expanded) affected set. args[0] is the id.
  *  - absent (default): invalidate on any change — the conservative fallback.
@@ -114,8 +119,10 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   getUnlinkedReferenceCount: "change",
   getPropertyReferences: "change",
   getCoverReferences: "change",
-  listPages: "change",
-  roots: "change",
+  // The page listings: see the "structure" class above for why content
+  // edits cannot reorder them and why title freshness survives.
+  listPages: "structure",
+  roots: "structure",
   // Structural-global reads: definitions/membership/pure-of-args functions.
   listClasses: "structure",
   classIcons: "structure",

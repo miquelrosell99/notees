@@ -20,6 +20,8 @@ describe("isListingAffectingOp", () => {
       "object.create",
       "object.delete",
       "object.move",
+      "object.restore",
+      "tag.unassign",
       "class.create",
       "class.update",
       "class.setExtends",

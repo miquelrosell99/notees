@@ -10,13 +10,13 @@ import { Button } from "../../components/ui/fleet/Button.js";
 import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { uuidv7 } from "uuidv7";
 import "./CreatePageWithUuidModal.css";
 
 type WorkspaceClientLike = Pick<
   import("@/core/workspace-client/index.js").WorkspaceClient | WorkerClient,
-  "listPages" | "createObject" | "getNodeRaw" | "getNode"
+  "listPages" | "createObject" | "getNodeRaw" | "getNode" | "getDisplayName"
 >;
 
 export interface CreatePageWithUuidModalProps {
@@ -218,7 +218,9 @@ export function CreatePageWithUuidModal({
               <option value="">Select a parent page…</option>
               {pages.map((page) => (
                 <option key={page.id} value={page.id}>
-                  {nodeDisplayName(page) || "Untitled page"}
+                  {/* Fresh per-row title read (scope-classed getNode): the
+                      listPages pool is structure-classed and can lag a rename. */}
+                  {displayNameFromClient(client, page.id) || "Untitled page"}
                 </option>
               ))}
             </select>
