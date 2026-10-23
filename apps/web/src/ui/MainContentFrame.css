@@ -1,0 +1,112 @@
+/**
+ * MainContentFrame styles (owner 2026-10-23) — the panelled main-content
+ * composition generalized out of PageView's private grid. Token-only
+ * (variables.css). The panel cards KEEP their established class names
+ * (.nt-page-context / .nt-page-side-panel — the raised-card registers the
+ * nodeview introduced); the layout classes are the frame's own. The middle
+ * cell carries NO width cap — the host wraps its children in its own cap
+ * when it wants one (PageView's journal measure rides .nt-page-content in
+ * app.css) and full-bleed when it doesn't.
+ */
+
+/* The frame root: fills the host's panelled surface (the nodeview page,
+   a future hub) so the body row below can pin the top bar and stretch the
+   columns between it and the card bottom. */
+.nt-main-frame {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The body row: the left panel card beside the content column beside the
+   right panel card (three columns; the nodeview's swap owner 2026-10-23 —
+   the usually-open properties panel balances the main sidebar from the
+   right, the usually-closed context panel tucks in on the left). */
+.nt-main-frame__body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-4);
+  flex: 1;
+  min-height: 0;
+}
+
+/* Compact adaptation (audit 2026-10-19 — the 390px Critical): below the
+   medium breakpoint the two panel cards' minima (13rem + 15rem = 28rem)
+   outrun the content card and the middle column, squeezed to zero,
+   vanishes while the panels clip. The body stacks instead: content first,
+   then the panels — each a full-width block the body scrolls past. */
+@media (width <= 768px) {
+  .nt-main-frame__body {
+    flex-direction: column;
+    gap: var(--spacing-3);
+    overflow-y: auto;
+  }
+
+  .nt-main-frame__content {
+    order: -1; /* the content leads on compact; panels follow */
+    align-self: auto;
+    flex: none;
+  }
+
+  .nt-page-side-panel,
+  .nt-page-context {
+    flex: none;
+    width: 100%;
+    align-self: auto;
+    max-height: none;
+  }
+}
+
+/* The middle cell: stretches between the panel cards, hosts the view's
+   own body (its scroller, its cap, its chrome). No width cap here — the
+   host's wrapper carries it. */
+.nt-main-frame__content {
+  align-self: stretch;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The raised-card panels (owner 2026-10-09): each sidebar rides INSIDE the
+   main content card wearing the SAME card element the container itself
+   wears (.nt-page-card, PageCard.css: hairline frame, --shape-card radius,
+   --shadow-elevation-1) — a card nested in a card, not a column split by a
+   continuous vertical divider. The cards stop a spacing-3 step above the
+   card bottom (one step more than the top bar's own spacing-2 below
+   itself — the bar is chrome, the panels are surfaces). The fill is
+   --md-sys-color-sidebar-card: the same surface in light, one tone lighter
+   in dark so the cards stand out. */
+.nt-page-side-panel {
+  flex: 0 0 clamp(13rem, 24%, 22rem);
+  min-width: 0;
+  align-self: stretch;
+  max-height: 100%;
+  overflow-y: auto;
+  margin-bottom: var(--spacing-3);
+  padding: var(--spacing-4);
+  background: var(--md-sys-color-sidebar-card);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-card);
+}
+
+/* The context column register: same card element as the properties panel
+   AND the main content container (see above): the very card the container
+   wears, nested inside it; the old full-height divider retired. */
+.nt-page-context {
+  flex: 0 0 clamp(15rem, 26%, 22rem);
+  min-width: 0;
+  align-self: stretch;
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-3);
+  padding: var(--spacing-4);
+  background: var(--md-sys-color-sidebar-card);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-card);
+}

@@ -446,20 +446,18 @@ select:focus-visible {
 
 /* --- the panelled main layout (owner 2026-10-06, Capacities-style) -------- */
 
-/* The body row: the context column beside the nodeview column beside the
-   properties sidebar (three columns; the swap owner 2026-10-23 — the
-   usually-open properties panel balances the main sidebar from the right,
-   the usually-closed context panel tucks in on the left). */
-.nt-page-body {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-4);
-}
+/* The three-column body row, the raised-card panel registers, and the
+   compact stacking adaptation moved to MainContentFrame.css (owner
+   2026-10-23 — the composition generalized into the shared
+   MainContentFrame; the panel cards keep their .nt-page-context /
+   .nt-page-side-panel class names there). What stays here is the
+   nodeview's own panelled surface: the page root modifier and the
+   page-specific registers below. */
 
 /* The panelled main layout fills the whole content card (the card's
-   centered single-column cap drops) and takes its height, so the second
-   column can pin its top bar and footer and scroll the nodeview between
-   them. */
+   centered single-column cap drops) and takes its height, so the frame
+   can pin the top bar and stretch the columns between it and the card
+   bottom. */
 .nt-page-card > .nt-node-view:has(.nt-page--panelled) {
   max-width: none;
   height: 100%;
@@ -478,39 +476,6 @@ select:focus-visible {
      the right card lost its right padding and the left carried too much
      when the outer spacing was asymmetric). */
   padding: var(--spacing-2) var(--spacing-4) 0;
-}
-
-.nt-page--panelled .nt-page-body {
-  flex: 1;
-  min-height: 0;
-}
-
-/* Compact adaptation (audit 2026-10-19 — the 390px Critical): below the
-   medium breakpoint the two panel cards' minima (13rem + 15rem = 28rem)
-   outrun the content card and the document column, squeezed to zero,
-   vanishes while the context panel clips. The page stacks instead:
-   document first, then the context panel, then the properties panel —
-   each a full-width block the body scrolls past. */
-@media (width <= 768px) {
-  .nt-page--panelled .nt-page-body {
-    flex-direction: column;
-    gap: var(--spacing-3);
-    overflow-y: auto;
-  }
-
-  .nt-page--panelled .nt-page-content {
-    order: -1; /* the document leads on compact; panels follow */
-    align-self: auto;
-    flex: none;
-  }
-
-  .nt-page--panelled .nt-page-side-panel,
-  .nt-page--panelled .nt-page-context {
-    flex: none;
-    width: 100%;
-    align-self: auto;
-    max-height: none;
-  }
 }
 
 /* The fullscreen whiteboard surface: the canvas is the card's sole
@@ -539,27 +504,9 @@ select:focus-visible {
   border-radius: 0;
 }
 
-/* The raised-card panels (owner 2026-10-09): each sidebar rides INSIDE the
-   main content card wearing the SAME card element the container itself
-   wears (.nt-page-card, PageCard.css: hairline frame, --shape-card radius,
-   --shadow-elevation-1) — a card nested in a card, not a column split by a
-   continuous vertical divider. The divider and its negative-margin reach
-   retire; the cards stop a spacing-3 step above the card bottom (one step
-   more than the top bar's own spacing-2 below itself — the bar is chrome,
-   the panels are surfaces). The fill is --md-sys-color-sidebar-card: the same
-   surface in light, one tone lighter in dark so the cards stand out. */
-.nt-page-side-panel {
-  flex: 0 0 clamp(13rem, 24%, 22rem);
-  min-width: 0;
-  align-self: stretch;
-  max-height: 100%;
-  overflow-y: auto;
-  margin-bottom: var(--spacing-3);
-  padding: var(--spacing-4);
-  background: var(--md-sys-color-sidebar-card);
-  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-card);
-}
+/* The raised-card panel's card element and the context column's moved to
+   MainContentFrame.css (the shared frame). What stays: the page-specific
+   content styling inside the panels. */
 
 /* The class variant's first-column stack (owner 2026-10-12): Class
    properties + Templates stack under the Metadata panel. Whitespace only —
@@ -584,26 +531,8 @@ select:focus-visible {
   padding-left: var(--spacing-3);
 }
 
-/* The context column: graph · TOC · Activity · Comments — the
-   node-relevant widgets relocated from the right rail. Same card element
-   as the properties panel AND the main content container (see above): the
-   very card the container wears, nested inside it; the old full-height
-   divider retired. */
-.nt-page-context {
-  flex: 0 0 clamp(15rem, 26%, 22rem);
-  min-width: 0;
-  align-self: stretch;
-  max-height: 100%;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-  margin-bottom: var(--spacing-3);
-  padding: var(--spacing-4);
-  background: var(--md-sys-color-sidebar-card);
-  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-card);
-}
+/* The context column's card element moved to MainContentFrame.css; the
+   page-specific bottom-section register stays. */
 
 /* The context column's bottom section (owner 2026-10-09): the page footer
    (word count + Created/Updated stamps) moved here from the card-bottom

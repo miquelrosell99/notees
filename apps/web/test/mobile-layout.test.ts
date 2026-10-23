@@ -4,6 +4,9 @@
  * block cannot silently rot: the 768px step (tablet chrome + the panelled
  * editor's compact stacking), the drawer-surface + touch-target adaptations,
  * and token-only values inside the block (no hex literals / no raw px).
+ * The panelled stacking itself moved to MainContentFrame.css 2026-10-23
+ * (the composition generalized into the shared frame) — its pin reads that
+ * file directly below.
  *
  * The retired 480px bottom-sheet step stays pinned as ABSENT (owner ruling
  * 2026-10-19): the rule it carried targeted an element React never mounts —
@@ -22,6 +25,7 @@ const readFile = (
   }
 ).getBuiltinModule("node:fs").readFileSync;
 const css = readFile(`${process.cwd()}/src/ui/app.css`, "utf8");
+const frameCss = readFile(`${process.cwd()}/src/ui/MainContentFrame.css`, "utf8");
 
 /** The responsive block: from its banner comment to the next top-level rule. */
 function responsiveBlock(): string {
@@ -63,10 +67,12 @@ describe("mobile layout (app.css responsive pass)", () => {
   it("stacks the panelled editor at compact widths (the 390px adaptation)", () => {
     // The audit-2026-10-19 Critical: the two panel cards' minima outran the
     // content card and the document column vanished at 390px. The page now
-    // stacks — document first, panels full-width below.
-    expect(css).toContain(".nt-page--panelled .nt-page-body");
-    expect(css).toMatch(/@media \(width <= 768px\)\s*\{[^]*?\.nt-page--panelled \.nt-page-body\s*\{[^}]*flex-direction:\s*column/s);
-    expect(css).toContain("order: -1"); // the document column leads
+    // stacks — content first, panels full-width below. The rule lives in
+    // MainContentFrame.css since 2026-10-23 (the composition generalized
+    // into the shared frame).
+    expect(frameCss).toContain(".nt-main-frame__body");
+    expect(frameCss).toMatch(/@media \(width <= 768px\)\s*\{[^]*?\.nt-main-frame__body\s*\{[^}]*flex-direction:\s*column/s);
+    expect(frameCss).toContain("order: -1"); // the content column leads
     // The retired right-rail bottom sheet stays retired.
     expect(css).not.toContain(".nt-body .nt-right-card");
   });

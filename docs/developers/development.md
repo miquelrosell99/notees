@@ -404,6 +404,11 @@ properties (deferred owner decision), E2EE activation (the `{"$e": …}` slot is
 already in the envelope schema), plugin runtime and event projections, multi-user
 auth/JWT sessions, the outliner editor program, TreeCrdt/fractional
 reorder port (`node_child_order` exists; the editor ops around it do not).
+Calendar (and other hub) side panels: the shared `MainContentFrame`
+(`apps/web/src/ui/MainContentFrame.tsx`) is the mechanism — a main-content
+view opts in via props — but only the node view composes it today; what the
+calendar's panels would host (its existing week agenda / a mini-month are
+the natural tenants) is an undecided owner design.
 
 ## 9. The v1 archive (v1 ports read from here)
 

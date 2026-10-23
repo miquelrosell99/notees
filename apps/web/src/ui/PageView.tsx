@@ -39,7 +39,12 @@
  * the properties sidebar moved to the RIGHT and the context column to the
  * LEFT — the main sidebar already owns the far-left band, the usually-open
  * properties panel balances it from the right, and the usually-closed
- * context panel tucks in between). The context
+ * context panel tucks in between). The COMPOSITION lives in the shared
+ * MainContentFrame (owner 2026-10-23 — generalized out of this view so any
+ * main-content view opts in via props): this view passes the nodeview top
+ * bar, the context sections, and the properties sidebar as slots; the frame
+ * owns the chrome registers (the raised-card panels, the column split),
+ * never the content. The context
  * column (`.nt-page-context`) hosts, top-down: LocalGraphCard, TocSection,
  * the Activity section (relocated from the card-bottom stack —
  * `SystemSections`' activity branch died with the move), the Version
@@ -149,6 +154,7 @@ import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
 import { ensureTemplateFamily } from "../features/templates/templateFamily.js";
 import { GhostCard, GhostRow, realizeGhost } from "./GhostRow.js";
 import { usePageMachinery } from "./usePageMachinery.js";
+import { MainContentFrame } from "./MainContentFrame.js";
 import { NodeTopbar, PageHeaderChrome, PageFooterChrome } from "./PageChrome.js";
 
 /** The child-blocks triad, in switcher order. Exported for the NodeView
@@ -910,72 +916,90 @@ export function PageView({
     <>
       {panelled ? (
         <>
-          {/* The nodeview top bar (PageChrome.tsx) spans the WHOLE card,
-              above the column split (owner 2026-10-09): the bar's controls
-              act on the layout's columns (both panel toggles, the classes,
-              the view switcher + node menu), so it must not rescale when a
-              panel column shows or hides — the clusters stay put, and each
-              panel toggle sits directly above the column it reveals. */}
-          <NodeTopbar
-            client={client}
-            nodeId={pageId}
-            classIds={page.classIds}
-            sidePanelCollapsed={sidePanelCollapsed}
-            onToggleSidePanel={() => setSidePanelCollapsed(!sidePanelCollapsed)}
-            contextPanelCollapsed={contextPanelCollapsed}
-            onToggleContextPanel={
-              focusMode ? undefined : () => setContextPanelCollapsed(!contextPanelCollapsed)
+          {/* The panelled composition rides the shared MainContentFrame
+              (owner 2026-10-23 — the layout generalized out of this view):
+              the nodeview top bar spans the WHOLE card above the column
+              split, the context sections ride the left panel card, the
+              properties sidebar the right. The frame owns the chrome
+              registers only; whether a panel renders stays this view's
+              call (its device-local collapse prefs + focus mode below),
+              and the bar never rescales when a panel shows or hides. */}
+          <MainContentFrame
+            topBar={
+              <NodeTopbar
+                client={client}
+                nodeId={pageId}
+                classIds={page.classIds}
+                sidePanelCollapsed={sidePanelCollapsed}
+                onToggleSidePanel={() => setSidePanelCollapsed(!sidePanelCollapsed)}
+                contextPanelCollapsed={contextPanelCollapsed}
+                onToggleContextPanel={
+                  focusMode ? undefined : () => setContextPanelCollapsed(!contextPanelCollapsed)
+                }
+                chromeModes={chromeModes}
+                condensedChrome={condensedChrome}
+                chromeMenu={chromeMenu}
+                onOpenPage={onOpenPage}
+                focusMode={focusMode}
+                classesCorner={
+                  variant.cornerPills !== undefined ? (
+                    <ClassPillsList
+                      client={client}
+                      nodeId={pageId}
+                      onOpenPage={onOpenPage}
+                      {...variant.cornerPills}
+                    />
+                  ) : undefined
+                }
+              />
             }
-            chromeModes={chromeModes}
-            condensedChrome={condensedChrome}
-            chromeMenu={chromeMenu}
-            onOpenPage={onOpenPage}
-            focusMode={focusMode}
-            classesCorner={
-              variant.cornerPills !== undefined ? (
-                <ClassPillsList
-                  client={client}
-                  nodeId={pageId}
-                  onOpenPage={onOpenPage}
-                  {...variant.cornerPills}
-                />
+            leftPanel={
+              !contextPanelCollapsed && !focusMode ? (
+                <>
+                  {/* The node-relevant widgets (the references dedupe
+                      check rejected the rail's ReferencesSection — the
+                      Backlinks section owns that data). Top down: the
+                      local graph (a collapsed-by-default section — the
+                      graph mounts, and loads, only on the first expand),
+                      the heading-derived Table of content (clicking an
+                      entry jumps the main view to the block), the node's
+                      own Activity feed, Version history (the per-node
+                      op-log slice), and Comments (threaded, quick-add). */}
+                  <LocalGraphCard client={client} nodeId={pageId} onOpenNode={(id) => onOpenPage?.(id)} />
+                  <TocSection client={client} pageId={pageId} onJumpToBlock={jumpToBlock} />
+                  <ActivityLogSection client={client} nodeId={pageId} />
+                  <VersionHistorySection client={client} nodeId={pageId} />
+                  <CommentsSection client={client} nodeId={pageId} onOpenNode={onOpenPage} />
+                  {/* The footer (word count + Created/Updated stamps) is the
+                      column's bottom section (owner 2026-10-09): the
+                      card-bottom bar retired — the auto top margin pins it
+                      to the card bottom. */}
+                  <div className="nt-page-context__footer">{footerChrome}</div>
+                </>
               ) : undefined
             }
-          />
-          <div className="nt-page-body">
-            {/* Focus mode hides the panels (they are the chrome it
-                suppresses) while keeping the layout — the content column
-                simply centers at the journal measure (the CSS cap, owner
-                2026-10-23). The collapse prefs stay untouched: exiting
-                focus mode restores the panels exactly as they were. */}
-            {panelled && !contextPanelCollapsed && !focusMode && (
-              <aside className="nt-page-context" aria-label="Context">
-                {/* The node-relevant widgets, relocated from the right
-                    rail (the rail is workspace cards only). The references
-                    dedupe check rejected the rail's ReferencesSection — the
-                    Backlinks section owns that data (see the module doc). Top
-                    down: the local graph (a collapsed-by-default section —
-                    the graph mounts, and loads, only on the first expand),
-                    the heading-derived Table of content (standard section
-                    chrome; clicking an entry jumps the main view to the
-                    block), the node's own Activity feed,
-                    and Comments (always rendered, quick-add included). */}
-                <LocalGraphCard client={client} nodeId={pageId} onOpenNode={(id) => onOpenPage?.(id)} />
-                <TocSection client={client} pageId={pageId} onJumpToBlock={jumpToBlock} />
-                <ActivityLogSection client={client} nodeId={pageId} />
-                {/* Version history — the per-node op-log slice (content
-                    snapshots + restore); lazy like Activity, fetched on the
-                    first expand. */}
-                <VersionHistorySection client={client} nodeId={pageId} />
-                {/* Comments — child blocks classed `comment`, threaded. */}
-                <CommentsSection client={client} nodeId={pageId} onOpenNode={onOpenPage} />
-                {/* The footer (word count + Created/Updated stamps) is the
-                    column's bottom section now (owner 2026-10-09): the
-                    card-bottom bar retired — the auto top margin on the
-                    wrapper pins it to the card bottom. */}
-                <div className="nt-page-context__footer">{footerChrome}</div>
-              </aside>
-            )}
+            rightPanel={
+              !sidePanelCollapsed && !focusMode ? (
+                <>
+                  <PropertiesSidebar
+                    client={client}
+                    nodeId={pageId}
+                    onOpenPage={onOpenPage}
+                    onOpenPageRaw={(id) => (onOpenPageRaw ?? onOpenPage)?.(id)}
+                  />
+                  {/* The class variant's panel stack (owner 2026-10-12):
+                      Class properties + Templates under the Metadata panel.
+                      Empty for every other variant. */}
+                  {variantSidebarSections.length > 0 && (
+                    <div className="nt-page-side-panel__sections">{variantSidebarSections}</div>
+                  )}
+                </>
+              ) : undefined
+            }
+          >
+            {/* The journal-measure cap rides the host's own wrapper (the
+                frame's middle cell carries none): the content column caps
+                at 46rem and centers inside whatever space the panels leave. */}
             <div className="nt-page-content">
               {/* The nodeview proper: auto height between the full-width
                   top bar above the columns and the card bottom — it scrolls
@@ -987,23 +1011,7 @@ export function PageView({
                 {mainChrome}
               </div>
             </div>
-            {!sidePanelCollapsed && !focusMode && (
-              <aside className="nt-page-side-panel" aria-label="Properties">
-                <PropertiesSidebar
-                  client={client}
-                  nodeId={pageId}
-                  onOpenPage={onOpenPage}
-                  onOpenPageRaw={(id) => (onOpenPageRaw ?? onOpenPage)?.(id)}
-                />
-                {/* The class variant's panel stack (owner 2026-10-12):
-                    Class properties + Templates under the Metadata panel.
-                    Empty for every other variant. */}
-                {variantSidebarSections.length > 0 && (
-                  <div className="nt-page-side-panel__sections">{variantSidebarSections}</div>
-                )}
-              </aside>
-            )}
-          </div>
+          </MainContentFrame>
         </>
       ) : (
         <>
