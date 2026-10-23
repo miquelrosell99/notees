@@ -11,12 +11,16 @@
  *      (there is no class.assign op; the add carrier is the wire path,
  *      packages/store appliers — the add's comparator is >= so the later add
  *      beats the remove in either delivery order);
- *  (b) the renamed classes' display titles: "Article" → "Journal article"
- *      (…0026), "Web link" → "Web page" (…0034), "Movie" → "Film" (…0035) —
- *      title-is-content, so the rename is a class.update contentAst rewrite
- *      (the migrate-system-names.mts precedent; object.update carries NO
- *      content field). The class UUIDs are unchanged — saved query ASTs keyed
- *      on them survive untouched (review focus #5, verified below);
+ *  (b) the renamed classes' display titles, gated on the EXACT drifted old
+ *      title: "Article" → "Journal article" (…0026), "Web link" →
+ *      "Web page" (…0034), "Movie" → "Film" (…0035). The manifest target
+ *      means "already converged" (no-op), the exact old title means
+ *      "rename" (a class.update contentAst rewrite — title-is-content, the
+ *      migrate-system-names.mts precedent; object.update carries NO content
+ *      field), and ANY OTHER title is a user rename — reported in the plan
+ *      as "skipped: user-renamed class title" and never clobbered. The class
+ *      UUIDs are unchanged — saved query ASTs keyed on them survive
+ *      untouched (review focus #5, verified below);
  *  (c) the task-6 materialization for workspaces the new seeds never reached:
  *      every missing SEEDED_SYSTEM_CLASSES class node gets class.create
  *      (display-name contentAst + icon) + its SYSTEM_CLASS_EXTENDS parents,
@@ -36,19 +40,25 @@
  * The plan is read from a SCRATCH derived store (latest snapshot + log tail —
  * the same restore+catch-up shape the sync server hydrates with), so the
  * compared rows are the converged log state. Every envelope is validated
- * through the protocol zod schemas BEFORE anything is inserted. Idempotent:
- * a second run plans nothing (every drifted row now exists).
+ * through the protocol zod schemas BEFORE anything is inserted, and then
+ * TEST-APPLIED IN ORDER against that scratch store — the replay gate: a
+ * poison envelope a static plan cannot see (e.g. class.unassign's
+ * inline-content lock on a node whose content still carries a class_link to
+ * the class) throws BEFORE RelayStorage.ingest, so the abort lands with ZERO
+ * envelopes written. Idempotent: a second run plans nothing (every drifted
+ * row now exists).
  *
  * DRY RUN BY DEFAULT: without --apply the script prints the full plan
- * (affected-node counts per step + the renamed classes' node counts) and
+ * (affected-node counts per step + the renamed classes' node counts,
+ * user-renamed skips included), runs the same pre-ingest test-apply, and
  * writes nothing. --apply inserts through RelayStorage.ingest and then
  * verifies: the new envelopes read back from the log and a FRESH scratch
  * store applying the tail since the snapshot (zero StoreError throws, paper
  * gone from node class sets, journal_article present on the migrated nodes,
- * the renamed titles read back, the new classes + binding rows + archived
- * flags present, and the pre-migration saved query AST — a class condition
- * on …0026 — still matching the migrated nodes: UUID-keyed conditions
- * survive display renames).
+ * the renamed titles read back (user-renamed titles untouched), the new
+ * classes + binding rows + archived flags present, and the pre-migration
+ * saved query AST — a class condition on …0026 — still matching the
+ * migrated nodes: UUID-keyed conditions survive display renames).
  *
  * NEVER point --data-dir at a real relay data dir during development: seed a
  * scratch dir (scripts/migrated-verify/seed-source-roster-scratch.mts points
@@ -99,11 +109,16 @@ const DEFAULT_WORKSPACE = "c491595f-9f94-5ade-a620-e30ed063d8d2";
 const PAPER_ID = "00000000-0000-0000-0001-000000000025";
 const JOURNAL_ARTICLE_ID = SYSTEM_CLASS_UUIDS.journal_article;
 
-/** The three renamed classes: stored title → manifest display name. */
-const RENAMED_CLASSES: Array<{ classId: string; to: string }> = [
-  { classId: JOURNAL_ARTICLE_ID, to: SYSTEM_CLASS_DISPLAY_NAMES.journal_article },
-  { classId: SYSTEM_CLASS_UUIDS.web_page, to: SYSTEM_CLASS_DISPLAY_NAMES.web_page },
-  { classId: SYSTEM_CLASS_UUIDS.film, to: SYSTEM_CLASS_DISPLAY_NAMES.film },
+/**
+ * The three renamed classes, gated on the EXACT drifted old title: a
+ * workspace where the user renamed the class to something custom keeps that
+ * title (reported as a skip, never clobbered). UUIDs are unchanged, so
+ * saved query ASTs keyed on them survive untouched (review focus #5).
+ */
+const RENAMED_CLASSES: Array<{ classId: string; from: string; to: string }> = [
+  { classId: JOURNAL_ARTICLE_ID, from: "Article", to: SYSTEM_CLASS_DISPLAY_NAMES.journal_article },
+  { classId: SYSTEM_CLASS_UUIDS.web_page, from: "Web link", to: SYSTEM_CLASS_DISPLAY_NAMES.web_page },
+  { classId: SYSTEM_CLASS_UUIDS.film, from: "Movie", to: SYSTEM_CLASS_DISPLAY_NAMES.film },
 ];
 
 // --- CLI ----------------------------------------------------------------------
@@ -202,10 +217,18 @@ interface PlannedRename {
   memberCount: number;
 }
 
+/** A renamed class whose stored title is neither old nor new — user-renamed, left alone. */
+interface SkippedUserRename {
+  classId: string;
+  title: string;
+  memberCount: number;
+}
+
 interface WorkspacePlan {
   paperNodes: string[];
   renames: PlannedRename[];
   skippedInactiveRenames: string[];
+  skippedUserRenames: SkippedUserRename[];
   missingSchemas: string[];
   missingClasses: string[];
   extendsForCreated: Array<{ classId: string; parents: string[] }>;
@@ -293,6 +316,7 @@ function planWorkspace(store: Store): WorkspacePlan {
     paperNodes: [],
     renames: [],
     skippedInactiveRenames: [],
+    skippedUserRenames: [],
     missingSchemas: [],
     missingClasses: [],
     extendsForCreated: [],
@@ -302,38 +326,7 @@ function planWorkspace(store: Store): WorkspacePlan {
     archivedFlips: [],
   };
 
-  // (a) nodes classed paper (OR-Set present rows; the effective membership).
-  plan.paperNodes = (
-    db
-      .prepare("SELECT node_id FROM class_member_set WHERE class_id = ? AND present = 1 ORDER BY node_id")
-      .all(PAPER_ID) as Array<{ node_id: string }>
-  ).map((row) => row.node_id);
-  if (plan.paperNodes.length > 0 && classNodeRow(store, JOURNAL_ARTICLE_ID) === undefined) {
-    throw new Error(
-      `plan: ${plan.paperNodes.length} node(s) carry paper but the journal_article (…0026) class node is absent — refusing to leave dangling membership`,
-    );
-  }
-
-  // (b) the renamed classes' titles.
-  for (const renamed of RENAMED_CLASSES) {
-    const row = classNodeRow(store, renamed.classId);
-    if (row === undefined) continue; // never authored in this workspace
-    const memberCount = (
-      db
-        .prepare("SELECT COUNT(*) AS n FROM class_member_set WHERE class_id = ? AND present = 1")
-        .get(renamed.classId) as { n: number }
-    ).n;
-    if (row.active !== 1) {
-      plan.skippedInactiveRenames.push(`${renamed.classId} (${memberCount} node(s))`);
-      continue;
-    }
-    const title = firstTextOf(row.content);
-    if (title !== renamed.to) {
-      plan.renames.push({ classId: renamed.classId, from: title, to: renamed.to, memberCount });
-    }
-  }
-
-  // (c1) missing pool property schemas (existence-only; existing rows — even
+  // (c1) missing pool schemas (existence-only; existing rows — even
   // drifted-typed ones, e.g. the pre-retype `authors` — are task-8 territory
   // and never rewritten here).
   const missingSchemaIds = new Set<string>();
@@ -345,7 +338,10 @@ function planWorkspace(store: Store): WorkspacePlan {
     missingSchemaIds.add(propertySchemaId);
   }
 
-  // (c2/c3) missing seeded class nodes + their extends edges.
+  // (c2/c3) missing seeded class nodes + their extends edges — computed
+  // FIRST: the (a) guard below treats a journal_article this run creates as
+  // satisfying the reclass prerequisite (its class.create lands in the same
+  // ingest, before the reclass envelopes).
   const createdParents = new Map<string, string[]>();
   for (const name of SEEDED_SYSTEM_CLASSES) {
     const classId = SYSTEM_CLASS_UUIDS[name];
@@ -368,6 +364,46 @@ function planWorkspace(store: Store): WorkspacePlan {
           `plan: class ${classId} extends ${parent}, which has no node row and is not seeded — refusing to emit a dangling extends edge`,
         );
       }
+    }
+  }
+
+  // (a) nodes classed paper (OR-Set present rows; the effective membership).
+  plan.paperNodes = (
+    db
+      .prepare("SELECT node_id FROM class_member_set WHERE class_id = ? AND present = 1 ORDER BY node_id")
+      .all(PAPER_ID) as Array<{ node_id: string }>
+  ).map((row) => row.node_id);
+  if (
+    plan.paperNodes.length > 0 &&
+    classNodeRow(store, JOURNAL_ARTICLE_ID) === undefined &&
+    !createdParents.has(JOURNAL_ARTICLE_ID)
+  ) {
+    throw new Error(
+      `plan: ${plan.paperNodes.length} node(s) carry paper but the journal_article (…0026) class node is absent and not seeded — refusing to leave dangling membership`,
+    );
+  }
+
+  // (b) the renamed classes' titles — EXACT old-title gate: the manifest
+  // target means "already converged" (no-op), the exact old title means
+  // "rename", anything else is a USER rename and is reported, never touched.
+  for (const renamed of RENAMED_CLASSES) {
+    const row = classNodeRow(store, renamed.classId);
+    if (row === undefined) continue; // never authored (or created) in this workspace
+    const memberCount = (
+      db
+        .prepare("SELECT COUNT(*) AS n FROM class_member_set WHERE class_id = ? AND present = 1")
+        .get(renamed.classId) as { n: number }
+    ).n;
+    if (row.active !== 1) {
+      plan.skippedInactiveRenames.push(`${renamed.classId} (${memberCount} node(s))`);
+      continue;
+    }
+    const title = firstTextOf(row.content);
+    if (title === renamed.to) continue;
+    if (title === renamed.from) {
+      plan.renames.push({ classId: renamed.classId, from: title, to: renamed.to, memberCount });
+    } else {
+      plan.skippedUserRenames.push({ classId: renamed.classId, title, memberCount });
     }
   }
 
@@ -485,20 +521,11 @@ function buildEnvelopes(workspaceId: string, plan: WorkspacePlan): Envelope[] {
     );
   };
 
-  // (a) paper → journal_article: the remove + the re-issued add carrier.
-  for (const nodeId of plan.paperNodes) {
-    push("class.unassign", { objectId: nodeId, classId: PAPER_ID }, [nodeId]);
-    push("object.create", { objectId: nodeId, classIds: [JOURNAL_ARTICLE_ID] }, [nodeId]);
-  }
-
-  // (b) the renamed classes' titles (title-is-content rewrite).
-  for (const rename of plan.renames) {
-    push(
-      "class.update",
-      { classId: rename.classId, contentAst: [{ type: "text", text: rename.to }] },
-      [rename.classId],
-    );
-  }
+  // Emission order mirrors the dependency graph of the appliers: pool
+  // schemas, then class creates + extends (so a journal_article this run
+  // creates EXISTS before the reclass add carrier references it), then the
+  // paper reclass, then the title renames, then the binding rows (R5 sees
+  // the schemas + closure), then the archived flips.
 
   // (c1) missing pool schemas (name/type/multi/scope/defaults per the seed).
   for (const propertySchemaId of plan.missingSchemas) {
@@ -542,6 +569,21 @@ function buildEnvelopes(workspaceId: string, plan: WorkspacePlan): Envelope[] {
   }
   for (const { classId, parents } of plan.extendsForCreated) {
     push("class.setExtends", { classId, parentClassIds: parents }, [classId]);
+  }
+
+  // (a) paper → journal_article: the remove + the re-issued add carrier.
+  for (const nodeId of plan.paperNodes) {
+    push("class.unassign", { objectId: nodeId, classId: PAPER_ID }, [nodeId]);
+    push("object.create", { objectId: nodeId, classIds: [JOURNAL_ARTICLE_ID] }, [nodeId]);
+  }
+
+  // (b) the renamed classes' titles (title-is-content rewrite).
+  for (const rename of plan.renames) {
+    push(
+      "class.update",
+      { classId: rename.classId, contentAst: [{ type: "text", text: rename.to }] },
+      [rename.classId],
+    );
   }
 
   // (c4) binding rows (schemas and extends already emitted above).
@@ -589,6 +631,31 @@ function validateEnvelopes(envelopes: Envelope[]): void {
     throw new Error(
       `refusing to insert: ${failures.length} invalid envelope(s):\n  ${failures.join("\n  ")}`,
     );
+  }
+}
+
+/**
+ * The replay gate (pre-ingest): test-apply every built envelope, IN ORDER,
+ * against the scratch store the plan was read from. A poison envelope —
+ * one a static plan cannot see, e.g. `class.unassign`'s inline-content
+ * lock on a node whose content still carries a class_link to the class —
+ * throws here, BEFORE RelayStorage.ingest, so the abort lands with ZERO
+ * envelopes written. The scratch store is disposable; the mutation is the
+ * point (the real verification replays from the persisted log afterwards).
+ */
+function testApplyEnvelopes(store: Store, envelopes: Envelope[]): void {
+  for (let index = 0; index < envelopes.length; index++) {
+    const envelope = envelopes[index]!;
+    try {
+      store.apply(envelope);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `pre-ingest test-apply failed at envelope ${index + 1}/${envelopes.length} ` +
+          `(${envelope.opType} ${JSON.stringify(envelope.payload)}): ${detail}\n` +
+          "aborting with ZERO envelopes ingested — fix the workspace state and re-run.",
+      );
+    }
   }
 }
 
@@ -655,16 +722,30 @@ function verify(
       }
     }
 
-    // The renamed titles read back (title-is-content).
-    for (const renamed of RENAMED_CLASSES) {
-      const row = classNodeRow(store, renamed.classId);
+    // The renamed titles read back (title-is-content): classes the plan
+    // renamed converge to the manifest target; user-renamed classes keep
+    // their pre-migration title untouched.
+    for (const rename of plan.renames) {
+      const row = classNodeRow(store, rename.classId);
       if (row === undefined) {
-        throw new Error(`verification failed: class node ${renamed.classId} is absent after the migration`);
+        throw new Error(`verification failed: class node ${rename.classId} is absent after the migration`);
       }
       const title = firstTextOf(row.content);
-      if (title !== renamed.to) {
+      if (title !== rename.to) {
         throw new Error(
-          `verification failed: class ${renamed.classId} title ${JSON.stringify(title)} != ${JSON.stringify(renamed.to)}`,
+          `verification failed: class ${rename.classId} title ${JSON.stringify(title)} != ${JSON.stringify(rename.to)}`,
+        );
+      }
+    }
+    for (const skipped of plan.skippedUserRenames) {
+      const row = classNodeRow(store, skipped.classId);
+      if (row === undefined) {
+        throw new Error(`verification failed: class node ${skipped.classId} is absent after the migration`);
+      }
+      const title = firstTextOf(row.content);
+      if (title !== skipped.title) {
+        throw new Error(
+          `verification failed: user-renamed class ${skipped.classId} title ${JSON.stringify(title)} was clobbered (was ${JSON.stringify(skipped.title)})`,
         );
       }
     }
@@ -783,58 +864,75 @@ function migrateWorkspace(relay: RelayStorage, workspaceId: string, apply: boole
   );
 
   const store = buildScratchStore(relay, workspaceId);
-  const plan = planWorkspace(store);
-  store.close();
+  try {
+    const plan = planWorkspace(store);
 
-  console.log("planned source-library roster convergence:");
-  console.log(
-    `  (a) paper→journal_article: ${plan.paperNodes.length} node(s)` +
-      (plan.paperNodes.length > 0 ? ` — ${plan.paperNodes.join(", ")}` : ""),
-  );
-  if (plan.renames.length === 0) {
-    console.log("  (b) class title renames: (none — stored titles already match the manifest)");
-  }
-  for (const rename of plan.renames) {
+    console.log("planned source-library roster convergence:");
     console.log(
-      `  (b) class title rename: ${rename.classId}  ${JSON.stringify(rename.from)} → ${JSON.stringify(rename.to)}` +
-        `  (${rename.memberCount} node(s) carry the class)`,
+      `  (a) paper→journal_article: ${plan.paperNodes.length} node(s)` +
+        (plan.paperNodes.length > 0 ? ` — ${plan.paperNodes.join(", ")}` : ""),
     );
-  }
-  for (const skipped of plan.skippedInactiveRenames) {
-    console.log(`  (b) skipped (inactive class node, left alone): ${skipped}`);
-  }
-  console.log(
-    `  (c) missing pool schemas: ${plan.missingSchemas.length}; missing class nodes: ` +
-      `${plan.missingClasses.length}${plan.missingClasses.length > 0 ? ` (${plan.missingClasses.join(", ")})` : ""}; ` +
-      `extends edges: ${plan.extendsForCreated.length}`,
-  );
-  console.log(
-    `  (c) missing binding rows: spec ${plan.missingSpecBindings.length}, extra ` +
-      `${plan.missingExtraBindings.length}, source-class ${plan.missingSourceBindings.length}; ` +
-      `archived flips: ${plan.archivedFlips.length}`,
-  );
+    if (plan.renames.length === 0 && plan.skippedUserRenames.length === 0) {
+      console.log("  (b) class title renames: (none — stored titles already match the manifest)");
+    }
+    for (const rename of plan.renames) {
+      console.log(
+        `  (b) class title rename: ${rename.classId}  ${JSON.stringify(rename.from)} → ${JSON.stringify(rename.to)}` +
+          `  (${rename.memberCount} node(s) carry the class)`,
+      );
+    }
+    for (const skipped of plan.skippedUserRenames) {
+      console.log(
+        `  (b) skipped: user-renamed class title ${skipped.classId} ${JSON.stringify(skipped.title)}` +
+          `  (${skipped.memberCount} node(s) carry the class — left alone)`,
+      );
+    }
+    for (const skipped of plan.skippedInactiveRenames) {
+      console.log(`  (b) skipped (inactive class node, left alone): ${skipped}`);
+    }
+    console.log(
+      `  (c) missing pool schemas: ${plan.missingSchemas.length}; missing class nodes: ` +
+        `${plan.missingClasses.length}${plan.missingClasses.length > 0 ? ` (${plan.missingClasses.join(", ")})` : ""}; ` +
+        `extends edges: ${plan.extendsForCreated.length}`,
+    );
+    console.log(
+      `  (c) missing binding rows: spec ${plan.missingSpecBindings.length}, extra ` +
+        `${plan.missingExtraBindings.length}, source-class ${plan.missingSourceBindings.length}; ` +
+        `archived flips: ${plan.archivedFlips.length}`,
+    );
 
-  if (planIsEmpty(plan)) {
-    console.log("\nnothing to migrate — this workspace already carries the roster seed state.");
-    return;
+    if (planIsEmpty(plan)) {
+      console.log("\nnothing to migrate — this workspace already carries the roster seed state.");
+      return;
+    }
+
+    const envelopes = buildEnvelopes(workspaceId, plan);
+    validateEnvelopes(envelopes);
+    console.log(`${envelopes.length} envelope(s) built and protocol-validated.`);
+
+    // The replay gate BEFORE anything is written: a poison envelope (one a
+    // static plan cannot see — e.g. class.unassign's inline-content lock)
+    // aborts here with zero envelopes ingested.
+    testApplyEnvelopes(store, envelopes);
+    console.log(
+      `pre-ingest test-apply: all ${envelopes.length} envelope(s) applied clean against the scratch store.`,
+    );
+
+    if (!apply) {
+      console.log("dry run — re-run with --apply to append these envelopes to the relay log.");
+      return;
+    }
+
+    const { savedIds } = relay.ingest(envelopes);
+    if (savedIds.length !== envelopes.length) {
+      throw new Error(`ingest saved ${savedIds.length}/${envelopes.length} envelopes (duplicate ids?)`);
+    }
+    console.log(`ingested ${savedIds.length} envelope(s) into the relay log.`);
+
+    verify(relay, workspaceId, snapshotSeq, envelopes.length, plan);
+  } finally {
+    store.close();
   }
-
-  const envelopes = buildEnvelopes(workspaceId, plan);
-  validateEnvelopes(envelopes);
-  console.log(`${envelopes.length} envelope(s) built and protocol-validated.`);
-
-  if (!apply) {
-    console.log("dry run — re-run with --apply to append these envelopes to the relay log.");
-    return;
-  }
-
-  const { savedIds } = relay.ingest(envelopes);
-  if (savedIds.length !== envelopes.length) {
-    throw new Error(`ingest saved ${savedIds.length}/${envelopes.length} envelopes (duplicate ids?)`);
-  }
-  console.log(`ingested ${savedIds.length} envelope(s) into the relay log.`);
-
-  verify(relay, workspaceId, snapshotSeq, envelopes.length, plan);
 }
 
 function main(): void {
