@@ -9,6 +9,46 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(store,web): bound-but-empty rows — virtual class properties SHOW
+  on the node, scalar types included (owner ruling, the virtual/realized
+  assessment).** Confirming the unrealize semantics surfaced the gap:
+  `property.unassign` on a class-bound property already dropped only the
+  pin — but the panel only rendered the virtual property for GROUPED types
+  (the bound-empty pass; scalar url/email/number bindings rendered nothing,
+  invisible except as Realize entries in the picker). The effective read
+  now synthesizes the **bound-but-empty** row for every winning ACTIVE
+  binding with nothing on the slot — `value: null`, `source: "bound"`,
+  `boundBy` naming the binder: the virtual property shows as coming from
+  the class (the "C" hint) until realized (`property.assign`, or the first
+  typed value — de-facto realization) or de-bound. Same gates as the
+  assigned row: shadowed by authored values and derived defaults
+  (assigned rows win the slot — the declaration is the node's own),
+  suppressed for deleted schemas and `hideWhenEmpty`, R4-gated (a scope
+  narrowed after the bind shows neither row nor default). Panel chrome
+  only — queries/exports never see it; the read surfaces return the new
+  `source: "bound"`. One existing spec's expectation updated honestly (the
+  PC2 drift case: the wrong-typed default drops AND the binding still
+  shows as a bound-empty row). Web: the groupRows filter and block-row
+  display pass treat `bound` like `assigned`; ScalarPropertyValue's null
+  arm covers it unchanged.
+  - **Verification**: `pnpm typecheck` clean; `@notees/store` 705/705 on
+    both adapters (new bound-empty suite: synthesis, unrealize-keeps-the-
+    bound-row, shadowing, hideWhenEmpty, R4, ordering; the PC2 drift
+    expectation now pins the bound-empty row); `apps/web` green (new
+    `property-bound-empty.test.tsx`: the class-bound url renders its empty
+    cell with the from-class hint — the original symptom's class-bound
+    case — typing authors the value, unrealize returns the bound row).
+    Existing specs updated to the new contract (the virtual property
+    SHOWS): the weblink inherited-bindings spec flips "unset fields stay
+    hidden" to two bound rows (own-first resolution on boundBy), and the
+    cleared-value assertions in the pickers/asset/dates/recurrence/
+    view-modes suites filter to authored rows. One real fix along the
+    way: the grouped property entry carries the originating row's schema
+    so the label/name rides the entry when the group filters to empty.
+  - **Docs**: SCHEMA.md (the assignment bullet gains the bound-empty
+    synthesis + the unrealize semantics), AGENTS.md (the invariant
+    clause), `docs/features/properties.md` (virtual properties show).
+
 - **docs(wire,backups,architecture): the snapshot-import surfaces and their
   checkpoint semantics are written into the normative docs.** `WIRE.md`'s
   `PUT /snapshot/data` section gains `&mode=import` (the workspace-id rewrite,

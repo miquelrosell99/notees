@@ -1033,9 +1033,10 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
   });
 
   // Effective properties: authored rows ∪ derived class-binding defaults
-  // ∪ assigned-empty rows (source: "authored" | "default" | "assigned",
-  // boundBy — owner ruling 2026-10-23: an assignment WITHOUT a value reads
-  // value null). The authored-only view lives
+  // ∪ assigned-empty rows ∪ bound-but-empty rows (source: "authored" |
+  // "default" | "assigned" | "bound", boundBy — owner rulings 2026-10-23:
+  // a declaration WITHOUT a value reads value null; "bound" is the
+  // virtual class contribution). The authored-only view lives
   // on GET /objects/:id — this is the read model per SCHEMA.md.
   app.get("/objects/:id/effective-properties", async (request) => {
     const { id } = request.params as { id: string };

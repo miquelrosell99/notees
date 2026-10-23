@@ -1253,7 +1253,9 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     expect(onOpen).toHaveBeenCalledWith(seeded.alpha);
 
     // Leaving the editor emptied unsets the property — the auto-unset pass
-    // (the metadata row's contract) trashes the orphaned carrier.
+    // (the metadata row's contract) trashes the orphaned carrier. (The
+    // bound-empty virtual row may show — the virtual/realized ruling; the
+    // assertion is about the authored value.)
     const content = document.querySelector(".nt-table-text-cell .nt-title-content") as HTMLElement;
     fireEvent.click(content);
     const reEditor = document.querySelector(".nt-table-text-cell .nt-block-text") as HTMLElement;
@@ -1261,7 +1263,9 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     fireEvent.blur(reEditor);
     await flushWrites();
     expect(
-      client.getEffectiveProperties(seeded.alpha).find((p) => p.propertySchemaId === seeded.noteId),
+      client
+        .getEffectiveProperties(seeded.alpha)
+        .find((p) => p.propertySchemaId === seeded.noteId && p.source === "authored"),
     ).toBeUndefined();
 
     const effortInput = screen.getAllByRole("spinbutton", { name: "Effort" })[1]!;

@@ -94,7 +94,11 @@ function dateNodeCount(client: WorkspaceClient): number {
 }
 
 function valueOf(client: WorkspaceClient, pageId: string, schemaId: string): unknown {
-  return client.getEffectiveProperties(pageId).find((row) => row.propertySchemaId === schemaId)?.value;
+  // Value-bearing rows only — assigned/bound declarations read value null
+  // (owner ruling 2026-10-23: the virtual/realized assessment).
+  return client
+    .getEffectiveProperties(pageId)
+    .find((row) => row.propertySchemaId === schemaId && (row.source === "authored" || row.source === "default"))?.value;
 }
 
 describe("datetime (SCHEMA.md)", () => {

@@ -573,12 +573,14 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
         const display = row.display;
         if (display !== "bullet" && display !== "inline") continue;
         // An ASSIGNED-EMPTY row (owner ruling 2026-10-23 — property.assign
-        // without a value) joins the bound-but-empty button pass below —
-        // the block button is how the first value gets set.
+        // without a value) joins the button pass below — no binding scan
+        // sees it. A BOUND-but-empty row is covered by the binding pass
+        // itself (its declaration IS a class binding) — skip it here.
         if (row.source === "assigned") {
           assignedDisplayRows.push({ row, display });
           continue;
         }
+        if (row.source === "bound") continue;
         const type = row.schema?.type;
         if (type !== "select" && type !== "multi_select" && type !== "boolean") continue;
         if (seenGroups.has(row.propertySchemaId)) continue;
@@ -628,6 +630,8 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
       // Assigned-but-empty properties with a row display position ride the
       // same button pass (owner ruling 2026-10-23): the assignment row is
       // the only trace of the declaration — no binding pass sees it.
+      // Bound-but-empty rows need no arm here: the binding scan above IS
+      // their declaration.
       for (const { row, display } of assignedDisplayRows) {
         const schemaRow = schemasById.get(row.propertySchemaId);
         const type = schemaRow?.type;

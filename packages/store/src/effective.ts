@@ -5,6 +5,7 @@
  *   effective(node, schema, idx) = authored property_value
  *                                  ?? the SCHEMA's defaultValue
  *                                  ?? an ASSIGNED empty row (value null)
+ *                                  ?? a BOUND-but-empty row (value null)
  *
  * Authored rows always win and survive class removal (design law); derived
  * defaults are computed HERE, never materialized — the applier writes no
@@ -20,8 +21,13 @@
  * A node-level ASSIGNMENT (owner ruling 2026-10-23 — the v1 `node_property`
  * lineage) with no authored rows and no derived default synthesizes an
  * EMPTY row (value null, source "assigned"): the panel renders it and the
- * row's own editor authors the first value through an ordinary property.set
- * — assignment and value authoring are independent by design.
+ * row's editor authors the first value through an ordinary property.set —
+ * assignment and value authoring are independent by design. A winning
+ * ACTIVE binding with nothing on the slot synthesizes the BOUND-but-empty
+ * row (value null, source "bound", boundBy naming the binder): the virtual
+ * property shows as coming from the class until realized or valued — the
+ * virtual/realized assessment's "they should still show up as coming from
+ * the class", scalar types included.
  * Authored rows come
  * through the PG5 visible-set derivation
  * (property-values.ts: slot tombstones + element tombstones) and carry their
@@ -68,12 +74,13 @@ export interface EffectivePropertySchema {
 
 /**
  * One effective (schema, idx) row for a node. `source` tags authored vs
- * derived vs assigned-empty; `boundBy` is the class supplying the binding
- * metadata — the winning class for a default, the currently-binding class
- * for an authored row, or null when no current class binds the schema (an
- * authored value whose binding went away stays visible, marked unbound;
- * an assigned row is unbound by construction — the declaration is the
- * node's own).
+ * derived vs empty declarations (assigned = the node's own pin, bound =
+ * the class's virtual contribution); `boundBy` is the class supplying the
+ * binding metadata — the winning class for a default or a bound-empty row,
+ * the currently-binding class for an authored row, or null when no current
+ * class binds the schema (an authored value whose binding went away stays
+ * visible, marked unbound; an assigned row is unbound by construction —
+ * the declaration is the node's own).
  */
 export interface EffectiveProperty {
   propertySchemaId: string;
@@ -91,7 +98,7 @@ export interface EffectiveProperty {
    *  ISO strings on dateQualified schemas); null for derived defaults and
    *  assigned-empty rows. */
   metadata: Record<string, unknown> | null;
-  source: "authored" | "default" | "assigned";
+  source: "authored" | "default" | "assigned" | "bound";
   boundBy: string | null;
   /** PROPERTY-level: the schema's render contracts — the same for
    *  every carrier, class-bound or not. (Readonly-ness derives from the
@@ -436,6 +443,40 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       hideWhenEmpty: schema.hideWhenEmpty,
       display: schema.display,
       eligible: eligibleOf(schemaId, schema),
+    });
+  }
+
+  // 5c. BOUND-but-empty (owner ruling 2026-10-23, the virtual/realized
+  //     assessment): a winning ACTIVE binding with NO rows at all (no
+  //     authored value, no derived default, no assignment) synthesizes an
+  //     EMPTY row — the VIRTUAL property shows as coming from the class
+  //     (boundBy names the binder) until realized (property.assign) or
+  //     valued. Scalar types included: the panel's bound-empty pass used
+  //     to cover grouped types only, leaving url/email/number bindings
+  //     invisible — the effective read is the single authority for what a
+  //     node carries. Same gates as the assigned row: schema deleted →
+  //     nothing renders; hideWhenEmpty stays hidden; an ineligible node
+  //     (R4, scope narrowed after the bind) shows neither the row nor a
+  //     default. Assigned rows (5b) win the slot — the declaration is the
+  //     node's own.
+  for (const [schemaId, winner] of winnerBySchema) {
+    if (schemasWithRows.has(schemaId)) continue;
+    const schema = schemas.get(schemaId) ?? null;
+    if (schema === null) continue;
+    if (schema.hideWhenEmpty === true) continue;
+    if (!eligibleOf(schemaId, schema)) continue;
+    push(`bound:${schemaId}`, {
+      propertySchemaId: schemaId,
+      idx: 0,
+      elementId: `bound:${schemaId}`,
+      schema,
+      value: null,
+      metadata: null,
+      source: "bound",
+      boundBy: winner.classId,
+      hideWhenEmpty: schema.hideWhenEmpty,
+      display: schema.display,
+      eligible: true,
     });
   }
 

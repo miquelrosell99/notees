@@ -218,7 +218,11 @@ describe("metadata pickers (ported popups)", () => {
     expect(within(rowAfter).getByText("Doing")).not.toBeNull();
     fireEvent.click(within(rowAfter).getByRole("button", { name: "Remove Doing" }));
     await flushWrites();
-    expect(client.getEffectiveProperties(pageId)).toEqual([]);
+    // The value is gone; the bound-empty row persists (the class still
+    // supplies the property — the virtual/realized ruling).
+    expect(
+      client.getEffectiveProperties(pageId).filter((r) => r.source === "authored"),
+    ).toEqual([]);
   });
 
   it("multi_select schemas route to the selection control and write arrays", async () => {
@@ -368,7 +372,9 @@ describe("metadata pickers (ported popups)", () => {
     expect(within(rowAfter).getByText("Ada")).not.toBeNull();
     fireEvent.click(within(rowAfter).getByRole("button", { name: "Clear mentor" }));
     await flushWrites();
-    expect(client.getEffectiveProperties(teamId)).toEqual([]);
+    expect(
+      client.getEffectiveProperties(teamId).filter((r) => r.source === "authored"),
+    ).toEqual([]);
   });
 
   it("multi-value node property pills ride the shared NodePill element, tinted with the linked node's effective color", async () => {

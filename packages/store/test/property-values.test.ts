@@ -526,8 +526,20 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       );
       const owner2 = "0192a000-0000-7000-8000-0000000000e2";
       store.apply(env("object.create", { objectId: owner2, contentAst: text("N"), classIds: [CLS] }, 1727200002000));
-      // The binding row survives; the wrong-typed stored default is dropped.
-      expect(store.getEffectiveProperties(owner2)).toEqual([]);
+      // The binding row survives; the wrong-typed stored default is dropped
+      // (PC2) — and the virtual property still shows as a BOUND-but-empty
+      // row (the virtual/realized assessment): the class supplies the
+      // property, no value.
+      const rows = store.getEffectiveProperties(owner2);
+      expect(rows.some((r) => r.source === "default")).toBe(false);
+      expect(rows).toEqual([
+        expect.objectContaining({
+          propertySchemaId: SCHEMA_NUMBER,
+          source: "bound",
+          value: null,
+          boundBy: CLS,
+        }),
+      ]);
     });
 
     it("unknown schema id skips default validation (no schema FK)", () => {

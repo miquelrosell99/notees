@@ -596,9 +596,25 @@ describe("weblink extends source — inherited bindings + own-first resolution",
     await client.assignClass(pageId, weblinkId);
     await flushWrites();
 
-    // Unset fields stay hidden — a fresh weblink node shows no effective
-    // rows (the inherited DOI binding has no default; url neither).
-    expect(client.getEffectiveProperties(pageId)).toEqual([]);
+    // Unset fields SHOW as bound-empty rows (owner ruling 2026-10-23, the
+    // virtual/realized assessment — "they should still show up as coming
+    // from the class"): the inherited DOI binding and url both render
+    // empty, and url's boundBy is the class's OWN binding, not source's
+    // (own-first resolution rides the empty rows too).
+    expect(client.getEffectiveProperties(pageId)).toEqual([
+      expect.objectContaining({
+        propertySchemaId: SYSTEM_PROPERTY_UUIDS.doi,
+        source: "bound",
+        boundBy: sourceId,
+        value: null,
+      }),
+      expect.objectContaining({
+        propertySchemaId: SYSTEM_PROPERTY_UUIDS.url,
+        source: "bound",
+        boundBy: weblinkId,
+        value: null,
+      }),
+    ]);
 
     // Authored values surface through the INHERITED source bindings…
     await client.setProperty(pageId, SYSTEM_PROPERTY_UUIDS.doi, "10.1000/example", 0);

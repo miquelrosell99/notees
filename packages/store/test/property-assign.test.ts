@@ -479,4 +479,140 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.close();
     });
   });
+
+  describe("bound-but-empty: the virtual property shows as coming from the class", () => {
+    function classedStore(): Store {
+      const store = seededStore();
+      store.apply(
+        env("class.property.set", { classId: GENRE, propertySchemaId: SCHEMA_URL }, 1727200000200),
+      );
+      store.apply(
+        env(
+          "object.create",
+          { objectId: OTHER_PAGE, classIds: [GENRE], contentAst: [{ type: "text", text: "Genre page" }] },
+          1727200000060,
+        ),
+      );
+      return store;
+    }
+
+    it("a winning active binding with nothing on the slot synthesizes a bound-empty row — scalar types included", () => {
+      const store = classedStore();
+      const rows = store.getEffectiveProperties(OTHER_PAGE).filter((r) => r.propertySchemaId === SCHEMA_URL);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        source: "bound",
+        value: null,
+        boundBy: GENRE,
+        eligible: true,
+      });
+      expect(rows[0]!.elementId).toBe(`bound:${SCHEMA_URL}`);
+      store.close();
+    });
+
+    it("unrealize (property.unassign) drops the pin — the bound row still renders (the class still supplies it)", () => {
+      const store = classedStore();
+      store.apply(env("property.assign", { objectId: OTHER_PAGE, propertySchemaId: SCHEMA_URL }, 1727200001000));
+      // Realized first: the node's own declaration wins the slot.
+      let rows = store.getEffectiveProperties(OTHER_PAGE).filter((r) => r.propertySchemaId === SCHEMA_URL);
+      expect(rows[0]).toMatchObject({ source: "assigned", boundBy: null });
+      // Unrealize — the binding carries the row now.
+      store.apply(env("property.unassign", { objectId: OTHER_PAGE, propertySchemaId: SCHEMA_URL }, 1727200001100));
+      expect(assignmentRow(store, OTHER_PAGE, SCHEMA_URL)).toBeUndefined();
+      rows = store.getEffectiveProperties(OTHER_PAGE).filter((r) => r.propertySchemaId === SCHEMA_URL);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ source: "bound", boundBy: GENRE, value: null });
+      store.close();
+    });
+
+    it("an authored value or a derived default shadows the bound-empty row", () => {
+      const store = classedStore();
+      // Default first: Rating binds at Genre in seededStore? — bind it here
+      // for a clean single assertion.
+      store.apply(
+        env("class.property.set", { classId: GENRE, propertySchemaId: SCHEMA_RATING }, 1727200000210),
+      );
+      store.apply(
+        env("property.set", { objectId: OTHER_PAGE, propertySchemaId: SCHEMA_URL, value: "https://x.org" }, 1727200001000),
+      );
+      const rows = store.getEffectiveProperties(OTHER_PAGE);
+      const url = rows.filter((r) => r.propertySchemaId === SCHEMA_URL);
+      expect(url).toHaveLength(1);
+      expect(url[0]).toMatchObject({ source: "authored", value: "https://x.org" });
+      const rating = rows.filter((r) => r.propertySchemaId === SCHEMA_RATING);
+      expect(rating).toHaveLength(1);
+      expect(rating[0]).toMatchObject({ source: "default", value: 0, boundBy: GENRE });
+      expect(rows.some((r) => r.source === "bound")).toBe(false);
+      store.close();
+    });
+
+    it("hideWhenEmpty suppresses the bound-empty row; R4 suppresses it for an ineligible node", () => {
+      // hideWhenEmpty:
+      const store = classedStore();
+      store.apply(
+        env("propertySchema.update", { propertySchemaId: SCHEMA_URL, hideWhenEmpty: true }, 1727200000300),
+      );
+      expect(store.getEffectiveProperties(OTHER_PAGE)).toHaveLength(0);
+      store.close();
+
+      // R4: narrow the schema's scope AFTER the binding — the node no
+      // longer qualifies, so neither the row nor (had one existed) a
+      // default renders. (A second class the node does NOT carry.)
+      const store2 = classedStore();
+      const elsewhere = "0192a000-0000-7000-8000-0000000000f1";
+      store2.apply(env("class.create", { classId: elsewhere, contentAst: [{ type: "text", text: "Elsewhere" }] }, 1727200000300));
+      store2.apply(
+        env("propertySchema.update", { propertySchemaId: SCHEMA_URL, scopeClassIds: [elsewhere] }, 1727200000400),
+      );
+      expect(
+        store2.getEffectiveProperties(OTHER_PAGE).filter((r) => r.propertySchemaId === SCHEMA_URL),
+      ).toHaveLength(0);
+      store2.close();
+    });
+
+    it("bound rows ride the main alphabetical block; unbound authored still sorts last", () => {
+      const store = seededStore();
+      const moodClass = "0192a000-0000-7000-8000-0000000000f2";
+      store.apply(env("class.create", { classId: moodClass, contentAst: [{ type: "text", text: "MoodClass" }] }, 1727200000300));
+      store.apply(
+        env("class.property.set", { classId: GENRE, propertySchemaId: SCHEMA_URL }, 1727200000200),
+      );
+      // Scope Mood to MoodClass FIRST (R5: a binding on a class the scope
+      // excludes is dead config), then bind it there.
+      store.apply(
+        env("propertySchema.update", { propertySchemaId: SCHEMA_PRIVATE, scopeClassIds: [moodClass] }, 1727200000250),
+      );
+      store.apply(
+        env("class.property.set", { classId: moodClass, propertySchemaId: SCHEMA_PRIVATE }, 1727200000210),
+      );
+      store.apply(
+        env(
+          "object.create",
+          {
+            objectId: OTHER_PAGE,
+            classIds: [GENRE, moodClass],
+            contentAst: [{ type: "text", text: "Genre page" }],
+          },
+          1727200000060,
+        ),
+      );
+      store.apply(
+        env("property.set", { objectId: OTHER_PAGE, propertySchemaId: SCHEMA_PRIVATE, value: "noir" }, 1727200001000),
+      );
+      // Remove only MoodClass — Mood's value survives unbound; URL stays
+      // bound via Genre.
+      store.apply(env("class.unassign", { objectId: OTHER_PAGE, classId: moodClass }, 1727200001100));
+      const rows = store.getEffectiveProperties(OTHER_PAGE);
+      expect(rows[rows.length - 1]).toMatchObject({
+        propertySchemaId: SCHEMA_PRIVATE,
+        source: "authored",
+        boundBy: null,
+        value: "noir",
+      });
+      const url = rows.filter((r) => r.propertySchemaId === SCHEMA_URL);
+      expect(url).toHaveLength(1);
+      expect(url[0]).toMatchObject({ source: "bound", boundBy: GENRE });
+      store.close();
+    });
+  });
 });
