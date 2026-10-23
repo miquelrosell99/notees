@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 29;
+export const SCHEMA_VERSION = 30;
 
 /**
  * The render-path list-reads index: composite for the
@@ -568,6 +568,43 @@ CREATE TABLE IF NOT EXISTS workspace_feature (
     hlc_logical INTEGER NOT NULL DEFAULT 0,
     actor_id TEXT,
     PRIMARY KEY (workspace_id, feature)
+);
+
+-- External-id mappings for importer/sync plugins (the external_ref.* ops,
+-- owner 2026-10-23): durable external -> internal id pairs (a Google
+-- Calendar event UID, a Readwise highlight id -> the notees node uuid) so
+-- re-runs update instead of duplicating. One LIVE mapping per ref — LWW by
+-- envelope (hlc, actor) on the ref key, so a re-set moves the mapping and
+-- racing writes converge on the higher tuple; a node may carry MANY refs
+-- (the reverse read scans by node_id). No referential integrity by design
+-- (the property_value precedent): a mapping may name a node another device
+-- has not synced yet. A node's HARD delete purges its live rows (the
+-- subtreeIds pattern in the object.delete applier); soft-trash keeps them.
+CREATE TABLE IF NOT EXISTS external_ref (
+    ref TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    hlc_physical INTEGER NOT NULL DEFAULT 0,
+    hlc_logical INTEGER NOT NULL DEFAULT 0,
+    actor_id TEXT,
+    PRIMARY KEY (workspace_id, ref)
+);
+
+CREATE INDEX IF NOT EXISTS idx_external_ref_node ON external_ref (node_id);
+
+-- The delete side of the ref-key LWW (the property_value_tombstone
+-- precedent): every winning delete records its causality — including a
+-- delete of an UNMAPPED ref — so a stale set delivered after the winning
+-- delete is dropped on every replica and wipe -> replay converges under
+-- any delivery order. Keyed by (workspace, ref) only: the tombstones of a
+-- hard-deleted node's refs survive it (they bound garbage to that ref name).
+CREATE TABLE IF NOT EXISTS external_ref_tombstone (
+    ref TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    hlc_physical INTEGER NOT NULL DEFAULT 0,
+    hlc_logical INTEGER NOT NULL DEFAULT 0,
+    actor_id TEXT,
+    PRIMARY KEY (workspace_id, ref)
 );
 `;
 
@@ -1296,5 +1333,29 @@ export function migrate(
         PRIMARY KEY (node_id, property_schema_id)
     );
     CREATE INDEX IF NOT EXISTS idx_node_property_node ON node_property (node_id);
+  `);
+  // v29 -> v30 (owner requirement 2026-10-23): external-id mappings for
+  // importer/sync plugins — the external_ref.* op family. Purely additive:
+  // CREATE IF NOT EXISTS is a no-op for fresh v30 creates; existing
+  // databases gain the empty tables (the workspace_feature precedent).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS external_ref (
+        ref TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        node_id TEXT NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        PRIMARY KEY (workspace_id, ref)
+    );
+    CREATE INDEX IF NOT EXISTS idx_external_ref_node ON external_ref (node_id);
+    CREATE TABLE IF NOT EXISTS external_ref_tombstone (
+        ref TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        PRIMARY KEY (workspace_id, ref)
+    );
   `);
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

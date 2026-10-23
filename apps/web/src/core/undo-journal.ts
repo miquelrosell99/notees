@@ -88,6 +88,9 @@
  *  - collection.member.*  → the complement (membership captured; a redundant
  *                         add/remove is a no-op, not journaled).
  *  - workspace.feature.set→ the same op with the captured prior enabled state.
+ *  - external_ref.set      → delete when the ref was unmapped, else the same
+ *    op restoring the captured prior carrier (a move undoes to the old node).
+ *  - external_ref.delete   → the same op restoring the captured prior carrier.
  *
  * Text coalescing: contiguous contentAst-only updates of one node inside a
  * short window merge into ONE entry, so typing-undo is paragraph-grained
@@ -256,6 +259,8 @@ export interface UndoCaptureSource {
   collectionMembership(collectionId: string, objectId: string): boolean;
   /** Absent toggle row means enabled (the F2 empty-table default). */
   featureEnabled(feature: string): boolean;
+  /** The LIVE external-id mapping's node id before the op (null = unmapped). */
+  externalRefTarget(ref: string): string | null;
 }
 
 // --- inversion -----------------------------------------------------------------
@@ -842,6 +847,27 @@ export function invertEnvelope(
         },
       ];
     }
+    case "external_ref.set": {
+      const ref = asString(p.ref);
+      const nodeId = asString(p.nodeId);
+      if (ref === null || nodeId === null) return null;
+      const prior = capture.externalRefTarget(ref);
+      if (prior === nodeId) return null; // redundant set — no-op
+      if (prior !== null) {
+        // A re-set moved the mapping — restore the previous carrier.
+        return [
+          { opType: "external_ref.set", payload: { ref, nodeId: prior }, affected: [prior, nodeId] },
+        ];
+      }
+      return [{ opType: "external_ref.delete", payload: { ref }, affected: [nodeId] }];
+    }
+    case "external_ref.delete": {
+      const ref = asString(p.ref);
+      if (ref === null) return null;
+      const prior = capture.externalRefTarget(ref);
+      if (prior === null) return null; // nothing mapped — no-op
+      return [{ opType: "external_ref.set", payload: { ref, nodeId: prior }, affected: [prior] }];
+    }
     default:
       return null;
   }
@@ -876,6 +902,8 @@ const OP_VERBS: Record<string, string> = {
   "collection.member.add": "add to collection",
   "collection.member.remove": "remove from collection",
   "workspace.feature.set": "toggle feature",
+  "external_ref.set": "set external ref",
+  "external_ref.delete": "remove external ref",
 };
 
 /**

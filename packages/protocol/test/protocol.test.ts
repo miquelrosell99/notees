@@ -42,7 +42,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the thirty-nine required fixtures", () => {
+  it("has exactly the forty required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
@@ -57,6 +57,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "code-block.json",
       "embed-ref-view.json",
       "envelope-minimal.json",
+      "external-ref.json",
       "heading-content.json",
       "hr.json",
       "is-embedded-parent-page.json",
@@ -549,6 +550,59 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       payloadSchemaFor("workspace.feature.set")!.safeParse({ feature: "journals", enabled: false })
         .success,
     ).toBe(false);
+  });
+
+  it("external-ref fixture pins the plugin-mapping lifecycle: set, many-refs-per-node, re-set moves, delete, the LWW races, and the hard-delete purge", () => {
+    const fixture = fixtures.find((f) => f.name === "external-ref.json")!;
+    const A = "0192a000-0000-7000-8000-000000000b10";
+    const B = "0192a000-0000-7000-8000-000000000b11";
+    const sets = fixture.envelopes.filter((env) => env.opType === "external_ref.set");
+    const deletes = fixture.envelopes.filter((env) => env.opType === "external_ref.delete");
+    // The bare payload shapes — the set carries exactly {ref, nodeId}, the
+    // delete exactly {ref}; there is no reverse payload (the reverse read
+    // scans the derived table).
+    for (const env of sets) {
+      expect(Object.keys(env.payload as Record<string, unknown>).sort()).toEqual(["nodeId", "ref"]);
+    }
+    for (const env of deletes) {
+      expect(Object.keys(env.payload as Record<string, unknown>)).toEqual(["ref"]);
+    }
+    // gcal:abc is set on A then re-set on B — the move is a plain newer set…
+    const gcal = sets.filter((env) => (env.payload as { ref: string }).ref === "gcal:event:abc123@google.com");
+    expect(gcal.map((env) => (env.payload as { nodeId: string }).nodeId)).toEqual([A, B]);
+    // …and readwise:highlight:12345 is deleted after its set.
+    const readwiseSet = sets.find((env) => (env.payload as { ref: string }).ref === "readwise:highlight:12345")!;
+    const readwiseDelete = deletes.find((env) => (env.payload as { ref: string }).ref === "readwise:highlight:12345")!;
+    expect(compareHlc(readwiseSet.hlc as { physical: number; logical: number }, readwiseDelete.hlc as { physical: number; logical: number })).toBeLessThan(0);
+    // The readitlater ref races two devices: the phone's later set (on B) wins.
+    const race = sets.filter((env) => (env.payload as { ref: string }).ref === "readitlater:entry:7788");
+    expect(race.map((env) => (env.payload as { nodeId: string }).nodeId)).toEqual([A, B]);
+    expect(compareHlc(race[0]!.hlc as { physical: number; logical: number }, race[1]!.hlc as { physical: number; logical: number })).toBeLessThan(0);
+    // def456's delete lands AFTER its set and wins; ghi789 survives until
+    // the fixture's final permanent delete of A purges it.
+    const last = fixture.envelopes[fixture.envelopes.length - 1]!;
+    expect(last.opType).toBe("object.delete");
+    expect(last.payload).toEqual({ objectId: A, permanent: true });
+    // Strict schema: an empty ref, an oversize ref, a missing/foreign-keyed
+    // nodeId, and any extra key are rejected outright.
+    expect(payloadSchemaFor("external_ref.set")!.safeParse({ ref: "", nodeId: A }).success).toBe(false);
+    expect(
+      payloadSchemaFor("external_ref.set")!.safeParse({ ref: "x".repeat(513), nodeId: A }).success,
+    ).toBe(false);
+    expect(payloadSchemaFor("external_ref.set")!.safeParse({ ref: "gcal:event:x" }).success).toBe(false);
+    expect(
+      payloadSchemaFor("external_ref.set")!.safeParse({ ref: "gcal:event:x", nodeId: "not-a-uuid" }).success,
+    ).toBe(false);
+    expect(
+      payloadSchemaFor("external_ref.set")!.safeParse({ ref: "gcal:event:x", nodeId: A, provider: "gcal" }).success,
+    ).toBe(false);
+    expect(payloadSchemaFor("external_ref.delete")!.safeParse({ ref: "" }).success).toBe(false);
+    expect(
+      payloadSchemaFor("external_ref.delete")!.safeParse({ ref: "gcal:event:x", nodeId: A }).success,
+    ).toBe(false);
+    // Applicable in sequence: HLCs strictly ascend.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
   });
 
   it("object-update-active fixture archives then unarchives via the active bit", () => {

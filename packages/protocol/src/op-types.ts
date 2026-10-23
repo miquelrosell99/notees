@@ -747,6 +747,57 @@ export const workspaceFeatureSetPayload = z
   })
   .strict();
 
+// --- external refs ------------------------------------------------------------
+
+/**
+ * External-id mappings for importer/sync plugins (owner requirement
+ * 2026-10-23 — the plugin mapping substrate): a durable, per-workspace,
+ * log-carried `externalId -> nodeId` map so re-runs of an importer or a
+ * provider sync UPDATE the mapped node instead of duplicating it — a Google
+ * Calendar event UID, a Readwise highlight id, a read-it-later entry id
+ * resolving to the notees node uuid. The durable home is the OPERATION LOG
+ * (not a device table — derived SQLite DBs are wipe-rebuildable; not server
+ * prefs — mappings are per-workspace, plugin-owned).
+ *
+ * `ref` is the caller-namespaced key `<provider>:<kind>:<externalId>`
+ * (e.g. `gcal:event:abc123@google.com`, `readwise:highlight:12345`); the
+ * protocol does NOT parse the namespace — it is opaque — but the length is
+ * capped and empty/oversize refs fail loud. One mapping per ref: LWW by
+ * envelope (hlc, actor) on the ref key, so a re-set MOVES the mapping to a
+ * different node and a racing pair converges on the higher (hlc, actor).
+ * A node may carry MANY refs (the same event synced from Google AND Outlook
+ * lands two refs on one node); the reverse read (`externalRefsOf`) scans the
+ * derived table.
+ *
+ * The derived state is one live row per ref plus a delete tombstone
+ * (the property_value_tombstone precedent): a delete of an unmapped ref
+ * still records its causality, so a stale set delivered AFTER the winning
+ * delete is dropped on every replica and wipe -> replay stays convergent
+ * under any delivery order. The rows carry no referential integrity (the
+ * property_value precedent — a mapping may name a node another device has
+ * not synced yet); a node's HARD delete purges its live rows (the
+ * subtreeIds pattern in the object.delete applier), soft-trash keeps them.
+ * See SCHEMA.md "External-id mappings".
+ */
+export const EXTERNAL_REF_MAX_LENGTH = 512;
+
+export const externalRefKeySchema = z.string().min(1).max(EXTERNAL_REF_MAX_LENGTH);
+
+export const externalRefSetPayload = z
+  .object({
+    /** The caller-namespaced external key (opaque to the protocol). */
+    ref: externalRefKeySchema,
+    /** The mapped node — created elsewhere; no FK, no existence check. */
+    nodeId: uuid,
+  })
+  .strict();
+
+export const externalRefDeletePayload = z
+  .object({
+    ref: externalRefKeySchema,
+  })
+  .strict();
+
 // --- registry ----------------------------------------------------------------
 
 export const OP_PAYLOAD_SCHEMAS = {
@@ -777,6 +828,8 @@ export const OP_PAYLOAD_SCHEMAS = {
   "collection.member.add": collectionMemberAddPayload,
   "collection.member.remove": collectionMemberRemovePayload,
   "workspace.feature.set": workspaceFeatureSetPayload,
+  "external_ref.set": externalRefSetPayload,
+  "external_ref.delete": externalRefDeletePayload,
 } as const;
 
 export type OpType = keyof typeof OP_PAYLOAD_SCHEMAS;
