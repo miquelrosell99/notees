@@ -889,7 +889,6 @@ export function useSectionViewResolution(
 ): SectionViewResolution {
   const [probed, setProbed] = useState<{ key: string; items?: NodeCollectionItem[]; groups?: CollectionGroup[] | undefined; ungrouped?: NodeCollectionItem[] | undefined; error?: string } | null>(null);
   const [version, setVersion] = useState(0);
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
   const rawAst = view?.queryAst ?? null;
   const astKey = JSON.stringify(rawAst ?? null);
@@ -907,6 +906,14 @@ export function useSectionViewResolution(
 
   const base: SectionViewResolution = { items, groups, ungrouped, error: null };
   const needsProbe = plan !== null && !("error" in plan) && plan.needsProbe;
+  // The notification version only feeds the probe path's re-probe signature.
+  // Non-probe collections (every default view, incl. the page body) subscribe
+  // to nothing — an unconditional subscription re-rendered the whole
+  // collection on every client notification (op-lag slice 4).
+  useEffect(() => {
+    if (!needsProbe) return;
+    return client.subscribe(() => setVersion((v) => v + 1));
+  }, [client, needsProbe]);
   const signature = needsProbe
     ? `${astKey}|${items.map((item) => item.node.id).join(",")}|${(groups ?? []).map((group) => group.id).join(",")}|${version}`
     : "";

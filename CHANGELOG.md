@@ -9,6 +9,44 @@ predating this file.
 
 ## 2026-10-23
 
+- **perf(web): the PageView re-render is scoped — a notification that does
+  not name the open page no longer re-renders the view or its block rows.**
+  Trigger: the op-lag perf plan (slice 4) — PageView's subscription bumped a
+  version on EVERY client notification, re-rendering the whole block tree
+  (all BlockRows) even when the refresh changed nothing on this page; a
+  background edit to any other page, inbox capture, or sync catch-up
+  re-rendered every open row. The pre-filter: a scoped payload
+  (`affectedNodeIds` present, `structural` falsy) that does not include the
+  page id skips the bump — sound because the payload is ancestor-expanded
+  (an edit inside the page's subtree already carries the page id, so the
+  check is set membership, not a tree walk) and every read the view renders
+  is either scoped to the page id or owned by a self-subscribing child (the
+  sections). `WorkerClient.subscribe` now forwards the change payload to
+  listeners (it was dropped) so the filter works on the shipped path; the
+  in-process client already passed it. Row-level `React.memo` was surveyed
+  and REJECTED as unsound-by-construction: `useOutlinerValue` returns a
+  fresh context value (new object + closures) every render, so context
+  consumers re-render regardless of memo — stabilizing it needs a cascade
+  of callback/plumbing changes across the ~1100-line PageView (deferred;
+  the pre-filter already removes the off-page re-render cost). Survey
+  finding fixed in the same slice: `useSectionViewResolution` subscribed to
+  EVERY notification and bumped state even when its version fed nothing
+  (the page body is a non-probe collection) — the subscription now gates on
+  `needsProbe`, which alone was re-rendering every row on every notification
+  through NodeCollection. `apps/web/src/ui/PageView.tsx` (the pre-filter),
+  `apps/web/src/core/worker-client.ts` (payload-forwarding subscribe),
+  `apps/web/src/features/collection/sectionViewResolve.ts` (the gated
+  subscription), `apps/web/test/pageview-render-filter.test.tsx` (new —
+  render probes: PageView's per-render `pageVariantOf` call + a BlockRow
+  module spy; an off-page scoped write renders neither the view nor any
+  row; on-page/title/block edits and structural changes still re-render).
+  No wire/model change; no client lockstep.
+  - **Verification**: the new spec 4/4; the page/block/outliner/dnd/edit
+    suites (26 files — block-*, editor-*, outliner-*, page-*, title-editor,
+    workspace-dnd, extract-to-page, find-in-page, query-block…) 328/328;
+    section-views + verb-create-bind + child-query 39/39;
+    `tsc --noEmit` clean. Full repo gate pending (parent session).
+
 - **fix(web): the outliner's split / merge keyboard contract completes — the
   mid-text Enter split nests the tail as the FIRST CHILD when the block has
   children (the Roam rule; they stayed with the head only for the empty/end
