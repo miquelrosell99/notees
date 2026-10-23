@@ -188,7 +188,7 @@ describe("ClassCreateModal gallery mode (#14, the classes gallery)", () => {
   });
 });
 
-describe("weblink→source extension heal (existing workspaces)", () => {
+describe("web_page→source extension heal (existing workspaces)", () => {
   it("materializes the edge idempotently on the pre-ruling workspace shape", async () => {
     const client = await seedClient();
     const { ensureWeblinkExtendsSource } = await import(
@@ -196,39 +196,39 @@ describe("weblink→source extension heal (existing workspaces)", () => {
     );
     // The pre-ruling shape: the weblink class + its url family exist,
     // the source edge predates the ruling.
-    await client.createClass("Web link", { id: SYSTEM_CLASS_UUIDS.weblink });
+    await client.createClass("Web link", { id: SYSTEM_CLASS_UUIDS.web_page });
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.url,
       name: "URL",
       type: "url",
-      scopeClassIds: [SYSTEM_CLASS_UUIDS.weblink],
+      scopeClassIds: [SYSTEM_CLASS_UUIDS.web_page],
     });
-    await client.setClassProperty(SYSTEM_CLASS_UUIDS.weblink, SYSTEM_PROPERTY_UUIDS.url, {});
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.web_page, SYSTEM_PROPERTY_UUIDS.url, {});
     await flushSync();
-    expect(client.getClassParents(SYSTEM_CLASS_UUIDS.weblink)).toEqual([]);
+    expect(client.getClassParents(SYSTEM_CLASS_UUIDS.web_page)).toEqual([]);
 
     await ensureWeblinkExtendsSource(client);
     await flushSync();
 
     // The edge landed (deploySystemClass healed the source root first), and
     // the weblink's own family is untouched.
-    expect(client.getClassParents(SYSTEM_CLASS_UUIDS.weblink)).toContain(
+    expect(client.getClassParents(SYSTEM_CLASS_UUIDS.web_page)).toContain(
       SYSTEM_CLASS_UUIDS.source,
     );
     expect(client.getNode(SYSTEM_CLASS_UUIDS.source)).not.toBeUndefined();
     const bound = client
-      .getClassBindings(SYSTEM_CLASS_UUIDS.weblink)
+      .getClassBindings(SYSTEM_CLASS_UUIDS.web_page)
       .map((b) => b.propertySchemaId);
     expect(bound).toContain(SYSTEM_PROPERTY_UUIDS.url);
 
     // Idempotent: a second run is a complete no-op.
     const snapshot = {
-      parents: [...client.getClassParents(SYSTEM_CLASS_UUIDS.weblink)].sort(),
+      parents: [...client.getClassParents(SYSTEM_CLASS_UUIDS.web_page)].sort(),
       schemas: client.listPropertySchemas().map((s) => s.id).sort(),
     };
     await ensureWeblinkExtendsSource(client);
     await flushSync();
-    expect([...client.getClassParents(SYSTEM_CLASS_UUIDS.weblink)].sort()).toEqual(
+    expect([...client.getClassParents(SYSTEM_CLASS_UUIDS.web_page)].sort()).toEqual(
       snapshot.parents,
     );
     expect(client.listPropertySchemas().map((s) => s.id).sort()).toEqual(snapshot.schemas);
@@ -239,13 +239,13 @@ describe("weblink→source extension heal (existing workspaces)", () => {
     const { deploySystemClass, ensureWeblinkExtendsSource } = await import(
       "../src/features/classview/systemClassDeploy.js"
     );
-    await deploySystemClass(client, "weblink");
+    await deploySystemClass(client, "web_page");
     await flushSync();
-    const seededParents = [...client.getClassParents(SYSTEM_CLASS_UUIDS.weblink)].sort();
+    const seededParents = [...client.getClassParents(SYSTEM_CLASS_UUIDS.web_page)].sort();
 
     await ensureWeblinkExtendsSource(client);
     await flushSync();
-    expect([...client.getClassParents(SYSTEM_CLASS_UUIDS.weblink)].sort()).toEqual(seededParents);
+    expect([...client.getClassParents(SYSTEM_CLASS_UUIDS.web_page)].sort()).toEqual(seededParents);
   });
 });
 

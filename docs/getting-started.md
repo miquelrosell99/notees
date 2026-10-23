@@ -44,7 +44,7 @@ curl -s localhost:8377/healthz                       # {"ok":true}
 curl -s localhost:8377/api/version                # {"name":"notees-server","version":"2.0.0-m6","protocolVersion":3,...}
 ```
 
-A fresh workspace seeds itself: a starter class catalog (`person`, `organization`, the `source` tree with its `book`/`paper`/`article`/`document`/`movie`/`thesis` children, `task`, `event`, `meeting` (an event subclass), `birthday` (an event subclass linking to a person), `whiteboard`, `collection`, `query`, `template`, `note`, the `day`/`month`/`year` journals, …), plus an `inbox` page.
+A fresh workspace seeds itself: a starter class catalog (`person`, `organization`, the `source` tree with its `book`/`journal_article`/`document`/`film`/`thesis` children, `task`, `event`, `meeting` (an event subclass), `birthday` (an event subclass linking to a person), `whiteboard`, `collection`, `query`, `template`, `note`, the `day`/`month`/`year` journals, …), plus an `inbox` page.
 
 ## The web app
 

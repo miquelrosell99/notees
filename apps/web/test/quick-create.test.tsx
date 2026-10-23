@@ -63,11 +63,11 @@ async function seedClient(): Promise<WorkspaceClient> {
 
 /** Author the source/agent family the way the server seed does. */
 async function seedFamilies(client: WorkspaceClient): Promise<void> {
-  for (const name of ["source", "book", "paper", "agent", "person", "organization"] as const) {
+  for (const name of ["source", "book", "journal_article", "agent", "person", "organization"] as const) {
     await client.createClass(name, { id: SYSTEM_CLASS_UUIDS[name] });
   }
   await client.setClassExtends(SYSTEM_CLASS_UUIDS.book, [SYSTEM_CLASS_UUIDS.source]);
-  await client.setClassExtends(SYSTEM_CLASS_UUIDS.paper, [SYSTEM_CLASS_UUIDS.source]);
+  await client.setClassExtends(SYSTEM_CLASS_UUIDS.journal_article, [SYSTEM_CLASS_UUIDS.source]);
   await client.setClassExtends(SYSTEM_CLASS_UUIDS.person, [SYSTEM_CLASS_UUIDS.agent]);
   await client.setClassExtends(SYSTEM_CLASS_UUIDS.organization, [SYSTEM_CLASS_UUIDS.agent]);
 }
@@ -80,9 +80,9 @@ describe("resolveQuickCreate", () => {
       kind: "source",
       defaultClassId: SYSTEM_CLASS_UUIDS.book,
     });
-    expect(resolveQuickCreate(client, [SYSTEM_CLASS_UUIDS.paper])).toEqual({
+    expect(resolveQuickCreate(client, [SYSTEM_CLASS_UUIDS.journal_article])).toEqual({
       kind: "source",
-      defaultClassId: SYSTEM_CLASS_UUIDS.paper,
+      defaultClassId: SYSTEM_CLASS_UUIDS.journal_article,
     });
   });
 
@@ -133,15 +133,14 @@ describe("resolveQuickCreate", () => {
     expect(options.map((option) => option.value).sort()).toEqual(
       [
         SYSTEM_CLASS_UUIDS.book,
-        SYSTEM_CLASS_UUIDS.paper,
-        SYSTEM_CLASS_UUIDS.article,
+        SYSTEM_CLASS_UUIDS.journal_article,
         SYSTEM_CLASS_UUIDS.thesis,
         SYSTEM_CLASS_UUIDS.document,
-        SYSTEM_CLASS_UUIDS.movie,
+        SYSTEM_CLASS_UUIDS.film,
         SYSTEM_CLASS_UUIDS.song,
         SYSTEM_CLASS_UUIDS.tv_series,
         SYSTEM_CLASS_UUIDS.conference,
-        SYSTEM_CLASS_UUIDS.weblink,
+        SYSTEM_CLASS_UUIDS.web_page,
       ].sort(),
     );
   });
