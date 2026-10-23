@@ -196,7 +196,11 @@ export function ReferenceList({
     return map;
   }, [client]);
   const items: NodeCollectionItem[] = entries.map((entry) => ({
-    node: entry.source,
+    // The reference reads are scope-classed (op-lag slice 3): a source
+    // edited without touching this page leaves its pooled snapshot stale —
+    // each row re-reads its source through the scope-classed getNode, which
+    // the source's own edit invalidates.
+    node: client.getNode(entry.source.id) ?? entry.source,
     meta: { containingPageId: entry.containingPageId, verb: entry.verb },
   }));
   const { standalone, groups } = groupByContainingPage(client, items, onOpenPage);

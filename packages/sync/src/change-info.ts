@@ -45,10 +45,14 @@ export function isListingAffectingOp(opType: string): boolean {
 /**
  * Envelope-level classification: like isListingAffectingOp, but also catches
  * `object.update` carriers whose payload moves a node in/out of the page
- * listings — the `isEmbedded` promotion/demotion toggle (Revision 12) and
- * the `active` archival bit (owner ruling 2026-10-22) — even though the op
- * type is the content carrier. (Store ChangeSummaries do not carry the
- * payload, so the remote path classifies off the envelopes instead.)
+ * listings or re-chains its alias family — the `isEmbedded` promotion/demotion
+ * toggle (Revision 12), the `active` archival bit (owner ruling 2026-10-22),
+ * and `aliasedNodeId` (the reresolve of every alias-family edge's
+ * `resolved_target_id` changes those terminals' scope-classed backlink/
+ * reference reads, and the summaries cannot see it — reresolveEdgeTargets
+ * reports nothing) — even though the op type is the content carrier. (Store
+ * ChangeSummaries do not carry the payload, so the remote path classifies off
+ * the envelopes instead.)
  */
 export function isListingAffectingEnvelope(envelope: {
   opType: string;
@@ -59,7 +63,7 @@ export function isListingAffectingEnvelope(envelope: {
     envelope.opType === "object.update" &&
     typeof envelope.payload === "object" &&
     envelope.payload !== null &&
-    ("isEmbedded" in envelope.payload || "active" in envelope.payload)
+    ("isEmbedded" in envelope.payload || "active" in envelope.payload || "aliasedNodeId" in envelope.payload)
   );
 }
 

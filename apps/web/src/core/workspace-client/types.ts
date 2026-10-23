@@ -91,9 +91,15 @@ export interface ChangeNotification {
 /**
  * Payload beyond this many expanded ids falls back to `structural: true`:
  * the invalidation message must stay small, and at this scale refetching
- * everything is cheaper than resolving scopes anyway.
+ * everything is cheaper than resolving scopes anyway. 1024 (owner 2026-10-23,
+ * slice 3): summaries now carry mention/link targets, so a mention-dense
+ * edit legitimately reaches hundreds of ids — at 256 those edits collapsed
+ * to full-structure invalidation and re-ran every "structure"-class read
+ * (the slice-2 regression). 1024 ids ≈ 40 KB worst case, still bounded;
+ * expandAffectedAncestors' per-id cost (one parent-pointer walk, deduped
+ * across the set) stays trivial at this size.
  */
-export const CHANGE_AFFECT_CAP = 256;
+export const CHANGE_AFFECT_CAP = 1024;
 
 export interface ClientNode {
   id: string;
