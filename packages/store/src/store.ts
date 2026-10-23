@@ -776,18 +776,28 @@ export class Store {
   /**
    * The winning feature-toggle row, or null when the workspace never
    * toggled it. Callers read through `isFeatureEnabled` for the F2 default
-   * (absent row = enabled).
+   * (absent row = enabled). `settings` is the winning payload's optional
+   * configuration record — undefined when the winning payload carried no
+   * settings (the stored NULL; distinct from `{}`).
    */
   getFeatureRow(
     workspaceId: string,
     feature: string,
-  ): { feature: string; enabled: boolean } | undefined {
+  ): { feature: string; enabled: boolean; settings?: Record<string, unknown> | undefined } | undefined {
     const row = this.db
       .prepare(
-        "SELECT feature, enabled FROM workspace_feature WHERE workspace_id = ? AND feature = ?",
+        "SELECT feature, enabled, settings FROM workspace_feature WHERE workspace_id = ? AND feature = ?",
       )
-      .get(workspaceId, feature) as { feature: string; enabled: number } | undefined;
-    return row === undefined ? undefined : { feature: row.feature, enabled: row.enabled === 1 };
+      .get(workspaceId, feature) as
+      | { feature: string; enabled: number; settings: string | null }
+      | undefined;
+    return row === undefined
+      ? undefined
+      : {
+          feature: row.feature,
+          enabled: row.enabled === 1,
+          settings: row.settings === null ? undefined : (JSON.parse(row.settings) as Record<string, unknown>),
+        };
   }
 
   /** F2 default semantics: an absent row means ENABLED (the empty table is all-ON). */
@@ -796,13 +806,19 @@ export class Store {
   }
 
   /** All toggle rows the workspace has (untoggled features are absent, not listed). */
-  listFeatureRows(workspaceId: string): Array<{ feature: string; enabled: boolean }> {
+  listFeatureRows(
+    workspaceId: string,
+  ): Array<{ feature: string; enabled: boolean; settings?: Record<string, unknown> | undefined }> {
     const rows = this.db
       .prepare(
-        "SELECT feature, enabled FROM workspace_feature WHERE workspace_id = ? ORDER BY feature",
+        "SELECT feature, enabled, settings FROM workspace_feature WHERE workspace_id = ? ORDER BY feature",
       )
-      .all(workspaceId) as Array<{ feature: string; enabled: number }>;
-    return rows.map((row) => ({ feature: row.feature, enabled: row.enabled === 1 }));
+      .all(workspaceId) as Array<{ feature: string; enabled: number; settings: string | null }>;
+    return rows.map((row) => ({
+      feature: row.feature,
+      enabled: row.enabled === 1,
+      settings: row.settings === null ? undefined : (JSON.parse(row.settings) as Record<string, unknown>),
+    }));
   }
 
   /**

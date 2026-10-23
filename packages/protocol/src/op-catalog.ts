@@ -179,8 +179,12 @@ export const OP_CATALOG: OpCatalogEntry[] = [
   {
     opType: "workspace.feature.set",
     description:
-      "Per-workspace feature toggle, LWW by HLC on (workspace, feature); absent row = enabled. The five family toggles derive the membership-preserving archival of the feature's managed system classes — toggle-off hides surfaces and keeps data; object.delete on a family base class routes here (the delete-as-disable path). The journal toggle gates the journal surfaces (nav view, Today-page management) — the date classes stay always-on.",
-    example: { feature: "tasks", enabled: false },
+      "Per-workspace feature toggle, LWW by HLC on (workspace, feature); absent row = enabled. The five family toggles derive the membership-preserving archival of the feature's managed system classes — toggle-off hides surfaces and keeps data; object.delete on a family base class routes here (the delete-as-disable path). The journal toggle gates the journal surfaces (nav view, Today-page management) — the date classes stay always-on. An optional `settings` record carries per-feature configuration (feature-scoped vocabulary, e.g. the Sources citekey pattern); it is LWW with the row — a winning payload without `settings` stores NULL and reads back undefined.",
+    example: {
+      feature: "sources",
+      enabled: true,
+      settings: { citekeyPattern: "[auth:lower][year]", autoCitekey: true },
+    },
     affected: "none",
   },
 ];
