@@ -1,9 +1,7 @@
 /**
  * CalendarView pure-logic tests: the local-day helpers, the ISO week, the
  * created-today UTC bounds from a local date, the open-task AST (negated-eq
- * arms — never neq), the scheduled/overdue/future partition, and the
- * quick-create chip qualification (task prefers taskScheduled; date-chain
- * and class system classes excluded).
+ * arms — never neq), and the scheduled/overdue/future partition.
  */
 
 import { describe, expect, it } from "vitest";
@@ -19,7 +17,6 @@ import {
   buildOpenTasksAst,
   closedStatusOptionIds,
   createdTodayBounds,
-  dateChipCandidates,
   isoWeekNumber,
   partitionOpenTasks,
   todayIsoLocal,
@@ -219,105 +216,5 @@ describe("partitionOpenTasks", () => {
     const nextOccurrence = partitionOpenTasks(rows, "2026-10-18");
     expect(nextOccurrence.scheduled.map((row) => row.id)).toEqual(["series"]);
     expect(nextOccurrence.scheduled[0]!.occurrenceDone).toBe(false);
-  });
-});
-
-describe("dateChipCandidates", () => {
-  const bindingsOf =
-    (map: Record<string, Array<{ propertySchemaId: string; type: string; name?: string }>>) =>
-    (classId: string) =>
-      map[classId] ?? [];
-  const parentsOf =
-    (map: Record<string, string[]>) =>
-    (classId: string) =>
-      map[classId] ?? [];
-  /** Every listed class extends the system event class unless mapped otherwise. */
-  const eventParents = (...ids: string[]) =>
-    parentsOf(Object.fromEntries(ids.map((id) => [id, [SYSTEM_CLASS_UUIDS.event]])));
-
-  it("qualifies event-family classes with a date-typed binding and sorts by label", () => {
-    const chips = dateChipCandidates(
-      [
-        { id: "cls-b", name: "Meeting" },
-        { id: "cls-a", name: "Booking" },
-        { id: "cls-c", name: "Plain" },
-      ],
-      bindingsOf({
-        "cls-b": [{ propertySchemaId: "sch-when", type: "datetime", name: "When" }],
-        "cls-a": [{ propertySchemaId: "sch-date", type: "datetime", name: "Date" }],
-        "cls-c": [{ propertySchemaId: "sch-note", type: "text" }],
-      }),
-      eventParents("cls-a", "cls-b", "cls-c"),
-    );
-    expect(chips).toEqual([
-      { classId: "cls-a", schemaId: "sch-date", label: "Booking", propertyName: "Date" },
-      { classId: "cls-b", schemaId: "sch-when", label: "Meeting", propertyName: "When" },
-    ]);
-  });
-
-  it("event family ONLY: a class that merely carries a date property does not qualify", () => {
-    const chips = dateChipCandidates(
-      [{ id: "cls-anime", name: "anime" }],
-      bindingsOf({
-        "cls-anime": [{ propertySchemaId: "sch-when", type: "datetime" }],
-      }),
-      parentsOf({}), // no extends parents — not the event family
-    );
-    expect(chips).toEqual([]);
-  });
-
-  it("the family walk is transitive: a user class extending meeting qualifies", () => {
-    const chips = dateChipCandidates(
-      [{ id: "cls-call", name: "call" }],
-      bindingsOf({
-        "cls-call": [{ propertySchemaId: "sch-when", type: "datetime" }],
-      }),
-      parentsOf({
-        "cls-call": ["cls-meeting"],
-        "cls-meeting": [SYSTEM_CLASS_UUIDS.event],
-      }),
-    );
-    expect(chips.map((chip) => chip.classId)).toEqual(["cls-call"]);
-  });
-
-  it("task is NOT event family: the task class no longer quick-creates (the Tasks section's New owns it)", () => {
-    const chips = dateChipCandidates(
-      [{ id: SYSTEM_CLASS_UUIDS.task, name: "task" }],
-      bindingsOf({
-        [SYSTEM_CLASS_UUIDS.task]: [
-          { propertySchemaId: SYSTEM_PROPERTY_UUIDS.taskScheduled, type: "datetime" },
-        ],
-      }),
-      parentsOf({}),
-    );
-    expect(chips).toEqual([]);
-  });
-
-  it("classes with several date bindings take the first sorted schema id", () => {
-    const chips = dateChipCandidates(
-      [{ id: "cls-x", name: "X" }],
-      bindingsOf({
-        "cls-x": [
-          { propertySchemaId: "sch-zzz", type: "datetime" },
-          { propertySchemaId: "sch-aaa", type: "datetime" },
-        ],
-      }),
-      eventParents("cls-x"),
-    );
-    expect(chips[0]!.schemaId).toBe("sch-aaa");
-  });
-
-  it("excludes the date-chain classes", () => {
-    const chips = dateChipCandidates(
-      [
-        { id: SYSTEM_CLASS_UUIDS.year, name: "year" },
-        { id: SYSTEM_CLASS_UUIDS.month, name: "month" },
-        { id: SYSTEM_CLASS_UUIDS.day, name: "day" },
-        { id: "cls-ok", name: "OK" },
-      ],
-      () => [{ propertySchemaId: "sch-date", type: "datetime" }],
-      eventParents(SYSTEM_CLASS_UUIDS.year, SYSTEM_CLASS_UUIDS.month, SYSTEM_CLASS_UUIDS.day, "cls-ok"),
-    );
-    expect(chips.map((chip) => chip.classId)).toEqual(["cls-ok"]);
   });
 });
