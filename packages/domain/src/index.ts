@@ -7,3 +7,4 @@ export * from "./recurrence.js";
 export * from "./icons.js";
 export * from "./markdownLinks.js";
 export * from "./zotero-types.js";
+export * from "./source-class-bindings.js";

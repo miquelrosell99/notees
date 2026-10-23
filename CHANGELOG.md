@@ -9,6 +9,43 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(domain): per-class source field bindings (source-library slice 1,
+  task 5).** New `packages/domain/src/source-class-bindings.ts` (barrel-
+  exported): `SYSTEM_SOURCE_CLASS_BINDINGS` — the per-class field-binding
+  data table, all 39 source type-classes (30 roster + `journal_article`/
+  `web_page`/`film` + the kept `book`/`thesis`/`document`/`conference`/`song`/
+  `tv_series`) → their Zotero field list as pool property names, derived
+  MECHANICALLY from the `zotero/zotero-schema` itemTypes field lists (the
+  task-snapshot JSON): every field maps to its pool key (`abstractNote`→
+  abstract, `type`→workType, `ISSN`→issn), minus `title` (title-is-content),
+  `citationKey`, and the source-base family riding the `bindTo: "source"`
+  specs (authors/linkedAuthors/editors/doi/isbn/publicationDate/publisher/
+  citekey/url/attachments — never repeated per class), intersected with the
+  task-4 pool; fields with no pool property are skipped (the case orphans
+  stay orphaned per the owner ruling; one-off type fields — `libraryCatalog`,
+  the `*Format` variants, `originalDate`/`originalPublisher`/`originalPlace`,
+  `conferenceName`, `dictionaryTitle`/`encyclopediaTitle`, `manuscriptType`,
+  `mapType`, `organization`, `billNumber`, `subject`, `country`,
+  `audioFileType`, `archiveID`, `partNumber`/`partTitle`, `seriesText`/
+  `journalAbbreviation`/`PMID`/`PMCID` — the full list lives in the file's
+  trailing comment). Judgment calls for the kept classes without an exact
+  Zotero counterpart (documented in the header comment): `song` ←
+  `audioRecording`, `tv_series` ← `tvBroadcast`, `conference` ← the
+  `conferencePaper` + `presentation` UNION. Each list is sorted
+  alphabetically, class keys sorted for determinism. DATA TABLE ONLY —
+  nothing consumes it yet; the server seed + web ensure pick it up in slice
+  1 task 6 (alongside `SYSTEM_EXTRA_CLASS_BINDINGS`; consumers today:
+  `apps/server/src/seed.ts` + the web self-heal). SCHEMA.md's citations
+  section amended same-pass (the per-type table is no longer "a later
+  slice"). Domain test pins the full 39-class table verbatim (key set
+  included), asserts every listed name is a real `SystemPropertyName`, that
+  no list repeats the source base, that per-class lists are sorted, and
+  spot-checks eleven classes against hand-copied RAW Zotero field lists so
+  the pin and the table cannot drift together.
+  - **Verification**: `pnpm --filter @notees/domain test` 116/116 (113 →
+    116, three new); domain dist rebuilt (dev-condition exports); root
+    `pnpm typecheck` + full `pnpm test` green.
+
 - **fix(domain): add `issn` to the bibliographic property pool (source-library slice 1, task 4 review C1).** `issn` was the one pool field the task-4 slice missed (a real Zotero field on 9 item types, not already seeded, not on the do-not-duplicate list). Seeded as text/`bindTo: "source"` at its ALPHABETICAL slot …0006-…0003 (between `interviewMedium` and `issue`), display "ISSN" — the seeds.ts display-name comment's "conventional acronyms (ISSN)" claim is now true. Inserting alphabetically (per the block's pinned alphabetical↔suffix rule) renumbered `issue`…`workType` to …0024–…0055: the block is now 85 seeds. Appending at …0055 (the reviewer's suggested shortcut) was rejected: the pool test enforces `keys.slice(2)` equals its own sort, so an end-append would either fail the gate or require weakening the determinism pin; renumbering is safe because no code outside the seeds/test pair references specific …0006- suffixes. Test pool row, UUID block, SPECS, DISPLAY_NAMES all updated; no other production code touched.
   - **Verification**: `pnpm --filter @notees/domain build` (dist rebuilt, dev-condition exports) + `pnpm --filter @notees/domain test` green; `pnpm typecheck` + full `pnpm test` green.
 
