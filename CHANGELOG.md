@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(domain): Zotero item-type → class manifest (source-library slice 1,
+  task 1).** New `packages/domain/src/zotero-types.ts` (barrel-exported):
+  `ZOTERO_CITABLE_ITEM_TYPES` (readonly tuple of the 37 citable type
+  literals from `zotero/zotero-schema`), `ZoteroItemType`, and
+  `ZOTERO_ITEM_TYPE_TO_CLASS: Record<ZoteroItemType, SystemClassName>`
+  mapping every citable type onto the source-library roster
+  (`journalArticle → journal_article`, `bookSection → book_section`,
+  `conferencePaper → conference_paper`, `audioRecording → audio_recording`,
+  `tvBroadcast → tv_broadcast`, `webpage → web_page`, the 30 new classes,
+  and the existing source family). Zotero's three internal types
+  (annotation/attachment/note) carry no entry; `case` (legal) has NO class
+  (owner ruling) and maps to `document` — the class-level resolver fallback
+  is slice 4, this manifest only records the mapping. Test pins the 37-name
+  totality (a future Zotero type addition forces a conscious map decision),
+  every value against `SYSTEM_CLASS_UUIDS`, and the roster-key mappings
+  verbatim. Verification: `pnpm --filter @notees/domain test` 112/112, root
+  `pnpm typecheck` + `pnpm test` green.
+
 - **refactor(domain): source roster renames — `article`/`weblink`/`movie`
   become `journal_article`/`web_page`/`film`; `paper` withdrawn (owner ruling,
   the source-library roster slice 1).** Three seeded system classes rekey at
