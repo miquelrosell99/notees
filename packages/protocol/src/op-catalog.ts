@@ -183,6 +183,20 @@ export const OP_CATALOG: OpCatalogEntry[] = [
     example: { feature: "tasks", enabled: false },
     affected: "none",
   },
+  {
+    opType: "external_ref.set",
+    description:
+      "External-id mapping for importer/sync plugins, LWW by envelope (hlc, actor) on the ref key. ref is the caller-namespaced key <provider>:<kind>:<externalId> (opaque to the protocol, ≤ 512 chars); a re-set moves the mapping to another nodeId; a node may carry many refs; no FK — a hard delete of the node purges its rows, soft-trash keeps them.",
+    example: { ref: "gcal:event:abc123@google.com", nodeId: "<uuid>" },
+    affected: "objectId",
+  },
+  {
+    opType: "external_ref.delete",
+    description:
+      "Remove an external-id mapping (the ref key's LWW delete; a stale concurrent set loses to the tombstone). The rows of a hard-deleted node are purged by the object.delete applier, not by this op.",
+    example: { ref: "gcal:event:abc123@google.com" },
+    affected: "none",
+  },
 ];
 
 const BY_TYPE = new Map(OP_CATALOG.map((entry) => [entry.opType, entry]));
