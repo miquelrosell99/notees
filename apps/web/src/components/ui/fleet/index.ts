@@ -152,9 +152,6 @@ export type { FloatingToolbarProps } from './FloatingToolbar.js';
 export { MonthCalendar } from '../../../features/calendar/MonthCalendar.js';
 export type { MonthCalendarProps } from '../../../features/calendar/MonthCalendar.js';
 
-export { WeekStrip } from '../../../features/calendar/WeekStrip.js';
-export type { WeekStripProps } from '../../../features/calendar/WeekStrip.js';
-
 export { PresentationOverlay, PRESENTATION_CHROME_HIDE_MS } from './PresentationOverlay.js';
 export type { PresentationOverlayProps } from './PresentationOverlay.js';
 

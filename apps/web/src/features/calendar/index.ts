@@ -9,4 +9,3 @@ export * from "./DayPageSections.js";
 export * from "./JournalsView.js";
 export * from "./MonthCalendar.js";
 export * from "./TopBarCalendarPopup.js";
-export * from "./WeekStrip.js";

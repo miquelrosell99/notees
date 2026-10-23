@@ -118,7 +118,9 @@ describe("CalendarView", () => {
     });
 
     const dayNav = () => within(container.querySelector(".calendar-view__nav") as HTMLElement);
-    fireEvent.click(dayNav().getByRole("button", { name: "Today" }));
+    // The outline-variant register (the Journals view's): the accessible
+    // name is "Jump to today", not the bare label.
+    fireEvent.click(dayNav().getByRole("button", { name: "Jump to today" }));
     await waitFor(() => {
       expect(marker()).not.toBeNull();
       expect(screen.getByText(today)).toBeDefined();
