@@ -3,11 +3,13 @@
  * (owner 2026-10-23): the layout the node view alone used to own — a
  * full-width top bar above a three-column body (raised-card panel left ·
  * content middle · raised-card panel right) — becomes a shared, purely
- * presentational component any main-content view composes. PageView is the
+ * presentational component any main-content view composes. PageView was the
  * first host (its context column and properties sidebar moved out of
- * PageView's private grid into the frame's slots); any other main-content
- * view opts in the same way — that opt-in IS the flag: a view renders the
- * frame and passes panel content, or doesn't and renders full-bleed.
+ * PageView's private grid into the frame's slots); CalendarView is the
+ * second (its mini-month + week strip + week agenda ride the right panel,
+ * toggled from the top bar). Any other main-content view opts in the same
+ * way — that opt-in IS the flag: a view renders the frame and passes panel
+ * content, or doesn't and renders full-bleed.
  *
  * The frame owns NO state: whether a panel renders is the host's call (its
  * own device-local collapse prefs, its own focus mode), communicated by

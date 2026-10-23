@@ -10,6 +10,13 @@
  * deterministic day node) plus the reviewed tint on day cells, the
  * week strip, and the week agenda beneath the grid.
  *
+ * The composition (owner 2026-10-23): the calendar is the MainContentFrame's
+ * second host — the day content rides the middle cell, the mini-month +
+ * week strip + week agenda ride the frame's raised-card right panel
+ * (toggled from the top bar, device-local collapse like the nodeview's
+ * properties panel). The view's own two-column body retired; the frame
+ * owns the column split.
+ *
  * Recurrence (compute-on-read ruling): date values
  * carrying a `repeat` rule (metadata, additive — no wire change) expand
  * into VIRTUAL occurrences here — the Dated/Tasks sections, the month
@@ -41,6 +48,7 @@ import { instantiateTemplate } from "@/core/clone.js";
 import { displayNameFromClient, labelFromClient, formatDateName } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { PageView } from "../../ui/PageView.js";
+import { MainContentFrame } from "../../ui/MainContentFrame.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
 import { TemplatePickerModal } from "../templates/TemplatePickerModal.js";
 import { ensureTaskFamily } from "../classview/taskFamily.js";
@@ -140,6 +148,17 @@ export function CalendarView({
   const [selectedIso, setSelectedIso] = useState(todayIsoLocal);
   const [filter, setFilter] = useState<DayFilter>("all");
   const [firstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
+  /**
+   * The agenda panel's device-local collapse (the MainContentFrame opt-in,
+   * owner 2026-10-23 — the calendar is the frame's second host): the
+   * mini-month / week strip / week-agenda column rides the frame's raised-
+   * card right panel, toggled from the top bar like the nodeview's
+   * properties panel.
+   */
+  const [agendaCollapsed, setAgendaCollapsed] = useDeviceSetting(
+    "calendarAgendaPanelCollapsed",
+    false,
+  );
 
   // Family ensure: idempotent no-op once the six schemas + bindings exist.
   // Fire-and-forget: a rejection (e.g. the store closing mid-deploy) must not
@@ -440,44 +459,115 @@ export function CalendarView({
 
   return (
     <div className="calendar-view">
-      {/* The hub chrome rides the shared SurfaceTopBar (owner 2026-10-22),
-          pinned above both columns; the quick-create row and the filter
-          Tabs are content-level controls and stay in the body. */}
-      <SurfaceTopBar
-        icon="mdi-calendar-today"
-        title="Calendar"
-        context={
-          <div className="calendar-view__date-line">
-            <span className="calendar-view__weekday">{weekdayLabel(selectedIso)}</span>
-            {isToday && <span className="calendar-view__today-marker">Today</span>}
-            <span className="calendar-view__date">{formattedDate}</span>
-            <span className="calendar-view__week">Week {isoWeekNumber(selectedIso)}</span>
-          </div>
+      {/* The composition rides the shared MainContentFrame (owner
+          2026-10-23 — the calendar is the frame's second host): the top
+          bar spans the whole card above the column split (the agenda
+          toggle at its right end, above the panel it reveals), the day
+          content rides the middle cell, and the mini-month + week strip +
+          week agenda ride the frame's raised-card right panel. The quick-
+          create row and the filter Tabs are content-level controls and
+          stay in the body. */}
+      <MainContentFrame
+        topBar={
+          <SurfaceTopBar
+            className="calendar-view__topbar"
+            icon="mdi-calendar-today"
+            title="Calendar"
+            context={
+              <div className="calendar-view__date-line">
+                <span className="calendar-view__weekday">{weekdayLabel(selectedIso)}</span>
+                {isToday && <span className="calendar-view__today-marker">Today</span>}
+                <span className="calendar-view__date">{formattedDate}</span>
+                <span className="calendar-view__week">Week {isoWeekNumber(selectedIso)}</span>
+              </div>
+            }
+            actions={
+              <>
+                <div className="calendar-view__nav">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon="mdi-chevron-left"
+                    aria-label="Previous day"
+                    onClick={() => setSelectedIso((iso) => addDaysIso(iso, -1))}
+                  />
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedIso(todayIsoLocal())}>
+                    Today
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon="mdi-chevron-right"
+                    aria-label="Next day"
+                    onClick={() => setSelectedIso((iso) => addDaysIso(iso, 1))}
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="mdi-view-agenda-outline"
+                  aria-label={agendaCollapsed ? "Show agenda panel" : "Hide agenda panel"}
+                  aria-pressed={!agendaCollapsed}
+                  title={agendaCollapsed ? "Show agenda panel" : "Hide agenda panel"}
+                  active={!agendaCollapsed}
+                  onClick={() => setAgendaCollapsed(!agendaCollapsed)}
+                />
+              </>
+            }
+          />
         }
-        actions={
-          <div className="calendar-view__nav">
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="mdi-chevron-left"
-              aria-label="Previous day"
-              onClick={() => setSelectedIso((iso) => addDaysIso(iso, -1))}
-            />
-            <Button variant="ghost" size="sm" onClick={() => setSelectedIso(todayIsoLocal())}>
-              Today
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="mdi-chevron-right"
-              aria-label="Next day"
-              onClick={() => setSelectedIso((iso) => addDaysIso(iso, 1))}
-            />
-          </div>
+        rightLabel="Agenda"
+        rightPanel={
+          !agendaCollapsed ? (
+            <div className="calendar-view__panel">
+              <MonthCalendar
+                selectedDate={selectedIso}
+                onSelectDate={setSelectedIso}
+                firstDayOfWeek={firstDayOfWeek}
+                hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
+                extraMarks={dayExtraMarks}
+              />
+              <WeekStrip
+                days={weekDays}
+                selectedDate={selectedIso}
+                hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
+                extraMarks={dayExtraMarks}
+                onSelectDay={setSelectedIso}
+              />
+              <div className="calendar-view__agenda" aria-label="Week agenda">
+                <h2 className="calendar-view__agenda-title">This week</h2>
+                {weekAgenda.every((day) => day.rows.length === 0) ? (
+                  <p className="calendar-view__muted">Nothing dated this week.</p>
+                ) : (
+                  weekAgenda
+                    .filter((day) => day.rows.length > 0)
+                    .map(({ iso, rows }) => {
+                      const [y, m, d] = iso.split("-").map(Number);
+                      return (
+                        <div key={iso} className="calendar-view__agenda-day">
+                          <button
+                            type="button"
+                            className="calendar-view__agenda-day-title"
+                            onClick={() => setSelectedIso(iso)}
+                          >
+                            {new Date(y!, m! - 1, d!, 12).toLocaleDateString(undefined, {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </button>
+                          <ul className="calendar-view__rows">
+                            {rows.map(renderDatedRow)}
+                          </ul>
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+            </div>
+          ) : undefined
         }
-      />
-
-      <div className="calendar-view__body">
+      >
         <div className="calendar-view__main">
           {chips.length > 0 && (
             <div className="calendar-view__quick-create" aria-label="Quick create">
@@ -600,54 +690,7 @@ export function CalendarView({
               ))}
           </div>
         </div>
-
-        <aside className="calendar-view__side">
-          <MonthCalendar
-            selectedDate={selectedIso}
-            onSelectDate={setSelectedIso}
-            firstDayOfWeek={firstDayOfWeek}
-            hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
-            extraMarks={dayExtraMarks}
-          />
-          <WeekStrip
-            days={weekDays}
-            selectedDate={selectedIso}
-            hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
-            extraMarks={dayExtraMarks}
-            onSelectDay={setSelectedIso}
-          />
-          <div className="calendar-view__agenda" aria-label="Week agenda">
-            <h2 className="calendar-view__agenda-title">This week</h2>
-            {weekAgenda.every((day) => day.rows.length === 0) ? (
-              <p className="calendar-view__muted">Nothing dated this week.</p>
-            ) : (
-              weekAgenda
-                .filter((day) => day.rows.length > 0)
-                .map(({ iso, rows }) => {
-                  const [y, m, d] = iso.split("-").map(Number);
-                  return (
-                    <div key={iso} className="calendar-view__agenda-day">
-                      <button
-                        type="button"
-                        className="calendar-view__agenda-day-title"
-                        onClick={() => setSelectedIso(iso)}
-                      >
-                        {new Date(y!, m! - 1, d!, 12).toLocaleDateString(undefined, {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </button>
-                      <ul className="calendar-view__rows">
-                        {rows.map(renderDatedRow)}
-                      </ul>
-                    </div>
-                  );
-                })
-            )}
-          </div>
-        </aside>
-      </div>
+      </MainContentFrame>
 
       {pendingCreate !== null && (
         <TemplatePickerModal

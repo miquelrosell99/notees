@@ -1,14 +1,35 @@
 /* CalendarView — the Capacities-style Day view. Tokens from variables.css.
-   The root's full-bleed layout lives in PageCard.css (the hub-surface
-   exception, owner 2026-10-22): the SurfaceTopBar pins above, the body's
-   columns scroll flush to their own edges — no horizontal padding on the
-   root so nothing indents the scrollbars. */
+   The composition rides the shared MainContentFrame (owner 2026-10-23 — the
+   calendar is the frame's second host): the root carries the panelled
+   surface inset (the nodeview's .nt-page--panelled register — top spacing-2,
+   sides spacing-4), the top bar's horizontal padding zeroes itself below
+   (the same .surface-topbar two-class reconciliation the nodeview bar
+   rides), the day content scrolls in the middle cell, and the mini-month +
+   week strip + week agenda ride the frame's raised-card right panel. */
 
-.calendar-view__body {
-  flex: 1;
-  min-height: 0;
+/* The panelled surface inset (the .nt-page--panelled register): the top bar
+   hugs the card top, the columns ride at spacing-4. */
+.calendar-view {
+  padding: var(--spacing-2) var(--spacing-4) 0;
+}
+
+/* The bar's horizontal padding retires on this surface (the nodeview bar's
+   precedent): the root carries the inset, so the bar title, the day
+   content, and the panel card share one left/right edge. The two-class
+   override beats the primitive's base padding rule and its small-width
+   variant without !important; the bar's vertical padding and the bottom
+   hairline stay the primitive's own. */
+.surface-topbar.calendar-view__topbar {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* The agenda panel's content stack: the frame's aside is the scroll box,
+   the calendar's three widgets keep their rhythm inside it. */
+.calendar-view__panel {
   display: flex;
-  gap: var(--spacing-5);
+  flex-direction: column;
+  gap: var(--spacing-3);
 }
 
 .calendar-view__main {
@@ -19,21 +40,11 @@
   gap: var(--spacing-3);
   overflow-y: auto;
   min-height: 0;
-  /* The lateral inset the root used to carry (owner 2026-10-22: padding
-     rides inside the columns now, so the main column's scrollbar stays at
-     its border — the card edge minus the side column). */
-  padding: 0 var(--spacing-6) var(--spacing-6);
-}
-
-.calendar-view__side {
-  flex-shrink: 0;
-  width: var(--layout-size-8xl);
-  overflow-y: auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
-  padding: 0 var(--spacing-6) var(--spacing-6) 0;
+  /* The lateral inset the root used to carry (owner 2026-10-23: the root's
+     own padding carries the left edge — the main column's scrollbar stays
+     tight to the frame's gap, and the bottom padding clears the card
+     bottom). */
+  padding: 0 0 var(--spacing-6);
 }
 
 .calendar-view__date-line {
@@ -285,18 +296,3 @@
   background: transparent;
 }
 
-@media (width <= 768px) {
-  .calendar-view__body {
-    flex-direction: column;
-  }
-
-  .calendar-view__main {
-    padding: 0 var(--spacing-4) var(--spacing-6);
-  }
-
-  .calendar-view__side {
-    width: 100%;
-    order: -1;
-    padding: 0 var(--spacing-4) var(--spacing-6);
-  }
-}

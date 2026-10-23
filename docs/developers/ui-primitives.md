@@ -129,8 +129,8 @@ PageView, owner 2026-10-23 — a full-width top bar above a three-column body
 of raised-card panel · uncapped content cell · raised-card panel; purely
 presentational, the host passes panel content or `undefined` per side and
 owns all collapse state, so any main-content view opts in via props.
-PageView is the first host; the panel cards keep the `.nt-page-context` /
-`.nt-page-side-panel` registers),
+PageView and CalendarView are the hosts; the panel cards keep the
+`.nt-page-context` / `.nt-page-side-panel` registers),
 `PresentationOverlay` (the fullscreen presentation host: dark
 stage, auto-hiding toolbar, edge zones, Esc/focus-trap, owned keymap).
 
