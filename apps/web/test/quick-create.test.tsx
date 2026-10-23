@@ -14,7 +14,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, parseDateNodeId } from "@notees/domain";
+import { SYSTEM_CLASS_EXTENDS, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, parseDateNodeId } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { NodeSelector } from "../src/features/pickers/NodeSelector.js";
@@ -130,19 +130,15 @@ describe("resolveQuickCreate", () => {
 
   it("sourceSubclassOptions covers every seeded source subclass", async () => {
     const options = sourceSubclassOptions();
-    expect(options.map((option) => option.value).sort()).toEqual(
-      [
-        SYSTEM_CLASS_UUIDS.book,
-        SYSTEM_CLASS_UUIDS.journal_article,
-        SYSTEM_CLASS_UUIDS.thesis,
-        SYSTEM_CLASS_UUIDS.document,
-        SYSTEM_CLASS_UUIDS.film,
-        SYSTEM_CLASS_UUIDS.song,
-        SYSTEM_CLASS_UUIDS.tv_series,
-        SYSTEM_CLASS_UUIDS.conference,
-        SYSTEM_CLASS_UUIDS.web_page,
-      ].sort(),
-    );
+    // Derived expectation (the 2026-10-23 roster added 30 source subclasses):
+    // every extends-source class in the seed manifest appears as an option —
+    // same filter the production derivation (SOURCE_SUBCLASS_IDS) applies.
+    const expected = (
+      Object.entries(SYSTEM_CLASS_EXTENDS) as Array<[string, string[]]>
+    )
+      .filter(([, parents]) => parents.includes("source"))
+      .map(([name]) => SYSTEM_CLASS_UUIDS[name as keyof typeof SYSTEM_CLASS_UUIDS]);
+    expect(options.map((option) => option.value).sort()).toEqual(expected.sort());
   });
 });
 
