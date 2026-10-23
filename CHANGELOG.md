@@ -40,6 +40,40 @@ predating this file.
     dist rebuilt (dev-condition exports); `pnpm typecheck` clean; full suite
     green.
 
+- **feat(domain): 30 source type-classes — Zotero-faithful roster, long tail
+  archived by default (owner ruling, the source-library roster slice 1).**
+  Thirty NEW seeded system classes land in `packages/domain/src/seeds.ts`,
+  slots …-0001-000000000048–…000000000065 (hex suffixes, assigned
+  alphabetically by key), ALL extending `source`: audio_recording, artwork,
+  bill, blog_post, book_section, computer_program, conference_paper, dataset,
+  dictionary_entry, email, encyclopedia_article, forum_post, hearing,
+  instant_message, interview, letter, magazine_article, manuscript, map,
+  newspaper_article, patent, podcast, preprint, presentation,
+  radio_broadcast, report, standard, statute, tv_broadcast, video_recording —
+  UUIDs + icons + display names ("Book section" style) + one-line gallery
+  descriptions (the conference trio does disambiguating work:
+  `conference_paper` "A paper published in conference proceedings.",
+  `presentation` "A talk, lecture, or set of slides.") + extends + the
+  seeded manifest, all five records together. **`SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES`
+  (new export) carries the long tail** — EIGHTEEN classes (the brief's prose
+  said 17; its list is the authority — 18): artwork, bill, blog_post,
+  computer_program, dataset, dictionary_entry, email, encyclopedia_article,
+  forum_post, hearing, instant_message, interview, letter, manuscript, map,
+  patent, radio_broadcast, statute — the everyday types (book_section,
+  magazine/newspaper_article, preprint, report, standard, podcast, the
+  broadcasts, the conference trio, audio/video) stay ENABLED. Nothing
+  consumes the constant yet — it is seed data for the later slices (ensure
+  paths, task 6). The sources family grows 10 → 40 (base + 39 children), so
+  the feature-toggle flip list grows with it (derived, no manifest change).
+  Domain-only slice: the web gallery catalog, ensure paths, GTK/Flutter seed
+  manifests, and the live-workspace migration are later tasks. Domain test
+  pins the exact UUID map, the display names, the trio descriptions, the
+  exact sorted archived list, and the 12-enabled exclusion; the sources
+  family test updates 10-strong → 40-strong.
+  - **Verification**: `pnpm --filter @notees/domain test` 108/108; domain
+    dist rebuilt (dev-condition exports); `pnpm typecheck` clean; full suite
+    green.
+
 - **refactor(web): NodeCollection BODY MODE — `rootId` + `ghost`; the last
   call-site glue folds into the collection (owner pass, the bundle
   consummated).** Three remaining host assemblies merge: (1) **item

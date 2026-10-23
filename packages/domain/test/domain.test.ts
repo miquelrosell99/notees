@@ -170,6 +170,105 @@ describe("system seeds (ported)", () => {
     expect(source.slice(slot, slot + 400)).toContain("never reuse");
   });
 
+  it("source-library roster (owner 2026-10-23, task 3): 30 new source type-classes (…0048–…0065), the long tail archived by default", async () => {
+    const { SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES } = await import("../src/index.js");
+    // Fixed UUIDs assigned alphabetically by key over the …0048–…0065 block
+    // (the roster slots are hex — the TASK_STATUS_OPTION_UUIDS precedent).
+    const NEW_SOURCE_CLASSES: Record<string, string> = {
+      artwork: "00000000-0000-0000-0001-000000000048",
+      audio_recording: "00000000-0000-0000-0001-000000000049",
+      bill: "00000000-0000-0000-0001-00000000004a",
+      blog_post: "00000000-0000-0000-0001-00000000004b",
+      book_section: "00000000-0000-0000-0001-00000000004c",
+      computer_program: "00000000-0000-0000-0001-00000000004d",
+      conference_paper: "00000000-0000-0000-0001-00000000004e",
+      dataset: "00000000-0000-0000-0001-00000000004f",
+      dictionary_entry: "00000000-0000-0000-0001-000000000050",
+      email: "00000000-0000-0000-0001-000000000051",
+      encyclopedia_article: "00000000-0000-0000-0001-000000000052",
+      forum_post: "00000000-0000-0000-0001-000000000053",
+      hearing: "00000000-0000-0000-0001-000000000054",
+      instant_message: "00000000-0000-0000-0001-000000000055",
+      interview: "00000000-0000-0000-0001-000000000056",
+      letter: "00000000-0000-0000-0001-000000000057",
+      magazine_article: "00000000-0000-0000-0001-000000000058",
+      manuscript: "00000000-0000-0000-0001-000000000059",
+      map: "00000000-0000-0000-0001-00000000005a",
+      newspaper_article: "00000000-0000-0000-0001-00000000005b",
+      patent: "00000000-0000-0000-0001-00000000005c",
+      podcast: "00000000-0000-0000-0001-00000000005d",
+      preprint: "00000000-0000-0000-0001-00000000005e",
+      presentation: "00000000-0000-0000-0001-00000000005f",
+      radio_broadcast: "00000000-0000-0000-0001-000000000060",
+      report: "00000000-0000-0000-0001-000000000061",
+      standard: "00000000-0000-0000-0001-000000000062",
+      statute: "00000000-0000-0000-0001-000000000063",
+      tv_broadcast: "00000000-0000-0000-0001-000000000064",
+      video_recording: "00000000-0000-0000-0001-000000000065",
+    };
+    expect(Object.keys(NEW_SOURCE_CLASSES).sort()).toEqual(Object.keys(NEW_SOURCE_CLASSES));
+    for (const [name, id] of Object.entries(NEW_SOURCE_CLASSES)) {
+      expect(SYSTEM_CLASS_UUIDS[name as keyof typeof SYSTEM_CLASS_UUIDS]).toBe(id);
+      expect(SYSTEM_CLASS_ICONS[name as keyof typeof SYSTEM_CLASS_ICONS]).toMatch(/^mdi/);
+      expect(SYSTEM_CLASS_DISPLAY_NAMES[name as keyof typeof SYSTEM_CLASS_DISPLAY_NAMES]).toBeDefined();
+      expect(SYSTEM_CLASS_DESCRIPTIONS[name as keyof typeof SYSTEM_CLASS_DESCRIPTIONS]).toBeDefined();
+      expect(SYSTEM_CLASS_EXTENDS[name as keyof typeof SYSTEM_CLASS_EXTENDS]).toEqual(["source"]);
+      expect(SEEDED_SYSTEM_CLASSES).toContain(name);
+    }
+    // Display names: Title Case with spaces (the journal_article/web_page style).
+    expect(SYSTEM_CLASS_DISPLAY_NAMES.book_section).toBe("Book section");
+    expect(SYSTEM_CLASS_DISPLAY_NAMES.conference_paper).toBe("Conference paper");
+    expect(SYSTEM_CLASS_DISPLAY_NAMES.tv_broadcast).toBe("TV broadcast");
+    // The conference trio does disambiguating work (conference itself stays
+    // as seeded — it is not one of the 30).
+    expect(SYSTEM_CLASS_DESCRIPTIONS.conference_paper).toBe("A paper published in conference proceedings.");
+    expect(SYSTEM_CLASS_DESCRIPTIONS.presentation).toBe("A talk, lecture, or set of slides.");
+    // Archived-by-default long tail: the brief's list verbatim — EIGHTEEN
+    // names (the brief prose says 17; its list is the authority, see the
+    // slice report). Sorted-equality pins both content and order.
+    const ARCHIVED = [
+      "artwork",
+      "bill",
+      "blog_post",
+      "computer_program",
+      "dataset",
+      "dictionary_entry",
+      "email",
+      "encyclopedia_article",
+      "forum_post",
+      "hearing",
+      "instant_message",
+      "interview",
+      "letter",
+      "manuscript",
+      "map",
+      "patent",
+      "radio_broadcast",
+      "statute",
+    ] as const;
+    expect(ARCHIVED.length).toBe(18);
+    expect(SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES).toEqual([...ARCHIVED].sort());
+    // Every enabled-by-default newcomer stays OUT of the archived list
+    // (30 newcomers − 18 archived = 12 enabled).
+    const enabledNew = Object.keys(NEW_SOURCE_CLASSES).filter(
+      (name) => !(ARCHIVED as readonly string[]).includes(name),
+    );
+    expect(enabledNew.sort()).toEqual([
+      "audio_recording",
+      "book_section",
+      "conference_paper",
+      "magazine_article",
+      "newspaper_article",
+      "podcast",
+      "preprint",
+      "presentation",
+      "report",
+      "standard",
+      "tv_broadcast",
+      "video_recording",
+    ]);
+  });
+
   it("citations revision (2026-09-27, FINAL): source family + authorship seeds", () => {
     // New source subclasses: fixed ids in the next block, icons, extends, seeded.
     expect(SYSTEM_CLASS_UUIDS.song).toBe("00000000-0000-0000-0001-000000000036");
@@ -705,25 +804,55 @@ describe("workspace feature map", () => {
     expect(managedClassIds("tasks")).toEqual([SYSTEM_CLASS_UUIDS.task]);
   });
 
-  it("the family set cascades through extends-children (events → meeting + birthday + trip; sources → the 10-strong family incl. web_page — paper withdrawn)", async () => {
+  it("the family set cascades through extends-children (events → meeting + birthday + trip; sources → the 40-strong family incl. web_page — paper withdrawn, 30-strong 2026-10-23 roster)", async () => {
     const { familyClassNames, managedClassIds } = await import("../src/index.js");
     expect(familyClassNames("events")).toEqual(["event", "birthday", "meeting", "trip"]);
     expect(familyClassNames("meetings")).toEqual(["meeting"]);
     expect(familyClassNames("sources")).toEqual([
       "source",
+      "artwork",
+      "audio_recording",
+      "bill",
+      "blog_post",
       "book",
+      "book_section",
+      "computer_program",
       "conference",
+      "conference_paper",
+      "dataset",
+      "dictionary_entry",
       "document",
+      "email",
+      "encyclopedia_article",
       "film",
+      "forum_post",
+      "hearing",
+      "instant_message",
+      "interview",
       "journal_article",
+      "letter",
+      "magazine_article",
+      "manuscript",
+      "map",
+      "newspaper_article",
+      "patent",
+      "podcast",
+      "preprint",
+      "presentation",
+      "radio_broadcast",
+      "report",
       "song",
+      "standard",
+      "statute",
       "thesis",
+      "tv_broadcast",
       "tv_series",
+      "video_recording",
       "web_page",
     ]);
     expect(familyClassNames("persons")).toEqual(["person"]);
     expect(managedClassIds("events")).toHaveLength(4);
-    expect(managedClassIds("sources")).toHaveLength(10);
+    expect(managedClassIds("sources")).toHaveLength(40);
   });
 
   it("chrome gating: own feature + managed ancestors (meeting ← meetings AND events; birthday ← events only)", async () => {
