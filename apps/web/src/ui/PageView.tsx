@@ -121,7 +121,6 @@ import { definedNodeIcon } from "./iconFor.js";
 
 import { WorkspaceDragScopeContext } from "./block-dnd.js";
 import { useWorkspaceDndZone } from "./useWorkspaceDnd.js";
-import { EditThreadOverlay, EditThreadProvider } from "./EditThread.js";
 import { PropertiesSection, PropertiesSidebar, ClassesRow, metadataRowCount } from "../features/metadata/index.js";
 import { bannerAssetIdOf, setNodeBanner } from "../features/page-sections/PageBanner.js";
 import { AssetUploadModal } from "../features/modals/AssetUploadModal.js";
@@ -151,7 +150,6 @@ import {
 } from "./editor-popups/LinkEditModal.js";
 import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
 import { ensureTemplateFamily } from "../features/templates/templateFamily.js";
-import { realizeGhost } from "./GhostRow.js";
 import { usePageMachinery } from "./usePageMachinery.js";
 import { MainContentFrame } from "./MainContentFrame.js";
 import { NodeTopbar, PageHeaderChrome, PageFooterChrome } from "./PageChrome.js";
@@ -640,14 +638,9 @@ export function PageView({
             <SortableContext items={stableTreeIds} strategy={verticalListSortingStrategy}>
               <div
                 ref={selectionRootRef}
-                className="nt-select-surface nt-edit-thread-host"
+                className="nt-select-surface"
                 onMouseDownCapture={selectionSurface.onMouseDownCapture}
               >
-                {/* The edit thread (EditThread.tsx): the measured overlay
-                    paints behind the rows (the host isolates the stacking
-                    context) and draws the ancestor path to the editing
-                    block — a separate layer, never the tree's own rails. */}
-                <EditThreadOverlay client={client} hostRef={selectionRootRef} rootId={pageId} />
                 <NodeCollection
                   viewMode={blocksMode}
                   client={client}
@@ -659,29 +652,21 @@ export function PageView({
                   maxDepth={preview ? PREVIEW_BODY_DEPTH : undefined}
                   onNodeClick={(id) => onOpenPage?.(id)}
                   onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
-                  /* The add-block ghost is the collection's chrome now
-: the host supplies only the
-                     write — the collection picks the mode's UI (the row
-                     trails outline/prose, the GhostCard rides the cards
-                     grid's last cell). The page root trails exactly ONE
-                     ghost: display-only until the click,
-                     which creates a real empty block after the last child
-                     and focuses it. Blocks never trail their own ghosts at
-                     deeper levels; focus mode keeps the body (hence the
-                     ghost) — only chrome steps aside. Embedded/preview
-                     renders pass none. */
-                  addGhost={
-                    ghostVisible
-                      ? {
-                          parentId: pageId,
-                          onRealize: () => {
-                            void realizeGhost(client, outliner, pageId).catch((error: unknown) => {
-                              console.warn(`[outliner] ghost realize (${pageId}) failed:`, error);
-                            });
-                          },
-                        }
-                      : undefined
-                  }
+                  /* The add-block ghost AND the edit thread are the
+                     collection's chrome now:
+                     the host names only the ghost's parent — the
+                     collection picks the mode's UI (the row trails
+                     outline/prose, the GhostCard rides the cards grid's
+                     last cell), owns the write, and mounts the measured
+                     edit-thread overlay on its own container. The page
+                     root trails exactly ONE ghost:
+                     display-only until the click, which creates a real
+                     empty block after the last child and focuses it.
+                     Blocks never trail their own ghosts at deeper levels;
+                     focus mode keeps the body (hence the ghost) — only
+                     chrome steps aside. Embedded/preview renders pass
+                     none. */
+                  addGhost={ghostVisible ? { parentId: pageId } : undefined}
                 />
                 {/* The selection card: one outline per contiguous run of
                     selected rows (the set is whole-subtree, so a run is
@@ -1013,13 +998,12 @@ export function PageView({
   return (
     <OutlinerContext.Provider value={outliner}>
       <LinkEditModalHost client={client}>
-        {/* The edit thread (EditThread.tsx): rows report their edit state;
-            the select surface below hosts the measured SVG overlay. */}
-        <EditThreadProvider>
         {/* The drag scope: inside it block rows are draggable (the workspace
             session owns them); every PageView tree is a workspace editing
             surface, standalone renders included — without a host the grips
-            stay inert (the context-presence law). */}
+            stay inert (the context-presence law). (The edit thread is the
+            collection's chrome since 2026-10-23 — no host provider here;
+            the editable outline collection mounts its own overlay.) */}
         <WorkspaceDragScopeContext.Provider value={true}>
         <div
           className={
@@ -1129,7 +1113,6 @@ export function PageView({
             onClose={() => setSharing(null)}
           />
         )}
-        </EditThreadProvider>
       </LinkEditModalHost>
     </OutlinerContext.Provider>
   );
