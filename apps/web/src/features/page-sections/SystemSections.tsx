@@ -413,6 +413,7 @@ export function ChildPagesSection({
           tree
           readOnly
           hideBacklinkCount
+          showBreadcrumbs={false}
           defaultSortMode="alphabetical"
           onNodeClick={(id) => onOpenPage?.(id)}
         />

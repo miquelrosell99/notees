@@ -70,6 +70,7 @@ export function ExtendedBySection({
           tree
           readOnly
           hideBacklinkCount
+          showBreadcrumbs={false}
           defaultSortMode="alphabetical"
           onNodeClick={(id) => onOpenClass?.(id)}
         />
