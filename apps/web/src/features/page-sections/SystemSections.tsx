@@ -14,10 +14,13 @@
  * chrome — the NodeViewSection header IS the section header, the tab row is
  * gone — with the hosted view chrome, the transient
  * FilterBar, and the lazy useSectionData contract every other section has.
- * No section header carries a count badge: the
- * gates below still read eager counts ("is there ANYTHING" — never
- * displayed), and hosted sections name the number dynamically on the
- * active tab — one count semantics everywhere (displayed nodes).
+ * One count semantics everywhere (displayed nodes), named exactly once
+ *: the hosted
+ * reference sections name the number dynamically on the active tab's badge
+ * and keep the header bare; a section WITHOUT hosted tabs (Child pages)
+ * names it in the section-header count badge — the gates below still read
+ * eager counts, now feeding the header badge too ("is there ANYTHING" +
+ * "how many").
  * Each section owns its hook instances and its FilterQuery (the per-view
  * rule). The date-page ruling stands with a cleaner mechanism: the
  * deterministic day/month/year family's descriptor OMITS the unlinked
@@ -254,9 +257,10 @@ function displayNameOf(node: ClientNode): string {
 /**
  * ReferenceSection — ONE of the page's reference sections (Backlinks /
  * Unlinked mentions) as a normal collapsible NodeCollection section: the
- * shared NodeViewSection chrome (title + icon — NO count badge) and the ReferenceList collection beneath — its hosted
- * view chrome included, the transient FilterBar riding the hosted tab bar's
- * FAR RIGHT as the collection's `trailing`, the active
+ * shared NodeViewSection chrome (title + icon — NO header count badge; a
+ * hosted section names the count on the active tab) and the ReferenceList collection beneath —
+ * its hosted view chrome included, the transient FilterBar riding the
+ * hosted tab bar's FAR RIGHT as the collection's `trailing`, the active
  * tab's badge naming the displayed row count. The lazy contract
  * lives in useSectionData — one instance per section (the per-view rule):
  * no query while collapsed, cached rows across a silent collapse/expand,
@@ -389,6 +393,7 @@ export function ChildPagesSection({
       client={client}
       title="Child pages"
       icon={<Icon path="mdi-file-tree-outline" size={0.9} />}
+      badge={childPageCount}
       defaultCollapsed={false}
       action={
         embedded
