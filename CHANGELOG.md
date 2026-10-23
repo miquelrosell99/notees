@@ -9,6 +9,36 @@ predating this file.
 
 ## 2026-10-23
 
+- **fix(scripts): `migrate-source-library-roster.mts` review round 1 —
+  exact-title rename gating + the pre-ingest replay gate (source-library
+  slice 1, task 7).** Two Important findings from the task review: **(1) the
+  title rename no longer clobbers user-renamed classes** — each rename is
+  gated on the EXACT drifted old title ("Article" / "Web link" / "Movie");
+  the manifest target reads as already-converged (no-op), and any other
+  title is a user rename: reported in the plan as "skipped: user-renamed
+  class title" and left untouched (post-apply verification now asserts the
+  user title survived verbatim). **(2) verification no longer waits for
+  ingest** — after the zod validation, every built envelope is test-applied
+  IN ORDER against the scratch store the plan was read from, BEFORE
+  `RelayStorage.ingest`: a poison envelope a static plan cannot see (proven
+  with `class.unassign`'s inline-content lock — a paper node whose content
+  carries an inline class_link to paper) aborts the run with a clear error
+  and ZERO envelopes written, and the same gate runs in dry-run so the
+  operator sees poison before deciding to apply. Minors in the same pass:
+  the paper→journal_article guard no longer throws when the same run's
+  healing step creates journal_article (missing classes computed first; the
+  envelope emission order now puts class creates + extends ahead of the
+  reclass), and the scratch seed harness hard-refuses any `--data-dir` not
+  under /tmp (fail loud, don't wipe — proven against a real-looking path;
+  the harness also gained the two probe workspaces: user-renamed titles and
+  the poisoned paper node).
+  - **Verification**: scratch dry-run → `--apply` → fresh-scratch verify
+    (review focus #5 asserted) on the happy-path AND the user-renamed
+    workspaces (custom titles read back untouched, paper reclass still
+    converged); the poison workspace aborted at envelope 239/903 with zero
+    writes (per-workspace relay count unchanged); second-run idempotency
+    holds; full `pnpm test` green.
+
 - **feat(scripts): `migrate-source-library-roster.mts` — live workspaces
   converge to the source-library roster (source-library slice 1, task 7).**
   Path A append (migrations.md — the relay log is never edited), dry-run by
