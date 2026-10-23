@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-23
 
+- **docs(wire,backups,architecture): the snapshot-import surfaces and their
+  checkpoint semantics are written into the normative docs.** `WIRE.md`'s
+  `PUT /snapshot/data` section gains `&mode=import` (the workspace-id rewrite,
+  the envelope-empty target requirement, the load-bearing-snapshot contract);
+  `docs/developers/architecture.md` route lists gain the import mode and
+  `POST /workspaces/:id/clone`; `docs/developers/deployment.md`'s backup
+  section corrects the "skip `derived/`, it replays from the log" advice —
+  true for log-faithful workspaces, false for imported/cloned ones, whose
+  content lives in the snapshot blob + derived file; the
+  `notees-operations` backups reference matches. Trigger: the snapshot-based
+  import slice shipped without its docs pass.
+  - **Verification**: docs-only; read-through against the shipped routes
+    (`routes-relay.ts` import mode, `routes-auth.ts` clone).
 - **perf(web): unchanged block rows bail out of re-renders — the outliner
   context value is memoized, the row export is memoized, and the bail-out
   survives the notification cycle slice 4 could not reach.** Trigger: the

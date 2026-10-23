@@ -370,7 +370,9 @@ client hook surface; no WS *client* ships.
 `apps/server` is a Fastify 5 app (`src/app.ts`, version `2.0.0-m6`). Route groups:
 
 - **Relay API** — prefix `/api/relay/v2` (`src/routes-relay.ts`), exactly per WIRE.md:
-  `POST /batch`, `POST /catch-up`, `GET /snapshot`, `GET|PUT /snapshot/data`,
+  `POST /batch`, `POST /catch-up`, `GET /snapshot`, `GET|PUT /snapshot/data`
+  (the PUT gains `?mode=import`: install an external image into an
+  envelope-empty workspace with a server-side `workspace_id` rewrite),
   `POST /compact` (single-checkpoint snapshot+prune), `GET /stats`, WS
   `/ws/:workspaceId`. Auth: `X-API-Key` header (or `Authorization: Bearer`), socket via
   `?token=` or header; constant-time compare (`src/identity.ts`).
@@ -386,7 +388,11 @@ client hook surface; no WS *client* ships.
   (first account only), env-gated signup (`NOTEES_SIGNUP_ENABLED`, default off —
   404 when disabled, advertised via `GET /server-info`'s `signupEnabled`),
   login/logout/me, workspaces CRUD + `GET /workspaces/:id/export.zip` (markdown zip via
-  `@notees/export`: one file per page, manifest, optional assets), API-key management
+  `@notees/export`: one file per page, manifest, optional assets) +
+  **`POST /workspaces/:id/clone`** (owner-only snapshot-based clone: consistent
+  online backup of the live derived store, `workspace_id` rewrite, installed as the
+  clone's derived file + snapshot — checkpoint-based, the clone's log starts empty
+  and the snapshot is load-bearing), API-key management
   (`GET/POST/DELETE /api-keys`, optional per-key scope sets),
   `GET /nodes/:id/location`, `GET /server-info`.
   Workspace selection via `X-Workspace-Id` header, else a deterministic default
