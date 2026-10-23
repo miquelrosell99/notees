@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(web): the panelled main-content composition becomes the shared
+  MainContentFrame — the nodeview side panels move from PageView's private
+  grid into a flag-opt-in layout any main-content view can ride.** The
+  context column and properties sidebar used to be PageView-internal: the
+  three-column grid, the raised-card panel chrome, and the compact stacking
+  adaptation lived in PageView's JSX + app.css, unreachable for any other
+  view. New `MainContentFrame` (`apps/web/src/ui/`, presentational):
+  `topBar` / `leftPanel` / `rightPanel` slots + `children` — a view opts in
+  by composing it (the opt-in IS the flag), passes panel content or
+  `undefined`, and keeps its own device-local collapse state; the frame
+  owns only the chrome registers (panel cards keep the
+  `.nt-page-context` / `.nt-page-side-panel` class names, moved with their
+  rules to `MainContentFrame.css`). PageView composes it with zero behavior
+  change — collapse prefs, focus mode, fullscreen-whiteboard bypass, the
+  find-in-page bar, and the journal-measure 46rem cap (the middle cell is
+  uncapped; the cap stays PageView's own `.nt-page-content` wrapper) are
+  untouched, and the surviving app.css selectors keep matching at the same
+  DOM depth. The intended next tenant — the calendar's side panels (its
+  existing week agenda / a mini-month are the natural content) — is
+  recorded in the designed-not-built register; only the mechanism ships.
+  The register pins moved with the registers: the css-token-drift gate's
+  `--md-sys-color-sidebar-card` homes gain MainContentFrame.css, and the
+  mobile-layout pin reads the stacking rule from the frame CSS.
+  Verified: `pnpm typecheck` + `pnpm test` green.
+
 - **feat(web): the nodeview top bar composes the fleet SurfaceTopBar — the
   bottom divider returns on the shared register.** The 2026-10-22 hub-surface
   commit extracted the in-card top bar from the NodeView's `.nt-node-topbar`

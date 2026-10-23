@@ -162,8 +162,12 @@ const REGISTERED_MD_SYS_EXTENSIONS = new Set([
 
 // Surface aliases and the only files allowed to cite them (basename
 // regex). Homes are the surface's own stylesheets plus the token file.
+// MainContentFrame.css joined the sidebar-card homes 2026-10-23: the
+// raised-card panel registers moved there with the shared frame (the
+// .nt-page-context / .nt-page-side-panel card rules), so the alias's home
+// moved with its surface.
 const SURFACE_ALIAS_HOMES = new Map<string, RegExp>([
-  ["--md-sys-color-sidebar-card", /^(variables|app)\.css$|^PageCard\.css$/],
+  ["--md-sys-color-sidebar-card", /^(variables|app)\.css$|^PageCard\.css$|^MainContentFrame\.css$/],
 ]);
 
 /**
