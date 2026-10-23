@@ -29,7 +29,9 @@ predating this file.
     truth; `linkedAuthors` REINSTATED at its own UUID …0006-…0001 (object,
     multi, targetClassFilter `agent`) — the independent people-graph track.
     The two never write each other; authorship reads fall back from `authors`
-    to linkedAuthors-derived names at READ time. `editors` (…0006-…0002) is
+    to linkedAuthors-derived names at READ time — a NORMATIVE READ CONTRACT
+    (no shipped caller implements the fallback yet; the consuming export
+    rework is designed-not-built, below). `editors` (…0006-…0002) is
     the same text shape. `issn` completed the pool (its alphabetical slot
     renumbered the …0006- block to 85 seeds, hex …0001–…0055).
   - **The Zotero manifest** (`packages/domain/src/zotero-types.ts`):
@@ -73,7 +75,8 @@ predating this file.
     client applier convergence item, also recorded.
   - **Designed-not-built (honest register)**: the resolver, sources settings
     UI, the web "Add source" flow, and the export rework over the new roster
-    (.bib/CSL class tables + the web .bib format) are follow-up slices — not
+    (the dual-track read-rule fallback + the .bib/CSL class tables + the web
+    .bib format) are follow-up slices — not
     part of this ship.
   - **Verification**: domain/store/query/web/server suites green at every
     task boundary (roster/binding/table snapshots pinned verbatim,

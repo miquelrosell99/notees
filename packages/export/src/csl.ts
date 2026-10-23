@@ -26,10 +26,13 @@
  * `authors` is a free-text multi-value property on `source` holding
  * "Family, Given" strings (the citation/export source of truth);
  * `linkedAuthors` (object→agent) is the independent people-graph track.
- * `nodeToCsl` takes the resolved author strings — the caller applies the
- * read rule (`authors`, deriving names from `linkedAuthors` targets when
- * empty) — and parses each to a CSL name. Person nodes are never
- * auto-created here — the CLI find-or-creates them on import.
+ * `nodeToCsl` takes resolved author strings and parses each to a CSL name.
+ * The SCHEMA.md read rule — `authors` first, deriving names from
+ * `linkedAuthors` targets when empty — is a NORMATIVE READ CONTRACT; no
+ * shipped caller implements the fallback yet (the export rework consuming
+ * it is designed-not-built), so today's callers pass `authors` rows only.
+ * Person nodes are never auto-created here — the CLI find-or-creates them
+ * on import.
  *
  * Dates are year-only `date-parts` taken from the first 4-digit run of the
  * publicationDate value.
@@ -316,10 +319,12 @@ export function sourceClassOf(classIds: readonly string[]): SourceClassName | un
 
 /**
  * Project a source node + its property values + the resolved author
- * name strings (the dual-track read rule — `authors` strings in property
- * order, `linkedAuthors`-derived names when empty; the caller resolves)
- * into CSL. Each name string is parsed to family/given (comma form
- * `Family, Given` wins; otherwise last token = family).
+ * name strings into CSL. Each name string is parsed to family/given
+ * (comma form `Family, Given` wins; otherwise last token = family). The
+ * SCHEMA.md read rule — `authors` first, `linkedAuthors`-derived names when
+ * empty — is a NORMATIVE CONTRACT on the caller; the fallback half is not
+ * yet implemented by any shipped caller (the export rework is
+ * designed-not-built).
  */
 export function nodeToCsl(
   node: BibliographicNode,

@@ -346,8 +346,10 @@ function renderOutline(children: readonly ExportDocumentChild[]): string {
 /** One exported node → its CSL record, or null when the CSL predicate does
  * not recognize it as a source (csl.ts `sourceClassOf` — the exact
  * detection the BibTeX/CSL path uses). Author display strings come from the
- * IR's resolved `authors` property rows (node-typed values already resolved
- * rename-free at build time). */
+ * IR's resolved `authors` property rows (free-text "Family, Given" strings,
+ * rename-free at build time). The linkedAuthors-fallback half of the
+ * SCHEMA.md read rule is designed-not-built — this caller reads `authors`
+ * rows only. */
 function cslOf(
   id: string,
   title: string,
