@@ -172,6 +172,13 @@ async function createDatedMeeting(
   const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
   const classId = await client.createClass("meeting");
   await client.updateObject(classId, { contentAst: [{ type: "text", text: "meeting" }] });
+  // The event family: the calendar's events element lists event-family
+  // nodes. The event root may be absent from this spec's seed — author it
+  // at its reserved id first (the ensureTaskFamily precedent).
+  if (client.getNodeRaw(SYSTEM_CLASS_UUIDS.event) === undefined) {
+    await client.createClass("event", { id: SYSTEM_CLASS_UUIDS.event });
+  }
+  await client.setClassExtends(classId, [SYSTEM_CLASS_UUIDS.event]);
   await client.setClassProperty(classId, schemaId, {});
   const id = await client.createObject({ isEmbedded: false, name, classIds: [classId] });
   await client.setDatetimeProperty(id, schemaId, { iso });
@@ -602,7 +609,7 @@ describe("CalendarView breadth (dots, agenda)", () => {
     expect(bareCell.classList.contains("dated")).toBe(false);
   });
 
-  it("renders the week agenda around the selected day", async () => {
+  it("renders the events element around the selected day", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const future = addDaysIso(today, 2);
@@ -610,16 +617,17 @@ describe("CalendarView breadth (dots, agenda)", () => {
     await flushWrites();
 
     const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
-    // Select the meeting's day: the agenda follows the selection.
+    // Select the meeting's day: the events element follows the selection
+    // (week zoom covers the whole week around the selected day).
     if (future.slice(0, 7) !== today.slice(0, 7)) {
       fireEvent.click(screen.getByRole("button", { name: "Next period" }));
     }
     fireEvent.click(dayCell(container, String(Number(future.slice(8)))));
-    const agenda = await screen.findByLabelText("Week agenda");
-    // The agenda renders as collection groups (a group per day with dated
-    // rows); the row text rides the BlockRow machinery.
+    const events = await screen.findByLabelText("Events");
+    // The events element renders the event-family row through the BlockRow
+    // machinery.
     await waitFor(() => {
-      const titles = [...agenda.querySelectorAll(".nt-block-content")].map(
+      const titles = [...events.querySelectorAll(".nt-block-content")].map(
         (el) => el.textContent ?? "",
       );
       expect(titles).toContain("Agenda meeting");
