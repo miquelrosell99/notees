@@ -1,6 +1,6 @@
 # Notees — Deployment (developer)
 
-Self-hosting the Notees server (`@notees-sync`): a single-binary Fastify server with an
+Self-hosting the Notees server (`@notees/sync`): a single-binary Fastify server with an
 embedded SQLite relay log and per-workspace derived databases. Companion docs:
 [architecture.md](architecture.md) (the system), [development.md](development.md)
 (hacking), [README.md](README.md) (the companion clients — each owns its releases).
@@ -145,10 +145,21 @@ What ships today:
   `GET /snapshot/data?workspaceId=…` downloads the blob; clients may also upload
   snapshots (`PUT /snapshot/data`). Snapshot bytes are a serialized derived-state SQLite
   database — restorable as-is, and the server itself uses them as a hydrate fast path.
+  Two import surfaces ride the same bytes (owner/API-key):
+  `POST /api/workspaces/:id/clone` duplicates a workspace server-side (consistent
+  online backup of the live derived store, `workspace_id` rewrite in ~0.1 s at 125 MB,
+  installed as the clone's derived file + snapshot), and
+  `PUT /snapshot/data?mode=import` installs an external image into an envelope-empty
+  workspace (`scripts/import-snapshot.mjs` is the driver). Both are checkpoint-based:
+  the target's log starts empty and the installed snapshot is load-bearing for
+  rebuilds. Per-envelope `POST /batch` remains the log-faithful path for history.
 - **File-level backup** — copy `relay.db` + `snapshots/` + `derived/` + `workspaces/`
   while the server is stopped (simplest consistent option; SQLite file copies are safe
-  when idle). Because `derived/` replays from `relay.db`, you can skip it and accept a
-  slower first boot after restore.
+  when idle). A log-faithful workspace rebuilds `derived/` by replaying `relay.db`, so
+  skipping `derived/` only costs a slower first boot — but an **imported/cloned**
+  workspace's log is empty by design: its content lives in the snapshot blob +
+  derived file, so `snapshots/` (and the `snapshot` table inside `relay.db`) must be
+  in the backup for those workspaces.
 - **restoreEpoch** — the resync contract for restores is implemented end-to-end:
   `RelayStorage.bumpRestoreEpoch` bumps the per-workspace counter and clients wipe +
   resync on change. Nothing calls it from an operator-facing surface today (no admin
@@ -250,11 +261,12 @@ keeping the live dataset (and the borgmatic `notees` backup source) at the
 fleet's stacks location, outside the dev repo where a `git clean` could never
 reach `relay.db`. The old source/stack split (a compose copy outside the
 checkout, owner 2026-10-19) and its hijack incident (2026-10-20) retired with
-the collapse — one live file, living beside the source it builds. Komodo
-manages the fleet host's data folder but not the compose file; to re-enable
-UI-managed redeploys, point the Komodo `notees` stack resource at the repo
-root (run directory `/root/projects/notees`) — optional per the Komodo ruling
-below. Build/up from the repo root:
+the collapse — one live file, living beside the source it builds. Komodo:
+the `notees` stack resource points at the repo root (run directory
+`/root/projects/notees`, project name `notees`, env file `.env`); the
+periphery container carries a same-path volume of the repo so it can deploy
+there (validated with a Komodo deploy — `VERIFY-PASS`). Build/up from the
+repo root:
 
 ```sh
 docker build -f apps/server/Dockerfile -t ghcr.io/miquelrosell99/notees-sync:latest . \

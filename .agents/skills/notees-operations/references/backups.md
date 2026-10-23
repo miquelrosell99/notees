@@ -28,7 +28,19 @@ the smoke. After restoring a pre-migration backup, see rollback.md.
 
 - `POST /api/relay/v2/compact` with `{workspaceId, upToHlc, prune, dataBase64}`
 - `GET /snapshot/data?workspaceId=…` — download snapshot bytes
-- `PUT /snapshot/data` — upload
+- `PUT /snapshot/data` — upload a client checkpoint
+- `PUT /snapshot/data?mode=import` — **import** an external image into an
+  envelope-empty workspace (rewrites the baked `workspace_id` server-side;
+  `scripts/import-snapshot.mjs` is the driver). Checkpoint semantics: the
+  imported workspace's log starts empty and the snapshot becomes
+  load-bearing — a derived-cache wipe rehydrates from the snapshot + log,
+  not the log alone (see deployment.md).
+- `POST /api/workspaces/:id/clone` — **clone** a workspace server-side
+  (owner-only): consistent online backup of the live derived store,
+  `workspace_id` rewrite (~0.1 s at 125 MB), installed as the clone's
+  derived file + snapshot. The fast path for seeding test environments and
+  duplicating workspaces; per-envelope replay via `POST /batch` remains the
+  log-faithful path.
 
 The `restoreEpoch` mechanism is implemented but has **no operator route yet**
 — plain file restore is the documented path.
