@@ -1,6 +1,6 @@
 # Classes
 
-A class is a node: addressable, linkable, annotatable, in the same table as the things it classifies — and *for* configuration: property bindings, inheritance, templates. This page covers the class view, creating classes, and the workspace feature toggles; why classes-as-nodes is the law is [philosophy.md](../philosophy.md#classes-are-nodes); class chips and the `+` class picker are [links.md](links.md); the classed-nodes table and cards ride the collection rulings in [views.md](views.md).
+A class is a node: addressable, linkable, annotatable, in the same table as the things it classifies — and *for* configuration: property bindings, inheritance, templates. This page covers the class view, creating classes, the three ways a node touches a class (assign / inline chip / mention), and the workspace feature toggles; why classes-as-nodes is the law is [philosophy.md](../philosophy.md#classes-are-nodes); class chips and the `+` class picker are [links.md](links.md); the classed-nodes table and cards ride the collection rulings in [views.md](views.md).
 
 ## The class view
 
@@ -11,6 +11,16 @@ Class nodes are always roots by construction — `is_class` implies no parent, e
 ## Creating classes
 
 The **Classes** hub's **New class** button (or the command palette's **New class…**) opens the creation dialog. The **Blank class** tab is the ordinary create (name, icon, color). The **Gallery** tab is a Capacities-style card grid of the seeded system classes this workspace does not have **enabled** — icon, name, and a one-line description, grouped in sections (People, Sources, Events & tasks, Knowledge, Media) — with a **Create your own** card switching back to the blank form (the typed filter carries over as the name). Picking a card **enables** the class: it is authored at its designed identity, its place in the hierarchy, and its property family in one idempotent step (the family bases ride their feature toggle — picking Task while Tasks is off switches the family on), and a class that exists but is **disabled** shows its card with a "Currently disabled" note — picking it brings it back. Locked classes (the date chain, table, asset, query, code, template, comment) never appear: they are platform structure and cannot be disabled. Declaration-first is the standing rule: create classes, configure them, use them later or never ([pages.md](pages.md#promotion-and-demotion)).
+
+## Assigning a class: pill, inline chip, or mention?
+
+Three gestures touch a class from a node, and they answer different jobs — reaching for the wrong one either classifies nothing or shows the class's name twice:
+
+- **Assign** (the `+` on the classes row, or a plain pick in the editor's `+` popup) — classification as *metadata*. The pill rides the node's chrome and the prose says nothing. Right when the type word doesn't belong in the sentence: a meeting note whose body never says "meeting" — the pill carries `Meeting`, the body just takes notes.
+- **`+Class` inline in the text** (a Ctrl/Cmd+Enter pick in the `+` popup assigns and inserts it in one gesture) — classification with the class's name as the marker *inside* the sentence: "report for essay XXX" with `report` as a chip classifies the block and reads as prose. The chip replaces the pill — never two visible references — and the wire asserts the membership. Right when the sentence leads with or contains the type word.
+- **`@Class`** — not classification at all: a node link to the class *as an entity*, with backlinks and graph edges. Right when the prose points at the class itself ("had a @reunión with GMI").
+
+The rule of thumb: **if the type word appears in the sentence, let the word be the marker (`+`); if it's only metadata, let the pill be the marker (assign); if you're pointing at the class as a thing, use `@`.** And never write the class's name as raw text: plain text classifies nothing and goes stale on rename, while the pill and the chip both re-resolve the class's live name.
 
 ## Disabling and deleting classes
 
