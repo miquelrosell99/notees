@@ -100,6 +100,38 @@ function setProseCaret(editor: HTMLElement, proseOffset: number): void {
   });
 }
 
+/** Select the prose range [start, end) inside the editor. */
+function setProseRange(editor: HTMLElement, start: number, end: number): void {
+  const resolve = (proseOffset: number): { node: Node; offset: number } => {
+    let acc = 0;
+    for (const child of Array.from(editor.childNodes)) {
+      const len = child.textContent?.length ?? 0;
+      if (acc + len >= proseOffset) {
+        const inner = Math.max(0, proseOffset - acc);
+        if (child instanceof HTMLElement) {
+          const textNode = child.firstChild ?? child;
+          return { node: textNode, offset: Math.min(inner, (textNode.textContent ?? "").length) };
+        }
+        return { node: child, offset: Math.min(inner, len) };
+      }
+      acc += len;
+    }
+    return { node: editor, offset: editor.childNodes.length };
+  };
+  const range = document.createRange();
+  const startPos = resolve(start);
+  const endPos = resolve(end);
+  range.setStart(startPos.node, startPos.offset);
+  range.setEnd(endPos.node, endPos.offset);
+  const selection = window.getSelection();
+  if (selection === null) throw new Error("no selection");
+  selection.removeAllRanges();
+  selection.addRange(range);
+  act(() => {
+    document.dispatchEvent(new Event("selectionchange"));
+  });
+}
+
 function node(id: string, children: BlockTreeNode[] = []): BlockTreeNode {
   return {
     node: {
@@ -381,6 +413,233 @@ describe("outliner editor", () => {
     expect(editors).toHaveLength(1);
     expect(editors[0]!.textContent).toBe("first");
     expect(document.activeElement).toBe(editors[0]!);
+  });
+
+  it("Enter's mid-text split on a block WITH children places the tail as its FIRST child", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Split Kids" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello world" }],
+    });
+    const kidId = await client.createObject({
+      parentId: blockId,
+      contentAst: [{ type: "text", text: "kid" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    setProseCaret(editor, 6); // "hello |world"
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(1);
+    expect(tree[0]!.node.id).toBe(blockId);
+    expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "hello " }]);
+    // The tail nests as the FIRST child; the existing child follows it.
+    expect(tree[0]!.children.map((t) => t.node.id)).toHaveLength(2);
+    expect(tree[0]!.children[1]!.node.id).toBe(kidId);
+    expect(tree[0]!.children[0]!.node.contentAst).toEqual([{ type: "text", text: "world" }]);
+    expect(tree[0]!.children[0]!.node.parentId).toBe(blockId);
+    // The new block took over edit mode and the focus.
+    const active = document.activeElement;
+    expect(active).not.toBeNull();
+    expect(active!.classList.contains("nt-block-text")).toBe(true);
+    expect(active!.textContent).toBe("world");
+  });
+
+  it("Enter at the end of a block WITH children creates the new block as its FIRST child", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "End Kids" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "para" }],
+    });
+    const kidId = await client.createObject({
+      parentId: blockId,
+      contentAst: [{ type: "text", text: "kid" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0); // click lands the caret at the end
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(1);
+    expect(tree[0]!.node.id).toBe(blockId);
+    expect(tree[0]!.children.map((t) => t.node.id)).toHaveLength(2);
+    expect(tree[0]!.children[1]!.node.id).toBe(kidId);
+    expect(tree[0]!.children[0]!.node.contentAst).toEqual([]);
+    expect(tree[0]!.children[0]!.node.parentId).toBe(blockId);
+  });
+
+  it("Enter with a selected range cuts the selection and splits at its start", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Sel Split" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello world" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    setProseRange(editor, 6, 11); // select "world"
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(2);
+    expect(tree[0]!.node.id).toBe(blockId);
+    expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "hello " }]);
+    expect(tree[1]!.node.contentAst).toEqual([]);
+  });
+
+  it("Backspace at the start of a block merges it into the previous sibling", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Merge Prev" });
+    const firstId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "one" }],
+    });
+    const secondId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "two" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 1);
+    setProseCaret(editor, 0);
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Backspace" });
+    });
+
+    expect(client.getNode(secondId)).toBeUndefined();
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(1);
+    expect(tree[0]!.node.id).toBe(firstId);
+    expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "onetwo" }]);
+    // The merged block took over edit mode, caret at the merge point.
+    const editors = container.querySelectorAll<HTMLElement>(".nt-block-text");
+    expect(editors).toHaveLength(1);
+    expect(editors[0]!.textContent).toBe("onetwo");
+    expect(document.activeElement).toBe(editors[0]!);
+  });
+
+  it("Backspace at the start of an only child merges it into its parent", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Merge Parent" });
+    const parentId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "pa" }],
+    });
+    const childId = await client.createObject({
+      parentId,
+      contentAst: [{ type: "text", text: "ir" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 1);
+    setProseCaret(editor, 0);
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Backspace" });
+    });
+
+    expect(client.getNode(childId)).toBeUndefined();
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(1);
+    expect(tree[0]!.node.id).toBe(parentId);
+    expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "pair" }]);
+    expect(tree[0]!.children).toHaveLength(0);
+  });
+
+  it("Delete at the end of a block merges the next sibling into it", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Merge Next" });
+    const firstId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "one" }],
+    });
+    const secondId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "two" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    setProseCaret(editor, 3); // caret at the end of "one"
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Delete" });
+    });
+
+    expect(client.getNode(secondId)).toBeUndefined();
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(1);
+    expect(tree[0]!.node.id).toBe(firstId);
+    expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "onetwo" }]);
+    // Edit mode stays on the merged block, caret at the merge point.
+    const editors = container.querySelectorAll<HTMLElement>(".nt-block-text");
+    expect(editors).toHaveLength(1);
+    expect(editors[0]!.textContent).toBe("onetwo");
+    expect(document.activeElement).toBe(editors[0]!);
+  });
+
+  it("Delete at the end of a block with a single child merges the child into it", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Merge Child" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "pa" }],
+    });
+    const childId = await client.createObject({
+      parentId: blockId,
+      contentAst: [{ type: "text", text: "ir" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    setProseCaret(editor, 2); // caret at the end of "pa"
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Delete" });
+    });
+
+    expect(client.getNode(childId)).toBeUndefined();
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(1);
+    expect(tree[0]!.node.id).toBe(blockId);
+    expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "pair" }]);
+    expect(tree[0]!.children).toHaveLength(0);
+    const editors = container.querySelectorAll<HTMLElement>(".nt-block-text");
+    expect(editors).toHaveLength(1);
+    expect(editors[0]!.textContent).toBe("pair");
+  });
+
+  it("Delete at the end of a block with several children is a no-op", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Merge Many" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "pa" }],
+    });
+    const kid1 = await client.createObject({ parentId: blockId, contentAst: [{ type: "text", text: "a" }] });
+    const kid2 = await client.createObject({ parentId: blockId, contentAst: [{ type: "text", text: "b" }] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    setProseCaret(editor, 2);
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Delete" });
+    });
+
+    // Structure untouched: no sibling to merge, more than one child.
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "pa" }]);
+    expect(client.getNode(kid1)).not.toBeUndefined();
+    expect(client.getNode(kid2)).not.toBeUndefined();
+    expect(client.getChildren(blockId).map((n) => n.id)).toEqual([kid1, kid2]);
   });
 
   it("Tab indents under the previous sibling (object.move) and KEEPS edit mode", async () => {

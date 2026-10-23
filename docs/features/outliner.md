@@ -6,13 +6,13 @@ Notees is a Logseq-style outliner: bullet points, and each bullet is a block is 
 
 | Gesture | Effect |
 |---|---|
-| `Enter` mid-text | **Splits the block at the caret** — the head stays, the tail moves to a new sibling right after. |
+| `Enter` mid-text | **Splits the block at the caret** — the head stays, the tail moves to a new block right after: a **sibling** normally, the **first child** when the block has children (they stay with the head). A selected range is **cut first** — the split lands at its start. |
 | `Enter` at the start | A new empty block **before** this one. |
 | `Enter` at the end | A sibling after — unless the block has children, in which case the new block becomes their **first child**. |
 | `Shift+Enter` | A `hard_break` — a line jump *inside* the block. The only break token in the grammar. |
 | `Backspace` at the start of text | **Merges this block into the previous one** (previous sibling, or the parent when this is an only child — otherwise nothing). The unflushed draft rides along. |
 | `Backspace` on an empty block with children | The children are **promoted** into the block's place, then the block is deleted. |
-| `Delete` at the end | Merges a childless next sibling into this block. |
+| `Delete` at the end | Merges a childless next sibling into this block; with **no next sibling**, an **only child** merges into this block instead (its children move up into its place). Otherwise nothing. |
 | Indent / outdent | `Tab` indents under the previous sibling; `Shift+Tab` outdents to the grandparent right after its parent. The outdent **behavior setting** (Settings → Editor) chooses Direct (only the block moves) or Logical (default — subsequent siblings follow under the outdented block, preserving category grouping). Neither leaves edit mode — the caret hands back to the moved block at the same offset. |
 | `↑` / `↓` | Move within the text **by line** (the browser default); on the **first/last visual line** the edit session hands to the block **above/below** in visible document order (folded subtrees contribute no rows). `↑` on the first top-level block hands the caret **to the page title**; `↓` on the title enters the first block. |
 | `→` at the end / `←` at the start | The edit session hands to the **next / previous** visible block (caret at the start / end). On the title, `→` at the end enters the first block; `←` at its start is a no-op. |
