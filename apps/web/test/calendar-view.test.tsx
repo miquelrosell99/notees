@@ -411,6 +411,30 @@ describe("CalendarView", () => {
     ).toBeDefined();
   });
 
+  it("an event whose content is only an inline class chip wears the class name", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+    await client.updateObject(gatheringClass, {
+      contentAst: [{ type: "text", text: "gathering" }],
+    });
+    // The event's whole content is the class chip — the title flatten is "".
+    const gathering = await client.createObject({
+      isEmbedded: false,
+      contentAst: [{ type: "class_link", classId: gatheringClass }],
+      classIds: [gatheringClass],
+    });
+    await client.ensureDateChain(today);
+    await client.setDatetimeProperty(gathering, await dateSchemaOf(client), { iso: today }, 0);
+
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    render(<CalendarView client={client} onOpenPage={vi.fn()} />);
+    const grid = await screen.findByLabelText("Calendar month view");
+    await waitFor(() => expect(grid.querySelector(".cal-block")).not.toBeNull());
+    expect(grid.querySelector(".cal-block")!.textContent).toContain("gathering");
+  });
+
   it("the day number opens the day page; the ladder reaches week and year", async () => {
     const client = await seedClient();
     const onOpenPage = vi.fn();
