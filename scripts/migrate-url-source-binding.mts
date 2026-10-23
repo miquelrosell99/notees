@@ -1,17 +1,18 @@
 /**
  * url→source binding (owner 2026-10-22 — the url seed change): the `url`
- * property's binding row moves from weblink-only to the `source` family base
+ * property's binding row moves from web_page-only (the class then keyed
+ * `weblink`, renamed to `web_page`) to the `source` family base
  * (the SCHEMA stays global per the 2026-10-20 seed-scope audit; only the
  * binding row's class changes — SYSTEM_PROPERTY_SPECS.url bindTo "source" +
- * the url→weblink row in SYSTEM_EXTRA_CLASS_BINDINGS, packages/domain).
+ * the url→web_page row in SYSTEM_EXTRA_CLASS_BINDINGS, packages/domain).
  *
  * Seeds only shape NEW workspaces; live workspaces converge by APPENDED
  * envelopes (migrations.md Path A — the immutable relay log is never
  * edited): one `class.property.set { classId: <source>, propertySchemaId: <url> }`
  * per workspace whose converged rows carry the url schema WITHOUT a source
- * binding row (the weblink row may exist — own-first resolution is
+ * binding row (the web_page row may exist — own-first resolution is
  * unaffected). When the stored schema's scope still drifts from the seed
- * (a pre-scope-flips [weblink]-local row — migrate-seed-scope-flips.mts
+ * (a pre-scope-flips [web_page]-local row — migrate-seed-scope-flips.mts
  * territory, R5 would reject the source binding as dead config), the scope
  * clears FIRST (`propertySchema.update { scopeClassIds: null }`) and the
  * binding lands in the SAME ingest, ordered after it.
@@ -129,8 +130,8 @@ interface BindingPlan {
   schemaMissing: boolean;
   /** A source↔url binding row already exists — nothing to do. */
   sourceBound: boolean;
-  /** The weblink↔url row exists (reported, never touched). */
-  weblinkBound: boolean;
+  /** The web_page↔url row exists (reported, never touched). */
+  webPageBound: boolean;
   /** The converged scope list (non-null = drifted from the global seed). */
   currentScope: string[] | null;
 }
@@ -146,7 +147,7 @@ function planBinding(store: Store): BindingPlan {
   return {
     schemaMissing: schema === undefined,
     sourceBound: binding(SOURCE_ID),
-    weblinkBound: binding(SYSTEM_CLASS_UUIDS.weblink),
+    webPageBound: binding(SYSTEM_CLASS_UUIDS.web_page),
     currentScope:
       schema === undefined || schema.scope_class_ids === null
         ? null
@@ -307,7 +308,7 @@ function migrateWorkspace(relay: RelayStorage, workspaceId: string, apply: boole
   console.log("planned url→source binding:");
   console.log(
     `  class.property.set { classId: <source>, propertySchemaId: <url> }` +
-      `${plan.weblinkBound ? "  (the weblink row stays — own-first resolution)" : ""}`,
+      `${plan.webPageBound ? "  (the web_page row stays — own-first resolution)" : ""}`,
   );
   if (plan.currentScope !== null) {
     console.log(

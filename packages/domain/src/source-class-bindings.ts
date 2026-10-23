@@ -28,8 +28,9 @@
  *   type-specific keys those two types don't share with a pool property
  *   (conferenceName, presentationType, sessionTitle) stay skipped.
  *
- * Each list is sorted alphabetically and the class keys are sorted for
- * determinism; the domain test pins the table verbatim. Nothing consumes
+ * Each list is sorted alphabetically; the class keys follow the
+ * system-class roster order (audio_recording, artwork, … — NOT
+ * alphabetical), pinned verbatim by the domain test. Nothing consumes
  * this yet — the server seed + web ensure pick it up in slice 1 task 6
  * (alongside SYSTEM_EXTRA_CLASS_BINDINGS).
  */

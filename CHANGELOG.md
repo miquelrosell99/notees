@@ -105,10 +105,13 @@ predating this file.
     schema; scratch-seeded broken-ref/user-rename corners pinned by server
     tests).
   - **Lockstep notes**: no wire change, no fixture gate. GTK/Flutter
-    seed-manifest alignment (roster rekeys, pool, archived set) is a
-    RECORDED non-blocking follow-up per the 2026-10-22 ruling; the two store
-    applier semantics (closure-never-filters, create-preserves-bit) are a
-    client applier convergence item, also recorded.
+    seed-manifest alignment (roster rekeys, pool, archived set) LANDED in
+    this slice — committed on the client repos' mains (GTK `9a5bda7` +
+    `eacf5c3`, Flutter `d3a755a` + `17b5863`; UUID parity + fixture
+    sha256 verified); push/release to the client remotes is parked with
+    owner authorization. The two store applier semantics
+    (closure-never-filters, create-preserves-bit) are a client applier
+    convergence item, also recorded.
   - **Designed-not-built (honest register)**: the resolver, sources settings
     UI, the web "Add source" flow, and the export rework over the new roster
     (the dual-track read-rule fallback + the .bib/CSL class tables + the web

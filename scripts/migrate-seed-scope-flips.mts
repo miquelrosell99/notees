@@ -5,7 +5,8 @@
  * the audit found that mapping over-scoped. Genuinely REUSABLE properties
  * must be GLOBAL (absent/null scopeClassIds — the owner ruling: the task
  * Status property "can be reused for other nodes", and the ruling covers the
- * WHOLE task family; weblink's `url` is generically reusable too). The
+ * WHOLE task family; web_page's `url` is generically reusable too — the
+ * class seeded as `weblink`, renamed to `web_page`). The
  * family-identity fields stay LOCAL (citekey explicitly so — "local to the
  * source class and its extensions"; the source bibliographic family, the
  * meeting identity trio, eventDate, birthdayPerson, the person split, the
@@ -16,7 +17,7 @@
  *   taskStatus …0003-000000000001, taskScheduled …0003-…0002,
  *   taskDeadline …0003-…0003, taskPriority …0003-…0004,
  *   taskClosedDate …0003-…0005, taskRecurrence …0003-…0006  (scope [task])
- *   url        …0000-000000000024                            (scope [weblink])
+ *   url        …0000-000000000024                            (scope [web_page])
  *
  * Seeds only shape NEW workspaces; live workspaces converge by APPENDED
  * envelopes (migrations.md Path A — the immutable relay log is never
@@ -73,7 +74,7 @@ const FLIPS: ReadonlyArray<{ schemaId: string; name: string; wasScopedTo: string
   { schemaId: SYSTEM_PROPERTY_UUIDS.taskPriority, name: "Priority", wasScopedTo: SYSTEM_CLASS_UUIDS.task },
   { schemaId: SYSTEM_PROPERTY_UUIDS.taskClosedDate, name: "Closed", wasScopedTo: SYSTEM_CLASS_UUIDS.task },
   { schemaId: SYSTEM_PROPERTY_UUIDS.taskRecurrence, name: "Recurrence", wasScopedTo: SYSTEM_CLASS_UUIDS.task },
-  { schemaId: SYSTEM_PROPERTY_UUIDS.url, name: "URL", wasScopedTo: SYSTEM_CLASS_UUIDS.weblink },
+  { schemaId: SYSTEM_PROPERTY_UUIDS.url, name: "URL", wasScopedTo: SYSTEM_CLASS_UUIDS.web_page },
 ];
 
 // --- CLI ----------------------------------------------------------------------
