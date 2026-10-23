@@ -125,6 +125,7 @@ describe("CalendarView create-with-template", () => {
     const client = await seedClient();
     const { prioId, templateId } = await setupTaskWithTemplate(client);
     const onOpenPage = vi.fn();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
     render(<CalendarView client={client} onOpenPage={onOpenPage} />);
 
     const tasks = await screen.findByRole("region", { name: "Tasks" });
@@ -172,6 +173,7 @@ describe("CalendarView create-with-template", () => {
     const client = await seedClient();
     await ensureTaskFamily(client);
     const onOpenPage = vi.fn();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
     render(<CalendarView client={client} onOpenPage={onOpenPage} />);
 
     const tasks = await screen.findByRole("region", { name: "Tasks" });
@@ -188,6 +190,7 @@ describe("CalendarView create-with-template", () => {
     const client = await seedClient();
     const { prioId } = await setupTaskWithTemplate(client);
     const onOpenPage = vi.fn();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
     render(<CalendarView client={client} onOpenPage={onOpenPage} />);
 
     const tasks = await screen.findByRole("region", { name: "Tasks" });

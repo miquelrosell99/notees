@@ -93,6 +93,7 @@ import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
 import { MonthCalendar } from "./MonthCalendar.js";
+import { CalendarGrid, type GridZoom } from "./CalendarGrid.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import "./CalendarView.css";
 
@@ -105,6 +106,18 @@ const EVENTS_ZOOMS: ReadonlyArray<{ value: EventsZoom; label: string }> = [
   { value: "day", label: "Day" },
   { value: "week", label: "Week" },
   { value: "month", label: "Month" },
+];
+
+/** The calendar's own zoom ladder:
+    Day = the day view (sections + the right panel), Week/Month/Year = the
+    colored-blocks grids. Grid-first per the owner: month is the default. */
+type CalendarZoom = "day" | GridZoom;
+
+const CALENDAR_ZOOMS: ReadonlyArray<{ value: CalendarZoom; label: string }> = [
+  { value: "day", label: "Day" },
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
+  { value: "year", label: "Year" },
 ];
 
 const FILTERS: Array<{ value: DayFilter; label: string }> = [
@@ -314,6 +327,24 @@ export function CalendarView({
     "calendarEventsZoom",
     "week",
   );
+  const [calendarZoom, setCalendarZoom] = useDeviceSetting<CalendarZoom>(
+    "calendarZoom",
+    "month",
+  );
+
+  // The day-number register: a grid day number opens the
+  // day PAGE — the chain is ensured on demand, the page opens.
+  const openDayPage = (iso: string): void => {
+    void client
+      .ensureDateChain(iso)
+      .then(({ day }) => onOpenPage(day))
+      .catch(() => {});
+  };
+  // A year-zoom month pick: jump to the month grid at its first day.
+  const openMonthZoom = (year: number, month0: number): void => {
+    setSelectedIso(`${year}-${String(month0 + 1).padStart(2, "0")}-01`);
+    setCalendarZoom("month");
+  };
   const eventsIsos = useMemo(() => {
     if (eventsZoom === "day") return [selectedIso];
     if (eventsZoom === "week") return weekDays;
@@ -415,12 +446,14 @@ export function CalendarView({
             icon="mdi-calendar-today"
             title="Calendar"
             context={
-              <div className="calendar-view__date-line">
-                <span className="calendar-view__weekday">{weekdayLabel(selectedIso)}</span>
-                {isToday && <span className="calendar-view__today-marker">Today</span>}
-                <span className="calendar-view__date">{formattedDate}</span>
-                <span className="calendar-view__week">Week {isoWeekNumber(selectedIso)}</span>
-              </div>
+              calendarZoom === "day" ? (
+                <div className="calendar-view__date-line">
+                  <span className="calendar-view__weekday">{weekdayLabel(selectedIso)}</span>
+                  {isToday && <span className="calendar-view__today-marker">Today</span>}
+                  <span className="calendar-view__date">{formattedDate}</span>
+                  <span className="calendar-view__week">Week {isoWeekNumber(selectedIso)}</span>
+                </div>
+              ) : undefined
             }
             actions={
               <>
@@ -452,6 +485,20 @@ export function CalendarView({
                     aria-label="Next day"
                     onClick={() => setSelectedIso((iso) => addDaysIso(iso, 1))}
                   />
+                </div>
+                <div className="calendar-view__ladder" role="group" aria-label="Calendar zoom">
+                  {CALENDAR_ZOOMS.map((zoom) => (
+                    <Button
+                      key={zoom.value}
+                      variant="ghost"
+                      size="sm"
+                      active={calendarZoom === zoom.value}
+                      aria-pressed={calendarZoom === zoom.value}
+                      onClick={() => setCalendarZoom(zoom.value)}
+                    >
+                      {zoom.label}
+                    </Button>
+                  ))}
                 </div>
                 <Button
                   variant="ghost"
@@ -531,6 +578,21 @@ export function CalendarView({
         }
       >
         <div className="calendar-view__main">
+          {calendarZoom !== "day" && (
+            <CalendarGrid
+              client={client}
+              zoom={calendarZoom}
+              selectedIso={selectedIso}
+              firstDayOfWeek={firstDayOfWeek}
+              recurringRows={recurringEvents}
+              onSelectDay={setSelectedIso}
+              onOpenEvent={onOpenPage}
+              onOpenDayPage={openDayPage}
+              onOpenMonth={openMonthZoom}
+            />
+          )}
+          {calendarZoom === "day" && (
+          <>
           <Tabs value={filter} onChange={setFilter} className="calendar-view__filter">
             <Tabs.List>
               {FILTERS.map((entry) => (
@@ -652,6 +714,8 @@ export function CalendarView({
                 filter === "created" && <EmptyState title="There's nothing here (yet)." />
               ))}
           </div>
+          </>
+          )}
         </div>
       </MainContentFrame>
 
