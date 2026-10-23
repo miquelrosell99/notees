@@ -172,7 +172,7 @@ export class WorkerClient {
     number,
     { resolve: (value: unknown) => void; reject: (error: Error) => void }
   >();
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = new Set<(change: ChangeNotification) => void>();
   private readonly cache = new Map<string, unknown>();
   /**
    * Read-cache convergence, dirty-set style: every seeded key (and every
@@ -255,6 +255,10 @@ export class WorkerClient {
    * class (search embeds titles and link marks from anywhere).
    */
   private handleChanged(change: ChangeNotification & { type: "changed" }): void {
+    // The payload rides to subscribers (notify runs after the refresh
+    // drain): scoped subscribers (e.g. PageView's page-containment pre-filter)
+    // decide per notification whether the change concerns them.
+    this.lastChange = change;
     const structural = change.structural === true;
     const affected = change.affectedNodeIds;
     const full = structural || affected === undefined;
@@ -1018,7 +1022,9 @@ export class WorkerClient {
 
   // --- notifications ----------------------------------------------------------------------
 
-  subscribe(listener: () => void): () => void {
+  private lastChange: ChangeNotification = { revision: 0 };
+
+  subscribe(listener: (change: ChangeNotification) => void): () => void {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
@@ -1031,7 +1037,7 @@ export class WorkerClient {
     // synchronously (performSyncWorkOnRoot) ahead of queued input. Inside a
     // transition, keystrokes and clicks win the next frame.
     startTransition(() => {
-      for (const listener of this.listeners) listener();
+      for (const listener of this.listeners) listener(this.lastChange);
     });
   }
 

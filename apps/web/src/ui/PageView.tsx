@@ -332,7 +332,26 @@ export function PageView({
   const [exporting, setExporting] = useState<{ pageId: string; name: string } | null>(null);
   const [sharing, setSharing] = useState<{ pageId: string; name: string } | null>(null);
   const [, setVersion] = useState(0);
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  useEffect(
+    () =>
+      client.subscribe((change) => {
+        // Scoped changes that don't name this page skip the version bump:
+        // the notification payload is ancestor-expanded, so an edit landing
+        // inside this page's subtree already carries pageId; every read this
+        // view renders is either scoped to pageId or owned by a
+        // self-subscribing child (the sections). Structural or scope-unknown
+        // payloads bump as before.
+        if (
+          change.affectedNodeIds !== undefined &&
+          change.structural !== true &&
+          !change.affectedNodeIds.includes(pageId)
+        ) {
+          return;
+        }
+        setVersion((v) => v + 1);
+      }),
+    [client, pageId],
+  );
   /**
    * View transforms (SCHEMA.md: display state, never content). Collapse is a
    * per-session set of hidden subtree roots; prose mode flattens bullets and
