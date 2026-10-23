@@ -20,8 +20,14 @@
  *    url→web_page extra row is still missing (the migration MUST emit only
  *    that one).
  *
- * NEVER point this at a real data dir: it WIPES the dir first. The default
- * lives under /tmp; an explicit --data-dir is the operator's own risk.
+ * Plus two probe workspaces: one whose renamed classes carry CUSTOM user
+ * titles (every rename must be skipped, never clobbered, while the paper
+ * reclass still runs), and one whose paper-classed node's content carries an
+ * inline class_link to paper (the migration's pre-ingest test-apply must
+ * abort with ZERO envelopes written).
+ *
+ * NEVER point this at a real data dir: it WIPES the dir first — and it
+ * HARD-REFUSES any --data-dir not under /tmp (fail loud, don't wipe).
  *
  * Usage (from the repo root; the tsx binary lives in apps/server):
  *   pnpm --filter @notees/server exec tsx ../../scripts/migrated-verify/seed-source-roster-scratch.mts \
@@ -29,7 +35,7 @@
  */
 
 import { rmSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { newEnvelope, type Envelope } from "../../packages/protocol/src/index.ts";
@@ -40,7 +46,12 @@ import { RelayStorage } from "../../apps/server/src/relay-storage.ts";
 const DEVICE = "roster-scratch-seed";
 const CLIENT = "roster-scratch-seed";
 const ACTOR = "01920000-0000-7000-8000-0000000000f7";
+/** The happy-path workspace: old titles, four classed nodes, one saved query view. */
 const WORKSPACE = "c491595f-9f94-5ade-a620-e30ed063d8d2";
+/** The user-rename probe: the renamed classes carry CUSTOM titles — none may be clobbered. */
+const WORKSPACE_USER_RENAMED = "2d1c3a70-8f7e-4c1a-9b3d-5e6f7a8b9c02";
+/** The poison probe: a paper node's content carries an inline class_link to paper. */
+const WORKSPACE_POISON = "2d1c3a70-8f7e-4c1a-9b3d-5e6f7a8b9c03";
 
 const SOURCE_ID = SYSTEM_CLASS_UUIDS.source;
 const PAPER_ID = "00000000-0000-0000-0001-000000000025";
@@ -62,18 +73,31 @@ function parseArgs(argv: string[]): { dataDir: string } {
   return { dataDir: index >= 0 ? argv[index + 1] : "/tmp/notees-roster-scratch" };
 }
 
-/** The pre-roster workspace: old titles, four classed nodes, one saved query view. */
+/**
+ * Three throwaway workspaces:
+ *
+ *  1. WORKSPACE — the happy path: old titles, four classed nodes, one saved
+ *     query view, a partially-converged abstract+url corner.
+ *  2. WORKSPACE_USER_RENAMED — the renamed classes carry CUSTOM user titles
+ *     ("Papers", "Bookmarks", "Cine"): the migration must skip every rename
+ *     (reported, never clobbered) while the paper reclass still runs.
+ *  3. WORKSPACE_POISON — a paper-classed EMBEDDED node whose content carries
+ *     an inline class_link to paper: the plan's raw class.unassign trips the
+ *     applier's inline-content lock, so the pre-ingest test-apply must abort
+ *     the run with ZERO envelopes written.
+ */
 function buildSeedEnvelopes(): Envelope[] {
   const physical = Date.now();
   const envelopes: Envelope[] = [];
   const push = (
+    workspaceId: string,
     opType: string,
     payload: Record<string, unknown>,
     affected: string[],
   ): void => {
     envelopes.push(
       newEnvelope({
-        workspaceId: WORKSPACE,
+        workspaceId,
         actorId: ACTOR,
         deviceId: DEVICE,
         client: CLIENT,
@@ -84,50 +108,39 @@ function buildSeedEnvelopes(): Envelope[] {
       }),
     );
   };
-
   const classCreate = (
+    workspaceId: string,
     classId: string,
     title: string,
     icon: string,
     parents: string[],
   ): void => {
-    push("class.create", { classId, contentAst: [{ type: "text", text: title }], icon }, [classId]);
-    push("class.setExtends", { classId, parentClassIds: parents }, [classId]);
+    push(workspaceId, "class.create", { classId, contentAst: [{ type: "text", text: title }], icon }, [classId]);
+    push(workspaceId, "class.setExtends", { classId, parentClassIds: parents }, [classId]);
   };
 
-  // The old source family, pre-roster titles.
-  classCreate(SOURCE_ID, "Source", "mdiBookshelf", []);
-  classCreate(PAPER_ID, "Paper", "mdiNewspaperVariantOutline", [SOURCE_ID]);
-  classCreate(ARTICLE_ID, "Article", "mdiNewspaper", [SOURCE_ID]);
-  classCreate(WEBLINK_ID, "Web link", "mdiLinkVariant", [SOURCE_ID]);
-  classCreate(MOVIE_ID, "Movie", "mdiMovieOpenOutline", [SOURCE_ID]);
-
-  // Four sample nodes, one per drifted class.
-  push(
-    "object.create",
+  // --- Workspace 1: the happy path ------------------------------------------
+  const ws = WORKSPACE;
+  classCreate(ws, SOURCE_ID, "Source", "mdiBookshelf", []);
+  classCreate(ws, PAPER_ID, "Paper", "mdiNewspaperVariantOutline", [SOURCE_ID]);
+  classCreate(ws, ARTICLE_ID, "Article", "mdiNewspaper", [SOURCE_ID]);
+  classCreate(ws, WEBLINK_ID, "Web link", "mdiLinkVariant", [SOURCE_ID]);
+  classCreate(ws, MOVIE_ID, "Movie", "mdiMovieOpenOutline", [SOURCE_ID]);
+  push(ws, "object.create",
     { objectId: NODE_PAPER, classIds: [PAPER_ID], contentAst: [{ type: "text", text: "A pre-roster paper node" }] },
-    [NODE_PAPER],
-  );
-  push(
-    "object.create",
+    [NODE_PAPER]);
+  push(ws, "object.create",
     { objectId: NODE_ARTICLE, classIds: [ARTICLE_ID], contentAst: [{ type: "text", text: "A pre-roster article node" }] },
-    [NODE_ARTICLE],
-  );
-  push(
-    "object.create",
+    [NODE_ARTICLE]);
+  push(ws, "object.create",
     { objectId: NODE_WEBLINK, classIds: [WEBLINK_ID], contentAst: [{ type: "text", text: "A pre-roster web link node" }] },
-    [NODE_WEBLINK],
-  );
-  push(
-    "object.create",
+    [NODE_WEBLINK]);
+  push(ws, "object.create",
     { objectId: NODE_MOVIE, classIds: [MOVIE_ID], contentAst: [{ type: "text", text: "A pre-roster movie node" }] },
-    [NODE_MOVIE],
-  );
-
+    [NODE_MOVIE]);
   // The saved query view, authored BEFORE the renames: a class condition on
   // the …0026 UUID (titled "Article" today, "Journal article" after).
-  push(
-    "object.create",
+  push(ws, "object.create",
     {
       objectId: QUERIES_PAGE,
       isEmbedded: false,
@@ -147,13 +160,10 @@ function buildSeedEnvelopes(): Envelope[] {
         },
       ],
     },
-    [QUERIES_PAGE],
-  );
-
+    [QUERIES_PAGE]);
   // The partially-converged corner: abstract (pool) + url land WITH their
   // source binding rows — the migration must skip them, not re-emit.
-  push(
-    "propertySchema.create",
+  push(ws, "propertySchema.create",
     {
       propertySchemaId: ABSTRACT_SCHEMA_ID,
       name: "Abstract",
@@ -161,25 +171,61 @@ function buildSeedEnvelopes(): Envelope[] {
       multi: false,
       scopeClassIds: [SOURCE_ID],
     },
-    [],
-  );
-  push("class.property.set", { classId: SOURCE_ID, propertySchemaId: ABSTRACT_SCHEMA_ID }, [SOURCE_ID]);
-  push(
-    "propertySchema.create",
+    []);
+  push(ws, "class.property.set", { classId: SOURCE_ID, propertySchemaId: ABSTRACT_SCHEMA_ID }, [SOURCE_ID]);
+  push(ws, "propertySchema.create",
     { propertySchemaId: URL_SCHEMA_ID, name: "URL", type: "url", multi: false },
-    [],
-  );
-  push("class.property.set", { classId: SOURCE_ID, propertySchemaId: URL_SCHEMA_ID }, [SOURCE_ID]);
+    []);
+  push(ws, "class.property.set", { classId: SOURCE_ID, propertySchemaId: URL_SCHEMA_ID }, [SOURCE_ID]);
+
+  // --- Workspace 2: user-renamed class titles --------------------------------
+  const wsUser = WORKSPACE_USER_RENAMED;
+  classCreate(wsUser, SOURCE_ID, "Source", "mdiBookshelf", []);
+  classCreate(wsUser, PAPER_ID, "Paper", "mdiNewspaperVariantOutline", [SOURCE_ID]);
+  classCreate(wsUser, ARTICLE_ID, "Papers", "mdiNewspaper", [SOURCE_ID]); // user rename
+  classCreate(wsUser, WEBLINK_ID, "Bookmarks", "mdiLinkVariant", [SOURCE_ID]); // user rename
+  classCreate(wsUser, MOVIE_ID, "Cine", "mdiMovieOpenOutline", [SOURCE_ID]); // user rename
+  push(wsUser, "object.create",
+    { objectId: NODE_PAPER, classIds: [PAPER_ID], contentAst: [{ type: "text", text: "A paper node in the user-renamed workspace" }] },
+    [NODE_PAPER]);
+
+  // --- Workspace 3: the poisoned paper node ----------------------------------
+  const wsPoison = WORKSPACE_POISON;
+  classCreate(wsPoison, SOURCE_ID, "Source", "mdiBookshelf", []);
+  classCreate(wsPoison, PAPER_ID, "Paper", "mdiNewspaperVariantOutline", [SOURCE_ID]);
+  classCreate(wsPoison, ARTICLE_ID, "Article", "mdiNewspaper", [SOURCE_ID]);
+  // The parent page + an EMBEDDED child whose rich content carries an inline
+  // class_link to paper — a raw class.unassign {paper} refuses (the content-
+  // reference lock), so the pre-ingest test-apply must abort with zero writes.
+  push(wsPoison, "object.create",
+    { objectId: QUERIES_PAGE, isEmbedded: false, contentAst: [{ type: "text", text: "Poison host" }] },
+    [QUERIES_PAGE]);
+  push(wsPoison, "object.create",
+    {
+      objectId: NODE_PAPER,
+      parentId: QUERIES_PAGE,
+      classIds: [PAPER_ID],
+      contentAst: [{ type: "class_link", classId: PAPER_ID, displayText: "paper" }],
+    },
+    [NODE_PAPER]);
 
   return envelopes;
 }
 
 function main(): void {
   const options = parseArgs(process.argv.slice(2));
-  rmSync(options.dataDir, { recursive: true, force: true });
+  // HARD REFUSAL: this harness WIPES the dir. Only /tmp targets are allowed —
+  // never a real relay data dir.
+  const resolved = resolve(options.dataDir);
+  if (resolved !== "/tmp" && !resolved.startsWith("/tmp/")) {
+    throw new Error(
+      `refusing to wipe ${resolved} — the scratch seed harness only accepts --data-dir under /tmp`,
+    );
+  }
+  rmSync(resolved, { recursive: true, force: true });
   const relay = new RelayStorage(
-    join(options.dataDir, "relay.db"),
-    join(options.dataDir, "snapshots"),
+    join(resolved, "relay.db"),
+    join(resolved, "snapshots"),
   );
   try {
     const envelopes = buildSeedEnvelopes();
@@ -188,9 +234,11 @@ function main(): void {
       throw new Error(`seed ingest saved ${savedIds.length}/${envelopes.length} envelopes`);
     }
     console.log(
-      `scratch relay seeded at ${options.dataDir}: ${savedIds.length} envelope(s), ` +
-        `workspace ${WORKSPACE} — the old paper/article/weblink/movie roster with four classed nodes, ` +
-        "a pre-rename saved query view (class condition on …0026), and a partially-converged abstract+url corner.",
+      `scratch relay seeded at ${resolved}: ${savedIds.length} envelope(s) across 3 workspaces — ` +
+        `${WORKSPACE} (happy path: old titles, four classed nodes, the pre-rename saved query view, ` +
+        `a partially-converged abstract+url corner), ${WORKSPACE_USER_RENAMED} (custom class titles — ` +
+        `renames must skip), ${WORKSPACE_POISON} (a paper node's content links paper inline — the ` +
+        "pre-ingest test-apply must abort with zero writes).",
     );
   } finally {
     relay.close();
