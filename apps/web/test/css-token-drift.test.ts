@@ -41,6 +41,11 @@ const JS_SCOPED = new Map<string, string>([
   ["--sheet-scrim-opacity", "Modal.tsx"],
   ["--nt-float-raise", "FloatingEditor.tsx"],
   ["--nt-fb-depth", "FilterBlockBuilder.tsx"],
+  // The MainContentFrame panel-width host overrides (owner 2026-10-23 —
+  // each view may set its panel columns' width; set inline from React,
+  // consumed as the flex-basis fallback in MainContentFrame.css).
+  ["--nt-side-panel-width", "MainContentFrame.tsx"],
+  ["--nt-context-panel-width", "MainContentFrame.tsx"],
   // Radix popper sets this on the popover content (JS) — the Dropdown
   // menu's min-width rides it (trigger-width anchoring).
   ["--radix-popover-trigger-width", "Dropdown.tsx"],

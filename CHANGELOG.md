@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(web): MainContentFrame panel widths become a per-view override —
+  the calendar's agenda panel gets its 320px column back.** The shared
+  panel clamp (13–22rem) read too narrow for the calendar's seven-column
+  mini-month (owner: "each view should be able to override the component
+  width"). The frame gains `leftPanelWidth` / `rightPanelWidth` props: a
+  CSS length (the token vars per the adaptive-values law) carried into the
+  panel's flex-basis via the `--nt-context-panel-width` /
+  `--nt-side-panel-width` custom properties, undefined riding the register
+  default. CalendarView passes `var(--layout-size-8xl)` — its old fixed
+  side column. The drift gate's JS-scoped allowlist gains the two custom
+  properties. Verified: `pnpm typecheck` + `pnpm test` green.
+
 - **feat(web): the calendar is the MainContentFrame's second host — the
   agenda column becomes a raised-card side panel with a top-bar toggle.**
   The frame shipped this morning as the mechanism with PageView as its only

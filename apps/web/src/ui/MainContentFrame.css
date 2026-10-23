@@ -80,7 +80,11 @@
    --md-sys-color-sidebar-card: the same surface in light, one tone lighter
    in dark so the cards stand out. */
 .nt-page-side-panel {
-  flex: 0 0 clamp(13rem, 24%, 22rem);
+  /* The flex-basis rides the custom property: the host may override the
+     column width per view (the calendar's mini-month sets
+     var(--layout-size-8xl) — owner 2026-10-23), undefined falls back to
+     the register default. */
+  flex: 0 0 var(--nt-side-panel-width, clamp(13rem, 24%, 22rem));
   min-width: 0;
   align-self: stretch;
   max-height: 100%;
@@ -96,7 +100,7 @@
    AND the main content container (see above): the very card the container
    wears, nested inside it; the old full-height divider retired. */
 .nt-page-context {
-  flex: 0 0 clamp(15rem, 26%, 22rem);
+  flex: 0 0 var(--nt-context-panel-width, clamp(15rem, 26%, 22rem));
   min-width: 0;
   align-self: stretch;
   max-height: 100%;

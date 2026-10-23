@@ -14,7 +14,9 @@
  * second host — the day content rides the middle cell, the mini-month +
  * week strip + week agenda ride the frame's raised-card right panel
  * (toggled from the top bar, device-local collapse like the nodeview's
- * properties panel). The view's own two-column body retired; the frame
+ * properties panel; the panel's width rides the host override —
+ * `var(--layout-size-8xl)`, the mini-month's old 320px column, owner
+ * 2026-10-23). The view's own two-column body retired; the frame
  * owns the column split.
  *
  * Recurrence (compute-on-read ruling): date values
@@ -517,6 +519,7 @@ export function CalendarView({
           />
         }
         rightLabel="Agenda"
+        rightPanelWidth="var(--layout-size-8xl)"
         rightPanel={
           !agendaCollapsed ? (
             <div className="calendar-view__panel">

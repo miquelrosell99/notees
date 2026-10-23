@@ -16,7 +16,12 @@
  * passing the panel ReactNode or undefined. Each host owns its panel CONTENT
  * too — the frame supplies only the chrome registers (the card element, the
  * column split, the collapse geometry), so two hosts never share panel
- * content, only the composition.
+ * content, only the composition. The panel WIDTHS are the host's call as
+ * well: `leftPanelWidth` / `rightPanelWidth` carry a CSS length (the token
+ * vars per the adaptive-values law) into the panel's flex-basis via a
+ * custom property; undefined rides the register default (owner 2026-10-23
+ * — the calendar's mini-month needed its old 320px column back, and each
+ * view may set its own measure).
  *
  * The CSS registers move with the frame (MainContentFrame.css): the panel
  * cards keep their class names (.nt-page-context / .nt-page-side-panel —
@@ -27,7 +32,7 @@
  * full-bleed when it doesn't (the hubs' eventual panel adoption).
  */
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import "./MainContentFrame.css";
 
@@ -43,10 +48,22 @@ export interface MainContentFrameProps {
   leftPanel?: ReactNode;
   /** The left panel card's accessible name (the context column default). */
   leftLabel?: string;
+  /**
+   * The left panel column's width override — a CSS length (the token vars
+   * per the adaptive-values law, e.g. `var(--layout-size-8xl)`). Undefined
+   * rides the register default (the context column's clamp).
+   */
+  leftPanelWidth?: string;
   /** The right panel's content; undefined renders no right column. */
   rightPanel?: ReactNode;
   /** The right panel card's accessible name (the properties default). */
   rightLabel?: string;
+  /**
+   * The right panel column's width override — a CSS length (the token vars
+   * per the adaptive-values law, e.g. `var(--layout-size-8xl)`). Undefined
+   * rides the register default (the properties panel's clamp).
+   */
+  rightPanelWidth?: string;
   /** The middle column: the view's own body (scroller, cap, chrome). */
   children: ReactNode;
 }
@@ -55,8 +72,10 @@ export function MainContentFrame({
   topBar,
   leftPanel,
   leftLabel = "Context",
+  leftPanelWidth,
   rightPanel,
   rightLabel = "Properties",
+  rightPanelWidth,
   children,
 }: MainContentFrameProps) {
   return (
@@ -64,13 +83,29 @@ export function MainContentFrame({
       {topBar}
       <div className="nt-main-frame__body">
         {leftPanel !== undefined && (
-          <aside className="nt-page-context" aria-label={leftLabel}>
+          <aside
+            className="nt-page-context"
+            aria-label={leftLabel}
+            style={
+              leftPanelWidth !== undefined
+                ? ({ "--nt-context-panel-width": leftPanelWidth } as CSSProperties)
+                : undefined
+            }
+          >
             {leftPanel}
           </aside>
         )}
         <div className="nt-main-frame__content">{children}</div>
         {rightPanel !== undefined && (
-          <aside className="nt-page-side-panel" aria-label={rightLabel}>
+          <aside
+            className="nt-page-side-panel"
+            aria-label={rightLabel}
+            style={
+              rightPanelWidth !== undefined
+                ? ({ "--nt-side-panel-width": rightPanelWidth } as CSSProperties)
+                : undefined
+            }
+          >
             {rightPanel}
           </aside>
         )}
