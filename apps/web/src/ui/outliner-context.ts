@@ -362,6 +362,21 @@ function persistCollapsedState(rootId: string, ids: ReadonlySet<string>): void {
   persistIdSet(COLLAPSE_STORAGE_PREFIX, rootId, ids);
 }
 
+/** Node-identity tree compare — the structural-sharing test (a fresh read
+ *  with every node identical to the previous one reuses the previous tree). */
+function sameBlockTreeList(a: readonly BlockTreeNode[], b: readonly BlockTreeNode[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (!sameBlockTreeNode(a[i]!, b[i]!)) return false;
+  }
+  return true;
+}
+
+function sameBlockTreeNode(a: BlockTreeNode, b: BlockTreeNode): boolean {
+  if (a.node !== b.node || a.children.length !== b.children.length) return false;
+  return sameBlockTreeList(a.children, b.children);
+}
+
 export function useOutlinerValue(
   client: OutlinerClient & OutlinerReader,
   rootId: string,
@@ -397,6 +412,18 @@ export function useOutlinerValue(
   const expandedRef = useRef<ReadonlySet<string>>(expandedIds);
   const defaultCollapsedRef = useRef(options?.defaultCollapsed);
   defaultCollapsedRef.current = options?.defaultCollapsed;
+  // The passthrough callbacks ride latest-value refs: hosts hand fresh
+  // inline identities per render (the App's navigation funnels do), and
+  // memo-depending on them would rebuild the whole context value every
+  // render — re-rendering every row through context regardless of the
+  // prop-level memo. The ref indirection always invokes the LATEST option,
+  // so no stale closure is possible.
+  const openNodeRef = useRef(options?.openNode);
+  openNodeRef.current = options?.openNode;
+  const openInSidebarRef = useRef(options?.openInSidebar);
+  openInSidebarRef.current = options?.openInSidebar;
+  const ensureTemplateFamilyRef = useRef(options?.ensureTemplateFamily);
+  ensureTemplateFamilyRef.current = options?.ensureTemplateFamily;
   const isEffectivelyCollapsed = useCallback((blockId: string): boolean => {
     if (collapsedRef.current.has(blockId)) return true;
     const defaults = defaultCollapsedRef.current;
@@ -451,20 +478,15 @@ export function useOutlinerValue(
 
   const [selectedRoots, setSelectedRoots] = useState<ReadonlySet<string>>(() => new Set<string>());
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
-  // Latest-value subtree map: the selection callbacks are stable ([]) and
-  // must close over the CURRENT tree, not the render that created them.
+  // Latest-value subtree map: the selection cap/toggle callbacks are stable
+  // ([]) and must read the CURRENT tree, not the render that created them.
   const subtreeOfRef = useRef<Map<string, string[]>>(new Map());
   // Latest-value positions mirror — the cap rule reads parent chains live.
   const positionsRef = useRef<OutlinePositionMap>(new Map());
-  const closeOverSubtrees = (ids: ReadonlySet<string>): Set<string> => {
-    const next = new Set<string>();
-    for (const id of ids) {
-      const subtree = subtreeOfRef.current.get(id);
-      if (subtree === undefined) next.add(id); // stale id, not in this tree — keep verbatim
-      else for (const each of subtree) next.add(each);
-    }
-    return next;
-  };
+  // Latest-value document order mirrors (the range/arrow closures read them
+  // per call — the context value stays tree-independent).
+  const orderedIdsRef = useRef<string[]>([]);
+  const visibleOrderRef = useRef<string[]>([]);
   // Depth within this tree: top-level rows are 0 (their parent is the page,
   // which is not itself a row). Ids without facts (stale) read as depth 0 —
   // they cap nothing and map to themselves.
@@ -560,14 +582,35 @@ export function useOutlinerValue(
     return endRowId !== null && endRowId === clickedRowId;
   }, []);
 
-  const tree = client.getBlockTree(rootId);
-  const positions = buildOutlinePositions(tree, rootId);
-  positionsRef.current = positions;
-  // The stored stack is level-capped roots; the exposed set is whole-subtree
-  // (selecting a block also exposes its children — the visual is one card
-  // around the contiguous range, and a partial subtree would break the
-  // rectangle).
-  const selection = closeOverSubtrees(selectedRoots);
+  /**
+   * Structural sharing on node identity: the revision-cached read rebuilds
+   * its tree (new wrapper objects) per notification, but unchanged rows KEEP
+   * their node identity (mapNodeCached's column-stamp cache). The shared
+   * array keeps the context value stable across notifications that rebuilt
+   * nothing (the render-phase setState is the sanctioned derived-state
+   * pattern). The tree-derived derivations below ride latest-value refs
+   * (this file's established pattern) rather than the context value's
+   * identity: making the value depend on the tree would rebuild it per
+   * on-page edit and re-render EVERY row through context — the memoized
+   * row cannot bail a context consumer.
+   */
+  const nextTree = client.getBlockTree(rootId);
+  const [tree, setTree] = useState(nextTree);
+  if (!sameBlockTreeList(tree, nextTree)) setTree(nextTree);
+  // Effective collapse: the persisted folds plus the un-overridden
+  // default-collapsed rows (the read-only collection projections).
+  const effectiveCollapsed = useMemo(() => {
+    if (options?.defaultCollapsed === undefined) return collapsedIds;
+    const next = new Set(collapsedIds);
+    for (const id of options.defaultCollapsed) {
+      if (!expandedIds.has(id)) next.add(id);
+    }
+    return next;
+  }, [collapsedIds, expandedIds, options?.defaultCollapsed]);
+
+  // Per-render latest-value mirrors: the derivations stay fresh for the
+  // closures/getters without entering the context value's memo deps.
+  positionsRef.current = buildOutlinePositions(tree, rootId);
   const subtreeOf = new Map<string, string[]>();
   const collectSubtrees = (nodes: readonly BlockTreeNode[]): string[] => {
     const all: string[] = [];
@@ -589,19 +632,11 @@ export function useOutlinerValue(
     }
   };
   flattenIds(tree);
+  orderedIdsRef.current = orderedIds;
   // The VISIBLE document order (the arrow-handoff reads): a collapsed block
   // contributes its own row and nothing under it — the next/previous answer
-  // is always a rendered row. Rebuilt every render alongside the tree.
-  // Effective collapse: the persisted folds plus the un-overridden
-  // default-collapsed rows (the read-only collection projections).
-  const effectiveCollapsed = useMemo(() => {
-    if (options?.defaultCollapsed === undefined) return collapsedIds;
-    const next = new Set(collapsedIds);
-    for (const id of options.defaultCollapsed) {
-      if (!expandedIds.has(id)) next.add(id);
-    }
-    return next;
-  }, [collapsedIds, expandedIds, options?.defaultCollapsed]);
+  // is always a rendered row. Effective collapse: the persisted folds plus
+  // the un-overridden default-collapsed rows (the read-only projections).
   const visibleOrder: string[] = [];
   const flattenVisible = (nodes: readonly BlockTreeNode[]): void => {
     for (const entry of nodes) {
@@ -610,82 +645,153 @@ export function useOutlinerValue(
     }
   };
   flattenVisible(tree);
-  const rangeBetween = (a: string, b: string): string[] => {
-    const ia = orderedIds.indexOf(a);
-    const ib = orderedIds.indexOf(b);
-    if (ia === -1 || ib === -1) return [];
-    const [from, to] = ia <= ib ? [ia, ib] : [ib, ia];
-    return orderedIds.slice(from, to + 1);
-  };
+  visibleOrderRef.current = visibleOrder;
 
-  return {
+  // The selection closure: memoized per (selectedRoots × current subtree
+  // map) so the identity stays stable across renders that touch neither —
+  // rows read `selection.has(id)` per render, so a churning identity would
+  // re-render the tree through context.
+  const selectionCacheRef = useRef<{
+    roots: ReadonlySet<string>;
+    map: Map<string, string[]>;
+    value: Set<string>;
+  } | null>(null);
+  const selectionFor = useCallback((roots: ReadonlySet<string>): Set<string> => {
+    const cache = selectionCacheRef.current;
+    if (cache !== null && cache.roots === roots && cache.map === subtreeOfRef.current) {
+      return cache.value;
+    }
+    // The stored stack is level-capped roots; the exposed set is whole-subtree
+    // (selecting a block also exposes its children — the visual is one card
+    // around the contiguous range, and a partial subtree would break the
+    // rectangle). Stale ids (not in this tree) are kept verbatim.
+    const value = new Set<string>();
+    for (const id of roots) {
+      const subtree = subtreeOfRef.current.get(id);
+      if (subtree === undefined) value.add(id);
+      else for (const each of subtree) value.add(each);
+    }
+    selectionCacheRef.current = { roots, map: subtreeOfRef.current, value };
+    return value;
+  }, []);
+
+  /**
+   * The context value: memoized on the STATE it derives from (collapse /
+   * stretch / selection / focus pieces, the option flags, the stable
+   * callbacks) — never on the tree. Tree-derived members expose freshness
+   * through the latest-value refs above (the navigation closures read them
+   * per call; `positions` and `selection` are lazy getters), so an on-page
+   * content edit changes no dep here and unchanged rows bail on the prop
+   * memo.
+   */
+  const value = useMemo<OutlinerContextValue>(() => {
+    return {
+      client,
+      rootId,
+      openNode: (nodeId) => openNodeRef.current?.(nodeId),
+      openInSidebar: (nodeId) => openInSidebarRef.current?.(nodeId),
+      focusMode: options?.focusMode ?? false,
+      selectionEnabled: options?.selection ?? false,
+      get selection() {
+        return selectionFor(selectedRoots);
+      },
+      selectionRoots: selectedRoots,
+      selectionAnchor,
+      setSelectionAnchor,
+      replaceSelection,
+      toggleSelected,
+      clearSelection,
+      rangeBetween: (a, b) => rangeOverOrderedIds(orderedIdsRef.current, a, b),
+      signalDragClick,
+      consumeDragClick,
+      get positions() {
+        return positionsRef.current;
+      },
+      focusRequest,
+      requestFocus: (blockId: string, caret: CaretPlacement = "end") =>
+        setFocusRequest({ id: blockId, caret }),
+      acknowledgeFocus: () => setFocusRequest(null),
+      nextBlockId: (blockId) => stepVisibleOrder(visibleOrderRef.current, blockId, 1),
+      previousBlockId: (blockId) => stepVisibleOrder(visibleOrderRef.current, blockId, -1),
+      firstBlockId: () => visibleOrderRef.current[0] ?? null,
+      collapsed: effectiveCollapsed,
+      toggleCollapse,
+      stretched: stretchedIds,
+      toggleStretched,
+      clearStretched,
+      capture: {
+        /**
+         * `@` mention candidates, by DISPLAY NAME (SCHEMA.md derivation). The
+         * FTS index covers content plaintext AND stored names, so FTS hits are
+         * unioned with pages + classes and filtered client-side by display name
+         * (the filter keeps the name matches and drops nothing the pools did
+         * not already surface).
+         */
+        searchNodes: (query) => {
+          const q = foldSearchText(query.trim().toLowerCase());
+          const pool = [
+            ...client.listPages(),
+            ...client.listClasses(),
+            ...(q === "" ? [] : client.search(query)),
+          ];
+          const seen = new Set<string>();
+          return pool.filter((node) => {
+            if (seen.has(node.id)) return false;
+            seen.add(node.id);
+            if (q === "") return true;
+            // Diacritics fold on both sides (the store search mirror): `@video`
+            // surfaces the class "Vídeo".
+            return foldSearchText((displayNameFromClient(client, node.id) ?? "").toLowerCase()).includes(
+              q,
+            );
+          });
+        },
+        listClasses: () => client.listClasses(),
+        displayName: (id) => displayNameFromClient(client, id),
+      },
+      ensureTemplateFamily: () => {
+        const ensure = ensureTemplateFamilyRef.current;
+        return ensure === undefined ? Promise.resolve() : ensure();
+      },
+    };
+  }, [
     client,
     rootId,
-    openNode: options?.openNode ?? (() => {}),
-    openInSidebar: options?.openInSidebar ?? (() => {}),
-    focusMode: options?.focusMode ?? false,
-    selectionEnabled: options?.selection ?? false,
-    selection: selection,
-    selectionRoots: selectedRoots,
+    selectedRoots,
     selectionAnchor,
-    setSelectionAnchor,
+    selectionFor,
+    effectiveCollapsed,
+    stretchedIds,
+    focusRequest,
     replaceSelection,
     toggleSelected,
     clearSelection,
-    rangeBetween,
     signalDragClick,
     consumeDragClick,
-    positions,
-    focusRequest,
-    requestFocus: (blockId: string, caret: CaretPlacement = "end") =>
-      setFocusRequest({ id: blockId, caret }),
-    acknowledgeFocus: () => setFocusRequest(null),
-    nextBlockId: (blockId) => {
-      const index = visibleOrder.indexOf(blockId);
-      return index >= 0 && index < visibleOrder.length - 1 ? visibleOrder[index + 1]! : null;
-    },
-    previousBlockId: (blockId) => {
-      const index = visibleOrder.indexOf(blockId);
-      return index > 0 ? visibleOrder[index - 1]! : null;
-    },
-    firstBlockId: () => visibleOrder[0] ?? null,
-    collapsed: effectiveCollapsed,
     toggleCollapse,
-    stretched: stretchedIds,
     toggleStretched,
     clearStretched,
-    capture: {
-      /**
-       * `@` mention candidates, by DISPLAY NAME (SCHEMA.md derivation). The
-       * FTS index covers content plaintext AND stored names, so FTS hits are
-       * unioned with pages + classes and filtered client-side by display name
-       * (the filter keeps the name matches and drops nothing the pools did
-       * not already surface).
-       */
-      searchNodes: (query) => {
-        const q = foldSearchText(query.trim().toLowerCase());
-        const pool = [
-          ...client.listPages(),
-          ...client.listClasses(),
-          ...(q === "" ? [] : client.search(query)),
-        ];
-        const seen = new Set<string>();
-        return pool.filter((node) => {
-          if (seen.has(node.id)) return false;
-          seen.add(node.id);
-          if (q === "") return true;
-          // Diacritics fold on both sides (the store search mirror): `@video`
-          // surfaces the class "Vídeo".
-          return foldSearchText((displayNameFromClient(client, node.id) ?? "").toLowerCase()).includes(
-            q,
-          );
-        });
-      },
-      listClasses: () => client.listClasses(),
-      displayName: (id) => displayNameFromClient(client, id),
-    },
-    ensureTemplateFamily: options?.ensureTemplateFamily,
-  };
+    options?.selection,
+    options?.focusMode,
+  ]);
+
+  return value;
+}
+
+/** The shift+click / drag range over the document-order ids (pure). */
+function rangeOverOrderedIds(ids: readonly string[], a: string, b: string): string[] {
+  const ia = ids.indexOf(a);
+  const ib = ids.indexOf(b);
+  if (ia === -1 || ib === -1) return [];
+  const [from, to] = ia <= ib ? [ia, ib] : [ib, ia];
+  return ids.slice(from, to + 1);
+}
+
+/** The arrow-handoff step over the VISIBLE order (pure): null at the edge. */
+function stepVisibleOrder(ids: readonly string[], blockId: string, delta: 1 | -1): string | null {
+  const index = ids.indexOf(blockId);
+  const next = index + delta;
+  return index >= 0 && next >= 0 && next < ids.length ? ids[next]! : null;
 }
 
 export const OutlinerContext = createContext<OutlinerContextValue | null>(null);

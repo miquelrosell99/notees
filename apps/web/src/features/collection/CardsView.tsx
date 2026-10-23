@@ -75,7 +75,7 @@
  * are the property groupBy, not a visual layout.
  */
 
-import { useEffect, useMemo, useState, useContext } from "react";
+import { useCallback, useEffect, useMemo, useState, useContext } from "react";
 import { createPortal } from "react-dom";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
@@ -255,7 +255,9 @@ export function NodeCard({
 }) {
   const { client, onNodeClick } = props;
   const label = nodeDisplayName(item.node) || "Untitled";
-  const resolveName = (id: string) => displayNameFromClient(client, id);
+  // Stable identity — the memoized BlockRow compares it by reference, so a
+  // fresh arrow per render would defeat the row bail-out.
+  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
   const openNode = (id: string) => onNodeClick?.(id);
   /** The title's right-click menu (owner 2026-10-13) — position-only state. */
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);

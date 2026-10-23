@@ -37,14 +37,14 @@
  * subtree renders (linked references, the hover-preview trampoline).
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { BlockRow } from "../../ui/BlockRow.js";
+import { BlockRow, useStableIdArray } from "../../ui/BlockRow.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { GhostRow, realizeGhost } from "../../ui/GhostRow.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
@@ -89,6 +89,12 @@ export function ReferenceSubtree({
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
   const node = client.getNode(rootId);
+  // Stable identity — the memoized BlockRow compares it by reference, so a
+  // fresh arrow per render would defeat the row bail-out.
+  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
+  // Stable identity for dnd-kit's SortableContext (the row memo's defeat
+  // otherwise — see useStableIdArray).
+  const rootIds = useStableIdArray(node !== undefined ? [node.id] : []);
   // The root row starts COLLAPSED when it has children (owner 2026-10-21,
   // the collection-list ruling — the backlinks/unlinked rows read one row
   // per reference, the subtree behind the chevron). The override is
@@ -110,12 +116,12 @@ export function ReferenceSubtree({
 
   return (
     <OutlinerContext.Provider value={outliner}>
-      <SortableContext items={[node.id]} strategy={verticalListSortingStrategy}>
+      <SortableContext items={rootIds} strategy={verticalListSortingStrategy}>
         <div className="nt-refblock-tree">
           <BlockRow
             tree={tree}
             client={client}
-            resolveName={(id) => displayNameFromClient(client, id)}
+            resolveName={resolveName}
             readOnly={readOnly}
             /* The "+ Add block" affordance rides ONLY when the surface opts
                in (`showGhost`) and edits: the root block trails ONE ghost

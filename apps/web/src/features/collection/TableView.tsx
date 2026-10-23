@@ -110,7 +110,7 @@
  *   next to the Columns/Sort configurators.
  */
 
-import { useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { isRangeDatetimeValue, isReadonlyProperty, isValidTimeOfDay, parseDateNodeId, fullTitleOf, plainTextExcerpt, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
@@ -443,6 +443,9 @@ function TextCell({
   // precedent): writes (the editor's flush, the unset below) re-render it.
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  // Stable identity — the memoized BlockRow compares it by reference, so a
+  // fresh arrow per render would defeat the row bail-out.
+  const resolveClassName = useCallback((classId: string) => client.getDisplayName(classId), [client]);
 
   useEffect(() => {
     if (carrier === undefined || prop?.source !== "authored") return;
@@ -487,7 +490,7 @@ function TextCell({
           variant="title"
           tree={{ node: carrier, children: [] }}
           client={client}
-          resolveName={(classId) => client.getDisplayName(classId)}
+          resolveName={resolveClassName}
           autoEdit={carrier.id === freshId}
         />
       </span>
@@ -1036,6 +1039,9 @@ function NameCell({
 }) {
   const { client } = props;
   const label = nameCellText(client, node);
+  // Stable identity — the memoized BlockRow compares it by reference, so a
+  // fresh arrow per render would defeat the row bail-out.
+  const resolveClassName = useCallback((classId: string) => client.getDisplayName(classId), [client]);
   return (
     <span className="nt-table-name-row">
       {icon !== null && <Icon path={icon} size={0.9} className="nt-table-name-icon" />}
@@ -1043,7 +1049,7 @@ function NameCell({
         variant="title"
         tree={{ node, children: [] }}
         client={client}
-        resolveName={(classId) => client.getDisplayName(classId)}
+        resolveName={resolveClassName}
       />
       <OpenButton
         label={label}

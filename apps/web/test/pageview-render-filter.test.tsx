@@ -7,7 +7,7 @@
  * not a tree walk. Scoped changes touching the page (its own content or a
  * descendant block) and structural (listing-affecting) changes re-render
  * as before. Render counting probes the PageView's per-render call of
- * pageVariantOf and the BlockRow module export (no production
+ * pageVariantOf and the BlockRowRenderer export (no production
  * instrumentation).
  */
 
@@ -72,8 +72,8 @@ interface RenderProbes {
 
 /**
  * Mount the page with render probes: PageView re-renders ride its
- * per-render pageVariantOf call; row renders ride a spy on the BlockRow
- * module export (the vitest ESM transform routes the import through the
+ * per-render pageVariantOf call; row renders ride a spy on the
+ * BlockRowRenderer export (the memo wrapper could not be spied) (the vitest ESM transform routes the import through the
  * module namespace, so the spy intercepts every render).
  */
 async function mountPage(client: WorkspaceClient, pageId: string): Promise<RenderProbes> {
@@ -81,7 +81,7 @@ async function mountPage(client: WorkspaceClient, pageId: string): Promise<Rende
     await import("../src/features/page-sections/pageVariant.js"),
     "pageVariantOf",
   );
-  const rowSpy = vi.spyOn(await import("../src/ui/BlockRow.js"), "BlockRow");
+  const rowSpy = vi.spyOn(await import("../src/ui/BlockRow.js"), "BlockRowRenderer");
   render(<PageView client={client} pageId={pageId} />);
   // Settle the mount-time ensures (the alias-schema self-heal is a write on
   // first view) and its push before capturing the baselines.

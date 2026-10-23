@@ -17,10 +17,11 @@
  * just-created block).
  */
 
+import { useCallback } from "react";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import { BlockRow } from "../../ui/BlockRow.js";
+import { BlockRow, useStableIdArray } from "../../ui/BlockRow.js";
 import { registerView } from "./registry.js";
 import type { NodeCollectionItem, NodeCollectionProps } from "./types.js";
 
@@ -33,10 +34,15 @@ export function ProseView(props: NodeCollectionProps) {
   // drag-ordered editing surfaces (the reference sections) pass
   // `readOnly={false}` to make rows editable while `editable` stays false.
   const { client, items = [], editable = false, readOnly = !editable, condensed = false } = props;
-  const resolveName = (id: string) => displayNameFromClient(client, id);
+  // Stable identity — the memoized BlockRow compares it by reference, so a
+  // fresh arrow per render would defeat the row bail-out.
+  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
+  // Stable identity for dnd-kit's SortableContext (the row memo's defeat
+  // otherwise — see useStableIdArray).
+  const stableIds = useStableIdArray(items.map((item) => item.node.id));
   if (items.length === 0 && props.parent === undefined) return null;
   return (
-    <SortableContext items={items.map((t) => t.node.id)} strategy={verticalListSortingStrategy}>
+    <SortableContext items={stableIds} strategy={verticalListSortingStrategy}>
       <div className="nt-block-tree nt-prose">
         {/* The focused-block view (owner 2026-10-20): the parent renders as
             an editable TOP-LEVEL HEADER — the title-variant row (bullet-less,

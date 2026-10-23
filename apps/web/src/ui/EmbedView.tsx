@@ -15,7 +15,7 @@
  * fallback philosophy).
  */
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode } from "@/core/workspace-client/index.js";
@@ -204,10 +204,15 @@ export function EmbedView({
     return <EmbedPlaceholder label="broken embed" detail={nodeId} />;
   }
 
-  const resolveName = (id: string) => displayNameFromClient(client, id);
-  const resolveFullTitle = (id: string) => fullTitleFromClient(client, id);
-  const resolveVerb = (schemaId: string) =>
-    client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null;
+  // Stable identities — the memoized BlockRow compares resolveName by
+  // reference, so a fresh arrow per render would defeat the row bail-out.
+  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
+  const resolveFullTitle = useCallback((id: string) => fullTitleFromClient(client, id), [client]);
+  const resolveVerb = useCallback(
+    (schemaId: string) =>
+      client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null,
+    [client],
+  );
   // The node is verified live above; the label still rides the
   // never-a-bare-UUID seam (owner 2026-10-23) — an untitled embed reads
   // "Untitled <render-state>", never the id.

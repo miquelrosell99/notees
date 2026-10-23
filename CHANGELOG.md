@@ -9,6 +9,74 @@ predating this file.
 
 ## 2026-10-23
 
+- **perf(web): unchanged block rows bail out of re-renders — the outliner
+  context value is memoized, the row export is memoized, and the bail-out
+  survives the notification cycle slice 4 could not reach.** Trigger: the
+  op-lag plan's deferred slice — slice 4 rejected a row `React.memo` as
+  unsound because `useOutlinerValue` rebuilt a fresh context object every
+  render (re-rendering every row through context regardless of props); the
+  live measurement since (a structural gesture on a 530-row page ≈ 1 s)
+  kept the full-tree re-render as the remaining cost. What changed: (1)
+  `useOutlinerValue`'s return is a `useMemo` over the STATE it derives from
+  (collapse/stretch/selection/focus pieces, the option flags, the already-
+  stable callbacks) — never the tree. The tree-derived members keep their
+  freshness through the file's latest-value-ref pattern instead:
+  `positions`/`selection` are lazy getters over per-render ref mirrors, and
+  `rangeBetween`/`nextBlockId`/`previousBlockId`/`firstBlockId` read the ref
+  mirrors per call; the passthrough option callbacks (openNode /
+  openInSidebar / ensureTemplateFamily — hosts hand fresh inline identities
+  per render, the App's funnels do) ride latest-value refs so their
+  instability cannot rebuild the value. A structural-share on node identity
+  (`sameBlockTreeList`, render-phase derived state) keeps the tree array
+  itself stable across notifications that changed nothing. (2) The row
+  export is `memo(BlockRowRenderer, areBlockRowPropsEqual)`: the tree
+  compares by NODE IDENTITY at every level (client rows are
+  identity-stable across revisions — the workspace-client node-identity
+  spec), scalars/enums by value, `resolveName`/`trailingGhost` by REFERENCE
+  — an unstabilized callback never bails (pre-memo behavior), it can never
+  be served a stale closure; `BlockRowRenderer` stays a named export for
+  the render-count specs (a spy on the memo wrapper could not intercept).
+  `resolveName` is `useCallback`-stabilized at every render site (OutlineView
+  ×3, EmbedView ×3, ProseView, CardsView, PageChrome, ReferenceSubtree,
+  TableView ×2). (3) Root-cause find: dnd-kit's `SortableContext` keys its
+  context value on the items ARRAY identity, so the per-render
+  `items={rows.map(...)}` was re-rendering every sortable row through
+  context even with the row memo — the defeat that made slices 1–4 look
+  ineffective; `useStableIdArray` structurally shares the id arrays
+  (BlockRow's children ×3, PageView body, ProseView, OutlineView ×3,
+  ReferenceSubtree) so the context value only changes when the id SEQUENCE
+  changes. (4) The comparator's soundness floor — the memo compares PROPS,
+  but the row renders per-node data that changes WITHOUT the node identity
+  changing: the materialized backlink count, effective property values,
+  class/mention chip titles. Each row subscribes with its rerender targets
+  (own id + class ids + content mention/class-link targets +
+  effective-property schema ids — slice 3's edge-target inclusion lands
+  exactly these in a content change's affected set) and force-renders only
+  when a notification names one of them; scoped notifications naming none
+  leave the memo's bail intact, scope-unknown forces conservatively. Without
+  (4) the memo served stale property chips, backlink counts, and mention
+  titles (the property-icon-button / block-backlinks / table-cell-mention
+  suites caught it). Honest boundary: a structural gesture that changes the
+  sequence
+  (add/move/delete) still re-renders the sortable rows once — dnd-kit
+  re-registers — but a single pass, not the repeated full-tree sweeps; the
+  per-keystroke content edit (the op-lag complaint) bails unchanged rows
+  entirely (measured in spec: 1 of 8 rows re-render). `apps/web/src/ui/
+  outliner-context.ts`, `apps/web/src/ui/BlockRow.tsx`,
+  `apps/web/src/ui/PageView.tsx`, `apps/web/src/ui/PageChrome.tsx`,
+  `apps/web/src/ui/EmbedView.tsx`, `apps/web/src/features/collection/
+  {OutlineView,ProseView,CardsView,TableView}.tsx`,
+  `apps/web/src/features/block-editor/ReferenceSubtree.tsx`,
+  `apps/web/test/blockrow-memo.test.tsx` (new — per-row render probe rides
+  the row body's per-render `getBacklinkCount` read; content edit: only the
+  edited row renders; structural add: one render per row, never more),
+  `apps/web/test/pageview-render-filter.test.tsx` (spy updated to the named
+  renderer export). No wire/model change; no client lockstep.
+  - **Verification**: the new spec 2/2; the slice-4 filter spec 4/4; the FULL
+    `apps/web` suite green (170+ files, ~1,990 tests — includes the
+    page/block/outliner/dnd/edit suites, system-sections, section-views,
+    embeds, query-block, property-icon-button, table-nodes, block-dnd);
+    `tsc --noEmit` clean. Full repo gate pending (parent session).
 - **feat(server): snapshot-based workspace clone & import — `POST /api/workspaces/:id/clone` and `PUT /api/relay/v2/snapshot/data?mode=import`.** Both surfaces move a serialized `@notees/store` image (the derived projection) instead of replaying log history. `WorkspaceManager.snapshotImage` drains the workspace queue and takes a better-sqlite3 online backup of the LIVE database to a temp file (never a raw file copy); `installImage` refuses — typed `WorkspaceImageError`, mapped by the routes — when a handle is open in this process or the relay log already carries envelopes (409 `conflict`: the snapshot fast path only fires while the log is empty, so installing under a seeded log would silently never apply), and rejects non-store / node-less bytes (422 `validation_failed`), then rewrites every `workspace_id` column across the image (sqlite_master scan + per-table `UPDATE`, the measured ~0.1 s for 54k rows) into the envelope-empty target's derived file and counts the node rows. The clone route is owner-only via the DELETE membership shape (non-member 404 / non-owner 403), creates the target, installs the image, saves the snapshot row (`maxHlc` of the source, `upToSeq` of the target), and rolls the half workspace back best-effort (`drop` + `deleteWorkspaceData` + `deleteWorkspace`) when anything after the workspace row fails. The relay PUT gains `&mode=import` (install + snapshot row, sanity gate at ANY envelope count — an imported image below the threshold must still carry node rows); the non-import path is byte-for-byte unchanged. Checkpoint semantics: an imported/cloned workspace's log starts empty — the history is not in the log, and the installed snapshot is load-bearing (a derived wipe rehydrates from the snapshot + log, not the log alone). `scripts/import-snapshot.mjs` is the driver: creates a workspace (or takes `--workspace`) and PUTs the image, resolving credentials the probe way (`NOTEES_ADMIN_EMAIL` + `NOTEES_ADMIN_PASSWORD(_FILE)` session; operator key file with `--key-file` override). OpenAPI: the clone route + the `mode` query param are in the document (the coverage gate).
   - **Verification**: `apps/server` 252/252 (`pnpm --filter @notees/server test`, 23 files — new `workspace-clone-import.test.ts`: clone end-to-end incl. restore-on-hydration through `GET /api/objects`, workspace-id rewrite proof via a full derived-file scan, clone-of-clone, non-member 404, empty-source 422; import restore-on-hydration + rewrite, non-empty target 409, node-less image 422 at any size); `apps/server` `tsc --noEmit` clean; `scripts/import-snapshot.mjs` exercised end-to-end against an ephemeral server (create + import, re-import refusal semantics).
   - **Docs**: `docs/api.md` (clone table row + the snapshot-images paragraph pinning the checkpoint semantics); `apps/server/src/openapi.ts` route entries.

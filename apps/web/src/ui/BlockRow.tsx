@@ -111,13 +111,13 @@
  * rendering and the full block editor, minus the outline chrome.
  */
 
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import { excerptOf, isRuleContent, parseDateNodeId } from "@notees/domain";
 
-import type { BlockTreeNode, EffectiveProperty, WorkspaceClient } from "@/core/workspace-client/index.js";
+import type { BlockTreeNode, ClientNode, EffectiveProperty, WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import { hiddenLinksOf } from "@/editor/condensed.js";
 
@@ -250,9 +250,39 @@ interface BlockRowProps {
   autoEdit?: boolean | undefined;
 }
 
-export function BlockRow({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, proseMode = false, tableRow = false, variant = "block", hideBacklinks = false, condensed = false, trailingGhost = undefined, autoEdit = false }: BlockRowProps) {
+export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, proseMode = false, tableRow = false, variant = "block", hideBacklinks = false, condensed = false, trailingGhost = undefined, autoEdit = false }: BlockRowProps) {
+
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
+  const childIds = useStableIdArray(children.map((child) => child.node.id));
+  // Scoped re-render: the memo compares props, but the row renders per-node
+  // data that changes WITHOUT the node identity changing (the materialized
+  // backlink count, effective property values, class/mention chip titles).
+  // A notification naming one of this row's rerender targets (its own id via
+  // property/edge writes, its classes, its chip targets) forces a render;
+  // scoped notifications naming none leave the memo's bail intact, and
+  // scope-unknown forces conservatively.
+  const rerenderTargetsRef = useRef<Set<string>>(new Set());
+  rerenderTargetsRef.current = collectRerenderTargets(node);
+  const [, forceRowRender] = useState(0);
+  useEffect(
+    () =>
+      client.subscribe((change) => {
+        const affected = change.affectedNodeIds;
+        if (affected === undefined) {
+          forceRowRender((v) => v + 1);
+          return;
+        }
+        const targets = rerenderTargetsRef.current;
+        for (const id of affected) {
+          if (targets.has(id)) {
+            forceRowRender((v) => v + 1);
+            return;
+          }
+        }
+      }),
+    [client],
+  );
   const isTitle = variant === "title";
   const {
     client: outlinerClient,
@@ -476,7 +506,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
         ref={setNodeRef}
         data-block-id={node.id}
       >
-        <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={childIds} strategy={verticalListSortingStrategy}>
           {children.map((child) => (
             <BlockRow
               key={child.node.id}
@@ -528,6 +558,9 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
   }> = [];
   if (!isTitle) {
     const effectiveRows = client.getEffectiveProperties(node.id);
+    // The property chrome renders schema names — a schema rename/update
+    // must force this row too.
+    for (const row of effectiveRows) rerenderTargetsRef.current.add(row.propertySchemaId);
     const schemasById = new Map(
       client.listPropertySchemas().map((schema) => [schema.id, schema]),
     );
@@ -1173,7 +1206,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                 gridTemplateColumns: `repeat(${tableColumnCount(children)}, minmax(0, 1fr))`,
               }}
             >
-              <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
+              <SortableContext items={childIds} strategy={verticalListSortingStrategy}>
                 {children.map((child) => (
                   <BlockRow
                     key={child.node.id}
@@ -1194,7 +1227,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
       ) : (
       <>
         {(children.length > 0 || trailingGhost !== undefined) && !isCollapsed && (
-          <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
+          <SortableContext items={childIds} strategy={verticalListSortingStrategy}>
             <div className="nt-block-children" ref={childrenRef}>
               {/* The vertical indent line is itself the fold control (owner
                   rule 2026-10-14): one click anywhere on it folds EACH direct
@@ -1242,3 +1275,97 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     </div>
   );
 }
+
+/**
+ * Structural share for the id arrays feeding dnd-kit's SortableContext: its
+ * context value keys on the items array's IDENTITY, so a fresh array per
+ * render re-renders every sortable row through context — defeating the row
+ * memo. The render-phase ref write mirrors the file's latest-value pattern;
+ * the array is replaced only when the id SEQUENCE changes.
+ */
+export function useStableIdArray(ids: string[]): string[] {
+  const ref = useRef<string[]>(ids);
+  const prev = ref.current;
+  if (prev.length !== ids.length || prev.some((id, index) => id !== ids[index])) {
+    ref.current = ids;
+  }
+  return ref.current;
+}
+
+/**
+ * The ids whose changes force a row to re-render: the row's own node (the
+ * materialized backlink count and the effective property values change
+ * WITHOUT the node identity changing), its class ids (chip labels/icons),
+ * and its content's mention / class-link targets (chip titles). Slice 3's
+ * edge-target inclusion lands exactly these ids in a content change's
+ * affected set, so a scoped notification check covers them — and one naming
+ * none of them leaves the memo's bail intact (the op-lag win).
+ */
+function collectRerenderTargets(node: ClientNode): Set<string> {
+  const targets = new Set<string>([node.id, ...node.classIds]);
+  const walk = (tokens: readonly unknown[]): void => {
+    for (const token of tokens) {
+      if (typeof token !== "object" || token === null) continue;
+      const t = token as {
+        type?: unknown;
+        targetNodeId?: unknown;
+        classId?: unknown;
+        children?: unknown;
+      };
+      if (t.type === "mention" && typeof t.targetNodeId === "string") targets.add(t.targetNodeId);
+      else if (t.type === "class_link" && typeof t.classId === "string") targets.add(t.classId);
+      if (Array.isArray(t.children)) walk(t.children);
+    }
+  };
+  walk(node.contentAst);
+  return targets;
+}
+
+/**
+ * Row bail-out contract (op-lag row-bailout): a row re-renders only when a
+ * prop it renders from changes. `tree` compares by NODE IDENTITY at every
+ * level — client rows are identity-stable across store revisions
+ * (mapNodeCached's column-stamp cache; the node-identity spec in
+ * workspace-client.test.ts), so an unchanged subtree bails even though the
+ * view-level tree wrappers are rebuilt per render. Every scalar/enum prop
+ * compares by value; `resolveName` and `trailingGhost` compare by REFERENCE
+ * — a render site that passes a referentially unstable callback simply
+ * never bails (the pre-memo behavior), it can never be served a stale
+ * closure. Context (the outliner value) is memo-stable by construction, so
+ * context-driven re-renders fire exactly when the tree/collapse/selection
+ * facts change — which the node-identity compare then refines per row.
+ */
+function sameTreeNode(a: BlockTreeNode, b: BlockTreeNode): boolean {
+  if (a.node !== b.node || a.children.length !== b.children.length) return false;
+  for (let i = 0; i < a.children.length; i += 1) {
+    if (!sameTreeNode(a.children[i]!, b.children[i]!)) return false;
+  }
+  return true;
+}
+
+function areBlockRowPropsEqual(prev: BlockRowProps, next: BlockRowProps): boolean {
+  return (
+    prev.client === next.client &&
+    prev.resolveName === next.resolveName &&
+    prev.readOnly === next.readOnly &&
+    prev.readOnlyInert === next.readOnlyInert &&
+    prev.suppressWidgets === next.suppressWidgets &&
+    prev.proseMode === next.proseMode &&
+    prev.condensed === next.condensed &&
+    prev.tableRow === next.tableRow &&
+    prev.variant === next.variant &&
+    prev.hideBacklinks === next.hideBacklinks &&
+    prev.autoEdit === next.autoEdit &&
+    prev.trailingGhost === next.trailingGhost &&
+    sameTreeNode(prev.tree, next.tree)
+  );
+}
+
+/**
+ * The memoized row: an unchanged row (stable node identities at every tree
+ * level + unchanged props) bails out of re-rendering while its parent view
+ * re-reenders around an edit elsewhere. `BlockRowRenderer` stays exported
+ * by name — the render-count specs spy on it (a spy on the memo wrapper
+ * itself could not intercept renders).
+ */
+export const BlockRow = memo(BlockRowRenderer, areBlockRowPropsEqual);

@@ -67,11 +67,11 @@
  * their ancestry.
  */
 
-import { useContext, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { BlockRow } from "../../ui/BlockRow.js";
+import { BlockRow, useStableIdArray } from "../../ui/BlockRow.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
@@ -98,6 +98,9 @@ type OutlineSortMode = "dates-first" | "alphabetical" | "position";
 
 /** Depth cap for safety on deep recursive trees. */
 const TREE_DEPTH_CAP = 64;
+
+/** The empty id list (the focused-block branch's no-parent case). */
+const EMPTY_IDS: string[] = [];
 
 /** Filter a tree to main children (the pagesOnly flag), recursion-limited. */
 function filterPages(items: NodeCollectionItem[], remaining = TREE_DEPTH_CAP): NodeCollectionItem[] {
@@ -150,7 +153,9 @@ function RowBreadcrumbs({
 
 function TreeRows({ items, props, resetKey }: { items: NodeCollectionItem[]; props: NodeCollectionProps; resetKey?: string | undefined }) {
   const { client, editable = false, readOnly = !editable, renderItem } = props;
-  const resolveName = (id: string) => displayNameFromClient(client, id);
+  // Stable identity — the memoized BlockRow compares it by reference, so a
+  // fresh arrow per render would defeat the row bail-out.
+  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
   // Breadcrumb rows (default on — owner 2026-10-22) navigate like the row
   // click: the container's onNodeClick, else the enclosing view's openNode.
   const outer = useContext(OutlinerContext);
@@ -167,8 +172,11 @@ function TreeRows({ items, props, resetKey }: { items: NodeCollectionItem[]; pro
     resetKey,
   });
   const rows = readOnly ? visible : items;
+  // Stable identity for dnd-kit's SortableContext (the row memo's defeat
+  // otherwise — see useStableIdArray).
+  const rowIds = useStableIdArray(rows.map((row) => row.node.id));
   return (
-    <SortableContext items={rows.map((row) => row.node.id)} strategy={verticalListSortingStrategy}>
+    <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
       {rows.map((item) => {
         const row = (
           <BlockRow key={item.node.id} tree={toBlockTree(item)} client={client} resolveName={resolveName} readOnly={readOnly} hideBacklinks={props.hideBacklinkCount} condensed={props.condensed} />
@@ -273,11 +281,14 @@ function FlatRows({
     openInSidebar: (id) => (onNodeShiftClick ?? outer?.openInSidebar ?? (() => {}))(id),
     defaultCollapsed,
   });
-  const resolveName = (id: string) => displayNameFromClient(client, id);
+  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
   const showBreadcrumbs = props.showBreadcrumbs ?? true;
+  // Stable identity for dnd-kit's SortableContext (the row memo's defeat
+  // otherwise — see useStableIdArray).
+  const flatIds = useStableIdArray(visible.map((row) => row.node.id));
   return (
     <OutlinerContext.Provider value={outliner}>
-      <SortableContext items={visible.map((row) => row.node.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext items={flatIds} strategy={verticalListSortingStrategy}>
         <ul className={listClassName}>
           {visible.map((item) => {
             const row: ReactNode = (
@@ -338,6 +349,12 @@ export function OutlineView(props: NodeCollectionProps) {
   }
   const sortMode: OutlineSortMode = sortState.mode;
   const setSortChoice = (mode: SortMode) => setSortState({ mode: mode as OutlineSortMode, chosen: true });
+  // Stable identity — the memoized BlockRow compares it by reference, so a
+  // fresh arrow per render would defeat the row bail-out.
+  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
+  // Stable identity for dnd-kit's SortableContext (the row memo's defeat
+  // otherwise — see useStableIdArray).
+  const parentIds = useStableIdArray(props.parent !== undefined ? [props.parent.id] : EMPTY_IDS);
   const chromeTarget = useViewChromeTarget();
   const sortedItems = useMemo(() => {
     const resolveClassName = (classId: string) => client.getDisplayName(classId);
@@ -370,13 +387,12 @@ export function OutlineView(props: NodeCollectionProps) {
   // view's "+ Add block" ghost). Rendered even with zero items — an empty
   // focused block still owns its row and the ghost.
   if (props.parent !== undefined) {
-    const resolveName = (id: string) => displayNameFromClient(client, id);
     return (
       <div className={`nt-block-tree ${editable ? "" : "nt-block-tree--readonly"}`.trim()}>
         {/* The parent row is sortable (the grip drag) — the rows live in
             their own SortableContext like TreeRows, the nested children
             bring their own per-row contexts. */}
-        <SortableContext items={[props.parent.id]} strategy={verticalListSortingStrategy}>
+        <SortableContext items={parentIds} strategy={verticalListSortingStrategy}>
           <BlockRow
             tree={{ node: props.parent, children: items.map(toBlockTree) }}
             client={client}
