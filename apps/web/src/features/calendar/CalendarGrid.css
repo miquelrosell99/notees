@@ -1,0 +1,327 @@
+/* CalendarGrid — the calendar's Week / Month / Year zooms (owner
+   2026-10-23, the google-calendar slice 2). The blocks wear the event's
+   effective color with the contrast text colorPresets derives; the
+   layout uses the frame's grid with adaptive cell heights in day-based
+   zooms. */
+
+.cal-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-height: 0;
+  height: 100%;
+}
+
+.cal-grid__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.cal-grid__title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font: var(--font-title-medium);
+  color: var(--md-sys-color-on-surface);
+  text-align: center;
+}
+
+.cal-grid__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--spacing-1);
+}
+
+.cal-grid__weekday {
+  font: var(--font-label-medium);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: center;
+}
+
+.cal-grid__cells {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 1fr;
+  gap: var(--spacing-1);
+}
+
+.cal-grid__cells--week {
+  /* The week zoom is one tall row of seven day columns. */
+  grid-template-rows: 1fr;
+}
+
+.cal-grid__cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-height: 0;
+  min-width: 0;
+  padding: var(--spacing-1);
+  border-radius: var(--shape-small);
+  border: var(--border-width-default) solid transparent;
+  background: var(--md-sys-color-surface-container-low);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.cal-grid__cell--outside {
+  opacity: 0.45;
+}
+
+.cal-grid__cell--today {
+  border-color: var(--md-sys-color-primary);
+}
+
+.cal-grid__cell--selected {
+  border-color: var(--md-sys-color-tertiary);
+}
+
+.cal-grid__daynum {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 0 var(--spacing-1);
+  font: var(--font-label-large);
+  color: var(--md-sys-color-on-surface);
+  border-radius: var(--shape-full);
+  cursor: pointer;
+}
+
+.cal-grid__daynum:hover {
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.cal-grid__blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cal-block {
+  border: none;
+  border-radius: var(--shape-extra-small);
+  padding: 1px var(--spacing-1);
+  font: var(--font-body-small);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  cursor: pointer;
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+}
+
+.cal-block:hover {
+  filter: brightness(1.08);
+}
+
+.cal-grid__more {
+  border: none;
+  background: none;
+  padding: 0 var(--spacing-1);
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--shape-extra-small);
+}
+
+.cal-grid__more:hover {
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+/* Year zoom: 12 compact months, day numbers with event dots. */
+.cal-year {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: var(--spacing-3);
+}
+
+.cal-year__month {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-height: 0;
+}
+
+.cal-year__month-name {
+  border: none;
+  background: none;
+  padding: 0;
+  font: var(--font-title-small);
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cal-year__month-name.current {
+  color: var(--md-sys-color-primary);
+}
+
+.cal-year__days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+}
+
+.cal-year__day {
+  position: relative;
+  border: none;
+  background: none;
+  padding: 1px 0;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface);
+  text-align: center;
+  cursor: pointer;
+  border-radius: var(--shape-full);
+}
+
+.cal-year__day--pad {
+  cursor: default;
+}
+
+.cal-year__day.today {
+  outline: 1px solid var(--md-sys-color-primary);
+}
+
+.cal-year__dot {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 3px;
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-primary);
+}
+
+/* Drag-create band + the block context menu + the recurring scope sheet
+   (owner 2026-10-23, google-calendar slices 3-4). */
+.cal-grid__cell--creating {
+  background: var(--md-sys-color-primary-container);
+}
+
+.cal-block-menu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  min-width: 12ch;
+  padding: var(--spacing-1);
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface-container-high);
+  box-shadow: var(--shadow-md);
+}
+
+.cal-block-menu button {
+  border: none;
+  background: none;
+  padding: var(--spacing-1) var(--spacing-2);
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--shape-extra-small);
+}
+
+.cal-block-menu button:hover {
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.cal-block-menu__danger {
+  color: var(--md-sys-color-error) !important;
+}
+
+.cal-scope {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--md-sys-color-scrim);
+}
+
+.cal-scope__card {
+  width: min(30rem, calc(100vw - var(--spacing-8)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-5);
+  border-radius: var(--shape-large);
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.cal-scope__title {
+  margin: 0;
+  font: var(--font-title-medium);
+  color: var(--md-sys-color-on-surface);
+}
+
+.cal-scope__body {
+  margin: 0;
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.cal-scope__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.cal-scope__option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  cursor: pointer;
+}
+
+.cal-scope__option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cal-scope__option-label {
+  font: var(--font-body-large);
+  color: var(--md-sys-color-on-surface);
+}
+
+.cal-scope__option-hint {
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.cal-scope__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}
+
+.cal-scope__btn {
+  border: var(--border-width-default) solid var(--md-sys-color-outline);
+  border-radius: var(--shape-full);
+  padding: var(--spacing-1) var(--spacing-4);
+  font: var(--font-label-large);
+  color: var(--md-sys-color-primary);
+  background: none;
+  cursor: pointer;
+}
+
+.cal-scope__btn--primary {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  border-color: transparent;
+}

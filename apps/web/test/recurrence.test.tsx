@@ -116,6 +116,7 @@ async function createEvent(
 }
 
 function renderCalendar(client: WorkspaceClient, onOpenPage = vi.fn()) {
+  window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
   return { onOpenPage, ...render(<CalendarView client={client} onOpenPage={onOpenPage} />) };
 }
 

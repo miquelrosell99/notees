@@ -193,3 +193,10 @@
   color: var(--md-sys-color-error);
 }
 
+
+.calendar-view__ladder {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+}

@@ -9,6 +9,85 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(protocol,store,web): external_ref — the plugin external-id mapping
+  store (owner requirement 2026-10-23, the google-calendar proposal's
+  mapping substrate).** Importers and sync plugins (calendar providers,
+  Readwise, read-it-later) get a durable external → internal id mapping —
+  a Google event UID, a Readwise highlight id resolving to the notees node
+  uuid — so re-runs update instead of duplicating. The home is the
+  operation log (not a device table — derived DBs are wipe-rebuildable;
+  not server prefs — mappings are per-workspace, plugin-owned). New
+  additive op family, envelope v3: `external_ref.set {ref, nodeId}` /
+  `external_ref.delete {ref}` — LWW by envelope (hlc, actor) on the
+  `(workspace, ref)` key; `ref` is the caller-namespaced
+  `<provider>:<kind>:<externalId>` (opaque to the protocol, ≤ 512 chars,
+  empty/oversize fail loud); a re-set moves the mapping; a node may carry
+  many refs, one node per ref, no reverse payload. The delete keeps a
+  per-key **tombstone** in the derived state (the `property_value_tombstone`
+  precedent), including deletes of unmapped refs — it is what kills a
+  stale concurrent set delivered after the winning delete on every
+  replica, so wipe → replay converges under any delivery order. No
+  referential integrity (the `property_value` precedent): a mapping may
+  name a not-yet-synced node; a node's hard delete (the `subtreeIds`
+  pattern in the `object.delete`/`trash.empty` appliers) purges its live
+  rows — soft-trash keeps them. Derived schema v30 (purely additive, the
+  `workspace_feature` precedent): `external_ref` + `external_ref_tombstone`,
+  PK `(workspace_id, ref)`, envelope causality columns, node_id index.
+  Client surface: `resolveExternalRef` / `externalRefsOf` reads,
+  `setExternalRef` / `removeExternalRef` writes (worker RPC + read-cache
+  classes: `externalRefsOf` node-scoped via the applier's ChangeSummary,
+  `resolveExternalRef` content-global — its key never appears in an
+  affected set, the `resolveAlias` precedent); the session undo journal
+  inverts both writes through the normal write path. Canonical fixture
+  `external-ref.json` (fixture gate 39→40) pins set/move/delete, the
+  racing-set winner, the tombstone's stale-set drop after reorder, and
+  the hard-delete purge.
+  - **LOCKSTEP-PENDING**: the GTK / Flutter appliers converge on
+    `external-ref.json` (vendored byte-identical) before the marker clears
+    — the 2026-10-13 date-chain precedent (TS reference lands first, the
+    ports follow); the sibling-client seed-manifest check does not apply
+    (no seed change). Sibling repos: `notees-gtk`
+    (`tests/fixtures/wire/` + `tests/test_store_fixtures.py`),
+    `notees-flutter` (`test/fixtures/wire/` +
+    `test/fixture_replay_test.dart`).
+  - **Verification**: `pnpm typecheck` clean; protocol gate (fixture set
+    39→40, strict-schema reject tails, the fixture's LWW races), store
+    suites on both adapters (LWW convergence under both delivery orders,
+    tombstone revival, hard/soft delete, malformed-payload rejects,
+    fixture forward/reverse convergence + idempotent replay), web client
+    suites (two-client convergence over MemoryRelay, undo inversions,
+    worker RPC passthrough incl. multiRead) — full gate below.
+- **feat(web): the calendar goes grid-first — the Day/Week/Month/Year zoom
+  ladder with colored event blocks, drag-and-drop, and the recurring scope
+  sheet (owner 2026-10-23, google-calendar proposal slices 2-4).** The
+  calendar lands on the MONTH GRID (the `calendarZoom` device setting;
+  month is the default): the events element's exact membership
+  (`eventRowsForDays` — event-family nodes dated into the day or embedded
+  in the day page) renders as blocks colored by `effectiveNodeColor`
+  (own color, else the first class's; `colorPresets.cssColorFor` for the
+  on-color text). The top bar carries the ladder — Day is the existing
+  day view (sections + the right panel unchanged), Week is the selected
+  day's week as seven day-columns, Month is the grid (neighbor-month days
+  dimmed, three blocks per cell then an honest "+N more" that jumps to
+  the day), Year is twelve compact months with event dots (a month name
+  jumps to it). The day NUMBER opens the day page (owner ruling; the
+  chain is ensured on demand); a cell click selects. **Drag-and-drop**:
+  a block dropped on another day moves it — plain events rewrite the
+  authored date value (metadata preserved, chain ensured before the new
+  day-node ref); recurring events open the **scope sheet** — Only this
+  event / This and following events / All events — routing to slice 1's
+  `editOccurrence`. Press-drag across empty cells creates a plain
+  `event`-classed object with one date value per dragged day (the
+  multi-day register: PG5 multi-value, so the same node blocks on every
+  dragged day; a painted span awaits the deferred datetime-range
+  ruling). Right-clicking a block offers Open / Delete — deleting a
+  recurring event asks the same three scopes via
+  `deleteOccurrence`. The recurring dialog is the `RecurrenceScopeSheet`
+  (radio register, plain-language hints per scope).
+  - **Verification**: calendar-view specs (grid-first landing with the
+    class-colored block, day-number → day page, week/year zooms, the
+    plain drop rewrite, the recurring drop through the scope sheet to a
+    detached exception) — full gate below.
 - **feat(domain,web): recurrence exceptions — the Google edit/delete
   semantics for recurring events (owner 2026-10-23, google-calendar
   proposal slice 1).** Acting on ONE occurrence of a series now supports

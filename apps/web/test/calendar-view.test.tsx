@@ -17,8 +17,30 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/features/calendar/CalendarView.js";
-import { addDaysIso, todayIsoLocal } from "../src/features/calendar/calendarViewUtils.js";
+import {
+  addDaysIso,
+  scheduledIsoOf,
+  todayIsoLocal,
+} from "../src/features/calendar/calendarViewUtils.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
+
+/** The deterministic day-node id for a local ISO day. */
+function dayNodeOf(iso: string): string {
+  return `00000000-0000-0000-00dd-${iso.replace(/-/g, "")}0000`;
+}
+
+/** The authored day of a node's first datetime value. */
+function scheduledIsoOfClient(client: WorkspaceClient, nodeId: string): string | null {
+  const row = client
+    .getEffectiveProperties(nodeId)
+    .find((prop) => prop.schema?.type === "datetime" && prop.source === "authored");
+  return row === undefined ? null : scheduledIsoOf(row.value);
+}
+
+/** A fresh datetime schema id (keeps tests independent). */
+async function dateSchemaOf(client: WorkspaceClient): Promise<string> {
+  return client.createPropertySchema({ name: "When", type: "datetime" });
+}
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000d2";
@@ -92,6 +114,9 @@ async function seedClient(relay: MemoryRelay = seededRelay()): Promise<Workspace
 }
 
 function renderCalendar(client: WorkspaceClient, onOpenPage = vi.fn()) {
+  // The day sections ride the Day zoom (the calendar defaults to the month
+  // grid since owner 2026-10-23).
+  window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
   return { onOpenPage, ...render(<CalendarView client={client} onOpenPage={onOpenPage} />) };
 }
 
@@ -227,7 +252,10 @@ describe("CalendarView", () => {
     });
 
     // Day zoom + a different selected day of the same month: the row leaves.
-    fireEvent.click(screen.getByRole("button", { name: "Day" }));
+    // (Scoped to the events element — the calendar ladder has its own Day button.)
+    fireEvent.click(
+      within(screen.getByLabelText("Events scope")).getByRole("button", { name: "Day" }),
+    );
     const otherDay = new Date().getDate() === 20 ? "21" : "20";
     fireEvent.click(dayCell(container, otherDay));
     await waitFor(() => {
@@ -235,7 +263,9 @@ describe("CalendarView", () => {
     });
 
     // Month zoom widens the scope back over the whole month: the row returns.
-    fireEvent.click(screen.getByRole("button", { name: "Month" }));
+    fireEvent.click(
+      within(screen.getByLabelText("Events scope")).getByRole("button", { name: "Month" }),
+    );
     await waitFor(() => {
       expect(rowTitles(events)).toContain("Launch party");
     });
@@ -341,6 +371,148 @@ describe("CalendarView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Previous day" }));
     fireEvent.click(await screen.findByRole("tab", { name: "Created" }));
     expect(await screen.findByText("There's nothing here (yet).")).toBeDefined();
+  });
+
+  it("lands on the month grid (grid-first) and renders event blocks colored by effective color", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+    await client.setClassProperty(gatheringClass, schemaId, {});
+    const gathering = await client.createObject({
+      isEmbedded: false,
+      name: "Launch party",
+      classIds: [gatheringClass],
+    });
+    await client.ensureDateChain(today);
+    await client.setDatetimeProperty(gathering, schemaId, { iso: today }, 0);
+    await client.updateObject(gatheringClass, { color: "#ff0000" });
+
+    // No Day pin — the calendar defaults to the grid.
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    render(<CalendarView client={client} onOpenPage={vi.fn()} />);
+    const grid = await screen.findByLabelText("Calendar month view");
+    // The event block renders in the today's cell with the class color.
+    const block = await (async () => {
+      await waitFor(() => {
+        const found = grid.querySelector(".cal-block");
+        expect(found).not.toBeNull();
+      });
+      return grid.querySelector(".cal-block") as HTMLElement;
+    })();
+    expect(block.textContent).toContain("Launch party");
+    expect(block.style.background).toContain("rgb(255, 0, 0)");
+    // The day view is not rendered in the month zoom.
+    expect(screen.queryByRole("region", { name: "Daily note" })).toBeNull();
+    // The ladder is present with Month pressed.
+    expect(
+      screen.getByRole("button", { name: "Month", pressed: true }),
+    ).toBeDefined();
+  });
+
+  it("the day number opens the day page; the ladder reaches week and year", async () => {
+    const client = await seedClient();
+    const onOpenPage = vi.fn();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    render(<CalendarView client={client} onOpenPage={onOpenPage} />);
+    const grid = await screen.findByLabelText("Calendar month view");
+
+    // Day-number register: opens the day page (chain ensured on demand).
+    fireEvent.click(grid.querySelector(".cal-grid__daynum") as HTMLElement);
+    await waitFor(() => expect(onOpenPage).toHaveBeenCalledTimes(1));
+    const opened = onOpenPage.mock.calls[0]![0] as string;
+    expect(client.getNodeRaw(opened)?.id).toBe(opened);
+
+    // Week zoom: seven tall columns.
+    fireEvent.click(screen.getByRole("button", { name: "Week", pressed: false }));
+    await screen.findByLabelText("Calendar week view");
+    expect(document.querySelectorAll(".cal-grid__cells--week > div")).toHaveLength(7);
+
+    // Year zoom: twelve compact months.
+    fireEvent.click(screen.getByRole("button", { name: "Year", pressed: false }));
+    await screen.findByLabelText("Calendar year view");
+    expect(document.querySelectorAll(".cal-year__month")).toHaveLength(12);
+  });
+
+  it("a dropped block on another day rewrites a plain event's date", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    const tomorrow = addDaysIso(today, 1);
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+    const gathering = await client.createObject({
+      isEmbedded: false,
+      name: "Move me",
+      classIds: [gatheringClass],
+    });
+    await client.ensureDateChain(today);
+    await client.setDatetimeProperty(gathering, await dateSchemaOf(client), { iso: today }, 0);
+
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    render(<CalendarView client={client} onOpenPage={vi.fn()} />);
+    const grid = await screen.findByLabelText("Calendar month view");
+    const block = await (async () => {
+      await waitFor(() => expect(grid.querySelector(".cal-block")).not.toBeNull());
+      return grid.querySelector(".cal-block") as HTMLElement;
+    })();
+
+    const target = grid.querySelector(`[data-day="${tomorrow}"]`) as HTMLElement;
+    fireEvent.drop(target, {
+      dataTransfer: { getData: () => `${gathering}|${today}` },
+    });
+
+    await waitFor(() => {
+      expect(scheduledIsoOfClient(client, gathering)).toBe(tomorrow);
+    });
+  });
+
+  it("dropping a recurring block asks the scope; 'Only this event' detaches it", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    const tomorrow = addDaysIso(today, 1);
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+    const gathering = await client.createObject({
+      isEmbedded: false,
+      name: "Weekly sync",
+      classIds: [gatheringClass],
+    });
+    await client.ensureDateChain(today);
+    const schemaId = await dateSchemaOf(client);
+    await client.setProperty(gathering, schemaId, { nodeId: dayNodeOf(today) }, 0, {
+      repeat: "weekly",
+    });
+
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    render(<CalendarView client={client} onOpenPage={vi.fn()} />);
+    const grid = await screen.findByLabelText("Calendar month view");
+    const block = await (async () => {
+      await waitFor(() => expect(grid.querySelector(".cal-block")).not.toBeNull());
+      return grid.querySelector(".cal-block") as HTMLElement;
+    })();
+
+    const target = grid.querySelector(`[data-day="${tomorrow}"]`) as HTMLElement;
+    fireEvent.drop(target, {
+      dataTransfer: { getData: () => `${gathering}|${today}` },
+    });
+
+    // The scope sheet asks the Google register.
+    const dialog = await screen.findByRole("dialog", { name: "Recurring event" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Move" })); // "Only this event" is default
+
+    await waitFor(() => {
+      // The exception landed on tomorrow; the series exdates today.
+      const exception = client
+        .listPages()
+        .find((node) => node.id !== gathering && node.classIds.includes(gatheringClass));
+      expect(exception).toBeDefined();
+      expect(scheduledIsoOfClient(client, exception!.id)).toBe(tomorrow);
+      const row = client
+        .getEffectiveProperties(gathering)
+        .find((prop) => prop.schema?.type === "datetime");
+      expect(row?.metadata).toMatchObject({ repeat: "weekly", exdates: [today] });
+    });
   });
 
   it("filter tabs switch the rendered sections", async () => {
