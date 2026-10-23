@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(protocol,store): `workspace.feature.set` settings payload — the
+  source-library plan's ONLY wire change (fixture gate).** The strict payload
+  gains an additive optional `settings: z.record(z.unknown())` key —
+  per-feature configuration (feature-scoped vocabulary the protocol does not
+  enumerate; the Sources library's `citekeyPattern`/`autoCitekey` are the
+  first consumers). Store: `workspace_feature` gains a `settings` column
+  (schema v29 → v30, the guarded-additive ALTER precedent — NULL = the
+  winning payload carried no settings, distinguishable from the real empty
+  record `{}`); the applier persists settings under the SAME LWW-by-
+  (workspace, feature) comparator as `enabled` — a winning old-shape payload
+  stores NULL and reads back `undefined`; the delete-as-disable routing arm
+  stays an old-shape write. Read paths (`getFeatureRow`/`listFeatureRows`)
+  surface `settings` additively — existing callers unaffected. Old-shape
+  payloads validate and apply byte-identically (Review Focus #3).
+  - **Fixture gate**: `workspace-feature-set.json` grows a three-envelope
+    sources tail — enable+settings, a plain old-shape re-enable (the LWW
+    winner clears settings to NULL), a final enable+settings (the converged
+    row carries them) — forward/reverse replay convergence pinned in the
+    store suite plus a dedicated settings-LWW test (NULL vs `{}` vs stale).
+    **LOCKSTEP-PENDING**: GTK/Flutter converge on the updated fixture
+    (byte-identical, sha256-checked) before any client writer emits
+    `settings`.
+  - **Verification**: protocol + store suites green (fixture gate included);
+    root `pnpm typecheck && pnpm test` green. Docs same-pass: SCHEMA.md
+    "Workspace features" (the settings payload normative), op-catalog
+    example, this entry.
+
 - **feat(domain,store,web,server,scripts): the source library — slice 1, the
   Zotero-faithful source model ships** (owner ruling 2026-10-23; supersedes
   the "FINAL" authorship decision 2026-09-27 — reversed, dated, in SCHEMA.md's

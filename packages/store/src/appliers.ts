@@ -966,7 +966,10 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
     // toggle converges under either delivery order (the row gate).
     const managedFeature = featureForManagedClass(p.objectId);
     if (managedFeature !== null) {
-      const wrote = lwwWriteFeatureRow(db, env, managedFeature, false);
+      // The routed disable is an old-shape payload: no settings, so the
+      // winning row stores NULL (the same rule as a plain toggle without
+      // the key).
+      const wrote = lwwWriteFeatureRow(db, env, managedFeature, false, undefined);
       if (wrote) {
         deriveFamilyClassBits(db, env.workspaceId, managedFeature);
       }
@@ -2742,13 +2745,17 @@ function applyCollectionMember(
 /**
  * LWW-write one feature row. Returns true when the incoming envelope won
  * (the row was written); false when a newer (hlc, actor) row already stood
- * (the toggle is dropped, exactly like a stale property.set).
+ * (the toggle is dropped, exactly like a stale property.set). `settings`
+ * rides the same comparator: the winning payload's record is stored as
+ * JSON text, and a winning payload WITHOUT settings stores NULL (absent —
+ * distinct from '{}'), which the read paths surface as undefined.
  */
 function lwwWriteFeatureRow(
   db: StoreDatabase,
   env: Envelope,
   feature: WorkspaceFeature,
   enabled: boolean,
+  settings: Record<string, unknown> | undefined,
 ): boolean {
   const existing = db
     .prepare(
@@ -2761,12 +2768,21 @@ function lwwWriteFeatureRow(
     return false;
   }
   db.prepare(
-    `INSERT INTO workspace_feature (workspace_id, feature, enabled, hlc_physical, hlc_logical, actor_id)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO workspace_feature (workspace_id, feature, enabled, settings, hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(workspace_id, feature) DO UPDATE SET
-       enabled = excluded.enabled, hlc_physical = excluded.hlc_physical,
+       enabled = excluded.enabled, settings = excluded.settings,
+       hlc_physical = excluded.hlc_physical,
        hlc_logical = excluded.hlc_logical, actor_id = excluded.actor_id`,
-  ).run(env.workspaceId, feature, enabled ? 1 : 0, env.hlc.physical, env.hlc.logical, env.actorId);
+  ).run(
+    env.workspaceId,
+    feature,
+    enabled ? 1 : 0,
+    settings === undefined ? null : JSON.stringify(settings),
+    env.hlc.physical,
+    env.hlc.logical,
+    env.actorId,
+  );
   return true;
 }
 
@@ -2890,7 +2906,7 @@ function applyWorkspaceFeatureSet(db: StoreDatabase, env: Envelope): ChangeSumma
   // SURFACES only (the date classes stay always-on) — no family, no
   // derivation, just the LWW row.
   const family = isFamilyFeature(p.feature) ? p.feature : null;
-  const wrote = lwwWriteFeatureRow(db, env, p.feature, p.enabled);
+  const wrote = lwwWriteFeatureRow(db, env, p.feature, p.enabled, p.settings);
   if (wrote && family !== null) {
     deriveFamilyClassBits(db, env.workspaceId, family);
   }

@@ -744,6 +744,12 @@ export const workspaceFeatureSetPayload = z
   .object({
     feature: workspaceFeatureSchema,
     enabled: z.boolean(),
+    // Optional per-feature configuration blob (the Sources library's
+    // citekey pattern, etc.). Record-shaped, feature-scoped vocabulary —
+    // the protocol pins only "a JSON object". LWW with the rest of the
+    // row: a payload WITHOUT settings stores NULL and reads back
+    // undefined (absent is distinguishable from {}).
+    settings: z.record(z.unknown()).optional(),
   })
   .strict();
 

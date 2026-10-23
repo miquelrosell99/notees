@@ -3077,12 +3077,60 @@ for (const adapter of adapters) {
       expect(forward.isFeatureEnabled(WS, "sources")).toBe(true);
       const row = forward.getFeatureRow(WS, "tasks")!;
       expect(row.enabled).toBe(false);
+      expect(row.settings).toBeUndefined();
+      // The settings tail: the final sources winner carried settings; the
+      // intermediate old-shape re-enable (envelope 8) cleared them to NULL
+      // under the same LWW comparator, and the reverse-order replay lands
+      // on the identical row.
+      expect(forward.getFeatureRow(WS, "sources")).toEqual({
+        feature: "sources",
+        enabled: true,
+        settings: { citekeyPattern: "[auth:lower][year]", autoCitekey: true },
+      });
+      expect(backward.getFeatureRow(WS, "sources")).toEqual(forward.getFeatureRow(WS, "sources"));
       // The racing enable still ran the family ensure: the task class family
       // exists on BOTH replicas (archived per the winning disable).
       expect(forward.getNode(TASK_CLASS)!.is_active).toBe(0);
       expect(backward.getNode(TASK_CLASS)!.is_active).toBe(0);
       forward.close();
       backward.close();
+    });
+
+    it("workspace.feature.set settings: LWW with the row, NULL for absent, distinct from {}", () => {
+      const store = makeAdapterStore();
+      const sources = (physical: number, payload: Record<string, unknown>) =>
+        env("workspace.feature.set", { feature: "sources", ...payload }, physical);
+      // Set: settings persist and read back through getFeatureRow + the list.
+      store.apply(sources(1727200010700, {
+        enabled: true,
+        settings: { citekeyPattern: "[auth:lower][year]", autoCitekey: true },
+      }));
+      expect(store.getFeatureRow(WS, "sources")!.settings).toEqual({
+        citekeyPattern: "[auth:lower][year]",
+        autoCitekey: true,
+      });
+      expect(store.listFeatureRows(WS).find((r) => r.feature === "sources")!.settings).toEqual({
+        citekeyPattern: "[auth:lower][year]",
+        autoCitekey: true,
+      });
+      // Old shape wins: the winning payload carries no settings key, so the
+      // row stores NULL and reads back undefined (settings are gone).
+      store.apply(sources(1727200010800, { enabled: true }));
+      expect(store.getFeatureRow(WS, "sources")!.settings).toBeUndefined();
+      // An empty record is a REAL value, not absent: it round-trips as {}.
+      store.apply(sources(1727200010900, { enabled: true, settings: {} }));
+      expect(store.getFeatureRow(WS, "sources")!.settings).toEqual({});
+      // Stale settings op: loses the LWW compare, the row is untouched.
+      const before = dumpDb(store);
+      const stale = sources(1727200010850, {
+        enabled: false,
+        settings: { citekeyPattern: "[stale]" },
+      });
+      expect(store.apply(stale).ignored).toBe(true);
+      expect(dumpDb(store)).toEqual(before);
+      expect(store.getFeatureRow(WS, "sources")!.settings).toEqual({});
+      expect(store.isFeatureEnabled(WS, "sources")).toBe(true);
+      store.close();
     });
 
     it("journal: a surfaces-only toggle — LWW row, no family derivation, no instance count", () => {

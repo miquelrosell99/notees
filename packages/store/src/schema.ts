@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 29;
+export const SCHEMA_VERSION = 30;
 
 /**
  * The render-path list-reads index: composite for the
@@ -559,11 +559,14 @@ CREATE TABLE IF NOT EXISTS app_meta (
 -- existing workspaces need no migration). The applier derives the
 -- membership-preserving archival of the feature's managed system classes
 -- from this row (class registry active bit + the class node's is_active;
--- class_member_set rows are never touched).
+-- class_member_set rows are never touched). The settings column is the
+-- optional per-feature configuration record (JSON text; NULL = the winning
+-- payload carried no settings — distinct from the empty record).
 CREATE TABLE IF NOT EXISTS workspace_feature (
     workspace_id TEXT NOT NULL,
     feature TEXT NOT NULL,
     enabled INTEGER NOT NULL,
+    settings TEXT,
     hlc_physical INTEGER NOT NULL DEFAULT 0,
     hlc_logical INTEGER NOT NULL DEFAULT 0,
     actor_id TEXT,
@@ -1297,4 +1300,17 @@ export function migrate(
     );
     CREATE INDEX IF NOT EXISTS idx_node_property_node ON node_property (node_id);
   `);
+  // v29 -> v30 (the workspace.feature.set settings payload): the winning
+  // row optionally carries a per-feature configuration record. Purely
+  // additive — the guarded ALTER is a no-op for fresh v30 creates (the
+  // column is in the CREATE TABLE above); NULL = no settings (distinct
+  // from '{}').
+  {
+    const featureColumnsV30 = db.prepare("PRAGMA table_info(workspace_feature)").all() as {
+      name: string;
+    }[];
+    if (!featureColumnsV30.some((c) => c.name === "settings")) {
+      db.exec("ALTER TABLE workspace_feature ADD COLUMN settings TEXT;");
+    }
+  }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

@@ -507,14 +507,22 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       (env) => (env.payload as { feature: string }).feature === "events",
     );
     expect(events.map((env) => (env.payload as { enabled: boolean }).enabled)).toEqual([false]);
-    // …and a sources off→on pair — the re-enable is the winner.
+    // …and a sources sequence: the off→on pair, then the settings tail —
+    // enable+settings, a plain old-shape re-enable (no settings key), and a
+    // final enable+settings (the winner carries settings).
     const sources = fixture.envelopes.filter(
       (env) => (env.payload as { feature: string }).feature === "sources",
     );
     expect(sources.map((env) => (env.payload as { enabled: boolean }).enabled)).toEqual([
       false,
       true,
+      true,
+      true,
+      true,
     ]);
+    expect(
+      sources.map((env) => (env.payload as { settings?: unknown }).settings !== undefined),
+    ).toEqual([false, false, true, false, true]);
     // Applicable in sequence: every HLC strictly follows the previous one.
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
