@@ -616,6 +616,10 @@ export class WorkspaceClient {
     return this.writes.unassignProperty(objectId, propertySchemaId);
   }
 
+  emptyProperty(objectId: string, propertySchemaId: string) {
+    return this.writes.emptyProperty(objectId, propertySchemaId);
+  }
+
   promotePropertyCarrier(objectId: string, propertySchemaId: string, idx = 0) {
     return this.writes.promotePropertyCarrier(objectId, propertySchemaId, idx);
   }

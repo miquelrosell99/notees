@@ -73,11 +73,8 @@ export function PropertiesSidebar({
   // Readonly-ness derives from the system property list.
   const isReadonly = (schemaId: string): boolean => isReadonlyProperty(schemaId);
   const emptyProperty = (schemaId: string) => {
-    for (const row of rowsOf) {
-      if (row.propertySchemaId === schemaId && row.source === "authored") {
-        void client.setProperty(nodeId, schemaId, "", row.idx);
-      }
-    }
+    // One op clears every value; the declaration survives.
+    void client.emptyProperty(nodeId, schemaId);
   };
   const removeFromNode = (schemaId: string) => {
     for (const row of rowsOf) {
@@ -85,6 +82,10 @@ export function PropertiesSidebar({
         void client.unsetProperty(nodeId, schemaId, row.idx);
       }
     }
+    // The assignment declaration dies with the row (the PropertiesTable
+    // precedent) — an assigned-but-valueless property disappears instead of
+    // lingering as an empty row.
+    void client.unassignProperty(nodeId, schemaId);
   };
   const menuItems = (schemaId: string) => {
     const bound = isBound(schemaId);

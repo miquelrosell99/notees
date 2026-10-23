@@ -40,6 +40,7 @@ const GENRE = "0192a000-0000-7000-8000-000000000012";
 const SCHEMA_URL = "0192a000-0000-7000-8000-0000000000a1";
 const SCHEMA_RATING = "0192a000-0000-7000-8000-0000000000a2";
 const SCHEMA_PRIVATE = "0192a000-0000-7000-8000-0000000000a3";
+const SCHEMA_LINKS = "0192a000-0000-7000-8000-0000000000a4";
 
 function env(
   opType: string,
@@ -111,6 +112,14 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       env(
         "propertySchema.create",
         { propertySchemaId: SCHEMA_PRIVATE, name: "Mood", type: "text", scopeClassIds: [GENRE] },
+        1727200000100,
+      ),
+    );
+    // Multi-value menu entry for the property.empty sweep tests.
+    store.apply(
+      env(
+        "propertySchema.create",
+        { propertySchemaId: SCHEMA_LINKS, name: "Links", type: "url", multi: true },
         1727200000100,
       ),
     );
@@ -301,6 +310,172 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       );
       expect(assignmentRow(store, PAGE, SCHEMA_URL)).toBeUndefined();
       expect(store.getEffectiveProperties(PAGE)[0]).toMatchObject({ source: "authored" });
+      store.close();
+    });
+  });
+
+  describe("property.empty: the values die, the declaration survives", () => {
+    it("clears the single authored value and keeps the assignment — the empty row renders again", () => {
+      const store = seededStore();
+      store.apply(env("property.assign", { objectId: PAGE, propertySchemaId: SCHEMA_URL }, 1727200001000));
+      store.apply(
+        env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA_URL, value: "https://x.org" }, 1727200001100),
+      );
+      store.apply(env("property.empty", { objectId: PAGE, propertySchemaId: SCHEMA_URL }, 1727200001200));
+      expect(assignmentRow(store, PAGE, SCHEMA_URL)).toBeDefined();
+      const rows = store.getEffectiveProperties(PAGE).filter((r) => r.propertySchemaId === SCHEMA_URL);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ source: "assigned", value: null });
+      store.close();
+    });
+
+    it("clears EVERY value of a multi property — every element and idx", () => {
+      const store = seededStore();
+      store.apply(env("property.assign", { objectId: PAGE, propertySchemaId: SCHEMA_LINKS }, 1727200001000));
+      store.apply(
+        env(
+          "property.set",
+          { objectId: PAGE, propertySchemaId: SCHEMA_LINKS, value: "https://a.org", elementId: "0192a000-0000-7000-8000-0000000000e1" },
+          1727200001100,
+        ),
+      );
+      store.apply(
+        env(
+          "property.set",
+          { objectId: PAGE, propertySchemaId: SCHEMA_LINKS, value: "https://b.org", elementId: "0192a000-0000-7000-8000-0000000000e2", idx: 1 },
+          1727200001150,
+        ),
+      );
+      store.apply(env("property.empty", { objectId: PAGE, propertySchemaId: SCHEMA_LINKS }, 1727200001200));
+      const authored = store
+        .getEffectiveProperties(PAGE)
+        .filter((r) => r.propertySchemaId === SCHEMA_LINKS && r.source === "authored");
+      expect(authored).toHaveLength(0);
+      const assigned = store
+        .getEffectiveProperties(PAGE)
+        .filter((r) => r.propertySchemaId === SCHEMA_LINKS && r.source === "assigned");
+      expect(assigned).toHaveLength(1);
+      store.close();
+    });
+
+    it("clear causality: older adds at OBSERVED slots stay dead; an add at an UNOBSERVED slot survives (the house add-wins rule)", () => {
+      const store = seededStore();
+      store.apply(env("property.assign", { objectId: PAGE, propertySchemaId: SCHEMA_LINKS }, 1727200001000));
+      store.apply(
+        env(
+          "property.set",
+          { objectId: PAGE, propertySchemaId: SCHEMA_LINKS, value: "https://old.org", elementId: "0192a000-0000-7000-8000-0000000000e1" },
+          1727200001100,
+        ),
+      );
+      store.apply(env("property.empty", { objectId: PAGE, propertySchemaId: SCHEMA_LINKS }, 1727200002000));
+      // An older add at the OBSERVED idx 0 arrives late (fresh element id,
+      // positional carrier) — the empty stamped the slot tombstone there, so
+      // the read suppresses it either way.
+      const lateObserved = store.apply(
+        env(
+          "property.set",
+          { objectId: PAGE, propertySchemaId: SCHEMA_LINKS, value: "https://late.org", elementId: "0192a000-0000-7000-8000-0000000000e3" },
+          1727200001500,
+        ),
+      );
+      expect(lateObserved.ignored).toBe(false); // inserted, then read-suppressed
+      // An older add at an UNOBSERVED idx (3) arrives late — it SURVIVES:
+      // the empty never touched that slot, and add-wins is the house rule.
+      const lateUnobserved = store.apply(
+        env(
+          "property.set",
+          { objectId: PAGE, propertySchemaId: SCHEMA_LINKS, value: "https://kept.org", elementId: "0192a000-0000-7000-8000-0000000000e4", idx: 3 },
+          1727200001600,
+        ),
+      );
+      expect(lateUnobserved.ignored).toBe(false);
+      const rows = store
+        .getEffectiveProperties(PAGE)
+        .filter((r) => r.propertySchemaId === SCHEMA_LINKS && r.source === "authored");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ value: "https://kept.org", idx: 3 });
+      store.close();
+    });
+
+    it("a RE-ISSUED element add (the empty SAW the element) stays dead after the empty", () => {
+      const store = seededStore();
+      const element = "0192a000-0000-7000-8000-0000000000e5";
+      store.apply(env("property.assign", { objectId: PAGE, propertySchemaId: SCHEMA_LINKS }, 1727200001000));
+      store.apply(
+        env(
+          "property.set",
+          { objectId: PAGE, propertySchemaId: SCHEMA_LINKS, value: "https://a.org", elementId: element },
+          1727200001100,
+        ),
+      );
+      store.apply(env("property.empty", { objectId: PAGE, propertySchemaId: SCHEMA_LINKS }, 1727200002000));
+      // The same element re-added with an older HLC — the element tombstone
+      // the empty stamped kills it.
+      const readd = store.apply(
+        env(
+          "property.set",
+          { objectId: PAGE, propertySchemaId: SCHEMA_LINKS, value: "https://a.org", elementId: element },
+          1727200001500,
+        ),
+      );
+      expect(readd.ignored).toBe(true);
+      const rows = store
+        .getEffectiveProperties(PAGE)
+        .filter((r) => r.propertySchemaId === SCHEMA_LINKS);
+      expect(rows.some((r) => r.source === "authored")).toBe(false);
+      store.close();
+    });
+
+    it("a concurrent NEWER set survives the empty", () => {
+      const store = seededStore();
+      store.apply(env("property.assign", { objectId: PAGE, propertySchemaId: SCHEMA_URL }, 1727200001000));
+      store.apply(
+        env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA_URL, value: "https://x.org" }, 1727200001100),
+      );
+      store.apply(env("property.empty", { objectId: PAGE, propertySchemaId: SCHEMA_URL }, 1727200001200));
+      // The set is NEWER than the empty — it lands and survives.
+      store.apply(
+        env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA_URL, value: "https://new.org" }, 1727200001300),
+      );
+      const rows = store.getEffectiveProperties(PAGE).filter((r) => r.propertySchemaId === SCHEMA_URL);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ source: "authored", value: "https://new.org" });
+      store.close();
+    });
+
+    it("a bound default resurfaces after the empty", () => {
+      const store = seededStore();
+      store.apply(
+        env("class.property.set", { classId: GENRE, propertySchemaId: SCHEMA_RATING }, 1727200000200),
+      );
+      store.apply(
+        env(
+          "object.create",
+          { objectId: OTHER_PAGE, classIds: [GENRE], contentAst: [{ type: "text", text: "Genre page" }] },
+          1727200000060,
+        ),
+      );
+      store.apply(
+        env("property.set", { objectId: OTHER_PAGE, propertySchemaId: SCHEMA_RATING, value: 5 }, 1727200001000),
+      );
+      store.apply(env("property.empty", { objectId: OTHER_PAGE, propertySchemaId: SCHEMA_RATING }, 1727200001100));
+      const rows = store
+        .getEffectiveProperties(OTHER_PAGE)
+        .filter((r) => r.propertySchemaId === SCHEMA_RATING);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ source: "default", value: 0, boundBy: GENRE });
+      store.close();
+    });
+
+    it("empty with no values is a harmless no-op — the assignment stands", () => {
+      const store = seededStore();
+      store.apply(env("property.assign", { objectId: PAGE, propertySchemaId: SCHEMA_URL }, 1727200001000));
+      store.apply(env("property.empty", { objectId: PAGE, propertySchemaId: SCHEMA_URL }, 1727200001100));
+      expect(assignmentRow(store, PAGE, SCHEMA_URL)).toBeDefined();
+      expect(
+        store.getEffectiveProperties(PAGE).filter((r) => r.propertySchemaId === SCHEMA_URL),
+      ).toHaveLength(1);
       store.close();
     });
   });
