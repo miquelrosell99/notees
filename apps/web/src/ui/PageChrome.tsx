@@ -24,7 +24,7 @@
  *. One home, no duplication.
  */
 
-import { useRef, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
@@ -238,6 +238,9 @@ export function PageHeaderChrome({
   onHeaderMenu: (x: number, y: number) => void;
 }) {
   const pageId = page.id;
+  // Stable identity — the memoized BlockRow compares it by reference, so a
+  // fresh arrow per render would defeat the title row's bail-out.
+  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
   /**
    * Icon picker popup anchor + open state: the element that opened it (the
    * page icon when one is defined, else the action row's "Add icon" button).
@@ -402,7 +405,7 @@ export function PageHeaderChrome({
                 variant="title"
                 tree={{ node: page, children: [] }}
                 client={client}
-                resolveName={(id) => displayNameFromClient(client, id)}
+                resolveName={resolveName}
                 readOnly={preview}
               />
             )}
