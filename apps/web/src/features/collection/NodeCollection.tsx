@@ -43,11 +43,20 @@
  *  defined parent display yet — the focused view falls back to outline
  *  for them at the callsite). `parentTrailing` carries the "+ Add block"
  *  ghost at the child indent level.
+ *
+ * The trailing add-block ghost (owner ruling 2026-10-23 — the ghost is
+ * the COLLECTION's chrome, the view mode decides its UI): the host
+ * supplies only the write through `addGhost` (parent id + realize
+ * callback); cards passes the twin GhostCard through the grid's last
+ * cell, every other mode trails a GhostRow (prose drops the gutter). The
+ * focused grammar owns its children-container ghost via `parentTrailing`
+ * and ignores `addGhost`.
  */
 
 import { Suspense, useEffect, useState } from "react";
 
 import { EmptyState, ErrorBoundary, Spinner } from "../../components/ui/fleet/index.js";
+import { GhostCard, GhostRow } from "../../ui/GhostRow.js";
 import { useSectionViews } from "./sectionViews.js";
 import { getViewDefinition } from "./registry.js";
 import { SECTION_DEFAULT_TAB, SectionViewTabs } from "./SectionViewTabs.js";
@@ -126,7 +135,34 @@ export function NodeCollection({
       ? resolvedGroups.reduce((sum, group) => sum + group.items.length, 0) +
         (resolvedUngrouped?.length ?? 0)
       : resolvedItems.length;
-  const viewProps = { ...props, items: resolvedItems, groups: resolvedGroups, ungroupedItems: resolvedUngrouped };
+  // The add-block ghost is the collection's chrome (owner ruling
+  // 2026-10-23 — the ghost is the collection's, the view mode decides its
+  // UI): the host supplies only the write via `addGhost`; cards passes the
+  // twin GhostCard through the grid's last cell (the trailingGhost slot),
+  // every other mode trails a GhostRow (prose drops the gutter). The
+  // focused grammar (`parent` set) owns its children-container ghost via
+  // `parentTrailing` — addGhost is ignored there. A host-passed
+  // `trailingGhost` still wins (the reference subtree's bespoke ghost).
+  const ghostSource =
+    props.addGhost !== undefined && props.parent === undefined ? props.addGhost : undefined;
+  const ghost =
+    ghostSource === undefined ? undefined : effectiveEntry.id === "cards" ? (
+      <GhostCard parentId={ghostSource.parentId} onRealize={ghostSource.onRealize} />
+    ) : (
+      <GhostRow
+        parentId={ghostSource.parentId}
+        prose={effectiveEntry.id === "prose"}
+        onRealize={ghostSource.onRealize}
+      />
+    );
+  const viewProps = {
+    ...props,
+    items: resolvedItems,
+    groups: resolvedGroups,
+    ungroupedItems: resolvedUngrouped,
+    trailingGhost:
+      ghost !== undefined && effectiveEntry.id === "cards" ? ghost : props.trailingGhost,
+  };
   const showAdd = props.showAddButton === true && props.onAdd !== undefined;
   // A custom tab refined to empty answers for itself; the default tab (or an
   // unrefined collection) names the container's empty line.
@@ -178,6 +214,7 @@ export function NodeCollection({
       )}
       <ViewChromeContext.Provider value={hosted !== null ? chromeSlot : null}>
         {content}
+        {ghost !== undefined && effectiveEntry.id !== "cards" && ghost}
       </ViewChromeContext.Provider>
     </div>
   );

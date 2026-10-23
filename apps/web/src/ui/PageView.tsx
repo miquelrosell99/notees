@@ -152,7 +152,7 @@ import {
 } from "./editor-popups/LinkEditModal.js";
 import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
 import { ensureTemplateFamily } from "../features/templates/templateFamily.js";
-import { GhostCard, GhostRow, realizeGhost } from "./GhostRow.js";
+import { realizeGhost } from "./GhostRow.js";
 import { usePageMachinery } from "./usePageMachinery.js";
 import { MainContentFrame } from "./MainContentFrame.js";
 import { NodeTopbar, PageHeaderChrome, PageFooterChrome } from "./PageChrome.js";
@@ -605,15 +605,16 @@ export function PageView({
   ));
 
   /**
-   * ghost (owner refinement): the page root trails exactly
-   * ONE muted "add block" ghost row as the last sibling of the main level —
-   * rendered ALWAYS in the child-blocks section (outline and prose,
-   * non-embedded, focus mode included), including an empty body, as the
-   * sole "add" affordance. Blocks no longer trail their own ghosts at
-   * deeper levels. Prose hides bullets (app.css .nt-prose), so the ghost
-   * mounts there with its gutter dropped (the `prose` flag). Cards is a
-   * card grid — the affordance is the GhostCard, the grid's last cell
-   * (the `trailingGhost` slot), not a row after the grid. The click
+   * ghost (owner refinement; the ghost itself is the COLLECTION's chrome
+   * since 2026-10-23 — NodeCollection takes the host's write via `addGhost`
+   * and picks the mode's UI): the page root trails exactly ONE muted "add
+   * block" ghost row as the last sibling of the main level — rendered
+   * ALWAYS in the child-blocks section (outline and prose, non-embedded,
+   * focus mode included), including an empty body, as the sole "add"
+   * affordance. Blocks no longer trail their own ghosts at deeper levels.
+   * Prose hides bullets (app.css .nt-prose), so the ghost mounts there with
+   * its gutter dropped; cards is a card grid — the affordance is the
+   * GhostCard, the grid's last cell, not a row after the grid. The click
    * realizes the ghost into a real empty block at the end and focuses it.
    */
   const ghostVisible = !embedded && !preview;
@@ -665,48 +666,30 @@ export function PageView({
                   maxDepth={preview ? PREVIEW_BODY_DEPTH : undefined}
                   onNodeClick={(id) => onOpenPage?.(id)}
                   onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
-                  /* Cards mode: the add affordance is the grid's last cell
-                     (the GhostCard) — it must live INSIDE the grid to read
-                     as a card slot, so it rides the collection's
-                     trailingGhost slot instead of trailing the collection
-                     like the row ghost below. */
-                  trailingGhost={
-                    ghostVisible && blocksMode === "cards" ? (
-                      <GhostCard
-                        parentId={pageId}
-                        onRealize={() => {
-                          void realizeGhost(client, outliner, pageId).catch((error: unknown) => {
-                            console.warn(`[outliner] ghost realize (${pageId}) failed:`, error);
-                          });
-                        }}
-                      />
-                    ) : undefined
+                  /* The add-block ghost is the collection's chrome now
+                     (owner ruling 2026-10-23): the host supplies only the
+                     write — the collection picks the mode's UI (the row
+                     trails outline/prose, the GhostCard rides the cards
+                     grid's last cell). The page root trails exactly ONE
+                     ghost (owner refinement): display-only until the click,
+                     which creates a real empty block after the last child
+                     and focuses it. Blocks never trail their own ghosts at
+                     deeper levels; focus mode keeps the body (hence the
+                     ghost) — only chrome steps aside. Embedded/preview
+                     renders pass none. */
+                  addGhost={
+                    ghostVisible
+                      ? {
+                          parentId: pageId,
+                          onRealize: () => {
+                            void realizeGhost(client, outliner, pageId).catch((error: unknown) => {
+                              console.warn(`[outliner] ghost realize (${pageId}) failed:`, error);
+                            });
+                          },
+                        }
+                      : undefined
                   }
                 />
-                {/* ghost trailing block (owner refinement of
-                    ): the page root trails exactly ONE "+ Add
-                    block" ghost row as the last sibling of the main
-                    level — display-only until the click, which creates
-                    a real empty block after the last child and focuses
-                    it (never an op by itself). Blocks no longer trail
-                    their own ghosts at deeper levels, and focus mode
-                    keeps the body (hence this ghost) — only chrome
-                    steps aside. Prose mounts it too, gutter dropped
-                    (bullets are hidden in that transform). Cards wears
-                    the GhostCard inside the grid instead (the
-                    trailingGhost above — a grid needs its slot as a
-                    cell, not a row after the grid). */}
-                {ghostVisible && blocksMode !== "cards" && (
-                  <GhostRow
-                    parentId={pageId}
-                    prose={blocksMode === "prose"}
-                    onRealize={() => {
-                      void realizeGhost(client, outliner, pageId).catch((error: unknown) => {
-                        console.warn(`[outliner] ghost realize (${pageId}) failed:`, error);
-                      });
-                    }}
-                  />
-                )}
                 {/* The selection card: one outline per contiguous run of
                     selected rows (the set is whole-subtree, so a run is
                     always a rectangle — a selected block wraps its

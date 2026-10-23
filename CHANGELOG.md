@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-23
 
+- **refactor(web): the add-block ghost is NodeCollection's chrome — the
+  view mode decides its UI (owner ruling, the earlier discussion
+  consummated).** Until now the trailing "+ Add block" affordance was
+  host-assembled: the page body (and the new calendar DailyNoteOutline)
+  rendered a `GhostRow` after the collection in outline/prose and passed a
+  `GhostCard` through the cards grid's `trailingGhost` slot themselves.
+  `NodeCollection` now owns the ghost: the host supplies only the WRITE
+  through a first-class `addGhost` prop (`{ parentId, onRealize }`) and the
+  collection renders the mode-appropriate affordance — **cards passes the
+  twin GhostCard through the grid's last cell; every other mode trails a
+  GhostRow (prose drops the gutter)**. The focused grammar (`parent`) keeps
+  owning its children-container ghost via `parentTrailing` and ignores
+  `addGhost`; a host-passed `trailingGhost` still wins (the reference
+  subtree's opt-in child-level ghost). PageView and DailyNoteOutline drop
+  their ghost JSX and pass `addGhost`; their DOM contract is unchanged (the
+  ghost still renders inside the page's select surface — now under
+  `.node-collection`).
+  - **Verification**: `pnpm typecheck` clean; full suite green — 173 files /
+    2009 tests — including the ghost contract suites (outliner-editor,
+    block-selection, render-cascade, system-sections) running unchanged
+    against the collection-owned ghost.
+
 - **feat(web): calendar sections ride the shared outline collections — plain
   editable rows everywhere, breadcrumb trails on Dated/Created, the Daily
   Note becomes a standalone child-blocks outline (owner pass).** The day

@@ -268,11 +268,23 @@ export interface NodeCollectionProps {
    */
   parentTrailing?: ReactNode | undefined;
   /**
-   * A trailing affordance rendered AFTER the view's items — the cards
-   * mode's "+ Add card" ghost card (owner 2026-10-20). Only the flat cards
-   * grid rides it (the last grid cell); the grouped board, outline, prose,
-   * and table ignore it — document bodies in outline/prose trail their own
-   * GhostRow after the collection instead.
+   * The trailing "+ Add block" ghost — the COLLECTION's own chrome (owner
+   * ruling 2026-10-23: the ghost is the collection's, the view mode decides
+   * its UI): the host supplies only the WRITE (the parent id + the realize
+   * callback) and the collection renders the mode-appropriate affordance —
+   * cards passes the twin GhostCard through the grid's last cell, every
+   * other mode trails a GhostRow (prose drops the gutter). Absent = no
+   * ghost (read-only projections, hub sections, embedded renders). Ignored
+   * in the focused grammar (`parent` set) — the focused view owns its
+   * children-container ghost via `parentTrailing`.
+   */
+  addGhost?: { parentId: string; onRealize: () => void } | undefined;
+  /**
+   * The raw trailing-affordance slot the CARDS view consumes (the grid's
+   * last cell). Collection-internal: `addGhost` is the host contract — the
+   * collection constructs the GhostCard and injects it here. Hosts with a
+   * bespoke need (the reference subtree's opt-in child-level ghost) may
+   * still pass their own; it wins over the constructed one.
    */
   trailingGhost?: ReactNode | undefined;
 

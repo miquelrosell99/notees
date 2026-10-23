@@ -6,9 +6,9 @@
  * (PageView.tsx bodyContent) and the standalone-host precedent
  * (FocusedBlockView): the host's own OutlinerContext + EditThread
  * provider/overlay, the shared NodeCollection in outline/tree/editable mode
- * over childQuery (comments cut at every level, the body factory), and the
- * one trailing "add block" ghost at the main level (the owner refinement:
- * blocks never trail their own ghosts at deeper levels). The app-wide
+ * over childQuery (comments cut at every level, the body factory). The
+ * trailing "+ Add block" ghost is the COLLECTION's chrome — the host
+ * supplies only the write through `addGhost`. The app-wide
  * WorkspaceDndHost carries the DndContext the sortable rows consume.
  */
 
@@ -19,7 +19,7 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { NodeCollection } from "../collection/index.js";
 import { childQuery } from "../collection/childQuery.js";
-import { GhostRow, realizeGhost } from "../../ui/GhostRow.js";
+import { realizeGhost } from "../../ui/GhostRow.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { EditThreadOverlay, EditThreadProvider } from "../../ui/EditThread.js";
 
@@ -48,13 +48,13 @@ export function DailyNoteOutline({
             editable
             showBreadcrumbs={false}
             onNodeClick={(id) => onOpenPage(id)}
-          />
-          <GhostRow
-            parentId={dayId}
-            onRealize={() => {
-              void realizeGhost(client, outliner, dayId).catch((error: unknown) => {
-                console.warn(`[outliner] ghost realize (${dayId}) failed:`, error);
-              });
+            addGhost={{
+              parentId: dayId,
+              onRealize: () => {
+                void realizeGhost(client, outliner, dayId).catch((error: unknown) => {
+                  console.warn(`[outliner] ghost realize (${dayId}) failed:`, error);
+                });
+              },
             }}
           />
         </div>
