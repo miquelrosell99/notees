@@ -9,320 +9,79 @@ predating this file.
 
 ## 2026-10-23
 
-- **feat(scripts): `migrate-authors-to-text.mts` — the live-workspace authors
-  retype, values to "Family, Given" strings, refs copied to linkedAuthors,
-  type flip LAST-in-name-only (source-library slice 1, task 8).** The SPEC
-  retyped `authors` (…0012) object-multi → text-multi and seeded
-  `linkedAuthors` (…0006-…0001) object-multi→agent; live workspaces still
-  carry object {nodeId} values under …0012. One ordered ingest of appended
-  envelopes per workspace (Path A — the log is never edited), and the
-  ordering is the load-bearing part (review focus #1): **the flip rides
-  FIRST, the value rewrites immediately after** — the planned
-  values-before-flip order is impossible on the wire, because
-  one-shape-per-type validation (`assertValueShapeForType`,
-  packages/store `property-values.ts`) rejects a plain string under an
-  object schema, so any replica replaying a values-first tail would throw.
-  The flip uses `propertySchema.create` as an UPSERT — the ONLY wire path
-  that changes a schema's type (`propertySchema.update` deliberately carries
-  no type; the `migrate-attachments-asset-type.mts` precedent) — with every
-  other stored column (scope, options, the agent target filter, render
-  flags) riding verbatim. The rewrites then validate strings against the
-  now-text schema and reuse each element's own identity (a PG5 row id IS the
-  element id — an in-place LWW swap at `applyElementAdd`; legacy positional
-  rows rewrite through the positional carrier), so no replay ever validates
-  an object value against the text schema: validation runs on incoming
-  writes only, and the pre-ingest testApplyEnvelopes gate plus the
-  post-ingest fresh-store [pre-migration snapshot + migrated tail] replay
-  (zero StoreError — the task-7 gate pattern) prove it for the exact ingest.
-  Values format "Family, Given" from each agent's familyName (…0022) +
-  givenName (…0021), title-content fallback (`fullTitleOf`), element
-  metadata verbatim; the SAME {nodeId} refs are added to linkedAuthors
-  first, existence-checked per row, so the people-graph backlinks survive
-  the string rewrite (a ref already linked is skipped; a broken ref — target
-  permanently deleted — is never copied and keeps its value, reported: a
-  text schema still accepts a {nodeId} shape, so convergence is not
-  blocked). Refusals: a soft-deleted …0012 row (the upsert would resurrect
-  it) and any stored type outside the known object drift (possible user
-  config — never clobbered). The dry run also prints the meaning-flip
-  report — every saved view / content query token carrying a property
-  condition on …0012 (they keep matching by UUID but read name-strings
-  after; listed, counted, never written). Idempotent: existence checks run
-  on the converged scratch state (latest snapshot + tail), so a second run
-  plans nothing. Scratch-only development per the controller ruling: the
-  `scripts/migrated-verify/seed-authors-scratch.mts` companion (hard-refuses
-  any `--data-dir` outside /tmp) seeds the drifted shapes — PG5 + positional
-  values, an archived agent (names still read), a permanently-deleted agent
-  (the broken-ref corner), a partial linkedAuthors corner, the
-  pre-migration saved query view — and the review-focus-#1 replay is pinned
-  by `apps/server/test/migrate-authors-to-text.test.ts` (a pre-migration
-  snapshot + the migrated tail must converge from a clean restore with zero
-  StoreError; 4 tests green). Docs: the `migrations.md` catalog row. No
-  lockstep gate — text is an original wire type and every op is an ordinary
-  `property.set`/`propertySchema.create` every port already applies.
-
-- **fix(scripts): `migrate-source-library-roster.mts` review round 1 —
-  exact-title rename gating + the pre-ingest replay gate (source-library
-  slice 1, task 7).** Two Important findings from the task review: **(1) the
-  title rename no longer clobbers user-renamed classes** — each rename is
-  gated on the EXACT drifted old title ("Article" / "Web link" / "Movie");
-  the manifest target reads as already-converged (no-op), and any other
-  title is a user rename: reported in the plan as "skipped: user-renamed
-  class title" and left untouched (post-apply verification now asserts the
-  user title survived verbatim). **(2) verification no longer waits for
-  ingest** — after the zod validation, every built envelope is test-applied
-  IN ORDER against the scratch store the plan was read from, BEFORE
-  `RelayStorage.ingest`: a poison envelope a static plan cannot see (proven
-  with `class.unassign`'s inline-content lock — a paper node whose content
-  carries an inline class_link to paper) aborts the run with a clear error
-  and ZERO envelopes written, and the same gate runs in dry-run so the
-  operator sees poison before deciding to apply. Minors in the same pass:
-  the paper→journal_article guard no longer throws when the same run's
-  healing step creates journal_article (missing classes computed first; the
-  envelope emission order now puts class creates + extends ahead of the
-  reclass), and the scratch seed harness hard-refuses any `--data-dir` not
-  under /tmp (fail loud, don't wipe — proven against a real-looking path;
-  the harness also gained the two probe workspaces: user-renamed titles and
-  the poisoned paper node).
-  - **Verification**: scratch dry-run → `--apply` → fresh-scratch verify
-    (review focus #5 asserted) on the happy-path AND the user-renamed
-    workspaces (custom titles read back untouched, paper reclass still
-    converged); the poison workspace aborted at envelope 239/903 with zero
-    writes (per-workspace relay count unchanged); second-run idempotency
-    holds; full `pnpm test` green.
-
-- **feat(scripts): `migrate-source-library-roster.mts` — live workspaces
-  converge to the source-library roster (source-library slice 1, task 7).**
-  Path A append (migrations.md — the relay log is never edited), dry-run by
-  default, `--apply` ingests through `RelayStorage.ingest` and verifies
-  against a fresh scratch store. Four drifts heal in one pass, each
-  existence-checked against the converged log state so a second run plans
-  nothing: **(a)** nodes classed `paper` (…0025, withdrawn) — `class.unassign
-  {paper}` + the re-issued `object.create` OR-Set add carrier with
-  `classIds: [journal_article]` (there is no `class.assign` op; the carrier
-  is the wire path, and its `>=` comparator beats the remove in either
-  delivery order); **(b)** the renamed classes' titles — "Article" →
-  "Journal article" (…0026), "Web link" → "Web page" (…0034), "Movie" →
-  "Film" (…0035) via `class.update` content rewrites (title-is-content; the
-  UUIDs are unchanged, so saved query ASTs keyed on them survive — review
-  focus #5 is asserted in the post-apply verification); **(c)** the task-4/5/6
-  materialization for drifted workspaces, data-driven from the manifests —
-  missing seeded class nodes (`class.create` + `class.setExtends`), the
-  missing pool property schemas (`propertySchema.create` with the seed
-  mapping + the spec's `bindTo` binding row), every missing manifest binding
-  row (`SYSTEM_PROPERTY_SPECS` bindTo rows, `SYSTEM_EXTRA_CLASS_BINDINGS`,
-  `SYSTEM_SOURCE_CLASS_BINDINGS`), and the `SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES`
-  flips (`object.update {active: false}`, after the rows exist). Planned
-  bindings are R5 pre-checked at plan time (a binding whose schema scope
-  excludes the class fails loud at apply — the plan never emits one).
-  Verification: the new envelopes read back protocol-valid, a FRESH scratch
-  store replays the tail with zero StoreError throws, paper is gone from node
-  class sets, the migrated nodes carry journal_article, the renamed titles /
-  every seeded class node / every manifest binding row / the archived flags
-  all read back, and the pre-migration saved query view (a class condition on
-  …0026) still matches the migrated nodes. Scratch-only development harness
-  `scripts/migrated-verify/seed-source-roster-scratch.mts` seeds a throwaway
-  pre-roster workspace under /tmp (old titles, four classed nodes, the saved
-  view, a partially-converged abstract+url corner proving the per-row
-  no-ops). 897-envelope scratch apply verified; second run plans nothing.
-  Historical scripts untouched: `migrate-url-source-binding.mts` /
-  `migrate-seed-scope-flips.mts` still name `weblink`, which no gate
-  compiles (per-package tsconfigs cover src+test only) — recorded, not
-  rewritten. No wire/model change — no fixture gate; the appended ops are
-  ordinary config every port applies (no lockstep item). Cataloged in
-  `docs/developers/migrations.md`.
-  - **Verification**: scratch dry-run → `--apply` → verify (review focus #5
-    asserted) → second-run idempotency proof, all green; full `pnpm test`
-    green.
-
-- **feat(store,web,server): source library materializes — classes, bindings,
-  archived-by-default seeding (source-library slice 1, task 6).** The 39
-  source type-classes now materialize in derived stores with their per-class
-  Zotero field rows and the archived-by-default bit:
-  - **`apps/server/src/seed.ts`** emits `class.property.set` rows per
-    `SYSTEM_SOURCE_CLASS_BINDINGS` (alongside the
-    `SYSTEM_EXTRA_CLASS_BINDINGS` loop — same mechanism, data-driven) and the
-    archived flips: each `SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES` name gets an
-    `object.update {active: false}` after its rows land (`class.create`
-    carries no active field; the flip is the wire's archival op). 21 family
-    classes seed active, the 18 long-tail types seed archived.
-  - **Web `deploySystemClass`** (`apps/web/src/features/classview/
-    systemClassDeploy.ts`) authors the same per-class rows idempotently on
-    the gallery-pick/ensure path (registry-only existence check, the
-    own-row precedent) — the recursive parent deploy already authors the
-    pool schemas + the source base's rows. The gallery's enable pick keeps
-    its semantics: deploy un-archives (the F4-inverse pattern).
-  - **Store archival-semantics fixes** (`packages/store/src/appliers.ts`) —
-    the audit found two paths conflating archival with absence:
-    `rebuildClassHierarchy` rebuilt the closure from `class WHERE active =
-    1`, so ANY later `class.setExtends` (a live workspace keeps extending
-    classes) dropped archived classes — and their descendants' ancestor
-    edges — from `class_hierarchy`, breaking `class:`/`classAny` matches,
-    the family-members read, scope eligibility, and the effective-properties
-    reach for archived types. The closure now carries EVERY class row (the
-    default reads filter the bit; the closure never does). And
-    `applyClassCreate`'s registry conflict arm set `active = 1`
-    unconditionally — a re-issued `class.create` (the seed/ensure idempotent
-    re-run) revived archived classes, defeating no-op ensure. The conflict
-    arm now preserves the bit; revival rides `object.update {active: true}`,
-    the feature derivation, and `object.restore` only. Paths audited CLEAN:
-    the query compiler's class conditions (probe the closure), `effective.ts`
-    + `property-values.ts` (membership via `class_member_set`, reach via the
-    closure), export's CSL predicate (node `classIds` membership), backlinks
-    (node-level liveness), the web gallery/enable surfaces (visibility reads
-    that SHOULD filter the bit). Known interaction (documented, not changed):
-    a `sources` feature toggle re-derivation sweeps the whole family, so an
-    explicit sources re-enable revives the seeded-archived types — the
-    documented family semantic ("the toggle archives/revives the family").
-  - **Tests**: new `packages/store/test/source-seed.test.ts` (both adapters)
-    replays the seed op stream from the domain manifests and pins the full
-    converged state — 40 class rows, 39 `extends [source]` edges, the 18
-    archived rows (`class.active = 0` + node `is_active = 0`, 21 active),
-    every `SYSTEM_SOURCE_CLASS_BINDINGS` row, closure survival across a LATER
-    unrelated `setExtends` rebuild, `classMembers(source)` and effective
-    properties (the source-base `citekey` default) resolving through an
-    archived type, and whole-seed re-apply byte-identity. New archived-class
-    block in `packages/query/test/query.test.ts` pins compiled `class:` /
-    `classAny` / the aggregate class dimension matching archived-type nodes.
-    `apps/web/test/system-class-deploy-bindings.test.ts` gains the
-    book_section deploy test (rows per the table, sibling classes untouched,
-    re-deploy no-op) and its web_page expectation amends to the new shape
-    (url + the 9 Zotero rows). SCHEMA.md amended same-pass (the source
-    family's archived-by-default paragraph + the normative `active` section
-    gains the never-absence / no-revival clauses). No wire change — no
-    fixture gate; the two applier semantics are a GTK/Flutter applier
-    convergence item, recorded here per the lockstep law (the clients'
-    hierarchy rebuild + class-create conflict arm must match; non-blocking
-    follow-up, the task-3/task-4 precedent).
-  - **Verification**: store 721/721 (incl. 16 new), query 208/208 (incl. 8
-    new), web deploy-bindings 6/6 (incl. 1 new, 1 amended); store dist
-    rebuilt (dev-condition exports); root `pnpm typecheck` + full `pnpm
-    test` green.
-
-- **feat(domain): per-class source field bindings (source-library slice 1,
-  task 5).** New `packages/domain/src/source-class-bindings.ts` (barrel-
-  exported): `SYSTEM_SOURCE_CLASS_BINDINGS` — the per-class field-binding
-  data table, all 39 source type-classes (30 roster + `journal_article`/
-  `web_page`/`film` + the kept `book`/`thesis`/`document`/`conference`/`song`/
-  `tv_series`) → their Zotero field list as pool property names, derived
-  MECHANICALLY from the `zotero/zotero-schema` itemTypes field lists (the
-  task-snapshot JSON): every field maps to its pool key (`abstractNote`→
-  abstract, `type`→workType, `ISSN`→issn), minus `title` (title-is-content),
-  `citationKey`, and the source-base family riding the `bindTo: "source"`
-  specs (authors/linkedAuthors/editors/doi/isbn/publicationDate/publisher/
-  citekey/url/attachments — never repeated per class), intersected with the
-  task-4 pool; fields with no pool property are skipped (the case orphans
-  stay orphaned per the owner ruling; one-off type fields — `libraryCatalog`,
-  the `*Format` variants, `originalDate`/`originalPublisher`/`originalPlace`,
-  `conferenceName`, `dictionaryTitle`/`encyclopediaTitle`, `manuscriptType`,
-  `mapType`, `organization`, `billNumber`, `subject`, `country`,
-  `audioFileType`, `archiveID`, `partNumber`/`partTitle`, `seriesText`/
-  `journalAbbreviation`/`PMID`/`PMCID` — the full list lives in the file's
-  trailing comment). Judgment calls for the kept classes without an exact
-  Zotero counterpart (documented in the header comment): `song` ←
-  `audioRecording`, `tv_series` ← `tvBroadcast`, `conference` ← the
-  `conferencePaper` + `presentation` UNION. Each list is sorted
-  alphabetically, class keys sorted for determinism. DATA TABLE ONLY —
-  nothing consumes it yet; the server seed + web ensure pick it up in slice
-  1 task 6 (alongside `SYSTEM_EXTRA_CLASS_BINDINGS`; consumers today:
-  `apps/server/src/seed.ts` + the web self-heal). SCHEMA.md's citations
-  section amended same-pass (the per-type table is no longer "a later
-  slice"). Domain test pins the full 39-class table verbatim (key set
-  included), asserts every listed name is a real `SystemPropertyName`, that
-  no list repeats the source base, that per-class lists are sorted, and
-  spot-checks eleven classes against hand-copied RAW Zotero field lists so
-  the pin and the table cannot drift together.
-  - **Verification**: `pnpm --filter @notees/domain test` 116/116 (113 →
-    116, three new); domain dist rebuilt (dev-condition exports); root
-    `pnpm typecheck` + full `pnpm test` green.
-
-- **fix(domain): add `issn` to the bibliographic property pool (source-library slice 1, task 4 review C1).** `issn` was the one pool field the task-4 slice missed (a real Zotero field on 9 item types, not already seeded, not on the do-not-duplicate list). Seeded as text/`bindTo: "source"` at its ALPHABETICAL slot …0006-…0003 (between `interviewMedium` and `issue`), display "ISSN" — the seeds.ts display-name comment's "conventional acronyms (ISSN)" claim is now true. Inserting alphabetically (per the block's pinned alphabetical↔suffix rule) renumbered `issue`…`workType` to …0024–…0055: the block is now 85 seeds. Appending at …0055 (the reviewer's suggested shortcut) was rejected: the pool test enforces `keys.slice(2)` equals its own sort, so an end-append would either fail the gate or require weakening the determinism pin; renumbering is safe because no code outside the seeds/test pair references specific …0006- suffixes. Test pool row, UUID block, SPECS, DISPLAY_NAMES all updated; no other production code touched.
-  - **Verification**: `pnpm --filter @notees/domain build` (dist rebuilt, dev-condition exports) + `pnpm --filter @notees/domain test` green; `pnpm typecheck` + full `pnpm test` green.
-
-- **feat(domain): bibliographic property pool, authors text retype, linkedAuthors + editors (source-library slice 1, task 4).** New `…0006-` property block in `packages/domain/src/seeds.ts` — 84 seeds: the reused Zotero field pool (one schema per field, `bindTo: "source"` for all — task 5 carries the per-type binding table that narrows availability), slots …0003–…0054 assigned ALPHABETICALLY BY KEY for determinism (the …0048 roster precedent), all plain single-value text except `accessDate` (datetime, day precision the schema default). `linkedAuthors` REINSTATED at …0006-…0001 (`object`, multi, `targetClassFilter: ["agent"]`, bindTo source) after the 2026-09-27 withdrawal — the burned …0025 UUID stays burned; `editors` new at …0006-…0002 (text, multi). Zotero's `type` field keyed `workType` (display "Type"). Deliberately skipped: the case-type orphans (`caseName`/`court`/`docketNumber`/`reporter`/`reporterVolume`/`firstPage`/`dateDecided` — `case` has no class, owner ruling) and the already-seeded fields (isbn …0013/doi …0014/publicationDate …0015/publisher …0016/url …0024/citekey …0023 — never duplicated). **`authors` (…0012) RETYPED object→text, multi** (owner ruling): free-text author strings on the source family; the node-typed filter is superseded; live values migrate via `scripts/migrate-authors-to-text.mts` (slice 1 task 8, not this slice). One deviation from the brief's display-name list: `status` displays "Standard status", not "Status" — the task family's `taskStatus` already owns "Status" and the display-name uniqueness law (owner directive 2026-10-05) forbids two seeds collapsing into one label. Domain test pins the full pool snapshot (UUIDs, specs, display names, alphabetical↔suffix order, block totality), the `authors` retype, and the `linkedAuthors` reinstatement; the pre-existing FINAL-authorship assertions are amended, not deleted. The one cross-package ripple is a stale assertion in `apps/server/test/properties.test.ts` (it pinned the old node-typed `authors` spec) — amended test-only to the retyped spec + the reinstated `linkedAuthors` seed row; no server source touched. SCHEMA.md's normative "Citations — source family and authorship" section amended same-pass (the code-wins law). **GTK/Flutter seed-manifest check ran** (owner ruling 2026-10-22): both clients carry the touched slice (Flutter `system.dart` authors spec + `local_workspace_seed.dart` seed, GTK `features.py` property-UUID references) — their pool/retype alignment is a recorded non-blocking follow-up (the task-3 rekey precedent), not done in this slice.
-  - **Verification**: `pnpm --filter @notees/domain test` 113/113; domain dist rebuilt (dev-condition exports); `pnpm typecheck` + full `pnpm test` green.
-
-- **feat(domain): Zotero item-type → class manifest (source-library slice 1,
-  task 1).** New `packages/domain/src/zotero-types.ts` (barrel-exported):
-  `ZOTERO_CITABLE_ITEM_TYPES` (readonly tuple of the 37 citable type
-  literals from `zotero/zotero-schema`), `ZoteroItemType`, and
-  `ZOTERO_ITEM_TYPE_TO_CLASS: Record<ZoteroItemType, SystemClassName>`
-  mapping every citable type onto the source-library roster
-  (`journalArticle → journal_article`, `bookSection → book_section`,
-  `conferencePaper → conference_paper`, `audioRecording → audio_recording`,
-  `tvBroadcast → tv_broadcast`, `webpage → web_page`, the 30 new classes,
-  and the existing source family). Zotero's three internal types
-  (annotation/attachment/note) carry no entry; `case` (legal) has NO class
-  (owner ruling) and maps to `document` — the class-level resolver fallback
-  is slice 4, this manifest only records the mapping. Test pins the 37-name
-  totality (a future Zotero type addition forces a conscious map decision),
-  every value against `SYSTEM_CLASS_UUIDS`, and the roster-key mappings
-  verbatim. Verification: `pnpm --filter @notees/domain test` 112/112, root
-  `pnpm typecheck` + `pnpm test` green.
-
-- **refactor(domain): source roster renames — `article`/`weblink`/`movie`
-  become `journal_article`/`web_page`/`film`; `paper` withdrawn (owner ruling,
-  the source-library roster slice 1).** Three seeded system classes rekey at
-  their FIXED UUIDs (the …-0001- block is never renamed, only rekeyed):
-  `article` → `journal_article` (…0026), `weblink` → `web_page` (…0034),
-  `movie` → `film` (…0035) — display names "Journal article" / "Web page" /
-  "Film", ids/icons/extends/seeded manifests all rekeyed together.
-  **`paper` (…0025) is WITHDRAWN**: Zotero has no "paper" type, so the roster
-  drops it — existing nodes migrate to `journal_article`, and the …0025 slot
-  carries the withdrawal comment in `SYSTEM_CLASS_UUIDS` (never reuse, the
-  …0001/…0042 precedent). The sources family is now 10 classes (base + 9
-  children). Mechanical consumer sweep in the same pass: the deploy catalog +
-  classes-gallery sections (`features.ts` / `systemClassDeploy.ts`), the
-  extra-bindings row (`url→web_page`), quick-create subclass options, and the
-  export CSL tables (`csl.ts` minimal rename only — BibTeX `article` imports
-  to `journal_article`, CSL `article-journal` now imports there too since
-  paper's nodes migrated onto it; the bidirectional rework is a later slice).
-  Domain test pins the rekeys, the fixed UUIDs, the display names, and
-  paper's withdrawal (source-text assertion on the seeds, the readFileSync
-  precedent). SCHEMA.md + getting-started swept same-pass. **GTK/Flutter
-  seed-manifest check ran** (owner ruling 2026-10-22): both clients carry the
-  touched constants (`features.py`, `system.dart`, `workspace_features.dart`,
-  `local_workspace_seed.dart`) — their rekey is a recorded non-blocking
-  follow-up (the weblink-extends precedent), not done in this slice. The
-  one-shot `scripts/migrate-seed-scope-flips.mts` /
-  `migrate-url-source-binding.mts` still name `weblink` — historical Path A
-  migrations, not workspace members, noted for the follow-up.
-  - **Verification**: `pnpm --filter @notees/domain test` 107/107; domain
-    dist rebuilt (dev-condition exports); `pnpm typecheck` clean; full suite
-    green.
-
-- **feat(domain): 30 source type-classes — Zotero-faithful roster, long tail
-  archived by default (owner ruling, the source-library roster slice 1).**
-  Thirty NEW seeded system classes land in `packages/domain/src/seeds.ts`,
-  slots …-0001-000000000048–…000000000065 (hex suffixes, assigned
-  alphabetically by key), ALL extending `source`: audio_recording, artwork,
-  bill, blog_post, book_section, computer_program, conference_paper, dataset,
-  dictionary_entry, email, encyclopedia_article, forum_post, hearing,
-  instant_message, interview, letter, magazine_article, manuscript, map,
-  newspaper_article, patent, podcast, preprint, presentation,
-  radio_broadcast, report, standard, statute, tv_broadcast, video_recording —
-  UUIDs + icons + display names ("Book section" style) + one-line gallery
-  descriptions (the conference trio does disambiguating work:
-  `conference_paper` "A paper published in conference proceedings.",
-  `presentation` "A talk, lecture, or set of slides.") + extends + the
-  seeded manifest, all five records together. **`SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES`
-  (new export) carries the long tail** — EIGHTEEN classes (the brief's prose
-  said 17; its list is the authority — 18): artwork, bill, blog_post,
-  computer_program, dataset, dictionary_entry, email, encyclopedia_article,
-  forum_post, hearing, instant_message, interview, letter, manuscript, map,
-  patent, radio_broadcast, statute — the everyday types (book_section,
-  magazine/newspaper_article, preprint, report, standard, podcast, the
-  broadcasts, the conference trio, audio/video) stay ENABLED. Nothing
-  consumes the constant yet — it is seed data for the later slices (ensure
-  paths, task 6). The sources family grows 10 → 40 (base + 39 children), so
-  the feature-toggle flip list grows with it (derived, no manifest change).
-  Domain-only slice: the web gallery catalog, ensure paths, GTK/Flutter seed
-  manifests, and the live-workspace migration are later tasks. Domain test
-  pins the exact UUID map, the display names, the trio descriptions, the
-  exact sorted archived list, and the 12-enabled exclusion; the sources
-  family test updates 10-strong → 40-strong.
-  - **Verification**: `pnpm --filter @notees/domain test` 108/108; domain
-    dist rebuilt (dev-condition exports); `pnpm typecheck` clean; full suite
-    green.
+- **feat(domain,store,web,server,scripts): the source library — slice 1, the
+  Zotero-faithful source model ships** (owner ruling 2026-10-23; supersedes
+  the "FINAL" authorship decision 2026-09-27 — reversed, dated, in SCHEMA.md's
+  rewritten Citations section). One object-graph source family modeled on
+  Zotero, seeds + derived projections + live-workspace convergence, no wire
+  change (everything is ordinary config ops every port applies):
+  - **The roster — 39 source type-classes, all `extends: [source]`.** Thirty
+    NEW seeded classes at …-0001-000000000048–…000000000065 (hex suffixes,
+    alphabetical by key — `audio_recording`…`video_recording`), plus three
+    rekeys at their fixed UUIDs (`article`→`journal_article` …0026,
+    `weblink`→`web_page` …0034, `movie`→`film` …0035) and the WITHDRAWAL of
+    `paper` (…0025, never reused — Zotero has no "paper" type). The sources
+    family grows 10 → 40 (base + 39 children); the feature-toggle flip list
+    derives from it.
+  - **Dual-track authorship** (the 2026-09-27 node-typed-only commitment
+    reversed): `authors` (…0012) RETYPED object→text-multi — free strings in
+    the BibTeX "Family, Given" convention, the citation/export source of
+    truth; `linkedAuthors` REINSTATED at its own UUID …0006-…0001 (object,
+    multi, targetClassFilter `agent`) — the independent people-graph track.
+    The two never write each other; authorship reads fall back from `authors`
+    to linkedAuthors-derived names at READ time. `editors` (…0006-…0002) is
+    the same text shape. `issn` completed the pool (its alphabetical slot
+    renumbered the …0006- block to 85 seeds, hex …0001–…0055).
+  - **The Zotero manifest** (`packages/domain/src/zotero-types.ts`):
+    `ZOTERO_ITEM_TYPE_TO_CLASS` maps the 37 citable `zotero/zotero-schema`
+    item types onto the roster; the 3 internal types carry no entry;
+    `case`→`document` documents the fallback (the legal-case class is
+    dropped, owner ruling).
+  - **The pool + per-class bindings** (`SYSTEM_SOURCE_CLASS_BINDINGS`): one
+    schema per Zotero field, all `bindTo: "source"`; each of the 39 classes
+    narrows to its Zotero field list, derived MECHANICALLY from the schema
+    snapshot (title/citationKey/the source-base family never repeated per
+    class; fields with no pool property dropped — the full skipped list in
+    the file). Judgment calls documented: `song`←audioRecording,
+    `tv_series`←tvBroadcast, `conference`←conferencePaper∪presentation.
+  - **Materialization** (`apps/server/src/seed.ts` + web
+    `deploySystemClass`): every roster class, pool schema, binding row, and
+    the archived-by-default flips land in fresh AND drifted workspaces — 18
+    long-tail types seed `active = false` via `object.update` after the rows
+    exist (`class.create` carries no active field). Two store applier fixes
+    found in the same pass: `rebuildClassHierarchy` now builds the closure
+    from EVERY class row (archived classes never lose queries/eligibility/
+    export/backlinks — **archiving is visibility, never absence**), and
+    `applyClassCreate`'s conflict arm preserves the archival bit (a
+    re-issued create never revives an archived class).
+  - **Live-workspace convergence** (Path A, both dry-run first, cataloged in
+    `docs/developers/migrations.md`): `migrate-source-library-roster.mts`
+    (paper→journal_article reclass, exact-title-gated renames, manifest
+    materialization for drifted workspaces, archived flips — with a
+    pre-ingest in-order testApplyEnvelopes gate so a poison envelope aborts
+    with zero writes) and `migrate-authors-to-text.mts` (the wire-mandated
+    order: the schema-type UPSERT flip RIDES FIRST via
+    `propertySchema.create`, the "Family, Given" value rewrites + the
+    linkedAuthors ref copies immediately after — values-first is impossible
+    because one-shape-per-type validation rejects strings under an object
+    schema; scratch-seeded broken-ref/user-rename corners pinned by server
+    tests).
+  - **Lockstep notes**: no wire change, no fixture gate. GTK/Flutter
+    seed-manifest alignment (roster rekeys, pool, archived set) is a
+    RECORDED non-blocking follow-up per the 2026-10-22 ruling; the two store
+    applier semantics (closure-never-filters, create-preserves-bit) are a
+    client applier convergence item, also recorded.
+  - **Designed-not-built (honest register)**: the resolver, sources settings
+    UI, the web "Add source" flow, and the export rework over the new roster
+    (.bib/CSL class tables + the web .bib format) are follow-up slices — not
+    part of this ship.
+  - **Verification**: domain/store/query/web/server suites green at every
+    task boundary (roster/binding/table snapshots pinned verbatim,
+    source-seed replay test, archived-class query tests, migration
+    scratch round-trips incl. idempotent second runs); final root gate
+    `pnpm typecheck && pnpm test` green. Docs same-pass: SCHEMA.md's
+    Citations + Sources-as-containers sections rewritten final, this entry,
+    feature-status.
 
 - **refactor(web): NodeCollection BODY MODE — `rootId` + `ghost`; the last
   call-site glue folds into the collection (owner pass, the bundle

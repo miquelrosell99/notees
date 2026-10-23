@@ -21,15 +21,15 @@
  *    the tolerant parser re-imports onto song/film/tv_series — round-trip
  *    stable within Notees.
  *
- * Authorship (SCHEMA.md "Citations — source family and authorship", FINAL
- * owner decision 2026-09-27): `authors` is a node-typed multi-value property
- * on `source`, targeting `agent` — bibliography authors ARE agent nodes.
- * `nodeToCsl` takes the resolved author display-name strings (supplied by
- * the caller from the node-typed `authors` property values, in property
- * order) and parses each to a CSL name; it has no awareness of the
- * withdrawn `linkedAuthors` experiment (UUID …0025, never reused). Person
- * nodes are never auto-created here — the CLI find-or-creates them on
- * import.
+ * Authorship (SCHEMA.md "Citations — source family and authorship", owner
+ * 2026-10-23 — supersedes the FINAL 2026-09-27 decision): DUAL-TRACK.
+ * `authors` is a free-text multi-value property on `source` holding
+ * "Family, Given" strings (the citation/export source of truth);
+ * `linkedAuthors` (object→agent) is the independent people-graph track.
+ * `nodeToCsl` takes the resolved author strings — the caller applies the
+ * read rule (`authors`, deriving names from `linkedAuthors` targets when
+ * empty) — and parses each to a CSL name. Person nodes are never
+ * auto-created here — the CLI find-or-creates them on import.
  *
  * Dates are year-only `date-parts` taken from the first 4-digit run of the
  * publicationDate value.
@@ -316,10 +316,10 @@ export function sourceClassOf(classIds: readonly string[]): SourceClassName | un
 
 /**
  * Project a source node + its property values + the resolved author
- * display-name strings (from the node-typed `authors` property, in property
- * order — the caller resolves the `{nodeId}` refs) into CSL. Each name
- * string is parsed to family/given (comma form `Family, Given` wins;
- * otherwise last token = family).
+ * name strings (the dual-track read rule — `authors` strings in property
+ * order, `linkedAuthors`-derived names when empty; the caller resolves)
+ * into CSL. Each name string is parsed to family/given (comma form
+ * `Family, Given` wins; otherwise last token = family).
  */
 export function nodeToCsl(
   node: BibliographicNode,
@@ -371,9 +371,10 @@ export function nodeToCsl(
 }
 
 /** The import-side spec: everything the CLI needs to find-or-create a source.
- * `authors` is the formatted `Family, Given` name-string list; the CLI
- * find-or-creates one agent (person) node per string and writes the
- * node-typed `authors` property as `{nodeId}` refs. */
+ * `authors` is the formatted `Family, Given` name-string list (the CLI's
+ * habit of find-or-creating one agent node per string predates the
+ * 2026-10-23 retype — the follow-up export slice realigns the import path
+ * with the dual-track model, where person links live on `linkedAuthors`). */
 export interface CslNodeSpec {
   className: SourceClassName;
   citekey: string;

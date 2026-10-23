@@ -126,7 +126,7 @@ $ notees class delete-members pokemon --yes       # trash every member (recovera
 
 ```console
 $ notees object property set 01a0dd78-… publicationDate 1962
-$ notees object property set 01a0dd78-… authors '{"nodeId":"01a1…"}' --idx 1
+$ notees object property set 01a0dd78-… authors "García Márquez, Gabriel" --idx 1
 $ notees object property delete 01a0dd78-… publicationDate
 ```
 
