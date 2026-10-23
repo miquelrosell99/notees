@@ -285,6 +285,7 @@ export function SearchPage({
                           <div className="search-page__result" key={node.id}>
                             <NodeResultItem
                               node={node}
+                              client={client}
                               parentPath={
                                 rendersWithDocumentChrome(node, parentRenderFacts(client, node))
                                   ? buildParentPath(node)

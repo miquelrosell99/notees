@@ -235,6 +235,7 @@ describe("incremental cache invalidation", () => {
     if (method === "init") return null;
     if (method === "search") return [{ id: "hit-1", isEmbedded: false, name: "Hit" }];
     if (method === "roots") return [{ id: "root-1", isEmbedded: false, name: "R" }];
+    if (method === "listPages") return [{ id: "page-1", isEmbedded: false, name: "P" }];
     if (method === "getNode") return { id: (args as string[])[0], isEmbedded: true };
     if (method === "listClasses") return [];
     return null;
@@ -245,6 +246,7 @@ describe("incremental cache invalidation", () => {
     try {
       client.search("q");
       client.roots();
+      client.listPages();
       client.getNode("n1");
       client.getNode("n2");
       client.listClasses();
@@ -261,7 +263,8 @@ describe("incremental cache invalidation", () => {
 
       expect(calls.get("getNode")).toBe(1); // only n1 — n2 untouched
       expect(calls.has("search")).toBe(true); // content-global
-      expect(calls.has("roots")).toBe(true); // content-global
+      expect(calls.has("roots")).toBe(false); // structure: content edits cannot reorder it
+      expect(calls.has("listPages")).toBe(false); // structure: same ordering invariant
       expect(calls.has("listClasses")).toBe(false); // structural-global: untouched
       // Exactly ONE multiRead round-trip for the whole refresh.
       expect(calls.get("multiRead")).toBe(1);
@@ -274,6 +277,8 @@ describe("incremental cache invalidation", () => {
     const { client, pushChanged, calls } = await makeControlled(seedHandler);
     try {
       client.search("q");
+      client.roots();
+      client.listPages();
       client.getNode("n1");
       client.listClasses();
       await vi.waitFor(() => expect(calls.get("multiRead")).toBeGreaterThanOrEqual(1));
@@ -283,6 +288,8 @@ describe("incremental cache invalidation", () => {
       await vi.waitFor(() => expect(calls.get("multiRead")).toBe(1));
       expect(calls.get("getNode")).toBe(1); // the one cached node key
       expect(calls.has("search")).toBe(true);
+      expect(calls.has("roots")).toBe(true);
+      expect(calls.has("listPages")).toBe(true);
       expect(calls.has("listClasses")).toBe(true);
     } finally {
       client.close();

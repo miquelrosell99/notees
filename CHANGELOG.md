@@ -9,6 +9,48 @@ predating this file.
 
 ## 2026-10-23
 
+- **perf(web): `roots`/`listPages` leave the per-keystroke refresh path —
+  the worker read cache reclassifies both from `"change"` to `"structure"`,
+  and every title surface that renders their rows re-reads the title via
+  scope-classed per-node reads.** Trigger: the op-lag perf plan (slice 2 —
+  measured ~65 ms `roots()` + ~75–110 ms `listPages()` re-running on EVERY
+  content edit at real scale, ~140 ms of the per-keystroke refresh). The
+  reclassification is sound because under title-is-content the listings'
+  ORDER is `COALESCE(name, id)` with `name` always NULL — a content edit
+  cannot reorder them — so only listing-affecting ops need to recompute
+  them; the row-title staleness that would otherwise result is closed by
+  switching the five pooled-title consumers to fresh id-based reads:
+  FavoritesRecents (plainTitleOf over a `getNode` re-read — the link/chip
+  derivation unchanged), the command palette's Date Pages / Pages / Classes
+  pools (label AND fuzzy keywords, so a rename keeps palette search
+  working), NodeResultItem (new optional `client` prop; all three hosts pass
+  it), CreatePageWithUuidModal's parent-page options, and QuickAddModal's
+  "Inbox" name lookup. `LISTING_AFFECTING_OPS` gains `object.restore`
+  (restore-from-trash changes roots/listPages membership) and `tag.unassign`
+  (changes the pooled tagIds rows show) — the `object.update {active}`
+  archival carrier was already caught by the envelope predicate.
+  `apps/web/src/core/worker-client.ts` (the READ_INVALIDATION table + its
+  invariant doc comment), `packages/sync/src/change-info.ts`,
+  `apps/web/src/features/sidebar/FavoritesRecents.tsx`,
+  `apps/web/src/features/command-palette/CommandPalette.tsx`,
+  `apps/web/src/features/pickers/NodeResultItem.tsx` (+ its NodeSelector /
+  SearchPage / CondensedLinksPopup hosts),
+  `apps/web/src/features/modals/CreatePageWithUuidModal.tsx`,
+  `apps/web/src/features/modals/QuickAddModal.tsx`,
+  `apps/web/src/features/block-editor/QuickCreateFab.tsx` (the widened
+  client Pick), `apps/web/test/worker-client.test.ts` (the scoped-change
+  test now asserts roots/listPages are NOT refetched; the structural test
+  asserts they are), `apps/web/test/pickers.test.tsx` (NodeResultItem
+  fresh/pooled/pseudo-row cases), `packages/sync/test/change-info.test.ts`
+  (restore/unassign classified structural). No wire/model/applier change —
+  pure client cache classification + render-source switching; no client
+  lockstep.
+  - **Verification**: `apps/web` worker-client + search-palette + pickers
+    70/70 (before the 3 new picker cases), then pickers 28/28; sidebar-menus
+    + quick-create + quick-create-fab + modals-overlays + search-page +
+    condensed + class-create-modal 114/114; focus-mode 7/7;
+    system-sections 26/26; `tsc --noEmit` clean; `@notees/sync` 26/26. Full
+    repo gate pending (parent session).
 - **perf(web): one worker notification per burst — the notify coalescer goes
   trailing-only, so a multi-op gesture costs one refresh cycle instead of
   two.** Trigger: the op-lag perf plan (slice 1). The old leading+trailing

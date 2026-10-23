@@ -1261,6 +1261,7 @@ export function NodeSelector({
           <NodeResultItem
             key={node.id}
             node={node}
+            client={client}
             parentPath={
               rendersWithDocumentChrome(node, parentRenderFacts(client, node))
                 ? buildParentPath(node)
@@ -1282,6 +1283,7 @@ export function NodeSelector({
           <NodeResultItem
             key={node.id}
             node={node}
+            client={client}
             isHighlighted={globalIndex === selectedIndex}
             onClick={() => handleEnableArchived(node)}
             onMouseEnter={() => setSelectedIndex(globalIndex)}

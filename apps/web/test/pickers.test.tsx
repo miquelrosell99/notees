@@ -27,8 +27,10 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { deriveDisplayName } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import type { ClientNode } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { IconPickerPopup } from "../src/features/icon-picker/IconPickerPopup.js";
+import { NodeResultItem } from "../src/features/pickers/NodeResultItem.js";
 import { NodeSelector } from "../src/features/pickers/NodeSelector.js";
 import { createNodesWithClasses } from "../src/features/templates/createNodesWithClasses.js";
 
@@ -708,5 +710,46 @@ describe("date-chain class lock (SCHEMA.md 'Datetime')", () => {
     const pageId = await client.createObject({ isEmbedded: false, name: "Ordinary" });
     render(<PageView client={client} pageId={pageId} />);
     expect(screen.getByRole("button", { name: "Add class" })).not.toBeNull();
+  });
+});
+
+describe("NodeResultItem fresh-title reads", () => {
+  /** A pooled row as the structure-classed listings hand it over (only the
+   *  fields the row render touches are populated). */
+  function pooledNode(id: string, title: string): ClientNode {
+    return {
+      id,
+      isClass: false,
+      isEmbedded: false,
+      parentId: null,
+      classIds: [],
+      tagIds: [],
+      contentAst: [{ type: "text", text: title }],
+      icon: null,
+    } as unknown as ClientNode;
+  }
+
+  it("derives the row label and tooltip from the fresh per-node read, not the pooled row", () => {
+    const pooled = pooledNode("node-1", "Stale title");
+    const fresh = pooledNode("node-1", "Fresh title");
+    render(<NodeResultItem node={pooled} client={{ getNode: () => fresh }} onClick={() => {}} />);
+
+    expect(screen.getByText("Fresh title")).not.toBeNull();
+    expect(screen.queryByText("Stale title")).toBeNull();
+    // The hover tooltip rides the SAME fresh title.
+    expect(screen.getByTitle("Fresh title")).not.toBeNull();
+  });
+
+  it("falls back to the pooled row when the fresh read misses (an archived node)", () => {
+    const pooled = pooledNode("node-1", "Pooled title");
+    render(
+      <NodeResultItem node={pooled} client={{ getNode: () => undefined }} onClick={() => {}} />,
+    );
+    expect(screen.getByText("Pooled title")).not.toBeNull();
+  });
+
+  it("pseudo-rows ({ name }) render unchanged, no client read", () => {
+    render(<NodeResultItem node={{ name: "Create row" }} onClick={() => {}} />);
+    expect(screen.getByText("Create row")).not.toBeNull();
   });
 });
