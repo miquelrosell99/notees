@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-23
 
+- **docs(classes): the "pill, inline chip, or mention?" taxonomy — which of
+  the three class gestures to reach for, and why raw text is never the
+  answer.** Owner ruling from a design discussion: `@Class` references the
+  class as an entity (node link, backlinks, graph edges), `+Class` inline
+  classifies the block with the class's name as the in-sentence marker (the
+  chip replaces the pill; the wire asserts membership), and a plain assign
+  leaves classification to the pill when the type word doesn't belong in the
+  prose. Writing the class's name as raw text classifies nothing and goes
+  stale on rename. New section in `docs/features/classes.md` ("Assigning a
+  class: pill, inline chip, or mention?") + an intro pointer and a
+  cross-reference from `docs/features/links.md`'s pill-hiding ruling. Docs
+  only — no code, no wire, no redeploy.
+  - **Verification**: docs-only slice; no gate surface beyond reading.
+
 - **feat(web): the `+` class picker's Ctrl/Cmd+Enter is the DIRECT INLINE
   INSERTION — it assigns the class AND splices the `class_link` token at the
   trigger in one gesture — and the classes pill row now hides an
