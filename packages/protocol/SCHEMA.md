@@ -141,7 +141,7 @@ Per-workspace **feature toggles** ARE the core class families (owner directive 2
 
 ---
 
-## External-id mappings — `external_ref.*` (NORMATIVE, owner requirement 2026-10-23 — the plugin mapping substrate; TS reference SHIPPED, LOCKSTEP-PENDING)
+## External-id mappings — `external_ref.*` (NORMATIVE, owner requirement 2026-10-23 — the plugin mapping substrate; SHIPPED, three-client converged)
 
 Importers and sync plugins (calendar providers, Readwise, read-it-later) need a durable **external → internal id mapping** — a Google Calendar event UID, a Readwise highlight id, a read-it-later entry id resolving to the notees node uuid — so re-runs **update** the mapped node instead of duplicating it (match by external id, never by title/content). The durable home is the **operation log**: not a device table (derived SQLite DBs are wipe-rebuildable — the mapping would die on rebuild) and not per-user server prefs (the wrong scope — mappings are per-workspace, plugin-owned). Log-carried mappings sync to every device, ride the backup, and converge by LWW.
 
@@ -150,7 +150,7 @@ Importers and sync plugins (calendar providers, Readwise, read-it-later) need a 
 - **Many refs per node, one node per ref.** The same event synced from Google AND Outlook lands two refs on one node; the reverse read scans the derived table (no reverse payload exists on the wire).
 - **Derived state (store schema v30, purely additive):** `external_ref` (PK `(workspace_id, ref)`, `node_id`, envelope causality columns, index on `node_id`) + `external_ref_tombstone` (PK `(workspace_id, ref)`, causality columns). A node's **hard delete purges its live rows** (the `subtreeIds` pattern in the `object.delete`/`trash.empty` appliers — a hard-deleted node leaves no mapping behind); **soft-trash keeps them** (a restore re-activates the node, mappings intact). Ref tombstones survive their node's purge (keyed by ref, they bound garbage to the ref name).
 - **Client surface:** reads `resolveExternalRef(ref): nodeId | null` (absent/tombstoned → null) and `externalRefsOf(nodeId): string[]` (sorted); writes `setExternalRef(ref, nodeId)` / `removeExternalRef(ref)`. The web client's read-cache invalidation: `externalRefsOf` is node-scoped (the applier's ChangeSummary carries the mapped node ids — previous + new carrier on a move), `resolveExternalRef` is content-global (its key is an opaque ref string that never appears in an affected set — the `resolveAlias` precedent). The session undo journal inverts both writes through the normal write path (set → delete when the ref was unmapped, else restore of the captured prior carrier; delete → restore of the captured carrier).
-- **LOCKSTEP-PENDING:** canonical fixture `external-ref.json` (fixture gate 39→40) — set/move/delete, the racing-set and set-beats-stale-delete-after-reorder scenarios, and the hard-delete purge; the GTK / Flutter appliers converge on the same fixture expectations before the marker clears (the 2026-10-13 date-chain precedent: TS reference lands first, the ports follow).
+- **LOCKSTEP SHIPPED (2026-10-23, the date-chain precedent):** the GTK / Flutter ports vendored `external-ref.json` byte-identical (sha256 `9cf46b1b…45a47e` on all three) and converged their appliers on the same fixture expectations — GTK `23bcc28` (912 tests green), Flutter `fdf14fd` (695 tests green). The store's canonical-fixture test replays the real fixture JSON (forward + reversed mapping delivery + idempotent replay) rather than a hand-built stand-in.
 
 ---
 
