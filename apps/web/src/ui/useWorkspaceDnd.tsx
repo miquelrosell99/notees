@@ -103,7 +103,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { OutlinePositionMap } from "@/editor/outline.js";
 
-import { displayNameFromClient } from "./dateDisplay.js";
+import { labelFromClient } from "./dateDisplay.js";
 import {
   executePropertyDrop,
   planPropertyDrop,
@@ -467,7 +467,7 @@ export function useWorkspaceDnd(opts: {
       // A rail-card reorder drag: the block machinery stays out — no zone
       // measuring, no drop line, no transient expands. The feedback is the
       // overlay chip + the target header's reorder edge.
-      const label = displayNameFromClient(railCard.client, railCard.nodeId) ?? railCard.nodeId;
+      const label = labelFromClient(railCard.client, railCard.nodeId) ?? "Untitled";
       setDragging({ id, label, previewText: label, count: 1 });
       setDragSources(null);
       setDragUi({ headerDropId: null, expandedNodeIds: new Set(), railReorder: null });
@@ -486,7 +486,7 @@ export function useWorkspaceDnd(opts: {
         ? effectiveDragIds(selection, homePositions)
         : [id];
     const leadId = dragIds[0] ?? id;
-    const leadName = (client === undefined ? null : displayNameFromClient(client, leadId)) ?? leadId;
+    const leadName = (client === undefined ? null : labelFromClient(client, leadId)) ?? "Untitled";
     setDragging({
       id,
       label: dragIds.length > 1 ? `${dragIds.length} blocks` : leadName,

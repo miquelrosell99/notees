@@ -49,7 +49,7 @@ import { withCandidateSpans } from "@/editor/capture.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameFromClient } from "../dateDisplay.js";
+import { displayNameFromClient, labelFromClient } from "../dateDisplay.js";
 import { parentRenderFacts } from "../renderStateLabel.js";
 import { NodeSelector } from "../../features/pickers/NodeSelector.js";
 import { requestPropertyCreate } from "../../features/metadata/PropertyCreateHost.js";
@@ -402,9 +402,9 @@ export function LinkEditModal({
                         }
                       >
                         {pickedNode !== null
-                          ? displayNameFromClient(client, pickedNode.id) ?? pickedNode.id
+                          ? labelFromClient(client, pickedNode.id) ?? "Untitled"
                           : currentNodeId !== null && currentNodeId !== undefined
-                            ? (displayNameFromClient(client, currentNodeId) ?? currentNodeId)
+                            ? (labelFromClient(client, currentNodeId) ?? "Untitled")
                             : "No target selected"}
                       </span>
                     </SelectTrigger>

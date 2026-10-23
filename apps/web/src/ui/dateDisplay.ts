@@ -20,6 +20,7 @@ import {
 } from "@notees/domain";
 
 import { readDeviceSetting } from "../features/settings/deviceSettings.js";
+import { untitledLabelOf } from "./renderStateLabel.js";
 
 export type DateFormat =
   | "YYYY/MM/DD"
@@ -193,6 +194,39 @@ export function displayNameFromClient(
   const node = client.getNode(id);
   if (node === undefined) return client.getDisplayName(id);
   return nodeDisplayName(node);
+}
+
+/**
+ * The never-a-bare-UUID label seam (owner 2026-10-23): the live display
+ * name; else the RAW read's derived name — an archived or trashed node
+ * KEEPS its name (only permanent deletion leaves no row); a live node with
+ * empty content reads "Untitled <render-state>" (renderStateLabel's
+ * convention). Null ONLY when no row exists at all — a dangling reference
+ * (e.g. a binding to a permanently deleted class, the retired class-class
+ * debt) — and callers hide the chip or pick their own placeholder: identity
+ * is never user-facing.
+ */
+export function labelFromClient(
+  client: Pick<{ getNode(id: string): NodeLike | undefined }, "getNode"> & {
+    /** Optional: clients/mocks without the raw read degrade to getDisplayName
+     *  (which resolves raw itself where supported). */
+    getNodeRaw?(id: string): NodeLike | undefined;
+    getDisplayName(id: string): string | null;
+  },
+  id: string,
+): string | null {
+  const facts = (n: NodeLike): Parameters<typeof untitledLabelOf>[0] => ({
+    isClass: n.isClass === true || n.isClass === 1,
+    isEmbedded: n.isEmbedded === true || n.isEmbedded === 1,
+    parentId: n.parentId ?? null,
+  });
+  const live = client.getNode(id);
+  if (live !== undefined) return nodeDisplayName(live) || untitledLabelOf(facts(live));
+  if (client.getNodeRaw !== undefined) {
+    const raw = client.getNodeRaw(id);
+    if (raw !== undefined) return deriveDisplayName(raw) || untitledLabelOf(facts(raw));
+  }
+  return client.getDisplayName(id);
 }
 
 /**

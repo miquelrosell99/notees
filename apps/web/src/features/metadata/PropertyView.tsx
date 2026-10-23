@@ -23,7 +23,7 @@ import { Button } from "../../components/ui/fleet/Button.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { NodeCollection } from "../collection/index.js";
 import type { TableColumn } from "../collection/index.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { labelFromClient } from "../../ui/dateDisplay.js";
 import { PropertyConvertModal } from "./PropertyConvertModal.js";
 import { PropertyDeleteModal } from "./PropertyDeleteModal.js";
 import { PropertySettingsModal } from "./PropertySettingsModal.js";
@@ -40,7 +40,9 @@ function ClassPill({
   classNode: ClientNode;
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
-  const label = displayNameFromClient(client, classNode.id) ?? classNode.id;
+  // classNode is a live row by construction; the label still rides the
+  // never-a-bare-UUID seam (owner 2026-10-23).
+  const label = labelFromClient(client, classNode.id) ?? "Untitled";
   return (
     <span className="pill">
       {classNode.icon !== null && classNode.icon !== "" && (

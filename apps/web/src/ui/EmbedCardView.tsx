@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameFromClient } from "./dateDisplay.js";
+import { labelFromClient } from "./dateDisplay.js";
 import { EmbedViewSwitcher } from "./EmbedView.js";
 import { Icon } from "./Icon.js";
 import { nodeIcon } from "./iconFor.js";
@@ -49,7 +49,9 @@ export function EmbedCardView({
   }
 
   const icon = nodeIcon(node, client.effectiveClassIcons());
-  const label = displayNameFromClient(client, nodeId) ?? nodeId;
+  // Never a bare UUID (owner 2026-10-23) — untitled reads "Untitled
+  // <render-state>" via the label seam.
+  const label = labelFromClient(client, nodeId) ?? "Untitled";
   const excerpt = view === "wide_card" ? plainExcerpt(node.contentAst) : "";
 
   return (

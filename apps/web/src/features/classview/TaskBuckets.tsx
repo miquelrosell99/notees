@@ -17,7 +17,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { labelFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { partitionTasksIntoBuckets, todayIsoLocal, type TaskBuckets as Buckets } from "../calendar/calendarViewUtils.js";
 import { setTaskDone, taskRowsOf, taskStatusLabel } from "../calendar/calendarRows.js";
@@ -140,7 +140,7 @@ export function TaskBuckets({
                       className="task-buckets__row-name"
                       onClick={() => onOpenNode(row.id)}
                     >
-                      {displayNameFromClient(client, row.id) ?? row.id}
+                      {labelFromClient(client, row.id) ?? "Untitled"}
                     </button>
                     {statusSchema !== undefined && statusLabelOf(row.id) !== null && (
                       <Pill text={statusLabelOf(row.id)!} />

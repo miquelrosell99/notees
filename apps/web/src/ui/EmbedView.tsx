@@ -22,7 +22,7 @@ import type { BlockTreeNode } from "@/core/workspace-client/index.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { BlockRow } from "./BlockRow.js";
-import { displayNameFromClient, fullTitleFromClient } from "./dateDisplay.js";
+import { displayNameFromClient, fullTitleFromClient, labelFromClient } from "./dateDisplay.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { openNodeLinkMenu } from "../features/node-menu/NodeLinkContextMenu.js";
 import { tableClassIdOf } from "../features/classview/tableFamily.js";
@@ -208,7 +208,10 @@ export function EmbedView({
   const resolveFullTitle = (id: string) => fullTitleFromClient(client, id);
   const resolveVerb = (schemaId: string) =>
     client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null;
-  const name = displayNameFromClient(client, nodeId) ?? nodeId;
+  // The node is verified live above; the label still rides the
+  // never-a-bare-UUID seam (owner 2026-10-23) — an untitled embed reads
+  // "Untitled <render-state>", never the id.
+  const name = labelFromClient(client, nodeId) ?? "Untitled";
   const childrenTree = client.getBlockTree(nodeId);
   const switcher =
     hostId !== undefined && tokenIndex !== undefined ? (

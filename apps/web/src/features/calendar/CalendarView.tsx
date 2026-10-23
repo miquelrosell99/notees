@@ -38,7 +38,7 @@ import {
 import type { ClientNode, QueryRunResult } from "@/core/workspace-client/index.js";
 
 import { instantiateTemplate } from "@/core/clone.js";
-import { displayNameFromClient, formatDateName } from "../../ui/dateDisplay.js";
+import { displayNameFromClient, labelFromClient, formatDateName } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { PageView } from "../../ui/PageView.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
@@ -107,7 +107,7 @@ function RowClassChips({ client, classIds }: { client: AnyClient; classIds: stri
     <span className="calendar-view__chips">
       {classes.map((cls) => (
         <span key={cls.id} className="calendar-view__chip">
-          {displayNameFromClient(client, cls.id) ?? cls.id}
+          {labelFromClient(client, cls.id) ?? "Untitled"}
         </span>
       ))}
     </span>
@@ -411,7 +411,7 @@ export function CalendarView({
         className="calendar-view__row-name"
         onClick={() => onOpenPage(row.id)}
       >
-        {displayNameFromClient(client, row.id) ?? row.id}
+        {labelFromClient(client, row.id) ?? "Untitled"}
       </button>
       {row.repeat !== null && <RepeatMarker rule={row.repeat} />}
       {statusSchema !== undefined && statusLabelOf(row.id) !== null && (
@@ -588,7 +588,7 @@ export function CalendarView({
                           className="calendar-view__row-name"
                           onClick={() => onOpenPage(node.id)}
                         >
-                          {displayNameFromClient(client, node.id) ?? node.id}
+                          {labelFromClient(client, node.id) ?? "Untitled"}
                         </button>
                         <RowClassChips client={client} classIds={node.classIds} />
                       </li>

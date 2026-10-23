@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { rendersWithDocumentChrome } from "@notees/domain";
 
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { labelFromClient } from "../../ui/dateDisplay.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { NodePill } from "./NodePills.js";
@@ -75,7 +75,7 @@ export function AliasesRow({
       <div className="section-label">Aliases:</div>
       <span className="nt-property-chips node-metadata-pills">
         {aliases.map((alias) => {
-          const label = displayNameFromClient(client, alias.id) ?? alias.id;
+          const label = labelFromClient(client, alias.id) ?? "Untitled";
           return (
             <NodePill
               key={alias.id}

@@ -63,7 +63,7 @@ import type {
   WorkspaceClient,
 } from "@/core/workspace-client/index.js";
 
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { labelFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { Button } from "../../components/ui/fleet/Button.js";
@@ -432,7 +432,7 @@ export function PropertyDefinitionsSection({
               const schema = client
                 .listPropertySchemas()
                 .find((s) => s.id === binding.propertySchemaId);
-              const sourceName = displayNameFromClient(client, sourceClassId) ?? sourceClassId;
+              const sourceName = labelFromClient(client, sourceClassId) ?? "Untitled";
               return (
                 <li key={binding.propertySchemaId} className="nt-propdef-inherited-row">
                   {/* Identity display + source attribution — the same

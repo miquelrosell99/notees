@@ -27,7 +27,7 @@ import { parseCsvTable, parseXlsxTable, type TableMatrix } from "@notees/export"
 import { Modal } from "../../components/ui/fleet/Modal.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { FileDropZone } from "../../components/ui/fleet/FileDropZone.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { labelFromClient } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../collection/types.js";
 import type { ClientPropertySchema } from "@/core/workspace-client/index.js";
 import "./ImportTableModal.css";
@@ -275,7 +275,7 @@ export function ImportTableModal({ isOpen, onClose, client, titleHeader }: Impor
   const classIdByName = useMemo(() => {
     const map = new Map<string, string>();
     for (const cls of classes) {
-      const name = displayNameFromClient(client, cls.id) ?? cls.id;
+      const name = labelFromClient(client, cls.id) ?? "Untitled";
       if (!map.has(norm(name))) map.set(norm(name), cls.id);
     }
     return map;

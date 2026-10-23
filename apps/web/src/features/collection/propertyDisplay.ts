@@ -7,7 +7,7 @@
 
 import type { AnyClient } from "./types.js";
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
-import { displayNameFromClient, datetimeValueText } from "../../ui/dateDisplay.js";
+import { datetimeValueText, labelFromClient } from "../../ui/dateDisplay.js";
 
 export function isEmptyPropertyValue(value: unknown): boolean {
   if (value === undefined || value === null) return true;
@@ -44,7 +44,10 @@ function nodeRefText(client: AnyClient, value: unknown): string {
         ? (value as { nodeId?: unknown }).nodeId
         : undefined;
   if (typeof nodeId !== "string") return "";
-  return displayNameFromClient(client, nodeId) ?? nodeId;
+  // Never a bare UUID (owner 2026-10-23): archived/trashed targets keep
+  // their name via the raw read; a permanently deleted target (no row at
+  // all) reads empty like the unrecognized-shape case above.
+  return labelFromClient(client, nodeId) ?? "";
 }
 
 /** datetime range display: `start → end`, either side open → `…`; refs resolve
@@ -62,7 +65,8 @@ function dateRangeText(client: AnyClient, value: unknown): string | null {
           ? (end as { nodeId?: unknown }).nodeId
           : null;
     if (typeof ref !== "string") return "…";
-    return displayNameFromClient(client, ref) ?? ref;
+    // Same never-a-bare-UUID contract as nodeRefText (owner 2026-10-23).
+    return labelFromClient(client, ref) ?? "";
   };
   return `${side(range.start)} → ${side(range.end)}`;
 }

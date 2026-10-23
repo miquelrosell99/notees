@@ -18,7 +18,7 @@ import { Badge } from "../../components/ui/fleet/Badge.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import { Modal } from "../../components/ui/fleet/Modal.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { labelFromClient } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 
 import "./SyncDetailsModal.css";
@@ -149,7 +149,7 @@ export function SyncDetailsModal({
               .map((conflict, index) => (
                 <li key={`${conflict.at}-${index}`} className="sync-details-conflict">
                   <span className="sync-details-conflict-name">
-                    {displayNameFromClient(client, conflict.nodeId) ?? conflict.nodeId}
+                    {labelFromClient(client, conflict.nodeId) ?? "Untitled"}
                   </span>
                   <span className="sync-details-conflict-type">
                     {CONFLICT_LABELS[conflict.conflictType] ?? conflict.conflictType}

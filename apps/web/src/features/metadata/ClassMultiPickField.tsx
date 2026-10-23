@@ -11,7 +11,7 @@ import { useRef, useState } from "react";
 import { Icon } from "../../ui/Icon.js";
 import { SelectTrigger } from "../../components/ui/fleet/SelectTrigger.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { labelFromClient } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "./shared.js";
 
 export function ClassMultiPickField({
@@ -35,7 +35,9 @@ export function ClassMultiPickField({
       {classIds.length > 0 && (
         <ul className="nt-class-pick__pills">
           {classIds.map((classId) => {
-            const label = displayNameFromClient(client, classId) ?? classId;
+            // Never a bare UUID (owner 2026-10-23) — archived classes keep
+            // their name; a permanently deleted class reads the placeholder.
+            const label = labelFromClient(client, classId) ?? "Deleted class";
             const icon = client.getNode(classId)?.icon;
             return (
               <li key={classId} className="pill">

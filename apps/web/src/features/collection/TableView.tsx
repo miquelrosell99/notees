@@ -134,7 +134,7 @@ import { downloadBlob } from "../modals/download.js";
 import { exportTimestamp } from "../export/exportSubtree.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
-import { nodeDisplayName, displayNameFromClient, datetimeValueText, formatIsoDate } from "../../ui/dateDisplay.js";
+import { nodeDisplayName, displayNameFromClient, labelFromClient, datetimeValueText, formatIsoDate } from "../../ui/dateDisplay.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
@@ -325,7 +325,7 @@ function ClassChips({ item, props }: { item: NodeCollectionItem; props: NodeColl
     <span className="nt-table-chips">
       {classes.map((cls) => (
         <span key={cls.id} className="nt-table-chip" style={cls.color !== null ? { color: cls.color } : undefined}>
-          {displayNameFromClient(client, cls.id) ?? cls.id}
+          {labelFromClient(client, cls.id) ?? "Untitled"}
         </span>
       ))}
     </span>
@@ -578,7 +578,7 @@ function MultiNodeCell({
     <span className="nt-table-chips">
       {pills.map(({ row: pillRow, ref }) => {
         const linked = client.getNode(ref);
-        const label = displayNameFromClient(client, ref) ?? ref;
+        const label = labelFromClient(client, ref) ?? "Untitled";
         if (linked === undefined) {
           // PB1 honest state — the raw id, never a silently empty chip.
           return (
@@ -678,7 +678,7 @@ function AssetCell({
   const isAssetTarget = assetClassId !== undefined;
 
   const pillLabel = (ref: string): string =>
-    client.getAssetInfo(ref)?.originalName ?? displayNameFromClient(client, ref) ?? ref;
+    client.getAssetInfo(ref)?.originalName ?? labelFromClient(client, ref) ?? "Untitled";
 
   const linkAsset = async (assetNodeId: string, idx: number): Promise<void> => {
     await client.setProperty(row.item.node.id, schemaId, { nodeId: assetNodeId }, idx);
@@ -1072,7 +1072,7 @@ function NodeCell({ row, schemaId, props, schemaName, peek }: { row: TableRow; s
         onClick={() => setOpen(true)}
       >
         {targetId !== null ? (
-          displayNameFromClient(props.client, targetId) ?? targetId
+          labelFromClient(props.client, targetId) ?? "Untitled"
         ) : (
           <span className="nt-table-date-placeholder">Empty</span>
         )}

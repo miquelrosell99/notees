@@ -417,7 +417,7 @@ export function dateChipCandidates(
     chips.push({
       classId: cls.id,
       schemaId: pick,
-      label: cls.name ?? cls.id,
+      label: cls.name ?? "Untitled",
       propertyName: driving?.name ?? null,
     });
   }
