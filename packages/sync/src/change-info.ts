@@ -21,6 +21,8 @@ const LISTING_AFFECTING_OPS: ReadonlySet<string> = new Set([
   "object.create",
   "object.delete",
   "object.move",
+  "object.restore",
+  "tag.unassign",
   "class.create",
   "class.update",
   "class.setExtends",
