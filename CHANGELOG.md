@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(web): the Realize affordance — class-bound properties are virtual
+  until realized; the picker says so (owner ruling, the virtual/realized
+  assessment).** The assessment's two automatic behaviors already held
+  (bound properties are derived reads — class removal and binding removal
+  drop the non-realized ones by construction); the missing piece was the
+  honest surface. The "+ Add property" picker now: leads with the node's
+  bound-but-unrealized properties as **"Realize … · from <class>"** entries
+  (nearest binder names the tag — own registry bindings before
+  extends-ancestors, BFS first-wins; the same `property.assign` on pick,
+  undo/empty/remove compose unchanged), and DROPS realized schemas (valued
+  or pinned — an authored or assigned effective row exists) from the
+  candidate list entirely: their rows already render and re-adding was a
+  no-op. Realizing pins the property to the node — it survives class
+  removal and binding edits on its own; a never-realized bound property
+  disappears the moment its class stops supplying it. Pure web slice — no
+  wire, no store, no new op (`realizeCandidatesOf`, schemaEligibility.ts;
+  the tag rides a `--realize` accent on the existing type span).
+  - **Verification**: `pnpm typecheck` clean; `apps/web` green (new
+    `add-property-realize.test.tsx`: the tagged realize entry leads, the
+    nearest extends-ancestor names the tag, picking assigns + the schema
+    drops out, valued schemas drop out).
+  - **Docs**: `docs/features/properties.md` (the virtual/realized
+    vocabulary + the three-gesture row menu).
+
 - **feat(protocol,store,web): `property.empty` — clear every value of a
   property, KEEP the assignment (owner ruling, the assign/empty companion).**
   The assignment slice shipped earlier today with a 2×2 missing its

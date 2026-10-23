@@ -592,6 +592,13 @@ span.pill__text {
   font-size: var(--font-size-xs);
 }
 
+/* The REALIZE tag (owner ruling 2026-10-23 — the virtual/realized
+   assessment): bound-but-unrealized properties lead the picker, tagged
+   with their nearest binder so the class origin reads at a glance. */
+.nt-add-property-type--realize {
+  color: var(--md-sys-color-primary);
+}
+
 .nt-add-property-create {
   border: none;
   border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);

@@ -91,3 +91,55 @@ export function isSchemaEligibleForClass(
   }
   return schema.scopeClassIds.some((id) => closure.has(id));
 }
+
+/**
+ * The REALIZE derivation (owner ruling 2026-10-23 — the virtual/realized
+ * assessment): a class-bound property is VIRTUAL on a classed node until it
+ * is REALIZED — pinned by `property.assign` (the picker's Realize gesture)
+ * or carrying an authored value. Realized schemas are EXCLUDED from the
+ * add-property picker (their rows already render; re-adding is a no-op);
+ * bound-but-unrealized schemas return with their NEAREST binder's display
+ * name (own bindings before extends-ancestors, BFS first-wins) for the
+ * picker's "Realize … · from <class>" tag.
+ */
+export function realizeCandidatesOf(
+  client: AnyClient,
+  node: ClientNode,
+): { realize: Map<string, string>; realizedIds: Set<string> } {
+  // Realized = an authored or assigned effective row exists on the node.
+  // A default-derived row is NOT realization — the property still rides
+  // purely on the binding, nothing pinned to the node.
+  const realizedIds = new Set<string>();
+  for (const row of client.getEffectiveProperties(node.id)) {
+    if (row.source === "authored" || row.source === "assigned") {
+      realizedIds.add(row.propertySchemaId);
+    }
+  }
+  // Nearest-binder walk: BFS over the node's classes + their
+  // extends-ancestors (the classClosureOf pattern); the first class that
+  // binds a schema wins the hint. OWN registry rows per class (getClassBindings
+  // is already extends-aware — walking ancestors ourselves on top of it
+  // would double-count and mislabel the nearest binder).
+  const realize = new Map<string, string>();
+  const seen = new Set<string>(node.classIds);
+  const queue = [...node.classIds];
+  while (queue.length > 0) {
+    const classId = queue.shift()!;
+    for (const parent of client.getClassParents(classId)) {
+      if (!seen.has(parent)) {
+        seen.add(parent);
+        queue.push(parent);
+      }
+    }
+    const label = client.getDisplayName(classId) ?? classId;
+    for (const binding of client.getRegistryBindings(classId)) {
+      if (!realize.has(binding.propertySchemaId)) {
+        realize.set(binding.propertySchemaId, label);
+      }
+    }
+  }
+  for (const schemaId of [...realize.keys()]) {
+    if (realizedIds.has(schemaId)) realize.delete(schemaId);
+  }
+  return { realize, realizedIds };
+}
