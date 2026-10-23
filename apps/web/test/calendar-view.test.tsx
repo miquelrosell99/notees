@@ -411,7 +411,7 @@ describe("CalendarView", () => {
     ).toBeDefined();
   });
 
-  it("an event whose content is only an inline class chip wears the class name", async () => {
+  it("an event whose content is only an inline class chip reads the Untitled placeholder", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const gatheringClass = await client.createClass("gathering");
@@ -419,7 +419,8 @@ describe("CalendarView", () => {
     await client.updateObject(gatheringClass, {
       contentAst: [{ type: "text", text: "gathering" }],
     });
-    // The event's whole content is the class chip — the title flatten is "".
+    // The event's whole content is the class chip — render chrome, not
+    // content: the card reads the Untitled placeholder (owner 2026-10-23).
     const gathering = await client.createObject({
       isEmbedded: false,
       contentAst: [{ type: "class_link", classId: gatheringClass }],
@@ -432,7 +433,7 @@ describe("CalendarView", () => {
     render(<CalendarView client={client} onOpenPage={vi.fn()} />);
     const grid = await screen.findByLabelText("Calendar month view");
     await waitFor(() => expect(grid.querySelector(".cal-block")).not.toBeNull());
-    expect(grid.querySelector(".cal-block")!.textContent).toContain("gathering");
+    expect(grid.querySelector(".cal-block")!.textContent).toContain("Untitled page");
   });
 
   it("the day number opens the day page; the ladder reaches week and year", async () => {

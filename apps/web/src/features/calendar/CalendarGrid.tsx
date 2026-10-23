@@ -459,14 +459,11 @@ function EventBlock({
 }) {
   const node = client.getNode(nodeId);
   if (node === undefined) return null;
-  // The title register: a node whose content is ONLY an inline class chip
-  // flattens to "" (title-is-content) — the class name names the event
-  // (misa, reunión), then the untitled register, never a bare empty chip.
-  const own = displayNameFromClient(client, nodeId);
-  const className = node.classIds
-    .map((classId) => displayNameFromClient(client, classId))
-    .find((name) => name !== null && name !== "");
-  const label = own || className || untitledLabelOf(node);
+  // The title register: ONLY the node's own content names the card
+  // (title-is-content) — a class chip is render chrome, not content, so a
+  // chip-only node is a non-content node and reads the Untitled
+  // placeholder (owner 2026-10-23), never the class name.
+  const label = displayNameFromClient(client, nodeId) || untitledLabelOf(node);
   const color = client.effectiveNodeColor(node);
   return (
     <button
