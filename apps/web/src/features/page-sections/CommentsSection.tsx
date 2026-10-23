@@ -34,7 +34,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 import { Button } from "../../components/ui/fleet/Button.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { labelFromClient } from "../../ui/dateDisplay.js";
 import { useSectionData } from "../collection/useSectionData.js";
 import "./CommentsSection.css";
 
@@ -183,7 +183,7 @@ function CommentRow({
   onOpenNode: ((nodeId: string) => void) | undefined;
 }) {
   const [replying, setReplying] = useState(false);
-  const label = displayNameFromClient(client, thread.node.id) ?? thread.node.id;
+  const label = labelFromClient(client, thread.node.id) ?? "Untitled";
 
   return (
     <li className="nt-comments__item">
