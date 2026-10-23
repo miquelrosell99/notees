@@ -21,6 +21,7 @@ import {
   recurrenceRuleOf,
   recurrenceSeriesOf,
   rendersWithDocumentChrome,
+  spanEndOf,
   withCompletedOccurrence,
   type RecurrenceRule,
   type RecurrenceSeries,
@@ -266,6 +267,50 @@ export function datedRowsForDay(
   return merged;
 }
 
+// --- multi-day spans (the datetime-range ruling, owner 2026-10-23) ------------
+
+/**
+ * One multi-day span: an event whose date value carries `metadata.endDate`
+ * (the value's own day is the inclusive start). The value keeps referencing
+ * its START day node — the span expands client-side at read time, the same
+ * compute-on-read register as recurrence.
+ */
+export interface SpannedRow {
+  node: ClientNode;
+  startIso: string;
+  /** Inclusive end day. */
+  endIso: string;
+}
+
+/**
+ * Every multi-day event span in the workspace: the same document-chrome
+ * scan recurringRowsOf runs, filtered to authored datetime values with an
+ * endDate after their own day. Corrupt endDate metadata throws (fail loud).
+ */
+export function spannedRowsOf(client: AnyClient): SpannedRow[] {
+  const rows: SpannedRow[] = [];
+  for (const node of client.listPages()) {
+    if (parseDateNodeId(node.id) !== null) continue;
+    for (const prop of client.getEffectiveProperties(node.id)) {
+      if (prop.source !== "authored") continue;
+      if (prop.schema?.type !== "datetime") continue;
+      const startIso = scheduledIsoOf(prop.value);
+      if (startIso === null) continue;
+      const endIso = spanEndOf(prop.metadata);
+      if (endIso === null || endIso <= startIso) continue;
+      rows.push({ node, startIso, endIso });
+      break;
+    }
+  }
+  rows.sort(
+    (a, b) =>
+      (displayNameFromClient(client, a.node.id) ?? a.node.id).localeCompare(
+        displayNameFromClient(client, b.node.id) ?? b.node.id,
+      ) || a.node.id.localeCompare(b.node.id),
+  );
+  return rows;
+}
+
 // --- events list (the panel's events element) --------------------------------
 
 /**
@@ -292,6 +337,7 @@ export function eventRowsForDays(
   client: AnyClient,
   isos: readonly string[],
   recurringRows: readonly RecurringRow[],
+  spannedRows: readonly SpannedRow[] = [],
 ): DatedRow[] {
   const parentsCache = new Map<string, readonly string[]>();
   const parentsOf = (classId: string): readonly string[] => {
@@ -348,6 +394,13 @@ export function eventRowsForDays(
       if (entry.series.anchorIso > iso) continue; // series hasn't started
       if (!seriesOccursOnDay(entry.series, iso)) continue;
       addNode(entry.node, entry.series.rule);
+    }
+    // The multi-day span family: the event covers every day in [start, end].
+    for (const entry of spannedRows) {
+      if (rows.has(entry.node.id)) continue;
+      if (iso < entry.startIso || iso > entry.endIso) continue;
+      if (!isEventNode(entry.node)) continue;
+      addNode(entry.node, null);
     }
   }
 

@@ -212,6 +212,40 @@ export function withExdate(metadata: unknown, iso: string): Record<string, unkno
 }
 
 /**
+ * The multi-day span end (`metadata.endDate`) — the inclusive last day of a
+ * datetime value's range (the value's OWN day is the start; owner
+ * 2026-10-23, the deferred datetime-range ruling now shipped). Additive
+ * metadata like `repeat` — no op, no wire change. Absent/null reads as
+ * null (single-day value); present-but-malformed throws (fail loud). The
+ * end day is NOT re-pointed: the value keeps referencing its start day
+ * node, and reads expand the span client-side.
+ */
+export function spanEndOf(metadata: unknown): string | null {
+  if (typeof metadata !== "object" || metadata === null) return null;
+  const raw = (metadata as Record<string, unknown>).endDate;
+  if (raw === undefined || raw === null) return null;
+  if (!isIsoDay(raw)) {
+    throw new Error(`invalid endDate: ${JSON.stringify(raw)} (expected a YYYY-MM-DD date)`);
+  }
+  return raw;
+}
+
+/** Set (or clear, null) the inclusive span end. Clearing deletes the key. */
+export function withSpanEnd(metadata: unknown, iso: string | null): Record<string, unknown> {
+  const base: Record<string, unknown> =
+    typeof metadata === "object" && metadata !== null ? { ...(metadata as Record<string, unknown>) } : {};
+  if (iso === null) {
+    delete base.endDate;
+    return base;
+  }
+  if (!isIsoDay(iso)) {
+    throw new Error(`invalid endDate: ${JSON.stringify(iso)} (expected a YYYY-MM-DD)`);
+  }
+  base.endDate = iso;
+  return base;
+}
+
+/**
  * Set (or clear, null) the inclusive series bound — the writer behind a
  * "this and following" split. Clearing deletes the key (absent-is-default).
  */

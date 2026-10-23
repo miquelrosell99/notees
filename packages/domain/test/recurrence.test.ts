@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   completedOccurrencesOf,
+  spanEndOf,
+  withSpanEnd,
   exdatesOf,
   formatRecurrenceRule,
   occurrenceIsosOf,
@@ -367,5 +369,25 @@ describe("recurrence exceptions (exdates / until, owner 2026-10-23)", () => {
     expect("until" in cleared).toBe(false);
     expect(cleared.repeat).toBe("weekly");
     expect(() => withUntil({}, "2026-10-32")).toThrow(/invalid until/);
+  });
+});
+
+describe("multi-day spans (the datetime-range ruling, owner 2026-10-23)", () => {
+  it("spanEndOf reads absent as null and throws on malformed", () => {
+    expect(spanEndOf(null)).toBeNull();
+    expect(spanEndOf({})).toBeNull();
+    expect(spanEndOf({ endDate: "2026-10-08" })).toBe("2026-10-08");
+    expect(() => spanEndOf({ endDate: 42 })).toThrow(/invalid endDate/);
+    expect(() => spanEndOf({ endDate: "2026-10-32" })).toThrow(/invalid endDate/);
+  });
+
+  it("withSpanEnd sets or clears, keeping sibling metadata", () => {
+    expect(withSpanEnd({ repeat: "weekly" }, "2026-10-08")).toEqual({
+      repeat: "weekly",
+      endDate: "2026-10-08",
+    });
+    const cleared = withSpanEnd({ endDate: "2026-10-08" }, null);
+    expect("endDate" in cleared).toBe(false);
+    expect(() => withSpanEnd({}, "nope")).toThrow(/invalid endDate/);
   });
 });

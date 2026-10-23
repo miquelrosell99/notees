@@ -85,6 +85,7 @@ import {
   datedRowsForDay,
   eventRowsForDays,
   recurringRowsOf,
+  spannedRowsOf,
   taskRowsOf,
 } from "./calendarRows.js";
 import { NodeCollection, groupByContainingPage } from "../collection/index.js";
@@ -256,6 +257,9 @@ export function CalendarView({
     () => recurringRows.filter((row) => !row.node.classIds.includes(SYSTEM_CLASS_UUIDS.task)),
     [recurringRows],
   );
+  // Multi-day spans (the datetime-range ruling): the client-side expansion
+  // feed for the events element, the grid blocks, and the day dots.
+  const spannedEvents = useMemo(() => spannedRowsOf(client), [client, version]);
 
   // The Dated rows for the selected day: materialized backlinks UNION the
   // recurring events occurring on this day (deduped by id). The section
@@ -307,9 +311,11 @@ export function CalendarView({
     () =>
       (iso: string): { dated: boolean } => ({
         dated:
-          hasDatedRefs(client.getBacklinks(dayNodeId(iso))) || recurringDayIsos.has(iso),
+          hasDatedRefs(client.getBacklinks(dayNodeId(iso))) ||
+          recurringDayIsos.has(iso) ||
+          spannedEvents.some((row) => iso >= row.startIso && iso <= row.endIso),
       }),
-    [client, recurringDayIsos, version],
+    [client, recurringDayIsos, spannedEvents, version],
   );
 
   // The visible week of the selected day (first-day-of-week aware).
@@ -359,8 +365,8 @@ export function CalendarView({
   }, [eventsZoom, selectedIso, weekDays]);
 
   const eventRows = useMemo(
-    () => eventRowsForDays(client, eventsIsos, recurringEvents),
-    [client, eventsIsos, recurringEvents, version],
+    () => eventRowsForDays(client, eventsIsos, recurringEvents, spannedEvents),
+    [client, eventsIsos, recurringEvents, spannedEvents, version],
   );
 
   // Group by containing page (the shared grouping): embedded blocks group
@@ -587,6 +593,7 @@ export function CalendarView({
               selectedIso={selectedIso}
               firstDayOfWeek={firstDayOfWeek}
               recurringRows={recurringEvents}
+              spannedRows={spannedEvents}
               onSelectDay={setSelectedIso}
               onOpenEvent={onOpenPage}
               onOpenDayPage={openDayPage}

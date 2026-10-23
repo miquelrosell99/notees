@@ -15,7 +15,11 @@ import { newEnvelope, type Envelope } from "@notees/protocol";
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { eventRowsForDays, recurringRowsOf } from "../src/features/calendar/calendarRows.js";
+import {
+  eventRowsForDays,
+  recurringRowsOf,
+  spannedRowsOf,
+} from "../src/features/calendar/calendarRows.js";
 import {
   deleteOccurrence,
   editOccurrence,
@@ -102,9 +106,11 @@ function dateRowOf(client: WorkspaceClient, nodeId: string) {
     .find((prop) => prop.schema?.type === "datetime" && prop.source === "authored");
 }
 
-/** The event row ids for one scope day (recurring union included). */
+/** The event row ids for one scope day (recurring + span union included). */
 function eventIdsOf(client: WorkspaceClient, iso: string): string[] {
-  return eventRowsForDays(client, [iso], recurringRowsOf(client)).map((row) => row.node.id);
+  return eventRowsForDays(client, [iso], recurringRowsOf(client), spannedRowsOf(client)).map(
+    (row) => row.node.id,
+  );
 }
 
 describe("deleteOccurrence", () => {
@@ -257,5 +263,35 @@ describe("editOccurrence", () => {
       repeat: "weekly",
       exdates: ["2026-10-12", "2026-10-19"],
     });
+  });
+});
+
+describe("multi-day spans (the datetime-range ruling)", () => {
+  it("an endDate-carrying value covers every day of the span in the read model", async () => {
+    const client = await seedClient();
+    const id = await createWeekly(client, "Offsite", "2026-10-05");
+    // Turn the plain value into a span: start 10-05, end 10-08.
+    const row = dateRowOf(client, id)!;
+    await client.setProperty(id, row.propertySchemaId, row.value, row.idx ?? 0, {
+      endDate: "2026-10-08",
+    });
+
+    expect(eventIdsOf(client, "2026-10-05")).toContain(id);
+    expect(eventIdsOf(client, "2026-10-06")).toContain(id);
+    expect(eventIdsOf(client, "2026-10-07")).toContain(id);
+    expect(eventIdsOf(client, "2026-10-08")).toContain(id);
+    expect(eventIdsOf(client, "2026-10-09")).not.toContain(id);
+  });
+
+  it("a same-day or backwards endDate reads as a plain single-day value", async () => {
+    const client = await seedClient();
+    const id = await createWeekly(client, "Offsite", "2026-10-05");
+    const row = dateRowOf(client, id)!;
+    await client.setProperty(id, row.propertySchemaId, row.value, row.idx ?? 0, {
+      endDate: "2026-10-05",
+    });
+    expect(spannedRowsOf(client)).toHaveLength(0);
+    expect(eventIdsOf(client, "2026-10-05")).toContain(id);
+    expect(eventIdsOf(client, "2026-10-06")).not.toContain(id);
   });
 });

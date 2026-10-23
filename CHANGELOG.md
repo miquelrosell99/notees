@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(domain,web): multi-day event spans — the datetime-range ruling
+  ships (owner 2026-10-23, google-calendar proposal).** The deferral
+  closes: a datetime value whose own day is the inclusive start may carry
+  `metadata.endDate` (local ISO day; additive metadata like `repeat` — no
+  op, no wire change). The value keeps referencing its START day node;
+  the span expands client-side (`spannedRowsOf` — the recurringRowsOf
+  register over endDate-carrying authored datetime values), covering
+  every day in `[start, end]` in the events read model, the grid blocks,
+  and the day dots. An endDate at or before the start reads as plain
+  single-day; corrupt metadata throws (fail loud). Drag-create across
+  days now stamps the span metadata on the first value (plus per-day
+  values, so each day blocks) instead of bare multi-values. The
+  painted-continuous-bar visual (one block visually continuing across
+  cells) remains a polish item — the information is complete per-day.
+  - **Verification**: domain specs (reader/writer, fail-loud shapes) +
+    client specs (every span day lists in the read model; degenerate
+    endDate reads as plain) — full gate below.
 - **feat(protocol,store,web): external_ref — the plugin external-id mapping
   store (owner requirement 2026-10-23, the google-calendar proposal's
   mapping substrate).** Importers and sync plugins (calendar providers,

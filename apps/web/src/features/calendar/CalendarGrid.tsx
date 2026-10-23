@@ -28,8 +28,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { untitledLabelOf } from "../../ui/renderStateLabel.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
-import { eventRowsForDays, type RecurringRow } from "./calendarRows.js";
+import {
+  eventRowsForDays,
+  type RecurringRow,
+  type SpannedRow,
+} from "./calendarRows.js";
 import {
   deleteOccurrence,
   editOccurrence,
@@ -53,6 +58,8 @@ export interface CalendarGridProps {
   firstDayOfWeek: number;
   /** The recurring series scan (the caller's memo — the read model input). */
   recurringRows: readonly RecurringRow[];
+  /** The multi-day span scan (same register — endDate-carrying date values). */
+  spannedRows: readonly SpannedRow[];
   /** Day pick: select the day (a cell click; the "+N" row jumps with it). */
   onSelectDay: (iso: string) => void;
   /** Block click: open the event node. */
@@ -85,6 +92,7 @@ export function CalendarGrid({
   selectedIso,
   firstDayOfWeek,
   recurringRows,
+  spannedRows,
   onSelectDay,
   onOpenEvent,
   onOpenDayPage,
@@ -140,9 +148,9 @@ export function CalendarGrid({
 
   const eventsByIso = useMemo(() => {
     const map = new Map<string, ReturnType<typeof eventRowsForDays>>();
-    for (const iso of cells) map.set(iso, eventRowsForDays(client, [iso], recurringRows));
+    for (const iso of cells) map.set(iso, eventRowsForDays(client, [iso], recurringRows, spannedRows));
     return map;
-  }, [client, cells, recurringRows]);
+  }, [client, cells, recurringRows, spannedRows]);
 
   // --- the drag-and-drop writes (owner 2026-10-23, google-calendar slice 3) --
 
@@ -201,8 +209,12 @@ export function CalendarGrid({
       .map((binding) => binding.propertySchemaId)
       .find((bindingSchemaId) => bindingSchemaId !== undefined);
     if (schemaId !== undefined) {
+      // One value per drag day; a multi-day drag also stamps the endDate
+      // span metadata (the datetime-range ruling) so reads expand the range.
       for (let idx = 0; idx < days.length; idx += 1) {
-        await client.setProperty(id, schemaId, { nodeId: dayNodeId(days[idx]!) }, idx);
+        const metadata =
+          days.length > 1 && idx === 0 ? { endDate: days[days.length - 1]! } : undefined;
+        await client.setProperty(id, schemaId, { nodeId: dayNodeId(days[idx]!) }, idx, metadata);
       }
     }
     onSelectDay(a);
@@ -226,7 +238,7 @@ export function CalendarGrid({
         year={period.year}
         selectedIso={selectedIso}
         todayIso={todayIso}
-        eventsByIsoReader={(iso) => eventRowsForDays(client, [iso], recurringRows)}
+        eventsByIsoReader={(iso) => eventRowsForDays(client, [iso], recurringRows, spannedRows)}
         onPrev={() => setPeriod((p) => ({ ...p, year: p.year - 1 }))}
         onNext={() => setPeriod((p) => ({ ...p, year: p.year + 1 }))}
         onOpenMonth={(month0) => onOpenMonth(period.year, month0)}
@@ -447,7 +459,14 @@ function EventBlock({
 }) {
   const node = client.getNode(nodeId);
   if (node === undefined) return null;
-  const label = displayNameFromClient(client, nodeId) ?? "Untitled";
+  // The title register: a node whose content is ONLY an inline class chip
+  // flattens to "" (title-is-content) — the class name names the event
+  // (misa, reunión), then the untitled register, never a bare empty chip.
+  const own = displayNameFromClient(client, nodeId);
+  const className = node.classIds
+    .map((classId) => displayNameFromClient(client, classId))
+    .find((name) => name !== null && name !== "");
+  const label = own || className || untitledLabelOf(node);
   const color = client.effectiveNodeColor(node);
   return (
     <button
