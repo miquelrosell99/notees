@@ -32,7 +32,11 @@ per-workspace **derived store** (SQLite) is computed from the log by *appliers*;
 wiped and rebuilt by replay, and replay is idempotent and deterministic. All user surfaces —
 HTTP API, CLI, web client — read the derived store and write *only* through the envelope
 pipeline. One implementation of the store/sync/query stack runs in three runtimes (server
-Node, browser WASM worker, CLI) so semantics cannot drift between them.
+Node, browser WASM worker, CLI) so semantics cannot drift between them. One deliberate
+exception: **imported/cloned workspaces** (snapshot import, WIRE.md `PUT /snapshot/data
+?mode=import`, `POST /api/workspaces/:id/clone`) are checkpoint-based — their log starts
+empty and the installed snapshot joins the log as a rebuild source for the imported
+content.
 
 ## 2. The operation log — the sole authority
 
