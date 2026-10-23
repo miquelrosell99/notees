@@ -68,8 +68,8 @@ import type {
  * content-only changes with a known affected set (`structural` or unknown
  * scope invalidates everything and never reaches this table):
  *
- *  - "change": read embeds titles/link marks from anywhere (search,
- *    reference edges) — any content edit may alter it.
+ *  - "change": read embeds titles/link marks from anywhere with no
+ *    scope parameter (search) — any content edit may alter it.
  *  - "structure": read resolves definitions/membership (class chains, pure
  *    node-snapshot functions like effectiveNodeIcon) — only
  *    listing-affecting ops invalidate it. roots/listPages qualify too:
@@ -80,6 +80,13 @@ import type {
  *    never rendered.
  *  - "scope": read is parameterized by a node/class id — invalidated when
  *    the id is in the (ancestor-expanded) affected set. args[0] is the id.
+ *    The reference family qualifies: a content op's ChangeSummary carries
+ *    every mention/link edge target (the store unions previous + desired
+ *    targets into affectedNodeIds), so an edge touching P lands P in the
+ *    set, and an edit inside P's subtree lands P via ancestor expansion.
+ *    Accepted staleness: a freshly TYPED mention-shaped literal of P's name
+ *    elsewhere (no edge yet) appears in P's unlinked list only on the next
+ *    change touching P or a listing-affecting op.
  *  - absent (default): invalidate on any change — the conservative fallback.
  */
 const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
@@ -102,6 +109,16 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   getClassMemberCount: "scope",
   getClassBindings: "scope",
   getBlockTree: "scope",
+  // Node-scoped reference reads: the edge-target inclusion invariant (above)
+  // covers both directions — an edge landing on P, or an edit inside P's
+  // subtree. Row freshness rides the scope-classed getNode per-row re-read
+  // (ReferenceList).
+  getBacklinks: "scope",
+  getLinkedReferences: "scope",
+  getReferences: "scope",
+  getReferenceCount: "scope",
+  getUnlinkedReferences: "scope",
+  getUnlinkedReferenceCount: "scope",
   // Node-alias reads: a chain link ANYWHERE (args[0]'s chain is not an
   // ancestor relation of the affected set) may change the answer — the
   // conservative content-global class is the honest one.
@@ -111,12 +128,6 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   search: "change",
   getSearchSnippet: "change",
   resolveNodeByName: "change",
-  getBacklinks: "change",
-  getLinkedReferences: "change",
-  getReferences: "change",
-  getReferenceCount: "change",
-  getUnlinkedReferences: "change",
-  getUnlinkedReferenceCount: "change",
   getPropertyReferences: "change",
   getCoverReferences: "change",
   // The page listings: see the "structure" class above for why content
@@ -239,9 +250,9 @@ export class WorkerClient {
   /**
    * Incremental cache invalidation: a structural or scope-unknown
    * change dirties every cached key; a content-only change dirties only the
-   * keys its affected set (ancestor-expanded) touches — scoped reads, plus
-   * the content-global class (search/reference listings embed titles and
-   * link marks from anywhere).
+   * keys its affected set (ancestor-expanded) touches — scoped reads (the
+   * reference family via edge-target inclusion), plus the content-global
+   * class (search embeds titles and link marks from anywhere).
    */
   private handleChanged(change: ChangeNotification & { type: "changed" }): void {
     const structural = change.structural === true;

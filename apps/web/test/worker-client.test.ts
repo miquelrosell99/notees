@@ -273,6 +273,48 @@ describe("incremental cache invalidation", () => {
     }
   });
 
+  it("the reference reads are scope-classed: untouched by an unrelated edit, dirtied when the payload names them", async () => {
+    const { client, pushChanged, calls } = await makeControlled(seedHandler);
+    try {
+      client.getBacklinks("P");
+      client.getLinkedReferences("P");
+      client.getReferences("P");
+      client.getReferenceCount("P");
+      client.getUnlinkedReferences("P");
+      client.getUnlinkedReferenceCount("P");
+      client.getBacklinks("Q");
+      client.getLinkedReferences("Q");
+      await vi.waitFor(() => {
+        expect(calls.get("multiRead")).toBeGreaterThanOrEqual(1);
+      });
+      calls.clear();
+
+      // A content edit that touches neither P nor Q: the store's
+      // edge-target inclusion puts mention/link targets in the affected
+      // set — this payload names neither, so no reference key dirties.
+      pushChanged({ revision: 5, affectedNodeIds: ["n1"], structural: false });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(calls.size).toBe(0);
+
+      // An edit whose affected set includes P (a mention of P lands P via
+      // edge-target inclusion): exactly the P-parameterized keys re-run.
+      pushChanged({ revision: 6, affectedNodeIds: ["n1", "P"], structural: false });
+      await vi.waitFor(() => {
+        expect(calls.size).toBeGreaterThan(0);
+      });
+      expect(calls.get("getBacklinks")).toBe(1); // the P key only — Q untouched
+      expect(calls.get("getLinkedReferences")).toBe(1);
+      expect(calls.get("getReferences")).toBe(1);
+      expect(calls.get("getReferenceCount")).toBe(1);
+      expect(calls.get("getUnlinkedReferences")).toBe(1);
+      expect(calls.get("getUnlinkedReferenceCount")).toBe(1);
+      // Exactly ONE multiRead round-trip for the whole refresh.
+      expect(calls.get("multiRead")).toBe(1);
+    } finally {
+      client.close();
+    }
+  });
+
   it("a structural change refetches every cached key", async () => {
     const { client, pushChanged, calls } = await makeControlled(seedHandler);
     try {
