@@ -196,6 +196,10 @@ export interface NodeCollectionProps {
    * by path: a read-only TREE opens the node on content click (Child pages,
    * "Extended by"); the flat LIST is inert instead — the content click does
    * nothing and the bullet element opens the node (no full-row hover wash).
+   * The reference sections pass `readOnly={false}` explicitly: their flat rows are editable — a content click swaps in
+   * the block editor, the bullet still opens — while `editable` stays false
+   * so the read-time sort button keeps its place (there is no drag order
+   * for a sort to fight).
    */
   readOnly?: boolean | undefined;
   /**
