@@ -44,11 +44,14 @@ Node, browser WASM worker, CLI) so semantics cannot drift between them.
   (`web`, `cli`, `agent:<id>`), `hlc`, `affectedNodeIds`, `opType`, `timestamp`, `payload`.
   `seq` is deliberately **absent** from envelopes: server-assigned ordering rides on
   catch-up responses and WS frames, never inside the envelope.
-- **Payloads** — `packages/protocol/src/op-types.ts`. Sixteen op types in the registry:
-  `object.create` / `object.update` / `object.delete`, `class.create` / `class.update` /
-  `class.delete` / `class.setExtends`, `propertySchema.create` / `propertySchema.update` /
-  `propertySchema.delete`, `property.set` / `property.unset`, `asset.attach` /
-  `asset.detach`, `collection.member.add` / `collection.member.remove`. Each has a strict
+- **Payloads** — `packages/protocol/src/op-types.ts`. Twenty-six op types in the registry:
+  `object.create` / `object.update` / `object.delete` / `object.restore` / `object.move`,
+  `trash.empty`, `class.create` / `class.update` / `class.unassign` / `class.reorder`,
+  `tag.unassign`, `class.setExtends`, `class.property.set` / `class.property.unset`,
+  `propertySchema.create` / `propertySchema.update` / `propertySchema.delete`,
+  `property.set` / `property.unset` / `property.assign` / `property.unassign`,
+  `asset.attach` / `asset.detach`, `collection.member.add` / `collection.member.remove`,
+  `workspace.feature.set`. Each has a strict
   zod payload schema; `payloadSchemaFor(opType)` is the single lookup. There are **no
   `relation.*` ops** — relation entities were deleted from the model on 2026-09-25;
   associations are node-typed property values or typed-link marks in
