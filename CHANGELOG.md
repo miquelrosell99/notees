@@ -36,6 +36,15 @@ predating this file.
     "Workspace features" (the settings payload normative), op-catalog
     example, this entry.
 
+- **docs(protocol): workspace features — the settings payload (slice-2 docs
+  pass).** SCHEMA.md "Workspace features" states the honest whole-row LWW
+  consequence the mechanics alone imply: a winning old-shape `workspace.
+  feature.set` write (a plain toggle from an old client) stores NULL and
+  CLEARS a newer payload's settings — inherent to the row being one LWW
+  unit, not a compatibility defect. The v30 derived column (NULL vs the
+  real `{}`) and the additive-optional wire key stay as landed in the
+  settings-payload slice; no behavior change.
+
 - **feat(domain,store,web,server,scripts): the source library — slice 1, the
   Zotero-faithful source model ships** (owner ruling 2026-10-23; supersedes
   the "FINAL" authorship decision 2026-09-27 — reversed, dated, in SCHEMA.md's
