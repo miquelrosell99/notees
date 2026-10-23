@@ -24,7 +24,7 @@ import {
   propertySetPayload,
   propertyUnsetPayload,
 } from "@notees/protocol";
-import { deriveDisplayName, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { deriveDisplayName, fullTitleOf, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { parseQueryAst, runAggregate, runQuery } from "@notees/query";
 import { visiblePropertyValueRows, type NodeRow, type Store, planMerge, MergeGuardError } from "@notees/store";
 
@@ -244,13 +244,15 @@ function nodeToApi(row: NodeRow): ApiObject {
     parentId: row.parent_id,
     classIds: JSON.parse(row.class_ids) as string[],
     // Title-is-content: the API name derives from the node's content (the
-    // retired name column is always null).
+    // retired name column is always null). The API is the machine surface —
+    // the full title, no DISPLAY_NAME_MAX budget (the dense-chrome cap is a
+    // UI concern; web/GTK/Flutter apply it where they render chrome).
     name:
-      deriveDisplayName({
+      fullTitleOf({
         id: row.id,
         isClass: row.is_class,
         isEmbedded: row.is_embedded,
-        contentAst: JSON.parse(row.content) as NonNullable<Parameters<typeof deriveDisplayName>[0]["contentAst"]>,
+        contentAst: JSON.parse(row.content) as NonNullable<Parameters<typeof fullTitleOf>[0]["contentAst"]>,
         classIds: JSON.parse(row.class_ids) as string[],
       }) || null,
     icon: row.icon,
@@ -1167,13 +1169,14 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       return {
         ids,
         rows: rows.map((row) => {
-          // Title-is-content: the row name derives from the node's content.
+          // Title-is-content: the row name derives from the node's content —
+          // the full title (the API is the machine surface; no display cap).
           const derived =
-            deriveDisplayName({
+            fullTitleOf({
               id: String(row.id),
               isClass: row.is_class as number,
               isEmbedded: row.is_embedded as number,
-              contentAst: JSON.parse((row.content as string | null) ?? "[]") as NonNullable<Parameters<typeof deriveDisplayName>[0]["contentAst"]>,
+              contentAst: JSON.parse((row.content as string | null) ?? "[]") as NonNullable<Parameters<typeof fullTitleOf>[0]["contentAst"]>,
               classIds: JSON.parse((row.class_ids as string | null) ?? "[]") as string[],
             }) || null;
           const summary: Record<string, unknown> = {
@@ -1260,11 +1263,11 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
         .all(id) as Array<{ id: string; isClass: number; isEmbedded: number; content: string; class_ids: string }>
     ).map((row) => ({
       id: row.id,
-      name: deriveDisplayName({
+      name: fullTitleOf({
         id: row.id,
         isClass: row.isClass,
         isEmbedded: row.isEmbedded,
-        contentAst: JSON.parse(row.content) as NonNullable<Parameters<typeof deriveDisplayName>[0]["contentAst"]>,
+        contentAst: JSON.parse(row.content) as NonNullable<Parameters<typeof fullTitleOf>[0]["contentAst"]>,
         classIds: JSON.parse(row.class_ids) as string[],
       }) || null,
       isClass: row.isClass === 1,

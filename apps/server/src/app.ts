@@ -38,7 +38,7 @@ import { registerWorkflowRoutes } from "./routes-workflows.js";
 import { buildOpenApiDocument, documentedRoutes } from "./openapi.js";
 import { buildRouteScopeMap, enforceRouteScope } from "./scopes.js";
 
-export const SERVER_VERSION = "4.4.0";
+export const SERVER_VERSION = "4.5.0";
 
 export interface BuiltServer {
   app: FastifyInstance;

@@ -65,6 +65,20 @@ describe("objects API", () => {
     expect(res.json().error).toMatchObject({ code: "not_found", status: 404 });
   });
 
+  it("API names carry the full title — no DISPLAY_NAME_MAX budget on the machine surface", async () => {
+    server = await makeTestServer();
+    const parent = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Long Names" } })).json().id;
+    const longTitle = "Leer el Biological Evaluation Report y el Clinical Evaluation Report y compararlos con la lista";
+    expect(longTitle.length).toBeGreaterThan(80);
+    const child = (await api("POST", "/api/objects", { payload: { name: longTitle, parentId: parent } })).json().id;
+
+    const fetched = await api("GET", `/api/objects/${child}`);
+    expect(fetched.json().object.name).toBe(longTitle);
+
+    const children = await api("GET", `/api/objects/${parent}/children`);
+    expect(children.json().children.map((row: { id: string; name: string }) => row.name)).toEqual([longTitle]);
+  });
+
   it("soft delete keeps the object retrievable; permanent delete removes it", async () => {
     server = await makeTestServer();
     const { id } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Doomed" } })).json();
