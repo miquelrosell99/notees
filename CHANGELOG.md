@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(web): the calendar is the MainContentFrame's second host — the
+  agenda column becomes a raised-card side panel with a top-bar toggle.**
+  The frame shipped this morning as the mechanism with PageView as its only
+  host; the calendar's right column (mini-month, week strip, week agenda)
+  still rode a hand-rolled two-column body. Now CalendarView composes the
+  frame: the day content scrolls in the middle cell, the three agenda
+  widgets ride the frame's right panel card (its own device-local collapse,
+  `calendarAgendaPanelCollapsed`, toggled by a ghost button at the top
+  bar's right end — the nodeview properties-toggle register), and the
+  view's own `.calendar-view__body` / `.calendar-view__side` layout
+  classes retire. The surface wears the panelled inset (the
+  `.nt-page--panelled` register — top spacing-2, sides spacing-4) with the
+  same two-class `.surface-topbar.calendar-view__topbar` padding
+  reconciliation the nodeview bar rides, so the bar title, the day
+  content, and the panel card share one left/right edge; the frame's
+  compact stacking governs the panel at phone widths (content leads, the
+  panels follow). Verified: `pnpm typecheck` + `pnpm test` green.
+
 - **feat(web): the panelled main-content composition becomes the shared
   MainContentFrame — the nodeview side panels move from PageView's private
   grid into a flag-opt-in layout any main-content view can ride.** The
