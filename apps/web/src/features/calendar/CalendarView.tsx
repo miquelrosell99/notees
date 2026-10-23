@@ -88,7 +88,6 @@ import {
   useQuickCreateClassesSetting,
 } from "./calendarQuickCreateSettings.js";
 import { NodeCollection } from "../collection/index.js";
-import { childQuery } from "../collection/childQuery.js";
 import type { NodeCollectionItem } from "../collection/index.js";
 import { RepeatPicker } from "../date-pickers/RepeatPicker.js";
 import { Button } from "../../components/ui/fleet/Button.js";
@@ -569,19 +568,20 @@ export function CalendarView({
                 <h2 className="calendar-view__section-title">Daily Note</h2>
                 {hasDailyNote ? (
                   /* The standalone editable outline (owner rulings
-                     2026-10-23): the collection self-hosts the outliner
-                     context, the edit thread, and the add-block ghost —
-                     the host names only the ghost's parent. No PageView,
-                     no date header: the top bar names the day. */
+                     2026-10-23): BODY MODE — rootId names the day, the
+                     collection resolves the items, self-hosts the outliner
+                     context + edit thread, and constructs the add-block
+                     ghost. The host names nothing else. No PageView, no
+                     date header: the top bar names the day. */
                   <NodeCollection
                     viewMode="outline"
                     client={client}
-                    items={childQuery(client, dayId)}
+                    rootId={dayId}
+                    ghost
                     tree
                     editable
                     showBreadcrumbs={false}
                     onNodeClick={onOpenPage}
-                    addGhost={{ parentId: dayId }}
                   />
                 ) : (
                   <div className="calendar-view__empty-block">

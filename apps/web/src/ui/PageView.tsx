@@ -127,7 +127,6 @@ import { bannerAssetIdOf, setNodeBanner } from "../features/page-sections/PageBa
 import { AssetUploadModal } from "../features/modals/AssetUploadModal.js";
 import { SelectionBar } from "../features/block-editor/SelectionBar.js";
 import { SelectionOutline } from "./SelectionOutline.js";
-import { childQuery } from "../features/collection/childQuery.js";
 import { coverAssetIdOf } from "../features/metadata/coverProperty.js";
 import { ensureAliasProperty } from "../features/metadata/aliasProperty.js";
 import { AliasOfBanner } from "../features/metadata/AliasOfBanner.js";
@@ -165,12 +164,6 @@ export const BLOCKS_VIEW_MODES: ViewMode[] = ["outline", "prose", "cards"];
  * (the seam's honest limit until a view-mode-aware cap lands).
  */
 const PREVIEW_BODY_DEPTH = 1;
-
-/**
- * The body items: the childQuery factory — children as siblings,
- * comment-classed rows cut at every level. The body itself is the
- * plain NodeCollection dispatcher below.
- */
 
 export function PageView({
   client,
@@ -388,8 +381,6 @@ export function PageView({
   // would re-render every sortable row through context — the row memo's
   // defeat). Structural share: replaced only when the id sequence changes.
   const stableTreeIds = useStableIdArray(tree.map((child) => child.node.id));
-  /** The same tree in the view system's input shape (session view state). */
-  const blockItems = childQuery(client, pageId);
   /**
    * #4/#7 — the date variants: a node whose id parses at day
    * precision is a day page and gets the date header (weekday/Today flags +
@@ -651,18 +642,12 @@ export function PageView({
                 <NodeCollection
                   viewMode={blocksMode}
                   client={client}
-                  items={blockItems}
-                  tree
-                  editable={!preview}
-                  condensed={layerActive}
-                  showBreadcrumbs={false}
-                  maxDepth={preview ? PREVIEW_BODY_DEPTH : undefined}
-                  onNodeClick={(id) => onOpenPage?.(id)}
-                  onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
-                  /* The add-block ghost AND the edit thread are the
-                     collection's chrome now (owner ruling 2026-10-23):
-                     the host names only the ghost's parent — the
-                     collection picks the mode's UI (the row trails
+                  /* BODY MODE (owner 2026-10-23): rootId names the page —
+                     the collection resolves the childQuery items, anchors
+                     the self-hosted bundle, and parents the ghost. The
+                     add-block ghost AND the edit thread are the
+                     collection's chrome: the host opts in with `ghost` —
+                     the collection picks the mode's UI (the row trails
                      outline/prose, the GhostCard rides the cards grid's
                      last cell), owns the write, and mounts the measured
                      edit-thread overlay on its own container. The page
@@ -673,7 +658,15 @@ export function PageView({
                      focus mode keeps the body (hence the ghost) — only
                      chrome steps aside. Embedded/preview renders pass
                      none. */
-                  addGhost={ghostVisible ? { parentId: pageId } : undefined}
+                  rootId={pageId}
+                  ghost={ghostVisible}
+                  tree
+                  editable={!preview}
+                  condensed={layerActive}
+                  showBreadcrumbs={false}
+                  maxDepth={preview ? PREVIEW_BODY_DEPTH : undefined}
+                  onNodeClick={(id) => onOpenPage?.(id)}
+                  onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
                 />
                 {/* The selection card: one outline per contiguous run of
                     selected rows (the set is whole-subtree, so a run is

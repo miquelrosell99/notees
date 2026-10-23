@@ -14,9 +14,11 @@
  * Mechanics: BlockRow reports its editing state through EditThreadContext
  * (reportEditing on enter, clearEditing on exit/unmount — the guard only
  * clears the id it set, so a hand-off between blocks cannot tear the new
- * thread down). The overlay mounts inside the page select surface (the
- * host); it consumes the editing id, resolves the ancestor chain via the
- * client (a parent_id walk that stops at the page root or a standalone
+ * thread down). The overlay mounts on the editable OUTLINE collection's
+ * own container (owner ruling 2026-10-23 — the thread is the outline
+ * mode's chrome; a host-provided context still wins); it consumes the
+ * editing id, resolves the ancestor chain via the client (a parent_id
+ * walk that stops at the page root or a standalone
  * node), and measures each path bullet box. One path is built top-down:
  * start at the top block bullet center, run down its column, a quadratic
  * rounded turn (RADIUS) into each deeper bullet near edge, ending at the

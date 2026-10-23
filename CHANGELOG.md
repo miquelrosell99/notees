@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-23
 
+- **refactor(web): NodeCollection BODY MODE — `rootId` + `ghost`; the last
+  call-site glue folds into the collection (owner pass, the bundle
+  consummated).** Three remaining host assemblies merge: (1) **item
+  resolution** — `rootId` names the node whose children are the items; the
+  collection resolves them through the shared childQuery factory when
+  `items` is absent. PageView (`rootId={pageId}`, its unmemoized call-site
+  childQuery gone), the calendar's daily note (`rootId={dayId}`), and the
+  focused block view (`rootId={node.id}`) all ride it. (2) **the bundle
+  anchor** — `rootId`/`parent.id` is now the canonical root for the
+  self-hosted outliner session (which also anchors the query builder's
+  "this page" scope — previously inferred from `items[0]`, wrong for the
+  focused view), the edit-thread walk, and the ghost's parent; `addGhost`
+  retires in favor of a plain **`ghost` boolean** (a plain-tree `ghost`
+  without `rootId` warns once and renders none). (3) **the focused
+  grammar's child-level ghost** — `parentTrailing` now default-constructs
+  from `ghost` (GhostRow at the child indent, prose flag from the mode,
+  the write through the active session); a host-passed `parentTrailing`
+  still wins (the reference subtree's bespoke ghost). `FocusedBlockView`
+  is now a bare call — no context provider, no GhostRow/realizeGhost; the
+  tree-collection self-host also stops being edit-gated (BlockRow consumes
+  the context unconditionally — read-only rows too, the pinned-preview
+  regression caught in node-hover-preview). Docs swept same-pass
+  (EditThread/GhostRow headers name the collection as the owner).
+  - **Verification**: `pnpm typecheck` clean; full suite green — 173 files /
+    2009 tests.
+
 - **refactor(web): the standalone editable outline is NodeCollection's
   bundle — self-hosted context + edit thread; DailyNoteOutline deleted
   (owner rulings 2026-10-23, the ghost ruling consummated).** Three host

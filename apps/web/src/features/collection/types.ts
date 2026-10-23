@@ -261,28 +261,42 @@ export interface NodeCollectionProps {
   parent?: ClientNode | undefined;
   /**
    * A trailing affordance rendered at the CHILD INDENT LEVEL of a focused
-   * block view — the "+ Add block" ghost. Outline rides it inside the
-   * parent row's children container (the last child); prose trails it at
-   * the end of the flattened list (no children container there). Only
-   * meaningful with `parent`.
+   * block view. Outline rides it inside the parent row's children
+   * container (the last child); prose trails it at the end of the flattened
+   * list (no children container there). Only meaningful with `parent`.
+   * Absent with `ghost` set: the collection constructs the "+ Add block"
+   * ghost itself (prose flag from the mode, the write through the active
+   * outliner session) — a passed `parentTrailing` always wins (the
+   * reference subtree's bespoke ghost).
    */
   parentTrailing?: ReactNode | undefined;
   /**
+   * BODY MODE (owner 2026-10-23): the node whose children are the
+   * collection's items — the collection resolves them through the shared
+   * childQuery factory (comments cut at every level) when `items` is
+   * absent. `rootId` is also the bundle's canonical anchor: the self-hosted
+   * outliner session roots here, the edit-thread walk stops here, and the
+   * add-block ghost parents here. The page body, the calendar's daily
+   * note, and the focused block view all ride this — no call-site
+   * childQuery anymore.
+   */
+  rootId?: string | undefined;
+  /**
    * The trailing "+ Add block" ghost — the COLLECTION's own chrome (owner
    * ruling 2026-10-23: the ghost is the collection's, the view mode decides
-   * its UI): the host names only the PARENT; the collection renders the
-   * mode-appropriate affordance (cards passes the twin GhostCard through
-   * the grid's last cell, every other mode trails a GhostRow — prose drops
-   * the gutter) AND owns the write (the click creates the empty child and
-   * hands the caret to the active outliner session). Absent = no ghost
-   * (read-only projections, hub sections, embedded renders). Ignored in
-   * the focused grammar (`parent` set) — the focused view owns its
-   * children-container ghost via `parentTrailing`.
+   * its UI, and the collection owns the write): opt in with `ghost`; the
+   * parent is `rootId` (plain tree) or `parent.id` (focused grammar, where
+   * the ghost rides the parent row's children container via the
+   * `parentTrailing` slot — constructed by the collection unless the host
+   * passed its own). The click creates the empty child and hands the caret
+   * to the active outliner session. Absent/false = no ghost (read-only
+   * projections, hub sections, embedded renders). A plain-tree `ghost`
+   * without `rootId` logs a warning and renders none.
    */
-  addGhost?: { parentId: string } | undefined;
+  ghost?: boolean | undefined;
   /**
    * The raw trailing-affordance slot the CARDS view consumes (the grid's
-   * last cell). Collection-internal: `addGhost` is the host contract — the
+   * last cell). Collection-internal: `ghost` is the host contract — the
    * collection constructs the GhostCard and injects it here. Hosts with a
    * bespoke need (the reference subtree's opt-in child-level ghost) may
    * still pass their own; it wins over the constructed one.

@@ -9,9 +9,8 @@
  * ruling stands in spirit: the ghost is the SOLE add affordance and shows
  * even on empty bodies — in outline AND prose mode (prose hides bullets,
  * so the `prose` flag drops this row's gutter to read as plain trailing
- * text). Cards rides the twin GhostCard as the grid's last cell (the
- * page body's `trailingGhost`). Read-only projections and embedded renders
- * mount none.
+ * text). Cards rides the twin GhostCard as the grid's last cell. Read-only
+ * projections and embedded renders mount none.
  *
  * The row is display state only — it never enters a SortableContext items
  * array, carries no sortable/drag wiring, and the click is the single write.
@@ -20,9 +19,12 @@
  * wears card mode (the page body), the add affordance is a ghost CARD in
  * the grid's last cell, not a row: the same dashed, muted slot the card
  * grid reads it as, "+ Add card", realizing into a new child block (a new
- * card) after the last one. The document body decides the mode-specific
- * shape: outline/prose trail GhostRow, cards passes GhostCard through the
- * collection's `trailingGhost` slot.
+ * card) after the last one. Since 2026-10-23 the COLLECTION owns the
+ * choice: NodeCollection's `ghost` opt constructs the mode-appropriate
+ * affordance (outline/prose trail GhostRow, cards passes GhostCard through
+ * the collection's `trailingGhost` slot) and the write (create + caret
+ * hand-off through the active outliner session) — hosts name only the
+ * parent (`rootId`, or `parent.id` in the focused grammar).
  */
 
 import type { OutlinerContextValue } from "./outliner-context.js";

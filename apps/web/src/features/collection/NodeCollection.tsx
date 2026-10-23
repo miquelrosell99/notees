@@ -45,19 +45,24 @@
  *  ghost at the child indent level.
  *
  * The trailing add-block ghost (owner ruling 2026-10-23 — the ghost is
- * the COLLECTION's chrome, the view mode decides its UI): the host names
- * only the parent through `addGhost`; the collection renders the
- * mode-appropriate affordance (cards passes the twin GhostCard through
- * the grid's last cell, every other mode trails a GhostRow — prose drops
- * the gutter) and owns the write (create + caret hand-off through the
- * active outliner session). The focused grammar owns its
- * children-container ghost via `parentTrailing` and ignores `addGhost`.
+ * the COLLECTION's chrome, the view mode decides its UI): the host opts
+ * in with `ghost`; the parent is the bundle root (`rootId`, or `parent.id`
+ * in the focused grammar, where the ghost rides the parent row's children
+ * container). The collection renders the mode-appropriate affordance
+ * (cards passes the twin GhostCard through the grid's last cell, every
+ * other mode trails a GhostRow — prose drops the gutter) and owns the
+ * write (create + caret hand-off through the active outliner session).
+ * A host-passed `parentTrailing`/`trailingGhost` always wins (the
+ * reference subtree's bespoke ghost).
  *
- * The standalone editable-outline bundle (same ruling): an editable
- * outline/tree collection without a host OutlinerContext self-hosts one
- * (the FlatRows precedent), and an editable outline collection without a
- * host EditThreadProvider self-hosts the measured edit-thread overlay on
- * the collection container — a bare editable outline renders anywhere,
+ * The standalone editable-outline bundle (same ruling): `rootId` puts the
+ * collection in BODY MODE — it resolves the items through the shared
+ * childQuery factory and anchors the bundle (the self-hosted outliner
+ * session, the edit-thread walk, the ghost). An editable outline/tree
+ * collection without a host OutlinerContext self-hosts one (the FlatRows
+ * precedent), and an editable outline collection without a host
+ * EditThreadProvider self-hosts the measured edit-thread overlay on the
+ * collection container — a bare editable outline renders anywhere,
  * no PageView required. Host-provided contexts always win.
  */
 
@@ -68,6 +73,7 @@ import { GhostCard, GhostRow, realizeGhost } from "../../ui/GhostRow.js";
 import { EditThreadContext, EditThreadOverlay, EditThreadProvider } from "../../ui/EditThread.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { useSectionViews } from "./sectionViews.js";
+import { childQuery } from "./childQuery.js";
 import { getViewDefinition } from "./registry.js";
 import { SECTION_DEFAULT_TAB, SectionViewTabs } from "./SectionViewTabs.js";
 import { useSectionViewResolution } from "./sectionViewResolve.js";
@@ -91,15 +97,23 @@ export function NodeCollection({
   // ghost). When a host provides either context the collection defers.
   const outerOutline = useContext(OutlinerContext);
   const outerThread = useContext(EditThreadContext);
-  const selfHostOutline =
-    props.editable === true && props.tree === true && outerOutline === null;
-  // Hook-unconditional (used only when selfHostOutline): the root id rides
-  // the first item, the exact FlatRows contract for a standalone host.
-  const selfOutline = useOutlinerValue(props.client, props.items?.[0]?.node.id ?? "", {
+  // Every tree collection self-hosts when no host OutlinerContext exists —
+  // BlockRow consumes the context unconditionally (read-only rows too), so
+  // the provider is structural, not edit-gated. The FlatRows precedent.
+  const selfHostOutline = props.tree === true && outerOutline === null;
+  // BODY MODE anchor: rootId names the node whose children are the items
+  // (falling back to the first item's id for hosts that still pass items
+  // verbatim); the focused grammar anchors at the parent. The self-hosted
+  // outliner session roots here — also the query builder's "this page"
+  // scope anchor.
+  const bundleRootId = props.parent?.id ?? props.rootId ?? props.items?.[0]?.node.id ?? "";
+  // Hook-unconditional (used only when selfHostOutline).
+  const selfOutline = useOutlinerValue(props.client, bundleRootId, {
     openNode: (id) => props.onNodeClick?.(id),
     openInSidebar: (id) => props.onNodeShiftClick?.(id),
   });
   const threadHostRef = useRef<HTMLDivElement | null>(null);
+  const ghostWarnedRef = useRef(false);
   // The hosted-views state always lives in the same hook order: without the
   // prop the hook no-ops (null client) and the tab bar never renders.
   const hosted = hostedViews ?? null;
@@ -153,7 +167,12 @@ export function NodeCollection({
   }
   const effectiveEntry = pinnedMode !== undefined ? (getViewDefinition(pinnedMode) ?? entry) : entry;
   const View = effectiveEntry.component;
-  const resolvedItems = hosted !== null ? resolution.items : (props.items ?? []);
+  // BODY MODE: rootId names the node whose children are the items — the
+  // collection resolves them through the shared childQuery factory when the
+  // host passes no explicit list.
+  const bodyItems =
+    props.items ?? (props.rootId !== undefined ? childQuery(props.client, props.rootId) : []);
+  const resolvedItems = hosted !== null ? resolution.items : bodyItems;
   const resolvedGroups = hosted !== null ? resolution.groups : props.groups;
   const resolvedUngrouped = hosted !== null ? resolution.ungrouped : props.ungroupedItems;
   // The active tab's displayed row count — the badge riding its tab name
@@ -166,45 +185,62 @@ export function NodeCollection({
       : resolvedItems.length;
   // The add-block ghost is the collection's chrome (owner ruling
   // 2026-10-23 — the ghost is the collection's, the view mode decides its
-  // UI, and the collection owns the write): the host names only the
-  // parent; the click creates the empty child and hands the caret to the
-  // ACTIVE outliner session (the host's when one provides the context,
-  // the self-hosted one otherwise). Cards passes the twin GhostCard
-  // through the grid's last cell (the trailingGhost slot), every other
-  // mode trails a GhostRow (prose drops the gutter). The focused grammar
-  // (`parent` set) owns its children-container ghost via `parentTrailing`
-  // — addGhost is ignored there. A host-passed `trailingGhost` still wins
-  // (the reference subtree's bespoke ghost).
+  // UI, and the collection owns the write): the host opts in with `ghost`;
+  // the parent is the bundle root (rootId plain-tree, parent.id focused).
+  // The click creates the empty child and hands the caret to the ACTIVE
+  // outliner session (the host's when one provides the context, the
+  // self-hosted one otherwise). Cards passes the twin GhostCard through the
+  // grid's last cell (the trailingGhost slot), every other mode trails a
+  // GhostRow (prose drops the gutter). The focused grammar rides the parent
+  // row's children container (parentTrailing) — constructed here unless the
+  // host passed its own (the reference subtree's bespoke ghost). A
+  // plain-tree `ghost` without `rootId` logs and renders none.
   const activeOutline = outerOutline ?? (selfHostOutline ? selfOutline : null);
-  const ghostSource =
-    props.addGhost !== undefined && props.parent === undefined ? props.addGhost : undefined;
+  // The ghost parent: the focused block (focused grammar) or `rootId`
+  // (plain tree). A plain-tree `ghost` without `rootId` is a host bug —
+  // warn once and render none.
+  let ghostRootId: string | undefined;
+  if (props.ghost === true) {
+    if (props.parent !== undefined) ghostRootId = props.parent.id;
+    else if (props.rootId !== undefined) ghostRootId = props.rootId;
+    else if (!ghostWarnedRef.current) {
+      ghostWarnedRef.current = true;
+      console.warn("[node-collection] `ghost` without `rootId` renders no ghost");
+    }
+  }
   const ghostOnRealize =
-    ghostSource === undefined || activeOutline === null
+    ghostRootId === undefined || activeOutline === null
       ? undefined
       : () => {
-          void realizeGhost(props.client, activeOutline, ghostSource.parentId).catch(
-            (error: unknown) => {
-              console.warn(`[outliner] ghost realize (${ghostSource.parentId}) failed:`, error);
-            },
-          );
+          void realizeGhost(props.client, activeOutline, ghostRootId).catch((error: unknown) => {
+            console.warn(`[outliner] ghost realize (${ghostRootId}) failed:`, error);
+          });
         };
   const ghost =
-    ghostSource === undefined || ghostOnRealize === undefined ? undefined : effectiveEntry.id === "cards" ? (
-      <GhostCard parentId={ghostSource.parentId} onRealize={ghostOnRealize} />
+    ghostRootId === undefined || ghostOnRealize === undefined ? undefined : effectiveEntry.id === "cards" ? (
+      <GhostCard parentId={ghostRootId} onRealize={ghostOnRealize} />
     ) : (
       <GhostRow
-        parentId={ghostSource.parentId}
+        parentId={ghostRootId}
         prose={effectiveEntry.id === "prose"}
         onRealize={ghostOnRealize}
       />
     );
+  // The focused grammar: the child-level ghost defaults to the constructed
+  // one (riding the parent row's children container); a host-passed
+  // parentTrailing always wins.
+  const effectiveParentTrailing =
+    props.parentTrailing ?? (props.parent !== undefined ? ghost : undefined);
   const viewProps = {
     ...props,
     items: resolvedItems,
     groups: resolvedGroups,
     ungroupedItems: resolvedUngrouped,
+    parentTrailing: effectiveParentTrailing,
     trailingGhost:
-      ghost !== undefined && effectiveEntry.id === "cards" ? ghost : props.trailingGhost,
+      ghost !== undefined && effectiveEntry.id === "cards" && props.parent === undefined
+        ? ghost
+        : props.trailingGhost,
   };
   const showAdd = props.showAddButton === true && props.onAdd !== undefined;
   // A custom tab refined to empty answers for itself; the default tab (or an
@@ -239,14 +275,13 @@ export function NodeCollection({
     effectiveEntry.capabilities.errorBoundary === true ? <ErrorBoundary>{body}</ErrorBoundary> : body;
   // The edit thread is the outline mode's chrome: an editable outline
   // collection without a host EditThreadProvider self-hosts one and mounts
-  // the measured overlay on the collection container. The walk root is the
-  // focused block (focused grammar) or the first item's parent — the page
-  // body / standalone outline's root (the page root itself renders
-  // bullet-less, so a top-level edit threads from the first real row,
-  // exactly the page-body behavior).
+  // the measured overlay on the collection container. The walk stops at the
+  // bundle root (the page root itself renders bullet-less, so a top-level
+  // edit threads from the first real row — exactly the page-body behavior;
+  // the focused block renders a real bullet, so the thread starts there).
   const selfThread =
     props.editable === true && effectiveEntry.id === "outline" && outerThread === null;
-  const threadRootId = props.parent?.id ?? resolvedItems[0]?.node.parentId ?? "";
+  const threadRootId = props.parent?.id ?? props.rootId ?? resolvedItems[0]?.node.parentId ?? "";
   const collection = (
     <div
       ref={threadHostRef}
@@ -272,7 +307,11 @@ export function NodeCollection({
       )}
       <ViewChromeContext.Provider value={hosted !== null ? chromeSlot : null}>
         {content}
-        {ghost !== undefined && effectiveEntry.id !== "cards" && ghost}
+        {/* The trailing ghost rides after the content in the plain grammar;
+            the focused grammar already mounted it inside the parent row's
+            children container (the parentTrailing slot). */}
+        {ghost !== undefined && effectiveEntry.id !== "cards" && props.parent === undefined &&
+          ghost}
       </ViewChromeContext.Provider>
       {selfThread && (
         <EditThreadOverlay
