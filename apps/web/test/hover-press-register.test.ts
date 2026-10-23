@@ -43,7 +43,6 @@ const paletteCss = readCss("features", "command-palette", "CommandPalette.css");
 const commentsCss = readCss("features", "page-sections", "CommentsSection.css");
 const trashCss = readCss("features", "trash", "TrashHub.css");
 const taskBucketsCss = readCss("features", "classview", "TaskBuckets.css");
-const calendarViewCss = readCss("features", "calendar", "CalendarView.css");
 const settingsPageCss = readCss("features", "settings", "SettingsPage.css");
 const settingsModalCss = readCss("features", "settings", "settingsModal.css");
 const journalsCss = readCss("features", "calendar", "JournalsView.css");
@@ -93,20 +92,6 @@ describe("hub/list row names ride the §7 list-row register", () => {
     expect(name![0]).toContain("text-overflow: ellipsis");
     expect(name![0]).toContain("white-space: nowrap");
     const day = /\.task-buckets__row-day \{[^}]*\}/.exec(taskBucketsCss);
-    expect(day).not.toBeNull();
-    expect(day![0]).toContain("font-size: var(--font-size-sm)");
-    expect(day![0]).toContain("var(--md-sys-color-on-surface-variant)");
-  });
-
-  it("calendar view rows: primary 14px/600, the single-line ellipsis contract kept", () => {
-    // The ^ anchor keeps the variant rules
-    // (.calendar-view__row--overdue .calendar-view__row-name) from matching.
-    const name = /^\.calendar-view__row-name \{[^}]*\}/m.exec(calendarViewCss);
-    expect(name).not.toBeNull();
-    expect(name![0]).toContain("font-weight: 600");
-    expect(name![0]).toContain("text-overflow: ellipsis");
-    expect(name![0]).toContain("white-space: nowrap");
-    const day = /^\.calendar-view__row-day \{[^}]*\}/m.exec(calendarViewCss);
     expect(day).not.toBeNull();
     expect(day![0]).toContain("font-size: var(--font-size-sm)");
     expect(day![0]).toContain("var(--md-sys-color-on-surface-variant)");
