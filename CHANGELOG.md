@@ -9,6 +9,57 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(scripts): `migrate-authors-to-text.mts` — the live-workspace authors
+  retype, values to "Family, Given" strings, refs copied to linkedAuthors,
+  type flip LAST-in-name-only (source-library slice 1, task 8).** The SPEC
+  retyped `authors` (…0012) object-multi → text-multi and seeded
+  `linkedAuthors` (…0006-…0001) object-multi→agent; live workspaces still
+  carry object {nodeId} values under …0012. One ordered ingest of appended
+  envelopes per workspace (Path A — the log is never edited), and the
+  ordering is the load-bearing part (review focus #1): **the flip rides
+  FIRST, the value rewrites immediately after** — the planned
+  values-before-flip order is impossible on the wire, because
+  one-shape-per-type validation (`assertValueShapeForType`,
+  packages/store `property-values.ts`) rejects a plain string under an
+  object schema, so any replica replaying a values-first tail would throw.
+  The flip uses `propertySchema.create` as an UPSERT — the ONLY wire path
+  that changes a schema's type (`propertySchema.update` deliberately carries
+  no type; the `migrate-attachments-asset-type.mts` precedent) — with every
+  other stored column (scope, options, the agent target filter, render
+  flags) riding verbatim. The rewrites then validate strings against the
+  now-text schema and reuse each element's own identity (a PG5 row id IS the
+  element id — an in-place LWW swap at `applyElementAdd`; legacy positional
+  rows rewrite through the positional carrier), so no replay ever validates
+  an object value against the text schema: validation runs on incoming
+  writes only, and the pre-ingest testApplyEnvelopes gate plus the
+  post-ingest fresh-store [pre-migration snapshot + migrated tail] replay
+  (zero StoreError — the task-7 gate pattern) prove it for the exact ingest.
+  Values format "Family, Given" from each agent's familyName (…0022) +
+  givenName (…0021), title-content fallback (`fullTitleOf`), element
+  metadata verbatim; the SAME {nodeId} refs are added to linkedAuthors
+  first, existence-checked per row, so the people-graph backlinks survive
+  the string rewrite (a ref already linked is skipped; a broken ref — target
+  permanently deleted — is never copied and keeps its value, reported: a
+  text schema still accepts a {nodeId} shape, so convergence is not
+  blocked). Refusals: a soft-deleted …0012 row (the upsert would resurrect
+  it) and any stored type outside the known object drift (possible user
+  config — never clobbered). The dry run also prints the meaning-flip
+  report — every saved view / content query token carrying a property
+  condition on …0012 (they keep matching by UUID but read name-strings
+  after; listed, counted, never written). Idempotent: existence checks run
+  on the converged scratch state (latest snapshot + tail), so a second run
+  plans nothing. Scratch-only development per the controller ruling: the
+  `scripts/migrated-verify/seed-authors-scratch.mts` companion (hard-refuses
+  any `--data-dir` outside /tmp) seeds the drifted shapes — PG5 + positional
+  values, an archived agent (names still read), a permanently-deleted agent
+  (the broken-ref corner), a partial linkedAuthors corner, the
+  pre-migration saved query view — and the review-focus-#1 replay is pinned
+  by `apps/server/test/migrate-authors-to-text.test.ts` (a pre-migration
+  snapshot + the migrated tail must converge from a clean restore with zero
+  StoreError; 4 tests green). Docs: the `migrations.md` catalog row. No
+  lockstep gate — text is an original wire type and every op is an ordinary
+  `property.set`/`propertySchema.create` every port already applies.
+
 - **fix(scripts): `migrate-source-library-roster.mts` review round 1 —
   exact-title rename gating + the pre-ingest replay gate (source-library
   slice 1, task 7).** Two Important findings from the task review: **(1) the
