@@ -416,7 +416,11 @@ export function NodePills({
   // the marker), so rendering the pill too would duplicate the reference.
   // Membership is untouched: the picker still lists the class (checkmarked)
   // and the plain-pick toggle still removes it. Quote children are walked
-  // too (tokens nest).
+  // too (tokens nest). The walk depends on the CONTENT AST itself, not just
+  // the client: the client object is stable across worker pushes, so a
+  // [client, nodeId]-only memo never recomputed after mount and the pill
+  // stayed visible for a freshly inline-inserted class (owner 2026-10-23).
+  const contentAst = client.getNode(nodeId)?.contentAst;
   const inlineLinkedClassIds = useMemo(() => {
     const found = new Set<string>();
     const walk = (tokens: unknown): void => {
@@ -428,9 +432,9 @@ export function NodePills({
         if (Array.isArray(t.children)) walk(t.children);
       }
     };
-    walk(client.getNode(nodeId)?.contentAst);
+    walk(contentAst);
     return found;
-  }, [client, nodeId]);
+  }, [client, nodeId, contentAst]);
 
   const displayClassIds = classIds.filter((classId) => !inlineLinkedClassIds.has(classId));
 

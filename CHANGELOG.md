@@ -9,6 +9,42 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(web): the `+` class picker's Ctrl/Cmd+Enter is the DIRECT INLINE
+  INSERTION — it assigns the class AND splices the `class_link` token at the
+  trigger in one gesture — and the classes pill row now hides an
+  inline-referenced class reactively (the stale-memo fix).** Trigger: the
+  owner had to add a class normally (a plain `+` pick), then re-open `+` and
+  Ctrl+Enter the checkmarked row to convert the trigger to an inline class
+  link — two gestures where one was wanted. `commitNodePick`'s class branch
+  now honors the pick context's `withLabel` modifier on UNASSIGNED rows the
+  way `commitAssignedClassPick` already did on assigned ones: assign + inline
+  link in the same gesture, reaching the identical end state as the old
+  two-step flow (membership stays; the pill row hides inline-referenced
+  classes — the link IS the marker). The second half closes why the pill
+  never seemed to hide in live use: `NodePills`' inline-link scan memoized
+  over `[client, nodeId]`, but the client object is STABLE across worker
+  pushes — the memo never recomputed after mount, so a class linked inline
+  DURING the session kept its pill until a remount. The memo now depends on
+  the node's content AST itself, so the pill hides and re-appears as the
+  inline reference is written or dissolved. The picker's gesture hint footer
+  also names the unassigned-row gestures now (`↵ add class · ⌃↵ add inline`)
+  instead of only appearing once a checkmarked row is on screen.
+  `apps/web/src/features/block-editor/BlockTextEditor.tsx` (the class branch
+  of `commitNodePick` + its contract comment),
+  `apps/web/src/features/metadata/NodePills.tsx` (the content-AST-dependent
+  hide memo), `apps/web/src/features/pickers/NodeSelector.tsx` (the
+  `withLabel` contract comment + the always-on gesture hint for
+  `onAssignedPick` callers), `apps/web/test/suggestion-popup.test.tsx`
+  (Ctrl+Enter on an unassigned class now expects assign AND the inline token;
+  a new reactive pill-hide test seeds the link AFTER mount; the gesture-hint
+  test covers both wordings), `docs/features/links.md` (the `+` picker's
+  Ctrl/Cmd+Enter contract). No wire/model/applier change — the class_link
+  token and the derived-pill ruling (owner 2026-10-15) are unchanged; this
+  slice is pure client UX + the reactivity fix. No client lockstep: no
+  protocol or seed surface touched.
+  - **Verification**: `apps/web` suggestion-popup suite 19/19 (assign +
+    inline token, reactive pill hide, both hint wordings); full gate below.
+
 - **fix(store)!: the class registry `active` bit becomes a full projection of
   the class node's liveness — every `object.delete`/`object.restore`/purge arm
   mirrors it, and a schema-v28 migrate step scrubs the ghost rows the

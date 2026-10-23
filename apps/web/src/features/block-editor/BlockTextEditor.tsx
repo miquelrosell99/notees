@@ -1004,11 +1004,12 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
    * typing, so normally just the one trigger char); a popup opened over a
    * selection instead consumes the stashed range [start, replaceEnd) — the
    * selected text was never deleted. Then the per-kind action runs: @ inserts
-   * a mention token, # assigns the tag, + assigns the class. A mention
-   * opened via Ctrl/Cmd+Shift+L (capture.fixedLabel) labels the link with
-   * the original selection; a plain Ctrl/Cmd+Enter pick (context.withLabel)
-   * keeps the search query as a custom label (displayText) instead of
-   * resolving the target's name.
+   * a mention token, # assigns the tag, + assigns the class (a Ctrl/Cmd+Enter
+   * pick on + assigns AND inserts an inline class_link in the same gesture).
+   * A mention opened via Ctrl/Cmd+Shift+L (capture.fixedLabel) labels the link
+   * with the original selection; a plain Ctrl/Cmd+Enter mention pick
+   * (context.withLabel) keeps the search query as a custom label (displayText)
+   * instead of resolving the target's name.
    */
   const commitNodePick = (picked: ClientNode, context?: NodePickContext) => {
     // The pick itself reads the live capture; an async create's completion
@@ -1067,11 +1068,30 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       el.focus();
       return;
     }
-    void client.assignClass(nodeRef.current.id, picked.id).catch((error: unknown) => {
-      console.warn(`[capture] assignClass (${picked.id}) failed:`, error);
-    });
-    stripTrigger(state.start, end);
-    el.focus();
+    if (state.kind === "class") {
+      // Plain pick: assign the class, the trigger drops. A Ctrl/Cmd+Enter
+      // pick (context.withLabel) is the DIRECT INLINE INSERTION (owner
+      // 2026-10-23): assign the class AND splice a class_link token at the
+      // trigger in one gesture — the same end state as the older two-step
+      // flow (assign, then ⌃↵ the checkmarked row to convert). Membership
+      // stays; the pill row hides inline-referenced classes.
+      void client.assignClass(nodeRef.current.id, picked.id).catch((error: unknown) => {
+        console.warn(`[capture] assignClass (${picked.id}) failed:`, error);
+      });
+      if (context !== undefined && context.withLabel) {
+        applySplice(
+          state.start,
+          end,
+          [{ type: "class_link", classId: picked.id }],
+          state.start + 1,
+        );
+        el.focus();
+        return;
+      }
+      stripTrigger(state.start, end);
+      el.focus();
+      return;
+    }
   };
 
   /**

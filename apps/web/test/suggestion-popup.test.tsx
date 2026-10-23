@@ -5,7 +5,9 @@
  * - Single-pick contract (owner 2026-10-15): a row click or Enter assigns
  *   THE picked node and closes — the same picker behavior as the @ mention
  *   picker, no checkboxes / picked set / Apply footer. Ctrl/Cmd+Enter picks
- *   the highlighted row too (on `@` it keeps the query as a custom label).
+ *   the highlighted row too (on `@` it keeps the query as a custom label;
+ *   on `+` it assigns the class AND splices the inline class link in the
+ *   same gesture — direct inline insertion, owner 2026-10-23).
  * - The `+` popup's assigned-class rows (owner 2026-10-15): they hide from
  *   the empty-query browse and resurface checkmark-marked under a matching
  *   query — a plain pick REMOVES the class (the toggle), a Ctrl/Cmd pick
@@ -139,7 +141,7 @@ describe("suggestion popup single-pick (# tags, + classes)", () => {
     expect(picker()).toBeNull(); // no accumulation — the popup is gone
   });
 
-  it("Ctrl+Enter picks the highlighted row and assigns the class", async () => {
+  it("Ctrl+Enter on an unassigned class assigns AND inserts the inline link in one gesture", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
     await client.createClass("ClassB");
@@ -149,13 +151,16 @@ describe("suggestion popup single-pick (# tags, + classes)", () => {
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "+");
     typeInPicker("ClassA");
-    // The query pins exactly one row; Ctrl+Enter must assign it (the
-    // multi-select era swallowed this: apply with an empty picked set).
+    // The query pins exactly one row; Ctrl+Enter is the DIRECT INLINE
+    // INSERTION (owner 2026-10-23): the class is assigned AND the
+    // class_link token splices at the trigger — the same end state as the
+    // older assign-then-⌃↵-convert two-step, reached in one gesture.
     fireEvent.keyDown(searchBox(), { key: "Enter", ctrlKey: true });
     await act(async () => {});
 
     expect(client.getNode(blockId)?.classIds).toEqual([classA]);
-    expect(editor.textContent).toBe("");
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "class_link", classId: classA }]);
+    expect(editor.textContent).toBe("ClassA"); // the link renders the label
     expect(picker()).toBeNull();
   });
 
@@ -340,6 +345,27 @@ describe("suggestion popup assigned-class gestures (+ popup)", () => {
     expect(client.getNode(blockId)?.classIds).toEqual([inline, pillOnly]);
   });
 
+  it("a class link added AFTER mount hides the pill reactively (the memo follows the content AST)", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const cls = await client.createClass("correo");
+    await client.assignClass(blockId, cls);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    expect(container.querySelectorAll(".nt-block-classes .pill:not(.pill--add)").length).toBe(1);
+
+    // The inline reference lands after the row mounted: the pill must hide
+    // without a remount. The hide-memo depends on the content AST itself —
+    // a [client, nodeId]-only memo never recomputed (the client object is
+    // stable across pushes), so the pill stayed visible (owner 2026-10-23).
+    await act(async () => {
+      await client.updateObject(blockId, { contentAst: [{ type: "class_link", classId: cls }] });
+    });
+
+    expect(container.querySelectorAll(".nt-block-classes .pill:not(.pill--add)").length).toBe(0);
+    expect(client.getNode(blockId)?.classIds).toEqual([cls]); // membership untouched
+  });
+
   it("an exact-name query offers NO create row — the class already exists", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
@@ -358,7 +384,7 @@ describe("suggestion popup assigned-class gestures (+ popup)", () => {
     );
   });
 
-  it("the gesture hint rides the picker while a checkmarked row is on screen", async () => {
+  it("the gesture hint rides the picker — the unassigned and checkmarked wording", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
     const classId = await client.createClass("correo");
@@ -367,9 +393,12 @@ describe("suggestion popup assigned-class gestures (+ popup)", () => {
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "+");
-    // Unassigned-only results: no hint.
+    // Unassigned-only results: the hint names the add / add-inline gestures.
     typeInPicker("dirección");
-    expect(picker()!.querySelector(".node-selector__assigned-hint")).toBeNull();
+    const unassignedHint = picker()!.querySelector(".node-selector__assigned-hint");
+    expect(unassignedHint?.textContent).toContain("add class");
+    expect(unassignedHint?.textContent).toContain("add inline");
+    expect(unassignedHint?.textContent).toContain("⌃");
 
     // The checkmarked row appears: the hint names both gestures.
     typeInPicker("correo");
@@ -378,7 +407,7 @@ describe("suggestion popup assigned-class gestures (+ popup)", () => {
     expect(hint?.textContent).toContain("⌃");
   });
 
-  it("the unassigned path is unchanged: Enter assigns, Ctrl+Enter assigns", async () => {
+  it("the unassigned path: Enter assigns, Ctrl+Enter assigns AND inserts inline", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
     const classId = await client.createClass("correo");
@@ -393,7 +422,10 @@ describe("suggestion popup assigned-class gestures (+ popup)", () => {
     await act(async () => {});
 
     expect(client.getNode(blockId)?.classIds).toEqual([classId]);
-    expect(editor.textContent).toBe("");
+    // Ctrl+Enter is the direct inline insertion: the class_link token
+    // splices at the trigger alongside the assignment.
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "class_link", classId }]);
+    expect(editor.textContent).toBe("correo"); // the link renders the label
     expect(picker()).toBeNull();
   });
 });
