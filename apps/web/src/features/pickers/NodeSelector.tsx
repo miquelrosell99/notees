@@ -176,8 +176,10 @@ type TriggerMode = "pill-row" | "inline";
  */
 export interface NodePickContext {
   /**
-   * Picked via Ctrl/Cmd+Enter or Ctrl/Cmd+click: the caller may treat the
-   * query as a custom label (the editor's "insert link with label" path).
+   * Picked via Ctrl/Cmd+Enter or Ctrl/Cmd+click. The editor's `@` popup
+   * treats the query as a custom label (the "insert link with label" path);
+   * its `+` popup treats it as DIRECT INLINE INSERTION — assign the class
+   * AND splice a class_link at the trigger in one gesture.
    */
   withLabel: boolean;
   /** The picker's current search query (trimmed). */
@@ -1005,13 +1007,18 @@ export function NodeSelector({
 
   // Assigned-row gesture hint: rides the picker's bottom while a checkmarked
   // row is on screen (the gestures apply to it). Callers with onAssignedPick
-  // own the assigned-row semantics (the editor's `+` toggle); everywhere
-  // else a checkmarked pick acknowledges idempotently.
-  const assignedHintFooter = visibleResults.some((node) => assignedIds.has(node.id)) ? (
-    <div className="node-selector__assigned-hint">
-      {onAssignedPick !== undefined ? "↵ remove · ⌃↵ convert to link" : "✓ already assigned"}
-    </div>
-  ) : null;
+  // own the assigned-row semantics (the editor's `+` toggle) and show the
+  // unassigned-row hint too (their Ctrl/Cmd+Enter adds the class inline);
+  // everywhere else a checkmarked pick acknowledges idempotently.
+  const assignedVisible = visibleResults.some((node) => assignedIds.has(node.id));
+  const assignedHintFooter =
+    onAssignedPick !== undefined ? (
+      <div className="node-selector__assigned-hint">
+        {assignedVisible ? "↵ remove · ⌃↵ convert to link" : "↵ add class · ⌃↵ add inline"}
+      </div>
+    ) : assignedVisible ? (
+      <div className="node-selector__assigned-hint">✓ already assigned</div>
+    ) : null;
 
   // Position the pill-row / anchored picker (fixed, flips above, clamped).
   const position = useViewportPosition(
