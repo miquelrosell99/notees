@@ -73,7 +73,7 @@ function ruleBody(overrides: Partial<RuleBody> = {}): RuleBody {
   return {
     name: "flag papers",
     trigger: { opType: "object.create" },
-    criteria: ast([{ type: "class", classId: SYSTEM_CLASS_UUIDS.paper }]),
+    criteria: ast([{ type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article }]),
     actions: [{ type: "property.set", propertySchemaId: PLACEHOLDER_SCHEMA_ID, value: "review" }],
     ...overrides,
   };
@@ -143,7 +143,7 @@ describe("workflow engine (issue #13)", () => {
     const schemaId = await createSchema("wf-flag", "text");
     const rule = await createRule(schemaId);
 
-    const nodeId = await createNode("wf-paper-node", [SYSTEM_CLASS_UUIDS.paper]);
+    const nodeId = await createNode("wf-paper-node", [SYSTEM_CLASS_UUIDS.journal_article]);
 
     // The effect: an authored value, visible through the derived read model.
     expect(await effectiveValues(nodeId, schemaId)).toEqual(["review"]);
@@ -185,14 +185,14 @@ describe("workflow engine (issue #13)", () => {
       payload: ruleBody({
         name: "paper means academic",
         trigger: { opType: "class.assign" },
-        criteria: ast([{ type: "class", classId: SYSTEM_CLASS_UUIDS.paper }]),
+        criteria: ast([{ type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article }]),
         actions: [{ type: "class.assign", classId: SYSTEM_CLASS_UUIDS.book }],
       }),
     });
     expect(res.statusCode).toBe(201);
     const rule = res.json().rule;
 
-    const nodeId = await createNode("wf-academic", [SYSTEM_CLASS_UUIDS.paper]);
+    const nodeId = await createNode("wf-academic", [SYSTEM_CLASS_UUIDS.journal_article]);
 
     const object = await api("GET", `/api/objects/${nodeId}`);
     const classIds = (object.json().object.classes as Array<{ id: string }>).map((entry) => entry.id);
@@ -284,7 +284,7 @@ describe("workflow engine (issue #13)", () => {
     const schemaId = await createSchema("wf-flag", "text");
     const rule = await createRule(schemaId, { enabled: false });
 
-    await createNode("wf-while-disabled", [SYSTEM_CLASS_UUIDS.paper]);
+    await createNode("wf-while-disabled", [SYSTEM_CLASS_UUIDS.journal_article]);
     expect(engineEnvelopes()).toHaveLength(0);
     expect(await runsOf(rule.id)).toEqual([]);
 
@@ -292,7 +292,7 @@ describe("workflow engine (issue #13)", () => {
     expect(patched.statusCode).toBe(200);
     expect(patched.json().rule.enabled).toBe(true);
 
-    await createNode("wf-after-enable", [SYSTEM_CLASS_UUIDS.paper]);
+    await createNode("wf-after-enable", [SYSTEM_CLASS_UUIDS.journal_article]);
     expect(engineEnvelopes()).toHaveLength(1);
     expect(await runsOf(rule.id)).toHaveLength(1);
   });
@@ -315,7 +315,7 @@ describe("workflow engine (issue #13)", () => {
       payload: {
         isEmbedded: false,
         contentAst: [{ type: "text", text: "wf-failing" }],
-        classIds: [SYSTEM_CLASS_UUIDS.paper],
+        classIds: [SYSTEM_CLASS_UUIDS.journal_article],
       },
     });
     expect(created.statusCode).toBe(201);
@@ -432,7 +432,7 @@ describe("workflow routes (issue #13)", () => {
   it("validates fail-loud (422): unknown trigger, broken/aggregated criteria, bad actions, unknown keys", async () => {
     server = await makeTestServer();
     const aggregationCriteria = {
-      ...ast([{ type: "class", classId: SYSTEM_CLASS_UUIDS.paper }]),
+      ...ast([{ type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article }]),
       aggregation: { dimensions: [], measures: [{ function: "count", kind: "node" }] },
     };
     const bad: Array<[string, unknown]> = [
@@ -440,7 +440,7 @@ describe("workflow routes (issue #13)", () => {
       ["unknown condition type", ruleBody({ criteria: ast([{ type: "teleports", nodeId: crypto.randomUUID() } as unknown as Child]) })],
       ["aggregation in criteria", ruleBody({ criteria: aggregationCriteria })],
       ["empty actions", ruleBody({ actions: [] })],
-      ["too many actions", ruleBody({ actions: Array.from({ length: 11 }, () => ({ type: "class.assign", classId: SYSTEM_CLASS_UUIDS.paper })) })],
+      ["too many actions", ruleBody({ actions: Array.from({ length: 11 }, () => ({ type: "class.assign", classId: SYSTEM_CLASS_UUIDS.journal_article })) })],
       ["bad action uuid", ruleBody({ actions: [{ type: "property.set", propertySchemaId: "nope", value: 1 }] })],
       ["unknown body key", { ...ruleBody(), surprise: true }],
       ["empty name", ruleBody({ name: "  " })],
@@ -496,7 +496,7 @@ describe("workflow routes (issue #13)", () => {
     await api("PATCH", `/api/workflows/${ruleId}`, { payload: { name: "renamed" } });
 
     // Fire one run so the audit has a row to persist.
-    await createNode("wf-restart", [SYSTEM_CLASS_UUIDS.paper]);
+    await createNode("wf-restart", [SYSTEM_CLASS_UUIDS.journal_article]);
     expect(engineEnvelopes()).toHaveLength(1);
 
     // Rule CRUD alone never touched the op log (the action envelope did).
