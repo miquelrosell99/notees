@@ -9,6 +9,37 @@ predating this file.
 
 ## 2026-10-23
 
+- **feat(domain,web): recurrence exceptions — the Google edit/delete
+  semantics for recurring events (owner 2026-10-23, google-calendar
+  proposal slice 1).** Acting on ONE occurrence of a series now supports
+  the register every calendar app ships — *only this event* / *this and
+  following events* / *all events* — for both edit and delete. Model: two
+  additive metadata keys on the recurring date value (the
+  `completedOccurrences` precedent — no op, no wire change, no fixture
+  gate): `exdates` (occurrence days removed from the series — a single
+  deletion, or a day edited into a detached exception node) and `until`
+  (the inclusive last occurrence day a split writes). Expansion honors
+  both (`recurrenceSeriesOf` assembles the full input; `occurrenceIsosOf`
+  skips exdates, stops past until) so the events element, the grid dots,
+  and every read model see the exceptions in one move. The ops live in
+  `calendarRecurrence.ts`: `deleteOccurrence` (one → exdate; following →
+  truncate at the previous occurrence, degenerating to "all" at the
+  anchor; all → trash) and `editOccurrence` (all → the series anchor
+  re-commits on the same node; one → a new ORDINARY exception event —
+  content/classes/authored properties copied, a plain date, no rule — and
+  the original day joins exdates; following → the series truncates and a
+  continuation node carries the edits forward with the same rule from its
+  new anchor, a fresh series). Every write is an ordinary op
+  (`property.set` metadata / `object.create`) — undoable, convergent; the
+  date-ref contract is honored by ensuring the chain before a moved value
+  references its day node. The scope dialog that asks the question is a
+  later slice; this is the semantic core it routes to. The proposal +
+  the plugin external-id mapping substrate (external_ref ops) live in
+  `.plans/2026-10-23-2042-google-calendar/`.
+  - **Verification**: domain specs (readers/writers, fail-loud shapes,
+    expansion honoring exdates/until) + client specs (all three scopes
+    through the real appliers, asserting metadata AND the events read
+    model) — full gate below.
 - **feat(web): the calendar's right-panel events element — day/week/month
   zoom over the event family, replacing the quick-create pill bar and the
   week agenda (owner 2026-10-23).** The pills row above the section tabs

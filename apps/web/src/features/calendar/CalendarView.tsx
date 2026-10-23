@@ -261,11 +261,7 @@ export function CalendarView({
     const toIso = addDaysIso(selectedIso, 40);
     const isos = new Set<string>();
     for (const row of recurringRows) {
-      for (const iso of occurrenceIsosOf(
-        { rule: row.rule, anchorIso: row.anchorIso },
-        fromIso,
-        toIso,
-      )) {
+      for (const iso of occurrenceIsosOf(row.series, fromIso, toIso)) {
         isos.add(iso);
       }
     }

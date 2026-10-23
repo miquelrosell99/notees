@@ -10,6 +10,7 @@
  */
 
 import {
+  occurrenceIsosOf,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
   TASK_CLOSED_STATUSES,
@@ -18,16 +19,18 @@ import {
   dayNodeId,
   parseDateNodeId,
   recurrenceRuleOf,
+  recurrenceSeriesOf,
   rendersWithDocumentChrome,
   withCompletedOccurrence,
   type RecurrenceRule,
+  type RecurrenceSeries,
 } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import { isEventFamilyClass, occursOnDay, scheduledIsoOf, type TaskBucketRow } from "./calendarViewUtils.js";
+import { isEventFamilyClass, scheduledIsoOf, type TaskBucketRow } from "./calendarViewUtils.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -169,14 +172,15 @@ export function datedRowNodes(client: AnyClient, dayId: string): ClientNode[] {
 // --- recurrence (compute-on-read expansion) --------------------------------------
 
 /**
- * One recurring node: the node plus its series (rule + anchor day). The rule
- * lives on a date value's metadata (`repeat`); the anchor is that value's own
- * day — occurrences derive at read time, never as nodes.
+ * One recurring node: the node plus its series (rule + anchor day + the
+ * recurrence exceptions — exdates/until, owner 2026-10-23). The rule
+ * lives on a date value's metadata (`repeat`); the anchor is that value's
+ * own day; occurrences derive at read time, never as nodes.
  */
 export interface RecurringRow {
   node: ClientNode;
-  rule: RecurrenceRule;
-  anchorIso: string;
+  /** The full expansion input — rule, anchor, exdates, until. */
+  series: RecurrenceSeries;
 }
 
 /**
@@ -186,8 +190,9 @@ export interface RecurringRow {
  * day sections both start from this list). One node contributes at most one
  * series (its first repeating date value wins). Date-chain nodes are skipped;
  * a rule on a value without a day-precision anchor is ignored (the picker
- * only writes day-anchored rules); a present-but-corrupt rule THROWS
- * (recurrenceRuleOf is fail loud — corrupt metadata never reads as plain).
+ * only writes day-anchored rules); a present-but-corrupt rule, exdates, or
+ * until THROWS (the series readers are fail loud — corrupt metadata never
+ * reads as plain).
  */
 export function recurringRowsOf(client: AnyClient): RecurringRow[] {
   const rows: RecurringRow[] = [];
@@ -196,11 +201,11 @@ export function recurringRowsOf(client: AnyClient): RecurringRow[] {
     for (const prop of client.getEffectiveProperties(node.id)) {
       if (prop.source !== "authored") continue;
       if (prop.schema?.type !== "datetime") continue;
-      const rule = recurrenceRuleOf(prop.metadata);
-      if (rule === null) continue;
       const anchorIso = scheduledIsoOf(prop.value);
       if (anchorIso === null) continue;
-      rows.push({ node, rule, anchorIso });
+      const series = recurrenceSeriesOf(prop.metadata, anchorIso);
+      if (series === null) continue;
+      rows.push({ node, series });
       break;
     }
   }
@@ -211,6 +216,11 @@ export function recurringRowsOf(client: AnyClient): RecurringRow[] {
       ) || a.node.id.localeCompare(b.node.id),
   );
   return rows;
+}
+
+/** True when `iso` is an occurrence day of the full series (exceptions in). */
+function seriesOccursOnDay(series: RecurrenceSeries, iso: string): boolean {
+  return occurrenceIsosOf(series, iso, iso, 1).length === 1;
 }
 
 /** One Dated-section row: the node plus its recurrence rule, null when plain. */
@@ -238,13 +248,13 @@ export function datedRowsForDay(
     rows.set(node.id, { node, rule: null });
   }
   for (const entry of recurringRows) {
-    if (entry.anchorIso <= iso && rows.has(entry.node.id)) {
-      rows.get(entry.node.id)!.rule = entry.rule;
+    if (entry.series.anchorIso <= iso && rows.has(entry.node.id)) {
+      rows.get(entry.node.id)!.rule = entry.series.rule;
       continue;
     }
-    if (entry.anchorIso > iso) continue; // series hasn't started
-    if (!occursOnDay(entry.rule, entry.anchorIso, iso)) continue;
-    rows.set(entry.node.id, { node: entry.node, rule: entry.rule });
+    if (entry.series.anchorIso > iso) continue; // series hasn't started
+    if (!seriesOccursOnDay(entry.series, iso)) continue;
+    rows.set(entry.node.id, { node: entry.node, rule: entry.series.rule });
   }
   const merged = [...rows.values()];
   merged.sort(
@@ -331,13 +341,13 @@ export function eventRowsForDays(
     }
     for (const entry of recurringRows) {
       if (!isEventNode(entry.node)) continue;
-      if (entry.anchorIso <= iso && rows.has(entry.node.id)) {
-        rows.get(entry.node.id)!.rule = entry.rule;
+      if (entry.series.anchorIso <= iso && rows.has(entry.node.id)) {
+        rows.get(entry.node.id)!.rule = entry.series.rule;
         continue;
       }
-      if (entry.anchorIso > iso) continue; // series hasn't started
-      if (!occursOnDay(entry.rule, entry.anchorIso, iso)) continue;
-      addNode(entry.node, entry.rule);
+      if (entry.series.anchorIso > iso) continue; // series hasn't started
+      if (!seriesOccursOnDay(entry.series, iso)) continue;
+      addNode(entry.node, entry.series.rule);
     }
   }
 
