@@ -45,9 +45,9 @@ describe("system seeds (ported)", () => {
     }
   });
 
-  it("every property UUID lives in the reserved …-0000-…/…-0003-… blocks", () => {
+  it("every property UUID lives in the reserved …-0000-…/…-0003-…/…-0006-… blocks", () => {
     for (const id of Object.values(SYSTEM_PROPERTY_UUIDS)) {
-      expect(id).toMatch(/^00000000-0000-0000-0000-|^00000000-0000-0000-0003-/);
+      expect(id).toMatch(/^00000000-0000-0000-0000-|^00000000-0000-0000-0003-|^00000000-0000-0000-0006-/);
     }
   });
 
@@ -269,7 +269,7 @@ describe("system seeds (ported)", () => {
     ]);
   });
 
-  it("citations revision (2026-09-27, FINAL): source family + authorship seeds", () => {
+  it("citations revision (2026-09-27, amended 2026-10-23): source family + authorship seeds", () => {
     // New source subclasses: fixed ids in the next block, icons, extends, seeded.
     expect(SYSTEM_CLASS_UUIDS.song).toBe("00000000-0000-0000-0001-000000000036");
     expect(SYSTEM_CLASS_UUIDS.tv_series).toBe("00000000-0000-0000-0001-000000000037");
@@ -279,17 +279,148 @@ describe("system seeds (ported)", () => {
       expect(SYSTEM_CLASS_EXTENDS[name]).toEqual(["source"]);
       expect(SEEDED_SYSTEM_CLASSES).toContain(name);
     }
-    // FINAL authorship: `authors` is node-typed to agent nodes; the
-    // text-authors + `linkedAuthors` experiment is withdrawn (…0025 never reused).
+    // 2026-10-23 amendment (source-library slice 1, task 4): `authors` is
+    // RETYPED object→text, multi — free-text author strings on the source
+    // family; the node-typed experiment is REINSTATED as `linkedAuthors`
+    // (…0006-…0001 — new block, the burned …0025 stays burned). Live values
+    // migrate via scripts/migrate-authors-to-text.mts (task 8).
     expect(SYSTEM_PROPERTY_UUIDS.authors).toBe("00000000-0000-0000-0000-000000000012");
     expect(SYSTEM_PROPERTY_SPECS.authors).toEqual({
+      type: "text",
+      multi: true,
+      bindTo: "source",
+    });
+    expect(SYSTEM_PROPERTY_UUIDS.linkedAuthors).toBe("00000000-0000-0000-0006-000000000001");
+    expect(SYSTEM_PROPERTY_SPECS.linkedAuthors).toEqual({
       type: "object",
       multi: true,
       bindTo: "source",
       targetClassFilter: ["agent"],
     });
-    expect(SYSTEM_PROPERTY_UUIDS).not.toHaveProperty("linkedAuthors");
-    expect(SYSTEM_PROPERTY_SPECS).not.toHaveProperty("linkedAuthors");
+  });
+
+  it("bibliographic property pool (owner 2026-10-23, source-library slice 1 task 4): one reusable schema per Zotero field, …0006- block, alphabetical by key", () => {
+    // The reused Zotero field pool — ONE schema per field, every entry bound
+    // to the family base (`bindTo: "source"`; task 5 carries the per-type
+    // binding table). Slots …0006-…0001/…0002 are pinned by the controller
+    // (linkedAuthors reinstatement, editors); the rest continue the block
+    // ALPHABETICALLY BY KEY for determinism (the …0048 roster precedent).
+    // The array below IS the manifest order — a new field appends at the end
+    // of the block with the next suffix. Specs: text single-value unless the
+    // row says otherwise; accessDate is datetime (day precision is the schema
+    // default). Deliberately absent: the case-type orphans (caseName, court,
+    // docketNumber, reporter, reporterVolume, firstPage, dateDecided — `case`
+    // has no class, owner ruling) and the already-seeded fields (isbn/doi/
+    // publicationDate/publisher/url/citekey — never duplicated).
+    const text = { type: "text", bindTo: "source" } as const;
+    type PoolRow = readonly [key: string, uuidSuffix: string, spec: object, display: string];
+    const pool: readonly PoolRow[] = [
+      ["linkedAuthors", "000000000001", { type: "object", multi: true, bindTo: "source", targetClassFilter: ["agent"] }, "Linked authors"],
+      ["editors", "000000000002", { type: "text", multi: true, bindTo: "source" }, "Editors"],
+      ["abstract", "000000000003", text, "Abstract"],
+      ["accessDate", "000000000004", { type: "datetime", bindTo: "source" }, "Accessed"],
+      ["applicationNumber", "000000000005", text, "Application number"],
+      ["archive", "000000000006", text, "Archive"],
+      ["archiveLocation", "000000000007", text, "Archive location"],
+      ["artworkMedium", "000000000008", text, "Artwork medium"],
+      ["artworkSize", "000000000009", text, "Artwork size"],
+      ["assignee", "00000000000a", text, "Assignee"],
+      ["blogTitle", "00000000000b", text, "Blog title"],
+      ["bookTitle", "00000000000c", text, "Book title"],
+      ["callNumber", "00000000000d", text, "Call number"],
+      ["code", "00000000000e", text, "Code"],
+      ["codeNumber", "00000000000f", text, "Code number"],
+      ["codePages", "000000000010", text, "Code pages"],
+      ["codeVolume", "000000000011", text, "Code volume"],
+      ["committee", "000000000012", text, "Committee"],
+      ["company", "000000000013", text, "Company"],
+      ["dateEnacted", "000000000014", text, "Date enacted"],
+      ["distributor", "000000000015", text, "Distributor"],
+      ["documentNumber", "000000000016", text, "Document number"],
+      ["edition", "000000000017", text, "Edition"],
+      ["episodeNumber", "000000000018", text, "Episode number"],
+      ["eventPlace", "000000000019", text, "Event place"],
+      ["extra", "00000000001a", text, "Extra"],
+      ["filingDate", "00000000001b", text, "Filing date"],
+      ["format", "00000000001c", text, "Format"],
+      ["forumTitle", "00000000001d", text, "Forum title"],
+      ["genre", "00000000001e", text, "Genre"],
+      ["history", "00000000001f", text, "History"],
+      ["identifier", "000000000020", text, "Identifier"],
+      ["institution", "000000000021", text, "Institution"],
+      ["interviewMedium", "000000000022", text, "Interview medium"],
+      ["issue", "000000000023", text, "Issue"],
+      ["issueDate", "000000000024", text, "Issue date"],
+      ["issuingAuthority", "000000000025", text, "Issuing authority"],
+      ["label", "000000000026", text, "Label"],
+      ["language", "000000000027", text, "Language"],
+      ["legalStatus", "000000000028", text, "Legal status"],
+      ["legislativeBody", "000000000029", text, "Legislative body"],
+      ["letterType", "00000000002a", text, "Letter type"],
+      ["medium", "00000000002b", text, "Medium"],
+      ["meetingName", "00000000002c", text, "Meeting name"],
+      ["nameOfAct", "00000000002d", text, "Name of act"],
+      ["network", "00000000002e", text, "Network"],
+      ["numPages", "00000000002f", text, "Number of pages"],
+      ["number", "000000000030", text, "Number"],
+      ["numberOfVolumes", "000000000031", text, "Number of volumes"],
+      ["pages", "000000000032", text, "Pages"],
+      ["patentNumber", "000000000033", text, "Patent number"],
+      ["place", "000000000034", text, "Place"],
+      ["postType", "000000000035", text, "Post type"],
+      ["priorityDate", "000000000036", text, "Priority date"],
+      ["priorityNumbers", "000000000037", text, "Priority numbers"],
+      ["proceedingsTitle", "000000000038", text, "Proceedings title"],
+      ["programTitle", "000000000039", text, "Program title"],
+      ["programmingLanguage", "00000000003a", text, "Programming language"],
+      ["publicLawNumber", "00000000003b", text, "Public law number"],
+      ["publicationTitle", "00000000003c", text, "Publication title"],
+      ["references", "00000000003d", text, "References"],
+      ["reportNumber", "00000000003e", text, "Report number"],
+      ["reportType", "00000000003f", text, "Report type"],
+      ["repository", "000000000040", text, "Repository"],
+      ["repositoryLocation", "000000000041", text, "Repository location"],
+      ["rights", "000000000042", text, "Rights"],
+      ["runningTime", "000000000043", text, "Running time"],
+      ["scale", "000000000044", text, "Scale"],
+      ["section", "000000000045", text, "Section"],
+      ["series", "000000000046", text, "Series"],
+      ["seriesNumber", "000000000047", text, "Series number"],
+      ["seriesTitle", "000000000048", text, "Series title"],
+      ["session", "000000000049", text, "Session"],
+      ["shortTitle", "00000000004a", text, "Short title"],
+      ["status", "00000000004b", text, "Standard status"],
+      ["studio", "00000000004c", text, "Studio"],
+      ["system", "00000000004d", text, "System"],
+      ["thesisType", "00000000004e", text, "Thesis type"],
+      ["university", "00000000004f", text, "University"],
+      ["versionNumber", "000000000050", text, "Version"],
+      ["volume", "000000000051", text, "Volume"],
+      ["websiteTitle", "000000000052", text, "Website title"],
+      ["websiteType", "000000000053", text, "Website type"],
+      ["workType", "000000000054", text, "Type"],
+    ];
+    // The manifest order is the alphabetical order (beyond the two pinned
+    // slots) — the suffix assignment stays deterministic forever.
+    const keys = pool.map(([key]) => key);
+    expect(keys.slice(2)).toEqual([...keys.slice(2)].sort());
+    const suffixes = pool.map(([, suffix]) => parseInt(suffix, 16));
+    expect(suffixes.slice(1)).toEqual(suffixes.slice(0, -1).map((n) => n + 1));
+    for (const [key, suffix, spec, display] of pool) {
+      expect(SYSTEM_PROPERTY_UUIDS).toHaveProperty(key);
+      expect(SYSTEM_PROPERTY_UUIDS[key as SystemPropertyName]).toBe(
+        `00000000-0000-0000-0006-${suffix}`,
+      );
+      expect(SYSTEM_PROPERTY_SPECS[key as SystemPropertyName]).toEqual(spec);
+      expect(SYSTEM_PROPERTY_DISPLAY_NAMES[key as SystemPropertyName]).toBe(display);
+    }
+    // The pool is exactly this big — no undocumented extras in the …0006- block.
+    const poolIds = new Set(pool.map(([, suffix]) => `00000000-0000-0000-0006-${suffix}`));
+    const blockEntries = Object.values(SYSTEM_PROPERTY_UUIDS).filter((id) =>
+      id.startsWith("00000000-0000-0000-0006-"),
+    );
+    expect(blockEntries.length).toBe(pool.length);
+    expect(new Set(blockEntries)).toEqual(poolIds);
   });
 
   it("templates seed (T2): has-template reserved, seeded at GLOBAL scope (M47 — no class-class host), targets the template class", () => {

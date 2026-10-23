@@ -16,7 +16,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { deriveDisplayName, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_DISPLAY_NAMES, SYSTEM_PROPERTY_SPECS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { NodeView } from "../src/ui/App.js";
@@ -281,23 +281,27 @@ describe("Class View", () => {
     );
     // PURE ALPHABETICAL by property name (owner ruling 2026-10-21 — binding
     // sequence retired; the seeded class panel has no configurable order).
-    // URL joined the source family as a default property (owner 2026-10-22 —
-    // the url binding moved from weblink-only to the family base).
-    expect(names).toEqual([
-      "Attachments",
-      "Authors",
-      "Citekey",
-      "DOI",
-      "ISBN",
-      "Publication date",
-      "Publisher",
-      "URL",
-    ]);
+    // The source family carries every seed spec bound to `source` — the
+    // bibliographic property pool (owner 2026-10-23, source-library slice 1
+    // task 4) joined the original family set; derive the expectation from
+    // the seed manifest so the test pins ORDER, not the pool's contents.
+    const expectedNames = (
+      Object.entries(SYSTEM_PROPERTY_SPECS) as Array<
+        [keyof typeof SYSTEM_PROPERTY_DISPLAY_NAMES, (typeof SYSTEM_PROPERTY_SPECS)[keyof typeof SYSTEM_PROPERTY_SPECS]]
+      >
+    )
+      .filter(([, spec]) => spec?.bindTo === "source")
+      .map(([name]) => SYSTEM_PROPERTY_DISPLAY_NAMES[name])
+      .sort((a, b) => a.localeCompare(b));
+    expect(names).toEqual(expectedNames);
 
     const rows = [...container.querySelectorAll(".nt-propdef")];
-    // FINAL citations authorship (2026-09-27): authors is the node-typed,
-    // agent-filtered property (linkedAuthors was withdrawn same day, …0025).
-    const authorsRow = rows[1]!;
+    // RETYPED 2026-10-23 (owner ruling, source-library slice 1 task 4):
+    // authors is free TEXT, multi — the 2026-09-27 node-typed commitment is
+    // superseded; node-typed authorship survives as `linkedAuthors`.
+    const authorsRow = rows.find((row) =>
+      row.querySelector(".nt-propdef-name")?.textContent === "Authors",
+    )!;
     // The row is identity-only (S6): no chevron, no inline fields — the
     // hover-revealed COG opens the S2 definition modal (the
     // unresolved-targets hint for the undeployed "agent" class lives there;
@@ -309,11 +313,12 @@ describe("Class View", () => {
     expect(within(authorsRow as HTMLElement).queryByText("Target classes")).toBeNull();
     fireEvent.click(within(authorsRow as HTMLElement).getByRole("button", { name: "Definition settings for Authors" }));
     await flushWrites();
-    // Authors is object-typed: the definition modal carries NO default editor
-    // for node-typed schemas (the owner ruling, 2026-10-20).
+    // Authors is TEXT-typed since the 2026-10-23 retype: the definition
+    // modal carries the ordinary default editor (the 2026-10-20 ruling
+    // withholds it only from object/asset/image/datetime schemas).
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByRole("heading", { name: "Property settings" })).not.toBeNull();
-    expect(within(dialog).queryByLabelText("Default value")).toBeNull();
+    expect(within(dialog).getByLabelText("Default value")).not.toBeNull();
   });
 
   it("renders the class's children as the editable body — a class has no child pages", async () => {

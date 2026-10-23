@@ -258,10 +258,17 @@ describe("property schemas", () => {
       multi: false,
     });
 
-    // FINAL authorship (2026-09-27): authors is node-typed to agent nodes.
+    // RETYPED 2026-10-23 (owner ruling, source-library slice 1 task 4):
+    // authors is free TEXT, multi — the node-typed spec is superseded.
     const authors = await api("GET", `/api/property-schemas/${SYSTEM_PROPERTY_UUIDS.authors}`);
-    expect(authors.json().propertySchema).toMatchObject({ multi: true, type: "object" });
-    expect(authors.json().propertySchema.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.agent]);
+    expect(authors.json().propertySchema).toMatchObject({ multi: true, type: "text" });
+    expect(authors.json().propertySchema.targetClassFilter).toBeNull();
+
+    // linkedAuthors REINSTATED 2026-10-23 at its own …0006- block UUID —
+    // node-typed to agent nodes; the withdrawn …0025 stays unseeded.
+    const linked = await api("GET", `/api/property-schemas/${SYSTEM_PROPERTY_UUIDS.linkedAuthors}`);
+    expect(linked.json().propertySchema).toMatchObject({ multi: true, type: "object" });
+    expect(linked.json().propertySchema.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.agent]);
 
     // The withdrawn `linkedAuthors` schema (…0025) is not seeded.
     const withdrawn = await api("GET", "/api/property-schemas/00000000-0000-0000-0000-000000000025");
