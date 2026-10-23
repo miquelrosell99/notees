@@ -367,9 +367,10 @@ export function TextPropertyRow({
             // Carrier values render as the locked collection's root items
             // above; only the fallback cells ride this map.
             if (state.kind === "carrier") return null;
-            // Assigned-empty row: the declaration exists, no value yet — the
-            // cell authors the first CARRIER block on edit, the node-backed
-            // convention (the same handler the bound-but-empty cell rides).
+            // Assigned/bound-empty row: the declaration exists, no
+            // value yet — the cell authors the first CARRIER block on
+            // edit, the node-backed convention (the same handler the
+            // bound-but-empty cell rides).
             if (row.value === null) {
               if (readOnly) {
                 return (

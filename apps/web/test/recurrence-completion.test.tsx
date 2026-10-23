@@ -114,10 +114,12 @@ describe("per-occurrence completion", () => {
     // The repeat rule rides through; the node-level status stays untouched
     // (no status value authored at all).
     expect(scheduledValueOf(client, id)?.metadata?.repeat).toBe("weekly");
+    // No AUTHORED status (the bound-empty virtual row may show — the
+    // virtual/realized ruling; the assertion is about the value).
     expect(
       client
         .getEffectiveProperties(id)
-        .some((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus),
+        .some((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus && prop.source === "authored"),
     ).toBe(false);
 
     // The occurrence renders done on that day…

@@ -489,8 +489,10 @@ export interface EffectiveProperty {
   /** Authored qualifiers (date-node refs or legacy ISO strings). */
   metadata: Record<string, unknown> | null;
   /** "assigned" = an assignment WITHOUT a value (*  property.assign; the row renders empty and the editor authors the
-   *  first value later); the value reads null on those rows. */
-  source: "authored" | "default" | "assigned";
+   *  first value later); "bound" = a bound-but-empty VIRTUAL property
+   *  (the virtual/realized assessment — boundBy names the class it comes
+   *  from); both read value null. */
+  source: "authored" | "default" | "assigned" | "bound";
   boundBy: string | null;
   /** R4: false on authored rows whose schema's
    *  scopeClassIds excludes the node — the row SURVIVES (never retroactive)

@@ -80,9 +80,10 @@ export function ScalarPropertyValue({
           aria-label={`Property ${row.schema?.name ?? row.propertySchemaId}`}
           onBlur={(event) => {
             const text = event.target.value;
-            // Assigned-empty row: nothing is authored yet — an empty blur
-            // keeps the declaration as-is (no empty-string value is minted);
-            // the first real edit authors the value through property.set.
+            // Assigned/bound-empty row: nothing is authored yet — an
+            // empty blur keeps the declaration as-is (no empty-string
+            // value is minted); the first real edit authors the value
+            // through property.set.
             if (row.value === null && text.trim() === "") return;
             if (deadCarrierRef) {
               // The old carrier is gone: typing authors a NEW carrier

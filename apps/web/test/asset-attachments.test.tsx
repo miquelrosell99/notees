@@ -314,7 +314,11 @@ describe("Asset attachments (the asset property row)", () => {
     // The modal keeps the file selected and surfaces the server's message.
     const alert = await within(dialog).findByRole("alert");
     expect(alert.textContent).toContain("500");
-    expect(client.getEffectiveProperties(sourceId)).toEqual([]);
+    // No authored value; the bound-empty row persists (the class still
+    // supplies the property — the virtual/realized ruling).
+    expect(
+      client.getEffectiveProperties(sourceId).filter((r) => r.source === "authored"),
+    ).toEqual([]);
   });
 
   it("an unacceptable file is rejected with a named error before any upload", async () => {
@@ -334,7 +338,11 @@ describe("Asset attachments (the asset property row)", () => {
     const alert = await within(dialog).findByRole("alert");
     expect(alert.textContent).toContain("not an accepted type");
     expect(upload).not.toHaveBeenCalled();
-    expect(client.getEffectiveProperties(sourceId)).toEqual([]);
+    // No authored value; the bound-empty row persists (the class still
+    // supplies the property — the virtual/realized ruling).
+    expect(
+      client.getEffectiveProperties(sourceId).filter((r) => r.source === "authored"),
+    ).toEqual([]);
   });
 
   it("a pasted file fills the upload modal (the clipboard path)", async () => {
@@ -506,7 +514,11 @@ describe("Asset attachments (the asset property row)", () => {
     // buttons are back, hosted by the empty binding.
     fireEvent.click(within(row).getByLabelText("Remove hero.png"));
     await flushWrites();
-    expect(client.getEffectiveProperties(pageId)).toEqual([]);
+    // No authored value remains (the bound-empty row persists — the very
+    // row the buttons re-host below).
+    expect(
+      client.getEffectiveProperties(pageId).filter((r) => r.source === "authored"),
+    ).toEqual([]);
     const emptied = screen.getByText("hero").closest(".nt-props-sidebar__prop, .nt-property-asset") as HTMLElement;
     expect(within(emptied).getByRole("button", { name: "Upload" })).not.toBeNull();
     expect(within(emptied).getByRole("button", { name: "Link" })).not.toBeNull();
