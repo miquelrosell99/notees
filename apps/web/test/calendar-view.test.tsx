@@ -161,7 +161,7 @@ describe("CalendarView", () => {
     });
   });
 
-  it("the events element lists event-family nodes dated into the scope, not mere date carriers", async () => {
+  it("the month grid blocks event-family nodes dated into the scope, not mere date carriers", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
@@ -186,15 +186,16 @@ describe("CalendarView", () => {
     });
     await client.setDatetimeProperty(anime, schemaId, { iso: today }, 0);
 
-    renderCalendar(client);
-    const events = await screen.findByLabelText("Events");
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    render(<CalendarView client={client} onOpenPage={vi.fn()} />);
+    const grid = await screen.findByLabelText("Calendar month view");
     await waitFor(() => {
-      expect(rowTitles(events)).toContain("Launch party");
+      expect(grid.textContent).toContain("Launch party");
     });
-    expect(rowTitles(events)).not.toContain("Episode 12");
+    expect(grid.textContent).not.toContain("Episode 12");
   });
 
-  it("the events element lists event-family blocks embedded at any depth inside the day page", async () => {
+  it("the month grid blocks event-family blocks embedded at any depth inside the day page", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const { day } = await client.ensureDateChain(today);
@@ -221,54 +222,14 @@ describe("CalendarView", () => {
       contentAst: [{ type: "text", text: "Plain note" }],
     });
 
-    renderCalendar(client);
-    const events = await screen.findByLabelText("Events");
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    render(<CalendarView client={client} onOpenPage={vi.fn()} />);
+    const grid = await screen.findByLabelText("Calendar month view");
     await waitFor(() => {
-      expect(rowTitles(events)).toContain("Embedded gathering");
-      expect(rowTitles(events)).toContain("Nested gathering");
+      expect(grid.textContent).toContain("Embedded gathering");
+      expect(grid.textContent).toContain("Nested gathering");
     });
-    expect(rowTitles(events)).not.toContain("Plain note");
-  });
-
-  it("the events zoom switches the scope: day follows the selected day, month widens to it", async () => {
-    const client = await seedClient();
-    const today = todayIsoLocal();
-    const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
-    const gatheringClass = await client.createClass("gathering");
-    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
-    await client.setClassProperty(gatheringClass, schemaId, {});
-    const gathering = await client.createObject({
-      isEmbedded: false,
-      name: "Launch party",
-      classIds: [gatheringClass],
-    });
-    await client.setDatetimeProperty(gathering, schemaId, { iso: today }, 0);
-
-    const { container } = renderCalendar(client);
-    const events = await screen.findByLabelText("Events");
-    // Week zoom (the default) contains today: the row lists.
-    await waitFor(() => {
-      expect(rowTitles(events)).toContain("Launch party");
-    });
-
-    // Day zoom + a different selected day of the same month: the row leaves.
-    // (Scoped to the events element — the calendar ladder has its own Day button.)
-    fireEvent.click(
-      within(screen.getByLabelText("Events scope")).getByRole("button", { name: "Day" }),
-    );
-    const otherDay = new Date().getDate() === 20 ? "21" : "20";
-    fireEvent.click(dayCell(container, otherDay));
-    await waitFor(() => {
-      expect(within(events).getByText("No events this day.")).toBeDefined();
-    });
-
-    // Month zoom widens the scope back over the whole month: the row returns.
-    fireEvent.click(
-      within(screen.getByLabelText("Events scope")).getByRole("button", { name: "Month" }),
-    );
-    await waitFor(() => {
-      expect(rowTitles(events)).toContain("Launch party");
-    });
+    expect(grid.textContent).not.toContain("Plain note");
   });
 
   it("partitions open tasks into Overdue/Scheduled groups with a count", async () => {
