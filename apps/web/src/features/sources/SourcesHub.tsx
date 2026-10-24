@@ -5,40 +5,55 @@
  * hosts the source-type facets, the middle cell the items table, the right
  * pane the type-aware detail editor.
  *
- * Law 9 — /sources owns its URL AND its tab title from day one: the route
- * registers in the nav table (the sidebar's push lands on /sources, the
- * popstate handler maps it back, the ONE title effect names it
- * "Sources - Notees"), and the `?type=&q=&sort=` query-string state parses
- * and serializes through sourcesQuery.ts. This task ships the shell with
- * the panes' honest empty states; the data layer, table, and detail editor
- * land in the follow-up tasks — the Add-source door is live from the start
- * (the shipped add-source flow answers the empty state's button).
+ * Law 9 — /sources owns its URL AND its tab title: the route registers in
+ * the nav table, and the `?type=&q=&sort=` query-string state parses and
+ * serializes through sourcesQuery.ts. The query state is App-owned (the
+ * calendar's onRouteChange seam): the hub receives it as a prop and the
+ * panes' filter gestures push the serialized path through onQueryChange.
+ * Without props the hub runs URL-less — parsing the location on render,
+ * facets as the honest empty state (the unit tests).
+ *
+ * The data layer (buildSourcesAst / runSourcesQuery / facetCounts) lives in
+ * sourcesQuery.ts; the items table and the detail editor land in the
+ * follow-up tasks — the Add-source door is live from the start (the
+ * shipped add-source flow answers the empty state's button).
  */
 
+import type { AnyClient } from "../../ui/app/clients.js";
 import { MainContentFrame } from "../../ui/MainContentFrame.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import { SourcesFacets } from "./SourcesFacets.js";
 import { SourcesTable } from "./SourcesTable.js";
 import { SourcesDetail } from "./SourcesDetail.js";
-import { parseSourcesQuery } from "./sourcesQuery.js";
+import { parseSourcesQuery, type SourcesQueryState } from "./sourcesQuery.js";
 import "./SourcesHub.css";
 
-export function SourcesHub() {
-  // The URL's query-string state, parsed on render (pure — the popstate
-  // seam re-renders the app on back/forward, so no subscription is needed).
-  const query = parseSourcesQuery(window.location.search);
+export function SourcesHub({
+  client,
+  query,
+  onQueryChange,
+}: {
+  client?: AnyClient | undefined;
+  /** The App-owned parsed query state; omitted = parsed from the location. */
+  query?: SourcesQueryState | undefined;
+  /** The URL seam: filter/sort gestures push the serialized path. */
+  onQueryChange?:
+    | ((next: SourcesQueryState, mode: "push" | "replace") => void)
+    | undefined;
+}) {
+  const parsed = query ?? parseSourcesQuery(window.location.search);
   return (
     <div className="nt-sources-hub">
       <MainContentFrame
         topBar={<SurfaceTopBar icon="mdi-bookshelf" title="Sources" />}
-        leftPanel={<SourcesFacets />}
+        leftPanel={<SourcesFacets client={client} query={parsed} onQueryChange={onQueryChange} />}
         leftLabel="Source types"
         leftPanelWidth="var(--layout-size-7xl)"
         rightPanel={<SourcesDetail />}
         rightLabel="Source details"
         rightPanelWidth="var(--layout-size-9xl)"
       >
-        <SourcesTable query={query} />
+        <SourcesTable query={parsed} />
       </MainContentFrame>
     </div>
   );

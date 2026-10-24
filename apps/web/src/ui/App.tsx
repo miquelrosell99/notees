@@ -63,6 +63,12 @@ import {
   type SettingsSection,
 } from "../features/settings/SettingsPage.js";
 import { applyAppearance, readDeviceSetting, toggleFocusMode, useDeviceSetting } from "../features/settings/deviceSettings.js";
+import {
+  DEFAULT_SOURCES_QUERY,
+  parseSourcesQuery,
+  sourcesPathFor,
+  type SourcesQueryState,
+} from "../features/sources/sourcesQuery.js";
 import { useCondensedPreference } from "./viewPrefs.js";
 import {
   AppBody,
@@ -281,6 +287,37 @@ export function App() {
     setCalendarRoute(next);
   }
 
+  /**
+   * The Sources hub's parsed query state (law 9 — /sources owns its URL):
+   * the `?type=&q=&sort=` grammar in the address bar. Boot deep links and
+   * every popstate landing set it; the hub's filter gestures push/replace
+   * through navigateSources; every other navigation clears it (the
+   * sidebar's Sources row re-lands on the bare default), the calendar
+   * route precedent.
+   */
+  const [sourcesQuery, setSourcesQuery] = useState<SourcesQueryState>(() =>
+    parseSourcesQuery(window.location.search),
+  );
+
+  /**
+   * The Sources hub's URL seam (the calendar's navigateCalendar precedent):
+   * a type pick PUSHES a new history entry (a real navigation — back undoes
+   * the filter); q typing and sort changes REPLACE the current slot.
+   */
+  function navigateSources(next: SourcesQueryState, mode: "push" | "replace"): void {
+    const url = sourcesPathFor(next);
+    if (mode === "push") {
+      pushNav(url, { nav: "sources" });
+    } else {
+      window.history.replaceState({ nav: "sources" }, "", url);
+      setNavStack((stack) => ({
+        ...stack,
+        entries: stack.entries.map((entry, i) => (i === stack.index ? url : entry)),
+      }));
+    }
+    setSourcesQuery(next);
+  }
+
   const boot = useBootFlow(conn, pushNav);
   const {
     serverUrl,
@@ -390,6 +427,7 @@ export function App() {
     setSearchOpen(false);
     setSelectedPageId(id);
     setCalendarRoute(null);
+    setSourcesQuery(DEFAULT_SOURCES_QUERY);
     pushNav(`/${id}`, { node: id });
     recordRecent(id);
   }
@@ -406,6 +444,7 @@ export function App() {
     setSearchOpen(false);
     setSelectedPageId(null);
     setCalendarRoute(null);
+    setSourcesQuery(DEFAULT_SOURCES_QUERY);
     setNavStack((stack) => recordNavPush(stack, pathForSettingsSection(section)));
     pushSettingsSection(section);
   }
@@ -433,6 +472,7 @@ export function App() {
     setSettingsSection(null);
     setSelectedPageId(null);
     setCalendarRoute(null);
+    setSourcesQuery(DEFAULT_SOURCES_QUERY);
     const path =
       query !== undefined && query !== "" ? `/search?q=${encodeURIComponent(query)}` : "/search";
     pushNav(path, { view: "search" });
@@ -453,6 +493,7 @@ export function App() {
       setActiveNav(nav);
       setSelectedPageId(null);
       setCalendarRoute(null);
+      setSourcesQuery(DEFAULT_SOURCES_QUERY);
       pushNav(path, { nav });
     };
     if (view === "today" && live !== null) {
@@ -485,6 +526,7 @@ export function App() {
       setSettingsSection,
       setSearch: setSearchOpen,
       setCalendarRoute,
+      setSourcesQuery,
       onNavigated: (url) => setNavStack((stack) => recordNavPop(stack, url)),
     });
     window.addEventListener("popstate", onPopState);
@@ -768,6 +810,8 @@ export function App() {
         onCalendarRouteChange={navigateCalendar}
         onCalendarTitle={setCalendarTitle}
         resetCalendarRoute={() => setCalendarRoute(null)}
+        sourcesQuery={sourcesQuery}
+        onSourcesQueryChange={navigateSources}
       />
       <AppModals
         client={client}
