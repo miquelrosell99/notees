@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-24
 
+- **fix(web): Sources hub — hub-switch resets the sources query (law-9
+  state/URL parity; the whole-hub review's must-fix).** `onSelectNav`
+  cleared the settings section, search, selection, and the calendar route
+  on a hub switch but left the sources query stale — a bare `/sources`
+  URL rendered the old filter/sort. The reset now rides beside
+  `resetCalendarRoute` (`DEFAULT_SOURCES_QUERY`, replace mode); the
+  popstate handler and the App boot parse the sources grammar only on
+  `/sources` landings (another surface's `?q=` is its own param). New
+  tests: the AppBody branch at `activeNav="sources"` (prop forwarding +
+  the filter → switch → back round trip, mutation-checked against the
+  fix) and the popstate `setSourcesQuery` seam's path gate. Gate:
+  `pnpm typecheck && pnpm test` green.
+
 - **feat(web): Sources hub — detail pane (task 4 of the Sources hub
   plan).** The right pane ships the type-aware detail editor, composition
   only (always the system components): the TYPE CHIP rides the
