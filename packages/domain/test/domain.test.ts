@@ -313,13 +313,19 @@ describe("system seeds (ported)", () => {
     // docketNumber, reporter, reporterVolume, firstPage, dateDecided — `case`
     // has no class, owner ruling) and the already-seeded fields (isbn/doi/
     // publicationDate/publisher/url/citekey — never duplicated).
-    const text = { type: "text", bindTo: "source" } as const;
+    // RULING 2026-10-24 (owner): only the SHARED BASE binds at source —
+    // linkedAuthors/editors in this block (authors/isbn/doi/publicationDate/
+    // publisher/citekey/url/attachments ride the …0000- block) — every
+    // type-specific field is `bind: false`: the schema seeds scoped [source]
+    // (eligibility rides the extends chain) but NO binding row lands on the
+    // base; the per-class SYSTEM_SOURCE_CLASS_BINDINGS rows carry visibility.
+    const text = { type: "text", bindTo: "source", bind: false } as const;
     type PoolRow = readonly [key: string, uuidSuffix: string, spec: object, display: string];
     const pool: readonly PoolRow[] = [
       ["linkedAuthors", "000000000001", { type: "object", multi: true, bindTo: "source", targetClassFilter: ["agent"] }, "Linked authors"],
       ["editors", "000000000002", { type: "text", multi: true, bindTo: "source" }, "Editors"],
       ["abstract", "000000000003", text, "Abstract"],
-      ["accessDate", "000000000004", { type: "datetime", bindTo: "source" }, "Accessed"],
+      ["accessDate", "000000000004", { type: "datetime", bindTo: "source", bind: false }, "Accessed"],
       ["applicationNumber", "000000000005", text, "Application number"],
       ["archive", "000000000006", text, "Archive"],
       ["archiveLocation", "000000000007", text, "Archive location"],
@@ -423,6 +429,40 @@ describe("system seeds (ported)", () => {
     );
     expect(blockEntries.length).toBe(pool.length);
     expect(new Set(blockEntries)).toEqual(poolIds);
+  });
+
+  it("source binds only the shared base (owner ruling 2026-10-24): every …0006- non-base pool property is bind:false scoped [source]; the base family keeps its source binding", () => {
+    const base = new Set<SystemPropertyName>([
+      "authors", "linkedAuthors", "editors", "doi", "isbn", "publicationDate",
+      "publisher", "citekey", "url", "attachments",
+    ]);
+    // The …0006- block: linkedAuthors/editors (base, bind defaults true) are
+    // the ONLY exceptions — every other entry is bind:false + bindTo source
+    // + local scope (no global flag).
+    for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
+      if (spec === undefined) continue;
+      const id = SYSTEM_PROPERTY_UUIDS[name as SystemPropertyName];
+      if (!id.startsWith("00000000-0000-0000-0006-")) continue;
+      if (base.has(name as SystemPropertyName)) {
+        expect(spec.bind, `${name} is base — binding must default to true`).not.toBe(false);
+      } else {
+        expect(spec.bind, `${name} must carry bind: false`).toBe(false);
+        expect(spec.bindTo, `${name} stays scoped to source`).toBe("source");
+        expect(spec.global, `${name} stays local`).toBeUndefined();
+      }
+    }
+    // The shared base still binds at source (default true — no bind flag)…
+    for (const name of base) {
+      expect(SYSTEM_PROPERTY_SPECS[name]?.bind, `${name} binds at source`).not.toBe(false);
+      expect(SYSTEM_PROPERTY_SPECS[name]?.bindTo, `${name} stays scoped to source`).toBe("source");
+    }
+    // …and the base in the …0006- block is exactly linkedAuthors + editors.
+    const blockBase = (Object.keys(SYSTEM_PROPERTY_UUIDS) as SystemPropertyName[]).filter(
+      (name) =>
+        SYSTEM_PROPERTY_UUIDS[name].startsWith("00000000-0000-0000-0006-") &&
+        base.has(name),
+    );
+    expect(blockBase.sort()).toEqual(["editors", "linkedAuthors"]);
   });
 
   it("templates seed (T2): has-template reserved, seeded at GLOBAL scope (M47 — no class-class host), targets the template class", () => {

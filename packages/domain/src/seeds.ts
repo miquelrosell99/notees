@@ -532,8 +532,9 @@ export const SYSTEM_PROPERTY_UUIDS = {
   // T3 (D1 amendment, owner 2026-10-03) — instantiation provenance: a
   // generated node records its template INSTANCE-SIDE (single node-typed,
   // targets the template class). NOT class-bound — deliberately absent from
-  // SYSTEM_PROPERTY_SPECS (whose entries always seed a class binding); the
-  // web client self-heals the schema (ensureGeneratedFromProperty).
+  // SYSTEM_PROPERTY_SPECS (whose bound entries normally seed a class binding
+  // — `bind: false` excepted, owner ruling 2026-10-24); the web client
+  // self-heals the schema (ensureGeneratedFromProperty).
   generatedFrom: "00000000-0000-0000-0000-000000000027",
   // PG10 (owner recommendation 2026-10-04) — aliases are
   // BACK (the contradiction resolves to the parity side): a
@@ -576,8 +577,10 @@ export const SYSTEM_PROPERTY_UUIDS = {
   birthdayPerson: "00000000-0000-0000-0003-000000000011",
   // Bibliographic property pool (owner 2026-10-23, source-library slice 1
   // task 4): ONE reusable schema per Zotero field, every entry seeded at the
-  // family base (`bindTo: "source"` — task 5 carries the per-type binding
-  // table that narrows availability). Slots …0001/…0002 are pinned by the
+  // family base (`bindTo: "source"` — the schema's scope; RULING 2026-10-24:
+  // only the shared base seeds a BINDING row on source, every type-specific
+  // field is `bind: false` and binds on its own class via
+  // SYSTEM_SOURCE_CLASS_BINDINGS). Slots …0001/…0002 are pinned by the
   // controller (linkedAuthors reinstatement, editors); the rest continue the
   // block ALPHABETICALLY BY KEY for determinism (the …0048 roster precedent)
   // — the domain test pins the exact map. Deliberately absent: the case-type
@@ -730,6 +733,17 @@ export interface SystemPropertySpec {
   multi?: boolean;
   bindTo?: SystemClassName;
   /**
+   * Owner ruling 2026-10-24: binding-row emission on `bindTo`. Default true —
+   * a bound spec seeds the schema scoped to `bindTo` AND a class_property row
+   * on it. `bind: false` keeps the schema seeding with its `bindTo` scope
+   * (scope is the locality/eligibility authority) but SKIPS the binding row
+   * (bindings are visibility): the property is eligible on the class family
+   * yet renders bound only where a class-local row exists — the source
+   * bibliographic pool's non-base fields ride their per-class
+   * SYSTEM_SOURCE_CLASS_BINDINGS rows, not the source base.
+   */
+  bind?: boolean;
+  /**
    * Owner ruling 2026-10-20 (the seed-scope audit): a bound spec normally
    * seeds its schema LOCAL to `bindTo` (scopeClassIds [bindClass]) — the
    * binding row still lands on `bindTo` (bindings are per-class config),
@@ -826,106 +840,111 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // change if the owner wants org anniversaries).
   birthdayPerson: { type: "object", bindTo: "birthday", targetClassFilter: ["person"] },
   // Bibliographic property pool (owner 2026-10-23, source-library slice 1
-  // task 4): ONE reusable schema per Zotero field, every entry bound to the
-  // family base (`bindTo: "source"` — task 5 carries the per-type binding
-  // table that narrows availability; even the type-specific fields bind to
-  // source for now). All plain single-value text unless noted otherwise;
-  // accessDate is datetime (day precision is the schema default). The
-  // case-type orphans have no pool slot (see the UUID block comment) and
-  // already-seeded fields (isbn/doi/publicationDate/publisher/url/citekey)
-  // are not duplicated.
+  // task 4): ONE reusable schema per Zotero field, every entry scoped to the
+  // family base (`bindTo: "source"` — the scope makes every family member
+  // ELIGIBLE through the extends chain). RULING 2026-10-24 (owner): only the
+  // SHARED BASE seeds a binding row on source — linkedAuthors/editors here
+  // (authors/isbn/doi/publicationDate/publisher/citekey/url/attachments ride
+  // the …0000- block above) — every type-specific field carries `bind: false`:
+  // NO class_property row on source, so a source node renders ONLY the base
+  // plus its own class's SYSTEM_SOURCE_CLASS_BINDINGS rows (bindings are
+  // visibility, scope is eligibility). All plain single-value text unless
+  // noted otherwise; accessDate is datetime (day precision is the schema
+  // default). The case-type orphans have no pool slot (see the UUID block
+  // comment) and already-seeded fields (isbn/doi/publicationDate/publisher/
+  // url/citekey) are not duplicated.
   // linkedAuthors — REINSTATED 2026-10-23 after the 2026-09-27 withdrawal:
   // the node-typed authorship experiment returns as its own property, now
   // coexisting with the free-text `authors` (retyped the same day). The
   // withdrawn …0025 UUID stays burned, never reused.
   linkedAuthors: { type: "object", multi: true, bindTo: "source", targetClassFilter: ["agent"] },
   editors: { type: "text", multi: true, bindTo: "source" },
-  abstract: { type: "text", bindTo: "source" },
-  accessDate: { type: "datetime", bindTo: "source" },
-  applicationNumber: { type: "text", bindTo: "source" },
-  archive: { type: "text", bindTo: "source" },
-  archiveLocation: { type: "text", bindTo: "source" },
-  artworkMedium: { type: "text", bindTo: "source" },
-  artworkSize: { type: "text", bindTo: "source" },
-  assignee: { type: "text", bindTo: "source" },
-  blogTitle: { type: "text", bindTo: "source" },
-  bookTitle: { type: "text", bindTo: "source" },
-  callNumber: { type: "text", bindTo: "source" },
-  code: { type: "text", bindTo: "source" },
-  codeNumber: { type: "text", bindTo: "source" },
-  codePages: { type: "text", bindTo: "source" },
-  codeVolume: { type: "text", bindTo: "source" },
-  committee: { type: "text", bindTo: "source" },
-  company: { type: "text", bindTo: "source" },
-  dateEnacted: { type: "text", bindTo: "source" },
-  distributor: { type: "text", bindTo: "source" },
-  documentNumber: { type: "text", bindTo: "source" },
-  edition: { type: "text", bindTo: "source" },
-  episodeNumber: { type: "text", bindTo: "source" },
-  eventPlace: { type: "text", bindTo: "source" },
-  extra: { type: "text", bindTo: "source" },
-  filingDate: { type: "text", bindTo: "source" },
-  format: { type: "text", bindTo: "source" },
-  forumTitle: { type: "text", bindTo: "source" },
-  genre: { type: "text", bindTo: "source" },
-  history: { type: "text", bindTo: "source" },
-  identifier: { type: "text", bindTo: "source" },
-  institution: { type: "text", bindTo: "source" },
-  interviewMedium: { type: "text", bindTo: "source" },
-  issn: { type: "text", bindTo: "source" },
-  issue: { type: "text", bindTo: "source" },
-  issueDate: { type: "text", bindTo: "source" },
-  issuingAuthority: { type: "text", bindTo: "source" },
-  label: { type: "text", bindTo: "source" },
-  language: { type: "text", bindTo: "source" },
-  legalStatus: { type: "text", bindTo: "source" },
-  legislativeBody: { type: "text", bindTo: "source" },
-  letterType: { type: "text", bindTo: "source" },
-  medium: { type: "text", bindTo: "source" },
-  meetingName: { type: "text", bindTo: "source" },
-  nameOfAct: { type: "text", bindTo: "source" },
-  network: { type: "text", bindTo: "source" },
-  numPages: { type: "text", bindTo: "source" },
-  number: { type: "text", bindTo: "source" },
-  numberOfVolumes: { type: "text", bindTo: "source" },
-  pages: { type: "text", bindTo: "source" },
-  patentNumber: { type: "text", bindTo: "source" },
-  place: { type: "text", bindTo: "source" },
-  postType: { type: "text", bindTo: "source" },
-  priorityDate: { type: "text", bindTo: "source" },
-  priorityNumbers: { type: "text", bindTo: "source" },
-  proceedingsTitle: { type: "text", bindTo: "source" },
-  programTitle: { type: "text", bindTo: "source" },
-  programmingLanguage: { type: "text", bindTo: "source" },
-  publicLawNumber: { type: "text", bindTo: "source" },
-  publicationTitle: { type: "text", bindTo: "source" },
-  references: { type: "text", bindTo: "source" },
-  reportNumber: { type: "text", bindTo: "source" },
-  reportType: { type: "text", bindTo: "source" },
-  repository: { type: "text", bindTo: "source" },
-  repositoryLocation: { type: "text", bindTo: "source" },
-  rights: { type: "text", bindTo: "source" },
-  runningTime: { type: "text", bindTo: "source" },
-  scale: { type: "text", bindTo: "source" },
-  section: { type: "text", bindTo: "source" },
-  series: { type: "text", bindTo: "source" },
-  seriesNumber: { type: "text", bindTo: "source" },
-  seriesTitle: { type: "text", bindTo: "source" },
-  session: { type: "text", bindTo: "source" },
-  shortTitle: { type: "text", bindTo: "source" },
+  abstract: { type: "text", bindTo: "source", bind: false },
+  accessDate: { type: "datetime", bindTo: "source", bind: false },
+  applicationNumber: { type: "text", bindTo: "source", bind: false },
+  archive: { type: "text", bindTo: "source", bind: false },
+  archiveLocation: { type: "text", bindTo: "source", bind: false },
+  artworkMedium: { type: "text", bindTo: "source", bind: false },
+  artworkSize: { type: "text", bindTo: "source", bind: false },
+  assignee: { type: "text", bindTo: "source", bind: false },
+  blogTitle: { type: "text", bindTo: "source", bind: false },
+  bookTitle: { type: "text", bindTo: "source", bind: false },
+  callNumber: { type: "text", bindTo: "source", bind: false },
+  code: { type: "text", bindTo: "source", bind: false },
+  codeNumber: { type: "text", bindTo: "source", bind: false },
+  codePages: { type: "text", bindTo: "source", bind: false },
+  codeVolume: { type: "text", bindTo: "source", bind: false },
+  committee: { type: "text", bindTo: "source", bind: false },
+  company: { type: "text", bindTo: "source", bind: false },
+  dateEnacted: { type: "text", bindTo: "source", bind: false },
+  distributor: { type: "text", bindTo: "source", bind: false },
+  documentNumber: { type: "text", bindTo: "source", bind: false },
+  edition: { type: "text", bindTo: "source", bind: false },
+  episodeNumber: { type: "text", bindTo: "source", bind: false },
+  eventPlace: { type: "text", bindTo: "source", bind: false },
+  extra: { type: "text", bindTo: "source", bind: false },
+  filingDate: { type: "text", bindTo: "source", bind: false },
+  format: { type: "text", bindTo: "source", bind: false },
+  forumTitle: { type: "text", bindTo: "source", bind: false },
+  genre: { type: "text", bindTo: "source", bind: false },
+  history: { type: "text", bindTo: "source", bind: false },
+  identifier: { type: "text", bindTo: "source", bind: false },
+  institution: { type: "text", bindTo: "source", bind: false },
+  interviewMedium: { type: "text", bindTo: "source", bind: false },
+  issn: { type: "text", bindTo: "source", bind: false },
+  issue: { type: "text", bindTo: "source", bind: false },
+  issueDate: { type: "text", bindTo: "source", bind: false },
+  issuingAuthority: { type: "text", bindTo: "source", bind: false },
+  label: { type: "text", bindTo: "source", bind: false },
+  language: { type: "text", bindTo: "source", bind: false },
+  legalStatus: { type: "text", bindTo: "source", bind: false },
+  legislativeBody: { type: "text", bindTo: "source", bind: false },
+  letterType: { type: "text", bindTo: "source", bind: false },
+  medium: { type: "text", bindTo: "source", bind: false },
+  meetingName: { type: "text", bindTo: "source", bind: false },
+  nameOfAct: { type: "text", bindTo: "source", bind: false },
+  network: { type: "text", bindTo: "source", bind: false },
+  numPages: { type: "text", bindTo: "source", bind: false },
+  number: { type: "text", bindTo: "source", bind: false },
+  numberOfVolumes: { type: "text", bindTo: "source", bind: false },
+  pages: { type: "text", bindTo: "source", bind: false },
+  patentNumber: { type: "text", bindTo: "source", bind: false },
+  place: { type: "text", bindTo: "source", bind: false },
+  postType: { type: "text", bindTo: "source", bind: false },
+  priorityDate: { type: "text", bindTo: "source", bind: false },
+  priorityNumbers: { type: "text", bindTo: "source", bind: false },
+  proceedingsTitle: { type: "text", bindTo: "source", bind: false },
+  programTitle: { type: "text", bindTo: "source", bind: false },
+  programmingLanguage: { type: "text", bindTo: "source", bind: false },
+  publicLawNumber: { type: "text", bindTo: "source", bind: false },
+  publicationTitle: { type: "text", bindTo: "source", bind: false },
+  references: { type: "text", bindTo: "source", bind: false },
+  reportNumber: { type: "text", bindTo: "source", bind: false },
+  reportType: { type: "text", bindTo: "source", bind: false },
+  repository: { type: "text", bindTo: "source", bind: false },
+  repositoryLocation: { type: "text", bindTo: "source", bind: false },
+  rights: { type: "text", bindTo: "source", bind: false },
+  runningTime: { type: "text", bindTo: "source", bind: false },
+  scale: { type: "text", bindTo: "source", bind: false },
+  section: { type: "text", bindTo: "source", bind: false },
+  series: { type: "text", bindTo: "source", bind: false },
+  seriesNumber: { type: "text", bindTo: "source", bind: false },
+  seriesTitle: { type: "text", bindTo: "source", bind: false },
+  session: { type: "text", bindTo: "source", bind: false },
+  shortTitle: { type: "text", bindTo: "source", bind: false },
   // "Standard status" — not "Status": the task family's taskStatus already
   // owns the "Status" display name and the uniqueness law (owner directive
   // 2026-10-05) forbids two seeds collapsing into one label.
-  status: { type: "text", bindTo: "source" },
-  studio: { type: "text", bindTo: "source" },
-  system: { type: "text", bindTo: "source" },
-  thesisType: { type: "text", bindTo: "source" },
-  university: { type: "text", bindTo: "source" },
-  versionNumber: { type: "text", bindTo: "source" },
-  volume: { type: "text", bindTo: "source" },
-  websiteTitle: { type: "text", bindTo: "source" },
-  websiteType: { type: "text", bindTo: "source" },
-  workType: { type: "text", bindTo: "source" },
+  status: { type: "text", bindTo: "source", bind: false },
+  studio: { type: "text", bindTo: "source", bind: false },
+  system: { type: "text", bindTo: "source", bind: false },
+  thesisType: { type: "text", bindTo: "source", bind: false },
+  university: { type: "text", bindTo: "source", bind: false },
+  versionNumber: { type: "text", bindTo: "source", bind: false },
+  volume: { type: "text", bindTo: "source", bind: false },
+  websiteTitle: { type: "text", bindTo: "source", bind: false },
+  websiteType: { type: "text", bindTo: "source", bind: false },
+  workType: { type: "text", bindTo: "source", bind: false },
 };
 
 /**

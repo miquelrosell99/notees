@@ -340,8 +340,15 @@ export class WorkspaceClientReads {
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
       // bindTo-less specs (the global alias schema) are never class-bound —
       // skip them explicitly (undefined === systemClassName would otherwise
-      // "match" for non-system classes).
-      if (spec === undefined || spec.bindTo === undefined || spec.bindTo !== systemClassName) {
+      // "match" for non-system classes). `bind: false` specs (owner ruling
+      // 2026-10-24: the source pool's type-specific fields) seed NO binding
+      // row on their bindTo — the source base never read-synthesizes them.
+      if (
+        spec === undefined ||
+        spec.bind === false ||
+        spec.bindTo === undefined ||
+        spec.bindTo !== systemClassName
+      ) {
         continue;
       }
       const id = SYSTEM_PROPERTY_UUIDS[name as keyof typeof SYSTEM_PROPERTY_UUIDS];

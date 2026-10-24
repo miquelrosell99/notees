@@ -136,7 +136,9 @@ function ownSchemaIdsOf(client: AnyClient, classId: string): Set<string> {
   ).find(([, id]) => id === classId)?.[0];
   if (systemClassName !== undefined) {
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
-      if (spec === undefined || spec.bindTo !== systemClassName) continue;
+      // `bind: false` specs (owner ruling 2026-10-24) seed no binding row —
+      // not this class's own row.
+      if (spec === undefined || spec.bind === false || spec.bindTo !== systemClassName) continue;
       own.add(SYSTEM_PROPERTY_UUIDS[name as keyof typeof SYSTEM_PROPERTY_UUIDS]);
     }
   }

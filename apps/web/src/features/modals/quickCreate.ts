@@ -307,7 +307,7 @@ export async function ensureCitationFamily(
           }
         : {}),
     });
-    if (bindTo !== undefined) {
+    if (bindTo !== undefined && spec.bind !== false) {
       await client.setClassProperty(bindTo, id, {});
     }
   }

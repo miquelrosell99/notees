@@ -99,7 +99,11 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
         client: "seed",
       }),
     );
-    if (spec.bindTo === undefined) continue;
+    if (spec.bindTo === undefined || spec.bind === false) continue;
+    // `bind: false` (owner ruling 2026-10-24): the schema seeds scoped to
+    // `bindTo` above but NO binding row lands on it — the source pool's
+    // type-specific fields render bound only via their own class's
+    // SYSTEM_SOURCE_CLASS_BINDINGS rows; the source base keeps its rows.
     // The binding is a configuration ROW (class.property.*) carrying the
     // genuinely per-class mechanic ONLY — the active soft-unbind flag
     // (sequence retired 2026-10-21: effective-properties derives boundBy

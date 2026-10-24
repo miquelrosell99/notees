@@ -27,8 +27,11 @@
  *      every missing pool property schema (…0006- block, task 4) gets
  *      propertySchema.create with the seed mapping (name/type/multi/
  *      scopeClassIds/defaultValue/options/targetClassFilter) + its spec's
- *      bindTo binding row, the manifest's binding rows land per missing
- *      (class, schema) pair — SYSTEM_PROPERTY_SPECS bindTo rows,
+ *      bindTo binding row — EXCEPT `bind: false` specs (owner ruling
+ *      2026-10-24: the source pool's type-specific fields bind only on
+ *      their own classes, never on the base), the manifest's binding rows
+ *      land per missing (class, schema) pair — SYSTEM_PROPERTY_SPECS bindTo
+ *      rows,
  *      SYSTEM_EXTRA_CLASS_BINDINGS (url→web_page among them),
  *      SYSTEM_SOURCE_CLASS_BINDINGS (task 5's 39-class table) — and each
  *      SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES class seeds archived
@@ -500,7 +503,11 @@ function planWorkspace(store: Store): WorkspacePlan {
     bucket.push({ classId, propertySchemaId });
   };
   for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
-    if (spec === undefined || spec.bindTo === undefined) continue;
+    // `bind: false` (owner ruling 2026-10-24): the schema seeds (above)
+    // scoped to its bindTo but NO binding row lands on the base — the
+    // source pool's type-specific fields bind only on their own classes
+    // (SYSTEM_SOURCE_CLASS_BINDINGS, the next loop).
+    if (spec === undefined || spec.bindTo === undefined || spec.bind === false) continue;
     pushBinding(
       plan.missingSpecBindings,
       SYSTEM_CLASS_UUIDS[spec.bindTo],

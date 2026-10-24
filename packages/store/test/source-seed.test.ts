@@ -125,8 +125,11 @@ function sourceSeedEnvelopes(): Envelope[] {
       ),
     );
   }
-  // The pool: every spec bound to the source base (the task-4 pool is
-  // scoped to source, `global` flips url) — schema row + the base's binding.
+  // The pool: every spec scoped to the source base (the task-4 pool is
+  // scoped to source, `global` flips url) — schema row ALWAYS; the binding
+  // row only when the spec binds (owner ruling 2026-10-24: `bind: false`
+  // pool fields seed their schemas scoped [source] but NO class_property
+  // row on source — the per-class rows below carry their visibility).
   const pool = (
     Object.entries(SYSTEM_PROPERTY_SPECS) as Array<
       [SystemPropertyName, (typeof SYSTEM_PROPERTY_SPECS)[SystemPropertyName]]
@@ -153,6 +156,7 @@ function sourceSeedEnvelopes(): Envelope[] {
         step(),
       ),
     );
+    if (spec!.bind === false) continue;
     envelopes.push(
       env(
         "class.property.set",
@@ -308,9 +312,116 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         const expected = properties.map((p) => SYSTEM_PROPERTY_UUIDS[p]).sort();
         expect(own).toEqual(expected);
       }
-      // The base's own rows ride too (the pool bound on source).
+      // The base's own rows ride too — the shared base only (owner ruling
+      // 2026-10-24): authors/linkedAuthors/editors/doi/isbn/publicationDate/
+      // publisher/citekey/url/attachments, the `bind: false` pool excluded.
       const sourceRows = byClass.get(SYSTEM_CLASS_UUIDS.source) ?? [];
       expect(sourceRows.length).toBeGreaterThan(0);
+    });
+
+    it("bind:false pool specs seed their schemas scoped [source] but NO class_property row on source; the base family still binds (owner 2026-10-24)", () => {
+      const store = makeStore();
+      seedStore(store);
+      const sourceId = SYSTEM_CLASS_UUIDS.source;
+      const schemaRow = store.database.prepare(
+        "SELECT scope_class_ids FROM property_schema WHERE id = ?",
+      );
+      const bindingRow = store.database.prepare(
+        "SELECT active FROM class_property WHERE class_id = ? AND property_schema_id = ?",
+      );
+      const getBinding = (classId: string, schemaId: string) =>
+        bindingRow.get(classId as string, schemaId as string);
+      const bindFalsePool = (
+        Object.entries(SYSTEM_PROPERTY_SPECS) as Array<
+          [SystemPropertyName, (typeof SYSTEM_PROPERTY_SPECS)[SystemPropertyName]]
+        >
+      ).filter(([, spec]) => spec !== undefined && spec.bind === false && spec.bindTo === SOURCE);
+      expect(bindFalsePool.length).toBeGreaterThan(0);
+      for (const [name, spec] of bindFalsePool) {
+        const schemaId = SYSTEM_PROPERTY_UUIDS[name];
+        const schema = schemaRow.get(schemaId) as { scope_class_ids: string | null } | undefined;
+        expect(schema, `${name}: schema row must exist`).toBeDefined();
+        if (spec!.global === true) {
+          expect(schema!.scope_class_ids).toBeNull();
+        } else {
+          expect(JSON.parse(schema!.scope_class_ids!)).toEqual([sourceId]);
+        }
+        expect(
+          getBinding(sourceId, schemaId),
+          `${name}: no class_property row on source`,
+        ).toBeUndefined();
+      }
+      // The shared base keeps its binding rows on source.
+      const baseFamily: SystemPropertyName[] = [
+        "authors", "linkedAuthors", "editors", "doi", "isbn",
+        "publicationDate", "publisher", "citekey", "url", "attachments",
+      ];
+      for (const name of baseFamily) {
+        expect(
+          getBinding(sourceId, SYSTEM_PROPERTY_UUIDS[name]),
+          `${name} must bind at source`,
+        ).toBeDefined();
+      }
+      // Exactly the base family: the source registry rows carry no bind:false pool id.
+      const sourceBindings = store.database
+        .prepare("SELECT property_schema_id FROM class_property WHERE class_id = ?")
+        .all(sourceId) as Array<{ property_schema_id: string }>;
+      const baseIds = new Set<string>(baseFamily.map((name) => SYSTEM_PROPERTY_UUIDS[name]));
+      for (const row of sourceBindings) {
+        expect(baseIds.has(row.property_schema_id)).toBe(true);
+      }
+    });
+
+    it("a journal_article node resolves its Zotero fields through its own class rows; a song does not inherit the journal's", () => {
+      const store = makeStore();
+      seedStore(store);
+      store.apply(
+        env(
+          "object.create",
+          {
+            objectId: NODE_ACTIVE,
+            classIds: [SYSTEM_CLASS_UUIDS.journal_article],
+            contentAst: text("An article"),
+          },
+          1727201000000,
+        ),
+      );
+      const journal = store.getEffectiveProperties(NODE_ACTIVE).map((p) => p.propertySchemaId);
+      // volume/issue/pages ride journal_article's own SYSTEM_SOURCE_CLASS_BINDINGS rows.
+      for (const name of ["volume", "issue", "pages"] as SystemPropertyName[]) {
+        expect(journal).toContain(SYSTEM_PROPERTY_UUIDS[name]);
+      }
+      // The shared base resolves through extends [source].
+      expect(journal).toContain(SYSTEM_PROPERTY_UUIDS.citekey);
+      // bookTitle is a bind:false pool field bound ONLY on the book family —
+      // it must not leak onto the journal through the source base.
+      expect(journal).not.toContain(SYSTEM_PROPERTY_UUIDS.bookTitle);
+      // The case orphans have no pool schema at all (owner ruling): no
+      // "Docket number" schema exists anywhere in the seed.
+      const docket = store.database
+        .prepare("SELECT id FROM property_schema WHERE name = ?")
+        .get("Docket number");
+      expect(docket).toBeUndefined();
+
+      // A song: its Zotero audioRecording set carries volume but NOT the
+      // journal's issue/pages/publicationTitle.
+      const NODE_SONG = "0192a000-0000-7000-8000-000000000503";
+      store.apply(
+        env(
+          "object.create",
+          {
+            objectId: NODE_SONG,
+            classIds: [SYSTEM_CLASS_UUIDS.song],
+            contentAst: text("A song"),
+          },
+          1727201001000,
+        ),
+      );
+      const song = store.getEffectiveProperties(NODE_SONG).map((p) => p.propertySchemaId);
+      expect(song).toContain(SYSTEM_PROPERTY_UUIDS.volume);
+      for (const name of ["issue", "pages", "publicationTitle"] as SystemPropertyName[]) {
+        expect(song).not.toContain(SYSTEM_PROPERTY_UUIDS[name]);
+      }
     });
 
     it("re-applying the whole seed is a complete no-op (idempotent ensure)", () => {

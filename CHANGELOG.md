@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-24
 
+- **fix(domain,store,server,web): source binds only the shared base — each
+  subclass carries its Zotero field set (owner 2026-10-24).** The
+  source-library slice seeded ALL ~85 bibliographic pool properties with a
+  binding row on `source`, so every source node rendered every pool property
+  as a bound-but-empty row. Ruling: `source` binds ONLY the shared base
+  (`authors`, `linkedAuthors`, `editors`, `doi`, `isbn`, `publicationDate`,
+  `publisher`, `citekey`, `url`, `attachments`); each subclass's Zotero field
+  set rides its own class via `SYSTEM_SOURCE_CLASS_BINDINGS` (already true).
+  `SystemPropertySpec` gains `bind?: boolean` (default true — when false the
+  schema still seeds scoped `[bindTo]` but NO binding row lands on `bindTo`;
+  bindings are visibility, scope is eligibility). Every consumer honors it:
+  the server seed (`apps/server/src/seed.ts`), the web `deploySystemClass`
+  self-heal, the `getClassBindings` seed-spec fallback read, the ClassView
+  direct/inherited attribution, and `ensureCitationFamily`. Manifest-only —
+  no wire/fixture change; live workspaces converge by an operator-run
+  migration (out of scope, separate dispatch), and the GTK/Flutter seed
+  manifests carry no binding emission for the pool (client seed manifests
+  checked, no alignment needed — the slice's binding rows move through the
+  log only).
+  - **Verification**: domain pins (every …0006- non-base pool property is
+    `bind: false` scoped `[source]`; the base family keeps its source
+    binding); store seed suite on both adapters pins (no `class_property`
+    row on `source` for `bind: false` specs while their schemas exist scoped
+    `[source]`; per-class rows untouched; a `journal_article` node resolves
+    volume/issue/pages and never `bookTitle`; a `song` carries its own
+    audioRecording set, not the journal's). Full gate green.
 - **refactor(web): the time-grid header splits its registers — the day
   number opens the day page, the header's empty space selects (owner
   2026-10-24).** The ghost-creation pass had the day-number button do
