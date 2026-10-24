@@ -1,0 +1,37 @@
+/* EventCreateModal — the dblclick-to-create event dialog. Tokens from
+   variables.css: the fields ride the fleet TextField (the underline
+   register); this sheet only owns the column rhythm, the two-up row, and
+   the hint/error text. */
+
+.event-create-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+/* Start day + start time (and the end pair) sit side by side on the
+   dialog's sm measure; each field keeps its own underline. */
+.event-create-modal__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-3);
+}
+
+.event-create-modal__hint {
+  margin: 0;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.event-create-modal__error {
+  margin: 0;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-error);
+}
+
+.event-create-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}

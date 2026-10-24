@@ -1,24 +1,22 @@
 /**
- * CalendarView pure-logic tests: the local-day helpers, the ISO week, the
- * created-today UTC bounds from a local date, the open-task AST (negated-eq
- * arms — never neq), and the scheduled/overdue/future partition.
+ * Calendar pure-logic tests: the local-day helpers, the ISO week, the
+ * created-today UTC bounds from a local date, the datetime slot helpers
+ * (points, ranges, clock times — SCHEMA.md "Datetime"), and the
+ * scheduled/overdue/future task partition.
  */
 
 import { describe, expect, it } from "vitest";
 
 import {
-  SYSTEM_CLASS_UUIDS,
-  SYSTEM_PROPERTY_UUIDS,
-} from "@notees/domain";
-
-import {
   addDaysIso,
-  buildCreatedTodayAst,
-  buildOpenTasksAst,
-  closedStatusOptionIds,
   createdTodayBounds,
+  dayNodeId,
   isoWeekNumber,
   partitionOpenTasks,
+  scheduledIsoOf,
+  slotTimeOf,
+  timeOfValue,
+  timePrefixOfValue,
   todayIsoLocal,
   weekdayLabel,
   type OpenTaskRow,
@@ -67,75 +65,68 @@ describe("createdTodayBounds", () => {
     expect(after < before).toBe(true);
     expect(after.endsWith("Z")).toBe(true);
   });
-
-  it("buildCreatedTodayAst carries the window over createdAfter/createdBefore and keeps main nodes only", () => {
-    const ast = buildCreatedTodayAst("2026-10-02");
-    expect(ast.root.logic).toBe("and");
-    const children = ast.root.children;
-    expect(children).toHaveLength(3);
-    const after = children[0] as { type: string; timestamp: string };
-    const before = children[1] as { type: string; timestamp: string };
-    expect(after.type).toBe("createdAfter");
-    expect(before.type).toBe("createdBefore");
-    expect(after.timestamp).toBe(createdTodayBounds("2026-10-02").after);
-    expect(before.timestamp).toBe(createdTodayBounds("2026-10-02").before);
-    // Main nodes only: classes or present-as-main — blocks never list.
-    expect(children[2]).toEqual({
-      type: "group",
-      logic: "or",
-      children: [
-        { type: "isClass", isClass: true },
-        { type: "isEmbedded", isEmbedded: false },
-      ],
-    });
-  });
 });
 
-describe("buildOpenTasksAst", () => {
-  it("is class:task AND scheduled exists AND one negated-eq arm per closed status — never neq", () => {
-    const ast = buildOpenTasksAst(["opt-done", "opt-cancelled"]);
-    expect(ast.scope).toEqual({ type: "entire_workspace" });
-    const children = ast.root.children;
-    expect(children[0]).toEqual({ type: "class", classId: SYSTEM_CLASS_UUIDS.task });
-    expect(children[1]).toEqual({
-      type: "property",
-      schemaId: SYSTEM_PROPERTY_UUIDS.taskScheduled,
-      op: "exists",
-    });
-    expect(children[2]).toEqual({
-      type: "not",
-      child: {
-        type: "property",
-        schemaId: SYSTEM_PROPERTY_UUIDS.taskStatus,
-        op: "eq",
-        value: "opt-done",
-      },
-    });
-    expect(children[3]).toEqual({
-      type: "not",
-      child: {
-        type: "property",
-        schemaId: SYSTEM_PROPERTY_UUIDS.taskStatus,
-        op: "eq",
-        value: "opt-cancelled",
-      },
-    });
-    // The compiler caveat in code: no neq anywhere in the tree.
-    expect(JSON.stringify(ast)).not.toContain('"neq"');
+describe("datetime slot helpers (points, ranges, times)", () => {
+  const dayA = dayNodeId("2026-10-02");
+  const dayB = dayNodeId("2026-10-04");
+
+  it("scheduledIsoOf resolves a point's own day, strictly at day precision", () => {
+    expect(scheduledIsoOf({ nodeId: dayA })).toBe("2026-10-02");
+    expect(scheduledIsoOf({ nodeId: dayA, time: "14:30" })).toBe("2026-10-02");
+    expect(scheduledIsoOf({ nodeId: "00000000-0000-0000-00aa-202610000000" })).toBeNull();
+    expect(scheduledIsoOf({ nodeId: "not-a-date" })).toBeNull();
+    expect(scheduledIsoOf("2026-10-02")).toBeNull();
+    expect(scheduledIsoOf(undefined)).toBeNull();
+    expect(scheduledIsoOf(null)).toBeNull();
   });
 
-  it("closedStatusOptionIds resolves only Done/Cancelled labels", () => {
-    const ids = closedStatusOptionIds({
-      options: [
-        { id: "a", label: "Backlog" },
-        { id: "b", label: "Doing" },
-        { id: "c", label: "Done" },
-        { id: "d", label: "Cancelled" },
-      ],
-    });
-    expect(ids).toEqual(["c", "d"]);
-    expect(closedStatusOptionIds({ options: null })).toEqual([]);
-    expect(closedStatusOptionIds(undefined)).toEqual([]);
+  it("scheduledIsoOf resolves a range to the start day, falling back to the end's", () => {
+    expect(scheduledIsoOf({ start: { nodeId: dayA }, end: { nodeId: dayB } })).toBe("2026-10-02");
+    expect(scheduledIsoOf({ start: { nodeId: dayA, time: "14:30" }, end: { nodeId: dayB, time: "16:00" } })).toBe(
+      "2026-10-02",
+    );
+    // An open start lands on the end slot's day.
+    expect(scheduledIsoOf({ start: null, end: { nodeId: dayB } })).toBe("2026-10-04");
+    // Both sides open (or non-day slots) resolve to nothing.
+    expect(scheduledIsoOf({ start: null, end: null })).toBeNull();
+  });
+
+  it("timeOfValue reads the start slot's HH:MM — null for untimed values and ranges without a start time", () => {
+    expect(timeOfValue({ nodeId: dayA, time: "14:30" })).toBe("14:30");
+    expect(timeOfValue({ nodeId: dayA })).toBeNull();
+    expect(timeOfValue({ start: { nodeId: dayA, time: "14:30" }, end: { nodeId: dayB, time: "16:00" } })).toBe(
+      "14:30",
+    );
+    expect(timeOfValue({ start: { nodeId: dayA }, end: { nodeId: dayB } })).toBeNull();
+    expect(timeOfValue({ start: null, end: { nodeId: dayB } })).toBeNull();
+    expect(timeOfValue("junk")).toBeNull();
+  });
+
+  it("slotTimeOf reads one slot's time (null for untimed/malformed slots)", () => {
+    expect(slotTimeOf({ nodeId: dayA, time: "09:05" })).toBe("09:05");
+    expect(slotTimeOf({ nodeId: dayA })).toBeNull();
+    expect(slotTimeOf(dayA)).toBeNull();
+    expect(slotTimeOf(null)).toBeNull();
+  });
+
+  it("timePrefixOfValue pairs both times on the same day; otherwise the start time alone", () => {
+    // Same-day timed range: the Google "14:30–16:00" register.
+    expect(
+      timePrefixOfValue({
+        start: { nodeId: dayA, time: "14:30" },
+        end: { nodeId: dayA, time: "16:00" },
+      }),
+    ).toBe("14:30–16:00");
+    // A multi-day range shows the start time on its start day only.
+    expect(
+      timePrefixOfValue({ start: { nodeId: dayA, time: "14:30" }, end: { nodeId: dayB, time: "16:00" } }),
+    ).toBe("14:30");
+    // An untimed end (or an open end) leaves the bare start time.
+    expect(timePrefixOfValue({ start: { nodeId: dayA, time: "14:30" }, end: { nodeId: dayA } })).toBe("14:30");
+    // Untimed values carry no prefix.
+    expect(timePrefixOfValue({ nodeId: dayA })).toBeNull();
+    expect(timePrefixOfValue({ start: { nodeId: dayA }, end: { nodeId: dayB } })).toBeNull();
   });
 });
 
