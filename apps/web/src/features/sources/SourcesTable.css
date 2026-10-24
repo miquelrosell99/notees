@@ -1,0 +1,74 @@
+/**
+ * SourcesTable styles — the Sources hub's middle pane: the toolbar row
+ * (search · count · exports · Add source · settings) over the shared table
+ * view. Token-only (variables.css); the layout values ride the adaptive
+ * form (ch/em/spacing tokens), the pane fills the hub's middle cell and
+ * the table body scrolls inside it. The shared table registers
+ * (nt-table*, TableView.css) stay the collection's — this file owns only
+ * the hub toolbar + the projection cells' registers.
+ */
+
+.nt-sources-table {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  outline: none;
+}
+
+/* The toolbar: one chrome row over the table (the Zotero convention). */
+.nt-sources-table__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: none;
+}
+
+.nt-sources-table__toolbar .search-field {
+  flex: 0 1 24em;
+}
+
+.nt-sources-table__count {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.nt-sources-table__spacer {
+  flex: 1;
+}
+
+/* The projection cells (the custom column renderers). */
+.nt-sources-table__type {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nt-sources-table__title {
+  font-weight: 500;
+}
+
+.nt-sources-table__year {
+  font-variant-numeric: tabular-nums;
+}
+
+.nt-sources-table__citekey {
+  font-family: var(--font-family-mono);
+}
+
+.nt-sources-table__attachments {
+  margin-inline-start: var(--spacing-1);
+}
+
+/* The table body scrolls inside the pane; the toolbar stays pinned. */
+.nt-sources-table .node-collection {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}

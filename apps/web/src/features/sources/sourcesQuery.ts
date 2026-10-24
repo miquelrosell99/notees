@@ -38,8 +38,8 @@ import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import type { ClientNode, EffectiveProperty } from "../../core/workspace-client/index.js";
 
 /**
- * The table's sortable display columns (the sorting itself lands with the
- * items table — the register exists now so the URL grammar is stable).
+ * The table's sortable display columns (the URL grammar's five fields; the
+ * items table's sortable custom columns carry the same ids).
  */
 export const SOURCES_SORT_FIELDS = ["title", "authors", "year", "venue", "citekey"] as const;
 export type SourcesSortField = (typeof SOURCES_SORT_FIELDS)[number];
@@ -428,8 +428,9 @@ function projectRow(
 }
 
 /** The q contract: a row answers when the (lowercased) search string hits
- *  the title, the authorsText, OR the citekey. */
-function rowMatchesQ(row: SourceRow, q: string): boolean {
+ *  the title, the authorsText, OR the citekey. Exported for the items
+ *  table's live local filter (the same predicate the row producer applies). */
+export function rowMatchesQ(row: SourceRow, q: string): boolean {
   return (
     row.title.toLowerCase().includes(q) ||
     row.authorsText.toLowerCase().includes(q) ||
@@ -437,8 +438,10 @@ function rowMatchesQ(row: SourceRow, q: string): boolean {
   );
 }
 
-/** Client-side sort over the loaded set (the URL grammar's five fields;
- *  unvalued years ride last in both directions). */
+/** Client-side sort over the loaded set (the URL grammar's five fields).
+ *  Empty values — the null years AND the empty strings — sink LAST in both
+ *  directions (Review Focus 2), the table view's shared comparator
+ *  convention. */
 function sortRows(rows: SourceRow[], sort: SourcesSort | null): SourceRow[] {
   const field = sort?.field ?? "title";
   const dir = sort?.direction ?? "asc";
@@ -453,7 +456,13 @@ function sortRows(rows: SourceRow[], sort: SourcesSort | null): SourceRow[] {
       return (av - bv) * sign;
     }
     const key = field === "authors" ? "authorsText" : field;
-    return a[key].localeCompare(b[key]) * sign;
+    const av = a[key];
+    const bv = b[key];
+    const emptyA = av === "";
+    const emptyB = bv === "";
+    if (emptyA !== emptyB) return emptyA ? 1 : -1;
+    if (emptyA && emptyB) return 0;
+    return av.localeCompare(bv) * sign;
   });
 }
 

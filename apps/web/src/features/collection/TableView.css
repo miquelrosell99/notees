@@ -498,6 +498,13 @@ td .nt-table-text-cell .nt-page-title {
   background: var(--md-sys-color-hover-overlay);
 }
 
+/* The keyboard-nav highlight (the single-select containers — the Sources
+   hub's items table): the active row wears a stronger wash so the arrow-key
+   selection reads against the checkbox multi-select's lighter one. */
+.nt-table-row--active > td {
+  background: var(--md-sys-color-secondary-container);
+}
+
 /* The shared selection-export chrome (cards/board toolbars use the
    same classes): count + Export selected…, quiet until a selection exists. */
 .selection-export {

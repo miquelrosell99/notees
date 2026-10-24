@@ -464,12 +464,21 @@ describe("runSourcesQuery — sort", () => {
     expect(rows.at(-1)!.title).toBe("A Great Article");
   });
 
-  it("sorts by citekey ascending", async () => {
+  it("sorts by citekey ascending, empty citekeys last (Review Focus 2)", async () => {
     const { client, items } = await seededClient();
     const rows = await runSourcesQuery(client, {}, { field: "citekey", direction: "asc" });
     const keys = rows.map((r) => r.citekey);
-    expect(keys).toEqual([...keys].sort((a, b) => a.localeCompare(b)));
+    const valued = keys.filter((key) => key !== "");
+    expect(valued).toEqual([...valued].sort((a, b) => a.localeCompare(b)));
+    // The empty citekeys sink last (asc) — not first, the localeCompare order.
+    expect(keys.slice(valued.length)).toEqual(keys.filter((key) => key === ""));
     expect(rows.find((r) => r.id === items.a1)!.citekey).toBe("lovelace1843analytical");
+
+    const desc = await runSourcesQuery(client, {}, { field: "citekey", direction: "desc" });
+    const descKeys = desc.map((r) => r.citekey);
+    const descValued = descKeys.filter((key) => key !== "");
+    expect(descValued).toEqual([...descValued].sort((a, b) => b.localeCompare(a)));
+    expect(descKeys.slice(descValued.length)).toEqual(descKeys.filter((key) => key === ""));
   });
 });
 

@@ -1,0 +1,608 @@
+/**
+ * Sources hub items-table + toolbar tests (task 3):
+ *
+ * - The library columns render the display projection (type label, title,
+ *   authors, year, venue, citekey, the attachments badge).
+ * - The toolbar: the live item count ("N sources"), the search box
+ *   (title/authors/citekey, debounced, URL "replace"), the filtered-set
+ *   .bib + CSL-JSON exports (Review Focus 5 — the payload carries exactly
+ *   the filtered rows), the Add-source door, the Sources settings shortcut.
+ * - Sorting: the URL sort deep-links (?sort=year:desc), header clicks push
+ *   the App-owned state (asc → desc → clear), and EMPTY values sink last
+ *   in BOTH directions (Review Focus 2).
+ * - Keyboard nav (the existing keyboard-list conventions): up/down move
+ *   the single selection, Enter focuses the detail pane; selection drives
+ *   SourcesDetail.
+ * - Empty states: an empty library renders the Add-first-source hint;
+ *   filters excluding everything render the honest "No sources match".
+ *
+ * Seeded over the repo's test-client pattern (MemoryRelay + sql.js), the
+ * sources-data convention — journal ×2, web_page ×3, archived artwork ×1,
+ * the bibliographic bindings on `source`, per-class venue bindings.
+ */
+
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+
+import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import {
+  SYSTEM_CLASS_DISPLAY_NAMES,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_DISPLAY_NAMES,
+  SYSTEM_PROPERTY_UUIDS,
+  type SystemClassName,
+} from "@notees/domain";
+
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import { STORAGE_KEYS, writeStored } from "../src/ui/app/storage.js";
+import { SourcesHub } from "../src/features/sources/SourcesHub.js";
+import {
+  DEFAULT_SOURCES_QUERY,
+  type SourcesQueryState,
+} from "../src/features/sources/sourcesQuery.js";
+import { AddSourceHost } from "../src/features/sources/AddSourceHost.js";
+import { WorkspaceSettingsHost } from "../src/features/workspaces/WorkspaceSettingsHost.js";
+
+const WS = "0192a000-0000-7000-8000-00000000a001";
+const ACTOR = "0192a000-0000-7000-8000-00000000a002";
+
+let sqlModule: SqlJsStatic;
+
+beforeAll(async () => {
+  sqlModule = await initSqlJs();
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+});
+
+const clients: WorkspaceClient[] = [];
+
+afterEach(() => {
+  while (clients.length > 0) clients.pop()!.close();
+  vi.restoreAllMocks();
+  window.localStorage.clear();
+});
+
+const ROSTER = ["journal_article", "web_page", "artwork"] as const;
+/** Classes beyond the type roster the seed needs. */
+const SUPPORT = ["asset"] as const;
+
+export interface LibraryItems {
+  a1: string;
+  a2: string;
+  w1: string;
+  w2: string;
+  w3: string;
+  r1: string;
+}
+
+async function seedClient(withItems = true): Promise<{ client: WorkspaceClient; items: LibraryItems }> {
+  const client = await WorkspaceClient.create({
+    transport: new MemoryTransport(new MemoryRelay()),
+    actorId: ACTOR,
+    sqlJs: sqlModule,
+  });
+  clients.push(client);
+  await client.bootstrapWorkspace(WS);
+
+  for (const name of ["source", ...SUPPORT, ...ROSTER] as const) {
+    await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES[name], { id: SYSTEM_CLASS_UUIDS[name] });
+  }
+  for (const name of ROSTER) {
+    await client.setClassExtends(SYSTEM_CLASS_UUIDS[name], [SYSTEM_CLASS_UUIDS.source]);
+  }
+  const SOURCE = SYSTEM_CLASS_UUIDS.source;
+  const P = SYSTEM_PROPERTY_UUIDS;
+  const schema = async (
+    key: keyof typeof SYSTEM_PROPERTY_UUIDS,
+    multi: boolean,
+    type: "text" | "datetime" | "asset" = "text",
+  ) => {
+    await client.createPropertySchema({
+      id: P[key],
+      name: SYSTEM_PROPERTY_DISPLAY_NAMES[key],
+      type,
+      multi,
+      scopeClassIds: [SOURCE],
+    });
+  };
+  await schema("authors", true);
+  await schema("publicationDate", false, "datetime");
+  await schema("citekey", false);
+  await schema("attachments", true, "asset");
+  await schema("publicationTitle", false);
+  await schema("websiteTitle", false);
+  for (const key of ["authors", "publicationDate", "citekey", "attachments"] as const) {
+    await client.setClassProperty(SOURCE, P[key], {});
+  }
+  await client.setClassProperty(SYSTEM_CLASS_UUIDS.journal_article, P.publicationTitle, {});
+  await client.setClassProperty(SYSTEM_CLASS_UUIDS.web_page, P.websiteTitle, {});
+  // artwork rides SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES — archive it (its
+  // items still read in the table, the task-2 membership ruling).
+  await client.setArchived(SYSTEM_CLASS_UUIDS.artwork, false);
+
+  const items: LibraryItems = { a1: "", a2: "", w1: "", w2: "", w3: "", r1: "" };
+  if (withItems) {
+    const create = (title: string, classes: readonly SystemClassName[]) =>
+      client.createObject({
+        isEmbedded: false,
+        name: title,
+        classIds: classes.map((c) => SYSTEM_CLASS_UUIDS[c]),
+      });
+    const date = async (id: string, iso: string) => {
+      const { year } = await client.ensureDateChain(iso);
+      await client.setProperty(id, P.publicationDate, { nodeId: year }, 0);
+    };
+
+    items.a1 = await create("On the Analytical Engine", ["journal_article"]);
+    await client.setProperty(items.a1, P.authors, "Lovelace, Ada", 0);
+    await client.setProperty(items.a1, P.authors, "Turing, Alan", 1);
+    await client.setProperty(items.a1, P.publicationTitle, "The Example Journal", 0);
+    await client.setProperty(items.a1, P.citekey, "lovelace1843analytical", 0);
+    const asset1 = await create("paper.pdf", ["asset"]);
+    await date(items.a1, "1843-01-01");
+    await client.setProperty(items.a1, P.attachments, { nodeId: asset1 }, 0);
+
+    items.a2 = await create("Computing Machinery", ["journal_article"]);
+    await client.setProperty(items.a2, P.authors, "Turing, Alan", 0);
+    await client.setProperty(items.a2, P.publicationTitle, "Mind", 0);
+    await client.setProperty(items.a2, P.citekey, "turing1950computing", 0);
+    await date(items.a2, "1950-01-01");
+
+    items.w1 = await create("A Great Article", ["web_page"]);
+    await client.setProperty(items.w1, P.websiteTitle, "Example Blog", 0);
+    await client.setProperty(items.w1, P.citekey, "great2021article", 0);
+
+    items.w2 = await create("Another Page", ["web_page"]);
+    await client.setProperty(items.w2, P.authors, "Smith, John", 0);
+    await client.setProperty(items.w2, P.websiteTitle, "Example Site", 0);
+    await client.setProperty(items.w2, P.citekey, "smith2020another", 0);
+    await date(items.w2, "2020-01-01");
+
+    items.w3 = await create("Third Page", ["web_page"]);
+    await client.setProperty(items.w3, P.authors, "Doe, Jane", 0);
+    await client.setProperty(items.w3, P.websiteTitle, "Example Site", 0);
+    await client.setProperty(items.w3, P.citekey, "doe2022third", 0);
+
+    items.r1 = await create("Archived Piece", ["artwork"]);
+    await client.setProperty(items.r1, P.citekey, "piece1900archived", 0);
+    await date(items.r1, "1900-01-01");
+  }
+  return { client, items };
+}
+
+function renderHub(
+  client: WorkspaceClient,
+  query: SourcesQueryState = DEFAULT_SOURCES_QUERY,
+  onQueryChange: ((next: SourcesQueryState, mode: "push" | "replace") => void) | undefined = undefined,
+) {
+  return render(
+    <SourcesHub client={client} query={query} onQueryChange={onQueryChange} />,
+  );
+}
+
+/** The rendered row order (tbody tr data-node-id sequence). */
+function rowOrder(): string[] {
+  return Array.from(document.querySelectorAll("tbody tr")).map((tr) =>
+    tr.getAttribute("data-node-id")!,
+  );
+}
+
+function activeRowId(): string | null {
+  return document.querySelector("tbody tr.nt-table-row--active")?.getAttribute("data-node-id") ?? null;
+}
+
+async function rowsReady(): Promise<void> {
+  await waitFor(() => {
+    expect(document.querySelectorAll("tbody tr").length).toBeGreaterThan(0);
+  });
+}
+
+describe("SourcesTable — the items table", () => {
+  it("renders the library columns from the display projection", async () => {
+    const { client, items } = await seedClient();
+    renderHub(client);
+    await rowsReady();
+
+    // The seven library columns.
+    const headers = Array.from(document.querySelectorAll("th")).map((th) => th.textContent ?? "");
+    for (const label of ["Type", "Title", "Authors", "Year", "Venue", "Citekey", "Attachments"]) {
+      expect(headers.some((text) => text.startsWith(label))).toBe(true);
+    }
+
+    const row = document.querySelector(`tr[data-node-id="${items.a1}"]`)!;
+    expect(within(row as HTMLElement).getByText("Journal article")).not.toBeNull();
+    expect(within(row as HTMLElement).getByText("On the Analytical Engine")).not.toBeNull();
+    expect(within(row as HTMLElement).getByText("Lovelace, Ada; Turing, Alan")).not.toBeNull();
+    expect(within(row as HTMLElement).getByText("1843")).not.toBeNull();
+    expect(within(row as HTMLElement).getByText("The Example Journal")).not.toBeNull();
+    expect(within(row as HTMLElement).getByText("lovelace1843analytical")).not.toBeNull();
+    // The attachments badge counts the non-null asset rows.
+    expect(within(row as HTMLElement).getByText("1")).not.toBeNull();
+
+    // The toolbar names the count.
+    expect(screen.getByText("6 sources")).not.toBeNull();
+  });
+
+  /** The seed's projection facts, keyed by NODE ID (expectation register). */
+  function projection(items: LibraryItems) {
+    return {
+      year: {
+        [items.a1]: 1843,
+        [items.r1]: 1900,
+        [items.a2]: 1950,
+        [items.w2]: 2020,
+        [items.w1]: null,
+        [items.w3]: null,
+      } as Record<string, number | null>,
+      authors: {
+        [items.w3]: "Doe, Jane",
+        [items.a1]: "Lovelace, Ada; Turing, Alan",
+        [items.w2]: "Smith, John",
+        [items.a2]: "Turing, Alan",
+        [items.w1]: "",
+        [items.r1]: "",
+      } as Record<string, string>,
+      venue: {
+        [items.a1]: "The Example Journal",
+        [items.a2]: "Mind",
+        [items.w1]: "Example Blog",
+        [items.w2]: "Example Site",
+        [items.w3]: "Example Site",
+        [items.r1]: "",
+      } as Record<string, string>,
+    };
+  }
+
+  /** The comparator contract under test: empties sink last BOTH ways. */
+  function stableSorted(
+    base: string[],
+    key: (id: string) => string | number | null,
+    dir: "asc" | "desc",
+  ): string[] {
+    const sign = dir === "asc" ? 1 : -1;
+    return [...base].sort((x, y) => {
+      const a = key(x);
+      const b = key(y);
+      const emptyA = a === null || a === "";
+      const emptyB = b === null || b === "";
+      if (emptyA !== emptyB) return emptyA ? 1 : -1;
+      if (emptyA && emptyB) return 0;
+      if (typeof a === "number" && typeof b === "number") return (a - b) * sign;
+      return (
+        String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" }) * sign
+      );
+    });
+  }
+
+  it("the URL sort deep-links: ?sort=year:asc orders the rows and marks the header", async () => {
+    const { client, items } = await seedClient();
+    const p = projection(items);
+    // The unfiltered table order (the AST's natural order — the tie base).
+    const first = renderHub(client);
+    await rowsReady();
+    const base = rowOrder();
+    first.unmount();
+
+    renderHub(client, { type: null, q: "", sort: { field: "year", direction: "asc" } });
+    await rowsReady();
+    await waitFor(() => {
+      expect(rowOrder()).toEqual(stableSorted(base, (id) => p.year[id] ?? null, "asc"));
+    });
+    const yearHeader = screen.getAllByRole("button", { name: "Year" })[0]!.closest("th")!;
+    expect(yearHeader.getAttribute("aria-sort")).toBe("ascending");
+  });
+
+  it("empty values sink last in BOTH directions (Review Focus 2)", async () => {
+    const { client, items } = await seedClient();
+    const p = projection(items);
+    const { rerender } = renderHub(client);
+    await rowsReady();
+    const base = rowOrder();
+
+    const rerenderWith = (sort: SourcesQueryState["sort"]) =>
+      rerender(<SourcesHub client={client} query={{ type: null, q: "", sort }} />);
+
+    rerenderWith({ field: "year", direction: "asc" });
+    await waitFor(() =>
+      expect(rowOrder()).toEqual(stableSorted(base, (id) => p.year[id] ?? null, "asc")),
+    );
+
+    rerenderWith({ field: "year", direction: "desc" });
+    await waitFor(() =>
+      expect(rowOrder()).toEqual(stableSorted(base, (id) => p.year[id] ?? null, "desc")),
+    );
+
+    rerenderWith({ field: "authors", direction: "asc" });
+    await waitFor(() =>
+      expect(rowOrder()).toEqual(stableSorted(base, (id) => p.authors[id] ?? "", "asc")),
+    );
+
+    rerenderWith({ field: "authors", direction: "desc" });
+    await waitFor(() =>
+      expect(rowOrder()).toEqual(stableSorted(base, (id) => p.authors[id] ?? "", "desc")),
+    );
+
+    // Venue: the artwork binds no container field — its empty venue sinks
+    // last in both directions too.
+    rerenderWith({ field: "venue", direction: "desc" });
+    await waitFor(() =>
+      expect(rowOrder()).toEqual(stableSorted(base, (id) => p.venue[id] ?? "", "desc")),
+    );
+    expect(rowOrder().at(-1)).toBe(items.r1);
+  });
+
+  it("clicking a column header pushes the App-owned sort state (asc → desc → clear)", async () => {
+    const { client } = await seedClient();
+    const onQueryChange = vi.fn();
+    const { rerender } = renderHub(client, DEFAULT_SOURCES_QUERY, onQueryChange);
+    await rowsReady();
+
+    fireEvent.click(screen.getByRole("button", { name: "Year" }));
+    expect(onQueryChange).toHaveBeenCalledWith(
+      { type: null, q: "", sort: { field: "year", direction: "asc" } },
+      "push",
+    );
+
+    // The App state round-trips (the calendar seam).
+    onQueryChange.mockClear();
+    rerender(
+      <SourcesHub
+        client={client}
+        query={{ type: null, q: "", sort: { field: "year", direction: "asc" } }}
+        onQueryChange={onQueryChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Year" }));
+    expect(onQueryChange).toHaveBeenCalledWith(
+      { type: null, q: "", sort: { field: "year", direction: "desc" } },
+      "push",
+    );
+
+    onQueryChange.mockClear();
+    rerender(
+      <SourcesHub
+        client={client}
+        query={{ type: null, q: "", sort: { field: "year", direction: "desc" } }}
+        onQueryChange={onQueryChange}
+      />,
+    );
+    // The third click clears the sort back to null.
+    fireEvent.click(screen.getByRole("button", { name: "Year" }));
+    expect(onQueryChange).toHaveBeenCalledWith({ type: null, q: "", sort: null }, "push");
+  });
+
+  it("the search box filters live (title/authors/citekey) and replaces the URL, debounced", async () => {
+    const { client, items } = await seedClient();
+    const onQueryChange = vi.fn();
+    renderHub(client, DEFAULT_SOURCES_QUERY, onQueryChange);
+    await rowsReady();
+
+    const search = screen.getByRole("textbox", { name: "Search sources" });
+    fireEvent.change(search, { target: { value: "turing" } });
+    // Live: the rows narrow immediately (both author rows carry "Turing").
+    await waitFor(() => {
+      expect(rowOrder().sort()).toEqual([items.a1, items.a2].sort());
+    });
+    // The URL follows, debounced, with replace semantics.
+    await waitFor(() => {
+      expect(onQueryChange).toHaveBeenCalledWith({ type: null, q: "turing", sort: null }, "replace");
+    });
+    expect(screen.getByText("2 sources")).not.toBeNull();
+
+    // Citekey narrow.
+    fireEvent.change(search, { target: { value: "lovelace1843" } });
+    await waitFor(() => {
+      expect(rowOrder()).toEqual([items.a1]);
+    });
+    // Clearing restores the library.
+    fireEvent.change(search, { target: { value: "" } });
+    await waitFor(() => {
+      expect(rowOrder().length).toBe(6);
+    });
+  });
+
+  it("filters excluding everything render the honest No-sources-match state", async () => {
+    const { client } = await seedClient();
+    renderHub(client, { type: null, q: "zzzz-no-match", sort: null });
+    await waitFor(() => {
+      expect(screen.getByText("No sources match")).not.toBeNull();
+    });
+    expect(screen.getByText("0 sources")).not.toBeNull();
+    // The toolbar (and its search box) stays — the filters can be undone.
+    expect(screen.getByRole("textbox", { name: "Search sources" })).not.toBeNull();
+  });
+
+  it("an empty library renders the Add-first-source hint", async () => {
+    const { client } = await seedClient(false);
+    renderHub(client);
+    await waitFor(() => {
+      expect(screen.getByText(/Add your first source/)).not.toBeNull();
+    });
+    expect(screen.getByRole("button", { name: "Add source" })).not.toBeNull();
+  });
+});
+
+describe("SourcesTable — keyboard navigation + selection", () => {
+  it("up/down move the single selection; Enter focuses the detail pane", async () => {
+    const { client, items } = await seedClient();
+    const titles: Record<string, string> = {
+      [items.a1]: "On the Analytical Engine",
+      [items.a2]: "Computing Machinery",
+      [items.w1]: "A Great Article",
+      [items.w2]: "Another Page",
+      [items.w3]: "Third Page",
+      [items.r1]: "Archived Piece",
+    };
+    renderHub(client);
+    await rowsReady();
+    // The AST's natural order drives the arrow walk (no sort picked).
+    const order = rowOrder();
+
+    const region = document.querySelector(".nt-sources-table") as HTMLElement;
+    region.focus();
+    fireEvent.keyDown(region, { key: "ArrowDown" });
+    expect(activeRowId()).toBe(order[0]);
+
+    fireEvent.keyDown(region, { key: "ArrowDown" });
+    expect(activeRowId()).toBe(order[1]);
+
+    // The selection drives the detail pane (title read-only until the
+    // detail task; the wiring lives here).
+    const detail = screen.getByRole("complementary", { name: "Source details" });
+    expect(within(detail).getByText(titles[order[1]!]!)).not.toBeNull();
+
+    fireEvent.keyDown(region, { key: "ArrowUp" });
+    expect(activeRowId()).toBe(order[0]);
+
+    fireEvent.keyDown(region, { key: "Enter" });
+    expect(document.activeElement?.className).toContain("nt-sources-hub__detail-focus");
+  });
+
+  it("arrow keys inside the search box edit the query, not the selection", async () => {
+    const { client } = await seedClient();
+    renderHub(client);
+    await rowsReady();
+
+    const search = screen.getByRole("textbox", { name: "Search sources" });
+    search.focus();
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(activeRowId()).toBeNull();
+  });
+
+  it("clicking a row selects it and drives the detail pane", async () => {
+    const { client, items } = await seedClient();
+    renderHub(client);
+    await rowsReady();
+
+    const row = document.querySelector(`tr[data-node-id="${items.w2}"]`) as HTMLElement;
+    fireEvent.click(within(row).getByText("Another Page"));
+    expect(activeRowId()).toBe(items.w2);
+    const detail = screen.getByRole("complementary", { name: "Source details" });
+    expect(within(detail).getByText("Another Page")).not.toBeNull();
+  });
+});
+
+describe("SourcesTable — the toolbar actions", () => {
+  /** Capture downloadBlob's payload the selection-export way. */
+  function captureDownloads() {
+    const captured: { blob: Blob | null; filename: string | null } = { blob: null, filename: null };
+    Object.defineProperty(URL, "createObjectURL", {
+      value: vi.fn((blob: Blob) => {
+        captured.blob = blob;
+        return "blob:mock";
+      }),
+      configurable: true,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      captured.filename = this.download;
+    });
+    return captured;
+  }
+
+  function readBlobText(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(blob);
+    });
+  }
+
+  it("Export BibTeX emits exactly the CURRENT filtered set (Review Focus 5)", async () => {
+    const { client } = await seedClient();
+    const captured = captureDownloads();
+    // The filtered set: q "turing" (a1 + a2 via authors text).
+    renderHub(client, { type: null, q: "turing", sort: null });
+    await rowsReady();
+
+    fireEvent.click(screen.getByRole("button", { name: /bibtex/i }));
+    expect(captured.blob).not.toBeNull();
+    const text = await readBlobText(captured.blob!);
+    expect(text).toContain("lovelace1843analytical");
+    expect(text).toContain("turing1950computing");
+    // The rest of the library is NOT in the payload.
+    expect(text).not.toContain("great2021article");
+    expect(text).not.toContain("smith2020another");
+    expect(text).not.toContain("doe2022third");
+    expect(text).not.toContain("piece1900archived");
+    expect(text.match(/^@[a-z-]+\{/gim)?.length).toBe(2);
+    expect(captured.filename).toContain(".bib");
+  });
+
+  it("Export CSL JSON emits exactly the filtered rows", async () => {
+    const { client } = await seedClient();
+    const captured = captureDownloads();
+    renderHub(client, { type: null, q: "turing", sort: null });
+    await rowsReady();
+
+    fireEvent.click(screen.getByRole("button", { name: /csl json/i }));
+    const text = await readBlobText(captured.blob!);
+    const parsed = JSON.parse(text) as Array<{ title?: string }>;
+    // The CSL item id IS the citekey — the titles name the filtered rows.
+    expect(parsed.map((entry) => entry.title).sort()).toEqual(
+      ["Computing Machinery", "On the Analytical Engine"].sort(),
+    );
+    expect(captured.filename).toContain(".json");
+  });
+
+  it("Add source opens the shipped add-source dialog", async () => {
+    const { client } = await seedClient();
+    render(
+      <>
+        <SourcesHub client={client} query={DEFAULT_SOURCES_QUERY} />
+        <AddSourceHost
+          client={client}
+          serverUrl="http://resolver.test"
+          credential="test-key"
+          onCreated={() => {}}
+          onOpenNode={() => {}}
+        />
+      </>,
+    );
+    await rowsReady();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).not.toBeNull();
+    });
+  });
+
+  it("the settings shortcut opens the workspace settings on the Sources section", async () => {
+    const { client } = await seedClient();
+    // The modal only renders the live Sources settings for the ACTIVE
+    // workspace — seed the device-local workspace id (the host reads the
+    // same registry the account popup's admin entry does).
+    writeStored(STORAGE_KEYS.workspaceId, WS);
+    render(
+      <>
+        <SourcesHub client={client} query={DEFAULT_SOURCES_QUERY} />
+        <WorkspaceSettingsHost
+          client={client}
+          serverUrl="http://resolver.test"
+          credential="test-key"
+          workspaceName="Test"
+          onRenamed={() => {}}
+        />
+      </>,
+    );
+    await rowsReady();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sources settings" }));
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).not.toBeNull();
+    });
+    // The modal opened on the features tab — the Sources settings section
+    // (the citekey pattern field) renders inside.
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("Sources settings")).not.toBeNull();
+    window.localStorage.clear();
+  });
+});
