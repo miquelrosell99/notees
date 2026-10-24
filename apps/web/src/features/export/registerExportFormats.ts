@@ -13,11 +13,14 @@
  * JSON archive, a NODE-SET format that rides the modal like the IR
  * formats but deliberately stays out of the package's IR-based
  * EXPORT_FORMATS registry (its input is the verbatim node slice, not the
- * resolved ExportDocument — the bundleMarkdown/csv.ts precedent). Select-
+ * resolved ExportDocument — the bundleMarkdown/csv.ts precedent). The
+ * bibliography cards (`.bib` + CSL-JSON, source-library slices 3–6 task 2)
+ * are the same node-set kind: they project the selected subtree's nodes
+ * through the package's nodeToCsl/serializeBibtex, not the IR. Select-
  * type specs (layout/pageFormat) are exposed through {@link webSelectOption}
  * for the modal's dedicated cards/toggle. Adding an IR format is adding a
  * package-side definition; the delivery table below plus the explicit
- * json row are the only web-side touchpoints.
+ * json and bibliography rows are the only web-side touchpoints.
  */
 
 import {
@@ -38,8 +41,8 @@ import {
  */
 export const INCLUDE_CHILD_PAGES_KEY = "includeChildPages";
 
-/** Web format ids — the package IR formats + the JSON archive card. */
-export type WebExportFormatId = ExportFormatId | "json";
+/** Web format ids — the package IR formats + the node-set cards. */
+export type WebExportFormatId = ExportFormatId | "json" | "bib" | "csl-json";
 
 /**
  * Option keys the modal renders as checkbox rows — the boolean engine
@@ -149,10 +152,55 @@ function jsonArchiveWebDefinition(): WebExportFormatDefinition {
   };
 }
 
+/**
+ * The bibliography cards (`.bib` + CSL-JSON) — node-set formats like the
+ * JSON archive: their input is the selected subtree's node slice projected
+ * through the package's nodeToCsl (the dual-track read contract), not the
+ * resolved ExportDocument, so they stay out of the package's IR registry
+ * and their cards are assembled web-side. Delivery is ONE document for the
+ * whole selection (batch included); the only modal option is the subtree
+ * toggle (the entry set is the child-page walk — verbatim payloads and
+ * body blocks are not bibliography entries).
+ */
+const BIBLIOGRAPHY_WEB_DELIVERY: Record<
+  "bib" | "csl-json",
+  { label: string; icon: string; mimeType: string; extension: string }
+> = {
+  bib: {
+    label: "BibTeX",
+    icon: "book-open-variant",
+    mimeType: "application/x-bibtex",
+    extension: "bib",
+  },
+  "csl-json": {
+    label: "CSL JSON",
+    icon: "code-braces",
+    mimeType: "application/vnd.citationstyles.csl+json",
+    extension: "json",
+  },
+};
+
+function bibliographyWebDefinitions(): WebExportFormatDefinition[] {
+  return (Object.keys(BIBLIOGRAPHY_WEB_DELIVERY) as Array<"bib" | "csl-json">).map((id) => {
+    const delivery = BIBLIOGRAPHY_WEB_DELIVERY[id];
+    return {
+      id,
+      label: delivery.label,
+      icon: delivery.icon,
+      availability: { status: "available" },
+      mimeType: delivery.mimeType,
+      extension: delivery.extension,
+      delivery: "file",
+      options: [{ key: INCLUDE_CHILD_PAGES_KEY, label: "Include child pages", defaultValue: true }],
+    };
+  });
+}
+
 /** All registered formats, in package-catalog order (markdown first). */
 export const WEB_EXPORT_FORMATS: readonly WebExportFormatDefinition[] = [
   ...EXPORT_FORMATS.map(toWebDefinition),
   jsonArchiveWebDefinition(),
+  ...bibliographyWebDefinitions(),
 ];
 
 export function getRegisteredExportFormats(): readonly WebExportFormatDefinition[] {

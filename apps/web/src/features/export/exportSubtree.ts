@@ -32,6 +32,11 @@
  * extension come from the web registry's delivery table, never hardcoded
  * per format. Batch delivery for those formats is one zip of per-root
  * rendered files (see exportSubtreeBatchFile).
+ *
+ * Bibliography delivery (source-library slices 3–6 task 2): the BibTeX and
+ * CSL-JSON cards are node-set formats like the JSON archive — ONE document
+ * over the selection, each collected node projected through the package's
+ * nodeToCsl (see exportSubtreeBibliography).
  */
 
 import { zipSync } from "fflate";
@@ -41,7 +46,9 @@ import {
   buildJsonArchive,
   bundleMarkdown,
   concatBundleMarkdown,
+  cslToBib,
   exportFileName,
+  nodeToCsl,
   nodeToMarkdown,
   renderContent,
   renderExportDocumentToDocx,
@@ -49,6 +56,7 @@ import {
   renderExportDocumentToLatex,
   renderJsonArchive,
   resolveExportOptions,
+  serializeBibtex,
   type ExportBundle,
   type ExportContext,
   type ExportDocument,
@@ -59,7 +67,7 @@ import {
   type ExportPropertyValue,
   type ResolvedExportOptions,
 } from "@notees/export";
-import { rendersAsInlineBlock } from "@notees/domain";
+import { rendersAsInlineBlock, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { nodeDisplayName, displayNameFromClient } from "../../ui/dateDisplay.js";
 import { resolveCssColor } from "../../components/ui/fleet/colorPresets.js";
@@ -498,6 +506,78 @@ export function exportTimestamp(date: Date = new Date()): string {
     `${String(date.getFullYear())}${pad(date.getMonth() + 1)}${pad(date.getDate())}` +
     `${pad(date.getHours())}${pad(date.getMinutes())}`
   );
+}
+
+// --- bibliography delivery ------------------------------------------------------
+
+/**
+ * Bibliography delivery (source-library slices 3–6 task 2): ONE document over
+ * the whole selection — the JSON-archive convention, not the IR formats'
+ * per-root zip. The node set is the markdown single-file read
+ * ({@link collectSubtree}: each root plus, with `includeChildPages`, every
+ * child-page subtree — inline body blocks are content, not sources, and never
+ * become entries), deduped by node id across overlapping batch roots.
+ * Each node projects through the package's `nodeToCsl` (the dual-track read
+ * contract — `authors` rows first, `linkedAuthors` agent derivation when
+ * empty); `.bib` re-serializes through the package's own `cslToBib` bridge,
+ * CSL-JSON is the item array verbatim. Delivery metadata (MIME type,
+ * extension) comes from the web registry's table, never hardcoded here.
+ */
+export function exportSubtreeBibliography(
+  client: ExportClient,
+  rootIds: readonly string[],
+  options: { format: "bib" | "csl-json"; includeChildPages?: boolean },
+): SubtreeFileExport {
+  const delivery = getWebExportFormat(options.format);
+  if (delivery === undefined) {
+    throw new Error(`exportSubtreeBibliography: "${options.format}" has no web delivery metadata`);
+  }
+  const includeChildPages = options.includeChildPages ?? true;
+  const seen = new Set<string>();
+  const items = [];
+  for (const rootId of rootIds) {
+    for (const node of collectSubtree(client, rootId, includeChildPages)) {
+      if (seen.has(node.id)) continue;
+      seen.add(node.id);
+      items.push(
+        nodeToCsl(node, node.properties, {
+          resolveName: (id) => displayNameFromClient(client, id) ?? undefined,
+          resolveAgentName: (id) => agentCitationName(client, id) ?? undefined,
+        }),
+      );
+    }
+  }
+  const firstRoot = client.getNode(rootIds[0]!);
+  const title = firstRoot === undefined ? "" : nodeDisplayName(firstRoot).trim();
+  const content =
+    options.format === "bib"
+      ? serializeBibtex(items.map(cslToBib))
+      : `${JSON.stringify(items, null, 2)}\n`;
+  return {
+    blob: new Blob([content], { type: delivery.mimeType }),
+    filename: exportFileSlugName(title, rootIds[0]!, delivery.extension),
+  };
+}
+
+/**
+ * The `linkedAuthors` fallback half of the read contract, web-side: an agent
+ * node's citation name is "Family, Given" from its effective givenName/
+ * familyName property rows (either half may be absent), falling back to its
+ * display title — the agent givenName/familyName derivation the package
+ * delegates to the caller (the export package is ctx-free).
+ */
+function agentCitationName(client: ExportReadSurface, agentId: string): string | null {
+  let family: string | undefined;
+  let given: string | undefined;
+  for (const row of client.getEffectiveProperties(agentId)) {
+    if (row.source !== "authored") continue;
+    if (typeof row.value !== "string") continue;
+    if (row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.familyName) family = row.value;
+    if (row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.givenName) given = row.value;
+  }
+  const parts = [family, given].filter((part): part is string => part !== undefined && part.trim().length > 0);
+  if (parts.length > 0) return parts.map((part) => part.trim()).join(", ");
+  return displayNameFromClient(client, agentId);
 }
 
 // --- format-routed delivery -----------------------------------------------------
