@@ -32,6 +32,14 @@
  * versioned notees-json-archive envelope), delivered as ONE document for
  * the whole selection (batch included — no per-root zip).
  *
+ * Bibliography (source-library slices 3–6 task 2): the BibTeX and CSL JSON
+ * cards — also node-set formats, projected from the selected subtree's
+ * nodes through the package's nodeToCsl (the dual-track read contract:
+ * `authors` rows first, `linkedAuthors` agent derivation when empty).
+ * Like the archive, each delivers ONE document for the whole selection —
+ * a .bib of `@entry` blocks or the CSL-JSON item array — with only the
+ * "Include child pages" subtree option.
+ *
  * PDF: the card is web-available with `delivery: "client-pdf"` —
  * the package serializer stays a throwing skeleton while the web client
  * renders PDFs through the lazily imported ui/export-pdf engine (react-pdf,
@@ -67,6 +75,7 @@ import {
   exportSubtreeFile,
   exportSubtreeBatchFile,
   exportSubtreeJsonArchive,
+  exportSubtreeBibliography,
   exportZipFileName,
   zipExportBundle,
   collectSubtreeAssetRefIds,
@@ -311,6 +320,17 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
         // whole selection (batch included — no per-root zip), verbatim
         // node payloads with contentAst/classIds/properties/child ids/edges.
         const exported = exportSubtreeJsonArchive(client, effectiveNodeUuids, {
+          includeChildPages,
+        });
+        downloadBlob(exported.blob, exported.filename);
+        return;
+      }
+      if (format.id === "bib" || format.id === "csl-json") {
+        // Bibliography: ONE document over the whole selection (the archive
+        // convention) — the selected subtree's nodes projected through the
+        // package's nodeToCsl, serialized as .bib or the CSL-JSON array.
+        const exported = exportSubtreeBibliography(client, effectiveNodeUuids, {
+          format: format.id,
           includeChildPages,
         });
         downloadBlob(exported.blob, exported.filename);
