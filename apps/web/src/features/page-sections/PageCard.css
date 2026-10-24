@@ -286,8 +286,9 @@
 }
 
 /* The day-page surface (owner 2026-10-24): a day page rides the hub
-   register — the SurfaceTopBar (the DayStepper) pins at the card's top,
-   the page body scrolls beneath. */
+   register's full-bleed flex fill — the NodeView below carries the ONE bar
+   (its SurfaceTopBar, with the DayStepper injected through
+   `topBarActionsExtra`); this wrapper owns the flex fill only, no chrome. */
 .day-page-surface > :last-child {
   flex: 1;
   min-height: 0;

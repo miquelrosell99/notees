@@ -37,7 +37,6 @@ import { todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { HubView } from "./HubView.js";
 import { DayStepper } from "../../features/calendar/DayPageHeader.js";
-import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 
 export interface AppBodyProps {
   client: AnyClient;
@@ -186,10 +185,13 @@ export function AppBody(props: AppBodyProps) {
         }
       >
         {selectedPageId !== null ? (() => {
-          // Day pages ride a SURFACE top bar (owner 2026-10-24 pass 4 — the
-          // per-view bar, not the app top bar): the DayStepper (‹ bordered
-          // Today ›) in the actions cluster; the target day page is
-          // materialized on demand (the ensureDateChain pattern).
+          // Day pages ride ONE bar (owner 2026-10-24 pass 5 — the chrome
+          // ruling): the DayStepper (‹ bordered Today ›) is INJECTED into
+          // NodeView's own SurfaceTopBar (topBarActionsExtra) instead of a
+          // second bar stacked above the page; the target day page is
+          // materialized on demand (the ensureDateChain pattern). The
+          // .day-page-surface wrapper stays for the full-bleed flex fill
+          // only — it carries no chrome of its own.
           const parsedDay =
             selectedPageId === null
               ? null
@@ -211,13 +213,8 @@ export function AppBody(props: AppBodyProps) {
               cornerMenu
               shareTarget={shareTarget}
               sectionsLayout={sectionsLayout}
-            />
-          );
-          return parsedDay !== null ? (
-            <div className="day-page-surface">
-              <SurfaceTopBar
-                icon="mdi-calendar-today"
-                actions={
+              topBarActionsExtra={
+                parsedDay !== null ? (
                   <DayStepper
                     iso={parsedDay}
                     onNavigateDay={(iso) => {
@@ -227,10 +224,16 @@ export function AppBody(props: AppBodyProps) {
                         .catch(() => {});
                     }}
                   />
-                }
-              />
-              {pageView}
-            </div>
+                ) : undefined
+              }
+            />
+          );
+          // The day page rides the .day-page-surface full-bleed wrapper (the
+          // flex fill beneath the card's 13xl cap); its stepper is IN the
+          // NodeView's own bar (topBarActionsExtra above) — the wrapper
+          // carries no chrome of its own (one bar per surface).
+          return parsedDay !== null ? (
+            <div className="day-page-surface">{pageView}</div>
           ) : (
             pageView
           );
