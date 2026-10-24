@@ -30,8 +30,8 @@ import { parseDateNodeId } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { plainTitleOf } from "../../ui/dateDisplay.js";
-import { parentlessBlockResolverOf, untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { titleOfNode } from "../../ui/dateDisplay.js";
+import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { ContextMenu, type ContextMenuItem } from "../../components/ui/fleet/ContextMenu.js";
@@ -71,12 +71,16 @@ function isDateLocked(node: ClientNode | undefined): boolean {
 /** Human crumb label: the plain-text chrome title: markdown link spans reduce to their label (no raw
  *  `[label](href)` in a crumb, no href crowding the 28-char clip) and
  *  inline class chips resolve to the class's current name — both via
- *  plainTitleOf, the same derivation the sidebar rows use. Never a raw
- *  uuid; per-crumb capped. */
+ *  titleOfNode's chrome flatten, the same derivation the sidebar rows use.
+ *  Never a raw uuid; per-crumb capped. */
 function crumbNameOf(client: AnyClient, node: ClientNode): string {
-  const excerpt = plainTitleOf(node, (classId) => client.getDisplayName(classId));
   return clipCrumbName(
-    excerpt === "" ? untitledLabelOf(node, parentlessBlockResolverOf(client)) : excerpt,
+    titleOfNode(node, {
+      flatten: "chrome",
+      resolveClassName: (classId) => client.getDisplayName(classId),
+      empty: "untitled",
+      isParentlessBlockClass: parentlessBlockResolverOf(client),
+    }),
   );
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { labelFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { assetImageUrl } from "../collection/assetThumbs.js";
 import { Icon } from "../../ui/Icon.js";
 import type { AnyClient } from "./shared.js";
@@ -26,7 +26,7 @@ export function AssetItemRow({
   onRemove: () => void;
 }) {
   const info = client.getAssetInfo(assetRef);
-  const name = info?.originalName ?? labelFromClient(client, assetRef) ?? "Untitled";
+  const name = info?.originalName ?? titleOf(client, assetRef, { read: "fallback", empty: "untitled" }) ?? "Untitled";
   const isImage = info !== undefined && info.mimeType.startsWith("image/");
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {

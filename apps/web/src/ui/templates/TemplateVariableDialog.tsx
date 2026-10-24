@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from "react";
 
-import { deriveDisplayName } from "@notees/domain";
+import { titleOfNode } from "../dateDisplay.js";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
@@ -46,7 +46,7 @@ export function TemplateVariableDialog({
     if (isOpen) setStaticValues({});
   }, [isOpen, template.id]);
 
-  const templateName = deriveDisplayName(template) || "Untitled template";
+  const templateName = titleOfNode(template) || "Untitled template";
   const staticNames = variableNames.filter((name) => !Object.prototype.hasOwnProperty.call(dynamicValues, name));
   const dynamicNames = variableNames.filter((name) =>
     Object.prototype.hasOwnProperty.call(dynamicValues, name),

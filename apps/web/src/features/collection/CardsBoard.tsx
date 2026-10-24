@@ -42,7 +42,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { EmptyState } from "../../components/ui/fleet/index.js";
 import { Icon } from "../../ui/Icon.js";
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { titleOfNode } from "../../ui/dateDisplay.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { useCoverLayoutPreference } from "../../ui/viewPrefs.js";
 import { NodeCard, CoverLayoutToggle } from "./CardsView.js";
@@ -380,7 +380,7 @@ export function CardsBoard({ props }: { props: NodeCollectionProps }) {
         </OutlinerContext.Provider>
         <DragOverlay dropAnimation={null}>
           {dragging !== null && (
-            <div className="board-ghost">{nodeDisplayName(dragging.node) || "Untitled"}</div>
+            <div className="board-ghost">{titleOfNode(dragging.node) || "Untitled"}</div>
           )}
         </DragOverlay>
       </DndContext>

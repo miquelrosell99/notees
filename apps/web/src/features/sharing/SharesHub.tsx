@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { deriveDisplayName } from "@notees/domain";
+import { titleOfNode } from "../../ui/dateDisplay.js";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
@@ -115,7 +115,7 @@ export function SharesHub({
             <ul className="nt-shares-hub__rows">
           {liveShares.map((entry) => {
             const node = client.getNode(entry.nodeId);
-            const name = node !== undefined ? deriveDisplayName(node) || "Untitled" : "Untitled";
+            const name = node !== undefined ? titleOfNode(node) || "Untitled" : "Untitled";
             const icon =
               node !== undefined
                 ? (nodeIcon(node, client.effectiveClassIcons()) ?? "mdi-file-outline")

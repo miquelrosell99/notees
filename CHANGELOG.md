@@ -121,6 +121,112 @@ predating this file.
   No data layer, table logic, or detail editor yet — those land in the
   follow-up slices. Gate: `pnpm typecheck && pnpm test` green.
 
+- **feat(web): views claim their full URL on load — /calendar/<zoom>
+  rewrites to carry the day, and the root URL rewrites to the default view
+ (the view-owns-its-URL law).** The calendar's claim
+  extends from bare/route-less URLs to zoom-without-day ones
+  (/calendar/agenda -> /calendar/agenda/20261024 with a replace — URL
+  values win where present, the device setting fills the zoom, today
+  fills the day). The App boot rewrites a bare "/" to the boot view's
+  path (journal default, the defaultView pref aware) — refreshing never
+  leaves a bare root. Spec: the zoom-without-day claim; probe: the boot
+  path is never "/".
+  - **Verification**: web suite green. Deployed: verify-min VERIFY-PASS +
+    the panel probe green.
+## 2026-10-24
+
+## 2026-10-24
+
+- **refactor(web): the node display-name family unifies into one funnel —
+  `titleOf` / `titleOfNode` with four explicit axes.** The
+  per-ruling proliferation of display-name helpers (`displayNameFromClient`,
+  `labelFromClient`, `fullTitleFromClient`, `plainTitleOf`, plus the direct
+  `nodeDisplayName` / `fullTitleForSettings` / `deriveDisplayName` call-site
+  imports) had no way to say which surface semantics a given call carried —
+  the bug class behind the groupBy raw-markdown header. `apps/web/src/ui/
+  dateDisplay.ts` now exposes ONE seam: `titleOf(client, id, opts)` and
+  `titleOfNode(node, opts)` with axes `budget` ("capped" default | "full"),
+  `flatten` ("raw" default | "chrome" — markdown link spans reduced to their
+  label + class chips resolved), `read` ("live" default | "fallback" — the
+  never-a-bare-UUID raw-read seam), `empty` ("blank" default | "untitled").
+  The old presentation helpers are deleted outright (no aliases); the
+  settings-aware capped/full derivations are module-private funnel branches.
+  Every presentation call site migrates to the funnel with semantics
+  preserved exactly; the domain's `deriveDisplayName`/`fullTitleOf` stay the
+  worker/log-feeding seam (client-core reads, op payloads, search indexes
+  keep them — the client-core files and log-feeding feature sites are
+  untouched). The "chrome" flatten on the raw-read fallback arm additionally
+  resolves class chips (previously the raw arm excerpted them bare) — an
+  intentional, strictly-better corner. Web-only internal refactor: no wire/
+  model/applier change, no fixtures, no client lockstep.
+  - **Verification**: full monorepo typecheck green; the full test gate
+    green, including the migrated `date-display` suite.
+## 2026-10-24
+
+- **feat(web): the agenda navigator steps month to month; calendar URLs
+  take the compact YYYYMMDD day.** (1) The agenda's
+  period chevrons move the anchor a whole calendar month (the day clamps —
+  Mar 31 - 1 = Feb 28/29; the pure `addMonthsIso` helper is unit-pinned) —
+  a week's stride was noise over a month-spanning event list. (2) The
+  deep-link day is compact ISO: `/calendar/week/20261020`, no dashes (the
+  dashed form is the internal register; `isIsoDay` validates compact only,
+  `dashedIso` converts at the seam). Specs + the probe's deep-link pass
+  updated.
+  - **Verification**: web suite green. Deployed: verify-min VERIFY-PASS +
+    the panel probe green.
+## 2026-10-24
+## 2026-10-24
+
+- **docs(AGENTS): the system-components law is codified.** ALWAYS the system components — unless the UI is genuinely
+  one-of-a-kind, in which case it is created as an independent component
+  under `components/ui/fleet/`, never ad-hoc styled markup in feature code
+  (the "does not make sense" escape is rare and must be obvious). Born from
+  the agenda open-arrow shipping as a bespoke circle instead of the fleet
+  ghost Button. Known candidates for a fleet audit sweep (the recurring
+  scope sheet's buttons, the block context menu, the calendar title
+  buttons) are noted for a follow-up pass.
+## 2026-10-24
+
+- **fix(web): the agenda's open-page arrow moves next to the header text and
+  wears the fleet button register.** Two owner nits:
+  the hover-reveal arrow rides DIRECTLY after the day meta (no far-right
+  auto margin), and it IS the system component now — the fleet ghost icon
+  `Button` (the rounded-square register, the journal's exact button)
+  instead of a bespoke circle; the local CSS keeps only the hover-reveal
+  wrapper.
+  - **Verification**: web suite green. Deployed: verify-min VERIFY-PASS +
+    the panel probe green.
+## 2026-10-24
+- **refactor(web): day selection retires from the time grid (the owner's
+  post-mortem); agenda day headers gain the hover open-page arrow.** (1) "Why would we want full day column selection?" —
+  honest answer: inertia from the mini-month era, when selection WAS the
+  navigation; in the grid register it answers a question nobody asks
+  (Google's week view selects nothing). The time-grid header is no longer
+  a selection target (the number just opens the day page); the anchor day
+  survives INTERNALLY — the period navigator, Jump-to-today, and the
+  /calendar/<zoom>/<iso> URL keep feeding it. (2) The agenda's day group
+  headers wear the journal-feed hover-reveal register: an open-page arrow
+  (visible on hover/focus on fine pointers, always on touch) opens that
+  day's page, chain ensured.
+  - **Verification**: web suite green (the header spec flips to the
+    no-selection register; a new agenda-arrow spec pins the open).
+    Deployed: verify-min VERIFY-PASS + the panel probe green.
+## 2026-10-24
+
+- **fix(web): collection groupBy headers flatten markdown link spans in page
+  titles.** A group header (the `groupByContainingPage`
+  seam — collection outline, system sections, the calendar events panel) is
+  flattened chrome, but it read `displayNameFromClient` (the raw
+  title-is-content excerpt), so a page titled with a markdown link span
+  (`[Implaline - iRES Group](https://…)`, the imported/pasted-content shape)
+  rendered the raw `[label](href)` source in the header. The header now reads
+  `plainTitleOf` — the existing breadcrumb/sidebar derivation that reduces
+  link spans to their label text (per text token, before the 80-char cap) and
+  resolves inline class chips — with the raw-read fallback unchanged.
+  - **Verification**: new regression pin in `apps/web/test/view-modes.test.tsx`
+    (a containing page whose title IS a link span renders the group name as
+    the bare label, never the URL); the full gate green.
+
 - **fix(domain,store,server,web): source binds only the shared base — each
   subclass carries its Zotero field set.** The
   source-library slice seeded ALL ~85 bibliographic pool properties with a

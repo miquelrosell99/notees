@@ -5,7 +5,7 @@
  */
 
 import type { AnyClient, CollectionGroup, NodeCollectionItem } from "./types.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOf, titleOfNode } from "../../ui/dateDisplay.js";
 
 /**
  * The resolved containing-page grouping (groupByContainingPage): the
@@ -53,7 +53,16 @@ export function groupByContainingPage(
     const keyNode = client.getNode(key);
     return {
       id: key,
-      label: displayNameFromClient(client, key) ?? "Untitled",
+      // The chrome flatten, not the plain client title: the header is
+      // flattened chrome, so a markdown link span in the page title renders
+      // as its label text — never the raw `[label](href)` source.
+      label:
+        keyNode !== undefined
+          ? titleOfNode(keyNode, {
+              flatten: "chrome",
+              resolveClassName: (classId) => titleOf(client, classId),
+            })
+          : (titleOf(client, key) ?? "Untitled"),
       // The header icon is the key node's EFFECTIVE icon — own icon, else the
       // class-chain icon (a daily page shows its authored/class glyph, not a
       // hard-coded page default). effectiveNodeIcon never misses a live page

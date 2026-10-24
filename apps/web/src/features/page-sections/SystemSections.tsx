@@ -72,8 +72,8 @@ import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspa
 
 import { Icon } from "../../ui/Icon.js";
 import { Section } from "../../ui/Section.js";
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
-import { parentlessBlockResolverOf, untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { titleOfNode } from "../../ui/dateDisplay.js";
+import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../../ui/viewPrefs.js";
 import { promoteMentionInAst } from "../collection/unlinkedRefs.js";
 import { FilterBar } from "../collection/FilterBar.js";
@@ -268,7 +268,7 @@ function displayNameOf(
   node: ClientNode,
   isParentlessBlockClass?: (classId: string) => boolean,
 ): string {
-  return nodeDisplayName(node) || untitledLabelOf(node, isParentlessBlockClass);
+  return titleOfNode(node, { empty: "untitled", isParentlessBlockClass });
 }
 
 /**

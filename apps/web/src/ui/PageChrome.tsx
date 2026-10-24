@@ -41,7 +41,7 @@ import { AddPill } from "../components/ui/fleet/AddPill.js";
 import { Button } from "../components/ui/fleet/Button.js";
 import { SurfaceTopBar } from "../components/ui/fleet/SurfaceTopBar.js";
 import { TextField } from "../components/ui/fleet/TextField.js";
-import { nodeDisplayName, displayNameFromClient } from "./dateDisplay.js";
+import { titleOf, titleOfNode } from "./dateDisplay.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -251,7 +251,7 @@ export function PageHeaderChrome({
   const pageId = page.id;
   // Stable identity — the memoized BlockRow compares it by reference, so a
   // fresh arrow per render would defeat the title row's bail-out.
-  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
+  const resolveName = useCallback((id: string) => titleOf(client, id), [client]);
   /**
    * Icon picker popup anchor + open state: the element that opened it (the
    * page icon when one is defined, else the action row's "Add icon" button).
@@ -346,7 +346,7 @@ export function PageHeaderChrome({
                 if (!preview) onHeaderMenu(event.clientX, event.clientY);
               }}
             >
-              <DayPageHeader iso={dayIso} title={nodeDisplayName(page)} />
+              <DayPageHeader iso={dayIso} title={titleOfNode(page)} />
             </span>
           ) : (
             <>
@@ -393,7 +393,7 @@ export function PageHeaderChrome({
                  visible for touch + keyboard focus). */
               <span className="nt-page-title-embed">
                 <span className="nt-page-title-embed__text">
-                  {nodeDisplayName(page)}
+                  {titleOfNode(page)}
                 </span>
                 <Button
                   variant="ghost"

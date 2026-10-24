@@ -32,7 +32,7 @@ import { createPortal } from "react-dom";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { labelFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeView } from "../../ui/NodeView.js";
@@ -188,7 +188,7 @@ export function FloatingEditorHost({
       {children}
       {windows.map((win) => {
         const node = client.getNode(win.nodeId);
-        const label = labelFromClient(client, win.nodeId) ?? "Untitled";
+        const label = titleOf(client, win.nodeId, { read: "fallback", empty: "untitled" }) ?? "Untitled";
         const icon = node !== undefined ? nodeIcon(node, client.effectiveClassIcons()) : null;
         return createPortal(
           <div

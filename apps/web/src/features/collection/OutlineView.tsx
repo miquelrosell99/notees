@@ -71,7 +71,7 @@ import { createPortal } from "react-dom";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import { BlockRow, useStableIdArray } from "../../ui/BlockRow.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { Breadcrumbs } from "../node-menu/Breadcrumbs.js";
@@ -154,7 +154,7 @@ function TreeRows({ items, props, resetKey }: { items: NodeCollectionItem[]; pro
   const { client, editable = false, readOnly = !editable, renderItem } = props;
   // Stable identity — the memoized BlockRow compares it by reference, so a
   // fresh arrow per render would defeat the row bail-out.
-  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
+  const resolveName = useCallback((id: string) => titleOf(client, id), [client]);
   // Breadcrumb rows (default on) navigate like the row
   // click: the container's onNodeClick, else the enclosing view's openNode.
   const outer = useContext(OutlinerContext);
@@ -278,7 +278,7 @@ function FlatRows({
     openInSidebar: (id) => (onNodeShiftClick ?? outer?.openInSidebar ?? (() => {}))(id),
     defaultCollapsed,
   });
-  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
+  const resolveName = useCallback((id: string) => titleOf(client, id), [client]);
   const showBreadcrumbs = props.showBreadcrumbs ?? true;
   // Stable identity for dnd-kit's SortableContext (the row memo's defeat
   // otherwise — see useStableIdArray).
@@ -348,7 +348,7 @@ export function OutlineView(props: NodeCollectionProps) {
   const setSortChoice = (mode: SortMode) => setSortState({ mode: mode as OutlineSortMode, chosen: true });
   // Stable identity — the memoized BlockRow compares it by reference, so a
   // fresh arrow per render would defeat the row bail-out.
-  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
+  const resolveName = useCallback((id: string) => titleOf(client, id), [client]);
   // Stable identity for dnd-kit's SortableContext (the row memo's defeat
   // otherwise — see useStableIdArray).
   const parentIds = useStableIdArray(props.parent !== undefined ? [props.parent.id] : EMPTY_IDS);

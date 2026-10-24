@@ -21,7 +21,7 @@ import {
 } from "@notees/domain";
 
 import type { AnyClient } from "../../ui/app/Sidebar.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { Modal } from "../../components/ui/fleet/Modal.js";
 import { BooleanToggle } from "../../components/ui/fleet/BooleanToggle.js";
 import { Button } from "../../components/ui/fleet/Button.js";
@@ -274,7 +274,7 @@ export function WorkspaceSettingsModal({
                         </span>
                         <span className="settings-feature-row__text">
                           <span className="settings-feature-row__title">
-                            {classNode ? displayNameFromClient(client!, classId) : spec.label}
+                            {classNode ? titleOf(client!, classId) : spec.label}
                           </span>
                           <span className="settings-feature-row__powers">
                             {spec.powers}

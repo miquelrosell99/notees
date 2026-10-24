@@ -19,7 +19,7 @@
 import { foldSearchText } from "@notees/store";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { titleOfNode } from "../../ui/dateDisplay.js";
 
 /** The filter kinds. `memberOf` is the only parameterized one (a class id). */
 export type SearchFilterKind = "daily" | "pages" | "blocks" | "classes" | "memberOf" | "commands";
@@ -192,7 +192,7 @@ export function listFilterOptions(args: {
   if (narrow !== "") {
     const fold = folded(narrow);
     for (const cls of classes) {
-      const name = nodeDisplayName(cls);
+      const name = titleOfNode(cls);
       if (name === "" || !folded(name).includes(fold)) continue;
       options.push({
         id: `memberOf:${cls.id}`,
@@ -214,7 +214,7 @@ export function listFilterOptions(args: {
 export function listClassOptions(classes: ClientNode[], narrowText: string): FilterOption[] {
   const fold = folded(narrowText.trim());
   return classes
-    .map((cls) => ({ cls, name: nodeDisplayName(cls) }))
+    .map((cls) => ({ cls, name: titleOfNode(cls) }))
     .filter((entry) => entry.name !== "" && (fold === "" || folded(entry.name).includes(fold)))
     .sort((a, b) => a.name.localeCompare(b.name))
     .slice(0, MAX_CLASS_BROWSE)
@@ -231,7 +231,7 @@ export function listClassOptions(classes: ClientNode[], narrowText: string): Fil
 export function filterChipLabel(filter: SearchFilter, classes: ClientNode[]): string {
   if (filter.kind === "memberOf") {
     const cls = classes.find((entry) => entry.id === filter.classId);
-    const name = cls !== undefined ? nodeDisplayName(cls) : "";
+    const name = cls !== undefined ? titleOfNode(cls) : "";
     return name !== "" ? `Class: ${name}` : "With class";
   }
   const base = BASE_OPTIONS.find((entry) => entry.kind === filter.kind);

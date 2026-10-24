@@ -86,7 +86,7 @@ import type {
   UpdateObjectInput,
 } from "@/core/workspace-client/index.js";
 
-import { displayNameFromClient, fullTitleFromClient } from "./dateDisplay.js";
+import { titleOf } from "./dateDisplay.js";
 import { parentlessBlockResolverOf } from "./renderStateLabel.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { openNodeLinkMenu } from "../features/node-menu/NodeLinkContextMenu.js";
@@ -1287,8 +1287,8 @@ export function WhiteboardCanvas({
 
   const hasContent =
     cards.length > 0 || view.shapes.length > 0 || view.strokes.length > 0 || drawing !== null;
-  const resolveName = (id: string) => displayNameFromClient(client, id);
-  const resolveFullTitle = (id: string) => fullTitleFromClient(client, id);
+  const resolveName = (id: string) => titleOf(client, id);
+  const resolveFullTitle = (id: string) => titleOf(client, id, { budget: "full" });
 
   const toolbar = (
     <div className="nt-wb-toolbar">
@@ -1563,7 +1563,7 @@ export function WhiteboardCanvas({
           </svg>
           {cards.map((card, index) => {
             const geometry = view.cards[card.id] ?? autoSlot(index);
-            const name = displayNameFromClient(client, card.id) ?? "Untitled";
+            const name = titleOf(client, card.id) ?? "Untitled";
             const cardColor = card.color !== null && card.color !== "" ? card.color : null;
             const colored = cardColor !== null;
             return (

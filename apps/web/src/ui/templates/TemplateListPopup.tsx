@@ -19,7 +19,7 @@ import { foldSearchText } from "@notees/store";
 
 import { clampOverlayLeft, flipOverlayTop } from "../editor-popups/overlay-position.js";
 import { Icon } from "../Icon.js";
-import { nodeDisplayName } from "../dateDisplay.js";
+import { titleOfNode } from "../dateDisplay.js";
 import { SearchField } from "../../components/ui/fleet/SearchField.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
@@ -87,8 +87,8 @@ export function TemplateListPopup({
       .getClassMembers(SYSTEM_CLASS_UUIDS.template)
       .filter((node) => node.isActive)
       .sort((a, b) => {
-        const nameA = nodeDisplayName(a) ?? a.id;
-        const nameB = nodeDisplayName(b) ?? b.id;
+        const nameA = titleOfNode(a) ?? a.id;
+        const nameB = titleOfNode(b) ?? b.id;
         return nameA.localeCompare(nameB) || a.id.localeCompare(b.id);
       });
   }, [client, version, familyReady]);
@@ -97,7 +97,7 @@ export function TemplateListPopup({
     const q = foldSearchText(query.trim().toLowerCase());
     if (q === "") return templates;
     return templates.filter((node) =>
-      foldSearchText((nodeDisplayName(node) ?? node.id).toLowerCase()).includes(q),
+      foldSearchText((titleOfNode(node) ?? node.id).toLowerCase()).includes(q),
     );
   }, [templates, query]);
 
@@ -223,7 +223,7 @@ export function TemplateListPopup({
         ) : (
           filtered.map((template, index) => {
             const isSelected = index === effectiveSelectedIndex;
-            const label = nodeDisplayName(template) ?? "Untitled template";
+            const label = titleOfNode(template) ?? "Untitled template";
             return (
               <button
                 key={template.id}

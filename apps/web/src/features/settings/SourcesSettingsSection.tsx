@@ -38,7 +38,7 @@ import {
 } from "@notees/domain";
 
 import type { AnyClient } from "../../ui/app/Sidebar.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { BooleanToggle } from "../../components/ui/fleet/BooleanToggle.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
@@ -236,7 +236,7 @@ export function SourcesSettingsSection({
             const node = client.getNodeRaw(id);
             const checked = node !== undefined && node.isActive;
             const label =
-              (node !== undefined ? (displayNameFromClient(client, id) ?? null) : null) ??
+              (node !== undefined ? (titleOf(client, id) ?? null) : null) ??
               SYSTEM_CLASS_DISPLAY_NAMES[name];
             return (
               <Checkbox

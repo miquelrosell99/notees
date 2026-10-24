@@ -127,3 +127,26 @@
   font: var(--font-body-medium);
   color: var(--md-sys-color-on-surface-variant);
 }
+
+/* The day header's open-page arrow: the journal-feed hover-reveal register
+ — hidden at rest on fine pointers, revealed on header
+   hover/focus-within (opacity keeps it in the tab order); always visible on
+   touch. */
+/* The reveal wrapper only — the SHAPE is the fleet ghost Button's own
+   (the rounded-square register, same as the journal's open button). The
+   arrow sits next to the header text (no auto margin). */
+.cal-agenda__open {
+  margin-left: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cal-agenda__open {
+    opacity: 0;
+    transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  }
+
+  .cal-agenda__day-header:hover .cal-agenda__open,
+  .cal-agenda__day-header:focus-within .cal-agenda__open {
+    opacity: 1;
+  }
+}
