@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { parseQueryAst } from "@notees/protocol";
+import { parseQueryAst, newEnvelope } from "@notees/protocol";
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { nodeRefOfValue, visiblePropertyValueRows, Store } from "@notees/store";
 import { runQuery } from "@notees/query";
@@ -249,6 +249,55 @@ describe("migrate-authors-to-text", () => {
 
     store.close();
     relayAfter.close();
+  });
+
+  it("review focus #1 (export slice): a pre-flip object authors value replaying late (older HLC) does not throw and loses the element LWW", () => {
+    seed();
+    const applied = runScript(MIGRATION_SCRIPT, [
+      "--data-dir", dataDir, "--workspace", WORKSPACE_MAIN, "--apply",
+    ]);
+    expect(applied.status).toBe(0);
+    expect(applied.stdout).toContain("ingested 8 envelope(s)");
+
+    const relay = openRelay(dataDir);
+    const store = hydrate(relay, WORKSPACE_MAIN, join(dataDir, "stale-replay-store.db"));
+    const row = visiblePropertyValueRows(store.database).find(
+      (candidate) =>
+        candidate.property_schema_id === AUTHORS_ID && candidate.node_id === SOURCE_S1 && candidate.idx === 0,
+    )!;
+    expect(JSON.parse(row.value)).toBe("Lovelace, Ada");
+
+    // A device authored this authors element BEFORE the flip (an object
+    // {nodeId} value under the then-object schema) and syncs late — the
+    // envelope arrives after the migrated tail. Replaying it on the
+    // converged store must not throw (a text schema accepts a {nodeId}
+    // shape — the same leniency that keeps broken refs riding), and the
+    // element LWW must keep the migrated text value: the stale write loses.
+    const stale = newEnvelope({
+      workspaceId: WORKSPACE_MAIN,
+      actorId: "01920000-0000-7000-8000-0000000000b8",
+      deviceId: "stale-pre-flip-device",
+      client: "stale-pre-flip-device",
+      hlc: { physical: 1_000_000_000_000, logical: 0 }, // years older than the migration envelopes
+      affectedNodeIds: [SOURCE_S1],
+      opType: "property.set",
+      payload: {
+        objectId: SOURCE_S1,
+        propertySchemaId: AUTHORS_ID,
+        elementId: row.id,
+        value: { nodeId: AGENT_B },
+      },
+    });
+    expect(() => store.apply(stale)).not.toThrow();
+
+    const after = visiblePropertyValueRows(store.database).find(
+      (candidate) =>
+        candidate.property_schema_id === AUTHORS_ID && candidate.node_id === SOURCE_S1 && candidate.idx === 0,
+    )!;
+    expect(JSON.parse(after.value)).toBe("Lovelace, Ada");
+
+    store.close();
+    relay.close();
   });
 
   it("a second run plans nothing (idempotent)", () => {
