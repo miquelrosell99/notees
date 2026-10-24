@@ -17,7 +17,7 @@ import {
   type SettingsSection,
 } from "../../features/settings/SettingsPage.js";
 import { readDeviceSetting } from "../../features/settings/deviceSettings.js";
-import { parseSourcesQuery, type SourcesQueryState } from "../../features/sources/sourcesQuery.js";
+import { DEFAULT_SOURCES_QUERY, parseSourcesQuery, type SourcesQueryState } from "../../features/sources/sourcesQuery.js";
 import { formatDateName } from "../dateDisplay.js";
 import { weekDaysOfIso } from "../../features/calendar/calendarViewUtils.js";
 
@@ -198,7 +198,8 @@ export function popStateNavHandler(opts: {
   /** The calendar's parsed route (null off the surface); omitted = no-op. */
   setCalendarRoute?: ((route: CalendarRoute | null) => void) | undefined;
   /** The Sources hub's parsed query state (law 9 — the hub owns its URL);
-   *  parsed from the landed URL's query string; omitted = no-op. */
+   *  parsed on /sources landings, reset to the default everywhere else;
+   *  omitted = no-op. */
   setSourcesQuery?: ((query: SourcesQueryState) => void) | undefined;
   /** The back/forward tracker's seam: fires with the landed URL (every branch). */
   onNavigated?: ((url: string) => void) | undefined;
@@ -208,7 +209,13 @@ export function popStateNavHandler(opts: {
     opts.onNavigated?.(path + window.location.search);
     opts.setSettingsSection(settingsSectionFromPath(path));
     opts.setCalendarRoute?.(calendarRouteFromPath(path));
-    opts.setSourcesQuery?.(parseSourcesQuery(window.location.search));
+    // The sources grammar is the /surface's own — parse it ONLY on
+    // /sources (another surface's ?q= is its own param, never ours);
+    // landing anywhere else leaves the query at the default (law 9
+    // state/URL parity, the calendar-route precedent above).
+    opts.setSourcesQuery?.(
+      path === "/sources" ? parseSourcesQuery(window.location.search) : DEFAULT_SOURCES_QUERY,
+    );
     if (path === "/workspaces") {
       opts.openManager();
       return;
