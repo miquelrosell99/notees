@@ -30,7 +30,7 @@ import { JournalsView } from "../../features/calendar/JournalsView.js";
 import { CalendarView } from "../../features/calendar/CalendarView.js";
 import { QueriesHub } from "../../features/collection/QueriesHub.js";
 import { SourcesHub } from "../../features/sources/SourcesHub.js";
-import type { SourcesQueryState } from "../../features/sources/sourcesQuery.js";
+import { DEFAULT_SOURCES_QUERY, type SourcesQueryState } from "../../features/sources/sourcesQuery.js";
 import { GraphView } from "../../features/collection/graph/GraphView.js";
 import { TrashHub } from "../../features/trash/TrashHub.js";
 import { ArchivedHub } from "../../features/archived/ArchivedHub.js";
@@ -188,6 +188,11 @@ export function AppBody(props: AppBodyProps) {
           setActiveNav(key);
           setSelectedPageId(null);
           resetCalendarRoute();
+          // Law 9 state/URL parity: the sidebar's hub switch leaves the
+          // sources query with the hub — the bare /sources path the push
+          // below lands on carries no filter state (the calendar route
+          // precedent).
+          onSourcesQueryChange(DEFAULT_SOURCES_QUERY, "replace");
           pushNav(pathForNav(key), { node: null, nav: key });
         }}
         onOpenPage={openPage}

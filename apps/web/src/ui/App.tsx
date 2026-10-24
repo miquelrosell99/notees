@@ -307,7 +307,12 @@ export function App() {
    * route precedent.
    */
   const [sourcesQuery, setSourcesQuery] = useState<SourcesQueryState>(() =>
-    parseSourcesQuery(window.location.search),
+    // The grammar is the surface's own: parse it only when booting ON
+    // /sources (another surface's ?q= is its own param — law 9 parity
+    // with the popstate handler's path gate).
+    window.location.pathname === "/sources"
+      ? parseSourcesQuery(window.location.search)
+      : DEFAULT_SOURCES_QUERY,
   );
 
   /**

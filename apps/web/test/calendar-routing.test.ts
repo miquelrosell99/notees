@@ -20,6 +20,7 @@ import {
   tabTitle,
   type CalendarZoom,
 } from "../src/ui/app/routing.js";
+import { DEFAULT_SOURCES_QUERY } from "../src/features/sources/sourcesQuery.js";
 
 describe("calendarRouteFromPath / pathForCalendar", () => {
   it("round-trips every zoom with a day", () => {
@@ -111,6 +112,37 @@ describe("popStateNavHandler's setCalendarRoute seam", () => {
     window.history.replaceState({}, "", "/pages");
     handler();
     expect(setCalendarRoute).toHaveBeenLastCalledWith(null);
+  });
+});
+
+describe("popStateNavHandler's setSourcesQuery seam", () => {
+  it("parses the sources grammar on a /sources landing, the default everywhere else", () => {
+    const setSourcesQuery = vi.fn();
+    const handler = popStateNavHandler({
+      openManager: () => {},
+      closeManager: () => {},
+      setNav: () => {},
+      setNode: () => {},
+      setSettingsSection: () => {},
+      setSourcesQuery,
+    });
+
+    window.history.replaceState({}, "", "/sources?type=book&q=smith&sort=year:desc");
+    handler();
+    expect(setSourcesQuery).toHaveBeenLastCalledWith({
+      type: "book",
+      q: "smith",
+      sort: { field: "year", direction: "desc" },
+    });
+
+    window.history.replaceState({}, "", "/sources");
+    handler();
+    expect(setSourcesQuery).toHaveBeenLastCalledWith(DEFAULT_SOURCES_QUERY);
+
+    // Another surface's ?q= is its own param — never parsed as ours.
+    window.history.replaceState({}, "", "/pages?q=smith");
+    handler();
+    expect(setSourcesQuery).toHaveBeenLastCalledWith(DEFAULT_SOURCES_QUERY);
   });
 });
 
