@@ -445,7 +445,8 @@ describe("bibliography", () => {
   const bookProperties: ExportNode["properties"] = [
     { schemaId: SYSTEM_PROPERTY_UUIDS.citekey, schemaName: "citekey", value: "kuhn1962" },
     { schemaId: SYSTEM_PROPERTY_UUIDS.publicationDate, schemaName: "publicationDate", value: "1962" },
-    { schemaId: SYSTEM_PROPERTY_UUIDS.authors, schemaName: "authors", value: { nodeId: PERSON_ID } },
+    // The post-flip authors shape: a text-multi row carrying the name strings.
+    { schemaId: SYSTEM_PROPERTY_UUIDS.authors, schemaName: "authors", value: ["Kuhn, Thomas"] },
   ];
 
   it("emits thebibliography with a citekey-keyed entry for a source root (golden)", () => {
@@ -494,10 +495,13 @@ describe("bibliography", () => {
                 schemaName: "publicationDate",
                 value: "2024",
               },
+              // No `authors` rows — the read contract's fallback half derives
+              // the bibliography names from the linkedAuthors agent targets
+              // (resolved rename-free to "Doe, Jane" at build time).
               {
-                schemaId: SYSTEM_PROPERTY_UUIDS.authors,
-                schemaName: "authors",
-                value: { nodeId: AGENT_ID },
+                schemaId: SYSTEM_PROPERTY_UUIDS.linkedAuthors,
+                schemaName: "linkedAuthors",
+                value: [{ nodeId: AGENT_ID }],
               },
             ],
           }),
