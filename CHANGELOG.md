@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): the agenda navigator steps month to month; calendar URLs
+  take the compact YYYYMMDD day.** (1) The agenda's
+  period chevrons move the anchor a whole calendar month (the day clamps —
+  Mar 31 - 1 = Feb 28/29; the pure `addMonthsIso` helper is unit-pinned) —
+  a week's stride was noise over a month-spanning event list. (2) The
+  deep-link day is compact ISO: `/calendar/week/20261020`, no dashes (the
+  dashed form is the internal register; `isIsoDay` validates compact only,
+  `dashedIso` converts at the seam). Specs + the probe's deep-link pass
+  updated.
+  - **Verification**: web suite green. Deployed: verify-min VERIFY-PASS +
+    the panel probe green.
+## 2026-10-24
+
 - **docs(AGENTS): the system-components law is codified.** ALWAYS the system components — unless the UI is genuinely
   one-of-a-kind, in which case it is created as an independent component
   under `components/ui/fleet/`, never ad-hoc styled markup in feature code

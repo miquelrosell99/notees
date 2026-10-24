@@ -74,9 +74,13 @@ export function isCalendarZoom(value: string): value is CalendarZoom {
   return CALENDAR_ZOOM_SET.has(value);
 }
 
-/** A real local ISO day (yyyy-mm-dd that actually exists on the calendar). */
+/**
+ * A compact URL day (YYYYMMDD, no dashes in calendar
+ * URLs) that is a real local calendar day. The URL carries the compact
+ * form; the app's internal iso stays dashed.
+ */
 export function isIsoDay(value: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const match = /^(\d{4})(\d{2})(\d{2})$/.exec(value);
   if (match === null) return false;
   const year = Number(match[1]);
   const month0 = Number(match[2]) - 1;
@@ -85,6 +89,16 @@ export function isIsoDay(value: string): boolean {
   return (
     date.getFullYear() === year && date.getMonth() === month0 && date.getDate() === day
   );
+}
+
+/** The compact URL form of a dashed local iso day (2026-10-20 -> 20261020). */
+function compactIso(iso: string): string {
+  return iso.replace(/-/g, "");
+}
+
+/** The dashed internal form of a compact URL day (20261020 -> 2026-10-20). */
+export function dashedIso(compact: string): string {
+  return `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}`;
 }
 
 /**
@@ -111,13 +125,17 @@ export function calendarRouteFromPath(pathname: string): CalendarRoute | null {
   // Valid zooms only: an invalid zoom segment falls back to the bare default
   // wholesale (the iso is the ZOOM's segment — it never rides alone).
   if (segments.length < 2 || !isCalendarZoom(segments[1]!)) return { zoom: null, iso: null };
-  const iso = segments.length >= 3 && isIsoDay(segments[2]!) ? segments[2]! : null;
+  const iso =
+    segments.length >= 3 && isIsoDay(segments[2]!) ? dashedIso(segments[2]!) : null;
   return { zoom: segments[1]! as CalendarZoom, iso };
 }
 
-/** Build the calendar path: `/calendar/<zoom>` or `/calendar/<zoom>/<iso>`. */
+/**
+ * Build the calendar path: `/calendar/<zoom>` or `/calendar/<zoom>/<day>` —
+ * the day in the compact YYYYMMDD URL register.
+ */
 export function pathForCalendar(zoom: CalendarZoom, iso: string | null = null): string {
-  return iso !== null ? `/calendar/${zoom}/${iso}` : `/calendar/${zoom}`;
+  return iso !== null ? `/calendar/${zoom}/${compactIso(iso)}` : `/calendar/${zoom}`;
 }
 
 /**
