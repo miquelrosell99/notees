@@ -1,0 +1,132 @@
+/* AgendaView — the Agenda zoom's days-with-events column (owner
+   2026-10-24, the Google agenda register). Tokens from variables.css: the
+   group header rides the headline/label type scale, the rows the body
+   scale, the dot the spacing scale; the now-line rides the error role. */
+
+.cal-agenda {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
+  padding: 0 0 var(--spacing-6);
+}
+
+.cal-agenda__sentinel {
+  height: 1px;
+  flex-shrink: 0;
+}
+
+.cal-agenda__days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
+}
+
+.cal-agenda__day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.cal-agenda__day-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.cal-agenda__daynum {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-10);
+  height: var(--spacing-10);
+  border-radius: var(--shape-full);
+  font: var(--font-headline-medium);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* Today rides the filled circle (the Google register). */
+.cal-agenda__daynum--today {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+.cal-agenda__day-meta {
+  font: var(--font-label-large);
+  letter-spacing: var(--letter-spacing-label);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* The red now-line under today's group header. */
+.cal-agenda__now {
+  border-top: var(--border-width-medium) solid var(--md-sys-color-error);
+}
+
+.cal-agenda__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-agenda__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  width: 100%;
+  padding: var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: none;
+  font: var(--font-body-large);
+  color: var(--md-sys-color-on-surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cal-agenda__row:hover {
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.cal-agenda__row:focus-visible {
+  outline: var(--border-width-medium) solid var(--md-sys-color-primary);
+  outline-offset: var(--spacing-micro);
+}
+
+.cal-agenda__dot {
+  width: var(--spacing-3);
+  height: var(--spacing-3);
+  flex-shrink: 0;
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-primary);
+}
+
+/* The time label's column: the widest register string ("09:00 – 10:00")
+   fits one line at any type size (the ch unit tracks the font). */
+.cal-agenda__time {
+  min-width: 13ch;
+  flex-shrink: 0;
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.cal-agenda__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-agenda__empty {
+  margin: 0;
+  padding: var(--spacing-4) 0;
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+}

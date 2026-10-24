@@ -1,11 +1,11 @@
 /**
- * CalendarGrid — the calendar's zoom-ladder grids (owner 2026-10-23, the
- * google-calendar proposal slice 2): the Week / Month / Year zooms of the
- * Calendar view, each rendering the events list's exact membership
+ * CalendarGrid — the calendar's Month / Year zooms (owner 2026-10-23, the
+ * google-calendar proposal slice 2; the Day/Week zooms re-scoped to the
+ * TimeGrid 2026-10-24): each rendering the events list's exact membership
  * (calendarRows.eventRowsForDays — event-family nodes dated into the day
  * or embedded in the day page) as COLORED BLOCKS (effectiveNodeColor: own
- * color, else the first class's). Day zoom is the day agenda (DayAgenda,
- * CalendarView renders it); this component owns the other three.
+ * color, else the first class's). The Day/Week time grid (TimeGrid) owns
+ * the hourly register; this component owns the block grids.
  *
  * The whole-day register retired (owner 2026-10-24): a datetime value may
  * carry a clock time and span a RANGE of days — blocks prefix the label
@@ -24,9 +24,10 @@
  * ("14:30 Title"; "14:30–16:00 Title" for a same-day timed range).
  * Period navigation (prev/next) steps the VISIBLE window without moving
  * the selection; the window follows the selection when it drifts across a
- * boundary (the MonthCalendar contract). Drag-and-drop (move/create) and
- * the recurring scope dialog ship; the grid renders their drop targets
- * already via the cell data attributes.
+ * boundary (the MonthCalendar contract). Drag-and-drop (move/create),
+ * the context menu, and the recurring scope dialog ride the shared
+ * calendarEventOps register; the grid renders their drop targets already
+ * via the cell data attributes.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -42,26 +43,21 @@ import {
   type RecurringRow,
   type SpannedRow,
 } from "./calendarRows.js";
-import {
-  deleteOccurrence,
-  editOccurrence,
-  type RecurrenceScope,
-} from "./calendarRecurrence.js";
+import { BlockContextMenu, useEventOps } from "./calendarEventOps.js";
 import {
   dayNodeId,
   deriveDisplayName,
-  recurrenceRuleOf,
   SYSTEM_CLASS_UUIDS,
 } from "@notees/domain";
 import { isoLocal, useWeekdayHeader } from "./dayGrid.js";
-import { addDaysIso, timePrefixOfValue, weekDaysOfIso } from "./calendarViewUtils.js";
+import { addDaysIso, timePrefixOfValue } from "./calendarViewUtils.js";
 import { EventCreateModal } from "./EventCreateModal.js";
 import "./CalendarGrid.css";
 
 /** Blocks a month cell shows before the honest "+N" row. */
 const BLOCKS_PER_CELL = 3;
 
-export type GridZoom = "week" | "month" | "year";
+export type GridZoom = "month" | "year";
 
 export interface CalendarGridProps {
   client: AnyClient;
@@ -122,14 +118,14 @@ export function CalendarGrid({
   onOpenYearPage,
 }: CalendarGridProps) {
 
-  /** The recurring scope dialog's pending action (a move or a delete). */
-  const [pendingAction, setPendingAction] = useState<
-    | { kind: "move"; nodeId: string; fromIso: string; toIso: string }
-    | { kind: "delete"; nodeId: string; iso: string }
-    | null
-  >(null);
-  /** The block context menu (right-click), fixed-position. */
-  const [blockMenu, setBlockMenu] = useState<{ x: number; y: number; nodeId: string; iso: string } | null>(null);
+  /** The recurring scope dialog + context menu ride the shared ops register. */
+  const {
+    menu: blockMenu,
+    setMenu: setBlockMenu,
+    moveEventToDay,
+    requestDelete,
+    scopeSheet,
+  } = useEventOps(client);
   /** Drag-create anchor: the day the press started on (null = not creating). */
   const [createAnchor, setCreateAnchor] = useState<string | null>(null);
   const [createEnd, setCreateEnd] = useState<string | null>(null);
@@ -144,10 +140,9 @@ export function CalendarGrid({
 
   // The rendered day cells + the events read per cell. Month shows the
   // whole visible month plus lead/trail days of the neighbors (Google's
-  // register: neighbor days render dimmed); week shows exactly the visible
-  // week; the year zoom renders its own compact months.
+  // register: neighbor days render dimmed); the year zoom renders its own
+  // compact months.
   const cells = useMemo(() => {
-    if (zoom === "week") return weekDaysOfIso(selectedIso, firstDayOfWeek);
     if (zoom === "month") {
       const lead = (new Date(period.year, period.month0, 1).getDay() - firstDayOfWeek + 7) % 7;
       const dayCount = new Date(period.year, period.month0 + 1, 0).getDate();
@@ -157,7 +152,7 @@ export function CalendarGrid({
       return Array.from({ length: total + trail }, (_, i) => addDaysIso(from, i));
     }
     return [];
-  }, [zoom, selectedIso, firstDayOfWeek, period]);
+  }, [zoom, firstDayOfWeek, period]);
 
   const eventsByIso = useMemo(() => {
     const map = new Map<string, ReturnType<typeof eventRowsForDays>>();
@@ -165,36 +160,7 @@ export function CalendarGrid({
     return map;
   }, [client, cells, recurringRows, spannedRows]);
 
-  // --- the drag-and-drop writes (owner 2026-10-23, google-calendar slice 3) --
-
-  /** The authored datetime value of `nodeId` anchored at `iso`, if any. */
-  const dateRowAt = (nodeId: string, iso: string) => drivingDateRowOf(client, nodeId, iso);
-
-  const isRecurringAt = (nodeId: string, iso: string): boolean => {
-    const row = dateRowAt(nodeId, iso);
-    return row !== undefined && recurrenceRuleOf(row.metadata) !== null;
-  };
-
-  /** A block dropped on another day: plain events rewrite the date; recurring
-      events route through the scope dialog (slice 4). */
-  const moveEvent = (nodeId: string, fromIso: string, toIso: string): void => {
-    if (fromIso === toIso) return;
-    if (isRecurringAt(nodeId, fromIso)) {
-      setPendingAction({ kind: "move", nodeId, fromIso, toIso });
-      return;
-    }
-    const row = dateRowAt(nodeId, fromIso);
-    if (row === undefined) return;
-    void client.ensureDateChain(toIso).then(async () => {
-      await client.setProperty(
-        nodeId,
-        row.propertySchemaId,
-        { nodeId: dayNodeId(toIso) },
-        row.idx ?? 0,
-        row.metadata ?? undefined,
-      );
-    });
-  };
+  // --- the drag-create write (owner 2026-10-23, google-calendar slice 3) ---
 
   /** Drag-create release: one plain `event`-classed object, a date value per
       dragged day (the multi-day register: PG5 multi-value, one value per
@@ -226,16 +192,6 @@ export function CalendarGrid({
     onOpenEvent(id);
   };
 
-  /** The context-menu delete: recurring events route through the scope dialog. */
-  const requestDelete = (nodeId: string, iso: string): void => {
-    setBlockMenu(null);
-    if (isRecurringAt(nodeId, iso)) {
-      setPendingAction({ kind: "delete", nodeId, iso });
-      return;
-    }
-    void deleteOccurrence(client, nodeId, iso, "all");
-  };
-
   if (zoom === "year") {
     return (
       <YearGrid
@@ -262,11 +218,9 @@ export function CalendarGrid({
           </span>
         ))}
       </div>
-      <div className={`cal-grid__cells${zoom === "week" ? " cal-grid__cells--week" : ""}`}>
+      <div className="cal-grid__cells">
         {cells.map((iso) => {
-          const inMonth =
-            zoom === "week" ||
-            Number(iso.slice(5, 7)) === period.month0 + 1;
+          const inMonth = Number(iso.slice(5, 7)) === period.month0 + 1;
           const rows = eventsByIso.get(iso) ?? [];
           const shown = rows.slice(0, BLOCKS_PER_CELL);
           const extra = rows.length - shown.length;
@@ -304,7 +258,7 @@ export function CalendarGrid({
                 const payload = event.dataTransfer.getData("text/x-notees-event");
                 if (payload === "") return;
                 const [nodeId, fromIso] = payload.split("|");
-                if (nodeId !== undefined && fromIso !== undefined) moveEvent(nodeId, fromIso, iso);
+                if (nodeId !== undefined && fromIso !== undefined) moveEventToDay(nodeId, fromIso, iso);
               }}
               onMouseDown={(event) => {
                 // Drag-create: a press on the empty cell background (not a
@@ -369,51 +323,14 @@ export function CalendarGrid({
         />
       )}
       {blockMenu !== null && (
-        <div
-          className="cal-block-menu"
-          style={{ left: blockMenu.x, top: blockMenu.y }}
-          role="menu"
-        >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              onOpenEvent(blockMenu.nodeId);
-              setBlockMenu(null);
-            }}
-          >
-            Open event
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="cal-block-menu__danger"
-            onClick={() => requestDelete(blockMenu.nodeId, blockMenu.iso)}
-          >
-            Delete
-          </button>
-          <button type="button" role="menuitem" onClick={() => setBlockMenu(null)}>
-            Cancel
-          </button>
-        </div>
-      )}
-      {pendingAction !== null && (
-        <RecurrenceScopeSheet
-          action={pendingAction}
-          onCancel={() => setPendingAction(null)}
-          onPick={(scope) => {
-            const action = pendingAction;
-            setPendingAction(null);
-            if (action.kind === "move") {
-              void editOccurrence(client, action.nodeId, action.fromIso, scope, {
-                toIso: action.toIso,
-              });
-            } else {
-              void deleteOccurrence(client, action.nodeId, action.iso, scope);
-            }
-          }}
+        <BlockContextMenu
+          menu={blockMenu}
+          onOpen={onOpenEvent}
+          onDelete={requestDelete}
+          onCancel={() => setBlockMenu(null)}
         />
       )}
+      {scopeSheet}
       <EventCreateModal
         isOpen={createAt !== null}
         onClose={() => setCreateAt(null)}
@@ -491,95 +408,6 @@ function EventBlock({
     >
       {prefix !== null ? `${prefix} ${label}` : label}
     </button>
-  );
-}
-
-/**
- * The recurring scope sheet (owner 2026-10-23, slice 4): the Google
- * register — Only this event / This and following events / All events —
- * asked when a recurring event is moved or deleted.
- */
-function RecurrenceScopeSheet({
-  action,
-  onCancel,
-  onPick,
-}: {
-  action: { kind: "move"; nodeId: string; fromIso: string; toIso: string } | { kind: "delete"; nodeId: string; iso: string };
-  onCancel: () => void;
-  onPick: (scope: RecurrenceScope) => void;
-}) {
-  const [scope, setScope] = useState<RecurrenceScope>("one");
-  const dayLabel = (iso: string) =>
-    new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    });
-  const occurrenceIso = action.kind === "move" ? action.fromIso : action.iso;
-  const verb = action.kind === "move" ? "move" : "delete";
-  const options: Array<{ value: RecurrenceScope; label: string; hint: string }> = [
-    {
-      value: "one",
-      label: "Only this event",
-      hint:
-        action.kind === "move"
-          ? `${dayLabel(occurrenceIso)} detaches into its own event on ${dayLabel(action.toIso)}.`
-          : `Only ${dayLabel(occurrenceIso)} is removed.`,
-    },
-    {
-      value: "following",
-      label: "This and following events",
-      hint:
-        action.kind === "move"
-          ? `The series splits at ${dayLabel(occurrenceIso)}; the moved event carries forward.`
-          : `The series ends before ${dayLabel(occurrenceIso)}.`,
-    },
-    {
-      value: "all",
-      label: "All events",
-      hint: "The whole series, past and future.",
-    },
-  ];
-  return (
-    <div className="cal-scope" role="dialog" aria-modal="true" aria-label="Recurring event">
-      <div className="cal-scope__card">
-        <h3 className="cal-scope__title">
-          {action.kind === "move" ? "Move recurring event" : "Delete recurring event"}
-        </h3>
-        <p className="cal-scope__body">
-          This is a recurring event. Which events do you want to {verb}?
-        </p>
-        <div className="cal-scope__options" role="radiogroup" aria-label="Scope">
-          {options.map((option) => (
-            <label key={option.value} className="cal-scope__option">
-              <input
-                type="radio"
-                name="recurrence-scope"
-                value={option.value}
-                checked={scope === option.value}
-                onChange={() => setScope(option.value)}
-              />
-              <span className="cal-scope__option-text">
-                <span className="cal-scope__option-label">{option.label}</span>
-                <span className="cal-scope__option-hint">{option.hint}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-        <div className="cal-scope__actions">
-          <button type="button" className="cal-scope__btn" onClick={onCancel}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="cal-scope__btn cal-scope__btn--primary"
-            onClick={() => onPick(scope)}
-          >
-            {action.kind === "move" ? "Move" : "Delete"}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
