@@ -224,6 +224,36 @@ predating this file.
     changelog; the csl.ts/latex.ts "designed-not-built" headers now say
     shipped.
 
+## 2026-10-24
+
+- **fix(scripts): `migrate-source-library-roster` heals missing roster
+  extends edges (live-drift discovery, source-library slice 1 task 7).**
+  The live `--all` dry-run against the personal workspace refused the
+  web_page↔abstract binding at the R5 pre-check: the converged store was
+  missing the seeded `web_page→source` extends edge (`class_hierarchy` held
+  only the reflexive row for …0034), and the plan-time R5 walk only saw
+  edges for classes the run CREATES — web_page already existed, so its
+  drifted edge was never healed and every source-scoped pool binding on the
+  class failed. Fix: a new extends-HEAL step — every `SYSTEM_CLASS_EXTENDS`
+  edge of the source family (39 classes, filtered on `source` parents) is
+  existence-checked against `class_extends`; missing edges re-author via
+  `class.setExtends` with EXACTLY the seeded parent set — the
+  `deploySystemClass` ensure shape (`apps/web` systemClassDeploy.ts),
+  emitted only when a seeded parent is missing (idempotent no-op where the
+  edges stand), ordered BEFORE the binding rows so the apply-time hierarchy
+  rebuild precedes the R5 check. The plan-time R5 walk now consults a
+  `runParents` override covering classes the run creates OR heals (the
+  class_hierarchy rebuild is apply-time; the override mirrors the
+  created-classes flow). The dry run lists the healed edges; verification
+  asserts every source-family seeded edge reads back.
+  - **Verification**: new scratch probe — web_page seeded WITHOUT its
+    source edge — dry-run plans `healed extends edges: 1 (web_page→source)`,
+    the R5 refusal is gone, `--apply` converges (edge + 10 binding rows +
+    closure reach source), second run plans nothing. Existing probes stay
+    green: happy path (review focus #5 asserted), user-renamed titles
+    skipped and untouched, poisoned paper node aborts pre-ingest at
+    envelope 239/903 with zero writes. Full `pnpm test` green.
+
 ## 2026-10-23
 - **feat(web): the Tasks hub gains the New-task flow — the
   create-with-template flow's new home (owner 2026-10-24 follow-up).** The

@@ -33,8 +33,18 @@
  *      SYSTEM_SOURCE_CLASS_BINDINGS (task 5's 39-class table) — and each
  *      SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES class seeds archived
  *      (object.update {active: false} AFTER its rows exist, the seed.ts
- *      ordering). R5 pre-checked at plan time (a binding whose schema scope
- *      excludes the class fails loud at apply; the plan never emits one);
+ *      ordering). Plus the extends HEAL for EXISTING source-family classes:
+ *      live drift can drop a seeded extends edge (the live personal
+ *      workspace missed web_page→source — class_hierarchy held only the
+ *      reflexive row — which failed R5 for every source-scoped pool binding
+ *      on the class), so every SYSTEM_CLASS_EXTENDS edge of the source
+ *      family is existence-checked against class_extends and the missing
+ *      ones re-author via class.setExtends with exactly the seeded parent
+ *      set — the deploySystemClass ensure shape, BEFORE the binding rows.
+ *      R5 pre-checked at plan time (a binding whose schema scope excludes
+ *      the class fails loud at apply; the plan never emits one — the
+ *      plan-time walk sees the post-heal closure through the runParents
+ *      override, exactly like the created-classes flow);
  *  (d) report + verify.
  *
  * The plan is read from a SCRATCH derived store (latest snapshot + log tail —
@@ -232,11 +242,27 @@ interface WorkspacePlan {
   missingSchemas: string[];
   missingClasses: string[];
   extendsForCreated: Array<{ classId: string; parents: string[] }>;
+  /** Seeded extends edges missing on EXISTING source-family classes (the live-drift heal). */
+  healedExtends: Array<{ classId: string; name: string; parents: string[] }>;
   missingSpecBindings: Array<{ classId: string; propertySchemaId: string }>;
   missingExtraBindings: Array<{ classId: string; propertySchemaId: string }>;
   missingSourceBindings: Array<{ classId: string; propertySchemaId: string }>;
   archivedFlips: string[];
 }
+
+/**
+ * The roster source family: every SYSTEM_CLASS_EXTENDS entry parented on
+ * source — the 30 roster type-classes + journal_article/web_page/film +
+ * book/thesis/document/conference/song/tv_series. Live drift can drop a
+ * seeded extends edge (the live personal workspace's converged state was
+ * missing web_page→source — class_hierarchy held only the reflexive row for
+ * …0034 — which then failed R5 for every source-scoped pool binding).
+ */
+const SOURCE_FAMILY_NAMES = (
+  Object.entries(SYSTEM_CLASS_EXTENDS) as Array<[SystemClassName, SystemClassName[]]>
+)
+  .filter(([, parents]) => parents.includes("source"))
+  .map(([name]) => name);
 
 function classNodeRow(store: Store, classId: string): { active: number; content: string } | undefined {
   return store.database
@@ -264,15 +290,16 @@ function schemaRow(
 /**
  * R5 pre-check (owner ruling 2026-10-20): a binding whose schema scope
  * excludes the class is dead config and applyClassPropertySet fails loud —
- * the plan must never emit one. `createdParents` carries the manifest
- * parents of classes this run creates (their extends edges land in the same
- * ingest, before the bindings).
+ * the plan must never emit one. `runParents` carries the parent sets this
+ * run will write for classes it creates OR heals (their class.setExtends
+ * envelopes land in the same ingest, before the bindings), so the walk
+ * sees the post-run closure rather than the drifted stored one.
  */
 function scopeReachesClass(
   store: Store,
   classId: string,
   scopeClassIds: string[] | null,
-  createdParents: Map<string, string[]>,
+  runParents: Map<string, string[]>,
 ): boolean {
   if (scopeClassIds === null) return true;
   if (scopeClassIds.includes(classId)) return true;
@@ -284,14 +311,15 @@ function scopeReachesClass(
       )
       .get(classId, ...scopeClassIds) !== undefined;
   if (inStore) return true;
-  // A class created by this run: walk the manifest extends transitively.
+  // A class created or healed by this run: walk the manifest extends
+  // transitively (runParents overrides the drifted stored edges).
   const visiting = new Set<string>();
   const reach = (id: string): boolean => {
     if (scopeClassIds.includes(id)) return true;
     if (visiting.has(id)) return false;
     visiting.add(id);
     const parents =
-      createdParents.get(id) ??
+      runParents.get(id) ??
       (store.database.prepare("SELECT 1 FROM node WHERE id = ? AND is_class = 1").get(id)
         ? (
             store.database
@@ -320,6 +348,7 @@ function planWorkspace(store: Store): WorkspacePlan {
     missingSchemas: [],
     missingClasses: [],
     extendsForCreated: [],
+    healedExtends: [],
     missingSpecBindings: [],
     missingExtraBindings: [],
     missingSourceBindings: [],
@@ -342,7 +371,7 @@ function planWorkspace(store: Store): WorkspacePlan {
   // FIRST: the (a) guard below treats a journal_article this run creates as
   // satisfying the reclass prerequisite (its class.create lands in the same
   // ingest, before the reclass envelopes).
-  const createdParents = new Map<string, string[]>();
+  const runParents = new Map<string, string[]>();
   for (const name of SEEDED_SYSTEM_CLASSES) {
     const classId = SYSTEM_CLASS_UUIDS[name];
     if (classNodeRow(store, classId) !== undefined) continue;
@@ -351,7 +380,7 @@ function planWorkspace(store: Store): WorkspacePlan {
       (parent) => SYSTEM_CLASS_UUIDS[parent],
     );
     plan.extendsForCreated.push({ classId, parents });
-    createdParents.set(classId, parents);
+    runParents.set(classId, parents);
   }
   // Every extends parent must exist after the create pass (live or created).
   for (const { classId, parents } of plan.extendsForCreated) {
@@ -367,6 +396,36 @@ function planWorkspace(store: Store): WorkspacePlan {
     }
   }
 
+
+  // (c2b) extends healing for EXISTING source-family classes: live drift
+  // can drop a seeded extends edge (the live personal workspace's converged
+  // state was missing web_page→source — class_hierarchy held only the
+  // reflexive row for …0034 — which then failed R5 for every source-scoped
+  // pool binding on the class). The deploySystemClass ensure shape
+  // (apps/web systemClassDeploy.ts): class.setExtends with EXACTLY the
+  // seeded parent set, emitted only when a seeded parent edge is missing —
+  // an idempotent no-op where the edges stand (a system class's extends is
+  // frozen to the seeded set anyway, so replace-with-seeded is the
+  // convergence, not a clobber). The healed parents join the runParents
+  // override so the R5 pre-check below walks the post-heal closure, exactly
+  // like the created-classes flow (the class_hierarchy rebuild happens at
+  // apply time, in ingest order).
+  for (const name of SOURCE_FAMILY_NAMES) {
+    const classId = SYSTEM_CLASS_UUIDS[name];
+    if (classNodeRow(store, classId) === undefined) continue; // missing — the create flow owns it
+    const seededParents = (SYSTEM_CLASS_EXTENDS[name] ?? []).map(
+      (parent) => SYSTEM_CLASS_UUIDS[parent],
+    );
+    const currentParents = (
+      db
+        .prepare("SELECT parent_class_id FROM class_extends WHERE class_id = ?")
+        .all(classId) as Array<{ parent_class_id: string }>
+    ).map((row) => row.parent_class_id);
+    if (seededParents.every((parent) => currentParents.includes(parent))) continue;
+    plan.healedExtends.push({ classId, name, parents: seededParents });
+    runParents.set(classId, seededParents);
+  }
+
   // (a) nodes classed paper (OR-Set present rows; the effective membership).
   plan.paperNodes = (
     db
@@ -376,7 +435,7 @@ function planWorkspace(store: Store): WorkspacePlan {
   if (
     plan.paperNodes.length > 0 &&
     classNodeRow(store, JOURNAL_ARTICLE_ID) === undefined &&
-    !createdParents.has(JOURNAL_ARTICLE_ID)
+    !runParents.has(JOURNAL_ARTICLE_ID)
   ) {
     throw new Error(
       `plan: ${plan.paperNodes.length} node(s) carry paper but the journal_article (…0026) class node is absent and not seeded — refusing to leave dangling membership`,
@@ -411,7 +470,7 @@ function planWorkspace(store: Store): WorkspacePlan {
   // existence-checked; R5 pre-checked against the converged closure plus
   // this run's creates.
   const classExistsOrCreated = (classId: string): boolean =>
-    classNodeRow(store, classId) !== undefined || createdParents.has(classId);
+    classNodeRow(store, classId) !== undefined || runParents.has(classId);
   const pushBinding = (
     bucket: Array<{ classId: string; propertySchemaId: string }>,
     classId: string,
@@ -433,7 +492,7 @@ function planWorkspace(store: Store): WorkspacePlan {
         : schema.scope_class_ids === null
           ? null
           : (JSON.parse(schema.scope_class_ids) as string[]);
-    if (!scopeReachesClass(store, classId, scope, createdParents)) {
+    if (!scopeReachesClass(store, classId, scope, runParents)) {
       throw new Error(
         `plan: binding ${classId}↔${propertySchemaId} would violate R5 (scope excludes the class) — refusing to emit dead config`,
       );
@@ -466,7 +525,7 @@ function planWorkspace(store: Store): WorkspacePlan {
   for (const name of SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES) {
     const classId = SYSTEM_CLASS_UUIDS[name];
     const row = classNodeRow(store, classId);
-    if (row === undefined && !createdParents.has(classId)) continue;
+    if (row === undefined && !runParents.has(classId)) continue;
     if (row === undefined || row.active === 1) plan.archivedFlips.push(classId);
   }
 
@@ -490,6 +549,7 @@ function planIsEmpty(plan: WorkspacePlan): boolean {
     plan.renames.length === 0 &&
     plan.missingSchemas.length === 0 &&
     plan.missingClasses.length === 0 &&
+    plan.healedExtends.length === 0 &&
     plan.missingSpecBindings.length === 0 &&
     plan.missingExtraBindings.length === 0 &&
     plan.missingSourceBindings.length === 0 &&
@@ -524,8 +584,10 @@ function buildEnvelopes(workspaceId: string, plan: WorkspacePlan): Envelope[] {
   // Emission order mirrors the dependency graph of the appliers: pool
   // schemas, then class creates + extends (so a journal_article this run
   // creates EXISTS before the reclass add carrier references it), then the
-  // paper reclass, then the title renames, then the binding rows (R5 sees
-  // the schemas + closure), then the archived flips.
+  // extends heals for existing classes (before the binding rows — the R5
+  // closure must see the healed edges at apply time), then the paper
+  // reclass, then the title renames, then the binding rows (R5 sees the
+  // schemas + closure), then the archived flips.
 
   // (c1) missing pool schemas (name/type/multi/scope/defaults per the seed).
   for (const propertySchemaId of plan.missingSchemas) {
@@ -569,6 +631,13 @@ function buildEnvelopes(workspaceId: string, plan: WorkspacePlan): Envelope[] {
   }
   for (const { classId, parents } of plan.extendsForCreated) {
     push("class.setExtends", { classId, parentClassIds: parents }, [classId]);
+  }
+
+  // (c2b) extends heals for EXISTING source-family classes (the ensure
+  // shape — replace with exactly the seeded parent set; lands before the
+  // binding rows so the apply-time hierarchy rebuild precedes the R5 check).
+  for (const heal of plan.healedExtends) {
+    push("class.setExtends", { classId: heal.classId, parentClassIds: heal.parents }, [heal.classId]);
   }
 
   // (a) paper → journal_article: the remove + the re-issued add carrier.
@@ -756,6 +825,23 @@ function verify(
         throw new Error(`verification failed: seeded class ${name} has no node row after the migration`);
       }
     }
+    // Every source-family class carries its seeded extends edges (the
+    // live-drift heal — a missing web_page→source edge is what poisoned the
+    // live dry-run's R5 check in the first place).
+    for (const name of SOURCE_FAMILY_NAMES) {
+      const classId = SYSTEM_CLASS_UUIDS[name];
+      for (const parentName of SYSTEM_CLASS_EXTENDS[name] ?? []) {
+        const edge =
+          db
+            .prepare("SELECT 1 FROM class_extends WHERE class_id = ? AND parent_class_id = ?")
+            .get(classId, SYSTEM_CLASS_UUIDS[parentName]) !== undefined;
+        if (!edge) {
+          throw new Error(
+            `verification failed: ${name} is still missing its seeded extends edge to ${parentName}`,
+          );
+        }
+      }
+    }
     const assertBinding = (classId: string, propertySchemaId: string): void => {
       if (!bindingPresent(store, classId, propertySchemaId)) {
         throw new Error(
@@ -893,7 +979,13 @@ function migrateWorkspace(relay: RelayStorage, workspaceId: string, apply: boole
     console.log(
       `  (c) missing pool schemas: ${plan.missingSchemas.length}; missing class nodes: ` +
         `${plan.missingClasses.length}${plan.missingClasses.length > 0 ? ` (${plan.missingClasses.join(", ")})` : ""}; ` +
-        `extends edges: ${plan.extendsForCreated.length}`,
+        `extends edges for new classes: ${plan.extendsForCreated.length}`,
+    );
+    console.log(
+      `  (c) healed extends edges: ${plan.healedExtends.length}` +
+        (plan.healedExtends.length > 0
+          ? ` (${plan.healedExtends.map((heal) => `${heal.name}→${(SYSTEM_CLASS_EXTENDS[heal.name as SystemClassName] ?? []).join("+")}`).join(", ")})`
+          : ""),
     );
     console.log(
       `  (c) missing binding rows: spec ${plan.missingSpecBindings.length}, extra ` +
