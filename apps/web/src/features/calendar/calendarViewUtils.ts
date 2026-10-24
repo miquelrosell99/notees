@@ -38,6 +38,15 @@ export function addDaysIso(iso: string, delta: number): string {
   ).padStart(2, "0")}`;
 }
 
+/** Signed day count from one local ISO day to another (noon-anchored). */
+export function daysBetweenIsos(fromIso: string, toIso: string): number {
+  const [fy, fm, fd] = fromIso.split("-").map(Number);
+  const [ty, tm, td] = toIso.split("-").map(Number);
+  const from = new Date(fy!, fm! - 1, fd!, 12);
+  const to = new Date(ty!, tm! - 1, td!, 12);
+  return Math.round((to.getTime() - from.getTime()) / 86_400_000);
+}
+
 /** ISO-8601 week number (Mon-first) for a local ISO date. */
 export function isoWeekNumber(iso: string): number {
   const [y, m, d] = iso.split("-").map(Number);
@@ -318,6 +327,77 @@ export function timePrefixOfValue(value: unknown): string | null {
     return `${startTime}–${range.end.time}`;
   }
   return startTime;
+}
+
+/** Minutes after midnight for a validated "HH:MM" — malformed throws (fail loud). */
+export function minutesOfTime(time: string): number {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
+  if (match === null) throw new Error(`Invalid HH:MM time: ${time}`);
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+/** "HH:MM" for minutes after midnight (the inverse of minutesOfTime). */
+export function timeOfMinutes(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * The overlap clustering behind the time grid's timed cards (the Google
+ * register): events are grouped into clusters of TRANSITIVELY overlapping
+ * spans (a touches b, b touches c ⇒ one cluster), then each event takes the
+ * first free column within its cluster. Widths derive from the cluster's
+ * column count, so overlapping events split the day column side by side
+ * while a lone event fills its column.
+ */
+export interface TimedPlacement<T> {
+  row: T;
+  /** The event's column within its cluster (0-based). */
+  column: number;
+  /** The cluster's column count — the width divisor. */
+  columns: number;
+}
+
+export function clusterTimedEvents<
+  T extends { startMinutes: number; durationMinutes: number },
+>(timed: readonly T[]): Array<TimedPlacement<T>> {
+  const sorted = [...timed].sort(
+    (a, b) =>
+      a.startMinutes - b.startMinutes ||
+      b.durationMinutes - a.durationMinutes,
+  );
+  const placements = new Map<T, TimedPlacement<T>>();
+  /** Close a cluster: greedy first-free-column assignment. */
+  const assign = (cluster: T[]): void => {
+    const lastEnd: number[] = [];
+    for (const event of cluster) {
+      const end = event.startMinutes + event.durationMinutes;
+      let column = lastEnd.findIndex((freeAt) => freeAt <= event.startMinutes);
+      if (column === -1) {
+        column = lastEnd.length;
+        lastEnd.push(end);
+      } else {
+        lastEnd[column] = end;
+      }
+      placements.set(event, { row: event, column, columns: 1 });
+    }
+    const columns = Math.max(1, lastEnd.length);
+    for (const event of cluster) placements.get(event)!.columns = columns;
+  };
+  let cluster: T[] = [];
+  let clusterEnd = -1;
+  for (const event of sorted) {
+    const end = event.startMinutes + event.durationMinutes;
+    if (event.startMinutes >= clusterEnd && cluster.length > 0) {
+      assign(cluster);
+      cluster = [];
+    }
+    cluster.push(event);
+    clusterEnd = Math.max(clusterEnd, end);
+  }
+  if (cluster.length > 0) assign(cluster);
+  return [...placements.values()];
 }
 
 /**
