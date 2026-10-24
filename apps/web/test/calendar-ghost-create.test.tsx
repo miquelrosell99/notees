@@ -334,14 +334,20 @@ describe("TimeGrid click-to-create ghost (owner 2026-10-24)", () => {
     expect(ghost.getAttribute("data-end")).toBe("600");
   });
 
-  it("the header day-number button owns the day selection", async () => {
+  it("the day number opens the day page; the header's empty space selects (owner register)", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const { onSelectDay, onOpenDayPage } = renderTimeGrid(client, today);
     const grid = screen.getByLabelText("Calendar day view");
 
+    // The number: opens the page, does NOT select.
     fireEvent.click(grid.querySelector(".cal-timegrid__daynum") as HTMLElement);
-    expect(onSelectDay).toHaveBeenCalledWith(today);
     expect(onOpenDayPage).toHaveBeenCalledWith(today);
+    expect(onSelectDay).not.toHaveBeenCalled();
+
+    // The header cell around the number: selects, does NOT open.
+    fireEvent.click(grid.querySelector(".cal-timegrid__head") as HTMLElement);
+    expect(onSelectDay).toHaveBeenCalledWith(today);
+    expect(onOpenDayPage).toHaveBeenCalledTimes(1);
   });
 });

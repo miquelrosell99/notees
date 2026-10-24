@@ -9,6 +9,17 @@ predating this file.
 
 ## 2026-10-24
 
+- **refactor(web): the time-grid header splits its registers — the day
+  number opens the day page, the header's empty space selects (owner
+  2026-10-24).** The ghost-creation pass had the day-number button do
+  both (select + open); the owner separates them: the number is the
+  open-page affordance, the surrounding header cell (click or Enter/
+  Space, aria-pressed) is the day selection — the selected ring moves
+  from the number to the header cell.
+  - **Verification**: web suite green (the spec flips to the split
+    register). Deployed: verify-min VERIFY-PASS + the panel probe green.
+## 2026-10-24
+
 - **fix(scripts): migrations tolerate legacy unparseable saved views
   (live-dry-run discovery).** The task-8 authors migration's first live
   `--all` dry run died before any planning output: the meaning-flip

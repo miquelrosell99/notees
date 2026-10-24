@@ -263,7 +263,9 @@ export function TimeGrid({
       aria-label={`Calendar ${zoom} view`}
     >
       {/* The header: weekday abbreviations + the big day numbers; today
-          wears the highlighted ring, the number opens the day page. */}
+          wears the highlighted ring. The register (owner 2026-10-24): the
+          day NUMBER opens the day page; the header cell's empty space
+          (around the number) selects the day. */}
       <div className="cal-timegrid__header">
         <div className="cal-timegrid__corner" aria-hidden="true" />
         {days.map((iso) => {
@@ -271,21 +273,35 @@ export function TimeGrid({
           return (
             <div
               key={iso}
-              className={`cal-timegrid__head${iso === todayIso ? " cal-timegrid__head--today" : ""}`}
+              className={`cal-timegrid__head${
+                iso === todayIso ? " cal-timegrid__head--today" : ""
+              }${iso === selectedIso ? " cal-timegrid__head--selected" : ""}`}
+              role="button"
+              tabIndex={0}
+              aria-label={`Select day ${iso}`}
+              aria-pressed={iso === selectedIso}
+              onClick={(event) => {
+                // The number button owns the open; the surrounding header
+                // space owns selection.
+                if ((event.target as HTMLElement).closest(".cal-timegrid__daynum")) return;
+                onSelectDay(iso);
+              }}
+              onKeyDown={(event) => {
+                if ((event.target as HTMLElement).closest(".cal-timegrid__daynum")) return;
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelectDay(iso);
+                }
+              }}
             >
               <span className="cal-timegrid__weekday">{weekday}</span>
               <button
                 type="button"
                 className={`cal-timegrid__daynum${
                   iso === todayIso ? " cal-timegrid__daynum--today" : ""
-                }${iso === selectedIso ? " cal-timegrid__daynum--selected" : ""}`}
+                }`}
                 aria-label={`Open day page ${iso}`}
-                onClick={() => {
-                  // The header day-number button owns day selection (the
-                  // grid-body click spawns the ghost instead).
-                  onSelectDay(iso);
-                  onOpenDayPage(iso);
-                }}
+                onClick={() => onOpenDayPage(iso)}
               >
                 {Number(iso.slice(8))}
               </button>
