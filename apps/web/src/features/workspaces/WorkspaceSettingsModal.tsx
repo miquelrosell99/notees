@@ -2,12 +2,13 @@
  * WorkspaceSettingsModal Component
  *
  * Modal for workspace-level settings: rename (PATCH /workspaces/:id,
- * owner-only), date format, sidebar visibility, data retention, sources,
- * and a shortcuts reference. Recovered from the archived graph settings
- * modal; where the archive wrote workspace settings through a server
- * settings endpoint that no longer exists, controls are device-local
- * (localStorage `notees.settings.*`) or honestly inert with a "not
- * available in this build" note.
+ * owner-only), date format, sidebar visibility, data retention, the feature
+ * toggles (+ the Sources family's settings section), and a shortcuts
+ * reference. Recovered from the archived graph settings modal; where the
+ * archive wrote workspace settings through a server settings endpoint that
+ * no longer exists, controls are device-local (localStorage
+ * `notees.settings.*`) or honestly inert with a "not available in this
+ * build" note.
  */
 import { useState } from "react";
 
@@ -28,11 +29,11 @@ import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.j
 import { Dropdown } from "../../components/ui/fleet/Dropdown.js";
 import { Icon } from "../../ui/Icon.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
-import { TextField } from "../../components/ui/fleet/TextField.js";
 import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
 import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
 import { renameWorkspace } from "./workspaceApi.js";
 import { PluginsSettingsTab } from "../settings/PluginsSettingsTab.js";
+import { SourcesSettingsSection } from "../settings/SourcesSettingsSection.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
 
 import "../settings/settingsModal.css";
@@ -326,6 +327,13 @@ export function WorkspaceSettingsModal({
                       normal client op path (lockstep SHIPPED: GTK/Flutter
                       v3.0.0). F3's disable confirmation gates the OFF write
                       for families with instances (below). */}
+                  {/* The Sources family's settings block (owner 2026-10-24,
+                      source-library slice 3): the citekey pattern with its
+                      live preview, the resolver + auto-citekey toggles, and
+                      the 39 source type-classes' visibility list — every
+                      write rides ONE workspace.feature.set with the merged
+                      settings record (read-modify-merge at the section). */}
+                  <SourcesSettingsSection client={client!} />
                 </>
               ) : (
                 <p className="settings-item__description">
@@ -521,32 +529,6 @@ export function WorkspaceSettingsModal({
                   disabled
                 />
                 <span className="settings-unavailable">Not available in this build.</span>
-              </div>
-
-              <h3 className="settings-section__title settings-section__title--spaced">Sources</h3>
-
-              <div className="settings-item">
-                <div className="settings-item__info">
-                  <label htmlFor="citekey-pattern" className="settings-item__label">
-                    Citekey pattern
-                  </label>
-                  <p className="settings-item__description">
-                    Pattern used when import integrations fill an empty citekey. Tokens:{" "}
-                    <code>family_name</code>, <code>organization_name</code>, <code>year</code>,{" "}
-                    <code>title_word</code> with <code>:lower</code>/<code>:upper</code> modifiers.
-                    Existing citekeys are never recomputed — changes apply only to future
-                    generations.
-                  </p>
-                  <p className="settings-item__description">Not available in this build.</p>
-                </div>
-                <TextField
-                  id="citekey-pattern"
-                  value="{family_name:lower}{year}"
-                  onChange={() => undefined}
-                  size="sm"
-                  aria-label="Citekey pattern"
-                  disabled
-                />
               </div>
             </div>
           )}

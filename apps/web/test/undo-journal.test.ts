@@ -83,6 +83,8 @@ function fakeCapture(overrides: {
   member?: boolean;
   assignment?: boolean;
   feature?: boolean;
+  /** The feature row's stored settings record (undefined = absent/old-shape). */
+  featureSettings?: Record<string, unknown>;
   externalRef?: string | null;
 }): UndoCaptureSource {
   const defaultNode: UndoNodeSnapshot = {
@@ -130,6 +132,7 @@ function fakeCapture(overrides: {
     collectionMembership: () => overrides.member ?? false,
     propertyAssignment: () => overrides.assignment ?? false,
     featureEnabled: () => overrides.feature ?? true,
+    featureSettings: () => overrides.featureSettings,
     externalRefTarget: () => overrides.externalRef ?? null,
   };
 }
@@ -751,6 +754,86 @@ describe("invertEnvelope — the inversion matrix", () => {
     expect(
       invertEnvelope(env("workspace.feature.set", { feature: "tasks", enabled: false }), fakeCapture({ feature: false })),
     ).toBeNull();
+  });
+
+  it("workspace.feature.set restores the captured prior SETTINGS with the toggle (whole-row LWW)", () => {
+    const prior = { citekeyPattern: "[auth][year]", autoCitekey: true };
+    // A settings edit (enabled unchanged) inverts to the prior record.
+    expect(
+      invertEnvelope(
+        env("workspace.feature.set", {
+          feature: "sources",
+          enabled: true,
+          settings: { citekeyPattern: "[auth:lower][year]" },
+        }),
+        fakeCapture({ feature: true, featureSettings: prior }),
+      ),
+    ).toEqual([
+      {
+        opType: "workspace.feature.set",
+        payload: { feature: "sources", enabled: true, settings: prior },
+        affected: [],
+      },
+    ]);
+    // An old-shape prior row (settings NULL) restores WITHOUT the key —
+    // never approximated with {}.
+    expect(
+      invertEnvelope(
+        env("workspace.feature.set", {
+          feature: "sources",
+          enabled: true,
+          settings: { citekeyPattern: "[auth:lower][year]" },
+        }),
+        fakeCapture({ feature: true }),
+      ),
+    ).toEqual([
+      { opType: "workspace.feature.set", payload: { feature: "sources", enabled: true }, affected: [] },
+    ]);
+    // A settings-carrying row hit by an old-shape toggle write (the
+    // settings-wiping hazard, stated in SCHEMA.md) inverts to the full
+    // prior row.
+    expect(
+      invertEnvelope(
+        env("workspace.feature.set", { feature: "sources", enabled: false }),
+        fakeCapture({ feature: true, featureSettings: prior }),
+      ),
+    ).toEqual([
+      {
+        opType: "workspace.feature.set",
+        payload: { feature: "sources", enabled: true, settings: prior },
+        affected: [],
+      },
+    ]);
+    // Key order in a converged record is not a change: same settings,
+    // same toggle → no-op.
+    expect(
+      invertEnvelope(
+        env("workspace.feature.set", {
+          feature: "sources",
+          enabled: true,
+          settings: { autoCitekey: true, citekeyPattern: "[auth][year]" },
+        }),
+        fakeCapture({ feature: true, featureSettings: prior }),
+      ),
+    ).toBeNull();
+  });
+
+  it("the routed family-base arms restore the captured settings too", () => {
+    const TASK = "00000000-0000-0000-0001-000000000012";
+    const prior = { citekeyPattern: "[auth][year]" };
+    const classSnap = { isClass: true };
+    expect(
+      invertEnvelope(
+        env("class.create", { classId: TASK }),
+        fakeCapture({ node: null, feature: true, featureSettings: prior, ...classSnap }),
+      ),
+    ).toEqual([
+      {
+        opType: "workspace.feature.set",
+        payload: { feature: "tasks", enabled: true, settings: prior },
+        affected: [],
+      },
+    ]);
   });
 
   it("external_ref.set inverts to a delete when unmapped, to the prior carrier on a move; a redundant set is a no-op", () => {

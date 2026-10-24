@@ -183,6 +183,8 @@ function featureClient(overrides: {
     getFeatureInstanceCount: (feature: string) => instances[feature] ?? 0,
     listFeatureRows: () => [],
     setFeatureEnabled: overrides.setFeatureEnabled ?? (() => Promise.resolve()),
+    setFeatureSettings: () => Promise.resolve(),
+    setArchived: () => Promise.resolve(),
   } as unknown as AnyClient;
 }
 
@@ -202,20 +204,35 @@ function renderFeaturesTab(client: AnyClient | undefined) {
   fireEvent.click(screen.getByRole("tab", { name: "Features" }));
 }
 
+/**
+ * The six family/journal toggle rows (the Sources settings section below
+ * them adds its own switches — the family assertions scope to these rows).
+ */
+function familyToggleRows(): HTMLElement[] {
+  return Array.from(document.querySelectorAll(".settings-feature-row"));
+}
+
 describe("Workspace Settings Features tab (lockstep SHIPPED)", () => {
   it("lists the five core families plus the journal toggle, each with a LIVE ToggleSwitch", () => {
     renderFeaturesTab(featureClient({}));
     const entries = Object.entries(WORKSPACE_FEATURE_MAP);
     expect(entries).toHaveLength(5);
+    const rows = familyToggleRows();
+    expect(rows).toHaveLength(6);
     for (const [, spec] of entries) {
-      expect(screen.getByText(spec.label)).toBeInTheDocument();
-      expect(screen.getByText(new RegExp(spec.powers.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).toBeInTheDocument();
+      // Scope to the family's own row — the Sources settings section below
+      // carries its own "Sources" heading, so the bare label is ambiguous.
+      const row = rows.find((candidate) => within(candidate).queryByText(spec.label) !== null);
+      expect(row, spec.label).toBeDefined();
+      expect(
+        within(row!).getByText(new RegExp(spec.powers.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))),
+      ).toBeInTheDocument();
     }
     // The journal toggle (owner ruling 2026-10-22) rides below the families
     // — surfaces-only copy, no class family.
     expect(screen.getByText("Journal")).toBeInTheDocument();
     expect(screen.getByText(/journal view and Today-page management/i)).toBeInTheDocument();
-    const switches = screen.getAllByRole("switch");
+    const switches = rows.map((row) => within(row).getByRole("switch"));
     expect(switches).toHaveLength(6);
     for (const toggle of switches) {
       // Lockstep shipped (GTK/Flutter v3.0.0): the toggles write.
@@ -242,7 +259,9 @@ describe("Workspace Settings Features tab (lockstep SHIPPED)", () => {
     );
     // Row order follows the feature map (tasks first); the ToggleSwitch's
     // accessible name is its "Off"/"On" labels, so index by row order.
-    const switches = screen.getAllByRole("switch");
+    // (The Sources settings section adds its own switches below — the
+    // family assertions scope to the feature rows.)
+    const switches = familyToggleRows().map((row) => within(row).getByRole("switch"));
     expect(switches[0]).toHaveAttribute("aria-checked", "false");
     for (const toggle of switches.slice(1)) {
       expect(toggle).toHaveAttribute("aria-checked", "true");

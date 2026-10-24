@@ -1,0 +1,53 @@
+/**
+ * SourcesSettingsSection — the Sources feature settings block's
+ * presentation. Token-only values (the ui-primitives law): spacing rides
+ * the spacing scale, the class list caps its height in line-height units
+ * so it tracks the type metrics, and the two-column split adapts to one
+ * column under a character-based breakpoint.
+ */
+
+.sources-settings__pattern {
+  align-items: flex-start;
+}
+
+.sources-settings__pattern-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: min(100%, 32ch);
+}
+
+.sources-settings__preview {
+  margin: 0;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.sources-settings__preview code {
+  font: var(--font-body-small);
+  color: var(--md-sys-color-primary);
+  overflow-wrap: anywhere;
+}
+
+.sources-settings__classes {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.sources-settings__class-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18ch, 1fr));
+  gap: var(--spacing-2) var(--spacing-4);
+  width: 100%;
+  max-height: calc(1lh * 12);
+  overflow-y: auto;
+  padding: var(--spacing-2);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-md);
+}
+
+@media (width <= 60ch) {
+  .sources-settings__pattern {
+    flex-direction: column;
+  }
+}

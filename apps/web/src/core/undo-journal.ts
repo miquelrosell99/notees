@@ -87,7 +87,16 @@
  *  - asset.attach/detach  → detach/attach with the captured prior row.
  *  - collection.member.*  → the complement (membership captured; a redundant
  *                         add/remove is a no-op, not journaled).
- *  - workspace.feature.set→ the same op with the captured prior enabled state.
+ *  - workspace.feature.set→ the same op restoring the captured prior row —
+ *                         prior enabled AND prior settings (the row is one
+ *                         whole-row LWW unit, 2026-10-24): the inverse
+ *                         carries the prior settings when the row had them
+ *                         and OMITS the key when the prior row was
+ *                         old-shape (a winning payload without `settings`
+ *                         stores NULL — that absence is the honest prior
+ *                         state, never approximated with `{}`). A write
+ *                         whose enabled and settings both match the
+ *                         captured prior row is a no-op, not journaled.
  *  - external_ref.set      → delete when the ref was unmapped, else the same
  *    op restoring the captured prior carrier (a move undoes to the old node).
  *  - external_ref.delete   → the same op restoring the captured prior carrier.
@@ -259,6 +268,13 @@ export interface UndoCaptureSource {
   collectionMembership(collectionId: string, objectId: string): boolean;
   /** Absent toggle row means enabled (the F2 empty-table default). */
   featureEnabled(feature: string): boolean;
+  /**
+   * The feature row's stored settings record — undefined when the row is
+   * absent OR old-shape (the stored NULL; distinct from the empty record,
+   * SCHEMA.md "Workspace features"). Captured so the feature-set inverse
+   * restores the whole row, never just the toggle.
+   */
+  featureSettings(feature: string): Record<string, unknown> | undefined;
   /** The LIVE external-id mapping's node id before the op (null = unmapped). */
   externalRefTarget(ref: string): string | null;
 }
@@ -272,6 +288,41 @@ const asStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
 
 const asString = (value: unknown): string | null => (typeof value === "string" ? value : null);
+
+/**
+ * Structural equality over the free-form JSON settings records (sorted-key
+ * stable stringify — key order must not make a converged row look changed).
+ */
+function settingsEqual(a: Record<string, unknown> | undefined, b: unknown): boolean {
+  if (a === undefined) return b === undefined;
+  if (b === null || typeof b !== "object" || Array.isArray(b)) return false;
+  const stable = (value: unknown): string => {
+    if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "undefined";
+    if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stable(record[key])}`)
+      .join(",")}}`;
+  };
+  return stable(a) === stable(b);
+}
+
+/**
+ * The workspace.feature.set inverse payload: the captured prior enabled plus
+ * the captured prior settings. The settings key is OMITTED when the prior
+ * row carried none — a winning payload without `settings` stores NULL, so
+ * old-shape is the honest restoration (never approximated with `{}`); the
+ * row is one whole-row LWW unit (SCHEMA.md "Workspace features").
+ */
+function featureRestorePayload(feature: string, capture: UndoCaptureSource): Record<string, unknown> {
+  const priorSettings = capture.featureSettings(feature);
+  return {
+    feature,
+    enabled: capture.featureEnabled(feature),
+    ...(priorSettings !== undefined ? { settings: priorSettings } : {}),
+  };
+}
 
 /** The deterministic positional property element id (packages/store schema.ts —
  *  the single-value slot's row id, unchanged since pre-PG5). */
@@ -389,11 +440,11 @@ export function invertEnvelope(
         const feature = featureForManagedClass(objectId);
         if (feature !== null) {
           // The delete applied as a feature-disable — restore the prior
-          // toggle state (the F4/F4-inverse pair).
+          // row (toggle AND settings — whole-row LWW, 2026-10-24).
           return [
             {
               opType: "workspace.feature.set",
-              payload: { feature, enabled: capture.featureEnabled(feature) },
+              payload: featureRestorePayload(feature, capture),
               affected: [],
             },
           ];
@@ -447,12 +498,12 @@ export function invertEnvelope(
       if (isLockedSystemClassId(classId)) return null; // seeds: un-removable
       const feature = featureForManagedClass(classId);
       if (feature !== null) {
-        // Removing a family base is toggle-managed — restore the prior
-        // toggle state.
+        // Removing a family base is toggle-managed — restore the prior row
+        // (toggle AND settings — whole-row LWW, 2026-10-24).
         return [
           {
             opType: "workspace.feature.set",
-            payload: { feature, enabled: capture.featureEnabled(feature) },
+            payload: featureRestorePayload(feature, capture),
             affected: [],
           },
         ];
@@ -838,11 +889,15 @@ export function invertEnvelope(
       const feature = asString(p.feature);
       if (feature === null || typeof p.enabled !== "boolean") return null;
       const prior = capture.featureEnabled(feature);
-      if (prior === p.enabled) return null; // redundant toggle — no-op
+      // Redundant only when BOTH the toggle and the settings record match
+      // the captured prior row (settingsEqual is order-insensitive).
+      if (prior === p.enabled && settingsEqual(capture.featureSettings(feature), p.settings)) {
+        return null; // redundant write — no-op
+      }
       return [
         {
           opType: "workspace.feature.set",
-          payload: { feature, enabled: prior },
+          payload: featureRestorePayload(feature, capture),
           affected: [],
         },
       ];

@@ -9,6 +9,45 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): Sources settings — citekey pattern, resolver + auto-citekey
+  toggles, class visibility list (source-library slices 3–6 task 5).** The
+  first feature settings section under the workspace settings' Features tab.
+  The citekey pattern input compiles the new shared pattern language
+  (`apps/web/src/features/sources/citekey.ts`, task 6's generation surface
+  imports the SAME module): tokens `[auth]`/`[auth:lower]`/`[year]`/`[title]`/
+  `[title:lower]`/`[title:lower:N]` + literals, default
+  `[auth:lower][year][title:lower:3]`; an invalid pattern shows the inline
+  compile error and the write is refused client-side. The input renders a
+  LIVE PREVIEW of the owner-ruling sample (Lovelace, Ada / 1843 / "Notes on
+  the Analytical Engine" → `lovelace1843notesonthe`); it commits on blur/
+  Enter (the rename precedent). The resolver toggle carries the honest
+  sub-note — a lookup reveals the queried identifier to the provider, never
+  workspace content; the auto-citekey toggle gates the import-time fill.
+  The class-visibility list renders all 39 source type-classes (the
+  SYSTEM_SOURCE_CLASS_BINDINGS roster order, live display names) as checked
+  rows: unchecked = archived — the SAME `active` bit the classes gallery and
+  the pickers respect (two doors to one switch; enable = un-archive, disable
+  = archive, the `setArchived` object.update seam). Every settings write is
+  ONE `workspace.feature.set {feature: "sources", enabled: true, settings}`
+  with the caller read-modify-merging the current record (new client surface
+  `setFeatureSettings`, worker-plumbed), so the three keys never clobber
+  each other. The undo journal's feature-set capture now records the
+  captured prior enabled AND prior settings and restores both — the key is
+  omitted when the prior row was old-shape (a winning payload without
+  `settings` stores NULL; that absence is the honest prior state, never
+  approximated with `{}`); the routed family-base arms (object.delete /
+  class.create inverses) restore the settings too, and a write whose toggle
+  AND settings both match the captured row is a no-op. SCHEMA.md "Workspace
+  features" names the `sources` settings vocabulary normatively
+  (`{citekeyPattern?, autoCitekey?, resolverEnabled?}`). The retired inert
+  General-tab "Sources" block (the archived modal's "not available in this
+  build" citekey row) leaves with this slice. Tests: the citekey module
+  (compile/render/fold/word-count/literal/error cases), the section through
+  the real modal + client (rendering, live preview, merge-semantics writes,
+  archived-list round-trip, undo restores prior settings), the undo journal's
+  new settings cases; the settings-modals inert-controls test follows the
+  moved control.
+
 - **feat(server): PDF → DOI extraction → resolved metadata (source-library
   slices 3–6 task 4).** `POST /api/resolve/pdf` — the owner's PDF flow:
   intake a PDF either as a multipart upload (the CAS asset route's intake
