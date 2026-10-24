@@ -1,9 +1,9 @@
 /**
  * Dates & daily-notes feature tests (day-page branch, bucketed
- * tasks, date bars, Ctrl+Shift+T, calendar breadth, reviewed):
+ * tasks, date bars, Ctrl+Shift+T, calendar breadth):
  *
  *  - pure helpers: partitionTasksIntoBuckets, weekDaysOfIso, isoOfDateParts,
- *    scheduledIsoOf, hasDatedRefs.
+ *    scheduledIsoOf.
  *  - openTodayKeyHandler: the Ctrl/Cmd+Shift+T chord (text-field guard).
  *  - PageView day branch: the DayPageHeader (weekday line above the title,
  *    the Today pill when the day is today, the Week-N flag after the
@@ -12,8 +12,7 @@
  *    done-toggle write), embedded suppression.
  *  - TaskBuckets over HubView nav=tasks: the five buckets + counts, the
  *    done-toggle moving rows, the device-local collapse, the empty hub.
- *  - CalendarView breadth: the range-aware dated dot, the reviewed tint,
- *    the week strip, the week agenda.
+ *  - CalendarView breadth: event blocks mark the days that carry them.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -36,7 +35,6 @@ import { openTodayKeyHandler } from "../src/ui/app/keymap.js";
 import { CalendarView } from "../src/features/calendar/CalendarView.js";
 import {
   addDaysIso,
-  hasDatedRefs,
   isoOfDateParts,
   partitionTasksIntoBuckets,
   scheduledIsoOf,
@@ -244,16 +242,6 @@ describe("calendarViewUtils day helpers", () => {
     const sunFirst = weekDaysOfIso("2026-10-04", 0);
     expect(sunFirst[0]).toBe("2026-10-04");
     expect(sunFirst).toHaveLength(7);
-  });
-
-  it("hasDatedRefs ignores date-chain sources", () => {
-    expect(hasDatedRefs([])).toBe(false);
-    expect(
-      hasDatedRefs([
-        { sourceId: "00000000-0000-0000-00aa-202606000000" }, // month node fan-in
-      ]),
-    ).toBe(false);
-    expect(hasDatedRefs([{ sourceId: "some-meeting-id" }])).toBe(true);
   });
 
   it("partitionTasksIntoBuckets places every row in exactly one bucket", () => {
