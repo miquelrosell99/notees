@@ -23,6 +23,8 @@ export type ErrorCode =
   | "account_locked"
   | "idempotency_replay"
   | "attach_failed"
+  | "resolver_disabled"
+  | "resolver_unavailable"
   | "internal";
 
 export class AppError extends Error {
@@ -79,6 +81,12 @@ export const ERROR_TAXONOMY: Readonly<
   // asset.attach write never reached the log (never half-attach; observed
   // 2026-10-04 as 801 silent losses in a bulk run).
   attach_failed: { status: 500, description: "the upload's asset.attach write never reached the log (fail loud, never half-attach)" },
+  // GET /api/resolve metadata egress: the workspace's sources settings turned
+  // the resolver hard-off (task-5 web toggle owns the bit).
+  resolver_disabled: { status: 403, description: "the metadata resolver is disabled by the workspace's sources settings" },
+  // the resolver's upstream provider (Crossref / OpenLibrary / arXiv) failed,
+  // answered an error status, or timed out — the identifier never resolved.
+  resolver_unavailable: { status: 502, description: "the metadata provider failed or timed out" },
   internal: { status: 500, description: "unclassified server failure (the only code not thrown by route code)" },
 };
 

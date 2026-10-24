@@ -15,6 +15,8 @@
  *    (default) sends no CORS headers: same-origin and non-browser clients (CLI)
  *    are unaffected, browsers are denied. `*` allows any origin — LAN-trusted
  *    deployments only, there is no cookie/credential surface to protect.
+ *  - NOTEES_RESOLVER_TIMEOUT_MS (default 10000): the metadata resolver's
+ *    (GET /api/resolve) per-request upstream timeout.
  */
 
 import { randomBytes } from "node:crypto";
@@ -54,6 +56,12 @@ export interface ServerConfig {
    * hook — not env-configurable; unset means the 60 s default.
    */
   wsTicketTtlMs?: number;
+  /**
+   * The metadata resolver's per-request provider timeout (GET /api/resolve
+   * metadata egress; NOTEES_RESOLVER_TIMEOUT_MS, default 10 s — an
+   * AbortController cancels the upstream call past it).
+   */
+  resolverTimeoutMs: number;
 }
 
 export function generateApiKey(): string {
@@ -139,5 +147,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig &
     loginPerMinute: intFromEnv(env, "NOTEES_LOGIN_PER_MINUTE", 10),
     signupEnabled: boolFromEnv(env, "NOTEES_SIGNUP_ENABLED", false),
     corsOrigins: parseCorsOrigins(env.NOTEES_CORS_ORIGIN),
+    resolverTimeoutMs: intFromEnv(env, "NOTEES_RESOLVER_TIMEOUT_MS", 10_000),
   };
 }

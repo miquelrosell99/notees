@@ -687,15 +687,18 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["validation_failed"],
   }],
   ["get", "/api/resolve", {
-    summary: "Resolve a node's id from its exact display name (title-is-content)",
+    summary: "Resolve a node id from its exact display name, OR source metadata from an identifier (DOI / ISBN / arXiv)",
     description:
-      "Case-insensitive exact-name match over the ranked FTS candidates — the one-round-trip counterpart of /search for name→id resolution (CLI `linked:`, query builders). 404 when no active node carries the exact name.",
+      "Two query modes on one route. `?name=` — case-insensitive exact-name match over the ranked FTS candidates (the one-round-trip counterpart of /search for name→id resolution; CLI `linked:`, query builders). 404 when no active node carries the exact name. `?doi=` / `?isbn=` / `?arxiv=` — exactly one required (400 otherwise): the server's metadata resolver fetches the record from Crossref / OpenLibrary / arXiv — the ONLY outbound egress the server ever makes, identifier-only (see the route module's privacy note) — and answers the unified record {classKey, title, authors[], editors[], fields{}, doi?, isbn?, url?, year?}. Cached 24 h (server state). The workspace's `sources` settings can hard-off the egress: `resolverEnabled: false` → 403 resolver_disabled (absent = default ON). Provider failure/timeout → 502 resolver_unavailable; an unknown identifier → 404.",
     tags: ["Search & Query"],
     requiredScope: "search",
     query: {
-      name: { description: "the node's display name", type: "string", required: true },
+      name: { description: "the node's display name (name→id mode)", type: "string" },
+      doi: { description: "a DOI — Crossref lookup (metadata mode)", type: "string" },
+      isbn: { description: "an ISBN — OpenLibrary lookup (metadata mode)", type: "string" },
+      arxiv: { description: "an arXiv id — arXiv API lookup (metadata mode)", type: "string" },
     },
-    errors: ["validation_failed", "not_found"],
+    errors: ["validation_failed", "not_found", "resolver_disabled", "resolver_unavailable"],
   }],
   ["post", "/api/query", {
     summary: "Arbitrary QueryAST execution (the compiled query language)",
@@ -1154,7 +1157,7 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
         "objects.delete": "DELETE /api/objects/:id",
         "assets.read": "GET /api/assets/*",
         "assets.write": "POST /api/assets",
-        "search": "GET /api/search, POST /api/query",
+        "search": "GET /api/search, GET /api/resolve (name→id + the metadata resolver), POST /api/query",
         "export": "GET /api/workspaces/:id/export.zip",
         "admin": "the whole /api/plugins surface — the FIRST enforcement of the reserved admin scope; sessions additionally require the administrator flag (routes-plugins requireAdmin)",
       },
