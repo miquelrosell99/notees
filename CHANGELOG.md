@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): views claim their full URL on load — /calendar/<zoom>
+  rewrites to carry the day, and the root URL rewrites to the default view
+ (the view-owns-its-URL law).** The calendar's claim
+  extends from bare/route-less URLs to zoom-without-day ones
+  (/calendar/agenda -> /calendar/agenda/20261024 with a replace — URL
+  values win where present, the device setting fills the zoom, today
+  fills the day). The App boot rewrites a bare "/" to the boot view's
+  path (journal default, the defaultView pref aware) — refreshing never
+  leaves a bare root. Spec: the zoom-without-day claim; probe: the boot
+  path is never "/".
+  - **Verification**: web suite green. Deployed: verify-min VERIFY-PASS +
+    the panel probe green.
+## 2026-10-24
+
 ## 2026-10-24
 
 - **refactor(web): the node display-name family unifies into one funnel —

@@ -45,6 +45,10 @@ const consoleErrors = [];
 page.on("pageerror", (err) => consoleErrors.push(String(err)));
 await page.goto(WEB, { waitUntil: "commit", timeout: 120_000 });
 await page.waitForSelector(".nt-sidebar-nav", { timeout: 600_000 });
+// The root URL claims the default view on load: a bare
+// "/" rewrites to the boot view's path.
+const bootPath = new URL(page.url()).pathname;
+result.rootClaimsView = bootPath !== "/" && bootPath.startsWith("/");
 
 await page.locator(".nt-sidebar-nav .nt-side-row", { hasText: "Calendar" }).first().click();
 await page.waitForSelector(".cal-grid", { timeout: 60_000 });
@@ -185,6 +189,7 @@ console.log(JSON.stringify({ ...result, consoleErrors }, null, 2));
 await browser.close();
 
 const pass =
+    result.rootClaimsView === true &&
     result.gridPresent === true &&
     result.sidePanelGone === true &&
     result.periodNavPresent === true &&

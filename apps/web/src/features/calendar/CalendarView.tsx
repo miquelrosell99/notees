@@ -119,20 +119,24 @@ export function CalendarView({
     setSelectedIso(route?.iso ?? todayIsoLocal());
   }, [route]);
   /**
-   * A bare or route-less calendar (the sidebar entry, an invalid zoom
-   * segment) claims its URL once: the device setting fills the zoom, the
-   * selection fills the day — a REPLACE, never a history push (the sidebar
-   * already pushed the bare path).
+   * The view claims its FULL URL on load: a bare or route-less calendar (the
+   * sidebar entry, an invalid zoom segment) AND a zoom-without-day URL
+   * (/calendar/agenda) each claim the missing segments once — the URL's
+   * values win where present, the device setting fills the zoom, today
+   * fills the day — a REPLACE, never a history push.
    */
   const claimedRouteRef = useRef(false);
   useEffect(() => {
-    if (route !== null && route.zoom !== null) {
+    if (route !== null && route.zoom !== null && route.iso !== null) {
       claimedRouteRef.current = false;
       return;
     }
     if (claimedRouteRef.current || onRouteChange === undefined) return;
     claimedRouteRef.current = true;
-    onRouteChange({ zoom: deviceZoom, iso: route?.iso ?? todayIsoLocal() }, "replace");
+    onRouteChange(
+      { zoom: route?.zoom ?? deviceZoom, iso: route?.iso ?? todayIsoLocal() },
+      "replace",
+    );
   });
   /** Zoom ladder change: PUSH a new history entry (a real navigation). */
   const changeZoom = (value: CalendarZoom): void => {
