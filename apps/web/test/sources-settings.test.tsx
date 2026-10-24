@@ -299,6 +299,39 @@ describe("SourcesSettingsSection class visibility", () => {
   });
 });
 
+// --- the toggle's settings-carrying fix (review round 1) ------------------------------
+
+describe("the family toggle vs a settings row (whole-row LWW)", () => {
+  it("toggling a feature whose row carries settings keeps them — off then on loses nothing", async () => {
+    const client = await seedClient();
+    await client.setFeatureSettings("sources", { citekeyPattern: "[auth][year]" });
+    await flushWrites();
+    expect(sourcesRow(client)?.settings).toEqual({ citekeyPattern: "[auth][year]" });
+
+    // The modal's Sources family ToggleSwitch rides this same client write.
+    await client.setFeatureEnabled("sources", false);
+    await flushWrites();
+    expect(sourcesRow(client)?.enabled).toBe(false);
+    // The settings survive the OFF write (read-modify-merge, not old-shape).
+    expect(sourcesRow(client)?.settings).toEqual({ citekeyPattern: "[auth][year]" });
+
+    // …and the ON write. Two clicks in the same tab clear nothing.
+    await client.setFeatureEnabled("sources", true);
+    await flushWrites();
+    expect(sourcesRow(client)?.enabled).toBe(true);
+    expect(sourcesRow(client)?.settings).toEqual({ citekeyPattern: "[auth][year]" });
+  });
+
+  it("a feature with NO settings row keeps the old-shape write (nothing to lose)", async () => {
+    const client = await seedClient();
+    await client.setFeatureEnabled("tasks", false);
+    await flushWrites();
+    const row = client.listFeatureRows().find((entry) => entry.feature === "tasks");
+    expect(row?.enabled).toBe(false);
+    expect(row?.settings).toBeUndefined(); // no settings key was minted
+  });
+});
+
 // --- the undo journal ----------------------------------------------------------------
 
 describe("SourcesSettingsSection undo capture", () => {

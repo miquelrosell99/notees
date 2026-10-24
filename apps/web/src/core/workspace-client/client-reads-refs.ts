@@ -350,12 +350,23 @@ export class WorkspaceClientReadsRefs {
     return this.ctx.store.featureInstanceCount(this.ctx.workspaceId, feature);
   }
 
-  /** Write a feature toggle (workspace.feature.set, LWW by HLC). */
+  /**
+   * Write a feature toggle (workspace.feature.set, LWW by HLC). The row is
+   * ONE whole-row LWW unit, so a toggle write against a row that CARRIES
+   * SETTINGS would otherwise clear them (the settings-wiping hazard,
+   * SCHEMA.md "Workspace features") — when the current row has a settings
+   * record, this seam reads it and carries it forward (read-modify-merge,
+   * the setFeatureSettings contract); when the row is old-shape (no
+   * settings), the plain {feature, enabled} write stays legal (nothing to
+   * lose). The shared writer: family toggles, the journal toggle, and the
+   * gallery's F4 inverse all ride this method.
+   */
   async setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean): Promise<void> {
+    const settings = this.ctx.store.getFeatureRow(this.ctx.workspaceId, feature)?.settings;
     this.ctx.enqueueLocal(
       this.ctx.buildEnvelope(
         "workspace.feature.set",
-        { feature, enabled },
+        settings !== undefined ? { feature, enabled, settings } : { feature, enabled },
         [],
       ),
     );
