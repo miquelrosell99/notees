@@ -103,7 +103,12 @@
  * detection the BibTeX/CSL path uses, not a parallel predicate) and
  * emitted as `\bibitem{<citekey-or-node-id>}` inside one `thebibliography`
  * environment, rendered "Authors (Year). `\emph{Title}`." composed from the
- * CSL record via csl.ts `formatAuthors`. The collection walks the exported
+ * CSL record via csl.ts `formatAuthors`. nodeToCsl implements the dual-track
+ * read contract itself — this caller passes only the two resolvers
+ * (the publicationDate date-node ref, and the linkedAuthors agent targets,
+ * resolved rename-free through the row's build-time per-element labels);
+ * the authors/editors rows and the per-class pool fields are read off the
+ * node's property rows. The collection walks the exported
  * nodes in encounter order — the root, inlined embed documents (their own
  * embeds and outline children recurse), then the outline children
  * depth-first — deduped by node id. The environment is emitted only when at
@@ -345,11 +350,13 @@ function renderOutline(children: readonly ExportDocumentChild[]): string {
 
 /** One exported node → its CSL record, or null when the CSL predicate does
  * not recognize it as a source (csl.ts `sourceClassOf` — the exact
- * detection the BibTeX/CSL path uses). Author display strings come from the
- * IR's resolved `authors` property rows (free-text "Family, Given" strings,
- * rename-free at build time). The linkedAuthors-fallback half of the
- * SCHEMA.md read rule is designed-not-built — this caller reads `authors`
- * rows only. */
+ * detection the BibTeX/CSL path uses). nodeToCsl implements the read
+ * contract (the authors text rows read off the node's property rows, the
+ * linkedAuthors fallback, the per-class pool fields) — this caller supplies
+ * only the resolvers the ctx-free exporter cannot: the publicationDate
+ * date-node ref, and the linkedAuthors agent targets, resolved rename-free
+ * through the row's build-time per-element labels (displayEntries is
+ * parallel to the row's value array). */
 function cslOf(
   id: string,
   title: string,
@@ -357,9 +364,6 @@ function cslOf(
   properties: readonly ExportDocumentProperty[],
 ): CslItem | null {
   if (sourceClassOf(classIds) === undefined) return null;
-  const authors = properties
-    .filter((property) => property.schemaId === SYSTEM_PROPERTY_UUIDS.authors)
-    .map((property) => property.display);
   // A nodeId-shaped publicationDate resolves through the row's build-time
   // display string (the year node's label), rename-free.
   const pub = properties.find((property) => property.schemaId === SYSTEM_PROPERTY_UUIDS.publicationDate);
@@ -371,7 +375,26 @@ function cslOf(
             ? pub.display
             : undefined
       : undefined;
-  return nodeToCsl({ id, name: title.length > 0 ? title : null, classIds }, properties, authors, resolveName);
+  const linked = properties.find(
+    (property) => property.schemaId === SYSTEM_PROPERTY_UUIDS.linkedAuthors,
+  );
+  const resolveAgentName =
+    linked !== undefined
+      ? (refId: string): string | undefined => {
+          const values = Array.isArray(linked.value) ? linked.value : [linked.value];
+          const index = values.findIndex(
+            (value) =>
+              typeof value === "object" &&
+              value !== null &&
+              (value as { nodeId?: unknown }).nodeId === refId,
+          );
+          return index >= 0 ? (linked.displayEntries?.[index] ?? undefined) : undefined;
+        }
+      : undefined;
+  return nodeToCsl({ id, name: title.length > 0 ? title : null, classIds }, properties, {
+    resolveName,
+    resolveAgentName,
+  });
 }
 
 /**

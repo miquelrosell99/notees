@@ -7,6 +7,57 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-24
+
+- **feat(export): bidirectional source tables over the 39-class roster + the
+  dual-track read contract (source-library slices 3–6 task 1).** The
+  pre-roster 8-class mapping tables in `packages/export/src/csl.ts` were
+  mechanically renamed in slice 1 and the SCHEMA.md read rule had no shipped
+  caller — this slice implements the contract. `SourceClassName` is now the
+  full 39-class source roster (the 9 everyday classes + the 30 Zotero
+  long-tail + the 3 judgment classes), and all three mappings are DERIVED at
+  module scope instead of hand-written per direction: `SOURCE_CLASS_NAMES`
+  builds from `ZOTERO_ITEM_TYPE_TO_CLASS` (+ `conference`/`song`/`tv_series`,
+  the documented no-exact-counterpart classes), and `CLASS_BIBLIOGRAPHY` —
+  the one hand-written table, 39 entries of BibTeX entry type + CSL type per
+  class (Zotero-schema CSL types; Zotero/citeproc BibTeX conventions,
+  keeping the established nonstandard `movie`/`series`; `misc` + the
+  `document` fallback where BibTeX has no type) — feeds `BIB_TYPE_TO_CLASS_NAME`
+  (first-wins + canonical picks: `inproceedings`→conference, `song`→song,
+  `series`→tv_series; legacy aliases `incollection`/`conference`/`proceedings`/
+  `mastersthesis`/`video`/`tv`), `CLASS_NAME_TO_CSL_TYPE`, `CSL_TYPE_TO_CLASS_NAME`
+  (canonical picks: `article`→journal_article, `broadcast`→tv_series,
+  `personal_communication`→letter, `paper-conference`→conference,
+  `legal_case`→document) and `CSL_TYPE_TO_BIB_TYPE` (`broadcast`→series,
+  `article`→article). `nodeToCsl` implements the dual-track read contract:
+  `authors` text rows parse straight to CSL names ("Family, Given" comma
+  form wins; stale post-flip `{nodeId}` elements read as empty); when NO
+  authors row resolves, names derive from `linkedAuthors` targets via the
+  caller's `resolveAgentName` (agent givenName/familyName, title fallback);
+  `editors` rows project to CSL `editor` and the BibTeX `editor` field on
+  serialize; the per-class pool fields (container-title/volume/issue/page/
+  ISSN) read through `SYSTEM_SOURCE_CLASS_BINDINGS` — the binding list is
+  the locality authority, PG15 schema-name convention stays the pre-pool
+  fallback. `CslItem` gains `editor` + `ISSN`; `CslNodeSpec` gains additive
+  optional `editors`. **Breaking**: `nodeToCsl`'s third/fourth positional
+  params (caller-supplied author strings, `resolveName`) move into a
+  `NodeToCslOptions` bag — in-repo caller latex.ts updated; the CLI adapts
+  at its next vendor bump.
+  - **Tests**: new `packages/export/test/csl.test.ts` pins the roster, the
+    39-entry table, and all three derived mappings verbatim + the read
+    contract (authors rows, linkedAuthors fallback + stale-element
+    emptiness, editors, per-class pool bindings + the locality rule);
+    `bibtex.test.ts` updated to the roster mappings; `latex.test.ts`
+    exercises the linkedAuthors fallback through the serializer. Review
+    focus #1: `apps/server/test/migrate-authors-to-text.test.ts` gains the
+    regression — a pre-flip object `authors` value replaying late (older
+    HLC) applies throw-free (a text schema accepts a `{nodeId}` shape) and
+    LOSES the element LWW to the migrated text value.
+  - **Verification**: root `pnpm -r build` + `pnpm test` green; export
+    package 14 files / 263 tests. Docs same-pass: SCHEMA.md "Citations"
+    (the read contract marked SHIPPED), `docs/feature-status.md`, this
+    entry; the csl.ts/latex.ts "designed-not-built" headers now say shipped.
+
 ## 2026-10-23
 
 - **feat(protocol,store): `workspace.feature.set` settings payload — the
