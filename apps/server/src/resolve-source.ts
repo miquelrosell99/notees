@@ -638,15 +638,40 @@ export function extractDoiFromPdfBytes(bytes: Buffer): string | null {
 }
 
 /**
+ * The v4 special-use ranges the guard refuses: loopback (127/8), private
+ * (10/8, 172.16/12, 192.168/16, 100.64/10), link-local (169.254/16),
+ * unspecified (0.0.0.0), multicast/reserved (≥224). Shared by literal IPv4
+ * hosts and the tails of IPv4-mapped IPv6 literals (`::ffff:…`).
+ */
+function isRefusedIpv4(first: number, second: number): boolean {
+  return (
+    first === 127 ||
+    first === 10 ||
+    first === 0 ||
+    first >= 224 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    (first === 100 && second >= 64 && second <= 127)
+  );
+}
+
+/**
  * The SSRF guard for `?url=` — the server fetches a caller-named URL, so the
  * bar is higher than for the fixed provider hosts above: http(s) ONLY, and
  * host literals that are loopback / private / link-local / unspecified are
- * refused outright (127/8, 10/8, 172.16/12, 192.168/16, 169.254/16,
- * 0.0.0.0, 100.64/10, ::1, fe80::/10, fc00::/7, `localhost`). DNS names are
- * NOT re-resolved per redirect hop — the deployment contract is a
- * single-user self-hosted server; the guard blocks the literal-address
- * attacks, redirect-following to a private address stays the operator's
- * network-trust call. Anything refused → 422 validation_failed, never a fetch.
+ * refused outright. IPv4: 127/8, 10/8, 172.16/12, 192.168/16, 169.254/16,
+ * 0.0.0.0, 100.64/10, ≥224 (isRefusedIpv4). IPv6: ::, ::1, fc00::/7, and the
+ * WHOLE link-local fe80::/10 (first hextet & 0xffc0 == 0xfe80 — a plain
+ * `fe80:` prefix check misses fe90::…febf::). IPv4-mapped literals
+ * (`::ffff:a.b.c.d`, `::ffff:hex:hex`) are unwrapped and the mapped v4 tail
+ * runs isRefusedIpv4 — undici treats `::ffff:127.0.0.1` as loopback, so
+ * without this clause the guard was bypassable with a literal address.
+ * `localhost` is refused by name. DNS names are NOT re-resolved per redirect
+ * hop — the deployment contract is a single-user self-hosted server; the
+ * guard blocks the literal-address attacks, redirect-following to a private
+ * address stays the operator's network-trust call. Anything refused → 422
+ * validation_failed, never a fetch.
  */
 export function assertFetchablePdfUrl(rawUrl: string): URL {
   let parsed: URL;
@@ -663,25 +688,31 @@ export function assertFetchablePdfUrl(rawUrl: string): URL {
     );
   }
   const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  let refused: boolean;
   const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-  const refused =
-    host === "localhost" ||
-    host === "0.0.0.0" ||
-    (host.includes(":") &&
-      (host === "::" ||
-        host === "::1" ||
-        host.startsWith("fe80:") ||
-        host.startsWith("fc") ||
-        host.startsWith("fd"))) ||
-    (ipv4 !== null &&
-      (Number(ipv4[1]) === 127 ||
-        Number(ipv4[1]) === 10 ||
-        Number(ipv4[1]) === 0 ||
-        Number(ipv4[1]) >= 224 ||
-        (Number(ipv4[1]) === 169 && Number(ipv4[2]) === 254) ||
-        (Number(ipv4[1]) === 172 && Number(ipv4[2]) >= 16 && Number(ipv4[2]) <= 31) ||
-        (Number(ipv4[1]) === 192 && Number(ipv4[2]) === 168) ||
-        (Number(ipv4[1]) === 100 && Number(ipv4[2]) >= 64 && Number(ipv4[2]) <= 127)));
+  const mappedDotted = /^::ffff:(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  const mappedHex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host);
+  if (ipv4 !== null) {
+    refused = isRefusedIpv4(Number(ipv4[1]), Number(ipv4[2]));
+  } else if (mappedDotted !== null) {
+    refused = isRefusedIpv4(Number(mappedDotted[1]), Number(mappedDotted[2]));
+  } else if (mappedHex !== null) {
+    const tail =
+      (Number.parseInt(mappedHex[1]!, 16) << 16) | Number.parseInt(mappedHex[2]!, 16);
+    refused = isRefusedIpv4((tail >>> 24) & 0xff, (tail >>> 16) & 0xff);
+  } else if (host.includes(":")) {
+    // Any other IPv6 literal: link-local is the full fe80::/10, not just the
+    // fe80:: spelling (fe90::…febf:: are the same range).
+    const firstHextet = Number.parseInt(host.split(":", 1)[0] ?? "", 16);
+    refused =
+      host === "::" ||
+      host === "::1" ||
+      host.startsWith("fc") ||
+      host.startsWith("fd") ||
+      (!Number.isNaN(firstHextet) && (firstHextet & 0xffc0) === 0xfe80);
+  } else {
+    refused = host === "localhost" || host === "0.0.0.0";
+  }
   if (refused) {
     throw new AppError(
       422,

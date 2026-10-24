@@ -254,6 +254,50 @@ describe("POST /api/resolve/pdf", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("SSRF guard: IPv4-mapped IPv6 literals are unwrapped and refused (loopback/private tails)", async () => {
+    server = await makeTestServer();
+    const fetchMock = vi.fn(async () => new Response("must not be called", { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (const url of [
+      "http://[::ffff:127.0.0.1]/paper.pdf",
+      "http://[::ffff:7f00:1]/paper.pdf",
+      "http://[::ffff:10.0.0.1]/paper.pdf",
+    ]) {
+      const res = await api("POST", `/api/resolve/pdf?url=${encodeURIComponent(url)}`);
+      expect(res.statusCode).toBe(422);
+      expect(res.json().error.code).toBe("validation_failed");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("SSRF guard: the whole fe80::/10 link-local range is refused, public IPv6 is allowed", async () => {
+    server = await makeTestServer();
+    const fetchMock = vi.fn(async () => new Response("must not be called", { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (const url of ["http://[fe80::1]/paper.pdf", "http://[fe90::1]/paper.pdf"]) {
+      const res = await api("POST", `/api/resolve/pdf?url=${encodeURIComponent(url)}`);
+      expect(res.statusCode).toBe(422);
+      expect(res.json().error.code).toBe("validation_failed");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // A legit public IPv6 literal passes the guard and reaches the fetch stub.
+    const pdfBytes = makePdfWithText("doi:10.1000/xyz123");
+    stubFetch({
+      "http://[2606:4700:4700::1111]/paper.pdf": () =>
+        new Response(pdfBytes, { status: 200, headers: { "content-type": "application/pdf" } }),
+      "https://api.crossref.org/works/": () => jsonResponse({ message: CROSSREF_WORK }),
+    });
+    const allowed = await api(
+      "POST",
+      `/api/resolve/pdf?url=${encodeURIComponent("http://[2606:4700:4700::1111]/paper.pdf")}`,
+    );
+    expect(allowed.statusCode).toBe(200);
+    expect(allowed.json()).toMatchObject({ doi: "10.1000/xyz123", title: "The Test Article" });
+  });
+
   it("the 25MB cap applies to the multipart upload", async () => {
     server = await makeTestServer();
     const oversized = Buffer.alloc(RESOLVE_PDF_MAX_BYTES + 1, 0x20);
