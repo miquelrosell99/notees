@@ -1139,34 +1139,56 @@ export class UndoJournal {
       fn();
     } finally {
       this.batchDepth -= 1;
-      if (this.batchDepth !== 0 || this.batchBuffer.length === 0) return;
-      const buffered = this.batchBuffer;
-      this.batchBuffer = [];
-      let run: Array<{ entry: UndoEntry; mode: UndoRecordMode }> = [];
-      const flush = (): void => {
-        if (run.length === 0) return;
-        const merged: UndoEntry =
-          run.length === 1
-            ? run[0]!.entry
-            : {
-                applySpecs: run.flatMap(({ entry }) => entry.applySpecs),
-                inverseSpecs: run
-                  .slice()
-                  .reverse()
-                  .flatMap(({ entry }) => entry.inverseSpecs),
-                verb: run[0]!.entry.verb,
-                at: run[run.length - 1]!.entry.at,
-                coalesceKey: null,
-              };
-        this.commitEntry(merged, run[0]!.mode);
-        run = [];
-      };
-      for (const record of buffered) {
-        if (run.length > 0 && run[0]!.mode !== record.mode) flush();
-        run.push(record);
-      }
-      flush();
+      this.flushBatchBuffer();
     }
+  }
+
+  /**
+   * The async form of batch() (source-library slice 3 task 6): the gesture
+   * callback AWAITS client writes between enqueues (every client write
+   * resolves a promise), so the sync batch() cannot scope it. The depth
+   * stays open across the awaits and the buffer flushes in the finally —
+   * one journal entry for the whole gesture, exactly like batch().
+   */
+  async batchAsync(fn: () => Promise<void>): Promise<void> {
+    this.batchDepth += 1;
+    try {
+      await fn();
+    } finally {
+      this.batchDepth -= 1;
+      this.flushBatchBuffer();
+    }
+  }
+
+  /** Flush the buffered batch records (no-op unless the outermost scope closed). */
+  private flushBatchBuffer(): void {
+    if (this.batchDepth !== 0 || this.batchBuffer.length === 0) return;
+    const buffered = this.batchBuffer;
+    this.batchBuffer = [];
+    let run: Array<{ entry: UndoEntry; mode: UndoRecordMode }> = [];
+    const flush = (): void => {
+      if (run.length === 0) return;
+      const merged: UndoEntry =
+        run.length === 1
+          ? run[0]!.entry
+          : {
+              applySpecs: run.flatMap(({ entry }) => entry.applySpecs),
+              inverseSpecs: run
+                .slice()
+                .reverse()
+                .flatMap(({ entry }) => entry.inverseSpecs),
+              verb: run[0]!.entry.verb,
+              at: run[run.length - 1]!.entry.at,
+              coalesceKey: null,
+            };
+      this.commitEntry(merged, run[0]!.mode);
+      run = [];
+    };
+    for (const record of buffered) {
+      if (run.length > 0 && run[0]!.mode !== record.mode) flush();
+      run.push(record);
+    }
+    flush();
   }
 
   private recordNormal(entry: UndoEntry): void {

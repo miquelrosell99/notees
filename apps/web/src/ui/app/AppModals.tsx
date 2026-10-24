@@ -20,6 +20,7 @@ import { MergeNodesModal } from "../../features/modals/MergeNodesModal.js";
 import { PropertyView } from "../../features/metadata/PropertyView.js";
 import { PropertyCreateHost } from "../../features/metadata/PropertyCreateHost.js";
 import { QuickCreateFab } from "../../features/block-editor/QuickCreateFab.js";
+import { AddSourceHost, requestAddSource } from "../../features/sources/AddSourceHost.js";
 import { DeckView } from "../presentation/DeckView.js";
 
 export interface AppModalsProps {
@@ -48,6 +49,9 @@ export interface AppModalsProps {
   setQuickAddOpen: Dispatch<SetStateAction<boolean>>;
   presentingId: string | null;
   setPresentingId: Dispatch<SetStateAction<string | null>>;
+  /** The sync server coordinates for the add-source host (null = offline). */
+  addSourceServerUrl: string | null;
+  addSourceCredential: string;
 }
 
 export function AppModals(props: AppModalsProps) {
@@ -77,6 +81,8 @@ export function AppModals(props: AppModalsProps) {
     setQuickAddOpen,
     presentingId,
     setPresentingId,
+    addSourceServerUrl,
+    addSourceCredential,
   } = props;
   return (
     <>
@@ -88,6 +94,9 @@ export function AppModals(props: AppModalsProps) {
         onOpenNode={openPage}
         onNewPage={(title) => void handleNewPage(title)}
         onOpenClassCreate={() => setClassCreateOpen(true)}
+        onOpenAddSource={
+          addSourceServerUrl !== null ? () => requestAddSource({}) : undefined
+        }
         onOpenProperty={(schemaId) => setPropertyViewFor(schemaId)}
         currentNodeId={selectedPageId ?? undefined}
         onOpenMerge={storeMode === "in-process" ? () => setMergeOpen(true) : undefined}
@@ -144,6 +153,17 @@ export function AppModals(props: AppModalsProps) {
           VerbPopover create-and-bind request the modal through the
           module-level queue. */}
       <PropertyCreateHost client={client} />
+      {/* The add-source dialog's app-level host: the palette row, the
+          Sources settings button, and the picker's paste-URL row request
+          the dialog through the module-level queue (offline: no server
+          coordinates, the host hides itself). */}
+      <AddSourceHost
+        client={client}
+        serverUrl={addSourceServerUrl}
+        credential={addSourceCredential}
+        onCreated={openPage}
+        onOpenNode={openPage}
+      />
       {presentingId !== null && (
         <DeckView
           client={client}

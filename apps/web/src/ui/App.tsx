@@ -737,6 +737,8 @@ export function App() {
         setQuickAddOpen={setQuickAddOpen}
         presentingId={presentingId}
         setPresentingId={setPresentingId}
+        addSourceServerUrl={shareTarget?.serverUrl ?? null}
+        addSourceCredential={shareTarget?.credential ?? ""}
       />
       <AppOverlays
         client={client}
