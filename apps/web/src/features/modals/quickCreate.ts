@@ -483,10 +483,12 @@ function collisionSuffix(index: number): string {
  * Auto-citekey generation (owner ruling): render the settings pattern from
  * the entry (first author's family + year + title), then disambiguate
  * against the live citekeys CASE-INSENSITIVELY — the first free a/b/c…
- * suffix appends deterministically ("key", "keya", "keyb", …). An
- * absent/uncompilable pattern falls back to the workspace default; a still
- * uncompilable default renders the empty string (never throws — the
- * settings UI refuses invalid patterns at write time).
+ * suffix appends deterministically ("key", "keya", "keyb", …). An absent or
+ * UNCOMPILABLE pattern falls back to the workspace default; a valid pattern
+ * that renders EMPTY stays empty (the caller skips the write — no data for
+ * the tokens is not an error). A still-uncompilable default renders the
+ * empty string, never throws — the settings UI refuses invalid patterns at
+ * write time.
  */
 export function generateCitekey(
   pattern: string | undefined,
@@ -494,9 +496,11 @@ export function generateCitekey(
   existing: readonly string[],
 ): string {
   const taken = new Set(existing.map((key) => key.trim().toLowerCase()).filter(Boolean));
-  const render = (value: string): string => renderCitekeyPattern(value, entry) ?? "";
-  const base =
-    (pattern !== undefined ? render(pattern) : "") || render(DEFAULT_CITEKEY_PATTERN);
+  // renderCitekeyPattern returns null ONLY when the pattern does not compile
+  // — an empty render is a legitimate answer and must not trigger the
+  // default-pattern fallback.
+  const stored = pattern !== undefined ? renderCitekeyPattern(pattern, entry) : null;
+  const base = stored ?? renderCitekeyPattern(DEFAULT_CITEKEY_PATTERN, entry) ?? "";
   if (base === "" || !taken.has(base.toLowerCase())) return base;
   for (let index = 0; ; index++) {
     const candidate = `${base}${collisionSuffix(index)}`;
