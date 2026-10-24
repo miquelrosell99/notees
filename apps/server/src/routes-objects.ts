@@ -30,6 +30,7 @@ import { visiblePropertyValueRows, type NodeRow, type Store, planMerge, MergeGua
 
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
+import { resolveSourceMetadata } from "./resolve-source.js";
 
 /**
  * Query-string booleans: only the strings "true"/"false" coerce (a bare
@@ -1101,8 +1102,30 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
    * semantics. An exact case-insensitive ALIAS value is a
    * name-equivalent (the alias text already folds into the FTS row via
    * text-scalar indexing). 404 when no active node carries the name.
+   *
+   * THE METADATA BRANCH: when the query carries ?doi= / ?isbn= / ?arxiv=
+   * instead of ?name=, the route resolves the IDENTIFIER to a source-metadata
+   * record through the resolver (resolve-source.ts) — the server's only
+   * outbound egress, documented there (the honest privacy note). Exactly one
+   * identifier is required (two or more → 400); the workspace's `sources`
+   * settings can hard-off the egress (403 resolver_disabled, default ON);
+   * provider failures/timeouts answer 502 resolver_unavailable, and an
+   * identifier the providers never heard of answers 404.
    */
   app.get("/resolve", async (request) => {
+    const query = request.query as Record<string, unknown>;
+    const metadataParam = (key: "doi" | "isbn" | "arxiv"): string | undefined =>
+      typeof query[key] === "string" && (query[key] as string).length > 0
+        ? (query[key] as string)
+        : undefined;
+    const doi = metadataParam("doi");
+    const isbn = metadataParam("isbn");
+    const arxiv = metadataParam("arxiv");
+    if (doi !== undefined || isbn !== undefined || arxiv !== undefined) {
+      const workspaceId = workspaceFor(ctx, request);
+      await ctx.ensureSeeded(workspaceId);
+      return resolveSourceMetadata(ctx, workspaceId, { doi, isbn, arxiv });
+    }
     const parsed = resolveQuerySchema.safeParse(request.query);
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid resolve query");

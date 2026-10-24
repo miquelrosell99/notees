@@ -33,6 +33,7 @@ export function makeConfig(dataDir: string, overrides: Partial<ServerConfig> = {
     loginPerMinute: 10,
     signupEnabled: false,
     corsOrigins: [],
+    resolverTimeoutMs: 10_000,
     ...overrides,
   };
 }

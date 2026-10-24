@@ -19,6 +19,7 @@ import { IdempotencyStore } from "./idempotency.js";
 import { FixedWindowLimiter } from "./rate-limit.js";
 import { RelayStorage } from "./relay-storage.js";
 import { PluginRegistry } from "./routes-plugins.js";
+import { ResolveCache } from "./resolve-source.js";
 import { seedWorkspace, type SeedResult } from "./seed.js";
 import { ShareStorage } from "./shares.js";
 import { SubscriptionBus } from "./bus.js";
@@ -41,6 +42,13 @@ export class ServerContext {
   readonly plugins: PluginRegistry;
   /** Read-only public share tokens (server coordination). */
   readonly shares: ShareStorage;
+  /**
+   * The metadata-resolver cache (GET /api/resolve egress): normalized
+   * identifier → unified record, 24 h TTL. Server state, not log state
+   * (the prefs/shares/plugins ruling) — the cache never changes the answer
+   * a fresh fetch would give, it only avoids repeating the egress.
+   */
+  readonly resolverCache: ResolveCache;
   /**
    * Workflow rules + run audit (issue #13, server coordination state like
    * prefs/shares/plugins). The engine evaluates every ingest; its action
@@ -82,6 +90,7 @@ export class ServerContext {
     this.auth = new AuthStorage(`${config.dataDir}/relay.db`);
     this.plugins = new PluginRegistry(`${config.dataDir}/relay.db`);
     this.shares = new ShareStorage(`${config.dataDir}/relay.db`);
+    this.resolverCache = new ResolveCache(`${config.dataDir}/relay.db`);
     this.lockout = new AccountLockout();
     // Seed the device clock from the log so server-stamped HLCs never regress
     // across restarts.
@@ -230,6 +239,7 @@ export class ServerContext {
     await this.workspaces.close();
     this.plugins.close();
     this.shares.close();
+    this.resolverCache.close();
     this.workflows.close();
     this.auth.close();
     this.relay.close();
