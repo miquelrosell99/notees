@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-24
 
+## 2026-10-24
+
+- **refactor(web): the node display-name family unifies into one funnel —
+  `titleOf` / `titleOfNode` with four explicit axes.** The
+  per-ruling proliferation of display-name helpers (`displayNameFromClient`,
+  `labelFromClient`, `fullTitleFromClient`, `plainTitleOf`, plus the direct
+  `nodeDisplayName` / `fullTitleForSettings` / `deriveDisplayName` call-site
+  imports) had no way to say which surface semantics a given call carried —
+  the bug class behind the groupBy raw-markdown header. `apps/web/src/ui/
+  dateDisplay.ts` now exposes ONE seam: `titleOf(client, id, opts)` and
+  `titleOfNode(node, opts)` with axes `budget` ("capped" default | "full"),
+  `flatten` ("raw" default | "chrome" — markdown link spans reduced to their
+  label + class chips resolved), `read` ("live" default | "fallback" — the
+  never-a-bare-UUID raw-read seam), `empty` ("blank" default | "untitled").
+  The old presentation helpers are deleted outright (no aliases); the
+  settings-aware capped/full derivations are module-private funnel branches.
+  Every presentation call site migrates to the funnel with semantics
+  preserved exactly; the domain's `deriveDisplayName`/`fullTitleOf` stay the
+  worker/log-feeding seam (client-core reads, op payloads, search indexes
+  keep them — the client-core files and log-feeding feature sites are
+  untouched). The "chrome" flatten on the raw-read fallback arm additionally
+  resolves class chips (previously the raw arm excerpted them bare) — an
+  intentional, strictly-better corner. Web-only internal refactor: no wire/
+  model/applier change, no fixtures, no client lockstep.
+  - **Verification**: full monorepo typecheck green; the full test gate
+    green, including the migrated `date-display` suite.
+## 2026-10-24
+
 - **feat(web): the agenda navigator steps month to month; calendar URLs
   take the compact YYYYMMDD day.** (1) The agenda's
   period chevrons move the anchor a whole calendar month (the day clamps —
@@ -20,6 +48,7 @@ predating this file.
   updated.
   - **Verification**: web suite green. Deployed: verify-min VERIFY-PASS +
     the panel probe green.
+## 2026-10-24
 ## 2026-10-24
 
 - **docs(AGENTS): the system-components law is codified.** ALWAYS the system components — unless the UI is genuinely
@@ -42,7 +71,6 @@ predating this file.
   - **Verification**: web suite green. Deployed: verify-min VERIFY-PASS +
     the panel probe green.
 ## 2026-10-24
-
 - **refactor(web): day selection retires from the time grid (the owner's
   post-mortem); agenda day headers gain the hover open-page arrow.** (1) "Why would we want full day column selection?" —
   honest answer: inertia from the mini-month era, when selection WAS the
