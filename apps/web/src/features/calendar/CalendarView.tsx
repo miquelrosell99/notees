@@ -362,6 +362,7 @@ export function CalendarView({
               recurringRows={recurringEvents}
               spannedRows={spannedEvents}
               onOpenEvent={onOpenPage}
+              onOpenDayPage={openDayPage}
             />
           )}
           {(calendarZoom === "month" || calendarZoom === "year") && (

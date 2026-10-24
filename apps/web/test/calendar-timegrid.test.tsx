@@ -412,6 +412,28 @@ describe("TimeGrid (the Day/Week zoom)", () => {
 });
 
 describe("AgendaView (the Agenda zoom)", () => {
+  it("the day header's hover arrow opens that day's page (the journal-feed register)", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    const { classId, schemaId } = await eventFamily(client);
+    await timedEvent(client, classId, schemaId, "Anchor event", today, "09:00");
+
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("agenda"));
+    const { onOpenPage } = renderCalendar(client);
+    const agenda = await screen.findByLabelText("Calendar agenda view");
+    await waitFor(() => expect(agenda.textContent).toContain("Anchor event"));
+
+    fireEvent.click(
+      agenda.querySelector(`.cal-agenda__day[data-day="${today}"] .cal-agenda__open`) as HTMLElement,
+    );
+    await waitFor(() => {
+      expect(onOpenPage).toHaveBeenCalledWith(
+        `00000000-0000-0000-00dd-${today.replace(/-/g, "")}0000`,
+      );
+    });
+  });
+
+
   it("lists days with events only — eventless days never render a group", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
