@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): Sources hub — detail pane (task 4 of the Sources hub
+  plan).** The right pane ships the type-aware detail editor, composition
+  only (always the system components): the TYPE CHIP rides the
+  same primary-type pick the table rows carry (`sourceTypeKey` exported
+  from sourcesQuery — enabled-most-specific, roster tiebreak); the TITLE
+  edits inline through the content path (click-to-edit like the
+  page-header description, Enter/blur commits, Esc cancels, one
+  `object.update` writing a single text run — title-is-content); the FIELD
+  SET is the existing metadata properties panel verbatim — the shared
+  `PropertiesTable` over the effective read inside a `NodeViewSection`,
+  extends-aware, so a journal article shows its own bound-but-empty
+  volume/issue/pages rows beside the family base's and NEVER a
+  docketNumber (the case-orphan schema binds to nothing — the binding fix
+  pinned by a test in both directions: the journal shows them, the web
+  page doesn't); **Open** navigates the App's page-view seam (new optional
+  `onOpenNode` prop, AppBody forwards `openPage`); **Delete** asks in the
+  reusable `ConfirmationModal` (danger, the display name never an id, the
+  node-menu confirm pattern) and trashes through `deleteObject`, the hub
+  clearing the selection back to the honest empty state. The pane lives by
+  `client.subscribe` (the facets/table idiom) — every write re-reads in
+  place. 8 new detail tests (chip/title/metadata render, the type-aware
+  field set both directions + the valued row, title commit through the
+  content path, Esc cancel, Open, delete confirm → trash → selection
+  clear, Cancel keeps the node). Gate: `pnpm typecheck && pnpm test`
+  green.
+
 - **feat(web): Sources hub — sortable, searchable items table + toolbar
   (task 3 of the Sources hub plan).** The middle pane ships: the items
   table RIDES the shared NodeCollection table view (never a

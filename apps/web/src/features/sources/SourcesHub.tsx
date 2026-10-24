@@ -16,8 +16,8 @@
  * The hub owns the single SELECTION (task 3): the table's rows (click +
  * arrow keys) select a source, the detail pane renders it, and Enter in
  * the table hands the focus to the detail pane (the existing
- * keyboard-list conventions). The detail body itself lands with the detail
- * task.
+ * keyboard-list conventions). The detail pane's Open rides the App's
+ * page-view seam; a landed delete clears the selection.
  */
 
 import { useRef, useState } from "react";
@@ -35,6 +35,7 @@ export function SourcesHub({
   client,
   query,
   onQueryChange,
+  onOpenNode,
 }: {
   client?: AnyClient | undefined;
   /** The App-owned parsed query state; omitted = parsed from the location. */
@@ -43,6 +44,8 @@ export function SourcesHub({
   onQueryChange?:
     | ((next: SourcesQueryState, mode: "push" | "replace") => void)
     | undefined;
+  /** The App's page-view open seam (the detail pane's Open affordance). */
+  onOpenNode?: ((nodeId: string) => void) | undefined;
 }) {
   const parsed = query ?? parseSourcesQuery(window.location.search);
   // The single selection (task-3 wiring): the table drives it, the detail
@@ -59,7 +62,12 @@ export function SourcesHub({
         leftPanelWidth="var(--layout-size-7xl)"
         rightPanel={
           <div ref={detailRef} tabIndex={-1} className="nt-sources-hub__detail-focus">
-            <SourcesDetail client={client} selectedId={selectedId} />
+            <SourcesDetail
+              client={client}
+              selectedId={selectedId}
+              {...(onOpenNode !== undefined ? { onOpenNode } : {})}
+              onDeleted={(nodeId) => setSelectedId((current) => (current === nodeId ? null : current))}
+            />
           </div>
         }
         rightLabel="Source details"

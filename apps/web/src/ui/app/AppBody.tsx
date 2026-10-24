@@ -304,6 +304,7 @@ export function AppBody(props: AppBodyProps) {
             client={client}
             query={sourcesQuery}
             onQueryChange={onSourcesQueryChange}
+            onOpenNode={openPage}
           />
         ) : activeNav === "trash" ? (
           /* The Trash hub: browse / restore / permanently delete trashed
