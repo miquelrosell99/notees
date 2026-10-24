@@ -96,7 +96,7 @@ result.dayStepper = await page.evaluate(() => {
   const stepper = document.querySelector(".day-stepper");
   return {
     present: stepper !== null,
-    inTopBarRight: stepper?.closest(".nt-topbar-right") !== null && stepper?.closest(".nt-topbar-right") !== undefined,
+    inSurfaceTopBar: stepper?.closest(".surface-topbar") !== null && stepper?.closest(".surface-topbar") !== undefined,
     buttons: stepper ? [...stepper.querySelectorAll("button")].map((b) => b.getAttribute("aria-label")) : [],
   };
 });
@@ -120,7 +120,7 @@ const pass =
     result.monthChecked === "Month" &&
     result.journalNoHScroll === true &&
     result.dayStepper?.present === true &&
-    result.dayStepper?.inTopBarRight === true &&
+    result.dayStepper?.inSurfaceTopBar === true &&
     result.dayStepAdvances === true &&
     consoleErrors.length === 0;
 console.log(pass ? "CALENDAR-PANEL-PROBE-PASS" : "CALENDAR-PANEL-PROBE-FAIL");
