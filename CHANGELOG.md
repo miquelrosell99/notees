@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-24
 
+- **fix(web): the journal view's horizontal scroll — the flex min-width
+  trap (owner 2026-10-24).** `.journals-body` and `.journals-list` are
+  flex children without `min-width: 0`, so the row would not shrink below
+  the feed's intrinsic content width and the view scrolled horizontally.
+  Both gain `min-width: 0` (the panel already carried it); content wraps
+  inside the entries' centered measure as designed.
+  - **Verification**: browser-verified — the calendar-panel probe now
+  opens the Journal and asserts `scrollWidth <= clientWidth` (1326 = 1326
+  on the test workspace); the css-token-drift + journals suites green.
+  Deployed: verify-min VERIFY-PASS.
+## 2026-10-24
+
 - **feat(web): day stepping returns on the day page's header; the journal's
   navigator panel gains the collapse toggle (owner 2026-10-24).** (1) The
   day page wears the Logseq/Capacities register again: a ‹ / Today / ›

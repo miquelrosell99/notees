@@ -62,6 +62,17 @@ const result = await page.evaluate(() => {
   });
 await page.screenshot({ path: join(OUT, "calendar-events.png") });
 
+// Journal pass: no horizontal scroll (the flex min-width trap — the
+// feed and the body row must shrink below intrinsic content width).
+await page.locator(".nt-sidebar-nav .nt-side-row", { hasText: "Journal" }).first().click();
+await page.waitForSelector(".journals-view", { timeout: 60_000 });
+const journalOverflow = await page.evaluate(() => {
+  const view = document.querySelector(".journals-view");
+  return { scrollWidth: view.scrollWidth, clientWidth: view.clientWidth };
+});
+result.journalNoHScroll = journalOverflow.scrollWidth <= journalOverflow.clientWidth;
+result.journalOverflow = journalOverflow;
+
 console.log(JSON.stringify({ ...result, consoleErrors }, null, 2));
 await browser.close();
 
@@ -73,6 +84,7 @@ const pass =
     result.yearTitleButton === true &&
     result.ladder.join(",") === "Day,Week,Month,Year" &&
     result.monthPressed === "Month" &&
+    result.journalNoHScroll === true &&
     consoleErrors.length === 0;
 console.log(pass ? "CALENDAR-PANEL-PROBE-PASS" : "CALENDAR-PANEL-PROBE-FAIL");
 process.exit(pass ? 0 : 1);

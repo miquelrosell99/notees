@@ -5,6 +5,7 @@
 
 .journals-list {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
   display: flex;
@@ -99,6 +100,7 @@
    scroll border, the panel scrolls independently. */
 .journals-body {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: row;
