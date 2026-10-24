@@ -20,11 +20,14 @@
  *    url→web_page extra row is still missing (the migration MUST emit only
  *    that one).
  *
- * Plus two probe workspaces: one whose renamed classes carry CUSTOM user
+ * Plus three probe workspaces: one whose renamed classes carry CUSTOM user
  * titles (every rename must be skipped, never clobbered, while the paper
- * reclass still runs), and one whose paper-classed node's content carries an
+ * reclass still runs), one whose paper-classed node's content carries an
  * inline class_link to paper (the migration's pre-ingest test-apply must
- * abort with ZERO envelopes written).
+ * abort with ZERO envelopes written), and one whose web_page class exists
+ * WITHOUT its seeded source extends edge — the live-drift case that failed
+ * R5 on the personal workspace (the migration must heal the edge first,
+ * then the source-scoped bindings converge).
  *
  * NEVER point this at a real data dir: it WIPES the dir first — and it
  * HARD-REFUSES any --data-dir not under /tmp (fail loud, don't wipe).
@@ -52,6 +55,8 @@ const WORKSPACE = "c491595f-9f94-5ade-a620-e30ed063d8d2";
 const WORKSPACE_USER_RENAMED = "2d1c3a70-8f7e-4c1a-9b3d-5e6f7a8b9c02";
 /** The poison probe: a paper node's content carries an inline class_link to paper. */
 const WORKSPACE_POISON = "2d1c3a70-8f7e-4c1a-9b3d-5e6f7a8b9c03";
+/** The edge-drift probe: web_page exists WITHOUT its seeded source edge (the live-drift case). */
+const WORKSPACE_EDGE_DRIFT = "2d1c3a70-8f7e-4c1a-9b3d-5e6f7a8b9c04";
 
 const SOURCE_ID = SYSTEM_CLASS_UUIDS.source;
 const PAPER_ID = "00000000-0000-0000-0001-000000000025";
@@ -209,6 +214,24 @@ function buildSeedEnvelopes(): Envelope[] {
     },
     [NODE_PAPER]);
 
+  // --- Workspace 4: web_page exists WITHOUT its source edge (live drift) ---
+  const wsEdge = WORKSPACE_EDGE_DRIFT;
+  classCreate(wsEdge, SOURCE_ID, "Source", "mdiBookshelf", []);
+  // web_page created WITHOUT any extends op — the drifted live state: the
+  // class node exists (class_hierarchy holds only the reflexive row) but
+  // the seeded web_page→source edge was never authored (a setExtends []
+  // payload would be rejected by the system-extends lock, so the drift is
+  // an absent edge, not an emptied one). Pre-fix this failed the R5
+  // pre-check for every source-scoped pool binding on the class; the
+  // migration must heal the edge FIRST (the ensure shape), then the
+  // bindings plan and converge.
+  push(wsEdge, "class.create",
+    { classId: WEBLINK_ID, contentAst: [{ type: "text", text: "Web link" }], icon: "mdiLinkVariant" },
+    [WEBLINK_ID]);
+  push(wsEdge, "object.create",
+    { objectId: NODE_WEBLINK, classIds: [WEBLINK_ID], contentAst: [{ type: "text", text: "A web link node with a drifted class edge" }] },
+    [NODE_WEBLINK]);
+
   return envelopes;
 }
 
@@ -234,11 +257,12 @@ function main(): void {
       throw new Error(`seed ingest saved ${savedIds.length}/${envelopes.length} envelopes`);
     }
     console.log(
-      `scratch relay seeded at ${resolved}: ${savedIds.length} envelope(s) across 3 workspaces — ` +
+      `scratch relay seeded at ${resolved}: ${savedIds.length} envelope(s) across 4 workspaces — ` +
         `${WORKSPACE} (happy path: old titles, four classed nodes, the pre-rename saved query view, ` +
         `a partially-converged abstract+url corner), ${WORKSPACE_USER_RENAMED} (custom class titles — ` +
         `renames must skip), ${WORKSPACE_POISON} (a paper node's content links paper inline — the ` +
-        "pre-ingest test-apply must abort with zero writes).",
+        `pre-ingest test-apply must abort with zero writes), ${WORKSPACE_EDGE_DRIFT} (web_page without ` +
+        "its source edge — the migration must heal the edge, then the bindings converge).",
     );
   } finally {
     relay.close();
