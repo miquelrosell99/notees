@@ -38,3 +38,10 @@ From the CLI and API, declaring a class is `notees object create --isClass` (a `
 ## Workspace Settings → Features
 
 The core class families as per-workspace toggles: Tasks, Events, Meetings, Sources, Persons — plus the **Journal** toggle below them. A family off hides its classes from pickers, search, and hubs (family changes cascade — Events off hides Meetings and Birthdays too) while existing objects keep their data and stay in the graph. Turning a family **off** with existing instances asks first — the confirmation states that the objects keep their data and the family's surfaces hide (Cancel changes nothing); an empty family (or any enable) switches immediately. The **Journal** toggle is surfaces-only: off hides the journal view in the sidebar and Today-page management (no day page is auto-created); the date classes themselves stay always-on structural seeds.
+
+Below the toggles, the **Sources** section carries the family's settings (one `workspace.feature.set` write per change, the merged settings record riding the row's whole-row LWW):
+
+- **Citekey pattern** — compiled against the citekey pattern language: tokens `[auth]`/`[auth:lower]` (the first author's family, `:lower` ASCII-folds), `[year]`, `[title]`/`[title:lower]`/`[title:lower:N]` (first N words), plus literal text; the default is `[auth:lower][year][title:lower:3]`. The input previews a sample entry live, an invalid pattern shows its error and is never written, and the committed pattern only affects future generations — existing citekeys are never recomputed.
+- **Metadata resolver** — look up DOIs and ISBNs against public metadata providers when a source lacks metadata. A lookup reveals the queried identifier to the provider, never workspace content.
+- **Auto-citekey** — fill an empty citekey from the pattern when an import integration creates a source.
+- **Source types** — all 39 source type-classes as checked rows: unchecked is archived, the same archive flag the gallery and the pickers respect — enabling a row here and picking its card in the gallery are two doors to one switch.
