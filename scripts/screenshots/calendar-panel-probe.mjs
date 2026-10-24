@@ -41,16 +41,23 @@ await page.goto(WEB, { waitUntil: "commit", timeout: 120_000 });
 await page.waitForSelector(".nt-sidebar-nav", { timeout: 600_000 });
 
 await page.locator(".nt-sidebar-nav .nt-side-row", { hasText: "Calendar" }).first().click();
-await page.waitForSelector(".calendar-view__panel .month-calendar", { timeout: 60_000 });
+await page.waitForSelector(".cal-grid", { timeout: 60_000 });
 
 const result = await page.evaluate(() => {
-    const panel = document.querySelector(".calendar-view__panel");
     return {
-      // The grid IS the agenda: the right panel carries
-      // the mini-month navigator only — no events element.
+      // The grid IS the calendar: no side panel
+      // at all — the journal owns the navigator + events panel.
       gridPresent: document.querySelector(".cal-grid") !== null,
-      miniMonthPresent: panel?.querySelector(".month-calendar") !== null,
-      eventsElementGone: panel?.querySelector('.calendar-view__agenda') === null,
+      sidePanelGone: document.querySelector(".calendar-view__panel") === null,
+      // The period navigator rides the top bar, centered: Today, the
+      // chevrons, and the clickable panel/popup title buttons.
+      periodNavPresent: document.querySelector(".calendar-view__period-nav") !== null,
+      monthTitleButton: document.querySelector(
+        ".calendar-view__period-nav .calendar-title-btn--month",
+      ) !== null,
+      yearTitleButton: document.querySelector(
+        '.calendar-view__period-nav .calendar-title-btn[title="Open yearly page"]',
+      ) !== null,
       ladder: [...document.querySelectorAll(".calendar-view__ladder button")].map((b) => b.textContent?.trim()),
       monthPressed: document.querySelector('.calendar-view__ladder button[aria-pressed="true"]')?.textContent?.trim(),
     };
@@ -62,8 +69,10 @@ await browser.close();
 
 const pass =
     result.gridPresent === true &&
-    result.miniMonthPresent === true &&
-    result.eventsElementGone === true &&
+    result.sidePanelGone === true &&
+    result.periodNavPresent === true &&
+    result.monthTitleButton === true &&
+    result.yearTitleButton === true &&
     result.ladder.join(",") === "Day,Week,Month,Year" &&
     result.monthPressed === "Month" &&
     consoleErrors.length === 0;
