@@ -30,6 +30,7 @@ import { JournalsView } from "../../features/calendar/JournalsView.js";
 import { CalendarView } from "../../features/calendar/CalendarView.js";
 import { QueriesHub } from "../../features/collection/QueriesHub.js";
 import { SourcesHub } from "../../features/sources/SourcesHub.js";
+import type { SourcesQueryState } from "../../features/sources/sourcesQuery.js";
 import { GraphView } from "../../features/collection/graph/GraphView.js";
 import { TrashHub } from "../../features/trash/TrashHub.js";
 import { ArchivedHub } from "../../features/archived/ArchivedHub.js";
@@ -87,6 +88,10 @@ export interface AppBodyProps {
   onCalendarTitle: (title: string | null) => void;
   /** Leaving the surface for another hub: the bare path becomes the default. */
   resetCalendarRoute: () => void;
+  /** The Sources hub's parsed query state (law 9 — /sources owns its URL). */
+  sourcesQuery: SourcesQueryState;
+  /** The Sources hub's URL seam: type picks push, q/sort changes replace. */
+  onSourcesQueryChange: (next: SourcesQueryState, mode: "push" | "replace") => void;
 }
 
 export function AppBody(props: AppBodyProps) {
@@ -132,6 +137,8 @@ export function AppBody(props: AppBodyProps) {
     onCalendarRouteChange,
     onCalendarTitle,
     resetCalendarRoute,
+    sourcesQuery,
+    onSourcesQueryChange,
   } = props;
   return (
     <div className="nt-body">
@@ -290,8 +297,14 @@ export function AppBody(props: AppBodyProps) {
           /* The Sources hub (the source-library surface): the Zotero-parity
              library manager — type facets · items table · type-aware detail.
              Owns /sources + the tab title through the nav register; the
-             shell composes the shared MainContentFrame. */
-          <SourcesHub />
+             shell composes the shared MainContentFrame. The query state is
+             App-owned (law 9) — the panes' filter gestures push the URL
+             through onSourcesQueryChange. */
+          <SourcesHub
+            client={client}
+            query={sourcesQuery}
+            onQueryChange={onSourcesQueryChange}
+          />
         ) : activeNav === "trash" ? (
           /* The Trash hub: browse / restore / permanently delete trashed
              subtrees (the data path always existed — this is the v1

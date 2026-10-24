@@ -9,6 +9,37 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): Sources hub — facet data + type facets pane (task 2 of the
+  Sources hub plan).** The hub's data layer lands in
+  `apps/web/src/features/sources/sourcesQuery.ts`: `buildSourcesAst` (the
+  closure-aware `class` condition over the source family + the content
+  condition for q — the collection hub's runQueryAst channel),
+  `runSourcesQuery` (the display projection — title, the enabled-most-
+  specific primary classKey [non-archived preferred, SYSTEM roster-order
+  tiebreak], authors per the SHIPPED read contract [authors text rows
+  first, linkedAuthors agent derivation "Family, Given" → title fallback
+  when empty], venue = the class's first container binding
+  [publicationTitle/bookTitle/…], year from the publicationDate chain ref,
+  citekey, attachment count), and `facetCounts` — ONE grouped
+  `getClassMembers(source)` read feeding every type count (extends-aware,
+  memoized parent walks), never 39 count queries. The q filter is
+  deliberately client-side over the loaded set (fine at
+  library scale): the linkedAuthors fallback derives names behind {nodeId}
+  refs, which no store-level condition can express — a test pins that a
+  linkedAuthors-only author still matches a name search. The facets pane
+  (`SourcesFacets`) renders the enabled types alphabetically as chips with
+  live counts, the archived types collapsed under a Hidden types disclosure
+  with an Enable row each — the SAME `setArchived` active-bit seam the
+  gallery and the settings section use (two doors, one switch); enabling
+  updates the facet + table in place through the client's subscription, no
+  remount loop. Type picking pushes the App-owned URL state — the
+  calendar's onRouteChange seam generalized (`navigateSources` in App, the
+  popstate handler parses the landed query string, other navigations clear
+  it). Facet counts: the archived-by-default types keep counting (an
+  archived type is visibility, not absence); multi-type nodes dedupe to
+  one table row by node id while answering every per-type facet view they
+  carry. Gate: `pnpm typecheck && pnpm test` green.
+
 - **feat(web): Sources hub — route, shell, sidebar entry (task 1 of the
   Sources hub plan: the Zotero-parity library surface).** The `/sources`
   route registers in the nav table — a sidebar row with the bookshelf icon,

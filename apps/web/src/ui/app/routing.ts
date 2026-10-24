@@ -17,6 +17,7 @@ import {
   type SettingsSection,
 } from "../../features/settings/SettingsPage.js";
 import { readDeviceSetting } from "../../features/settings/deviceSettings.js";
+import { parseSourcesQuery, type SourcesQueryState } from "../../features/sources/sourcesQuery.js";
 import { formatDateName } from "../dateDisplay.js";
 import { weekDaysOfIso } from "../../features/calendar/calendarViewUtils.js";
 
@@ -178,6 +179,9 @@ export function popStateNavHandler(opts: {
   setSearch?: ((open: boolean) => void) | undefined;
   /** The calendar's parsed route (null off the surface); omitted = no-op. */
   setCalendarRoute?: ((route: CalendarRoute | null) => void) | undefined;
+  /** The Sources hub's parsed query state (law 9 — the hub owns its URL);
+   *  parsed from the landed URL's query string; omitted = no-op. */
+  setSourcesQuery?: ((query: SourcesQueryState) => void) | undefined;
   /** The back/forward tracker's seam: fires with the landed URL (every branch). */
   onNavigated?: ((url: string) => void) | undefined;
 }): () => void {
@@ -186,6 +190,7 @@ export function popStateNavHandler(opts: {
     opts.onNavigated?.(path + window.location.search);
     opts.setSettingsSection(settingsSectionFromPath(path));
     opts.setCalendarRoute?.(calendarRouteFromPath(path));
+    opts.setSourcesQuery?.(parseSourcesQuery(window.location.search));
     if (path === "/workspaces") {
       opts.openManager();
       return;
