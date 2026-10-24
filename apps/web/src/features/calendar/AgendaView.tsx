@@ -25,9 +25,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { deriveDisplayName } from "@notees/domain";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import { Icon } from "../../ui/Icon.js";
 import { parentlessBlockResolverOf, untitledLabelOf } from "../../ui/renderStateLabel.js";
 import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
+import { Button } from "../../components/ui/fleet/Button.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import {
   agendaTimeLabelOf,
@@ -215,16 +215,17 @@ export function AgendaView({
                 <span className="cal-agenda__day-meta">{meta}</span>
                 {/* The journal-feed register: the open
                     arrow reveals on header hover/focus; on touch (no hover)
-                    it stays visible. */}
-                <button
-                  type="button"
+                    it stays visible. The fleet ghost icon Button (the
+                    rounded-square register) sits NEXT to the header text. */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="mdi-arrow-right"
                   className="cal-agenda__open"
                   aria-label={`Open day page ${iso}`}
                   title="Open day page"
                   onClick={() => onOpenDayPage(iso)}
-                >
-                  <Icon path="mdi-arrow-right" size={0.9} />
-                </button>
+                />
               </div>
               {isToday && (
                 <div className="cal-agenda__now" data-minutes={nowMinutes} />

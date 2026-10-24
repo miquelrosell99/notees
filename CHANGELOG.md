@@ -9,6 +9,17 @@ predating this file.
 
 ## 2026-10-24
 
+- **fix(web): the agenda's open-page arrow moves next to the header text and
+  wears the fleet button register.** Two owner nits:
+  the hover-reveal arrow rides DIRECTLY after the day meta (no far-right
+  auto margin), and it IS the system component now — the fleet ghost icon
+  `Button` (the rounded-square register, the journal's exact button)
+  instead of a bespoke circle; the local CSS keeps only the hover-reveal
+  wrapper.
+  - **Verification**: web suite green. Deployed: verify-min VERIFY-PASS +
+    the panel probe green.
+## 2026-10-24
+
 - **refactor(web): day selection retires from the time grid (the owner's
   post-mortem); agenda day headers gain the hover open-page arrow.** (1) "Why would we want full day column selection?" —
   honest answer: inertia from the mini-month era, when selection WAS the
