@@ -87,6 +87,7 @@ import type {
 } from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient, fullTitleFromClient } from "./dateDisplay.js";
+import { parentlessBlockResolverOf } from "./renderStateLabel.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { openNodeLinkMenu } from "../features/node-menu/NodeLinkContextMenu.js";
 import { SAVE_DEBOUNCE_MS } from "../features/block-editor/index.js";
@@ -140,6 +141,8 @@ export interface WhiteboardClient {
   /** Direct children in child order (card candidates; the inline-body filter is applied here). */
   getChildren(id: string): ClientNode[];
   getDisplayName(id: string): string | null;
+  /** The parentlessRole "block" demote resolver for the role predicates. */
+  effectiveClassParentlessBlock(classId: string): boolean;
   subscribe(listener: () => void): () => void;
   createObject(partial: CreateObjectInput): Promise<string>;
   updateObject(id: string, fields: UpdateObjectInput): Promise<void>;
@@ -462,7 +465,7 @@ export function WhiteboardCanvas({
     if (hostNode === undefined) return [];
     return client
       .getChildren(hostId)
-      .filter((child) => rendersAsInlineBlock(child, hostNode))
+      .filter((child) => rendersAsInlineBlock(child, hostNode, parentlessBlockResolverOf(client)))
       .map((child) => child.id);
   }, [client, hostId]);
 
@@ -1274,7 +1277,7 @@ export function WhiteboardCanvas({
   // Cards are the host's inline-body children (the Revision-11 render
   // cascade: main children render in their own section, not on the canvas).
   const cards = host
-    ? client.getChildren(hostId).filter((child) => rendersAsInlineBlock(child, host))
+    ? client.getChildren(hostId).filter((child) => rendersAsInlineBlock(child, host, parentlessBlockResolverOf(client)))
     : [];
   const renderedCardIds = cards.map((card) => card.id);
 

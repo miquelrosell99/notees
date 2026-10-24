@@ -42,7 +42,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the forty required fixtures", () => {
+  it("has exactly the forty-one required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
@@ -51,6 +51,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "class-extends-system-lock.json",
       "class-link-assertion.json",
       "class-link.json",
+      "class-parentless-role.json",
       "class-property-active.json",
       "class-property-defaults.json",
       "class-unassign.json",

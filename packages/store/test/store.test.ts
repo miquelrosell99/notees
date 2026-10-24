@@ -4209,6 +4209,149 @@ describe.each(adapters)("$name: class.create conversion (M47)", ({ makeBackend }
   });
 });
 
+// --- class-level parentlessRole (SCHEMA.md "Node structure", owner 2026-10-24) ----
+
+describe.each(adapters)("$name: class parentlessRole (store v32)", ({ makeBackend }) => {
+  const TASK = "0192a000-0000-7000-8000-000000000601";
+  const EVENT = "0192a000-0000-7000-8000-000000000602";
+  const ERRAND = "0192a000-0000-7000-8000-000000000603";
+
+  function makeStore(): Store {
+    return Store.open(makeBackend());
+  }
+
+  const nodeRole = (store: Store, id: string) =>
+    (
+      store.database.prepare("SELECT parentless_role FROM node WHERE id = ?").get(id) as {
+        parentless_role: string | null;
+      }
+    ).parentless_role;
+  const registryRole = (store: Store, id: string) =>
+    (
+      store.database.prepare("SELECT parentless_role FROM class WHERE id = ?").get(id) as {
+        parentless_role: string | null;
+      }
+    ).parentless_role;
+
+  it("class.create maps the flag to BOTH the class node row and the registry (icon/color precedent); absent = NULL", () => {
+    const store = makeStore();
+    const [taskCreate, eventCreate, taskNodeCreate] = loadFixture("class-parentless-role.json");
+    store.apply(taskCreate!);
+    store.apply(eventCreate!);
+    const FIXTURE_TASK = "0192a000-0000-7000-8000-0000000000d1";
+    const FIXTURE_EVENT = "0192a000-0000-7000-8000-0000000000d2";
+    expect(nodeRole(store, FIXTURE_TASK)).toBe("block");
+    expect(registryRole(store, FIXTURE_TASK)).toBe("block");
+    expect(nodeRole(store, FIXTURE_EVENT)).toBeNull();
+    expect(registryRole(store, FIXTURE_EVENT)).toBeNull();
+    // The fixture's standalone task node applies cleanly (parentless, classed).
+    store.apply(taskNodeCreate!);
+    expect(store.getNode("0192a000-0000-7000-8000-0000000000d3")).toMatchObject({
+      is_class: 0,
+      parent_id: null,
+    });
+    store.close();
+  });
+
+  it("class.update presence writes and present-null clears, on both tables", () => {
+    const store = makeStore();
+    store.apply(env("class.create", { classId: EVENT, contentAst: [{ type: "text", text: "Event" }] }, 1727200001000));
+    store.apply(env("class.update", { classId: EVENT, parentlessRole: "block" }, 1727200002000));
+    expect(nodeRole(store, EVENT)).toBe("block");
+    expect(registryRole(store, EVENT)).toBe("block");
+    store.apply(env("class.update", { classId: EVENT, parentlessRole: null }, 1727200003000));
+    expect(nodeRole(store, EVENT)).toBeNull();
+    expect(registryRole(store, EVENT)).toBeNull();
+    store.close();
+  });
+
+  it("a re-issued flag-less class.create (the seed/ensure re-run) preserves the stored flag", () => {
+    const store = makeStore();
+    store.apply(
+      env(
+        "class.create",
+        { classId: TASK, contentAst: [{ type: "text", text: "Task" }], parentlessRole: "block" },
+        1727200001000,
+      ),
+    );
+    store.apply(env("class.create", { classId: TASK, contentAst: [{ type: "text", text: "Task" }] }, 1727200002000));
+    expect(nodeRole(store, TASK)).toBe("block");
+    expect(registryRole(store, TASK)).toBe("block");
+    store.close();
+  });
+
+  it("the full fixture replays to the derived state the effective-role read consumes", () => {
+    const store = makeStore();
+    for (const raw of loadFixture("class-parentless-role.json")) store.apply(raw as Envelope);
+    // Fixture ids: Task …0d1 flagged; Event …0d2 cleared back to the default;
+    // Errand …0d4 carries no flag of its own but extends the flagged Task
+    // (effective block derives at read time via class_hierarchy, not from a
+    // stored value).
+    const FIXTURE_TASK = "0192a000-0000-7000-8000-0000000000d1";
+    const FIXTURE_EVENT = "0192a000-0000-7000-8000-0000000000d2";
+    const FIXTURE_ERRAND = "0192a000-0000-7000-8000-0000000000d4";
+    expect(nodeRole(store, FIXTURE_TASK)).toBe("block");
+    expect(nodeRole(store, FIXTURE_EVENT)).toBeNull();
+    expect(nodeRole(store, FIXTURE_ERRAND)).toBeNull();
+    expect(
+      store.database
+        .prepare("SELECT 1 FROM class_hierarchy WHERE class_id = ? AND ancestor_id = ?")
+        .get(FIXTURE_ERRAND, FIXTURE_TASK),
+    ).toBeDefined();
+    store.close();
+  });
+
+  it("the parent-page guard is flag-aware: no standalone claim under a block-role parentless node", () => {
+    const store = makeStore();
+    const STANDALONE_TASK = "0192a000-0000-7000-8000-000000000610";
+    const CHILD = "0192a000-0000-7000-8000-000000000611";
+    const WANTED = "0192a000-0000-7000-8000-000000000612";
+    store.apply(
+      env(
+        "class.create",
+        { classId: TASK, contentAst: [{ type: "text", text: "Task" }], parentlessRole: "block" },
+        1727200001000,
+      ),
+    );
+    store.apply(
+      env(
+        "object.create",
+        { objectId: STANDALONE_TASK, classIds: [TASK], contentAst: [{ type: "text", text: "Fix sink" }] },
+        1727200002000,
+      ),
+    );
+    // An EMBEDDED child under the block-role parentless node stays legal.
+    store.apply(
+      env(
+        "object.create",
+        { objectId: CHILD, parentId: STANDALONE_TASK, contentAst: [{ type: "text", text: "detail" }] },
+        1727200003000,
+      ),
+    );
+    // A standalone claim (isEmbedded = 0) under it fails loud — the guard sees
+    // the same block role render sees (owner 2026-10-24).
+    expect(() =>
+      store.apply(
+        env(
+          "object.create",
+          {
+            objectId: WANTED,
+            parentId: STANDALONE_TASK,
+            isEmbedded: false,
+            contentAst: [{ type: "text", text: "claim" }],
+          },
+          1727200004000,
+        ),
+      ),
+    ).toThrow(MoveGuardError);
+    // Promotion of the embedded child is rejected by the same guard.
+    expect(() =>
+      store.apply(env("object.update", { objectId: CHILD, isEmbedded: false }, 1727200005000)),
+    ).toThrow(MoveGuardError);
+    store.close();
+  });
+});
+
 // --- M12: write-time alias-cycle validation + the resolveAlias chain walker --------
 
 describe.each(adapters)("$name: alias cycles (M12)", ({ makeBackend }) => {

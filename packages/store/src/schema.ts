@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 31;
+export const SCHEMA_VERSION = 32;
 
 /**
  * The render-path list-reads index: composite for the
@@ -143,6 +143,15 @@ CREATE TABLE IF NOT EXISTS node (
     -- default); the NUMBER is never stored — clients derive it at render time
     -- from the contiguous run of same-style siblings.
     list_style TEXT,
+    -- Class-level parentlessRole (SCHEMA.md "Node structure", owner
+    -- 2026-10-24, store v32): "block" = a parentless member of the class
+    -- renders in the Block role instead of with document chrome; NULL = the
+    -- "page" default. Meaningful on class rows only (mapped by class.create /
+    -- class.update, the icon/color precedent; presence writes, present-null
+    -- clears); read by render only (the render-contract law, PC1 — no
+    -- write-path enforcement) and extends-aware at read time via
+    -- class_hierarchy (own flag OR any ancestor's — one-way demote).
+    parentless_role TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT,
     updated_at TEXT,
@@ -227,7 +236,9 @@ CREATE INDEX IF NOT EXISTS idx_class_hierarchy_ancestor
 
 -- Class registry rows (name/icon/color/description), keyed by the class
 -- node id. The node row (is_class = 1) is the structural authority;
--- this table carries class-only configuration (description).
+-- this table carries class-only configuration (description,
+-- parentless_role — the store-v32 render contract, mirrored from the node
+-- row like icon/color).
 CREATE TABLE IF NOT EXISTS class (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
@@ -235,6 +246,7 @@ CREATE TABLE IF NOT EXISTS class (
     icon TEXT,
     color TEXT,
     description TEXT,
+    parentless_role TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT,
     updated_at TEXT
@@ -1372,6 +1384,25 @@ export function migrate(
     }[];
     if (!featureColumnsV31.some((c) => c.name === "settings")) {
       db.exec("ALTER TABLE workspace_feature ADD COLUMN settings TEXT;");
+    }
+  }
+  // v31 -> v32 (owner 2026-10-24 — the class-level parentlessRole render
+  // contract, SCHEMA.md "Node structure"): `node` gains `parentless_role`
+  // (meaningful on class rows; the effective-role reads walk node rows, the
+  // effectiveClassColor precedent) and the class registry gains the same
+  // column (the icon/color two-table precedent). Purely additive — guarded
+  // ALTERs, no-ops for fresh v32 creates; NULL = the "page" default, so
+  // existing rows converge by default and the live log migration
+  // (scripts/migrate-class-parentless-role.mts, Path A) appends the flagged
+  // system classes' `class.update` envelopes.
+  {
+    const nodeColumnsV32 = db.prepare("PRAGMA table_info(node)").all() as { name: string }[];
+    if (!nodeColumnsV32.some((c) => c.name === "parentless_role")) {
+      db.exec("ALTER TABLE node ADD COLUMN parentless_role TEXT;");
+    }
+    const classColumnsV32 = db.prepare("PRAGMA table_info(class)").all() as { name: string }[];
+    if (!classColumnsV32.some((c) => c.name === "parentless_role")) {
+      db.exec("ALTER TABLE class ADD COLUMN parentless_role TEXT;");
     }
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

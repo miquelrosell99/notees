@@ -67,7 +67,7 @@ import type { UndoUiState } from "@/core/undo-journal.js";
 
 import { nodeDisplayName, displayNameFromClient, isDatePageNode, rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
-import { parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { flipTheme, toggleFocusMode } from "../settings/deviceSettings.js";
 import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
 import {
@@ -154,7 +154,8 @@ function containingPageLabel(client: AnyClient, node: ClientNode): string | null
   while (currentId !== null && guard < 64) {
     const parent = client.getNode(currentId);
     if (parent === undefined) return null;
-    if (rendersWithDocumentChrome(parent)) return nodeDisplayName(parent) || "Untitled";
+    if (rendersWithDocumentChrome(parent, undefined, parentlessBlockResolverOf(client)))
+      return nodeDisplayName(parent) || "Untitled";
     currentId = parent.parentId;
     guard += 1;
   }
@@ -382,9 +383,12 @@ export function CommandPalette({
       classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
     const memberOfMatch = (node: ClientNode) =>
       !hasMemberOf || node.classIds.some((id) => memberOfSet.has(id));
+    // The Pages pool is role-filtered (owner 2026-10-24): block-role
+    // standalone nodes (flagged classes — assets included) stay out of the
+    // page listings; the "blocks" chip finds them.
     const pages = client
       .listPages()
-      .filter((page) => !page.classIds.includes(assetClassId))
+      .filter((page) => rendersWithDocumentChrome(page, undefined, parentlessBlockResolverOf(client)))
       .filter(memberOfMatch);
     const themeIsDark = document.documentElement.dataset.theme !== "light";
     const focusIsOn = document.documentElement.dataset.focus === "true";
@@ -590,7 +594,7 @@ export function CommandPalette({
               const mergeable =
                 current !== undefined &&
                 !current.isClass &&
-                rendersWithDocumentChrome(current, parentRenderFacts(client, current));
+                rendersWithDocumentChrome(current, parentRenderFacts(client, current), parentlessBlockResolverOf(client));
               return mergeable
                 ? [
                     {
@@ -750,19 +754,19 @@ export function CommandPalette({
           setContentItems(
             page.nodes
               .filter((node) => !node.classIds.includes(assetClassId))
-              .filter((node) => !chip.blocks || rendersAsInlineBlock(node, parentRenderFacts(client, node)))
-              .filter((node) => !chip.pages || rendersWithDocumentChrome(node, parentRenderFacts(client, node)))
+              .filter((node) => !chip.blocks || rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client)))
+              .filter((node) => !chip.pages || rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client)))
               .filter((node) => !hasMemberOf || node.classIds.some((id) => memberOfSet.has(id)))
               .map((node) => ({
                 queryTag: text,
                 key: `content:${node.id}`,
                 group: "Content" as const,
                 label: nodeDisplayName(node) || "Untitled",
-                icon: rendersWithDocumentChrome(node, parentRenderFacts(client, node))
+                icon: rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
                   ? (node.icon ?? "mdi-file-document-outline")
                   : "mdi-format-text",
                 keywords: "",
-                meta: rendersAsInlineBlock(node, parentRenderFacts(client, node))
+                meta: rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
                   ? (containingPageLabel(client, node) ?? undefined)
                   : undefined,
                 snippet: client.getSearchSnippet(node.id, text),
@@ -852,10 +856,11 @@ export function CommandPalette({
     setContentItems([]);
     setActiveFilters([]);
     setFilterBrowse("options");
-    const classes = client.listClasses();
-    const assetClassId =
-      classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
-    const pool = client.listPages().filter((page) => !page.classIds.includes(assetClassId));
+    // The random walk is a PAGES surface (owner 2026-10-24): block-role
+    // standalone nodes stay out of the page pool.
+    const pool = client
+      .listPages()
+      .filter((page) => rendersWithDocumentChrome(page, undefined, parentlessBlockResolverOf(client)));
     randomPoolRef.current = pool.map((page) => page.id);
     setRandomRows(pickRandomRows(client, randomPoolRef.current, onOpenNodeRef.current));
   }, [open, client]);

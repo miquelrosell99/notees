@@ -49,6 +49,7 @@ import {
 import { logout } from "@/core/auth-api.js";
 
 import { nodeDisplayName } from "./dateDisplay.js";
+import { parentlessBlockResolverOf } from "./renderStateLabel.js";
 import type { ShareTarget } from "../features/node-menu/NodeMenuButton.js";
 import { rendersAsInlineBlock } from "@notees/domain";
 import { type NavKey } from "./app/Sidebar.js";
@@ -181,7 +182,13 @@ export function App() {
    * journal / pages hub). Inline blocks vanish in place — no navigation.
    */
   function handleNodeDeleted(node: ClientNode): void {
-    if (rendersAsInlineBlock(node, clientRef.current?.getNode(node.parentId ?? ""))) return;
+    const live = clientRef.current;
+    if (
+      live !== null &&
+      live !== undefined &&
+      rendersAsInlineBlock(node, live.getNode(node.parentId ?? ""), parentlessBlockResolverOf(live))
+    )
+      return;
     if (node.parentId !== null) {
       openPage(node.parentId);
       return;

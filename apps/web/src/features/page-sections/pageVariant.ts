@@ -35,8 +35,9 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { ClassedNodesSection } from "../classview/lassedNodesSection.js";
-import { parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { ExtendedBySection } from "../classview/xtendedBySection.js";
+import { ParentlessRoleSection } from "../classview/ParentlessRoleSection.js";
 import { PropertyDefinitionsSection } from "../classview/PropertyDefinitionsSection.js";
 import { TemplatesSection } from "../classview/emplatesSection.js";
 import {
@@ -164,6 +165,11 @@ const CLASS_SIDEBAR_SECTIONS: VariantSectionSpec[] = [
       createElement(PropertyDefinitionsSection, { client, classId: nodeId }),
   },
   {
+    key: "parentless-role",
+    render: ({ client, nodeId }) =>
+      createElement(ParentlessRoleSection, { client, classId: nodeId }),
+  },
+  {
     key: "templates",
     render: ({ client, nodeId, onOpenPage }) =>
       createElement(TemplatesSection, { client, classId: nodeId, onOpenPage }),
@@ -280,7 +286,10 @@ export function pageVariantOf(client: AnyClient, nodeId: string): PageVariant {
       systemSections: [...CLASS_SYSTEM_SECTIONS, ...PAGE_SYSTEM_SECTIONS],
     };
   }
-  if (node === undefined || !rendersWithDocumentChrome(node, parentRenderFacts(client, node))) {
+  if (
+    node === undefined ||
+    !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
+  ) {
     return { variant: "plain", sections: NO_SECTIONS, systemSections: PAGE_SYSTEM_SECTIONS };
   }
   const parsed = parseDateNodeId(nodeId);

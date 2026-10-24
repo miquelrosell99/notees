@@ -12,6 +12,7 @@ import {
   SYSTEM_CLASS_DISPLAY_NAMES,
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
+  SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_EXTRA_CLASS_BINDINGS,
   SYSTEM_PAGE_UUIDS,
@@ -41,6 +42,13 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
           // camelCase/snake_case seed key.
           contentAst: [{ type: "text", text: SYSTEM_CLASS_DISPLAY_NAMES[name] }],
           icon: SYSTEM_CLASS_ICONS[name],
+          // The class-level parentlessRole render contract (owner 2026-10-24):
+          // flagged classes' parentless members render Block-role. Absent on
+          // every other class = the "page" default. Live workspaces converge
+          // by the one-time Path A migration, not by re-seeding.
+          ...(SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK.has(name)
+            ? { parentlessRole: "block" as const }
+            : {}),
         },
         affectedNodeIds: [classId],
         client: "seed",

@@ -61,9 +61,36 @@ export class WorkspaceClientReads {
    */
   getPage(id: string): ClientNode | undefined {
     const node = this.getNode(id);
-    return node !== undefined && rendersWithDocumentChrome(node, this.parentFactsOf(node))
+    return node !== undefined &&
+      rendersWithDocumentChrome(node, this.parentFactsOf(node), (classId) =>
+        this.effectiveClassParentlessBlock(classId),
+      )
       ? node
       : undefined;
+  }
+
+  /** Class effectiveParentlessRole — the extends-aware "block" demote (owner
+   *  2026-10-24): true when the class's OWN flag is "block" OR any
+   *  extends-ancestor's is (the same chain walk as effectiveClassColor,
+   *  reduced to a boolean one-way demote — there is no per-level unflag).
+   *  THIS is the resolver the domain role predicates take for the parentless
+   *  cascade branch. Lives in the reads domain so every read class (refs,
+   *  props) reaches it without circular wiring. */
+  effectiveClassParentlessBlock(classId: string): boolean {
+    const seen = new Set<string>();
+    const queue = [classId];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (seen.has(current)) continue;
+      seen.add(current);
+      const node = this.getNode(current) ?? this.getNodeRaw(current);
+      if (node !== undefined && node.parentlessRole === "block") return true;
+      const parents = this.ctx.store.database
+        .prepare("SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id")
+        .all(current) as Array<{ parent_class_id: string }>;
+      for (const parent of parents) queue.push(parent.parent_class_id);
+    }
+    return false;
   }
 
   /** The parent's render facts for the parent-page condition, when known. */
@@ -71,13 +98,21 @@ export class WorkspaceClientReads {
     return node.parentId !== null ? this.getNode(node.parentId) : undefined;
   }
 
-  /** All document-chrome nodes (parentless or main children), deterministic order. */
+  /** All document-chrome nodes (parentless or main children), deterministic
+   *  order. parentlessRole-aware (owner 2026-10-24): a parentless node whose
+   *  classes effectively carry "block" renders Block-role and is NOT a page —
+   *  the same EXISTS the query compiler's pages scope flattens. */
   listPages(): ClientNode[] {
     return this.cachedListRead("listPages", () => {
       const rows = this.ctx.store.database
         .prepare(
           `SELECT * FROM node
          WHERE workspace_id = ? AND is_class = 0 AND (parent_id IS NULL OR is_embedded = 0) AND is_active = 1
+           AND (parent_id IS NOT NULL OR NOT EXISTS (
+             SELECT 1 FROM class_hierarchy ch
+             JOIN node c ON c.id = ch.ancestor_id
+             WHERE ch.class_id IN (SELECT value FROM json_each(node.class_ids))
+               AND c.parentless_role = 'block'))
          ORDER BY COALESCE(name, id), id`,
         )
         .all(this.ctx.workspaceId) as NodeRow[];

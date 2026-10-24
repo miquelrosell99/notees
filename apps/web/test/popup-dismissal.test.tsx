@@ -519,6 +519,7 @@ describe("regression: NodePill right-click color row gains Escape", () => {
     bannerAssetId: null,
     listStyle: null,
     aliasedNodeId: null,
+    parentlessRole: "page",
     description: null,
     color: null,
     isActive: true,

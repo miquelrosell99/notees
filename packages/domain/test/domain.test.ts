@@ -17,6 +17,7 @@ import {
   SYSTEM_CLASS_DISPLAY_NAMES,
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
+  SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_EXTRA_CLASS_BINDINGS,
   SYSTEM_PAGE_UUIDS,
@@ -567,6 +568,40 @@ describe("system seeds (ported)", () => {
     expect(extra).toEqual([{ property: "eventDate", bindTo: "birthday" }]);
   });
 
+  it("parentlessRole block seed pins the flagged roster verbatim (owner 2026-10-24)", () => {
+    // Every flagged class is a seeded class; meeting/birthday are deliberately
+    // ABSENT — they inherit the demote through `event` via SYSTEM_CLASS_EXTENDS
+    // (the effective flag derives at read time; one-way demote).
+    expect([...SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK].sort()).toEqual(
+      [
+        "asset",
+        "card",
+        "cloze",
+        "code",
+        "comment",
+        "definition",
+        "event",
+        "highlight",
+        "idea",
+        "query",
+        "table",
+        "task",
+        "template",
+        "quote",
+      ].sort(),
+    );
+    for (const name of SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK) {
+      expect(SEEDED_SYSTEM_CLASSES).toContain(name);
+    }
+    expect(SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK.has("meeting")).toBe(false);
+    expect(SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK.has("birthday")).toBe(false);
+    expect(SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK.has("source")).toBe(false);
+    expect(SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK.has("note")).toBe(false);
+    expect(SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK.has("whiteboard")).toBe(false);
+    expect(SYSTEM_CLASS_EXTENDS.meeting).toEqual(["event"]);
+    expect(SYSTEM_CLASS_EXTENDS.birthday).toEqual(["event"]);
+  });
+
   it("cover is not bound to source anywhere in the seed manifest (owner ruling 2026-10-05: a cover makes no sense on sources)", () => {
     for (const binding of SYSTEM_EXTRA_CLASS_BINDINGS) {
       expect(binding.property === "cover" && binding.bindTo === "source").toBe(false);
@@ -988,6 +1023,58 @@ describe("render-state cascade predicates (Revision 11)", () => {
     expect(rendersAsInlineBlock(bitSet, blockParent)).toBe(true);
     expect(rendersAsInlineBlock(bitSet, { isClass: true, parentId: null })).toBe(true);
     expect(rendersAsInlineBlock(bitSet, { isClass: false, parentId: null })).toBe(false);
+  });
+
+  it("parentlessRole: a flagged class's parentless members render Block-role (owner 2026-10-24)", () => {
+    const FLAGGED = "task-class";
+    const PLAIN = "project-class";
+    // The resolver stands in for the extends-aware effective walk (own flag OR
+    // any ancestor's) — the domain predicate takes it as an argument.
+    const isParentlessBlockClass = (classId: string) => classId === FLAGGED;
+
+    // Parentless + flagged class → no document chrome, Block role.
+    const standaloneTask = { isClass: false, parentId: null, classIds: [FLAGGED] };
+    expect(rendersWithDocumentChrome(standaloneTask, null, isParentlessBlockClass)).toBe(false);
+    expect(rendersAsInlineBlock(standaloneTask, null, isParentlessBlockClass)).toBe(true);
+
+    // Parentless + unflagged (or multi-class with ANY flagged) — one-way demote.
+    expect(
+      rendersWithDocumentChrome({ isClass: false, parentId: null, classIds: [PLAIN] }, null, isParentlessBlockClass),
+    ).toBe(true);
+    expect(
+      rendersWithDocumentChrome(
+        { isClass: false, parentId: null, classIds: [PLAIN, FLAGGED] },
+        null,
+        isParentlessBlockClass,
+      ),
+    ).toBe(false);
+
+    // No resolver / no classIds = "no class context at hand": the pre-flag
+    // behavior (document chrome), so parentless callers without class access
+    // are unchanged.
+    expect(rendersWithDocumentChrome({ isClass: false, parentId: null, classIds: [FLAGGED] })).toBe(true);
+    expect(rendersWithDocumentChrome({ isClass: false, parentId: null }, null, isParentlessBlockClass)).toBe(true);
+
+    // The flag is read ONLY in the parentless branch: a parented flagged node
+    // follows the embedding bit exactly (an explicit standalone claim under a
+    // page-role parent still wins — law 1).
+    const parentPage = { isClass: false, parentId: null };
+    expect(
+      rendersWithDocumentChrome(
+        { isClass: false, parentId: "p", isEmbedded: false, classIds: [FLAGGED] },
+        parentPage,
+        isParentlessBlockClass,
+      ),
+    ).toBe(true);
+    expect(
+      rendersWithDocumentChrome(
+        { isClass: false, parentId: "p", isEmbedded: true, classIds: [FLAGGED] },
+        parentPage,
+        isParentlessBlockClass,
+      ),
+    ).toBe(false);
+    // Classes never leave ClassView.
+    expect(rendersWithDocumentChrome({ isClass: true, parentId: null }, null, isParentlessBlockClass)).toBe(false);
   });
 });
 

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { rendersWithDocumentChrome } from "@notees/domain";
 
 import { labelFromClient } from "../../ui/dateDisplay.js";
-import { parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { NodePill } from "./NodePills.js";
 import { AliasNodePicker } from "./AliasNodePicker.js";
@@ -62,7 +62,10 @@ export function AliasesRow({
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
   const node = client.getNode(nodeId);
-  if (node === undefined || !rendersWithDocumentChrome(node, parentRenderFacts(client, node)))
+  if (
+    node === undefined ||
+    !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
+  )
     return null;
 
   const aliases = client.aliasNodesOf(nodeId);

@@ -82,6 +82,24 @@ export class WorkspaceClientReadsRefs {
     return this.classIconInChain(classId) ?? DEFAULT_CLASS_ICON;
   }
 
+  /** Class effectiveParentlessRole — the extends-aware "block" demote (owner
+   * 2026-10-24): true when the class's OWN flag is "block" OR any
+   * extends-ancestor's is (the same chain walk as effectiveClassColor,
+   * reduced to a boolean one-way demote — there is no per-level unflag).
+   * THIS is the resolver the domain role predicates take for the parentless
+   * cascade branch. The walk itself lives in the reads domain (no circular
+   * wiring); this is the refs-domain facade the client exposes. */
+  effectiveClassParentlessBlock(classId: string): boolean {
+    return this.reads.effectiveClassParentlessBlock(classId);
+  }
+
+  /** Node role resolution for the parentless cascade branch: true when ANY of
+   * the node's classes effectively carries parentlessRole "block" (the
+   * one-way demote over the node's whole class set). */
+  nodeHasParentlessBlockClass(node: Pick<ClientNode, "classIds">): boolean {
+    return node.classIds.some((classId) => this.effectiveClassParentlessBlock(classId));
+  }
+
   /** Node effectiveIcon: the node's own icon, else the first assigned class's
    * chain icon (class order, mirroring effectiveNodeColor). The class default
    * does NOT leak into a node — an iconless classed page renders the page
@@ -96,7 +114,10 @@ export class WorkspaceClientReadsRefs {
       const icon = this.classIconInChain(classId);
       if (icon !== null) return icon;
     }
-    return defaultIconFor(node);
+    // The default rides the parentlessRole demote too (owner 2026-10-24): a
+    // block-role standalone node renders no page glyph (its chrome is the
+    // bullet dot, like any inline block).
+    return defaultIconFor(node, (classId) => this.effectiveClassParentlessBlock(classId));
   }
 
   /**
@@ -254,7 +275,13 @@ export class WorkspaceClientReadsRefs {
   /** Source ids matching the node's name, minus itself and linked sources. */
   private unlinkedReferenceIds(id: string): string[] {
     const node = this.reads.getNode(id);
-    if (!node || !rendersWithDocumentChrome(node, this.reads.parentFactsOf(node))) return [];
+    if (
+      !node ||
+      !rendersWithDocumentChrome(node, this.reads.parentFactsOf(node), (classId) =>
+        this.effectiveClassParentlessBlock(classId),
+      )
+    )
+      return [];
     // A source linking the node OR any of its alias pages is already linked
     // (the linked-references set rolls alias-targeted edges in — see
     // getLinkedReferences), so the unlinked list excludes both families.
@@ -292,7 +319,13 @@ export class WorkspaceClientReadsRefs {
     const nodes: ClientNode[] = [];
     for (const aliasId of this.ctx.store.aliasNodesOf(id)) {
       const alias = this.reads.getNode(aliasId);
-      if (alias === undefined || !rendersWithDocumentChrome(alias, this.reads.parentFactsOf(alias))) continue;
+      if (
+        alias === undefined ||
+        !rendersWithDocumentChrome(alias, this.reads.parentFactsOf(alias), (classId) =>
+          this.effectiveClassParentlessBlock(classId),
+        )
+      )
+        continue;
       nodes.push(alias);
     }
     return nodes;
@@ -449,7 +482,7 @@ export class WorkspaceClientReadsRefs {
       // The parent-page condition rides along (owner ruling 2026-10-15): a
       // bit under a non-page parent is inert, so the walk continues past
       // it to the real containing page.
-      if (parent === undefined || rendersWithDocumentChrome(current, parent)) break;
+      if (parent === undefined || rendersWithDocumentChrome(current, parent, (classId) => this.effectiveClassParentlessBlock(classId))) break;
       current = parent;
     }
     return {

@@ -226,6 +226,18 @@ export const classCreatePayload = z
     /** Preset token or `#RRGGBB` hex (colors.ts grammar); null = no color. */
     color: colorValueSchema.nullish(),
     description: z.string().max(4096).optional(),
+    /**
+     * The parentless render role of the class's standalone instances
+     * (SCHEMA.md "Node structure", owner 2026-10-24): `"block"` = a
+     * parentless member renders in the Block role (block chrome, no document
+     * chrome) instead of as a page; absent/null = `"page"`, the default.
+     * Presence writes, present-null clears, exactly like `color`. Read by
+     * render only — never a property, never write-enforced (the
+     * render-contract law, PC1). Extends-aware: a class effectively carries
+     * `"block"` when its own flag OR any extends-ancestor's is `"block"`
+     * (one-way demote; there is no per-level unflag).
+     */
+    parentlessRole: z.enum(["page", "block"]).nullish(),
   })
   .strict();
 
@@ -240,6 +252,11 @@ export const classUpdatePayload = z
      * the schema now accepts what the catalog always documented. */
     color: colorValueSchema.nullish(),
     description: z.string().max(4096).optional(),
+    /** The parentless render role (class.create for the full contract):
+     * "block" = standalone instances render in the Block role; absent/null
+     * clears to the "page" default (presence writes, present-null clears,
+     * the color contract). */
+    parentlessRole: z.enum(["page", "block"]).nullish(),
   })
   .strict();
 

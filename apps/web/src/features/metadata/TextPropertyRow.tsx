@@ -55,7 +55,7 @@ import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { NodeCollection, type NodeCollectionItem } from "../collection/index.js";
 import type { AnyClient } from "../collection/types.js";
-import { parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { CarrierEnterContext, type CarrierInfo } from "../../ui/textCarrier.js";
@@ -80,7 +80,7 @@ function carrierStateOf(
         : null;
   if (rawRef !== null) {
     const node = client.getNode(rawRef);
-    if (node !== undefined && rendersAsInlineBlock(node, parentRenderFacts(client, node)))
+    if (node !== undefined && rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client)))
       return { kind: "carrier", id: rawRef };
     return { kind: "dead" };
   }

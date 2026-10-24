@@ -155,6 +155,7 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   effectiveNodeColor: "structure",
   effectiveClassColor: "structure",
   effectiveClassIcon: "structure",
+  effectiveClassParentlessBlock: "structure",
 };
 
 export interface WorkerClientOptions {
@@ -406,6 +407,13 @@ export class WorkerClient {
     // Never null — the class default is the chain's tail; "" seeds the cache
     // until the worker refresh lands (Icon renders nothing for empty).
     return this.cachedRead<string>("effectiveClassIcon", [classId], "");
+  }
+
+  /** Extends-aware parentlessRole "block" demote (owner 2026-10-24) — the
+   * resolver the domain role predicates take for the parentless cascade
+   * branch. */
+  effectiveClassParentlessBlock(classId: string): boolean {
+    return this.cachedRead<boolean>("effectiveClassParentlessBlock", [classId], false);
   }
 
   effectiveNodeIcon(node: {
@@ -782,7 +790,7 @@ export class WorkerClient {
   /** Create a class (class.create); returns the new class id. */
   async createClass(
     name: string,
-    opts?: { icon?: string; color?: string; id?: string },
+    opts?: { icon?: string; color?: string; id?: string; parentlessRole?: "page" | "block" },
   ): Promise<string> {
     return (await this.call("createClass", [name, opts])) as string;
   }
@@ -791,6 +799,14 @@ export class WorkerClient {
   /** Write a feature toggle (workspace.feature.set, LWW by HLC). */
   async setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean): Promise<void> {
     await this.call("setFeatureEnabled", [feature, enabled]);
+  }
+
+  /** The class-level parentlessRole render contract (owner 2026-10-24). */
+  async updateClassParentlessRole(
+    classId: string,
+    parentlessRole: "page" | "block" | null,
+  ): Promise<void> {
+    await this.call("updateClassParentlessRole", [classId, parentlessRole]);
   }
 
   /** Write a feature's settings record (workspace.feature.set {enabled: true, settings}). */

@@ -4,15 +4,17 @@
  * IO, no storage.
  *
  * Render cascade (SCHEMA.md): is_class → ClassView; parentless → document
- * chrome (the flag unread); otherwise the flag decides — is_embedded = 0
- * (the standalone claim) puts the node in the parent's main-children zone
- * + document chrome when zoomed, is_embedded = 1 (the default) keeps it in
- * the inline body + block chrome. The flag is only EFFECTIVE under a page
- * parent (owner ruling 2026-10-15): a parented node renders with document
- * chrome ONLY when is_embedded = 0 AND its parent also renders with
- * document chrome — classes are not pages (ClassView), so a standalone
- * claim under a class or an embedded block parent is inert. The store
- * enforces the invariant write-time; render assumes it.
+ * chrome UNLESS a member class effectively carries parentlessRole "block"
+ * (owner 2026-10-24 — the class-level render contract, resolved by the
+ * caller's extends-aware resolver); a parented node renders with document
+ * chrome ONLY when is_embedded = 0 (the standalone claim) AND its parent
+ * also renders with document chrome — classes are not pages (ClassView), so
+ * a standalone claim under a class or an embedded block parent is inert.
+ * The flag is read ONLY in the parentless branch (the is_embedded symmetry:
+ * the embedding flag is read only in the parented branch). The store
+ * enforces the invariant write-time (a standalone claim under a non-page
+ * parent is never stored — the guard's page predicate is flag-aware); render
+ * assumes it.
  */
 
 import type { ContentAst, ContentToken } from "@notees/protocol";
@@ -239,12 +241,22 @@ export function isClassNode(node: Pick<NodeLike, "isClass">): boolean {
 
 /**
  * Document-chrome predicate (the Page role): ClassView rows excluded (first
- * cascade branch), parentless non-class rows render as documents regardless
- * of the flag (second branch), and a parented row renders with document
- * chrome exactly when is_embedded = 0 (the standalone claim) AND its parent
- * also renders with document chrome (owner ruling 2026-10-15 — the
- * parent-page condition; a class or embedded-block parent makes the claim
- * inert).
+ * cascade branch), and a parented row renders with document chrome exactly
+ * when is_embedded = 0 (the standalone claim) AND its parent also renders with
+ * document chrome (owner ruling 2026-10-15 — the parent-page condition; a
+ * class or embedded-block parent makes the claim inert).
+ *
+ * The parentless branch (owner 2026-10-24 — the class-level parentlessRole
+ * render contract) is class-aware: a parentless non-class row renders with
+ * document chrome UNLESS one of its classes is effectively flagged
+ * `parentlessRole: "block"` — the class config demotes its standalone members
+ * to the Block role. The flag is read ONLY here (the is_embedded symmetry:
+ * the embedding flag is read only for parented rows); "effective" is
+ * extends-aware (own flag OR any extends-ancestor's — one-way demote,
+ * resolved by the caller's `isParentlessBlockClass`). An omitted resolver or
+ * classIds means "no class context at hand" and the row renders as a
+ * document — the pre-flag behavior, so parentless callers without class
+ * access are unchanged.
  *
  * `parent` is the parent row's render facts, when the caller has them. The
  * store enforces the invariant write-time (a standalone claim under a
@@ -253,24 +265,33 @@ export function isClassNode(node: Pick<NodeLike, "isClass">): boolean {
  * the same invariant.
  */
 export function rendersWithDocumentChrome(
-  node: Pick<NodeLike, "isClass" | "parentId" | "isEmbedded">,
+  node: Pick<NodeLike, "isClass" | "parentId" | "isEmbedded" | "classIds">,
   parent?: Pick<NodeLike, "isClass" | "parentId" | "isEmbedded"> | null,
+  isParentlessBlockClass?: (classId: string) => boolean,
 ): boolean {
   if (node.isClass) return false;
-  if (node.parentId == null) return true;
+  if (node.parentId == null) {
+    if (isParentlessBlockClass === undefined || node.classIds === undefined) return true;
+    return !node.classIds.some(isParentlessBlockClass);
+  }
   if (node.isEmbedded !== false && node.isEmbedded !== 0) return false;
   if (parent == null) return true;
-  return rendersWithDocumentChrome(parent);
+  return rendersWithDocumentChrome(parent, null, undefined);
 }
 
 /**
  * Inline-block predicate (the Block role): a parented non-class node that
  * does NOT render with document chrome — embedded in the parent's body, or
- * a standalone claim inert under a non-page parent.
+ * a standalone claim inert under a non-page parent — OR a parentless node
+ * whose classes effectively carry `parentlessRole: "block"` (the owner
+ * 2026-10-24 contract: standalone secondary nodes are full Block-role
+ * citizens, surfacing through queries/collections/search rather than the
+ * Pages chrome).
  */
 export function rendersAsInlineBlock(
-  node: Pick<NodeLike, "isClass" | "parentId" | "isEmbedded">,
+  node: Pick<NodeLike, "isClass" | "parentId" | "isEmbedded" | "classIds">,
   parent?: Pick<NodeLike, "isClass" | "parentId" | "isEmbedded"> | null,
+  isParentlessBlockClass?: (classId: string) => boolean,
 ): boolean {
-  return !node.isClass && node.parentId != null && !rendersWithDocumentChrome(node, parent);
+  return !node.isClass && !rendersWithDocumentChrome(node, parent, isParentlessBlockClass);
 }

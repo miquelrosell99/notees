@@ -108,7 +108,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { ExportPageModal } from "../features/export/ExportPageModal.js";
-import { parentRenderFacts } from "./renderStateLabel.js";
+import { parentlessBlockResolverOf, parentRenderFacts } from "./renderStateLabel.js";
 import { SharePageModal } from "../features/sharing/SharePageModal.js";
 import type { ShareTarget } from "../features/node-menu/NodeMenuButton.js";
 import { NodeContextMenu } from "../features/node-menu/NodeContextMenu.js";
@@ -376,7 +376,8 @@ export function PageView({
   const rawNode = client.getNode(pageId);
   const page =
     rawNode !== undefined &&
-    (rendersWithDocumentChrome(rawNode, parentRenderFacts(client, rawNode)) || rawNode.isClass)
+    (rendersWithDocumentChrome(rawNode, parentRenderFacts(client, rawNode), parentlessBlockResolverOf(client)) ||
+      rawNode.isClass)
       ? rawNode
       : undefined;
   /**

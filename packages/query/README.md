@@ -44,7 +44,7 @@ Conditions (the shipped subset, cleanly extensible by versioned addition):
 | `classExact {classId}` | EXACT class-set equality (the Odoo "=" register): the set is exactly `{classId}`, nothing else — the closure does not apply. |
 | `classAny {classIds}` | ANY-of membership (Odoo "one of"): at least one picked class rides the set — closure-aware per id, like `class`. |
 | `classSet` | The class set is non-empty (Odoo "is set"). |
-| `pageOf {nodeIds}` / `pageOfQuery {root}` | v1's **Page** block: the **containing page** (nearest self-or-ancestor rendering with document chrome — a class, a parentless node, or an `is_embedded = 0` node; the parent-page condition is write-time impossible to violate) IS ONE OF the picked nodes / the subquery's matches. A page row reads its own page (picked, it matches itself). |
+| `pageOf {nodeIds}` / `pageOfQuery {root}` | v1's **Page** block: the **containing page** (nearest self-or-ancestor rendering with document chrome — a class, a parentless node whose classes do not effectively carry `parentlessRole "block"`, or an `is_embedded = 0` node; the parent-page condition is write-time impossible to violate) IS ONE OF the picked nodes / the subquery's matches. A page row reads its own page (picked, it matches itself). A block-role standalone node (the 2026-10-24 parentlessRole demote) has NO containing page — `pageOf` never matches it. |
 | `pageSet` | The Page "is set" — the row lives inside a page (the containing page differs from the row itself). |
 | `ancestorIn {nodeIds}` / `ancestorInQuery {root}` | v1's **Parent path** block: some **strict ancestor** (the parent path, self excluded) is one of the picked nodes / matches the subquery. |
 | `rootIn {nodeIds}` / `rootInQuery {root}` | The **root** walk: the workspace-root ancestor (a parentless row is its own root) is one of the picked nodes / matches the subquery. |
@@ -153,9 +153,13 @@ Scope (the only source of a `distance` column; `SELECT n.*` otherwise):
 The `linkedTo` **condition** uses the same CTE with a single-column
 projection (`n.id IN (SELECT id FROM (...))`). `pages` filters to the
 document-chrome predicate — `n.is_class = 0 AND (n.parent_id IS NULL OR
-n.present_as_main = 1)`: workspace documents plus every parent's
-main-children zone, classes and inline blocks out; `entire_workspace` adds
-nothing.
+n.is_embedded = 0)` PLUS the parentlessRole demote (owner 2026-10-24) as a
+separate conjunct over the parentless population —
+`AND (n.parent_id IS NOT NULL OR NOT EXISTS (SELECT 1 FROM class_hierarchy ch
+JOIN node c ON c.id = ch.ancestor_id WHERE ch.class_id IN (SELECT value FROM
+json_each(n.class_ids)) AND c.parentless_role = 'block'))`: workspace documents
+plus every parent's main-children zone, classes, inline blocks, AND
+block-role standalone nodes out; `entire_workspace` adds nothing.
 
 Everything is parameterized with positional `?` — user values never reach
 the SQL string (verified by tests, including an injection attempt).

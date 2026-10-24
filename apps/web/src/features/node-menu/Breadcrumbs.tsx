@@ -31,7 +31,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { plainTitleOf } from "../../ui/dateDisplay.js";
-import { untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, untitledLabelOf } from "../../ui/renderStateLabel.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { ContextMenu, type ContextMenuItem } from "../../components/ui/fleet/ContextMenu.js";
@@ -76,7 +76,9 @@ function isDateLocked(node: ClientNode | undefined): boolean {
  *  uuid; per-crumb capped. */
 function crumbNameOf(client: AnyClient, node: ClientNode): string {
   const excerpt = plainTitleOf(node, (classId) => client.getDisplayName(classId));
-  return clipCrumbName(excerpt === "" ? untitledLabelOf(node) : excerpt);
+  return clipCrumbName(
+    excerpt === "" ? untitledLabelOf(node, parentlessBlockResolverOf(client)) : excerpt,
+  );
 }
 
 function ancestryOf(client: AnyClient, nodeId: string): Crumb[] {

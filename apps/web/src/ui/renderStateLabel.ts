@@ -11,22 +11,33 @@
 
 import { isClassNode, rendersWithDocumentChrome } from "@notees/domain";
 
-/** The minimal node facts the label needs (ClientNode satisfies it). */
+/** The minimal node facts the label needs (ClientNode satisfies it). The
+ *  classIds ride the parentlessRole "block" demote (owner 2026-10-24); absent
+ *  = the pre-flag label behavior. */
 export type RenderStateLabelInput = {
   isClass: boolean;
   isEmbedded: boolean;
   parentId: string | null;
+  classIds?: string[];
 };
 
-/** Render-state label: "Class" | "Page" | "Block". */
-export function renderStateLabel(node: RenderStateLabelInput): string {
+/** Render-state label: "Class" | "Page" | "Block". The optional resolver
+ *  carries the parentlessRole "block" demote (owner 2026-10-24); without it
+ *  a parentless flagged-class node keeps the pre-flag "Page" label. */
+export function renderStateLabel(
+  node: RenderStateLabelInput,
+  isParentlessBlockClass?: (classId: string) => boolean,
+): string {
   if (isClassNode(node)) return "Class";
-  return rendersWithDocumentChrome(node) ? "Page" : "Block";
+  return rendersWithDocumentChrome(node, undefined, isParentlessBlockClass) ? "Page" : "Block";
 }
 
 /** Human "Untitled page/class/block" fallback for empty display names. */
-export function untitledLabelOf(node: RenderStateLabelInput): string {
-  return `Untitled ${renderStateLabel(node).toLowerCase()}`;
+export function untitledLabelOf(
+  node: RenderStateLabelInput,
+  isParentlessBlockClass?: (classId: string) => boolean,
+): string {
+  return `Untitled ${renderStateLabel(node, isParentlessBlockClass).toLowerCase()}`;
 }
 
 /** The minimal client shape the parent lookup needs (WorkspaceClient and
@@ -44,4 +55,21 @@ export function parentRenderFacts(
   node: { parentId: string | null },
 ): RenderStateLabelInput | undefined {
   return node.parentId !== null ? client.getNode(node.parentId) : undefined;
+}
+
+/** The client shape the parentlessRole resolver needs (WorkspaceClient and
+ *  WorkerClient both satisfy it — the extends-aware chain walk). */
+export type ParentlessBlockResolverClient = {
+  effectiveClassParentlessBlock(classId: string): boolean;
+};
+
+/** The resolver argument for the domain role predicates' parentless branch
+ * (owner 2026-10-24): binds the extends-aware "block" demote to a client.
+ * Pass it at EVERY rendersWithDocumentChrome / rendersAsInlineBlock call
+ * site — a parentless flagged-class node renders Block-role, and a missing
+ * resolver silently keeps the pre-flag page behavior. */
+export function parentlessBlockResolverOf(
+  client: ParentlessBlockResolverClient,
+): (classId: string) => boolean {
+  return (classId) => client.effectiveClassParentlessBlock(classId);
 }

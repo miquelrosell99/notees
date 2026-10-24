@@ -35,6 +35,46 @@ predating this file.
     `[source]`; per-class rows untouched; a `journal_article` node resolves
     volume/issue/pages and never `bookTitle`; a `song` carries its own
     audioRecording set, not the journal's). Full gate green.
+- **feat(protocol,store,web): class-level `parentlessRole` — standalone
+  classed nodes as full Block-role citizens (owner 2026-10-24).** Context-free
+  captures no longer need a page: random tasks (they already carry a
+  create-date property), standalone assets, quotes, highlights surface via
+  queries/collections/search-blocks. `class.create`/`class.update` gain the
+  OPTIONAL NULLABLE **`parentlessRole: "page" | "block"`** (absent/null =
+  page, the zero-migration default; presence writes, present-null clears,
+  the `color` contract) — a render contract (PC1), mapped without validating
+  to `node.parentless_role` + `class.parentless_role` (store schema v32, the
+  icon/color two-table precedent). The cascade's parentless branch becomes
+  class-aware, symmetric with `is_embedded` (read only for parented rows):
+  parentless + ANY member class EFFECTIVELY flagged → Block role. The
+  effective flag is extends-aware (own OR any extends-ancestor's — the
+  `effectiveClassColor` chain walk; one-way demote, no per-level unflag), so
+  `meeting`/`birthday` demote through `event` with no seed write. Full
+  citizenship: block-mode open, "blocks" search scope in / "main" out, Pages
+  hub + page-mode pickers + palette page pools + the graph exclude (the
+  alias-node precedent), `pageOf` returns none (no containing page), the
+  query compiler's `pages` scope + `listPages` flatten the same EXISTS over
+  `class_hierarchy`, and the parent-page GUARD's page predicate is
+  flag-aware (a standalone claim under a block-role parentless node fails
+  loud with the SAME `MoveGuardError`). The domain predicates take an
+  optional resolver (the `resolveClassName` threading precedent); the web
+  sweeps every role call site through `parentlessBlockResolverOf(client)`.
+  Seeded flagged set (14): task, quote, highlight, asset, comment, cloze,
+  query, template, table, code, card, definition, idea, event
+  (`SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK`). The class page gains a
+  "Standalone instances" section (page/block selector, inheritance called
+  out). Live workspaces converge by `scripts/migrate-class-parentless-role.mts`
+  (Path A, dry-run default; only the 14 seed classes are written).
+  - **Verification**: fixture gate green (`class-parentless-role.json`, 41
+    fixtures; create/update/clear + the Errand-extends-Task effective case);
+    store 758 (both adapters, incl. the flag-aware guard); domain 127; query
+    264 (pages scope + pageOf semantic pins); web typecheck + 2153 tests
+    green; the GTK port gate green (954 pytest + ruff + mypy, fixture
+    sha256-identical, GTK schema v22) and the Flutter port gate green
+    (`flutter analyze` clean, 711 tests, fixture sha256-identical, Flutter
+    schema v38) — three-way lockstep shipped. The migration script verified
+    end-to-end against a scratch relay (dry-run plans 14, --apply ingests +
+    verifies, re-run idempotent).
 - **refactor(web): the time-grid header splits its registers — the day
   number opens the day page, the header's empty space selects (owner
   2026-10-24).** The ghost-creation pass had the day-number button do
@@ -44,6 +84,7 @@ predating this file.
   from the number to the header cell.
   - **Verification**: web suite green (the spec flips to the split
     register). Deployed: verify-min VERIFY-PASS + the panel probe green.
+
 ## 2026-10-24
 
 - **fix(scripts): migrations tolerate legacy unparseable saved views

@@ -168,18 +168,48 @@ function requireNode(db: StoreDatabase, nodeId: string, opType: string) {
 }
 
 /** The render facts isPageRow needs off a node row. */
-type RenderRow = { is_class: unknown; parent_id: unknown; is_embedded: unknown };
+type RenderRow = {
+  is_class: unknown;
+  parent_id: unknown;
+  is_embedded: unknown;
+  /** The row's class_ids JSON (only the parentless branch reads it — the
+   * parentlessRole demote, owner 2026-10-24). */
+  class_ids?: unknown;
+};
+
+/** True when ANY of the row's classes effectively carries parentlessRole
+ *  "block" — its own flag OR an extends-ancestor's via the class_hierarchy
+ *  closure (the one-way demote, owner 2026-10-24; the same EXISTS the query
+ *  compiler flattens). No/empty class context = false. */
+function rowIsParentlessBlock(db: StoreDatabase, row: RenderRow): boolean {
+  const classIds = row.class_ids;
+  if (typeof classIds !== "string" || classIds === "[]") return false;
+  return (
+    db
+      .prepare(
+        `SELECT 1 FROM class_hierarchy ch
+         JOIN node c ON c.id = ch.ancestor_id
+         WHERE ch.class_id IN (SELECT value FROM json_each(?))
+           AND c.parentless_role = 'block'
+         LIMIT 1`,
+      )
+      .get(classIds) !== undefined
+  );
+}
 
 /** True when the row renders with document chrome under the recursive
  *  parent-page rule (owner ruling 2026-10-15): a class never does
- *  (ClassView), a parentless non-class row always does (the flag is unread),
- *  and a parented row does exactly when is_embedded = 0 (the standalone
- *  claim) AND its parent renders with document chrome. Walks the parent
- *  chain — cycles are impossible (subtree moves are guarded); a missing
- *  parent row is a defensive "not a page". */
+ *  (ClassView), a parentless non-class row does — UNLESS one of its classes
+ *  effectively carries parentlessRole "block" (owner 2026-10-24; the guard
+ *  must see the same role render sees, or a standalone claim could be
+ *  stored under a block-role parent — an impossible RENDERED state), and a
+ *  parented row does exactly when is_embedded = 0 (the standalone claim)
+ *  AND its parent renders with document chrome. Walks the parent chain —
+ *  cycles are impossible (subtree moves are guarded); a missing parent row
+ *  is a defensive "not a page". */
 function isPageRow(db: StoreDatabase, row: RenderRow): boolean {
   if (row.is_class === 1) return false;
-  if (row.parent_id === null || row.parent_id === undefined) return true;
+  if (row.parent_id === null || row.parent_id === undefined) return !rowIsParentlessBlock(db, row);
   if (row.is_embedded !== 0) return false;
   const parent = getNodeRow(db, row.parent_id as string);
   if (!parent) return false;
@@ -1355,7 +1385,12 @@ function upsertClassNode(
   db: StoreDatabase,
   env: Envelope,
   classId: string,
-  fields: { contentAst?: unknown; icon?: string | undefined; color?: string | null | undefined },
+  fields: {
+    contentAst?: unknown;
+    icon?: string | undefined;
+    color?: string | null | undefined;
+    parentlessRole?: string | null | undefined;
+  },
 ): void {
   // The class node (is_class = 1) is the structural authority for the
   // class_list read model; the registry row carries class-only config (its
@@ -1374,16 +1409,17 @@ function upsertClassNode(
   db.prepare(
     `INSERT OR IGNORE INTO node (
        id, workspace_id, is_class, is_embedded, parent_id, class_ids, name, content,
-       icon, color,
+       icon, color, parentless_role,
        is_active, created_at, updated_at, created_by, updated_by,
        hlc_physical, hlc_logical, actor_id
-     ) VALUES (?, ?, 1, 0, NULL, '[]', NULL, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
+     ) VALUES (?, ?, 1, 0, NULL, '[]', NULL, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     classId,
     env.workspaceId,
     content ?? "[]",
     fields.icon ?? null,
     fields.color ?? null,
+    fields.parentlessRole ?? null,
     env.timestamp,
     env.timestamp,
     env.actorId,
@@ -1405,6 +1441,10 @@ function upsertClassNode(
   if (fields.color !== undefined) {
     sets.push("color = ?");
     values.push(fields.color);
+  }
+  if (fields.parentlessRole !== undefined) {
+    sets.push("parentless_role = ?");
+    values.push(fields.parentlessRole);
   }
   if (sets.length === 0) return;
   sets.push("updated_at = ?", "updated_by = ?", "hlc_physical = ?", "hlc_logical = ?", "actor_id = ?");
@@ -1458,15 +1498,25 @@ function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   // (owner ruling 2026-10-23, the source-library archived-by-default seed).
   const titleText = p.contentAst !== undefined ? (plainTextExcerpt(p.contentAst as never) ?? "") : null;
   db.prepare(
-    `INSERT INTO class (id, workspace_id, name, icon, color, description, active, created_at, updated_at)
-     VALUES (?, ?, COALESCE(?, ''), ?, ?, NULL, 1, ?, ?)
+    `INSERT INTO class (id, workspace_id, name, icon, color, description, parentless_role, active, created_at, updated_at)
+     VALUES (?, ?, COALESCE(?, ''), ?, ?, NULL, ?, 1, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name = COALESCE(NULLIF(excluded.name, ''), class.name),
        icon = COALESCE(excluded.icon, class.icon),
        color = COALESCE(excluded.color, class.color),
        description = class.description,
+       parentless_role = COALESCE(excluded.parentless_role, class.parentless_role),
        updated_at = excluded.updated_at`,
-  ).run(p.classId, env.workspaceId, titleText, p.icon ?? null, p.color ?? null, env.timestamp, env.timestamp);
+  ).run(
+    p.classId,
+    env.workspaceId,
+    titleText,
+    p.icon ?? null,
+    p.color ?? null,
+    p.parentlessRole ?? null,
+    env.timestamp,
+    env.timestamp,
+  );
   if (titleText === null) {
     // Title-less declaration (the conversion path — a bare classId payload):
     // adopt the node's current title into the fresh registry cache.
@@ -1481,7 +1531,12 @@ function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
     }
     db.prepare("UPDATE class SET name = ? WHERE id = ? AND name = ''").run(derived, p.classId);
   }
-  upsertClassNode(db, env, p.classId, { contentAst: p.contentAst, icon: p.icon, color: p.color });
+  upsertClassNode(db, env, p.classId, {
+    contentAst: p.contentAst,
+    icon: p.icon,
+    color: p.color,
+    parentlessRole: p.parentlessRole,
+  });
   // Conversion (owner ruling retiring the seeded `class` class, 2026-10-07):
   // class.create on an EXISTING node DECLARES that node a class — the node
   // row was INSERT OR IGNOREed above, which never flips the identity bit.
@@ -1531,11 +1586,20 @@ function applyClassUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     sets.push("description = ?");
     values.push(p.description);
   }
+  if (p.parentlessRole !== undefined) {
+    sets.push("parentless_role = ?");
+    values.push(p.parentlessRole);
+  }
   if (sets.length === 0) return summary(opType, [p.classId], true);
   sets.push("updated_at = ?");
   values.push(env.timestamp, p.classId);
   db.prepare(`UPDATE class SET ${sets.join(", ")} WHERE id = ?`).run(...values);
-  upsertClassNode(db, env, p.classId, { contentAst: p.contentAst, icon: p.icon, color: p.color });
+  upsertClassNode(db, env, p.classId, {
+    contentAst: p.contentAst,
+    icon: p.icon,
+    color: p.color,
+    parentlessRole: p.parentlessRole,
+  });
   // A title change re-renders the class unfindable under its old text —
   // reindex whenever the indexed fields may have changed.
   if (p.contentAst !== undefined) reindexNode(db, p.classId);

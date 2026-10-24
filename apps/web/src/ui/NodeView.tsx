@@ -41,7 +41,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 import { PageView, BLOCKS_VIEW_MODES } from "./PageView.js";
 import { FocusedBlockView } from "./FocusedBlockView.js";
 import { NodeMenuButton, type ShareTarget } from "../features/node-menu/NodeMenuButton.js";
-import { parentRenderFacts } from "./renderStateLabel.js";
+import { parentlessBlockResolverOf, parentRenderFacts } from "./renderStateLabel.js";
 import { ViewToolbar } from "../features/collection/ViewToolbar.js";
 import { useViewModePreference } from "./viewPrefs.js";
 
@@ -148,8 +148,9 @@ export function NodeView({
     return <div className="nt-page-missing">Page not found.</div>;
   }
   const parentFacts = parentRenderFacts(client, node);
-  const pageView = !node.isClass && !rendersAsInlineBlock(node, parentFacts);
-  const inlineBlock = rendersAsInlineBlock(node, parentFacts);
+  const parentlessBlock = parentlessBlockResolverOf(client);
+  const pageView = !node.isClass && !rendersAsInlineBlock(node, parentFacts, parentlessBlock);
+  const inlineBlock = rendersAsInlineBlock(node, parentFacts, parentlessBlock);
   /**
    * The card's top-right chrome: pages get the blocks view switcher + the
    * "…" node menu as two pieces (rendered by PageView — in the nodeview top
@@ -189,7 +190,7 @@ export function NodeView({
         {chromeMenu}
       </>
     ) : undefined;
-  const view = rendersAsInlineBlock(node, parentFacts) ? (
+  const view = rendersAsInlineBlock(node, parentFacts, parentlessBlock) ? (
     /* Block mode — the focused block view (owner 2026-10-20): the node is
        the PARENT of a NodeCollection (the v1 "show parents" prop,
        generalized) — each view mode decides the parent display (outline:

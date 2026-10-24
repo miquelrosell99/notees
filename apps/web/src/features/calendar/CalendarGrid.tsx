@@ -35,7 +35,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import { untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, untitledLabelOf } from "../../ui/renderStateLabel.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import {
   eventRowsForDays,
@@ -378,7 +378,7 @@ function EventBlock({
   // reads the Untitled placeholder.
   const label =
     deriveDisplayName(node, (classId) => displayNameFromClient(client, classId)) ||
-    untitledLabelOf(node);
+    untitledLabelOf(node, parentlessBlockResolverOf(client));
   const color = client.effectiveNodeColor(node);
   // The clock prefix (owner 2026-10-24): the driving value's time on THIS
   // day — "14:30" for a timed point/range start, "14:30–16:00" for a

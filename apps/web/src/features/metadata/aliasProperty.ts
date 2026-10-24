@@ -25,6 +25,7 @@ import { deriveDisplayName, rendersWithDocumentChrome, SYSTEM_PROPERTY_DISPLAY_N
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
+import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -99,13 +100,17 @@ export function aliasValuesOf(
  * act as aliases (every read filters to pages).
  */
 export function aliasedNodeTargetError(
-  client: Pick<AnyClient, "getNode">,
+  client: Pick<AnyClient, "getNode" | "effectiveClassParentlessBlock">,
   targetId: string,
 ): string | null {
   const target = client.getNode(targetId);
   if (
     target === undefined ||
-    !rendersWithDocumentChrome(target, target.parentId !== null ? client.getNode(target.parentId) : undefined)
+    !rendersWithDocumentChrome(
+      target,
+      target.parentId !== null ? client.getNode(target.parentId) : undefined,
+      parentlessBlockResolverOf(client),
+    )
   ) {
     return "Aliased node: the target must be a page.";
   }

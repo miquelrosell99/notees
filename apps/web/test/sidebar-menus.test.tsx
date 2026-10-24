@@ -442,6 +442,7 @@ describe("sidebar row labels render as plain text", () => {
       bannerAssetId: null,
       listStyle: null,
       aliasedNodeId: null,
+    parentlessRole: "page",
       description: null,
       color: null,
       isActive: true,

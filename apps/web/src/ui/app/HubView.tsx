@@ -7,8 +7,9 @@
 
 import { useEffect, useState } from "react";
 
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, rendersWithDocumentChrome } from "@notees/domain";
 import type { ClientNode } from "@/core/workspace-client/index.js";
+import { parentlessBlockResolverOf } from "../renderStateLabel.js";
 import { CollectionHub } from "../../features/collection/CollectionHub.js";
 import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
 import { TaskBuckets } from "../../features/classview/TaskBuckets.js";
@@ -119,8 +120,12 @@ export function HubView({
   // button opens it, and the uploaded asset node opens.
   const [assetUploadOpen, setAssetUploadOpen] = useState(false);
   // Top-level pages: subpages render in their parent's Pages zone, so the
-  // workspace-level hubs list roots only; the asset class stays excluded.
-  const pages = client.roots().filter((page) => !page.classIds.includes(assetClassId));
+  // workspace-level hubs list roots only; the Block role rides the
+  // parentlessRole rule (owner 2026-10-24) — block-role parentless nodes
+  // (assets included) stay out of the pages hub.
+  const pages = client
+    .roots()
+    .filter((page) => rendersWithDocumentChrome(page, undefined, parentlessBlockResolverOf(client)));
   const dateClassIds: string[] = [
     SYSTEM_CLASS_UUIDS.day,
     SYSTEM_CLASS_UUIDS.month,

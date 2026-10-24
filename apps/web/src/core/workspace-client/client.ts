@@ -359,6 +359,19 @@ export class WorkspaceClient {
     return this.readsRefs.effectiveClassIcon(classId);
   }
 
+  /** Extends-aware parentlessRole "block" demote (owner 2026-10-24) — the
+   * resolver the domain role predicates take for the parentless cascade
+   * branch. */
+  effectiveClassParentlessBlock(classId: string) {
+    return this.readsRefs.effectiveClassParentlessBlock(classId);
+  }
+
+  /** Node-level: true when ANY of the node's classes effectively carries
+   * parentlessRole "block" (the one-way demote over the class set). */
+  nodeHasParentlessBlockClass(node: Pick<ClientNode, "classIds">) {
+    return this.readsRefs.nodeHasParentlessBlockClass(node);
+  }
+
   effectiveNodeIcon(
     node: Pick<ClientNode, "icon" | "classIds" | "isClass" | "isEmbedded" | "parentId">,
   ) {
@@ -589,12 +602,19 @@ export class WorkspaceClient {
     return this.writes.unassignTag(id, tagId);
   }
 
-  createClass(name: string, opts?: { icon?: string; color?: string; id?: string }) {
+  createClass(
+    name: string,
+    opts?: { icon?: string; color?: string; id?: string; parentlessRole?: "page" | "block" },
+  ) {
     return this.writes.createClass(name, opts);
   }
 
   setClassExtends(classId: string, parentClassIds: string[]) {
     return this.writes.setClassExtends(classId, parentClassIds);
+  }
+
+  updateClassParentlessRole(classId: string, parentlessRole: "page" | "block" | null) {
+    return this.writes.updateClassParentlessRole(classId, parentlessRole);
   }
 
   setClassProperty(classId: string, propertySchemaId: string, fields: SetClassPropertyInput) {

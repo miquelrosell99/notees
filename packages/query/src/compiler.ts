@@ -378,10 +378,18 @@ class Compiler {
 
     const where: string[] = ["n.is_active = 1"];
     if (ast.scope.type === "pages") {
-      // Document-chrome predicate (Revision 11): non-class nodes that are
-      // parentless (workspace documents) or present as main (a parent's
-      // main-children zone). Inline blocks and classes are out.
-      where.push("n.is_class = 0 AND (n.parent_id IS NULL OR n.is_embedded = 0)");
+      // Document-chrome predicate (Revision 12): non-class nodes that are
+      // parentless (workspace documents) or carry the standalone claim under
+      // a page parent (the parent's main-children zone). Inline blocks and
+      // classes are out. The parentless arm is parentlessRole-aware (owner
+      // 2026-10-24): a parentless node whose classes effectively carry
+      // parentlessRole "block" renders Block-role and stays OUT of the pages
+      // scope (the is_embedded bit is flag-unread for it, so the demote is a
+      // separate conjunct over the whole parentless population).
+      where.push(
+        "n.is_class = 0 AND (n.parent_id IS NULL OR n.is_embedded = 0)" +
+          ` AND (n.parent_id IS NOT NULL OR NOT ${this.hasParentlessBlockClassSql("n")})`,
+      );
     }
     const group = this.groupSql(ast.root);
     if (group !== undefined) {
@@ -1020,11 +1028,33 @@ class Compiler {
   }
 
   /**
+   * The class-level parentlessRole demote (owner 2026-10-24), flattened for
+   * SQL consumers that cannot call the domain predicate: true when the row's
+   * class set includes a class that EFFECTIVELY carries parentlessRole
+   * "block" — its own flag OR an extends-ancestor's, via the self-inclusive
+   * class_hierarchy closure (the one-way demote; there is no per-level
+   * unflag). Render contract read only — no write-path enforcement (PC1).
+   * `alias` is the node row's table alias in the surrounding SQL.
+   */
+  private hasParentlessBlockClassSql(alias: string): string {
+    return (
+      "EXISTS (SELECT 1 FROM class_hierarchy ch\n" +
+      "  JOIN node c ON c.id = ch.ancestor_id\n" +
+      `  WHERE ch.class_id IN (SELECT value FROM json_each(${alias}.class_ids))\n` +
+      "    AND c.parentless_role = 'block')"
+    );
+  }
+
+  /**
    * The CONTAINING PAGE id as a correlated scalar subquery (references the
    * outer row `n`): the nearest self-or-ancestor that renders with document
    * chrome — the Revision-12 page-role condition, flattened the same way the
    * "pages" scope flattens it (standalone-under-a-non-page parent is
-   * write-time impossible, so the flat test is exact). No params.
+   * write-time impossible, so the flat test is exact), plus the
+   * parentlessRole demote (owner 2026-10-24): a parentless ancestor whose
+   * classes effectively carry "block" renders Block-role, never a containing
+   * page — a block-role standalone node has NO containing page (NULL). No
+   * params.
    */
   private containingPageIdSql(): string {
     return (
@@ -1036,7 +1066,8 @@ class Compiler {
       "    WHERE nd.parent_id IS NOT NULL AND up.depth < 64\n" +
       "  ) SELECT id, depth FROM up\n" +
       ") ch ON ch.id = pg.id\n" +
-      "WHERE pg.is_class = 1 OR pg.parent_id IS NULL OR pg.is_embedded = 0\n" +
+      "WHERE (pg.is_class = 1 OR pg.parent_id IS NULL OR pg.is_embedded = 0)\n" +
+      `  AND (pg.parent_id IS NOT NULL OR NOT ${this.hasParentlessBlockClassSql("pg")})\n` +
       "ORDER BY ch.depth LIMIT 1)"
     );
   }

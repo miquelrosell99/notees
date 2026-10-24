@@ -21,11 +21,15 @@ export const DEFAULT_PAGE_ICON = "mdi-file-document-outline";
  * Render-state-aware display fallback: class nodes get the class glyph,
  * document-chrome nodes the page glyph, inline blocks none (their chrome is
  * the bullet dot — a default glyph there would erase the page/block
- * distinction the render cascade exists to make).
+ * distinction the render cascade exists to make). The optional resolver
+ * bends the parentless branch like the chrome predicates (owner 2026-10-24 —
+ * a parentless node whose classes effectively carry parentlessRole "block"
+ * renders no page glyph).
  */
 export function defaultIconFor(
-  node: Pick<NodeLike, "isClass" | "parentId" | "isEmbedded">,
+  node: Pick<NodeLike, "isClass" | "parentId" | "isEmbedded" | "classIds">,
+  isParentlessBlockClass?: (classId: string) => boolean,
 ): string | null {
   if (isClassNode(node)) return DEFAULT_CLASS_ICON;
-  return rendersWithDocumentChrome(node) ? DEFAULT_PAGE_ICON : null;
+  return rendersWithDocumentChrome(node, null, isParentlessBlockClass) ? DEFAULT_PAGE_ICON : null;
 }

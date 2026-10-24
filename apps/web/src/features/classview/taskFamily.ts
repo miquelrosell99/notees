@@ -154,6 +154,10 @@ export async function ensureTaskFamily(client: TaskFamilyClient): Promise<void> 
       await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.task, {
         id: SYSTEM_CLASS_UUIDS.task,
         icon: "mdiCheckboxMarkedCircleOutline",
+        // The parentlessRole render contract (owner 2026-10-24): standalone
+        // tasks render Block-role (server-seeded workspaces carry the flag
+        // from the seed; the offline-first self-heal converges on it).
+        parentlessRole: "block",
       });
     }
     const have = new Set(client.listPropertySchemas().map((schema) => schema.id));

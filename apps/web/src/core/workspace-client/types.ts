@@ -130,6 +130,11 @@ export interface ClientNode {
    * dot's replacement. Null = bullet (the default); the marker NUMBER is
    * derived at render time, never stored. */
   listStyle: ListStyle | null;
+  /** Class-level parentlessRole (store schema v32, owner 2026-10-24):
+   * "block" = the class's parentless members render Block-role; "page" = the
+   * default. Meaningful on class rows; parsed drift-safe (anything unknown
+   * reads "page"). */
+  parentlessRole: "page" | "block";
   isActive: boolean;
   createdAt: string | null;
   updatedAt: string | null;

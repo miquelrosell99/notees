@@ -36,6 +36,10 @@ export interface OutlinerClient {
   effectiveNodeColor(node: Pick<ClientNode, "color" | "classIds">): string | null;
   /** Class effectiveColor (the extends-chain walk): tints class-link underlines. */
   effectiveClassColor(classId: string): string | null;
+  /** Extends-aware parentlessRole "block" demote (owner 2026-10-24) — the
+   * resolver the domain role predicates take for the parentless cascade
+   * branch. */
+  effectiveClassParentlessBlock(classId: string): boolean;
   createObject(partial: CreateObjectInput): Promise<string>;
   updateObject(id: string, fields: UpdateObjectInput): Promise<void>;
   deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void>;

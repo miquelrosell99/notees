@@ -73,6 +73,26 @@ describe("graphTopology", () => {
     expect(ids).not.toContain(BLOCK_B1);
   });
 
+  it("a parentless node whose classes carry parentlessRole block is NOT a vertex (owner 2026-10-24)", () => {
+    const store = setup(
+      env("class.create", {
+        classId: CLASS_X,
+        contentAst: [{ type: "text", text: "Task" }],
+        parentlessRole: "block",
+      }),
+      env("object.create", {
+        objectId: PAGE_D,
+        classIds: [CLASS_X],
+        contentAst: [{ type: "text", text: "Standalone task" }],
+      }),
+      createPage(PAGE_A),
+    );
+    const ids = graphTopology(store, WS).nodes.map((n) => n.id);
+    expect(ids).not.toContain(PAGE_D);
+    expect(ids).toContain(PAGE_A);
+    expect(ids).toContain(CLASS_X);
+  });
+
   it("a block-authored mention rolls up to page → page", () => {
     const store = setup(
       createPage(PAGE_A),

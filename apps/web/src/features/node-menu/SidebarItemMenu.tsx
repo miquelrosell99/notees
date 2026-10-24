@@ -26,6 +26,10 @@ interface SidebarItemMenuProps {
   state: SidebarItemMenuState;
   /** True when the node is in the favorites list (the toggle's direction). */
   isFavorited: boolean;
+  /** The parentlessRole resolver (owner 2026-10-24) — bends the Open label's
+   * render-state word for block-role standalone nodes. Optional: absent keeps
+   * the pre-flag label. */
+  isParentlessBlockClass?: (classId: string) => boolean;
   onClose(): void;
   onOpen(nodeId: string): void;
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
@@ -41,6 +45,7 @@ interface SidebarItemMenuProps {
 export function SidebarItemMenu({
   state,
   isFavorited,
+  isParentlessBlockClass,
   onClose,
   onOpen,
   onOpenInSidebar,
@@ -49,7 +54,7 @@ export function SidebarItemMenu({
   onRequestDelete,
 }: SidebarItemMenuProps) {
   const { node } = state;
-  const openLabel = `Open ${renderStateLabel(node).toLowerCase()}`;
+  const openLabel = `Open ${renderStateLabel(node, isParentlessBlockClass).toLowerCase()}`;
 
   return (
       <ContextMenu

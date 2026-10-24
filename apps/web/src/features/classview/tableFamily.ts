@@ -36,7 +36,10 @@ export const TABLE_CLASS_ID = SYSTEM_CLASS_UUIDS.table;
 export interface TableFamilySurface {
   listClasses(): ClientNode[];
   getNodeRaw(id: string): ClientNode | undefined;
-  createClass(name: string, opts?: { icon?: string; color?: string; id?: string }): Promise<string>;
+  createClass(
+    name: string,
+    opts?: { icon?: string; color?: string; id?: string; parentlessRole?: "page" | "block" },
+  ): Promise<string>;
 }
 
 /**
@@ -68,7 +71,12 @@ export function tableClassIdOf(client: Pick<TableFamilySurface, "listClasses">):
 export async function ensureTableFamily(client: TableFamilySurface): Promise<string> {
   const id = tableClassIdOf(client);
   if (client.getNodeRaw(id) === undefined) {
-    await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.table, { id, icon: SYSTEM_CLASS_ICONS.table });
+    await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.table, {
+      id,
+      icon: SYSTEM_CLASS_ICONS.table,
+      // The parentlessRole render contract (owner 2026-10-24).
+      parentlessRole: "block",
+    });
   }
   return id;
 }

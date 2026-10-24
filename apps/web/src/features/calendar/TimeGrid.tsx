@@ -38,7 +38,7 @@ import { Button } from "../../components/ui/fleet/Button.js";
 import { Input } from "../../components/ui/fleet/Input.js";
 import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import { untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, untitledLabelOf } from "../../ui/renderStateLabel.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import {
   eventRowsForDays,
@@ -509,7 +509,7 @@ function eventLabelOf(client: AnyClient, nodeId: string): string {
   if (node === undefined) return "";
   return (
     deriveDisplayName(node, (classId) => displayNameFromClient(client, classId)) ||
-    untitledLabelOf(node)
+    untitledLabelOf(node, parentlessBlockResolverOf(client))
   );
 }
 

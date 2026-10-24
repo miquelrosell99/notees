@@ -36,7 +36,7 @@ import type { ClientNode, ClientPropertySchema } from "@/core/workspace-client/i
 
 import { nodeDisplayName } from "../../ui/dateDisplay.js";
 import { nodeLinkUrl } from "../../ui/nodeLink.js";
-import { parentRenderFacts, untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, parentRenderFacts, untitledLabelOf } from "../../ui/renderStateLabel.js";
 import { copyToClipboard } from "../modals/clipboard.js";import { notificationStore } from "../../components/ui/fleet/notificationStore.js";
 import { clipboardMarkdown } from "../export/exportSubtree.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
@@ -94,8 +94,11 @@ export type NodeMenuState =
   | null;
 
 /** Human label for a node in destructive messages: display name, never an id. */
-export function displayLabelOf(node: ClientNode): string {
-  return nodeDisplayName(node) || untitledLabelOf(node);
+export function displayLabelOf(
+  node: ClientNode,
+  isParentlessBlockClass?: (classId: string) => boolean,
+): string {
+  return nodeDisplayName(node) || untitledLabelOf(node, isParentlessBlockClass);
 }
 
 /**
@@ -188,11 +191,11 @@ export function NodeContextMenu({
     <>
       <ConfirmationModal
         isOpen={pendingDelete !== null}
-        title={pendingDelete === null ? "" : `Delete ${displayLabelOf(pendingDelete)}?`}
+        title={pendingDelete === null ? "" : `Delete ${displayLabelOf(pendingDelete, parentlessBlockResolverOf(client))}?`}
         message={
           pendingDelete === null
             ? ""
-            : `This will delete "${displayLabelOf(pendingDelete)}" and everything it contains.`
+            : `This will delete "${displayLabelOf(pendingDelete, parentlessBlockResolverOf(client))}" and everything it contains.`
         }
         confirmLabel="Delete"
         cancelLabel="Cancel"
@@ -210,7 +213,9 @@ export function NodeContextMenu({
       <ConfirmationModal
         isOpen={pendingPromote !== null}
         title={
-          pendingPromote === null ? "" : `Convert "${displayLabelOf(pendingPromote)}" to a page?`
+          pendingPromote === null
+            ? ""
+            : `Convert "${displayLabelOf(pendingPromote, parentlessBlockResolverOf(client))}" to a page?`
         }
         message={
           pendingPromote === null
@@ -234,10 +239,12 @@ export function NodeContextMenu({
   if (state === null) return confirmModals;
   const { node, ownerId, isPage } = state;
   const favorite = readFavorites().includes(node.id);
-  const name = displayLabelOf(node);
   // The parent's render facts, for the parent-page condition (owner ruling
   // 2026-10-15) — undefined when parentless or the row is not at hand.
   const parentFacts = parentRenderFacts(client, node);
+  // The parentlessRole "block" demote resolver (owner 2026-10-24).
+  const parentlessBlock = parentlessBlockResolverOf(client);
+  const name = displayLabelOf(node, parentlessBlock);
   // What a promotion would flatten (empty when the content is already
   // text-only — the confirm modal stays out of that path entirely).
   const flattenTypes = promotionFlattenTypes(node);
@@ -308,7 +315,7 @@ export function NodeContextMenu({
   ];
   // Favorites surface pages/classes in the sidebar; an inline block has no
   // sidebar presence, so the toggle is hidden for the inline-body branch.
-  if (!rendersAsInlineBlock(node, parentFacts)) {
+  if (!rendersAsInlineBlock(node, parentFacts, parentlessBlock)) {
     items.push({
       id: "favorite",
       label: favorite ? "Remove from favorites" : "Add to favorites",
@@ -336,7 +343,7 @@ export function NodeContextMenu({
   // run converts TO a heading; a single heading token converts back to one
   // plain text run (children flattened, marks carried only in the
   // to-heading direction).
-  const headingShape = headingConversionOf(node);
+  const headingShape = headingConversionOf(node, parentlessBlock);
   if (headingShape === "to-heading") {
     items.push({
       id: "convert-to-heading",
@@ -358,7 +365,7 @@ export function NodeContextMenu({
   // of same-style siblings. An ordinary undoable object.update per pick; the
   // checkmark names the current style. Blocks only — the marker replaces the
   // bullet dot, which only the inline body renders.
-  if (rendersAsInlineBlock(node, parentFacts)) {
+  if (rendersAsInlineBlock(node, parentFacts, parentlessBlock)) {
     const current: ListStyle | null = node.listStyle;
     const styleRow = (id: string, label: string, style: ListStyle | null, icon: string) => ({
       id,
@@ -392,16 +399,19 @@ export function NodeContextMenu({
   // the full explanation — the link block, the same-node ruling — rides
   // the hover tooltips. Date-chain nodes are parent-locked and never
   // offered.
-  if (rendersAsInlineBlock(node) && parseDateNodeId(node.id) === null) {
+  if (rendersAsInlineBlock(node, undefined, parentlessBlock) && parseDateNodeId(node.id) === null) {
     const parentNode = node.parentId === null ? undefined : client.getNode(node.parentId);
-    const parentName = parentNode === undefined ? "parent" : displayLabelOf(parentNode);
+    const parentName =
+      parentNode === undefined ? "parent" : displayLabelOf(parentNode, parentlessBlock);
     // Parent-page condition (owner ruling 2026-10-15): KEEP UNDER only
     // exists under a page parent — the store rejects the bit under a class
     // or an inline block (move the block under a page first). A missing
     // parent row means "not at hand": the write-time invariant covers it.
     // EXTRACT TO ROOT is always legal (a parentless node renders with
     // document chrome by the second cascade branch).
-    const promoteAllowed = parentNode === undefined || rendersWithDocumentChrome(parentNode);
+    const promoteAllowed =
+      parentNode === undefined ||
+      rendersWithDocumentChrome(parentNode, undefined, parentlessBlock);
     const extract = (keepChildren: boolean): void => {
       void extractBlockToPage(client, client, node.id, { keepChildren })
         .then(() => notificationStore.success("Converted to page", name))
@@ -545,7 +555,7 @@ export function NodeContextMenu({
   }
   // Inline blocks delete instantly; pages and classes ask in the reusable
   // ConfirmationModal (danger) — the menu closes, the modal decides.
-  const confirmDelete = !rendersAsInlineBlock(node, parentFacts);
+  const confirmDelete = !rendersAsInlineBlock(node, parentFacts, parentlessBlock);
   items.push(
     confirmDelete
       ? {

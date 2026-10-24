@@ -264,9 +264,15 @@ describe("compile: SQL shape", () => {
     expect(params).toEqual([]);
   });
 
-  it("pages scope filters to the document-chrome predicate", () => {
+  it("pages scope filters to the document-chrome predicate (parentlessRole-aware)", () => {
     const { sql } = compile(allIn(pages));
     expect(sql).toContain("n.is_class = 0 AND (n.parent_id IS NULL OR n.is_embedded = 0)");
+    // The parentlessRole demote (owner 2026-10-24): a parentless node whose
+    // classes effectively carry "block" stays OUT of the pages scope.
+    expect(sql).toContain(
+      "(n.parent_id IS NOT NULL OR NOT EXISTS (SELECT 1 FROM class_hierarchy ch",
+    );
+    expect(sql).toContain("c.parentless_role = 'block'");
     expect(sql).not.toContain("distance");
   });
 
@@ -2016,5 +2022,77 @@ describe.each(adapters)("$name: archived class resolution", ({ makeStore }) => {
     // boolean dimension key is 1 (in the family) for both.
     expect(result.columns).toEqual([`class:${SOURCE_CLASS}`, "count"]);
     expect(result.rows).toEqual([[1, 2]]);
+  });
+});
+
+// --- the class-level parentlessRole demote (owner 2026-10-24) ----------------------
+// A flagged class's parentless members render Block-role: the pages scope
+// excludes them, and pageOf (the containing-page read) never matches them —
+// a standalone secondary node has NO containing page. The effective flag
+// (extends-aware: own OR any ancestor's) rides the class_hierarchy closure.
+
+describe.each(adapters)("$name: parentlessRole demote in role reads", ({ makeStore }) => {
+  const TASK = "0192a000-0000-7000-8000-000000000701";
+  const ERRAND = "0192a000-0000-7000-8000-000000000702";
+  const PROJECT = "0192a000-0000-7000-8000-000000000703";
+  const STANDALONE_TASK = "0192a000-0000-7000-8000-000000000711";
+  const STANDALONE_ERRAND = "0192a000-0000-7000-8000-000000000712";
+  const ROOT_PAGE = "0192a000-0000-7000-8000-000000000713";
+  const MAIN_CHILD = "0192a000-0000-7000-8000-000000000714";
+
+  function roleStore(): Store {
+    const store = makeStore();
+    const t = (i: number) => T0 + i * STEP;
+    const text = (s: string) => [{ type: "text", text: s }];
+    store.applyMany([
+      env("class.create", { classId: TASK, contentAst: text("Task"), parentlessRole: "block" }, t(0)),
+      env("class.create", { classId: ERRAND, contentAst: text("Errand") }, t(1)),
+      env("class.setExtends", { classId: ERRAND, parentClassIds: [TASK] }, t(2)),
+      env("class.create", { classId: PROJECT, contentAst: text("Project") }, t(3)),
+      env(
+        "object.create",
+        { objectId: STANDALONE_TASK, classIds: [TASK], contentAst: text("Fix the sink") },
+        t(4),
+      ),
+      // Errand carries NO own flag — the demote arrives through extends.
+      env(
+        "object.create",
+        { objectId: STANDALONE_ERRAND, classIds: [ERRAND], contentAst: text("Buy screws") },
+        t(5),
+      ),
+      env("object.create", { objectId: ROOT_PAGE, contentAst: text("Root page") }, t(6)),
+      env(
+        "object.create",
+        { objectId: MAIN_CHILD, parentId: ROOT_PAGE, isEmbedded: false, contentAst: text("Main child") },
+        t(7),
+      ),
+    ]);
+    return store;
+  }
+
+  it("pages scope excludes flagged parentless nodes (own flag AND extends-inherited), keeps real pages", () => {
+    const { ids } = runQuery(roleStore(), allIn(pages));
+    expect(ids.sort()).toEqual([MAIN_CHILD, ROOT_PAGE].sort());
+  });
+
+  it("pageOf: a standalone-claim row reads its own page; a block-role standalone node has NONE", () => {
+    const store = roleStore();
+    // A standalone-claim row IS a page — it reads its own page (the existing
+    // self-match law): MAIN_CHILD matches only when MAIN_CHILD is picked.
+    expect(runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [MAIN_CHILD] }])).ids).toEqual([
+      MAIN_CHILD,
+    ]);
+    expect(runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [ROOT_PAGE] }])).ids).toEqual([
+      ROOT_PAGE,
+    ]);
+    // The block-role standalone tasks' containing page is NULL — picking
+    // themselves matches nothing (they are not pages), and no pick reaches
+    // them. The extends-inherited Errand demotes the same way.
+    expect(
+      runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [STANDALONE_TASK] }])).ids,
+    ).toEqual([]);
+    expect(
+      runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [STANDALONE_ERRAND] }])).ids,
+    ).toEqual([]);
   });
 });

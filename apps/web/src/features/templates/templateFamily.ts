@@ -179,6 +179,8 @@ export async function ensureTemplateFamily(client: AnyClient): Promise<void> {
     await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.template, {
       id: SYSTEM_CLASS_UUIDS.template,
       icon: SYSTEM_CLASS_ICONS.template,
+      // The parentlessRole render contract (owner 2026-10-24).
+      parentlessRole: "block",
     });
   }
   await ensureTemplateProperty(client);

@@ -72,7 +72,10 @@ export interface MeetingFamilySurface {
   getClassBindings(classId: string): MaybePromise<readonly { propertySchemaId: string }[]>;
   /** The class's extends parents (class_extends rows) — the edge read. */
   getClassParents(classId: string): MaybePromise<readonly string[]>;
-  createClass(name: string, opts?: { icon?: string; color?: string; id?: string }): Promise<string>;
+  createClass(
+    name: string,
+    opts?: { icon?: string; color?: string; id?: string; parentlessRole?: "page" | "block" },
+  ): Promise<string>;
   createPropertySchema(input: CreatePropertySchemaInput): Promise<string>;
   setClassProperty(
     classId: string,
@@ -196,7 +199,14 @@ async function ensureFamilySchemas(
 /** Author the event root (class node + eventDate schema/binding) when missing. */
 async function ensureEventRoot(surface: MeetingFamilySurface): Promise<void> {
   if ((await surface.getNodeRaw(EVENT_CLASS_ID)) === undefined) {
-    await surface.createClass(SYSTEM_CLASS_DISPLAY_NAMES.event, { id: EVENT_CLASS_ID, icon: SYSTEM_CLASS_ICONS.event });
+    await surface.createClass(SYSTEM_CLASS_DISPLAY_NAMES.event, {
+      id: EVENT_CLASS_ID,
+      icon: SYSTEM_CLASS_ICONS.event,
+      // The parentlessRole render contract (owner 2026-10-24): the event root
+      // is flagged "block"; meeting/birthday INHERIT the demote through this
+      // extends edge (no flag of their own — the effective read derives it).
+      parentlessRole: "block",
+    });
   }
   await ensureFamilySchemas(surface, EVENT_CLASS_ID, EVENT_FAMILY);
 }

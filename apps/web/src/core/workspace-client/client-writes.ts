@@ -336,7 +336,7 @@ export class WorkspaceClientWrites {
    */
   async createClass(
     name: string,
-    opts?: { icon?: string; color?: string; id?: string },
+    opts?: { icon?: string; color?: string; id?: string; parentlessRole?: "page" | "block" },
   ): Promise<string> {
     // Caller-chosen id (the object.create pattern): system authoring
     // (ensureTaskFamily) creates the task class at its reserved seed id.
@@ -348,6 +348,10 @@ export class WorkspaceClientWrites {
     };
     if (opts?.icon !== undefined) payload.icon = opts.icon;
     if (opts?.color !== undefined) payload.color = opts.color;
+    // The class-level parentlessRole render contract (owner 2026-10-24) —
+    // system authoring passes "block" for the flagged roster; user classes
+    // omit it (the "page" default).
+    if (opts?.parentlessRole !== undefined) payload.parentlessRole = opts.parentlessRole;
     this.ctx.enqueueLocal(this.ctx.buildEnvelope("class.create", payload, [id]));
     return id;
   }
@@ -365,6 +369,21 @@ export class WorkspaceClientWrites {
         { classId, parentClassIds },
         [classId, ...parentClassIds],
       ),
+    );
+  }
+
+  /**
+   * The class-level parentlessRole render contract (owner 2026-10-24):
+   * "block" = the class's parentless members render Block-role; "page" (or
+   * null, which CLEARS back to the default) = document chrome. class.update
+   * presence-writes / present-null-clears exactly like color.
+   */
+  async updateClassParentlessRole(
+    classId: string,
+    parentlessRole: "page" | "block" | null,
+  ): Promise<void> {
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope("class.update", { classId, parentlessRole }, [classId]),
     );
   }
 

@@ -130,7 +130,12 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
       `SELECT id, is_class, parent_id, class_ids, color, icon, created_at
        FROM node
        WHERE workspace_id = ? AND is_active = 1 AND (is_class = 1 OR is_embedded = 0)
-         AND aliased_node_id IS NULL`,
+         AND aliased_node_id IS NULL
+         AND (parent_id IS NOT NULL OR NOT EXISTS (
+           SELECT 1 FROM class_hierarchy ch
+           JOIN node c ON c.id = ch.ancestor_id
+           WHERE ch.class_id IN (SELECT value FROM json_each(node.class_ids))
+             AND c.parentless_role = 'block'))`,
     )
     .all(workspaceId) as unknown as NodeRow[];
 

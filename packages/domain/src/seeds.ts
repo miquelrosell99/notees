@@ -1244,6 +1244,36 @@ export function styleTaskStatusOptions(
   return changed ? restyled : null;
 }
 
+/**
+ * The class-level parentlessRole "block" seed (owner 2026-10-24): classes
+ * whose PARENTLESS members render in the Block role — standalone captures
+ * (tasks, quotes, highlights, assets, comments, cloze) and small structural
+ * elements (queries, templates, tables, code, cards, definitions, ideas,
+ * events) surface through queries/collections/search-blocks instead of the
+ * Pages chrome. The server seed and the web ensure paths emit the flag on
+ * class.create; live workspaces converge by the one-time Path A migration
+ * (scripts/migrate-class-parentless-role.mts). `meeting` and `birthday` are
+ * deliberately ABSENT — they inherit the demote through `event` via
+ * SYSTEM_CLASS_EXTENDS (the effective flag derives at read time; one-way
+ * demote, no per-level unflag).
+ */
+export const SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK: ReadonlySet<SystemClassName> = new Set([
+  "quote",
+  "code",
+  "asset",
+  "card",
+  "task",
+  "template",
+  "comment",
+  "table",
+  "cloze",
+  "highlight",
+  "query",
+  "definition",
+  "idea",
+  "event",
+]);
+
 /** Classes the workspace seed emits (nodes + property schemas + bindings + extends). */
 export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [
   "day",

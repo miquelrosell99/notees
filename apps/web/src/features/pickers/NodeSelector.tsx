@@ -73,7 +73,7 @@ import { foldSearchText } from "@notees/store";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import { nodeDisplayName } from "../../ui/dateDisplay.js";
-import { parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { readRecentIds } from "../sidebar/recentPages.js";
 import { Icon } from "../../ui/Icon.js";
 import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
@@ -114,6 +114,8 @@ import "./NodeSelector.css";
 export interface NodeSelectorClient extends QuickCreateClient {
   getNode(id: string): ClientNode | undefined;
   getNodeRaw(id: string): ClientNode | undefined;
+  /** The parentlessRole "block" demote resolver for the role predicates. */
+  effectiveClassParentlessBlock(classId: string): boolean;
   /** The document-chrome node pool (filter-prefix listings). */
   listPages(): ClientNode[];
   search(query: string): ClientNode[];
@@ -414,6 +416,8 @@ export function NodeSelector({
     };
   }, [anchorRect]);
   const anchorRef = useRef<HTMLElement | { getBoundingClientRect(): DOMRect } | null>(null);
+  /** The parentlessRole "block" demote resolver for the role predicates. */
+  const parentlessBlock = parentlessBlockResolverOf(client);
   // Latest-value ref assignment during render so the layout-phase position
   // hook measures the current anchor on the same commit that opens the picker.
   anchorRef.current = anchorEl ?? virtualAnchor;
@@ -543,13 +547,13 @@ export function NodeSelector({
   const matchesInlineFilters = (node: ClientNode): boolean => {
     const { daily, page, cls } = inlineFilters.filters;
     if (chipFilterState.daily && parseDateNodeId(node.id)?.precision !== "day") return false;
-    if (chipFilterState.pages && !rendersWithDocumentChrome(node, parentRenderFacts(client, node)))
+    if (chipFilterState.pages && !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock))
       return false;
-    if (chipFilterState.blocks && !rendersAsInlineBlock(node, parentRenderFacts(client, node)))
+    if (chipFilterState.blocks && !rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock))
       return false;
     if (chipFilterState.cls && !node.isClass) return false;
     if (daily !== null && (parseDateNodeId(node.id)?.precision === "day") !== daily) return false;
-    if (page !== null && rendersWithDocumentChrome(node, parentRenderFacts(client, node)) !== page)
+    if (page !== null && rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock) !== page)
       return false;
     if (cls !== null && node.isClass !== cls) return false;
     return true;
@@ -796,8 +800,8 @@ export function NodeSelector({
   const matchesScopeTab = (node: ClientNode): boolean => {
     if (!scopeTabs || searchMode === "classes") return true;
     return scope === "main"
-      ? node.isClass || rendersWithDocumentChrome(node, parentRenderFacts(client, node))
-      : rendersAsInlineBlock(node, parentRenderFacts(client, node));
+      ? node.isClass || rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock)
+      : rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock);
   };
 
   // The worker-backed client answers reads synchronously from a cache that
@@ -895,9 +899,9 @@ export function NodeSelector({
     }
     const hits = q === "" ? [] : client.search(classRefine.query.trim());
     const filtered = hits.filter((node) => {
-      if (searchMode === "pages" && !rendersWithDocumentChrome(node, parentRenderFacts(client, node)))
+      if (searchMode === "pages" && !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock))
         return false;
-      if (searchMode === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node)))
+      if (searchMode === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock))
         return false;
       if (!matchesInlineFilters(node)) return false;
       if (!matchesScopeTab(node)) return false;
@@ -937,7 +941,7 @@ export function NodeSelector({
         })
         .filter(matchesInlineFilters)
         .filter(matchesScopeTab)
-        .filter((node) => searchMode !== "blocks" || rendersAsInlineBlock(node, parentRenderFacts(client, node)));
+        .filter((node) => searchMode !== "blocks" || rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock));
     }
     // The empty-query default (owner 2026-10-19): the device's recently
     // used nodes, MRU order, scoped like any other candidate set — the
@@ -950,9 +954,9 @@ export function NodeSelector({
       .map((id) => client.getNode(id))
       .filter((node): node is ClientNode => node !== undefined)
       .filter((node) => {
-        if (searchMode === "pages" && !rendersWithDocumentChrome(node, parentRenderFacts(client, node)))
+        if (searchMode === "pages" && !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock))
           return false;
-        if (searchMode === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node)))
+        if (searchMode === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock))
           return false;
         return true;
       })
@@ -1208,7 +1212,7 @@ export function NodeSelector({
     let guard = 0;
     while (currentId !== null && guard < 64) {
       const parent: ClientNode | undefined = client.getNode(currentId);
-      if (!parent || !rendersWithDocumentChrome(parent)) break;
+      if (!parent || !rendersWithDocumentChrome(parent, undefined, parentlessBlock)) break;
       segments.unshift(nodeDisplayName(parent) || "Untitled");
       currentId = parent.parentId;
       guard += 1;
@@ -1235,7 +1239,7 @@ export function NodeSelector({
     while (currentId !== null && guard < 64) {
       const parent = client.getNode(currentId);
       if (parent === undefined) break;
-      if (rendersWithDocumentChrome(parent)) {
+      if (rendersWithDocumentChrome(parent, undefined, parentlessBlock)) {
         const ancestors = buildParentPath(parent);
         const name = nodeDisplayName(parent) || "Untitled";
         return ancestors !== "" ? `${ancestors} ${name}` : name;
@@ -1325,7 +1329,7 @@ export function NodeSelector({
             node={node}
             client={client}
             parentPath={
-              rendersWithDocumentChrome(node, parentRenderFacts(client, node))
+              rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock)
                 ? buildParentPath(node)
                 : buildContainingPagePath(node)
             }
