@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   addDaysIso,
+  addMonthsIso,
   createdTodayBounds,
   dayNodeId,
   isoWeekNumber,
@@ -53,6 +54,17 @@ describe("local-day helpers", () => {
     // Seven days apart is always the same weekday, whatever the locale.
     expect(weekdayLabel("2026-10-09")).toBe(friday);
     expect(weekdayLabel("2026-10-03")).not.toBe(friday);
+  });
+});
+
+describe("addMonthsIso (the agenda navigator's stride)", () => {
+  it("steps whole months and clamps the day", () => {
+    expect(addMonthsIso("2026-03-31", -1)).toBe("2026-02-28");
+    expect(addMonthsIso("2024-03-31", -1)).toBe("2024-02-29"); // leap
+    expect(addMonthsIso("2026-01-31", 1)).toBe("2026-02-28");
+    expect(addMonthsIso("2026-10-24", 1)).toBe("2026-11-24");
+    expect(addMonthsIso("2026-01-01", -1)).toBe("2025-12-01");
+    expect(addMonthsIso("2026-12-01", 13)).toBe("2028-01-01");
   });
 });
 

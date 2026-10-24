@@ -33,6 +33,7 @@ import {
 } from "../../ui/app/routing.js";
 import {
   addDaysIso,
+  addMonthsIso,
   isoWeekNumber,
   todayIsoLocal,
   weekdayLabel,
@@ -176,10 +177,14 @@ export function CalendarView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- follow the selection only
   }, [selectedIso, calendarZoom]);
   const shiftPeriod = (delta: number): void => {
-    if (calendarZoom === "week" || calendarZoom === "agenda") {
-      // Week/Agenda step the SELECTION by a week — a selected-day change
-      // (the URL rides along with a replace).
+    if (calendarZoom === "week") {
+      // Week steps the SELECTION by a week — a selected-day change (the
+      // URL rides along with a replace).
       pickDay(addDaysIso(selectedIso, delta * 7));
+    } else if (calendarZoom === "agenda") {
+      // Agenda steps MONTH to month (the agenda lists
+      // days with events across months; a week's stride is noise there).
+      pickDay(addMonthsIso(selectedIso, delta));
     } else if (calendarZoom === "year") setPeriod((p) => ({ ...p, year: p.year + delta }));
     else setPeriod((p) => shiftMonth(p, delta));
   };

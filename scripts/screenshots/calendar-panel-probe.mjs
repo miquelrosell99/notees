@@ -79,10 +79,10 @@ const result = await page.evaluate(() => {
   await page.screenshot({ path: join(OUT, "calendar-events.png") });
 
   // Deep-link pass: a fresh page in the SAME context boots straight into
-  // /calendar/week/2026-10-20 — the week zoom renders and the selected day
+  // /calendar/week/20261020 — the week zoom renders and the selected day
   // is the 20th.
   const deepPage = await context.newPage();
-  await deepPage.goto(new URL("/calendar/week/2026-10-20", WEB).toString(), {
+  await deepPage.goto(new URL("/calendar/week/20261020", WEB).toString(), {
     waitUntil: "commit",
     timeout: 120_000,
   });
@@ -196,7 +196,7 @@ const pass =
     result.route.pathname.startsWith("/calendar/month/") &&
     typeof result.route.title === "string" &&
     result.route.title.endsWith("— Calendar") &&
-    result.deepLink?.pathname === "/calendar/week/2026-10-20" &&
+    result.deepLink?.pathname === "/calendar/week/20261020" &&
     result.deepLink?.weekColumns === 7 &&
     result.deepLink?.selectedDay === "2026-10-20" &&
     result.deepLink?.title.endsWith("— Calendar") &&

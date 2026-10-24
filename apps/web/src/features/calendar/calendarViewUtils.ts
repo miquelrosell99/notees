@@ -29,6 +29,20 @@ export function todayIsoLocal(): string {
  * ±N days over a local ISO date with a noon anchor, so DST transitions never
  * shift the calendar day (the journal test-suite idiom).
  */
+/**
+ * Shift a local ISO day by whole calendar months (the agenda navigator's
+ * stride): the day CLAMPS into the target month (Mar 31
+ * - 1 month = Feb 28/29), never rolls over.
+ */
+export function addMonthsIso(iso: string, delta: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const total = y! * 12 + (m! - 1) + delta;
+  const yy = Math.floor(total / 12);
+  const mm = (total % 12) + 1;
+  const dd = Math.min(d!, new Date(yy, mm, 0).getDate());
+  return `${yy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+}
+
 export function addDaysIso(iso: string, delta: number): string {
   const [y, m, d] = iso.split("-").map(Number);
   const date = new Date(y!, m! - 1, d!, 12);
