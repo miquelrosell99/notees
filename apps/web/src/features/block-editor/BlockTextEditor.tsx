@@ -187,6 +187,7 @@ import type { ContentAst, Mark } from "@notees/protocol";
 import { chainNodeIds, deriveDisplayName, parseDateNodeId, rendersAsInlineBlock, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { uuidv7 } from "uuidv7";
 
+import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { focusAtPoint, focusWithCaret, type CaretPlacement } from "@/editor/caret.js";
 import {
   caretClientRect,
@@ -477,7 +478,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     const parent = node.parentId !== null ? client.getNode(node.parentId) : undefined;
     const targetId =
       position?.previousSiblingId ??
-      (parent !== undefined && rendersAsInlineBlock(parent) ? parent.id : null);
+      (parent !== undefined && rendersAsInlineBlock(parent, undefined, parentlessBlockResolverOf(client))
+        ? parent.id
+        : null);
     if (targetId === null || targetId === undefined) return;
     const target = client.getNode(targetId);
     if (target === undefined) return;

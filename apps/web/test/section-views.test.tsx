@@ -81,6 +81,7 @@ function node(partial: Partial<ClientNode> & { id?: string }): ClientNode {
     bannerAssetId: null,
     listStyle: null,
     aliasedNodeId: null,
+    parentlessRole: "page",
     description: null,
     isActive: true,
     createdAt: "2026-10-01T09:00:00.000Z",

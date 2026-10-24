@@ -212,6 +212,9 @@ export function labelFromClient(
      *  (which resolves raw itself where supported). */
     getNodeRaw?(id: string): NodeLike | undefined;
     getDisplayName(id: string): string | null;
+    /** Optional: mocks without the parentlessRole read keep the pre-flag
+     *  label; both client classes carry it. */
+    effectiveClassParentlessBlock?(classId: string): boolean;
   },
   id: string,
 ): string | null {
@@ -219,12 +222,15 @@ export function labelFromClient(
     isClass: n.isClass === true || n.isClass === 1,
     isEmbedded: n.isEmbedded === true || n.isEmbedded === 1,
     parentId: n.parentId ?? null,
+    classIds: n.classIds ?? [],
   });
+  const resolver = client.effectiveClassParentlessBlock?.bind(client);
   const live = client.getNode(id);
-  if (live !== undefined) return nodeDisplayName(live) || untitledLabelOf(facts(live));
+  if (live !== undefined) return nodeDisplayName(live) || untitledLabelOf(facts(live), resolver);
   if (client.getNodeRaw !== undefined) {
     const raw = client.getNodeRaw(id);
-    if (raw !== undefined) return deriveDisplayName(raw) || untitledLabelOf(facts(raw));
+    if (raw !== undefined)
+      return deriveDisplayName(raw) || untitledLabelOf(facts(raw), resolver);
   }
   return client.getDisplayName(id);
 }

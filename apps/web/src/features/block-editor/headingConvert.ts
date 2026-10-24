@@ -22,10 +22,13 @@ import type { ClientNode } from "@/core/workspace-client/index.js";
 export type HeadingConversion = "to-heading" | "from-heading" | null;
 
 /** The conversion direction a node's content shape supports (null = neither). */
-export function headingConversionOf(node: ClientNode): HeadingConversion {
+export function headingConversionOf(
+  node: ClientNode,
+  isParentlessBlockClass?: (classId: string) => boolean,
+): HeadingConversion {
   // Block nodes only: a heading is an inline-body render concept — class
   // pills, page-title chrome, and other main-node surfaces never offer it.
-  if (!rendersAsInlineBlock(node)) return null;
+  if (!rendersAsInlineBlock(node, undefined, isParentlessBlockClass)) return null;
   const ast = node.contentAst;
   if (ast.length !== 1) return null;
   const token = ast[0]!;

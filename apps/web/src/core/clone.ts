@@ -51,6 +51,8 @@ export interface CloneReadSurface {
   getChildren(id: string): ClientNode[];
   /** Authored + derived property rows; the engine copies AUTHORED rows only. */
   getEffectiveProperties(id: string): EffectiveProperty[];
+  /** The parentlessRole "block" demote resolver for the role predicates. */
+  effectiveClassParentlessBlock(classId: string): boolean;
 }
 
 /** Write surface the engine submits through (the existing client op path). */

@@ -29,7 +29,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { nodeDisplayName } from "./dateDisplay.js";
-import { parentRenderFacts } from "./renderStateLabel.js";
+import { parentlessBlockResolverOf, parentRenderFacts } from "./renderStateLabel.js";
 import { NodeResultItem } from "../features/pickers/NodeResultItem.js";
 import { Button } from "../components/ui/fleet/Button.js";
 import { Dropdown } from "../components/ui/fleet/Dropdown.js";
@@ -138,18 +138,20 @@ export function SearchPage({
   // Display filters over the accumulated stream. Scope: classes count as
   // Main (the render-state model's is_class branch); Blocks keeps only
   // parented non-class children with the render bit unset.
-  const visible = useMemo(
-    () =>
-      hits.filter((node) => {
-        if (scope === "main" && !(node.isClass || rendersWithDocumentChrome(node, parentRenderFacts(client, node))))
-          return false;
-        if (scope === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node)))
-          return false;
-        if (classFilter !== null && !node.classIds.includes(classFilter)) return false;
-        return true;
-      }),
-    [hits, scope, classFilter],
-  );
+  const visible = useMemo(() => {
+    const parentlessBlock = parentlessBlockResolverOf(client);
+    return hits.filter((node) => {
+      if (
+        scope === "main" &&
+        !(node.isClass || rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock))
+      )
+        return false;
+      if (scope === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock))
+        return false;
+      if (classFilter !== null && !node.classIds.includes(classFilter)) return false;
+      return true;
+    });
+  }, [hits, scope, classFilter, client]);
 
   /**
    * The load-more button: rendered whenever the stream cursor reads
@@ -186,7 +188,7 @@ export function SearchPage({
     let guard = 0;
     while (currentId !== null && guard < 64) {
       const parent: ClientNode | undefined = client.getNode(currentId);
-      if (!parent || !rendersWithDocumentChrome(parent)) break;
+      if (!parent || !rendersWithDocumentChrome(parent, undefined, parentlessBlockResolverOf(client))) break;
       segments.unshift(nodeDisplayName(parent) || "Untitled");
       currentId = parent.parentId;
       guard += 1;
@@ -212,7 +214,7 @@ export function SearchPage({
     while (currentId !== null && guard < 64) {
       const parent = client.getNode(currentId);
       if (parent === undefined) break;
-      if (rendersWithDocumentChrome(parent)) {
+      if (rendersWithDocumentChrome(parent, undefined, parentlessBlockResolverOf(client))) {
         const ancestors = buildParentPath(parent);
         const name = nodeDisplayName(parent) || "Untitled";
         return ancestors !== "" ? `${ancestors} ${name}` : name;
@@ -287,7 +289,11 @@ export function SearchPage({
                               node={node}
                               client={client}
                               parentPath={
-                                rendersWithDocumentChrome(node, parentRenderFacts(client, node))
+                                rendersWithDocumentChrome(
+                                  node,
+                                  parentRenderFacts(client, node),
+                                  parentlessBlockResolverOf(client),
+                                )
                                   ? buildParentPath(node)
                                   : buildContainingPagePath(node)
                               }

@@ -44,7 +44,7 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { openFloatingEditor } from "../block-editor/FloatingEditor.js";
 import { NodeView } from "../../ui/NodeView.js";
-import { renderStateLabel } from "../../ui/renderStateLabel.js";
+import { renderStateLabel, parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import "./NodeHoverPreview.css";
@@ -281,5 +281,5 @@ export function NodeHoverPreviewHost({
 /** The card's aria label names the render state like the link menu does. */
 function renderStateLabelOf(client: AnyClient, nodeId: string): string {
   const node = client.getNode(nodeId);
-  return node === undefined ? "Node" : renderStateLabel(node);
+  return node === undefined ? "Node" : renderStateLabel(node, parentlessBlockResolverOf(client));
 }

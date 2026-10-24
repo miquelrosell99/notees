@@ -195,6 +195,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
       bannerAssetId: null,
       listStyle: null,
       aliasedNodeId: null,
+    parentlessRole: "page",
       description: null,
       color: null,
       isActive: true,
@@ -227,6 +228,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
         listPropertySchemas: () => [],
         effectiveClassColor: () => null,
         effectiveClassIcons: () => new Map(),
+        effectiveClassParentlessBlock: () => false,
         getDisplayName: () => null,
       },
     };

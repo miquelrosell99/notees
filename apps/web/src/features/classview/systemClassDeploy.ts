@@ -34,6 +34,7 @@ import {
   SYSTEM_CLASS_DESCRIPTIONS,
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
+  SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_EXTRA_CLASS_BINDINGS,
   SYSTEM_PROPERTY_DISPLAY_NAMES,
@@ -103,6 +104,13 @@ export async function deploySystemClass(
     await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES[key], {
       id: classId,
       icon: SYSTEM_CLASS_ICONS[key],
+      // The parentlessRole render contract: flagged
+      // classes' standalone members render Block-role. Extends-children of a
+      // flagged base (meeting/birthday ← event) need no flag — the effective
+      // demote derives at read time.
+      ...(SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK.has(key)
+        ? { parentlessRole: "block" as const }
+        : {}),
     });
   }
 

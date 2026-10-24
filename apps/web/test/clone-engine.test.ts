@@ -58,6 +58,7 @@ function fakeNode(partial: Partial<ClientNode> & { id: string }): ClientNode {
     bannerAssetId: null,
     listStyle: null,
     aliasedNodeId: null,
+    parentlessRole: "page",
     description: null,
     isActive: true,
     createdAt: null,
@@ -107,6 +108,9 @@ class FakeReads implements CloneReadSurface {
   }
   getEffectiveProperties(id: string): EffectiveProperty[] {
     return this.props.get(id) ?? [];
+  }
+  effectiveClassParentlessBlock(): boolean {
+    return false;
   }
   /** Test hook: add a node outside the fixture (e.g. the graft target). */
   setNode(node: ClientNode): void {
