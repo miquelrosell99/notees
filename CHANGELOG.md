@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-24
 
+- **fix(web): add-source review round 1 — gesture semantics documented,
+  empty-render citekey skip.** `beginSourceCreate`'s doc now states the
+  ordering contract (the un-archive commits even if the create throws — both
+  land as one undo entry via the finally-flush; the un-archive is an
+  idempotent, undoable preference, never half-created data — and the
+  property writes run after the gesture, so a late write failure can leave a
+  titled but property-less source, the pre-existing pattern). Test/docs
+  polish: the quick-create header no longer claims person find-or-create,
+  the ISBN duplicate test is named for what it asserts. New pins: the
+  collision suffix continues past `z` (`aa`), a failed CAS upload creates no
+  half-source, and — the one behavior change — `generateCitekey` no longer
+  falls back to the default pattern when the stored pattern merely RENDERS
+  empty (`[year]` with no year); the fallback is only for an uncompilable
+  pattern, and an empty render skips the citekey write.
+
 - **feat(web): add-source flow — resolve, prefill, plain-text authors,
   archived filtering, duplicate warning (source-library slices 3–6 task 6).**
   The user-facing heart of the feature. **Entries:** a command-palette
