@@ -13,7 +13,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { newEnvelope, type Envelope } from "@notees/protocol";
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { parseDateNodeId, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/features/calendar/CalendarView.js";
@@ -120,11 +120,15 @@ function renderCalendar(client: WorkspaceClient, onOpenPage = vi.fn()) {
   return { onOpenPage, ...render(<CalendarView client={client} onOpenPage={onOpenPage} />) };
 }
 
-/** The `.calendar-day` cell (button) showing the given day number. */
+/** The grid CELL (background click selects) for the given day of month —
+    the day-NUMBER is the open-page affordance, not the selection. */
 function dayCell(container: HTMLElement, dayNumber: string): HTMLElement {
-  const cell = Array.from(container.querySelectorAll(".calendar-day")).find(
-    (el) => el.textContent?.trim() === dayNumber,
+  const suffix = `-${dayNumber.padStart(2, "0")}`;
+  const matches = Array.from(
+    container.querySelectorAll(`.cal-grid__cell[data-day$="${suffix}"]`),
   );
+  const cell =
+    matches.find((el) => !el.classList.contains("cal-grid__cell--outside")) ?? matches[0];
   expect(cell, `day cell ${dayNumber}`).toBeDefined();
   return cell as HTMLElement;
 }
@@ -144,22 +148,8 @@ describe("CalendarView", () => {
     const marker = () => container.querySelector(".calendar-view__today-marker");
     expect(marker()).not.toBeNull();
     expect(screen.getByText(today)).toBeDefined();
-
-    fireEvent.click(screen.getByRole("button", { name: "Previous day" }));
-    await waitFor(() => {
-      expect(marker()).toBeNull();
-      expect(screen.getByText(addDaysIso(today, -1))).toBeDefined();
-    });
-
-    const dayNav = () => within(container.querySelector(".calendar-view__nav") as HTMLElement);
-    // The outline-variant register (the Journals view's): the accessible
-    // name is "Jump to today", not the bare label.
-    fireEvent.click(dayNav().getByRole("button", { name: "Jump to today" }));
-    await waitFor(() => {
-      expect(marker()).not.toBeNull();
-      expect(screen.getByText(today)).toBeDefined();
-    });
   });
+
 
   it("the month grid blocks event-family nodes dated into the scope, not mere date carriers", async () => {
     const client = await seedClient();
@@ -307,7 +297,8 @@ describe("CalendarView", () => {
 
   it("month-grid day pick updates the selected day", async () => {
     const client = await seedClient();
-    const { container } = renderCalendar(client);
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
     const today = todayIsoLocal();
     const marker = () => container.querySelector(".calendar-view__today-marker");
     // A day of the visible month guaranteed to differ from today.
@@ -319,6 +310,14 @@ describe("CalendarView", () => {
 
     fireEvent.click(dayCell(container, target));
     await waitFor(() => {
+      // The grid cell carries the selected ring.
+      expect(
+        container.querySelector(".cal-grid__cell--selected")?.getAttribute("data-day"),
+      ).toBe(targetIso);
+    });
+    // The day zoom's date line follows the selection.
+    fireEvent.click(screen.getByRole("button", { name: "Day", pressed: false }));
+    await waitFor(() => {
       expect(marker()).toBeNull();
       expect(screen.getByText(targetIso)).toBeDefined();
     });
@@ -326,10 +325,13 @@ describe("CalendarView", () => {
 
   it("the created filter shows the EmptyState copy on an empty day", async () => {
     const client = await seedClient(new MemoryRelay());
-    renderCalendar(client);
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
     // The view's own task-family authoring creates nodes *today*, so pick an
-    // uncreated day: yesterday.
-    fireEvent.click(screen.getByRole("button", { name: "Previous day" }));
+    // uncreated day of the visible month (the grid's day number selects it).
+    const otherDay = new Date().getDate() === 20 ? "21" : "20";
+    fireEvent.click(dayCell(container, otherDay));
+    fireEvent.click(screen.getByRole("button", { name: "Day", pressed: false }));
     fireEvent.click(await screen.findByRole("tab", { name: "Created" }));
     expect(await screen.findByText("There's nothing here (yet).")).toBeDefined();
   });
@@ -431,6 +433,46 @@ describe("CalendarView", () => {
     await waitFor(() => expect(grid.querySelector(".cal-block")).not.toBeNull());
     expect(grid.querySelector(".cal-block")!.textContent).toContain("Untitled");
     expect(grid.querySelector(".cal-block")!.textContent).not.toContain("gathering");
+  });
+
+  it("the top-bar period navigator steps the month and its title buttons open the date-chain pages", async () => {
+    const client = await seedClient();
+    const onOpenPage = vi.fn();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    render(<CalendarView client={client} onOpenPage={onOpenPage} />);
+    await screen.findByLabelText("Calendar month view");
+    const nav = document.querySelector(".calendar-view__period-nav") as HTMLElement;
+    expect(nav).not.toBeNull();
+    // The labels ride the environment's locale — compute, never hardcode.
+    const monthLabel = (year: number, month0: number): string =>
+      new Date(year, month0, 1).toLocaleDateString(undefined, { month: "long" });
+    const thisMonth = monthLabel(new Date().getFullYear(), new Date().getMonth());
+    const year = () => nav.querySelector('.calendar-title-btn[title="Open yearly page"]') as HTMLElement;
+
+    // The month button opens the monthly date-chain page.
+    fireEvent.click(
+      nav.querySelector(".calendar-title-btn--month") as HTMLElement,
+    );
+    await waitFor(() => expect(onOpenPage).toHaveBeenCalledTimes(1));
+    const monthId = onOpenPage.mock.calls[0]![0] as string;
+    expect(parseDateNodeId(monthId)?.precision).toBe("month");
+    // The year button opens the yearly page.
+    fireEvent.click(year());
+    await waitFor(() => expect(onOpenPage).toHaveBeenCalledTimes(2));
+    expect(parseDateNodeId(onOpenPage.mock.calls[1]![0] as string)?.precision).toBe("year");
+
+    // The chevrons step the visible period (the navigator's title follows).
+    const next = new Date();
+    next.setMonth(next.getMonth() + 1);
+    fireEvent.click(screen.getByRole("button", { name: "Next period" }));
+    await waitFor(() => {
+      expect(nav.textContent).toContain(monthLabel(next.getFullYear(), next.getMonth()));
+    });
+    // Today jumps back.
+    fireEvent.click(screen.getByRole("button", { name: "Jump to today" }));
+    await waitFor(() => {
+      expect(nav.textContent).toContain(thisMonth);
+    });
   });
 
   it("the day number opens the day page; the ladder reaches week and year", async () => {

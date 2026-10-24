@@ -185,11 +185,15 @@ async function createDatedMeeting(
   return id;
 }
 
-/** The `.calendar-day` cell (button) showing the given day number. */
+/** The grid CELL (background click selects) for the given day of month —
+    the day-NUMBER is the open-page affordance, not the selection. */
 function dayCell(container: HTMLElement, dayNumber: string): HTMLElement {
-  const cell = Array.from(container.querySelectorAll(".calendar-day")).find(
-    (el) => el.textContent?.trim() === dayNumber,
+  const suffix = `-${dayNumber.padStart(2, "0")}`;
+  const matches = Array.from(
+    container.querySelectorAll(`.cal-grid__cell[data-day$="${suffix}"]`),
   );
+  const cell =
+    matches.find((el) => !el.classList.contains("cal-grid__cell--outside")) ?? matches[0];
   expect(cell, `day cell ${dayNumber}`).toBeDefined();
   return cell as HTMLElement;
 }
@@ -590,24 +594,25 @@ describe("CalendarView breadth (dots, agenda)", () => {
     const { day: _todayDay } = await client.ensureDateChain(today);
     await flushWrites();
 
-    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
     const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
     // Navigate the month grid when the targets land in the next month.
     if (future.slice(0, 7) !== today.slice(0, 7)) {
       fireEvent.click(screen.getByRole("button", { name: "Next period" }));
     }
-    // A day some object references: marked (setting the date auto-created
-    // its chain, so the page exists too — the dot composes with the fill).
+    // A day some object references blocks its event (the grid's mark
+    // register — the retired dots' honest successor); the chain exists
+    // too (setting the date auto-created it).
     const target = dayCell(container, String(Number(future.slice(8))));
-    expect(target.classList.contains("dated")).toBe(true);
-    expect(target.classList.contains("has-note")).toBe(true);
-    // A bare chain day: a page exists but nothing references it — no dot.
+    await waitFor(() => {
+      expect(target.querySelector(".cal-block")).not.toBeNull();
+    });
+    // A bare chain day: a page exists but nothing references it — no block.
     if (bare.slice(0, 7) !== future.slice(0, 7)) {
       fireEvent.click(screen.getByRole("button", { name: "Next period" }));
     }
     const bareCell = dayCell(container, String(Number(bare.slice(8))));
-    expect(bareCell.classList.contains("has-note")).toBe(true);
-    expect(bareCell.classList.contains("dated")).toBe(false);
+    expect(bareCell.querySelector(".cal-block")).toBeNull();
   });
 
   it("renders the dated meeting as a grid block around the selected day", async () => {
