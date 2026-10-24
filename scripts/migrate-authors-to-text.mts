@@ -263,6 +263,11 @@ interface SavedViewHit {
   conditions: string[];
 }
 
+interface UnparseableView {
+  hostId: string;
+  hostTitle: string;
+}
+
 export interface WorkspacePlan {
   /** The …0012 row as stored (null = schema never authored in this workspace). */
   schemaRow: SchemaRow | null;
@@ -273,6 +278,12 @@ export interface WorkspacePlan {
   kept: KeptRef[];
   alreadyText: number;
   savedViews: SavedViewHit[];
+  /**
+   * Legacy saved views whose stored AST fails the current strict query-ast
+   * schema (live discovery 2026-10-24: a pre-strict view aborted the whole
+   * dry run). Listed as skipped, never aborting — planning, apply, verify.
+   */
+  unparseableViews: UnparseableView[];
   /** linkedAuthors schema row absent — the copy is skipped (task-7 seeds it). */
   linkedSchemaMissing: boolean;
 }
@@ -339,9 +350,18 @@ function flattenedTitle(store: Store, nodeId: string): string {
  * …0012 — the meaning-flip report. They keep matching by UUID (the schema
  * id is unchanged) but read name-strings after the flip. Reported only;
  * the migration never writes them.
+ *
+ * A stored view whose AST fails the current strict query-ast schema (a
+ * legacy pre-strict token) is LISTED as unparseable-and-skipped, never an
+ * abort — live discovery 2026-10-24: one such view in the personal workspace
+ * killed the whole --all dry run before any planning output.
  */
-function enumerateSavedViews(store: Store): SavedViewHit[] {
+function enumerateSavedViews(store: Store): {
+  hits: SavedViewHit[];
+  unparseable: UnparseableView[];
+} {
   const hits: SavedViewHit[] = [];
+  const unparseable = new Map<string, UnparseableView>();
   const hosts = store.database
     .prepare("SELECT id, content FROM node WHERE content LIKE '%\"type\":\"query\"%'")
     .all() as Array<{ id: string; content: string }>;
@@ -374,14 +394,23 @@ function enumerateSavedViews(store: Store): SavedViewHit[] {
       ) {
         continue;
       }
-      const ast = parseQueryAst((token as { queryAst: unknown }).queryAst);
+      let ast: ReturnType<typeof parseQueryAst>;
+      try {
+        ast = parseQueryAst((token as { queryAst: unknown }).queryAst);
+      } catch {
+        // A legacy pre-strict AST — report and keep enumerating the rest.
+        if (!unparseable.has(host.id)) {
+          unparseable.set(host.id, { hostId: host.id, hostTitle: flattenedTitle(store, host.id) });
+        }
+        continue;
+      }
       const conditions = new Set<string>();
       walk(ast.root, null, conditions);
       if (conditions.size === 0) continue;
       hits.push({ hostId: host.id, hostTitle: flattenedTitle(store, host.id), conditions: [...conditions] });
     }
   }
-  return hits;
+  return { hits, unparseable: [...unparseable.values()] };
 }
 
 export function planWorkspace(store: Store): WorkspacePlan {
@@ -397,9 +426,13 @@ export function planWorkspace(store: Store): WorkspacePlan {
     adds: [],
     kept: [],
     alreadyText: 0,
-    savedViews: enumerateSavedViews(store),
+    savedViews: [],
+    unparseableViews: [],
     linkedSchemaMissing: !linkedSchemaPresent,
   };
+  const enumerated = enumerateSavedViews(store);
+  plan.savedViews = enumerated.hits;
+  plan.unparseableViews = enumerated.unparseable;
 
   if (schema !== undefined) {
     if (schema.active !== 1) {
@@ -811,13 +844,25 @@ function verify(
         ) {
           continue;
         }
-        const ast = parseQueryAst((token as { queryAst: unknown }).queryAst);
-        const result = runQuery(store, ast);
-        console.log(
-          `  meaning-flip view ${view.hostId} (${JSON.stringify(view.hostTitle)}): ` +
-            `${view.conditions.join(", ")} — still runs, ${result.ids.length} node(s) match by UUID`,
-        );
+        try {
+          const ast = parseQueryAst((token as { queryAst: unknown }).queryAst);
+          const result = runQuery(store, ast);
+          console.log(
+            `  meaning-flip view ${view.hostId} (${JSON.stringify(view.hostTitle)}): ` +
+              `${view.conditions.join(", ")} — still runs, ${result.ids.length} node(s) match by UUID`,
+          );
+        } catch {
+          // A legacy pre-strict AST sharing the host — never aborts verify.
+          console.log(
+            `  unparseable saved view (skipped): ${view.hostId} (${JSON.stringify(view.hostTitle)})`,
+          );
+        }
       }
+    }
+    for (const skipped of plan.unparseableViews) {
+      console.log(
+        `  unparseable saved view (skipped): ${skipped.hostId} (${JSON.stringify(skipped.hostTitle)})`,
+      );
     }
   } finally {
     store.close();
@@ -907,6 +952,12 @@ export function migrateWorkspace(
           `      ${view.hostId} (${JSON.stringify(view.hostTitle)}): ${view.conditions.join(", ")}`,
         );
       }
+    }
+    for (const skipped of plan.unparseableViews) {
+      console.log(
+        `  unparseable saved view (skipped): ${skipped.hostId} (${JSON.stringify(skipped.hostTitle)})` +
+          " — its stored AST predates the strict query-ast schema; left untouched",
+      );
     }
 
     if (planIsEmpty(plan)) {
