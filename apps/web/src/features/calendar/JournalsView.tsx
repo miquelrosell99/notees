@@ -77,6 +77,8 @@ export function JournalsView({
 
   /** The side panel's device-local collapse (the calendar view's old register). */
   const [panelCollapsed, setPanelCollapsed] = useDeviceSetting("journalPanelCollapsed", false);
+  /** Focus mode hides every side panel (owner ruling 2026-10-24). */
+  const [focusMode] = useDeviceSetting("focusMode", false);
   /** The side panel's selected day (local ISO) — the events scope anchor. */
   const [panelIso, setPanelIso] = useState(todayIsoLocal());
   /** The feed's focus day while set: overrides the today anchor. */
@@ -326,7 +328,7 @@ export function JournalsView({
             <div ref={bottomSentinelRef} className="journals-sentinel" aria-hidden="true" />
           )}
         </div>
-        {!panelCollapsed && (
+        {!panelCollapsed && !focusMode && (
         <aside className="journals-panel" aria-label="Journal navigator">
           <MonthCalendar
             selectedDate={panelIso}

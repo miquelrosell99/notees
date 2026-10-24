@@ -8,6 +8,10 @@
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
+  /* Stray unbreakable content (long URLs, wide code) clips instead of
+     scrolling the view horizontally (owner 2026-10-24 — visible with the
+     side panel open, when the feed is at its narrowest). */
+  overflow-x: clip;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-10);

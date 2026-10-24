@@ -45,6 +45,7 @@ import {
   weekdayLabel,
   type TaskBucketRow,
 } from "../src/features/calendar/calendarViewUtils.js";
+import { DayStepper } from "../src/features/calendar/DayPageHeader.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
@@ -358,7 +359,7 @@ describe("openTodayKeyHandler (Ctrl/Cmd+Shift+T)", () => {
 // --- #4/#7/#15 the day-page branch ------------------------------------------------
 
 describe("PageView day branch", () => {
-  it("renders the DayPageHeader: weekday flag above the date title, the Week flag after it, the ±1-day bar back (owner 2026-10-24)", async () => {
+  it("renders the DayPageHeader: weekday flag above the date title, the Week flag after it — the stepping lives in the top bar now (owner pass 2026-10-24)", async () => {
     const client = await seedClient();
     const iso = "2026-06-15";
     const { day } = await client.ensureDateChain(iso);
@@ -366,11 +367,10 @@ describe("PageView day branch", () => {
 
     const { container } = render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} />);
 
-    // The ‹ / › stepping bar is BACK on the day page (owner 2026-10-24);
-    // on a past day the Today jump rides it too.
-    expect(screen.getByRole("button", { name: "Previous day" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Next day" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Jump to today" })).not.toBeNull();
+    // The ‹ / › stepping moved to the MAIN TOP BAR (DayStepper); the header
+    // stays the date's own chrome.
+    expect(screen.queryByRole("button", { name: "Previous day" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Next day" })).toBeNull();
 
     // The header IS the date header: the weekday flag rides a small line
     // above the title; the title is the user's dateFormat-formatted date
@@ -399,23 +399,23 @@ describe("PageView day branch", () => {
     expect(within(header).queryByRole("button", { name: "Jump to today" })).toBeNull();
   });
 
-  it("the day-page stepping bar materializes and opens the target day", async () => {
-    const client = await seedClient();
-    const iso = "2026-06-15";
-    const nextIso = "2026-06-16";
-    const { day } = await client.ensureDateChain(iso);
-    const nextId = `00000000-0000-0000-00dd-${nextIso.replace(/-/g, "")}0000`;
-    expect(client.getNodeRaw(nextId)).toBeUndefined();
-    await flushWrites();
+  it("the DayStepper: chevrons around the bordered Today, stepping one day either side", async () => {
+    const onNavigate = vi.fn();
+    render(<DayStepper iso="2026-06-15" onNavigateDay={onNavigate} />);
 
-    const onOpenPage = vi.fn();
-    render(<PageView client={client} pageId={day} onOpenPage={onOpenPage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Previous day" }));
+    expect(onNavigate).toHaveBeenLastCalledWith("2026-06-14");
     fireEvent.click(screen.getByRole("button", { name: "Next day" }));
-
-    await waitFor(() => {
-      expect(client.getNodeRaw(nextId)).toBeDefined();
-      expect(onOpenPage).toHaveBeenCalledWith(nextId);
-    });
+    expect(onNavigate).toHaveBeenLastCalledWith("2026-06-16");
+    fireEvent.click(screen.getByRole("button", { name: "Jump to today" }));
+    expect(onNavigate).toHaveBeenLastCalledWith(todayIsoLocal());
+    // Today is the BORDERED variant between the ghost chevrons — and stays
+    // visible on today itself (the calendar navigator's register).
+    const today = within(screen.getByRole("group", { name: "Day navigation" }));
+    const todayButton = today.getByRole("button", { name: "Jump to today" });
+    expect(todayButton.className).toContain("border");
+    render(<DayStepper iso={todayIsoLocal()} onNavigateDay={vi.fn()} />);
+    expect(screen.getAllByRole("button", { name: "Jump to today" }).length).toBeGreaterThan(0);
   });
 
   it("hides all three sections on an empty day page", async () => {
@@ -432,8 +432,9 @@ describe("PageView day branch", () => {
     // The day header still renders (it is chrome, not an aggregation)…
     expect(screen.getByText(weekdayLabel("2026-06-15"))).toBeDefined();
     // …and the deleted date bar's stepping buttons stay gone.
-    // The ±1-day bar is back on the day page (owner 2026-10-24).
-    expect(screen.getByRole("button", { name: "Previous day" })).not.toBeNull();
+    // The stepping lives in the main top bar (DayStepper) — not in the
+    // page chrome.
+    expect(screen.queryByRole("button", { name: "Previous day" })).toBeNull();
   });
 
   it("shows the Tasks section lazily and the done-toggle writes the status", async () => {

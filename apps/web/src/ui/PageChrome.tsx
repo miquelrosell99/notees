@@ -338,20 +338,7 @@ export function PageHeaderChrome({
                 if (!preview) onHeaderMenu(event.clientX, event.clientY);
               }}
             >
-              <DayPageHeader
-                iso={dayIso}
-                title={nodeDisplayName(page)}
-                onNavigateDay={
-                  onOpenPage === undefined
-                    ? undefined
-                    : (iso) => {
-                        void client
-                          .ensureDateChain(iso)
-                          .then(({ day }) => onOpenPage(day))
-                          .catch(() => {});
-                      }
-                }
-              />
+              <DayPageHeader iso={dayIso} title={nodeDisplayName(page)} />
             </span>
           ) : (
             <>

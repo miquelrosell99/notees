@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): the day stepper moves to the main top bar's right cluster;
+  focus mode hides every side panel; the journal's horizontal overflow
+  clips (owner pass 2026-10-24).** (1) The ‹ / Today / › stepping from the
+  morning's header bar moves up: the new `DayStepper` rides the main top
+  bar's RIGHT cluster while a day page is open — ghost chevrons stepping
+  one day either side with the BORDERED Today button between them (the
+  owner's "centered" = between the arrows); the target day page is
+  materialized on demand (ensureDateChain) and opened. The DayPageHeader
+  reverts to the date's own chrome. (2) Focus mode hides ALL side panels
+  (the owner's ruling): the journal's navigator panel and the right
+  rail join the page-view panels (which already honored it) behind the
+  `focusMode` device setting. (3) The journal feed clips stray
+  unbreakable overflow (`overflow-x: clip` on the list — visible with the
+  panel open, when the feed is narrowest); the probe measures at 1280px
+  and walks the view for offenders.
+  - **Verification**: DayStepper specs (chevron targets, the bordered
+    Today, visible on today) + the journals focus-mode spec; browser
+    probe: the stepper in the top bar's right cluster, Next materializes
+    and advances the day, journal scrollWidth == clientWidth. Full gate
+    below.
+## 2026-10-24
+
 - **fix(web): the journal view's horizontal scroll — the flex min-width
   trap (owner 2026-10-24).** `.journals-body` and `.journals-list` are
   flex children without `min-width: 0`, so the row would not shrink below
