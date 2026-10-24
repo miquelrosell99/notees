@@ -9,6 +9,58 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): add-source flow — resolve, prefill, plain-text authors,
+  archived filtering, duplicate warning (source-library slices 3–6 task 6).**
+  The user-facing heart of the feature. **Entries:** a command-palette
+  **Add source…** row (primary; hidden offline, the shareTarget pattern), an
+  **Add source…** button in the Sources settings section, and a picker
+  **Create source from link** row whenever a node's create-row query is
+  shaped like a DOI (`10.xxxx/…`), an arXiv id/URL, an ISBN, or an http(s)
+  URL (identifier detection in `features/sources/resolver.ts`; the row routes
+  through the app-level `AddSourceHost` request queue — the
+  PropertyCreateHost idiom). **The dialog** (`features/sources/
+  AddSourceDialog.tsx`): one input for DOI/ISBN/arXiv/URL plus a PDF file
+  input; doi/isbn/arxiv → `GET /api/resolve`, a plain URL → `POST
+  /api/resolve/pdf?url=` (the bytes stay server-side; the record's
+  `pdf:{url}` becomes the source's full-text URL), a file → multipart
+  `POST /api/resolve/pdf` and THAT file uploads to CAS + links on the created
+  source (upload-before-create: a failed upload means no half-source). On
+  success the QuickCreateModal opens PREFILLED (class from `classKey`, title,
+  authors/editors monoblock, the class's venue fields by display name, year →
+  year-chain publicationDate, doi/isbn/url/publisher). Errors are inline and
+  honest: 422 `no_identifier_found` says the PDF carried no DOI, 403
+  `resolver_disabled` points at the Sources settings (the client-side
+  resolver-off setting shows the same note and disables Resolve), 404/502
+  surface the provider message, unrecognized input never fires a request.
+  A bare URL with the resolver OFF creates a plain `web_page` weblink instead
+  (the dialog would only show the note). **QuickCreateModal rewiring:** the
+  authors field writes PLAIN `authors` TEXT values — split on `;`/newline
+  (a comma lives inside a "Family, Given" name), one element each, NO person
+  find-or-create; the type list FILTERS archived type-classes (a resolved
+  archived class stays selected, marked "(archived)" — auto-enable at create,
+  the un-archive riding the SAME undo batch as the create via the new
+  `client.beginSourceCreate` gesture + `UndoJournal.batchAsync`, worker-RPC
+  concrete since a closure cannot cross the worker boundary); an empty
+  citekey auto-fills from the settings pattern when auto-citekey is on —
+  `generateCitekey` renders the pattern (default fallback) and appends the
+  deterministic `a`/`b`/`c` suffix against live citekeys, compared
+  case-insensitively; a prefilled doi/isbn already on a live source surfaces
+  "Already in your library: <title>" with a link — create stays allowed, the
+  warning is honest. `ensureCitationFamily` self-heals from
+  `SYSTEM_PROPERTY_SPECS`/`SYSTEM_PROPERTY_DISPLAY_NAMES` now (authors text
+  multi per the 2026-10-23 retype) and authors the venue schemas a prefill
+  carries. The Sources settings' resolver toggle now mirrors the server
+  default-ON contract (absent row/key = allowed — the old absent-means-off
+  reading showed OFF against a server that allowed). Tests: 17 new
+  add-source cases (classification, resolve → prefill mapping for DOI/ISBN/
+  URL/PDF-multipart with a mocked server + CAS attach, every error path,
+  host routing), 15 new/rewired quick-create cases (plain-text authors, the
+  a/b/c collision, archived filtering, the duplicate warning + override,
+  same-batch undo), 2 `batchAsync` journal units; the settings toggle test
+  updated to the corrected default. Docs: SCHEMA.md "Sources as containers"
+  SHIPPED line, classes.md's Sources section, the resolver client's taxonomy
+  documented in its module header.
+
 - **fix(web): the feature toggle carries a settings row forward (review
   round 1 on the Sources settings).** The Features-tab family ToggleSwitch
   wrote old-shape `{feature, enabled}` — the web client sat two pixels above

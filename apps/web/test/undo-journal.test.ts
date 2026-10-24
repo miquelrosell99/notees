@@ -974,6 +974,34 @@ describe("UndoJournal — mechanics (fake clock)", () => {
     expect(redoEntry.inverseSpecs.map((s) => s.opType)).toEqual(["property.unset", "object.restore"]);
   });
 
+  it("batchAsync() keeps the batch open across awaited writes (one entry, flushed in the finally)", async () => {
+    const journal = makeJournal({ now: () => clock });
+    const resolved = Promise.resolve();
+    await journal.batchAsync(async () => {
+      // Each client write resolves a promise; the sync batch() cannot scope
+      // this — batchAsync holds the depth open across the awaits.
+      journal.commit(journal.prepare(env("object.update", { objectId: OTHER, active: true })), "normal");
+      await resolved;
+      journal.commit(journal.prepare(env("object.delete", { objectId: NODE })), "normal");
+      await resolved;
+    });
+    expect(journal.undoDepth()).toBe(1);
+    const entry = journal.takeUndo()!;
+    expect(entry.applySpecs.map((s) => s.opType)).toEqual(["object.update", "object.delete"]);
+    expect(entry.inverseSpecs.map((s) => s.opType)).toEqual(["object.restore", "object.update"]);
+  });
+
+  it("batchAsync() flushes on a throw too (the applied writes still group, the error propagates)", async () => {
+    const journal = makeJournal({ now: () => clock });
+    await expect(
+      journal.batchAsync(async () => {
+        journal.commit(journal.prepare(env("object.update", { objectId: OTHER, active: true })), "normal");
+        throw new Error("gesture failed");
+      }),
+    ).rejects.toThrow("gesture failed");
+    expect(journal.undoDepth()).toBe(1);
+  });
+
   it("restoreUndo/restoreRedo put a taken entry back after a failed apply", () => {
     const journal = makeJournal({ now: () => clock });
     journal.commit(journal.prepare(env("object.delete", { objectId: NODE })), "normal");

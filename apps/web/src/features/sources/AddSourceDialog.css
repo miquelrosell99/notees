@@ -1,0 +1,57 @@
+/**
+ * AddSourceDialog styles — the add-source flow's resolve step: the input,
+ * the PDF file row, the inline error/note, the actions. Token-only.
+ */
+
+.add-source-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-1) 0;
+}
+
+.add-source-dialog__hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.add-source-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.add-source-dialog__file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.add-source-dialog__file-label {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.add-source-dialog__file-name {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface);
+}
+
+.add-source-dialog__note {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.add-source-dialog__error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-error);
+}
+
+.add-source-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}

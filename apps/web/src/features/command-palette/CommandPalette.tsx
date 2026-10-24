@@ -31,7 +31,9 @@
  * home keeps Recent → Random → Commands. The flatten step is a stable sort
  * on the mode-dependent group rank, so score order inside a group survives.
  *  - Commands   the action registry: New page, New class… (#14, where the
- *               host provides it), a typed "Create page …" row, Merge current
+ *               host provides it), Add source… (the add-source dialog,
+ *               where the host provides it — offline hides the row), a
+ *               typed "Create page …" row, Merge current
  *               page into… (where the host provides it and the current node
  *               is a mergeable page), Focus mode (#12), Condensed: enter /
  *               exit (the condensed layer, where the host provides it and a
@@ -225,6 +227,7 @@ export function CommandPalette({
   onNewPage,
   onOpenClassCreate = undefined,
   onOpenProperty = undefined,
+  onOpenAddSource = undefined,
   currentNodeId = undefined,
   onOpenMerge = undefined,
   condensedActive = undefined,
@@ -247,6 +250,10 @@ export function CommandPalette({
   /** #14 — open the class-creation modal (blank + system deploy); the row
    *  appears only where the host provides it. */
   onOpenClassCreate?: (() => void) | undefined;
+  /** Open the add-source dialog (DOI/ISBN/arXiv/PDF resolve → prefilled
+   *  create) — the row appears only where the host provides it (a
+   *  contribution point, like the class create). */
+  onOpenAddSource?: (() => void) | undefined;
   /** Open a property schema's PropertyView inspector — the row appears only
    *  where the host provides it (a contribution point, like the class create). */
   onOpenProperty?: ((propertySchemaId: string) => void) | undefined;
@@ -566,6 +573,17 @@ export function CommandPalette({
               },
             ]
           : []),
+        ...(onOpenAddSource !== undefined
+          ? [
+              {
+                key: "add-source",
+                label: "Add source…",
+                icon: "mdi-book-plus-outline",
+                keywords: "add source citation reference bibliography doi isbn arxiv pdf import resolve",
+                run: () => onOpenAddSource(),
+              },
+            ]
+          : []),
         ...(onOpenMerge !== undefined && currentNodeId !== undefined
           ? (() => {
               const current = client.getNode(currentNodeId);
@@ -677,7 +695,7 @@ export function CommandPalette({
     return items;
     // cacheVersion rides through classesCache (the memo re-derives the
     // sections when the worker cache refreshes).
-  }, [client, classesCache, home, dailyOnly, text, chip, anyChip, hasMemberOf, memberOfSet, onOpenNode, onNewPage, onOpenClassCreate, onOpenProperty, currentNodeId, onOpenMerge, onToggleCondensed, condensedActive, onSignOut, onClose, recentIds, undoState, onUndo, onRedo]);
+  }, [client, classesCache, home, dailyOnly, text, chip, anyChip, hasMemberOf, memberOfSet, onOpenNode, onNewPage, onOpenClassCreate, onOpenAddSource, onOpenProperty, currentNodeId, onOpenMerge, onToggleCondensed, condensedActive, onSignOut, onClose, recentIds, undoState, onUndo, onRedo]);
 
   // --- `/` filter mode: the option list -------------------------------------
 

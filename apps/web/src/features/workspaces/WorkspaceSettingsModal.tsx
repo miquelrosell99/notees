@@ -117,6 +117,8 @@ export interface WorkspaceSettingsModalProps {
    * the section renders an honest note instead.
    */
   client?: AnyClient | undefined;
+  /** Opens the add-source dialog from the Sources section (a contribution point). */
+  onAddSource?: (() => void) | undefined;
 }
 
 export function WorkspaceSettingsModal({
@@ -130,6 +132,7 @@ export function WorkspaceSettingsModal({
   onRenamed,
   initialTab = "general",
   client,
+  onAddSource = undefined,
 }: WorkspaceSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<"general" | "features" | "plugins" | "shortcuts">(initialTab);
   const [dateFormat, setDateFormat] = useDeviceSetting<DateFormat>("dateFormat", "YYYY-MM-DD");
@@ -328,11 +331,12 @@ export function WorkspaceSettingsModal({
                       v3.0.0). F3's disable confirmation gates the OFF write
                       for families with instances (below). */}
                   {/* The Sources family's settings block: the citekey pattern with its
-                      live preview, the resolver + auto-citekey toggles, and
-                      the 39 source type-classes' visibility list — every
-                      write rides ONE workspace.feature.set with the merged
+                      live preview, the resolver + auto-citekey toggles, the
+                      39 source type-classes' visibility list, and the
+                      add-source dialog's button door — every settings write
+                      rides ONE workspace.feature.set with the merged
                       settings record (read-modify-merge at the section). */}
-                  <SourcesSettingsSection client={client!} />
+                  <SourcesSettingsSection client={client!} onAddSource={onAddSource} />
                 </>
               ) : (
                 <p className="settings-item__description">

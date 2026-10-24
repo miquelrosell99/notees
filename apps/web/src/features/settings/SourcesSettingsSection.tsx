@@ -40,6 +40,7 @@ import {
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { BooleanToggle } from "../../components/ui/fleet/BooleanToggle.js";
+import { Button } from "../../components/ui/fleet/Button.js";
 import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
 import { TextField } from "../../components/ui/fleet/TextField.js";
 
@@ -75,11 +76,20 @@ function readSourcesSettings(
   return {
     citekeyPattern: typeof settings.citekeyPattern === "string" ? settings.citekeyPattern : undefined,
     autoCitekey: settings.autoCitekey === true,
-    resolverEnabled: settings.resolverEnabled === true,
+    // The server gate's default is ON (an absent row/key allows) — the
+    // toggle mirrors that contract, not an absent-means-off reading.
+    resolverEnabled: settings.resolverEnabled !== false,
   };
 }
 
-export function SourcesSettingsSection({ client }: { client: AnyClient }) {
+export function SourcesSettingsSection({
+  client,
+  onAddSource = undefined,
+}: {
+  client: AnyClient;
+  /** Opens the add-source dialog (the command palette row's twin door). */
+  onAddSource?: (() => void) | undefined;
+}) {
   const settings = readSourcesSettings(client);
   const storedPattern = settings.citekeyPattern ?? DEFAULT_CITEKEY_PATTERN;
 
@@ -132,6 +142,13 @@ export function SourcesSettingsSection({ client }: { client: AnyClient }) {
         Citation library behavior — citekey generation, the metadata resolver,
         and which source types appear in pickers and hubs.
       </p>
+      {onAddSource !== undefined && (
+        <div className="sources-settings__add">
+          <Button variant="outline" size="sm" icon="mdi-book-plus-outline" onClick={onAddSource}>
+            Add source…
+          </Button>
+        </div>
+      )}
 
       <div className="settings-item sources-settings__pattern">
         <div className="settings-item__info">

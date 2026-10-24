@@ -10,6 +10,10 @@
   align-items: flex-start;
 }
 
+.sources-settings__add {
+  margin-block-end: var(--spacing-2);
+}
+
 .sources-settings__pattern-field {
   display: flex;
   flex-direction: column;

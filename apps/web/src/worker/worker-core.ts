@@ -868,6 +868,10 @@ export class WorkerCore {
         return this.updateObject(args[0] as string, args[1] as UpdateObjectInput);
       case "setArchived":
         return this.client.setArchived(args[0] as string, args[1] as boolean);
+      case "beginSourceCreate":
+        return this.client.beginSourceCreate(
+          args[0] as { classId: string; title: string; unarchive: boolean },
+        );
       case "deleteObject":
         return this.deleteObject(args[0] as string, args[1] as DeleteObjectOptions | undefined);
       case "emptyTrash":
