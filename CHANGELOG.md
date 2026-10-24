@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): .bib + CSL-JSON export formats for the current view
+  (source-library slices 3–6 task 2).** The export modal registers two
+  bibliography cards — **BibTeX** and **CSL JSON** — alongside the existing
+  formats. Both are node-set formats in the JSON-archive mold: ONE document
+  over the whole selection (batch included — no per-root zip), the entry set
+  the markdown single-file walk (each root plus, with "Include child pages",
+  every child-page subtree; inline body blocks are content, not sources, and
+  never become entries), deduped by node id across overlapping batch roots.
+  Each node projects through the package's `nodeToCsl` (the task-1 dual-track
+  read contract — `authors` rows first, `linkedAuthors` agent derivation when
+  empty, the agent's citation name resolved web-side from givenName/familyName
+  with the display-title fallback); `.bib` re-serializes through the package's
+  own `cslToBib` bridge, CSL-JSON is the item array verbatim. No package API
+  change — existing serializers only; delivery metadata (MIME/extension) is a
+  web-registry table row like the JSON archive card.
+
 - **feat(export): bidirectional source tables over the 39-class roster + the
   dual-track read contract (source-library slices 3–6 task 1).** The
   pre-roster 8-class mapping tables in `packages/export/src/csl.ts` were
