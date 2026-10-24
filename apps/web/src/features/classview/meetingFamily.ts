@@ -3,8 +3,9 @@
  * PLAIN SEEDS, zero wire cost — seed convergence only, no lockstep).
  *
  * `event` is the CALENDAR family root: a date-only base class (its single
- * `eventDate` date binding is what makes a class calendar quick-create
- * eligible — any class with a date-typed binding per dateChipCandidates).
+ * `eventDate` date binding is what makes an event datable — the Calendar
+ * events element lists event-family nodes dated into the scope days, and
+ * the binding is the date-typed hook).
  * `meeting` IS-A event (SYSTEM_CLASS_EXTENDS): a meeting is an event with a
  * meeting-specific family on top (meetingDate — still whole-day per the
  * calendar law, no clock times — plus text location/agenda). `birthday` IS-A
@@ -27,11 +28,13 @@
  * without the event class row).
  *
  * Declaration-first (owner ruling): nothing calls these ensures
- * automatically — configure now, wire later. The calendar quick-create needs
- * no code change: dateChipCandidates qualifies ANY class with a date-typed
- * binding, so the event, meeting and birthday chips appear on their own once
- * the family exists in a workspace (server seed for new ones, an ensure call
- * for the rest). scripts/remap-reunion-evento.mts ensures the family across
+ * automatically — configure now, wire later. The calendar events element
+ * needs no code change: it lists the event family (event + extenders) on
+ * the strength of the extends edges alone, so the event, meeting and
+ * birthday rows appear on their own once the family exists in a workspace
+ * (server seed for new ones, an ensure call for the rest; an instance is
+ * listed once it carries a date value or lives inside a day page).
+ * scripts/remap-reunion-evento.mts ensures the family across
  * the objects API before assigning members (reunión → meeting, evento →
  * event); birthdays have no remap source.
  *

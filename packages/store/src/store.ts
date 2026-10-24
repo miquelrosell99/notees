@@ -771,6 +771,32 @@ export class Store {
     return searchSnippet(this.db, nodeId, query, opts);
   }
 
+  // --- external refs (importer/sync plugin mappings) -----------------------
+
+  /**
+   * Resolve an external-id mapping to its node id — null when the ref was
+   * never mapped or its winning op is a delete (the tombstoned state; only
+   * the LIVE table is consulted). The mapping names a node, it does not
+   * guarantee one: the row carries no referential integrity, and a
+   * hard-deleted node's rows are purged, so the caller validates the target.
+   */
+  resolveExternalRef(workspaceId: string, ref: string): string | null {
+    const row = this.db
+      .prepare("SELECT node_id FROM external_ref WHERE workspace_id = ? AND ref = ?")
+      .get(workspaceId, ref) as { node_id: string } | undefined;
+    return row?.node_id ?? null;
+  }
+
+  /** Every LIVE ref mapped to the node, sorted — a node may carry many refs. */
+  externalRefsOf(workspaceId: string, nodeId: string): string[] {
+    const rows = this.db
+      .prepare(
+        "SELECT ref FROM external_ref WHERE workspace_id = ? AND node_id = ? ORDER BY ref",
+      )
+      .all(workspaceId, nodeId) as Array<{ ref: string }>;
+    return rows.map((row) => row.ref);
+  }
+
   // --- workspace features -------------------------------------------
 
   /**

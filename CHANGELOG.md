@@ -15,7 +15,7 @@ predating this file.
   per-feature configuration (feature-scoped vocabulary the protocol does not
   enumerate; the Sources library's `citekeyPattern`/`autoCitekey` are the
   first consumers). Store: `workspace_feature` gains a `settings` column
-  (schema v29 → v30, the guarded-additive ALTER precedent — NULL = the
+  (schema v30 → v31 after the main-merge — main v29→v30 is the external_ref slice; the guarded-additive ALTER precedent — NULL = the
   winning payload carried no settings, distinguishable from the real empty
   record `{}`); the applier persists settings under the SAME LWW-by-
   (workspace, feature) comparator as `enabled` — a winning old-shape payload
@@ -125,6 +125,186 @@ predating this file.
     Citations + Sources-as-containers sections rewritten final, this entry,
     feature-status.
 
+- **feat(domain,web): multi-day event spans — the datetime-range ruling
+  ships (owner 2026-10-23, google-calendar proposal).** The deferral
+  closes: a datetime value whose own day is the inclusive start may carry
+  `metadata.endDate` (local ISO day; additive metadata like `repeat` — no
+  op, no wire change). The value keeps referencing its START day node;
+  the span expands client-side (`spannedRowsOf` — the recurringRowsOf
+  register over endDate-carrying authored datetime values), covering
+  every day in `[start, end]` in the events read model, the grid blocks,
+  and the day dots. An endDate at or before the start reads as plain
+  single-day; corrupt metadata throws (fail loud). Drag-create across
+  days now stamps the span metadata on the first value (plus per-day
+  values, so each day blocks) instead of bare multi-values. The
+  painted-continuous-bar visual (one block visually continuing across
+  cells) remains a polish item — the information is complete per-day.
+  - **Verification**: domain specs (reader/writer, fail-loud shapes) +
+    client specs (every span day lists in the read model; degenerate
+    endDate reads as plain) — full gate below.
+- **feat(protocol,store,web): external_ref — the plugin external-id mapping
+  store (owner requirement 2026-10-23, the google-calendar proposal's
+  mapping substrate).** Importers and sync plugins (calendar providers,
+  Readwise, read-it-later) get a durable external → internal id mapping —
+  a Google event UID, a Readwise highlight id resolving to the notees node
+  uuid — so re-runs update instead of duplicating. The home is the
+  operation log (not a device table — derived DBs are wipe-rebuildable;
+  not server prefs — mappings are per-workspace, plugin-owned). New
+  additive op family, envelope v3: `external_ref.set {ref, nodeId}` /
+  `external_ref.delete {ref}` — LWW by envelope (hlc, actor) on the
+  `(workspace, ref)` key; `ref` is the caller-namespaced
+  `<provider>:<kind>:<externalId>` (opaque to the protocol, ≤ 512 chars,
+  empty/oversize fail loud); a re-set moves the mapping; a node may carry
+  many refs, one node per ref, no reverse payload. The delete keeps a
+  per-key **tombstone** in the derived state (the `property_value_tombstone`
+  precedent), including deletes of unmapped refs — it is what kills a
+  stale concurrent set delivered after the winning delete on every
+  replica, so wipe → replay converges under any delivery order. No
+  referential integrity (the `property_value` precedent): a mapping may
+  name a not-yet-synced node; a node's hard delete (the `subtreeIds`
+  pattern in the `object.delete`/`trash.empty` appliers) purges its live
+  rows — soft-trash keeps them. Derived schema v30 (purely additive, the
+  `workspace_feature` precedent): `external_ref` + `external_ref_tombstone`,
+  PK `(workspace_id, ref)`, envelope causality columns, node_id index.
+  Client surface: `resolveExternalRef` / `externalRefsOf` reads,
+  `setExternalRef` / `removeExternalRef` writes (worker RPC + read-cache
+  classes: `externalRefsOf` node-scoped via the applier's ChangeSummary,
+  `resolveExternalRef` content-global — its key never appears in an
+  affected set, the `resolveAlias` precedent); the session undo journal
+  inverts both writes through the normal write path. Canonical fixture
+  `external-ref.json` (fixture gate 39→40) pins set/move/delete, the
+  racing-set winner, the tombstone's stale-set drop after reorder, and
+  the hard-delete purge.
+  - **LOCKSTEP SHIPPED**: GTK `23bcc28` + Flutter `fdf14fd` vendored the fixture
+    byte-identical (sha256-matched on all three) and converged their appliers
+    (912 + 695 tests green); the store's fixture test now replays the real
+    fixture JSON forward and reversed.
+  - **Verification**: `pnpm typecheck` clean; protocol gate (fixture set
+    39→40, strict-schema reject tails, the fixture's LWW races), store
+    suites on both adapters (LWW convergence under both delivery orders,
+    tombstone revival, hard/soft delete, malformed-payload rejects,
+    fixture forward/reverse convergence + idempotent replay), web client
+    suites (two-client convergence over MemoryRelay, undo inversions,
+    worker RPC passthrough incl. multiRead) — full gate below.
+- **feat(web): the calendar goes grid-first — the Day/Week/Month/Year zoom
+  ladder with colored event blocks, drag-and-drop, and the recurring scope
+  sheet (owner 2026-10-23, google-calendar proposal slices 2-4).** The
+  calendar lands on the MONTH GRID (the `calendarZoom` device setting;
+  month is the default): the events element's exact membership
+  (`eventRowsForDays` — event-family nodes dated into the day or embedded
+  in the day page) renders as blocks colored by `effectiveNodeColor`
+  (own color, else the first class's; `colorPresets.cssColorFor` for the
+  on-color text). The top bar carries the ladder — Day is the existing
+  day view (sections + the right panel unchanged), Week is the selected
+  day's week as seven day-columns, Month is the grid (neighbor-month days
+  dimmed, three blocks per cell then an honest "+N more" that jumps to
+  the day), Year is twelve compact months with event dots (a month name
+  jumps to it). The day NUMBER opens the day page (owner ruling; the
+  chain is ensured on demand); a cell click selects. **Drag-and-drop**:
+  a block dropped on another day moves it — plain events rewrite the
+  authored date value (metadata preserved, chain ensured before the new
+  day-node ref); recurring events open the **scope sheet** — Only this
+  event / This and following events / All events — routing to slice 1's
+  `editOccurrence`. Press-drag across empty cells creates a plain
+  `event`-classed object with one date value per dragged day (the
+  multi-day register: PG5 multi-value, so the same node blocks on every
+  dragged day; a painted span awaits the deferred datetime-range
+  ruling). Right-clicking a block offers Open / Delete — deleting a
+  recurring event asks the same three scopes via
+  `deleteOccurrence`. The recurring dialog is the `RecurrenceScopeSheet`
+  (radio register, plain-language hints per scope).
+  - **Verification**: calendar-view specs (grid-first landing with the
+    class-colored block, day-number → day page, week/year zooms, the
+    plain drop rewrite, the recurring drop through the scope sheet to a
+    detached exception) — full gate below.
+- **feat(domain,web): recurrence exceptions — the Google edit/delete
+  semantics for recurring events (owner 2026-10-23, google-calendar
+  proposal slice 1).** Acting on ONE occurrence of a series now supports
+  the register every calendar app ships — *only this event* / *this and
+  following events* / *all events* — for both edit and delete. Model: two
+  additive metadata keys on the recurring date value (the
+  `completedOccurrences` precedent — no op, no wire change, no fixture
+  gate): `exdates` (occurrence days removed from the series — a single
+  deletion, or a day edited into a detached exception node) and `until`
+  (the inclusive last occurrence day a split writes). Expansion honors
+  both (`recurrenceSeriesOf` assembles the full input; `occurrenceIsosOf`
+  skips exdates, stops past until) so the events element, the grid dots,
+  and every read model see the exceptions in one move. The ops live in
+  `calendarRecurrence.ts`: `deleteOccurrence` (one → exdate; following →
+  truncate at the previous occurrence, degenerating to "all" at the
+  anchor; all → trash) and `editOccurrence` (all → the series anchor
+  re-commits on the same node; one → a new ORDINARY exception event —
+  content/classes/authored properties copied, a plain date, no rule — and
+  the original day joins exdates; following → the series truncates and a
+  continuation node carries the edits forward with the same rule from its
+  new anchor, a fresh series). Every write is an ordinary op
+  (`property.set` metadata / `object.create`) — undoable, convergent; the
+  date-ref contract is honored by ensuring the chain before a moved value
+  references its day node. The scope dialog that asks the question is a
+  later slice; this is the semantic core it routes to. The proposal +
+  the plugin external-id mapping substrate (external_ref ops) live in
+  `.plans/2026-10-23-2042-google-calendar/`.
+  - **Verification**: domain specs (readers/writers, fail-loud shapes,
+    expansion honoring exdates/until) + client specs (all three scopes
+    through the real appliers, asserting metadata AND the events read
+    model) — full gate below.
+- **feat(web): the calendar's right-panel events element — day/week/month
+  zoom over the event family, replacing the quick-create pill bar and the
+  week agenda (owner 2026-10-23).** The pills row above the section tabs
+  retires same-day: creation rides the day page outline, the Tasks New
+  button (with its template picker), and the ordinary hubs. In its panel
+  spot beneath the mini-month, the week agenda ("Nothing dated this
+  week.") becomes the **events list**: a NodeCollection in outline mode
+  with a **Day / Week / Month zoom** (device-local setting; the scope is
+  the selected day, its week, or its whole month). Membership (the
+  owner's register): nodes classed as the system `event` class or a class
+  extending it transitively (`isEventFamilyClass`, the cached
+  `getClassParents` walk), matched by EITHER family — **dated**: a
+  date-typed property value fanning into a scope day (the day node's
+  materialized backlink set, the Dated section's exact read); or
+  **embedded**: the node lives as a block at any parent level inside one
+  of the scope day pages (a client-side subtree walk over the
+  scope-classed cached `getChildren`). The recurring union rides on top
+  (a virtual occurrence inside the scope lists the series). Rows group
+  **by containing page** (`groupByContainingPage` — embedded blocks group
+  under their day page, standalone event pages stand alone) with the
+  breadcrumb trail on (the collection default). Tasks and date-chain
+  nodes never list; a class that merely carries a date property stays in
+  Dated, not here. The quick-create machinery goes with the bar:
+  `dateChipCandidates` and `calendarQuickCreateSettings` (module deleted)
+  and the Workspace Settings → Calendar Quick-Create section (the
+  Features tab's live toggles keep the modal's client prop);
+  `isEventFamilyClass` stays as the events register. The create-with-
+  template flow (TemplatePickerModal) is still reachable — through the
+  Tasks section's New, which the specs now drive.
+  - **Verification**: `pnpm typecheck` clean; the calendar suites green
+    (chips specs replaced by events-element specs: dated membership,
+    embedded-at-any-depth membership, the zoom scope switch; the
+    meeting/birthday family breadth specs re-asserted through
+    `eventRowsForDays`; the create-with-template specs re-driven through
+    Tasks New) — full gate below.
+- **feat(web): calendar quick-create — event family only, colored class
+  pills, the bar's repeat picker retired (owner pass).** The bar's chip
+  eligibility was "every class with a date-typed binding", so any class
+  that happened to carry a date property (anime, report) showed a chip —
+  nonsense for an event-creation surface. New register: **event family
+  only** — the system `event` class and everything extending it
+  transitively (`isEventFamilyClass`, the extends-DAG walk over
+  `getClassParents`; the walk lives inside the shared
+  `dateChipCandidates` so the view and the Workspace Settings editor can
+  never drift). Tasks drop off the bar (the Tasks section's New owns task
+  creation); the `taskScheduled` pick special-case goes with them. The
+  chips also **wear the colored class-pill register** (`NodePill` —
+  effective color + icon, hover-reveal off), not the plain ghost buttons.
+  The **repeat picker leaves the quick-create bar** — its null-state
+  "Does not repeat" read as noise and recurrence is authored from the
+  created event's Properties date pill (the documented path); the
+  quick-create repeat stamping + its spec retire with it (the RepeatPicker
+  component stays for the property pill). Settings copy reworded ("Event
+  family… classes extending it"); docs same-pass.
+  - **Verification**: `pnpm typecheck` clean; full gate below (the six
+    quick-create/recurrence suites green — the chip specs rebuilt around
+    the family rule, test classes extending the seeded event class).
 - **refactor(web): NodeCollection BODY MODE — `rootId` + `ghost`; the last
   call-site glue folds into the collection (owner pass, the bundle
   consummated).** Three remaining host assemblies merge: (1) **item

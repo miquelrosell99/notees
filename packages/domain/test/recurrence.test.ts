@@ -8,12 +8,19 @@ import { describe, expect, it } from "vitest";
 
 import {
   completedOccurrencesOf,
+  spanEndOf,
+  withSpanEnd,
+  exdatesOf,
   formatRecurrenceRule,
   occurrenceIsosOf,
   parseRecurrenceRule,
   RECURRENCE_DEFAULT_CAP,
   recurrenceRuleOf,
+  recurrenceSeriesOf,
+  untilOf,
   withCompletedOccurrence,
+  withExdate,
+  withUntil,
   type RecurrenceRule,
 } from "../src/index.js";
 
@@ -285,5 +292,102 @@ describe("completedOccurrencesOf / withCompletedOccurrence", () => {
     expect(() => withCompletedOccurrence({ completedOccurrences: [1] }, "2026-10-06", true)).toThrow(
       /invalid completedOccurrences entry/,
     );
+  });
+});
+
+describe("recurrence exceptions (exdates / until, owner 2026-10-23)", () => {
+  const weekly = { rule: { freq: "weekly" as const, interval: 1 }, anchorIso: "2026-10-05" };
+
+  it("exdatesOf / untilOf read absent as default and throw on malformed", () => {
+    expect(exdatesOf(null)).toEqual([]);
+    expect(exdatesOf({ exdates: null })).toEqual([]);
+    expect(exdatesOf({ exdates: ["2026-10-12", "2026-10-12", "2026-10-05"] })).toEqual([
+      "2026-10-05",
+      "2026-10-12",
+    ]);
+    expect(() => exdatesOf({ exdates: "nope" })).toThrow(/invalid exdates/);
+    expect(() => exdatesOf({ exdates: ["2026-13-40"] })).toThrow(/invalid exdates entry/);
+    expect(untilOf(null)).toBeNull();
+    expect(untilOf({ until: "2026-10-19" })).toBe("2026-10-19");
+    expect(() => untilOf({ until: 42 })).toThrow(/invalid until/);
+  });
+
+  it("recurrenceSeriesOf assembles rule + exceptions; null when no repeat", () => {
+    expect(recurrenceSeriesOf({ repeat: "weekly" }, "2026-10-05")).toEqual({
+      rule: { freq: "weekly", interval: 1 },
+      anchorIso: "2026-10-05",
+    });
+    expect(
+      recurrenceSeriesOf({ repeat: "weekly/2", exdates: ["2026-10-19"], until: "2026-11-30" }, "2026-10-05"),
+    ).toEqual({
+      rule: { freq: "weekly", interval: 2 },
+      anchorIso: "2026-10-05",
+      exdates: ["2026-10-19"],
+      until: "2026-11-30",
+    });
+    expect(recurrenceSeriesOf({}, "2026-10-05")).toBeNull();
+    expect(() => recurrenceSeriesOf({ repeat: "weekly", exdates: "garbage" }, "2026-10-05")).toThrow();
+  });
+
+  it("expansion skips exdates without stopping the walk", () => {
+    const isos = occurrenceIsosOf(
+      { ...weekly, exdates: ["2026-10-12"] },
+      "2026-10-05",
+      "2026-10-26",
+    );
+    expect(isos).toEqual(["2026-10-05", "2026-10-19", "2026-10-26"]);
+  });
+
+  it("expansion stops at until (inclusive bound)", () => {
+    const isos = occurrenceIsosOf({ ...weekly, until: "2026-10-19" }, "2026-10-05", "2026-11-30");
+    expect(isos).toEqual(["2026-10-05", "2026-10-12", "2026-10-19"]);
+  });
+
+  it("a series with the anchor past until has no occurrences", () => {
+    expect(
+      occurrenceIsosOf({ ...weekly, until: "2026-10-01" }, "2026-10-01", "2026-11-30"),
+    ).toEqual([]);
+  });
+
+  it("withExdate adds sorted and never drops sibling metadata", () => {
+    const next = withExdate({ repeat: "weekly", completedOccurrences: ["2026-10-05"] }, "2026-10-12");
+    expect(next).toEqual({
+      repeat: "weekly",
+      completedOccurrences: ["2026-10-05"],
+      exdates: ["2026-10-12"],
+    });
+    expect(withExdate(next, "2026-10-05").exdates).toEqual(["2026-10-05", "2026-10-12"]);
+    expect(() => withExdate({}, "not-a-date")).toThrow(/invalid occurrence date/);
+  });
+
+  it("withUntil sets or clears the bound, keeping the rule", () => {
+    expect(withUntil({ repeat: "weekly" }, "2026-10-19")).toEqual({
+      repeat: "weekly",
+      until: "2026-10-19",
+    });
+    const cleared = withUntil({ repeat: "weekly", until: "2026-10-19" }, null);
+    expect("until" in cleared).toBe(false);
+    expect(cleared.repeat).toBe("weekly");
+    expect(() => withUntil({}, "2026-10-32")).toThrow(/invalid until/);
+  });
+});
+
+describe("multi-day spans (the datetime-range ruling, owner 2026-10-23)", () => {
+  it("spanEndOf reads absent as null and throws on malformed", () => {
+    expect(spanEndOf(null)).toBeNull();
+    expect(spanEndOf({})).toBeNull();
+    expect(spanEndOf({ endDate: "2026-10-08" })).toBe("2026-10-08");
+    expect(() => spanEndOf({ endDate: 42 })).toThrow(/invalid endDate/);
+    expect(() => spanEndOf({ endDate: "2026-10-32" })).toThrow(/invalid endDate/);
+  });
+
+  it("withSpanEnd sets or clears, keeping sibling metadata", () => {
+    expect(withSpanEnd({ repeat: "weekly" }, "2026-10-08")).toEqual({
+      repeat: "weekly",
+      endDate: "2026-10-08",
+    });
+    const cleared = withSpanEnd({ endDate: "2026-10-08" }, null);
+    expect("endDate" in cleared).toBe(false);
+    expect(() => withSpanEnd({}, "nope")).toThrow(/invalid endDate/);
   });
 });

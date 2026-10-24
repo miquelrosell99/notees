@@ -425,6 +425,22 @@ export class WorkspaceClient {
     return this.readsRefs.setFeatureEnabled(feature, enabled);
   }
 
+  resolveExternalRef(ref: string) {
+    return this.readsRefs.resolveExternalRef(ref);
+  }
+
+  externalRefsOf(nodeId: string) {
+    return this.readsRefs.externalRefsOf(nodeId);
+  }
+
+  setExternalRef(ref: string, nodeId: string) {
+    return this.readsRefs.setExternalRef(ref, nodeId);
+  }
+
+  removeExternalRef(ref: string) {
+    return this.readsRefs.removeExternalRef(ref);
+  }
+
   getChildPageCount(id: string) {
     return this.readsRefs.getChildPageCount(id);
   }

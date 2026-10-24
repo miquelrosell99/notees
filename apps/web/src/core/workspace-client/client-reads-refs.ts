@@ -2,10 +2,11 @@
  * The references + render-derivation read domain: effective class/node
  * icon/color walks over the extends chain, backlinks and the linked/
  * unlinked references rolls (alias-aware), alias resolution, child-page
- * listings/counts, and the workspace feature toggles (reads plus the one
- * feature write). All graph reads hit the LOCAL store only. Standalone
- * domain — takes the shared ClientContext plus the reads and reads-props
- * domains, no inheritance.
+ * listings/counts, the workspace feature toggles (reads plus the one
+ * feature write), and the external-id mapping surface for importer/sync
+ * plugins (reads plus the two writes). All graph reads hit the LOCAL store
+ * only. Standalone domain — takes the shared ClientContext plus the reads
+ * and reads-props domains, no inheritance.
  */
 
 import {
@@ -357,6 +358,39 @@ export class WorkspaceClientReadsRefs {
         { feature, enabled },
         [],
       ),
+    );
+  }
+
+  /**
+   * Resolve an external-id mapping (importer/sync plugins — a Google event
+   * UID, a Readwise highlight id) to the node id; null when unmapped or
+   * tombstoned. The mapping names a node, it does not guarantee one — the
+   * caller validates the target.
+   */
+  resolveExternalRef(ref: string): string | null {
+    return this.ctx.store.resolveExternalRef(this.ctx.workspaceId, ref);
+  }
+
+  /** Every live external ref mapped to the node, sorted (many refs per node). */
+  externalRefsOf(nodeId: string): string[] {
+    return this.ctx.store.externalRefsOf(this.ctx.workspaceId, nodeId);
+  }
+
+  /** Write an external-id mapping (external_ref.set, LWW by HLC per ref). */
+  async setExternalRef(ref: string, nodeId: string): Promise<void> {
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("external_ref.set", { ref, nodeId }, [nodeId]));
+  }
+
+  /**
+   * Remove an external-id mapping (external_ref.delete). The envelope's
+   * affected set names the row's CURRENT carrier so the notify cycle
+   * refreshes that node's scoped reads even though the payload cannot
+   * carry it.
+   */
+  async removeExternalRef(ref: string): Promise<void> {
+    const nodeId = this.resolveExternalRef(ref);
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope("external_ref.delete", { ref }, nodeId !== null ? [nodeId] : []),
     );
   }
 

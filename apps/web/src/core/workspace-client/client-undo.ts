@@ -249,6 +249,7 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
       // Absent row = enabled (the empty-table default).
       return row === undefined || row.enabled === 1;
     },
+    externalRefTarget: (ref) => ctx.store.resolveExternalRef(ctx.workspaceId, ref),
   };
 }
 

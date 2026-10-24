@@ -67,11 +67,20 @@ export interface RecurrenceRule {
 /**
  * A rule anchored at its series' first day — the expansion input. The anchor
  * is the carrying date value's own day (ISO YYYY-MM-DD), supplied by the
- * reader, never stored in the grammar.
+ * reader, never stored in the grammar. The recurrence EXCEPTIONS ride along
+ * (owner 2026-10-23, the Google-calendar semantics): `exdates` are
+ * occurrence days removed from the series (a deleted single occurrence, or
+ * a day edited into an exception node) and `until` is the inclusive last
+ * occurrence day (the bound a "this and following" split writes). Both
+ * optional — absent means "no exceptions" / "unbounded".
  */
 export interface RecurrenceSeries {
   rule: RecurrenceRule;
   anchorIso: string;
+  /** Occurrence days removed from the series (sorted ISO days). */
+  exdates?: readonly string[];
+  /** Inclusive last occurrence day; occurrences after it do not exist. */
+  until?: string;
 }
 
 const GRAMMAR =
@@ -122,6 +131,136 @@ export function recurrenceRuleOf(metadata: unknown): RecurrenceRule | null {
   const repeat = (metadata as Record<string, unknown>).repeat;
   if (repeat === undefined || repeat === null) return null;
   return parseRecurrenceRule(repeat);
+}
+
+// --- recurrence exceptions (owner 2026-10-23, the Google-calendar semantics) --
+//
+// Two additive metadata keys on the SAME date value that carries `repeat`
+// (the completedOccurrences precedent — no op, no wire change):
+//
+//   - `exdates`  — occurrence days removed from the series: a single deleted
+//     occurrence, or a day whose occurrence was edited into an exception
+//     node (a detached, ordinary non-recurring event).
+//   - `until`    — the inclusive last occurrence day; the bound a "this and
+//     following" split writes.
+//
+// Absent/null reads as default (no exceptions / unbounded); a PRESENT but
+// malformed value throws — corrupt metadata never reads as "no exceptions".
+
+/** The removed occurrence days (`metadata.exdates`), sorted, deduped. */
+export function exdatesOf(metadata: unknown): string[] {
+  if (typeof metadata !== "object" || metadata === null) return [];
+  const raw = (metadata as Record<string, unknown>).exdates;
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) {
+    throw new Error(
+      `invalid exdates: expected an array of YYYY-MM-DD dates, got ${JSON.stringify(raw)}`,
+    );
+  }
+  const isos: string[] = [];
+  for (const entry of raw) {
+    if (!isIsoDay(entry)) {
+      throw new Error(
+        `invalid exdates entry: ${JSON.stringify(entry)} (expected a YYYY-MM-DD date)`,
+      );
+    }
+    if (!isos.includes(entry)) isos.push(entry);
+  }
+  return isos.sort();
+}
+
+/** The inclusive series bound (`metadata.until`), or null when unbounded. */
+export function untilOf(metadata: unknown): string | null {
+  if (typeof metadata !== "object" || metadata === null) return null;
+  const raw = (metadata as Record<string, unknown>).until;
+  if (raw === undefined || raw === null) return null;
+  if (!isIsoDay(raw)) {
+    throw new Error(`invalid until: ${JSON.stringify(raw)} (expected a YYYY-MM-DD date)`);
+  }
+  return raw;
+}
+
+/**
+ * Assemble the full expansion input from a date value's metadata + its own
+ * day: the rule (`repeat`), the exceptions (`exdates`), and the bound
+ * (`until`). Null when the value does not repeat. Every reader is fail
+ * loud, so a corrupt exception key throws here — never reads as "plain".
+ */
+export function recurrenceSeriesOf(metadata: unknown, anchorIso: string): RecurrenceSeries | null {
+  const rule = recurrenceRuleOf(metadata);
+  if (rule === null) return null;
+  const exdates = exdatesOf(metadata);
+  const until = untilOf(metadata);
+  return {
+    rule,
+    anchorIso,
+    ...(exdates.length > 0 ? { exdates } : {}),
+    ...(until !== null ? { until } : {}),
+  };
+}
+
+/** `exdates + iso`, sorted — the metadata writer behind "only this event". */
+export function withExdate(metadata: unknown, iso: string): Record<string, unknown> {
+  if (!isIsoDay(iso)) {
+    throw new Error(`invalid occurrence date: ${JSON.stringify(iso)} (expected YYYY-MM-DD)`);
+  }
+  const base: Record<string, unknown> =
+    typeof metadata === "object" && metadata !== null ? { ...(metadata as Record<string, unknown>) } : {};
+  const next = [...exdatesOf(metadata), iso].sort();
+  base.exdates = next;
+  return base;
+}
+
+/**
+ * The multi-day span end (`metadata.endDate`) — the inclusive last day of a
+ * datetime value's range (the value's OWN day is the start; owner
+ * 2026-10-23, the deferred datetime-range ruling now shipped). Additive
+ * metadata like `repeat` — no op, no wire change. Absent/null reads as
+ * null (single-day value); present-but-malformed throws (fail loud). The
+ * end day is NOT re-pointed: the value keeps referencing its start day
+ * node, and reads expand the span client-side.
+ */
+export function spanEndOf(metadata: unknown): string | null {
+  if (typeof metadata !== "object" || metadata === null) return null;
+  const raw = (metadata as Record<string, unknown>).endDate;
+  if (raw === undefined || raw === null) return null;
+  if (!isIsoDay(raw)) {
+    throw new Error(`invalid endDate: ${JSON.stringify(raw)} (expected a YYYY-MM-DD date)`);
+  }
+  return raw;
+}
+
+/** Set (or clear, null) the inclusive span end. Clearing deletes the key. */
+export function withSpanEnd(metadata: unknown, iso: string | null): Record<string, unknown> {
+  const base: Record<string, unknown> =
+    typeof metadata === "object" && metadata !== null ? { ...(metadata as Record<string, unknown>) } : {};
+  if (iso === null) {
+    delete base.endDate;
+    return base;
+  }
+  if (!isIsoDay(iso)) {
+    throw new Error(`invalid endDate: ${JSON.stringify(iso)} (expected a YYYY-MM-DD)`);
+  }
+  base.endDate = iso;
+  return base;
+}
+
+/**
+ * Set (or clear, null) the inclusive series bound — the writer behind a
+ * "this and following" split. Clearing deletes the key (absent-is-default).
+ */
+export function withUntil(metadata: unknown, iso: string | null): Record<string, unknown> {
+  const base: Record<string, unknown> =
+    typeof metadata === "object" && metadata !== null ? { ...(metadata as Record<string, unknown>) } : {};
+  if (iso === null) {
+    delete base.until;
+    return base;
+  }
+  if (!isIsoDay(iso)) {
+    throw new Error(`invalid until: ${JSON.stringify(iso)} (expected a YYYY-MM-DD)`);
+  }
+  base.until = iso;
+  return base;
 }
 
 /**
@@ -251,12 +390,22 @@ export function occurrenceIsosOf(
   }
   const out: string[] = [];
   if (partsIso(anchor) > partsIso(to)) return out;
+  // Exceptions: a bounded series with the anchor past the bound has no
+  // occurrences at all; exdates are skipped but never stop the walk.
+  const until = series.until === undefined ? null : series.until;
+  const exdates =
+    series.exdates === undefined
+      ? null
+      : new Set(series.exdates);
+  if (until !== null && partsIso(anchor) > until) return out;
 
   const pushFrom = (candidate: DateParts): boolean => {
-    // Returns false when the caller must stop (past the window or cap hit).
+    // Returns false when the caller must stop (past the window, past the
+    // series bound, or cap hit); exdates skip without stopping.
     const iso = partsIso(candidate);
     if (iso > partsIso(to) || out.length >= cap) return false;
-    if (iso >= partsIso(from)) out.push(iso);
+    if (until !== null && iso > until) return false;
+    if (iso >= partsIso(from) && !(exdates !== null && exdates.has(iso))) out.push(iso);
     return true;
   };
 

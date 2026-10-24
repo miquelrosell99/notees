@@ -380,49 +380,29 @@ export interface ChipCandidateInput {
 }
 
 /**
- * Classes that qualify for a quick-create chip: any bound property schema
- * with type "datetime" (the unified date type). The task class prefers its
- * taskScheduled schema; other classes with several datetime bindings take the
- * first by sorted schema id. Excluded by design: the year/month/day
- * date-chain classes (a chip there would fight the deterministic chain
- * ids). Every other class rides on its bindings — that is what makes a
- * meeting-classed page one click away. The Calendar view and the
- * workspace-settings editor share this helper so the two surfaces never
- * drift; `propertyName` names the driving date property for settings rows
- * (null for nameless inputs).
+ * Event-family test: the class IS the system `event` class or extends it
+ * transitively (the extends DAG walk, cycle-guarded by the seen set; the
+ * DAG law makes cycles impossible, the guard is the depth-safety belt).
+ * The quick-create eligibility register (owner 2026-10-23).
  */
-export function dateChipCandidates(
-  classes: ReadonlyArray<{ id: string; name: string | null }>,
-  bindingsOf: (classId: string) => ReadonlyArray<{ propertySchemaId: string; type: string; name?: string }>,
-): Array<{ classId: string; schemaId: string; label: string; propertyName: string | null }> {
-  const excluded = new Set<string>([
-    SYSTEM_CLASS_UUIDS.year,
-    SYSTEM_CLASS_UUIDS.month,
-    SYSTEM_CLASS_UUIDS.day,
-  ]);
-  const chips: Array<{ classId: string; schemaId: string; label: string; propertyName: string | null }> = [];
-  for (const cls of classes) {
-    if (excluded.has(cls.id)) continue;
-    const dateBindings = bindingsOf(cls.id).filter((binding) => binding.type === "datetime");
-    if (dateBindings.length === 0) continue;
-    const pick =
-      cls.id === SYSTEM_CLASS_UUIDS.task
-        ? (dateBindings
-            .map((binding) => binding.propertySchemaId)
-            .sort()
-            .find((id) => id === SYSTEM_PROPERTY_UUIDS.taskScheduled) ??
-          [...dateBindings.map((binding) => binding.propertySchemaId)].sort()[0]!)
-        : [...dateBindings.map((binding) => binding.propertySchemaId)].sort()[0]!;
-    const driving = dateBindings.find((binding) => binding.propertySchemaId === pick);
-    chips.push({
-      classId: cls.id,
-      schemaId: pick,
-      label: cls.name ?? "Untitled",
-      propertyName: driving?.name ?? null,
-    });
+export function isEventFamilyClass(
+  classId: string,
+  parentsOf: (classId: string) => readonly string[],
+): boolean {
+  if (classId === SYSTEM_CLASS_UUIDS.event) return true;
+  const seen = new Set<string>([classId]);
+  const queue = [classId];
+  while (queue.length > 0) {
+    const current = queue.pop()!;
+    for (const parent of parentsOf(current)) {
+      if (parent === SYSTEM_CLASS_UUIDS.event) return true;
+      if (!seen.has(parent)) {
+        seen.add(parent);
+        queue.push(parent);
+      }
+    }
   }
-  chips.sort((a, b) => a.label.localeCompare(b.label) || a.classId.localeCompare(b.classId));
-  return chips;
+  return false;
 }
 
 // --- recurrence (compute-on-read) -------------------------------------------------

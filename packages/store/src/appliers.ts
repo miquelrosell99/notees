@@ -1082,6 +1082,11 @@ function permanentlyDeleteSubtree(db: StoreDatabase, objectId: string, ts: strin
     ...ids,
   );
   db.prepare(`DELETE FROM class_member_set WHERE node_id IN (${placeholders})`).run(...ids);
+  // External-id mappings are OWNED rows (a hard-deleted node leaves no
+  // mapping behind — soft-trash keeps them); the ref tombstones survive,
+  // keyed by ref, bounding garbage to the ref name (SCHEMA.md
+  // "External-id mappings").
+  db.prepare(`DELETE FROM external_ref WHERE node_id IN (${placeholders})`).run(...ids);
   db.prepare(`DELETE FROM node_asset WHERE node_id IN (${placeholders})`).run(...ids);
   // PB1 (keep-value + render-broken, SCHEMA.md "Broken references"): rows
   // OWNED by the subtree die with it (sources, memberships, attachments).
@@ -2921,6 +2926,136 @@ function applyWorkspaceFeatureSet(db: StoreDatabase, env: Envelope): ChangeSumma
   return summary(opType, wrote && family !== null ? managedClassIds(family) : [], !wrote);
 }
 
+// --- external_ref.* ---------------------------------------------------------
+//
+// External-id mappings for importer/sync plugins (owner requirement
+// 2026-10-23): a durable per-workspace `externalId -> nodeId` map carried by
+// the log. LWW by envelope (hlc, actor) on the ref key: a re-set MOVES the
+// mapping, racing sets converge on the higher tuple. The delete side keeps
+// a tombstone per ref (the property_value_tombstone precedent) — including
+// a delete of an UNMAPPED ref — so a stale set delivered after the winning
+// delete is dropped on every replica and wipe -> replay converges under any
+// delivery order. The applier maintains the invariant that at most one of
+// {live row, tombstone} exists per (workspace, ref): a winning set deletes
+// the tombstone, a winning delete deletes the live row. No referential
+// integrity (the property_value precedent — a mapping may name a node
+// another device has not synced yet); the object.delete hard path purges a
+// subtree's live rows, soft-trash keeps them.
+
+/** The one live-or-tombstone record per (workspace, ref), null when neither exists. */
+type ExternalRefRecord =
+  | {
+      kind: "live";
+      nodeId: string;
+      hlc_physical: number;
+      hlc_logical: number;
+      actor_id: string | null;
+    }
+  | {
+      kind: "tombstone";
+      nodeId: null;
+      hlc_physical: number;
+      hlc_logical: number;
+      actor_id: string | null;
+    };
+
+function externalRefRecord(
+  db: StoreDatabase,
+  workspaceId: string,
+  ref: string,
+): ExternalRefRecord | undefined {
+  const live = db
+    .prepare(
+      "SELECT node_id, hlc_physical, hlc_logical, actor_id FROM external_ref WHERE workspace_id = ? AND ref = ?",
+    )
+    .get(workspaceId, ref) as
+    | { node_id: string; hlc_physical: number; hlc_logical: number; actor_id: string | null }
+    | undefined;
+  if (live !== undefined) {
+    return {
+      kind: "live",
+      nodeId: live.node_id,
+      hlc_physical: live.hlc_physical,
+      hlc_logical: live.hlc_logical,
+      actor_id: live.actor_id,
+    };
+  }
+  const tombstone = db
+    .prepare(
+      "SELECT hlc_physical, hlc_logical, actor_id FROM external_ref_tombstone WHERE workspace_id = ? AND ref = ?",
+    )
+    .get(workspaceId, ref) as
+    | { hlc_physical: number; hlc_logical: number; actor_id: string | null }
+    | undefined;
+  if (tombstone !== undefined) {
+    return {
+      kind: "tombstone",
+      nodeId: null,
+      hlc_physical: tombstone.hlc_physical,
+      hlc_logical: tombstone.hlc_logical,
+      actor_id: tombstone.actor_id,
+    };
+  }
+  return undefined;
+}
+
+function applyExternalRefSet(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "external_ref.set";
+  const p = env.payload as OpPayload<"external_ref.set">;
+  const incoming = winnerFromEnvelope(env);
+  const record = externalRefRecord(db, env.workspaceId, p.ref);
+  // A stale write (full tuple <= the standing record) leaves state untouched.
+  if (record && compareLww(incoming, rowWinner(record)) <= 0) {
+    return summary(opType, [], true);
+  }
+  db.prepare(
+    `INSERT INTO external_ref (ref, workspace_id, node_id, hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(workspace_id, ref) DO UPDATE SET
+       node_id = excluded.node_id,
+       hlc_physical = excluded.hlc_physical, hlc_logical = excluded.hlc_logical,
+       actor_id = excluded.actor_id`,
+  ).run(p.ref, env.workspaceId, p.nodeId, env.hlc.physical, env.hlc.logical, env.actorId);
+  // The winning set supersedes any standing tombstone (the invariant).
+  db.prepare("DELETE FROM external_ref_tombstone WHERE workspace_id = ? AND ref = ?").run(
+    env.workspaceId,
+    p.ref,
+  );
+  // A move re-targets the ref: BOTH the previous and the new carrier's
+  // scoped reads changed.
+  const affected = [p.nodeId];
+  if (record?.kind === "live" && record.nodeId !== p.nodeId) affected.push(record.nodeId);
+  return summary(opType, affected);
+}
+
+function applyExternalRefDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "external_ref.delete";
+  const p = env.payload as OpPayload<"external_ref.delete">;
+  const incoming = winnerFromEnvelope(env);
+  const record = externalRefRecord(db, env.workspaceId, p.ref);
+  if (record && compareLww(incoming, rowWinner(record)) <= 0) {
+    return summary(opType, [], true);
+  }
+  // The winning delete takes the live row down (when there is one) and
+  // records its causality — a delete of an UNMAPPED ref still lands the
+  // tombstone, which is what kills stale concurrent sets delivered later.
+  if (record?.kind === "live") {
+    db.prepare("DELETE FROM external_ref WHERE workspace_id = ? AND ref = ?").run(env.workspaceId, p.ref);
+  }
+  db.prepare(
+    `INSERT INTO external_ref_tombstone (ref, workspace_id, hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(workspace_id, ref) DO UPDATE SET
+       hlc_physical = excluded.hlc_physical, hlc_logical = excluded.hlc_logical,
+       actor_id = excluded.actor_id
+     WHERE excluded.hlc_physical > hlc_physical
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical > hlc_logical)
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical = hlc_logical
+            AND excluded.actor_id > COALESCE(actor_id, ''))`,
+  ).run(p.ref, env.workspaceId, env.hlc.physical, env.hlc.logical, env.actorId);
+  return summary(opType, record?.kind === "live" ? [record.nodeId] : []);
+}
+
 // --- dispatch ------------------------------------------------------------------------
 
 const APPLIERS: Record<
@@ -2954,6 +3089,8 @@ const APPLIERS: Record<
   "collection.member.add": (db, env) => applyCollectionMember(db, env, 1),
   "collection.member.remove": (db, env) => applyCollectionMember(db, env, 0),
   "workspace.feature.set": applyWorkspaceFeatureSet,
+  "external_ref.set": applyExternalRefSet,
+  "external_ref.delete": applyExternalRefDelete,
 };
 
 /**

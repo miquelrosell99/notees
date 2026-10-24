@@ -7,12 +7,11 @@
  * their reserved ids on first call; the call is a complete no-op once
  * present. The server-seed shape (same ids, key names, edge) is
  * recognized without re-authoring, so a server-seeded workspace and a
- * self-healed one converge. Calendar breadth: after ensure, the Calendar
- * view's exact chip-qualification call (listClasses + displayNameFromClient
- * → dateChipCandidates) yields BOTH the event chip (driving schema
- * eventDate) and the meeting chip (driving schema meetingDate) — no calendar
- * code change needed. Extends breadth: a class: event query sees
- * meeting-classed nodes via the hierarchy.
+ * self-healed one converge. Calendar breadth: after ensure, an event-family
+ * instance dated into a scope day lists in the Calendar events element
+ * (calendarRows.eventRowsForDays) for BOTH families — event via the system
+ * class, meeting via the extends chain. Extends breadth: a class: event
+ * query sees meeting-classed nodes via the hierarchy.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -28,8 +27,7 @@ import {
 } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { displayNameFromClient } from "../src/ui/dateDisplay.js";
-import { dateChipCandidates } from "../src/features/calendar/calendarViewUtils.js";
+import { eventRowsForDays } from "../src/features/calendar/calendarRows.js";
 import {
   BIRTHDAY_CLASS_ID,
   BIRTHDAY_FAMILY,
@@ -275,29 +273,25 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     expect(schema?.name).toBe("When");
   });
 
-  it("makes BOTH classes calendar quick-create eligible through their date bindings (Calendar breadth)", async () => {
+  it("makes BOTH families events-list members through their date bindings (Calendar breadth)", async () => {
     const client = await seedClient();
     await ensureMeetingFamily(client);
 
-    // The Calendar view's exact chip-qualification call (CalendarView.tsx).
-    const classes = client
-      .listClasses()
-      .map((cls) => ({ id: cls.id, name: displayNameFromClient(client, cls.id) }));
-    const chips = dateChipCandidates(classes, (classId) => client.getClassBindings(classId));
+    // One instance per family, each dated into the scope day — the Calendar
+    // events element's membership read (calendarRows.eventRowsForDays).
+    const eventId = await client.createObject({ isEmbedded: false, classIds: [EVENT_CLASS_ID] });
+    await client.setDatetimeProperty(eventId, SYSTEM_PROPERTY_UUIDS.eventDate, {
+      iso: "2026-10-06",
+    });
+    const meetingId = await client.createObject({ isEmbedded: false, classIds: [MEETING_CLASS_ID] });
+    await client.setDatetimeProperty(meetingId, SYSTEM_PROPERTY_UUIDS.meetingDate, {
+      iso: "2026-10-06",
+    });
 
-    const eventChip = chips.find((chip) => chip.classId === EVENT_CLASS_ID);
-    expect(eventChip).toMatchObject({
-      schemaId: SYSTEM_PROPERTY_UUIDS.eventDate,
-      label: "Event",
-    });
-    const meetingChip = chips.find((chip) => chip.classId === MEETING_CLASS_ID);
-    expect(meetingChip).toMatchObject({
-      schemaId: SYSTEM_PROPERTY_UUIDS.meetingDate,
-      label: "Meeting",
-    });
-    // Each family contributes exactly one chip (one date binding apiece).
-    expect(chips.filter((chip) => chip.classId === EVENT_CLASS_ID)).toHaveLength(1);
-    expect(chips.filter((chip) => chip.classId === MEETING_CLASS_ID)).toHaveLength(1);
+    const rows = eventRowsForDays(client, ["2026-10-06"], []);
+    const ids = rows.map((row) => row.node.id);
+    expect(ids).toContain(eventId);
+    expect(ids).toContain(meetingId);
   });
 
   it("a meeting created through the calendar create flow answers the class+date query AND the event query via extends", async () => {
@@ -354,7 +348,7 @@ describe("ensureBirthdayFamily (birthday extends event, for persons)", () => {
       .find((entry) => entry.id === SYSTEM_PROPERTY_UUIDS.birthdayPerson);
     expect(schema).toMatchObject({ name: "Birthday person", type: "object", scopeClassIds: [BIRTHDAY_CLASS_ID] });
     expect(schema?.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.person]);
-    // …its binding, the eventDate chip-eligibility row, and the edge.
+    // …its binding, the eventDate date hook, and the edge.
     const bound = client
       .getClassBindings(BIRTHDAY_CLASS_ID)
       .map((binding) => binding.propertySchemaId);
@@ -408,22 +402,23 @@ describe("ensureBirthdayFamily (birthday extends event, for persons)", () => {
     expect(client.getClassParents(BIRTHDAY_CLASS_ID)).toEqual([EVENT_CLASS_ID]);
   });
 
-  it("makes the birthday class calendar quick-create eligible (eventDate drives the chip)", async () => {
+  it("makes the birthday class an events-list member (eventDate drives the row)", async () => {
     const client = await seedClient();
     await ensureBirthdayFamily(client);
 
-    // The Calendar view's exact chip-qualification call (CalendarView.tsx).
-    const classes = client
-      .listClasses()
-      .map((cls) => ({ id: cls.id, name: displayNameFromClient(client, cls.id) }));
-    const chips = dateChipCandidates(classes, (classId) => client.getClassBindings(classId));
-
-    const birthdayChip = chips.find((chip) => chip.classId === BIRTHDAY_CLASS_ID);
-    expect(birthdayChip).toMatchObject({
-      schemaId: SYSTEM_PROPERTY_UUIDS.eventDate,
-      label: "Birthday",
+    // A birthday instance dated into the scope day — the Calendar events
+    // element's membership read (calendarRows.eventRowsForDays).
+    const birthdayId = await client.createObject({
+      isEmbedded: false,
+      classIds: [BIRTHDAY_CLASS_ID],
     });
-    expect(chips.filter((chip) => chip.classId === BIRTHDAY_CLASS_ID)).toHaveLength(1);
+    await client.setDatetimeProperty(birthdayId, SYSTEM_PROPERTY_UUIDS.eventDate, {
+      iso: "2026-10-06",
+    });
+
+    const rows = eventRowsForDays(client, ["2026-10-06"], []);
+    const ids = rows.map((row) => row.node.id);
+    expect(ids).toContain(birthdayId);
   });
 
   it("a birthday answers BOTH the class:birthday and the class:event queries (extends chain)", async () => {

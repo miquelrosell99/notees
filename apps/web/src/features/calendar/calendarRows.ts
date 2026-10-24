@@ -10,6 +10,7 @@
  */
 
 import {
+  occurrenceIsosOf,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
   TASK_CLOSED_STATUSES,
@@ -18,15 +19,19 @@ import {
   dayNodeId,
   parseDateNodeId,
   recurrenceRuleOf,
+  recurrenceSeriesOf,
+  rendersWithDocumentChrome,
+  spanEndOf,
   withCompletedOccurrence,
   type RecurrenceRule,
+  type RecurrenceSeries,
 } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import { occursOnDay, scheduledIsoOf, type TaskBucketRow } from "./calendarViewUtils.js";
+import { isEventFamilyClass, scheduledIsoOf, type TaskBucketRow } from "./calendarViewUtils.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -168,14 +173,15 @@ export function datedRowNodes(client: AnyClient, dayId: string): ClientNode[] {
 // --- recurrence (compute-on-read expansion) --------------------------------------
 
 /**
- * One recurring node: the node plus its series (rule + anchor day). The rule
- * lives on a date value's metadata (`repeat`); the anchor is that value's own
- * day — occurrences derive at read time, never as nodes.
+ * One recurring node: the node plus its series (rule + anchor day + the
+ * recurrence exceptions — exdates/until, owner 2026-10-23). The rule
+ * lives on a date value's metadata (`repeat`); the anchor is that value's
+ * own day; occurrences derive at read time, never as nodes.
  */
 export interface RecurringRow {
   node: ClientNode;
-  rule: RecurrenceRule;
-  anchorIso: string;
+  /** The full expansion input — rule, anchor, exdates, until. */
+  series: RecurrenceSeries;
 }
 
 /**
@@ -185,8 +191,9 @@ export interface RecurringRow {
  * day sections both start from this list). One node contributes at most one
  * series (its first repeating date value wins). Date-chain nodes are skipped;
  * a rule on a value without a day-precision anchor is ignored (the picker
- * only writes day-anchored rules); a present-but-corrupt rule THROWS
- * (recurrenceRuleOf is fail loud — corrupt metadata never reads as plain).
+ * only writes day-anchored rules); a present-but-corrupt rule, exdates, or
+ * until THROWS (the series readers are fail loud — corrupt metadata never
+ * reads as plain).
  */
 export function recurringRowsOf(client: AnyClient): RecurringRow[] {
   const rows: RecurringRow[] = [];
@@ -195,11 +202,11 @@ export function recurringRowsOf(client: AnyClient): RecurringRow[] {
     for (const prop of client.getEffectiveProperties(node.id)) {
       if (prop.source !== "authored") continue;
       if (prop.schema?.type !== "datetime") continue;
-      const rule = recurrenceRuleOf(prop.metadata);
-      if (rule === null) continue;
       const anchorIso = scheduledIsoOf(prop.value);
       if (anchorIso === null) continue;
-      rows.push({ node, rule, anchorIso });
+      const series = recurrenceSeriesOf(prop.metadata, anchorIso);
+      if (series === null) continue;
+      rows.push({ node, series });
       break;
     }
   }
@@ -210,6 +217,11 @@ export function recurringRowsOf(client: AnyClient): RecurringRow[] {
       ) || a.node.id.localeCompare(b.node.id),
   );
   return rows;
+}
+
+/** True when `iso` is an occurrence day of the full series (exceptions in). */
+function seriesOccursOnDay(series: RecurrenceSeries, iso: string): boolean {
+  return occurrenceIsosOf(series, iso, iso, 1).length === 1;
 }
 
 /** One Dated-section row: the node plus its recurrence rule, null when plain. */
@@ -237,13 +249,13 @@ export function datedRowsForDay(
     rows.set(node.id, { node, rule: null });
   }
   for (const entry of recurringRows) {
-    if (entry.anchorIso <= iso && rows.has(entry.node.id)) {
-      rows.get(entry.node.id)!.rule = entry.rule;
+    if (entry.series.anchorIso <= iso && rows.has(entry.node.id)) {
+      rows.get(entry.node.id)!.rule = entry.series.rule;
       continue;
     }
-    if (entry.anchorIso > iso) continue; // series hasn't started
-    if (!occursOnDay(entry.rule, entry.anchorIso, iso)) continue;
-    rows.set(entry.node.id, { node: entry.node, rule: entry.rule });
+    if (entry.series.anchorIso > iso) continue; // series hasn't started
+    if (!seriesOccursOnDay(entry.series, iso)) continue;
+    rows.set(entry.node.id, { node: entry.node, rule: entry.series.rule });
   }
   const merged = [...rows.values()];
   merged.sort(
@@ -253,4 +265,172 @@ export function datedRowsForDay(
       ) || a.node.id.localeCompare(b.node.id),
   );
   return merged;
+}
+
+// --- multi-day spans (the datetime-range ruling, owner 2026-10-23) ------------
+
+/**
+ * One multi-day span: an event whose date value carries `metadata.endDate`
+ * (the value's own day is the inclusive start). The value keeps referencing
+ * its START day node — the span expands client-side at read time, the same
+ * compute-on-read register as recurrence.
+ */
+export interface SpannedRow {
+  node: ClientNode;
+  startIso: string;
+  /** Inclusive end day. */
+  endIso: string;
+}
+
+/**
+ * Every multi-day event span in the workspace: the same document-chrome
+ * scan recurringRowsOf runs, filtered to authored datetime values with an
+ * endDate after their own day. Corrupt endDate metadata throws (fail loud).
+ */
+export function spannedRowsOf(client: AnyClient): SpannedRow[] {
+  const rows: SpannedRow[] = [];
+  for (const node of client.listPages()) {
+    if (parseDateNodeId(node.id) !== null) continue;
+    for (const prop of client.getEffectiveProperties(node.id)) {
+      if (prop.source !== "authored") continue;
+      if (prop.schema?.type !== "datetime") continue;
+      const startIso = scheduledIsoOf(prop.value);
+      if (startIso === null) continue;
+      const endIso = spanEndOf(prop.metadata);
+      if (endIso === null || endIso <= startIso) continue;
+      rows.push({ node, startIso, endIso });
+      break;
+    }
+  }
+  rows.sort(
+    (a, b) =>
+      (displayNameFromClient(client, a.node.id) ?? a.node.id).localeCompare(
+        displayNameFromClient(client, b.node.id) ?? b.node.id,
+      ) || a.node.id.localeCompare(b.node.id),
+  );
+  return rows;
+}
+
+// --- events list (the panel's events element) --------------------------------
+
+/**
+ * The Events-list rows for a scope of days (the calendar panel's events
+ * element below the mini-month, owner 2026-10-23): event-family nodes — the
+ * system `event` class and every class extending it transitively — matched
+ * by EITHER family:
+ *
+ *  - DATED — a date-typed property value fanning into a scope day (the day
+ *    node's materialized backlink set, the same read the Dated section
+ *    uses, so a range end or a plain day-precision ref lands the same way);
+ *  - EMBEDDED — the node lives as a block at any parent level inside one of
+ *    the scope day pages (a client-side subtree walk over the scope-classed
+ *    cached `getChildren`; day pages are shallow, and month scope is ~31
+ *    walks).
+ *
+ * The recurring union rides on top (a virtual occurrence inside any scope
+ * day lists the series, the Dated grammar). Tasks never list (their own
+ * section), date-chain nodes neither, non-event classes neither (a node
+ * that merely carries a date property stays in Dated, not here). Deduped
+ * by id (dated beats embedded — one row per node), sorted by display name.
+ */
+export function eventRowsForDays(
+  client: AnyClient,
+  isos: readonly string[],
+  recurringRows: readonly RecurringRow[],
+  spannedRows: readonly SpannedRow[] = [],
+): DatedRow[] {
+  const parentsCache = new Map<string, readonly string[]>();
+  const parentsOf = (classId: string): readonly string[] => {
+    let parents = parentsCache.get(classId);
+    if (parents === undefined) {
+      parents = client.getClassParents(classId);
+      parentsCache.set(classId, parents);
+    }
+    return parents;
+  };
+  const isEventNode = (node: ClientNode): boolean =>
+    node.classIds.some((classId) => isEventFamilyClass(classId, parentsOf));
+
+  const rows = new Map<string, DatedRow>();
+  const addNode = (node: ClientNode, rule: RecurrenceRule | null): void => {
+    const existing = rows.get(node.id);
+    if (existing !== undefined) {
+      if (existing.rule === null && rule !== null) existing.rule = rule;
+      return;
+    }
+    rows.set(node.id, { node, rule });
+  };
+
+  for (const iso of isos) {
+    const dayId = dayNodeId(iso);
+    for (const node of datedRowNodes(client, dayId)) {
+      if (isEventNode(node)) addNode(node, null);
+    }
+    // The embedded family: every descendant of the day page (the day node
+    // itself excluded — a date-chain node is never an event). The walk
+    // covers blocks at ANY parent level, classes included — an
+    // event-classed block nested under a plain block lists.
+    if (client.getNodeRaw(dayId) !== undefined) {
+      const seen = new Set<string>([dayId]);
+      const queue = [dayId];
+      while (queue.length > 0) {
+        const current = queue.pop()!;
+        for (const child of client.getChildren(current)) {
+          if (seen.has(child.id)) continue;
+          seen.add(child.id);
+          queue.push(child.id);
+          if (parseDateNodeId(child.id) !== null) continue;
+          if (child.classIds.length === 0 || !isEventNode(child)) continue;
+          addNode(child, null);
+        }
+      }
+    }
+    for (const entry of recurringRows) {
+      if (!isEventNode(entry.node)) continue;
+      if (entry.series.anchorIso <= iso && rows.has(entry.node.id)) {
+        rows.get(entry.node.id)!.rule = entry.series.rule;
+        continue;
+      }
+      if (entry.series.anchorIso > iso) continue; // series hasn't started
+      if (!seriesOccursOnDay(entry.series, iso)) continue;
+      addNode(entry.node, entry.series.rule);
+    }
+    // The multi-day span family: the event covers every day in [start, end].
+    for (const entry of spannedRows) {
+      if (rows.has(entry.node.id)) continue;
+      if (iso < entry.startIso || iso > entry.endIso) continue;
+      if (!isEventNode(entry.node)) continue;
+      addNode(entry.node, null);
+    }
+  }
+
+  const merged = [...rows.values()];
+  merged.sort(
+    (a, b) =>
+      (displayNameFromClient(client, a.node.id) ?? a.node.id).localeCompare(
+        displayNameFromClient(client, b.node.id) ?? b.node.id,
+      ) || a.node.id.localeCompare(b.node.id),
+  );
+  return merged;
+}
+
+/**
+ * The containing page for the group-by-page key — referenceEntry's walk,
+ * client-side: the nearest ancestor rendering with document chrome (the
+ * node itself when it already matches; the parent-page condition rides
+ * along, owner ruling 2026-10-15). A dated standalone event groups under
+ * itself (the collection's standalone path); an embedded block groups
+ * under its day page.
+ */
+export function containingPageIdOf(client: AnyClient, node: ClientNode): string {
+  let current = node;
+  for (let guard = 0; guard < 64; guard += 1) {
+    if (current.parentId === null) break;
+    const parent = client.getNode(current.parentId);
+    // The parent-page condition rides along: a bit under a non-page parent
+    // is inert, so the walk continues past it to the real containing page.
+    if (parent === undefined || rendersWithDocumentChrome(current, parent)) break;
+    current = parent;
+  }
+  return current.id;
 }
