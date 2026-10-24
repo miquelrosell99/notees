@@ -167,6 +167,22 @@ describe("JournalsView", () => {
     });
   });
 
+  it("focus mode hides the navigator panel (the all-side-panels ruling)", async () => {
+    const client = await seedClient();
+    await createDayPage(client, todayIso());
+    window.localStorage.setItem("notees.settings.focusMode", JSON.stringify(true));
+
+    const { container } = render(<JournalsView client={client} onOpenPage={vi.fn()} />);
+    await screen.findByText("Journal");
+    expect(container.querySelector(".journals-panel")).toBeNull();
+
+    window.localStorage.setItem("notees.settings.focusMode", JSON.stringify(false));
+    window.dispatchEvent(new CustomEvent("notees-settings-changed"));
+    await waitFor(() => {
+      expect(container.querySelector(".journals-panel")).not.toBeNull();
+    });
+  });
+
   it("the navigator panel collapses from the top bar (device-local toggle)", async () => {
     const client = await seedClient();
     await createDayPage(client, todayIso());

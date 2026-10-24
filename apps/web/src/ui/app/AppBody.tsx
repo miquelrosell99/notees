@@ -69,6 +69,8 @@ export interface AppBodyProps {
   reorderSidebarCard: (activeId: string, targetId: string, position: "before" | "after") => void;
   rightPanelOpen: boolean;
   setRightPanelOpen: Dispatch<SetStateAction<boolean>>;
+  /** Focus mode hides every side panel. */
+  focusMode: boolean;
   sidebarCards: string[];
   setSidebarCards: Dispatch<SetStateAction<string[]>>;
   closeSidebarCard: (nodeId: string) => void;
@@ -109,6 +111,7 @@ export function AppBody(props: AppBodyProps) {
     reorderSidebarCard,
     rightPanelOpen,
     setRightPanelOpen,
+    focusMode,
     sidebarCards,
     setSidebarCards,
     closeSidebarCard,
@@ -247,7 +250,8 @@ export function AppBody(props: AppBodyProps) {
           <HubView client={client} nav={activeNav} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
         )}
       </PageCard>
-      {rightPanelOpen && (
+      {rightPanelOpen && !focusMode && (
+        /* Focus mode hides every side panel. */
         <aside className="nt-right-card" aria-label="Right sidebar">
           {/* The cards-only rail: the node-relevant widgets
               (graph/TOC/Activity/Comments) relocated into the page chrome's
