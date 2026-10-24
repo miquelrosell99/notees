@@ -167,6 +167,26 @@ describe("JournalsView", () => {
     });
   });
 
+  it("the navigator panel collapses from the top bar (device-local toggle)", async () => {
+    const client = await seedClient();
+    await createDayPage(client, todayIso());
+
+    const { container } = render(<JournalsView client={client} onOpenPage={vi.fn()} />);
+    await screen.findByText("Journal");
+    expect(container.querySelector(".journals-panel")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide navigator panel" }));
+    await waitFor(() => {
+      expect(container.querySelector(".journals-panel")).toBeNull();
+    });
+    expect(screen.getByRole("button", { name: "Show navigator panel" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show navigator panel" }));
+    await waitFor(() => {
+      expect(container.querySelector(".journals-panel")).not.toBeNull();
+    });
+  });
+
   it("picking a mini-month day scroll-navigates the feed to that day", async () => {
     const client = await seedClient();
     const today = todayIso();
