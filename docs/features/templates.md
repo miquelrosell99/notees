@@ -1,6 +1,6 @@
 # Templates
 
-Reusable bodies bound to classes: a template is a node, not a new kind — the `template` class says "this node's subtree is a reusable body". Binding is a property edge (the class's **Templates** cards, ＋ Bind template); instantiation is a client-side clone over ordinary single-node ops. The template cards live on the class page ([classes.md](classes.md)); instantiation rides the object-create flows that offer a bound template (calendar quick-create among them, [calendar.md](calendar.md)).
+Reusable bodies bound to classes: a template is a node, not a new kind — the `template` class says "this node's subtree is a reusable body". Binding is a property edge (the class's **Templates** cards, ＋ Bind template); instantiation is a client-side clone over ordinary single-node ops. The template cards live on the class page ([classes.md](classes.md)); instantiation rides the object-create flows that offer a bound template (the calendar's Tasks New among them, [calendar.md](calendar.md)).
 
 ## Binding and provenance
 
