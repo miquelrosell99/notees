@@ -2,11 +2,17 @@
  * Quick-create tests: resolveQuickCreate's family resolution
  * over the extends graph (source subclass → source flow with the subclass
  * preselected; bare source → book default; person/organization → agent
- * flow), splitPersonName's Zotero convention, the modal's citation writes
- * (authors become/reuse linked person nodes, year links the chain's year
- * node, DOI a text value; given/family for persons), and the picker
- * integration — a class-filtered NodeSelector create row opens the modal
- * with the typed query prefilled instead of silently creating a plain page.
+ * flow), splitPersonName's Zotero convention, splitAuthorList's
+ * plain-text split (";" or newline — a comma lives inside a "Family, Given"
+ * name), the modal's citation writes (authors/editors as PLAIN TEXT
+ * elements — no person find-or-create; year links the chain's year node;
+ * DOI/ISBN/URL/publisher/citekey scalars; venue fields self-heal their
+ * schemas), auto-citekey with the deterministic a/b/c collision suffix,
+ * archived-type filtering + the same-batch un-archive/create gesture,
+ * the duplicate-DOI warning, the add-source resolver prefill, and the
+ * picker integration — a class-filtered NodeSelector create row opens the
+ * modal with the typed query prefilled, and a DOI/URL-shaped query offers
+ * the "Create source from link" row.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -204,6 +210,19 @@ describe("generateCitekey", () => {
 
   it("falls back to the default pattern when the stored one does not compile", () => {
     expect(generateCitekey("[bogus]", entry, [])).toBe("lovelace1843notesonthe");
+  });
+
+  it("renders empty when the pattern's tokens have no data (the caller skips the write)", () => {
+    expect(generateCitekey("[year]", { authors: [], year: null, title: "X" }, [])).toBe("");
+  });
+
+  it("continues the suffix past 'z' with 'aa'", () => {
+    const base = "lovelace1843notesonthe";
+    const taken = [
+      base,
+      ..."abcdefghijklmnopqrstuvwxyz".split("").map((letter) => `${base}${letter}`),
+    ];
+    expect(generateCitekey(undefined, entry, taken)).toBe(`${base}aa`);
   });
 });
 
@@ -632,6 +651,35 @@ describe("QuickCreateModal source rewiring", () => {
       .filter((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.authors);
     expect(authors.map((row) => row.value)).toEqual(["Herbert, Frank", "Lovelace, Ada"]);
     expect(client.getClassMembers(SYSTEM_CLASS_UUIDS.person).length).toBe(0);
+  });
+
+  it("skips the citekey write when auto-citekey renders empty (pattern with no data)", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    // A [year]-only pattern with no year renders EMPTY — nothing is written.
+    await client.setFeatureSettings("sources", { autoCitekey: true, citekeyPattern: "[year]" });
+    let createdId = "";
+    render(
+      <QuickCreateModal
+        isOpen
+        client={client}
+        kind="source"
+        defaultClassId={SYSTEM_CLASS_UUIDS.book}
+        onClose={() => {}}
+        onCreated={(id) => {
+          createdId = id;
+        }}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: /new book/i });
+    fireEvent.change(within(dialog).getByLabelText("Title"), { target: { value: "Undated" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    await waitFor(() => expect(createdId).not.toBe(""));
+    const citekeyRows = client
+      .getEffectiveProperties(createdId)
+      .filter((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.citekey);
+    // No AUTHORED citekey row — a default/bound virtual row may read empty.
+    expect(citekeyRows.every((row) => row.source !== "authored")).toBe(true);
   });
 
   it("warns 'Already in your library' on a duplicate DOI but still creates on override", async () => {

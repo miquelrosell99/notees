@@ -88,6 +88,20 @@ export class WorkspaceClientWrites {
    * batch as the object.create — ONE undo restores the archived bit AND
    * removes the created source. Returns the new node id; the caller writes
    * the bibliographic properties through the normal surface afterwards.
+   *
+   * Ordering semantics (documented, review round 1):
+   *  - The un-archive COMMITS EVEN IF THE CREATE THROWS — the batch's flush
+   *    runs in the finally, so both applied ops land as one journal entry
+   *    regardless; the un-archive is an idempotent, undoable object.update
+   *    (one undo re-archives the class and trashes the source together).
+   *    A failed create therefore leaves the class un-archived — deliberate:
+   *    the user asked for a source of that type, and the visibility flag is
+   *    a reversible preference, never half-created data.
+   *  - The PROPERTY WRITES run AFTER this gesture, outside the batch (the
+   *    pre-existing createSourceObject ordering pattern): a late
+   *    property-write failure can leave a titled but property-less source —
+   *    honest log state, no half-op. The CAS upload runs BEFORE the create
+   *    for the same reason (a failed upload means no source at all).
    */
   async beginSourceCreate(input: {
     classId: string;

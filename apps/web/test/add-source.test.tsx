@@ -223,7 +223,7 @@ describe("AddSourceDialog", () => {
     expect(valueOf(SYSTEM_PROPERTY_UUIDS.publicationTitle)).toEqual(["The Example Journal"]);
   });
 
-  it("resolves an ISBN to the book flow with a no-duplicate warning", async () => {
+  it("resolves an ISBN to the book flow and shows the duplicate warning for an existing ISBN", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     // An existing source with the same ISBN: the duplicate warning appears.
@@ -356,6 +356,47 @@ describe("AddSourceDialog", () => {
     const info = client.getAssetInfo(created[0]!);
     expect(info?.assetId).toBe("11111111-1111-7111-8000-111111111111");
     expect(info?.originalName).toBe("paper.pdf");
+  });
+
+  it("a failed CAS upload creates no half-source (the upload runs before the create)", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    stubFetch((url) => {
+      if (url.includes("/api/resolve/pdf") && !url.includes("?url=")) {
+        return jsonResponse(200, DOI_RECORD);
+      }
+      if (url.includes("/api/assets")) {
+        return jsonResponse(500, {
+          error: { code: "internal", message: "asset store unreachable", status: 500 },
+        });
+      }
+      return undefined;
+    });
+    const created: string[] = [];
+    render(
+      <AddSourceDialog
+        isOpen
+        client={client}
+        serverUrl="http://resolver.test"
+        credential="test-key"
+        onClose={() => {}}
+        onCreated={(id) => created.push(id)}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: /add source/i });
+    const file = new File(["%PDF-fake"], "paper.pdf", { type: "application/pdf" });
+    fireEvent.change(within(dialog).getByLabelText("PDF file"), {
+      target: { files: [file] },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
+    const form = await screen.findByRole("dialog", { name: /new journal_article/i });
+    fireEvent.click(within(form).getByRole("button", { name: /^create$/i }));
+
+    // The create reports the failure inline…
+    await screen.findByText(/failed to create/i);
+    // …and NO half-source exists: the upload precedes the create.
+    expect(created.length).toBe(0);
+    expect(client.getClassMembers(SYSTEM_CLASS_UUIDS.source).length).toBe(0);
   });
 
   it("422 no_identifier_found surfaces the honest inline error; nothing creates", async () => {
