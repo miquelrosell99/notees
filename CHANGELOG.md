@@ -7,7 +7,7 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
-## 2026-10-23
+## 2026-10-24
 
 - **feat(protocol,store): `workspace.feature.set` settings payload — the
   source-library plan's ONLY wire change (fixture gate).** The strict payload
@@ -125,6 +125,30 @@ predating this file.
     Citations + Sources-as-containers sections rewritten final, this entry,
     feature-status.
 
+- **feat(web): the events element relocates to the Journal's side panel —
+  the grid is the calendar's agenda; the journal owns the day-page context
+  (owner 2026-10-24, the redundancy ruling).** The calendar view's right
+  panel was duplicating both the main grid (mini-month) and the agenda
+  (the events element) — the Google/Apple register is ONE full-view
+  calendar plus a navigator. The calendar's panel now carries only the
+  mini-month (select a day; the month/year titles open the date-chain
+  pages); the events element — the day/week/month zoom over the event
+  family, grouped by containing page with breadcrumbs — moves to the
+  Journal, extracted as the standalone `EventsPanel` component, stacked
+  under a mini-month in a new `journals-panel` column. The journal is
+  where the events list earns its depth: picking a day in the panel's
+  mini-month **scroll-navigates the feed to that day page, materializing
+  it through the same journal-gated ensure as the Today jump** when it
+  doesn't exist yet (a `focusIso` anchor override generalizes the
+  owner-bug-2026-10-22 today-jump machinery; Today clears it). The
+  events element's calendar-view state/CSS retire with the move
+  (`eventRowsForDays` stays — the grid blocks' read model).
+  - **Verification**: journal specs (panel renders mini-month + events;
+    a mini-month pick re-anchors the feed; a pick on a missing day
+    materializes the page and navigates) + the calendar suites rewritten
+    against the grid — full gate below. Deployed: verify-min VERIFY-PASS
+    + the calendar-panel probe (grid + mini-month, no events element,
+    ladder at Month) green.
 - **feat(domain,web): multi-day event spans — the datetime-range ruling
   ships (owner 2026-10-23, google-calendar proposal).** The deferral
   closes: a datetime value whose own day is the inclusive start may carry

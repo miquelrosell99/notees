@@ -610,34 +610,27 @@ describe("CalendarView breadth (dots, agenda)", () => {
     expect(bareCell.classList.contains("dated")).toBe(false);
   });
 
-  it("renders the events element around the selected day", async () => {
+  it("renders the dated meeting as a grid block around the selected day", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const future = addDaysIso(today, 2);
     await createDatedMeeting(client, "Agenda meeting", future);
     await flushWrites();
 
-    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
     const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
-    // Select the meeting's day: the events element follows the selection
-    // (week zoom covers the whole week around the selected day).
+    const grid = await screen.findByLabelText("Calendar month view");
+    // The block rides the same cell register as the selection.
+    await waitFor(() => {
+      expect(grid.textContent).toContain("Agenda meeting");
+    });
+    // Select the meeting's day: the grid's outlined selection follows.
     if (future.slice(0, 7) !== today.slice(0, 7)) {
       fireEvent.click(screen.getByRole("button", { name: "Next period" }));
     }
     fireEvent.click(dayCell(container, String(Number(future.slice(8)))));
-    const events = await screen.findByLabelText("Events");
-    // The events element renders the event-family row through the BlockRow
-    // machinery.
-    await waitFor(() => {
-      const titles = [...events.querySelectorAll(".nt-block-content")].map(
-        (el) => el.textContent ?? "",
-      );
-      expect(titles).toContain("Agenda meeting");
-    });
-    // The grid's outlined selection moved with the selection (the week
-    // strip that mirrored this retired, owner 2026-10-23).
     expect(
-      container.querySelector(".calendar-day.selected")?.getAttribute("aria-label"),
-    ).toContain(String(Number(future.slice(8))));
+      container.querySelector(".cal-grid__cell--selected")?.getAttribute("data-day"),
+    ).toBe(future);
   });
 });

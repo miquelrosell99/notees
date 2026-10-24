@@ -9,15 +9,13 @@
  * breadth pass: range-aware dots (date refs and range ends fan out to the
  * deterministic day node) plus the reviewed tint on day cells.
  *
- * The events element (owner 2026-10-23) replaces the retired
- * quick-create pill bar: a NodeCollection in outline mode with
- * day/week/month zoom — event-family nodes (the system `event` class and
- * everything extending it) dated into the scope days OR embedded as blocks
- * at any parent level inside the scope day pages, grouped by containing
- * page with breadcrumbs (calendarRows.eventRowsForDays).
- *
- * The day sections (Daily note, Tasks, Dated, Created) and the events
- * element render through the shared NodeCollection in outline mode —
+ * The grid IS the agenda (owner 2026-10-24, the redundancy ruling): the
+ * retired events element's membership — event-family nodes dated into the
+ * day or embedded at any level inside the day page — renders as colored
+ * blocks on the Week/Month/Year grids (calendarRows.eventRowsForDays, the
+ * same read model); the right panel carries ONLY the mini-month navigator
+ * (the Google/Apple register). The day sections render through the shared
+ * NodeCollection in outline mode —
  * plain editable block rows, no bespoke row chrome (owner 2026-10-23):
  * the rows inline-edit like every outline, Dated/Created ride the
  * containing-page breadcrumb trail (the family default), Tasks opts
@@ -81,14 +79,12 @@ import {
   weekdayLabel,
 } from "./calendarViewUtils.js";
 import {
-  containingPageIdOf,
   datedRowsForDay,
-  eventRowsForDays,
   recurringRowsOf,
   spannedRowsOf,
   taskRowsOf,
 } from "./calendarRows.js";
-import { NodeCollection, groupByContainingPage } from "../collection/index.js";
+import { NodeCollection } from "../collection/index.js";
 import type { NodeCollectionItem } from "../collection/index.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
@@ -100,15 +96,6 @@ import type { AnyClient } from "../../ui/app/Sidebar.js";
 import "./CalendarView.css";
 
 type DayFilter = "all" | "daily" | "tasks" | "dated" | "created";
-
-/** The events element's zoom levels (owner 2026-10-23): the scope of days. */
-type EventsZoom = "day" | "week" | "month";
-
-const EVENTS_ZOOMS: ReadonlyArray<{ value: EventsZoom; label: string }> = [
-  { value: "day", label: "Day" },
-  { value: "week", label: "Week" },
-  { value: "month", label: "Month" },
-];
 
 /** The calendar's own zoom ladder (owner 2026-10-23, google-calendar slice 2):
     Day = the day view (sections + the right panel), Week/Month/Year = the
@@ -318,29 +305,20 @@ export function CalendarView({
     [client, recurringDayIsos, spannedEvents, version],
   );
 
-  // The visible week of the selected day (first-day-of-week aware).
-  const weekDays = useMemo(
-    () => weekDaysOfIso(selectedIso, firstDayOfWeek),
-    [selectedIso, firstDayOfWeek],
-  );
-
   // --- events element (the panel's events list, owner 2026-10-23) -------------
   // Replaces the retired week agenda / quick-create bar: a NodeCollection
   // outline with day/week/month zoom over event-family nodes — dated into
   // the scope days OR embedded at any parent level inside the scope day
   // pages. The zoom rides a device-local setting; the scope follows the
   // selected day (day = the day, week = its week, month = its whole month).
-  const [eventsZoom, setEventsZoom] = useDeviceSetting<EventsZoom>(
-    "calendarEventsZoom",
-    "week",
-  );
+
+  // The calendar's own zoom ladder state (owner 2026-10-23): grid-first,
+  // month default. The day-number register: a grid day number opens the day
+  // PAGE — the chain is ensured on demand, the page opens.
   const [calendarZoom, setCalendarZoom] = useDeviceSetting<CalendarZoom>(
     "calendarZoom",
     "month",
   );
-
-  // The day-number register (owner 2026-10-23): a grid day number opens the
-  // day PAGE — the chain is ensured on demand, the page opens.
   const openDayPage = (iso: string): void => {
     void client
       .ensureDateChain(iso)
@@ -352,38 +330,6 @@ export function CalendarView({
     setSelectedIso(`${year}-${String(month0 + 1).padStart(2, "0")}-01`);
     setCalendarZoom("month");
   };
-  const eventsIsos = useMemo(() => {
-    if (eventsZoom === "day") return [selectedIso];
-    if (eventsZoom === "week") return weekDays;
-    const [y, m] = selectedIso.split("-").map(Number);
-    const dayCount = new Date(y!, m!, 0).getDate(); // Date(y, m, 0) = last of month m
-    const mm = String(m).padStart(2, "0");
-    return Array.from(
-      { length: dayCount },
-      (_, i) => `${y}-${mm}-${String(i + 1).padStart(2, "0")}`,
-    );
-  }, [eventsZoom, selectedIso, weekDays]);
-
-  const eventRows = useMemo(
-    () => eventRowsForDays(client, eventsIsos, recurringEvents, spannedEvents),
-    [client, eventsIsos, recurringEvents, spannedEvents, version],
-  );
-
-  // Group by containing page (the shared grouping): embedded blocks group
-  // under their day page, standalone event pages stand alone; rows ride
-  // the breadcrumb trail (the collection default).
-  const eventItems = useMemo<NodeCollectionItem[]>(
-    () =>
-      eventRows.map((row) => ({
-        node: row.node,
-        meta: { containingPageId: containingPageIdOf(client, row.node) },
-      })),
-    [client, eventRows],
-  );
-  const { standalone: standaloneEvents, groups: eventGroups } = useMemo(
-    () => groupByContainingPage(client, eventItems, onOpenPage),
-    [client, eventItems, onOpenPage],
-  );
 
   // --- create flow (create-with-template) ---------------------------------------
   // A class with bound has-template values opens the picker; a class without
@@ -546,41 +492,6 @@ export function CalendarView({
                     .then(({ year: yearId }) => onOpenPage(yearId));
                 }}
               />
-              <div className="calendar-view__agenda" aria-label="Events">
-                <div className="calendar-view__agenda-head">
-                  <h2 className="calendar-view__agenda-title">Events</h2>
-                  <div className="calendar-view__zoom" role="group" aria-label="Events scope">
-                    {EVENTS_ZOOMS.map((zoom) => (
-                      <Button
-                        key={zoom.value}
-                        variant="ghost"
-                        size="sm"
-                        active={eventsZoom === zoom.value}
-                        aria-pressed={eventsZoom === zoom.value}
-                        onClick={() => setEventsZoom(zoom.value)}
-                      >
-                        {zoom.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                {eventRows.length === 0 ? (
-                  <p className="calendar-view__muted">No events this {eventsZoom}.</p>
-                ) : (
-                  <NodeCollection
-                    viewMode="outline"
-                    client={client}
-                    /* The flattened rows ride `items` too — the outline's
-                       grouped path still gates on a non-empty item list
-                       (the grouped hosts' contract). */
-                    items={eventItems}
-                    groups={eventGroups}
-                    ungroupedItems={standaloneEvents}
-                    editable
-                    onNodeClick={onOpenPage}
-                  />
-                )}
-              </div>
             </div>
           ) : undefined
         }

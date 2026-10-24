@@ -92,3 +92,32 @@
     padding: var(--spacing-4) 0;
   }
 }
+
+/* The side panel (owner 2026-10-24): the mini-month navigator + the
+   events element, riding the calendar view's panel width. The feed and
+   the panel sit in a row under the top bar; the feed keeps the card's
+   scroll border, the panel scrolls independently. */
+.journals-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+}
+
+.journals-panel {
+  width: var(--layout-size-8xl);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding: var(--spacing-3) var(--spacing-3) var(--spacing-3) 0;
+  overflow-y: auto;
+  border-left: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+@media (width <= 768px) {
+  .journals-panel {
+    display: none;
+  }
+}
