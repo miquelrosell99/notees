@@ -34,6 +34,7 @@ const NAV_PATHS: Record<string, NavKey> = {
   classes: "classes",
   whiteboards: "whiteboards",
   tasks: "tasks",
+  sources: "sources",
   assets: "assets",
   queries: "queries",
   graph: "graph",

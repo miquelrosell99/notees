@@ -29,6 +29,7 @@ import { SettingsPage, type SettingsSection } from "../../features/settings/Sett
 import { JournalsView } from "../../features/calendar/JournalsView.js";
 import { CalendarView } from "../../features/calendar/CalendarView.js";
 import { QueriesHub } from "../../features/collection/QueriesHub.js";
+import { SourcesHub } from "../../features/sources/SourcesHub.js";
 import { GraphView } from "../../features/collection/graph/GraphView.js";
 import { TrashHub } from "../../features/trash/TrashHub.js";
 import { ArchivedHub } from "../../features/archived/ArchivedHub.js";
@@ -285,6 +286,12 @@ export function AppBody(props: AppBodyProps) {
           <div className="nt-graph-surface">
             <GraphView client={client} onNodeClick={openPage} />
           </div>
+        ) : activeNav === "sources" ? (
+          /* The Sources hub (the source-library surface): the Zotero-parity
+             library manager — type facets · items table · type-aware detail.
+             Owns /sources + the tab title through the nav register; the
+             shell composes the shared MainContentFrame. */
+          <SourcesHub />
         ) : activeNav === "trash" ? (
           /* The Trash hub: browse / restore / permanently delete trashed
              subtrees (the data path always existed — this is the v1

@@ -42,7 +42,7 @@ import "./Sidebar.css";
 
 export type { AnyClient };
 
-export type NavKey = "today" | "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets" | "queries" | "graph" | "trash" | "archived" | "shares";
+export type NavKey = "today" | "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "sources" | "assets" | "queries" | "graph" | "trash" | "archived" | "shares";
 
 /**
  * The nav register: labels, icons, and `/`-paths for every hub — the tab
@@ -60,6 +60,7 @@ export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string; menu
   { key: "classes", label: "Classes", icon: "mdi-shape-outline" },
   { key: "whiteboards", label: "Whiteboards", icon: "mdi-presentation" },
   { key: "tasks", label: "Tasks", icon: "mdi-format-list-checks" },
+  { key: "sources", label: "Sources", icon: "mdi-bookshelf" },
   { key: "assets", label: "Assets", icon: "mdi-folder-multiple-image" },
   { key: "queries", label: "Queries", icon: "mdi-database-search-outline" },
   { key: "graph", label: "Graph", icon: "mdi-graph-outline" },

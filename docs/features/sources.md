@@ -16,6 +16,10 @@ The honest edges: a PDF with no DOI says so and creates nothing; the resolver-of
 
 Authorship is deliberately dual-track, and the two tracks never write each other. **`authors`** is plain text — one name per value, in BibTeX "Family, Given" form (the create form splits a pasted `;`- or newline-separated list, a comma lives safely inside one name). It is the citation and export source of truth, and creating a source never spawns person nodes. **`linkedAuthors`** is the people-graph view: node-typed links to `person`/`organization` agents, drawn as chips with backlinks, carrying zero availability semantics — you link the authors you care about, whenever you care, by hand. Authorship reads use `authors` first and derive names from the `linkedAuthors` targets only when the text track is empty (read-time only, never written back).
 
+## The Sources hub
+
+The sidebar's **Sources** entry opens `/sources`, the library manager surface (a Zotero-parity view over the source family). The surface owns its URL and its tab title: the address bar carries the filtered state — `?type=<classKey>&q=<search>&sort=<field>:<dir>` — so a reload or a shared link boots back into the same filtered library, and the tab reads "Sources". Three panes compose the shared panelled frame: the source-type facets on the left, the items table in the middle, the type-aware detail editor on the right. An empty library is stated honestly in each pane — and the table pane's **Add source** button (paste a DOI, ISBN, arXiv link or a URL) is live from the start, riding the same add-source flow as everywhere else.
+
 ## Settings → Features → Sources
 
 The Sources section under the workspace feature toggles:

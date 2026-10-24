@@ -74,8 +74,8 @@
 }
 
 /* The hub surfaces: Journal, Calendar, the collection
-   hubs (Pages / Classes / Inbox / Whiteboards / Assets / Tasks), Trash,
-   Archived, Shares, Search, and Queries. Same full-bleed treatment as the
+   hubs (Pages / Classes / Inbox / Whiteboards / Assets / Tasks), Sources,
+   Trash, Archived, Shares, Search, and Queries. Same full-bleed treatment as the
    graph surface: no centered column cap — each hub pins a SurfaceTopBar
    header row at the card's top and its body scrolls at the CARD's right
    border (the generic 800px cap put internal scrollbars at the floating
@@ -86,6 +86,7 @@
 .nt-page-card > .day-page-surface,
 .nt-page-card > .nt-hub,
 .nt-page-card > .nt-hub-tasks,
+.nt-page-card > .nt-sources-hub,
 .nt-page-card > .nt-trash-hub,
 .nt-page-card > .nt-archived-hub,
 .nt-page-card > .nt-shares-hub,
