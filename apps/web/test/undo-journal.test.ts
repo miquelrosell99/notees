@@ -83,6 +83,7 @@ function fakeCapture(overrides: {
   member?: boolean;
   assignment?: boolean;
   feature?: boolean;
+  externalRef?: string | null;
 }): UndoCaptureSource {
   const defaultNode: UndoNodeSnapshot = {
     isClass: false,
@@ -129,6 +130,7 @@ function fakeCapture(overrides: {
     collectionMembership: () => overrides.member ?? false,
     propertyAssignment: () => overrides.assignment ?? false,
     featureEnabled: () => overrides.feature ?? true,
+    externalRefTarget: () => overrides.externalRef ?? null,
   };
 }
 
@@ -748,6 +750,29 @@ describe("invertEnvelope — the inversion matrix", () => {
     ]);
     expect(
       invertEnvelope(env("workspace.feature.set", { feature: "tasks", enabled: false }), fakeCapture({ feature: false })),
+    ).toBeNull();
+  });
+
+  it("external_ref.set inverts to a delete when unmapped, to the prior carrier on a move; a redundant set is a no-op", () => {
+    const ref = "gcal:event:abc123@google.com";
+    expect(
+      invertEnvelope(env("external_ref.set", { ref, nodeId: NODE }), fakeCapture({ externalRef: null })),
+    ).toEqual([{ opType: "external_ref.delete", payload: { ref }, affected: [NODE] }]);
+    expect(
+      invertEnvelope(env("external_ref.set", { ref, nodeId: NODE }), fakeCapture({ externalRef: OTHER })),
+    ).toEqual([{ opType: "external_ref.set", payload: { ref, nodeId: OTHER }, affected: [OTHER, NODE] }]);
+    expect(
+      invertEnvelope(env("external_ref.set", { ref, nodeId: NODE }), fakeCapture({ externalRef: NODE })),
+    ).toBeNull();
+  });
+
+  it("external_ref.delete inverts to the captured prior carrier; deleting an unmapped ref is a no-op", () => {
+    const ref = "readwise:highlight:12345";
+    expect(
+      invertEnvelope(env("external_ref.delete", { ref }), fakeCapture({ externalRef: OTHER })),
+    ).toEqual([{ opType: "external_ref.set", payload: { ref, nodeId: OTHER }, affected: [OTHER] }]);
+    expect(
+      invertEnvelope(env("external_ref.delete", { ref }), fakeCapture({ externalRef: null })),
     ).toBeNull();
   });
 });

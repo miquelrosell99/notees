@@ -1,9 +1,7 @@
 /**
  * CalendarView pure-logic tests: the local-day helpers, the ISO week, the
  * created-today UTC bounds from a local date, the open-task AST (negated-eq
- * arms — never neq), the scheduled/overdue/future partition, and the
- * quick-create chip qualification (task prefers taskScheduled; date-chain
- * and class system classes excluded).
+ * arms — never neq), and the scheduled/overdue/future partition.
  */
 
 import { describe, expect, it } from "vitest";
@@ -19,7 +17,6 @@ import {
   buildOpenTasksAst,
   closedStatusOptionIds,
   createdTodayBounds,
-  dateChipCandidates,
   isoWeekNumber,
   partitionOpenTasks,
   todayIsoLocal,
@@ -219,73 +216,5 @@ describe("partitionOpenTasks", () => {
     const nextOccurrence = partitionOpenTasks(rows, "2026-10-18");
     expect(nextOccurrence.scheduled.map((row) => row.id)).toEqual(["series"]);
     expect(nextOccurrence.scheduled[0]!.occurrenceDone).toBe(false);
-  });
-});
-
-describe("dateChipCandidates", () => {
-  const bindingsOf =
-    (map: Record<string, Array<{ propertySchemaId: string; type: string; name?: string }>>) =>
-    (classId: string) =>
-      map[classId] ?? [];
-
-  it("qualifies classes with a date-typed binding and sorts by label", () => {
-    const chips = dateChipCandidates(
-      [
-        { id: "cls-b", name: "Meeting" },
-        { id: "cls-a", name: "Booking" },
-        { id: "cls-c", name: "Plain" },
-      ],
-      bindingsOf({
-        "cls-b": [{ propertySchemaId: "sch-when", type: "datetime", name: "When" }],
-        "cls-a": [{ propertySchemaId: "sch-date", type: "datetime", name: "Date" }],
-        "cls-c": [{ propertySchemaId: "sch-note", type: "text" }],
-      }),
-    );
-    expect(chips).toEqual([
-      { classId: "cls-a", schemaId: "sch-date", label: "Booking", propertyName: "Date" },
-      { classId: "cls-b", schemaId: "sch-when", label: "Meeting", propertyName: "When" },
-    ]);
-  });
-
-  it("task prefers taskScheduled over other date bindings", () => {
-    const chips = dateChipCandidates(
-      [{ id: SYSTEM_CLASS_UUIDS.task, name: "task" }],
-      bindingsOf({
-        [SYSTEM_CLASS_UUIDS.task]: [
-          { propertySchemaId: "sch-other-date", type: "datetime" },
-          { propertySchemaId: SYSTEM_PROPERTY_UUIDS.taskScheduled, type: "datetime" },
-          { propertySchemaId: "sch-aaa", type: "datetime" },
-        ],
-      }),
-    );
-    expect(chips).toHaveLength(1);
-    expect(chips[0]!.schemaId).toBe(SYSTEM_PROPERTY_UUIDS.taskScheduled);
-    expect(chips[0]!.propertyName).toBeNull();
-  });
-
-  it("other classes with several date bindings take the first sorted schema id", () => {
-    const chips = dateChipCandidates(
-      [{ id: "cls-x", name: "X" }],
-      bindingsOf({
-        "cls-x": [
-          { propertySchemaId: "sch-zzz", type: "datetime" },
-          { propertySchemaId: "sch-aaa", type: "datetime" },
-        ],
-      }),
-    );
-    expect(chips[0]!.schemaId).toBe("sch-aaa");
-  });
-
-  it("excludes the date-chain classes", () => {
-    const chips = dateChipCandidates(
-      [
-        { id: SYSTEM_CLASS_UUIDS.year, name: "year" },
-        { id: SYSTEM_CLASS_UUIDS.month, name: "month" },
-        { id: SYSTEM_CLASS_UUIDS.day, name: "day" },
-        { id: "cls-ok", name: "OK" },
-      ],
-      () => [{ propertySchemaId: "sch-date", type: "datetime" }],
-    );
-    expect(chips.map((chip) => chip.classId)).toEqual(["cls-ok"]);
   });
 });

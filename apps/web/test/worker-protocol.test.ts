@@ -148,6 +148,37 @@ describe("worker message protocol (handleMessage)", () => {
     expect(response.error).toMatch(/unknown method/);
   });
 
+  it("drives the external-id mapping methods over the wire shapes", async () => {
+    const { ctx } = createTestContext();
+    await send(ctx, "init", [
+      { sqlWasmUrl: "/x.wasm", workspaceId: WS, serverUrl: "https://x.example.com", apiKey: "k" },
+    ]);
+    const created = await send(ctx, "createObject", [{ isEmbedded: false, name: "Event" }], 2);
+    const nodeId = created.result as string;
+
+    const ref = "gcal:event:abc123@google.com";
+    const set = await send(ctx, "setExternalRef", [ref, nodeId], 3);
+    expect(set.error).toBeUndefined();
+
+    const resolved = await send(ctx, "resolveExternalRef", [ref], 4);
+    expect(resolved.error).toBeUndefined();
+    expect(resolved.result).toBe(nodeId);
+
+    const refs = await send(ctx, "externalRefsOf", [nodeId], 5);
+    expect(refs.error).toBeUndefined();
+    expect(refs.result).toEqual([ref]);
+
+    // The mapping reads are read-methods: a cache refresh may batch them.
+    const batch = await send(ctx, "multiRead", [[JSON.stringify(["resolveExternalRef", [ref]])]], 6);
+    expect(batch.error).toBeUndefined();
+    expect(batch.result).toEqual([nodeId]);
+
+    const removed = await send(ctx, "removeExternalRef", [ref], 7);
+    expect(removed.error).toBeUndefined();
+    const after = await send(ctx, "resolveExternalRef", [ref], 8);
+    expect(after.result).toBeNull();
+  });
+
   it("roots returns top-level pages only, while listPages includes main children", async () => {
     const { ctx } = createTestContext();
     await send(ctx, "init", [

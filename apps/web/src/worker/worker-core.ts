@@ -14,12 +14,14 @@
  *    / runQueryAst / runAggregateAst / getBacklinkCount / getChildPageCount / getDisplayName /
  *    getNode / getNodeRaw / getEffectiveProperties / getAssetInfo /
  *    getAnnotationsForAsset / listPropertySchemas / isFeatureEnabled /
- *    listFeatureRows / getFeatureInstanceCount), the batched read surface
+ *    listFeatureRows / getFeatureInstanceCount /
+ *    resolveExternalRef / externalRefsOf), the batched read surface
  *    (multiRead — one round-trip per cache refresh), the write
  *    surface (createObject / updateObject / deleteObject / restoreObject /
  *    emptyTrash / moveObject /
  *    setClassProperty / unsetClassProperty / createPropertySchema /
- *    setProperty / unsetProperty / attachAsset), the session undo journal
+ *    setProperty / unsetProperty / attachAsset /
+ *    setExternalRef / removeExternalRef), the session undo journal
  *    (undoState / undo / redo), syncOnce, the realtime
  *    acceleration path (startRealtime / stopRealtime), status, exportBytes,
  *    stats, the per-user UI prefs reads/writes (getPrefs / patchPrefs), the
@@ -190,6 +192,8 @@ const READ_METHODS: ReadonlySet<string> = new Set([
   "isFeatureEnabled",
   "listFeatureRows",
   "getFeatureInstanceCount",
+  "resolveExternalRef",
+  "externalRefsOf",
 ]);
 
 /** Default when no transport is configured: sync attempts fail without blocking local boot. */
@@ -562,6 +566,16 @@ export class WorkerCore {
     return this.client.listPropertySchemas();
   }
 
+  /** External-id mapping read (importer/sync plugins): ref -> node id, null when unmapped. */
+  resolveExternalRef(ref: string): string | null {
+    return this.client.resolveExternalRef(ref);
+  }
+
+  /** Every live external ref mapped to the node, sorted. */
+  externalRefsOf(nodeId: string): string[] {
+    return this.client.externalRefsOf(nodeId);
+  }
+
   // --- writes (optimistic local apply + outbox push) -------------------------------------
 
   createObject(partial: CreateObjectInput): Promise<string> {
@@ -792,6 +806,14 @@ export class WorkerCore {
         return this.getAnnotationsForAsset(args[0] as string);
       case "listPropertySchemas":
         return this.listPropertySchemas();
+      case "resolveExternalRef":
+        return this.resolveExternalRef(args[0] as string);
+      case "externalRefsOf":
+        return this.externalRefsOf(args[0] as string);
+      case "setExternalRef":
+        return this.client.setExternalRef(args[0] as string, args[1] as string);
+      case "removeExternalRef":
+        return this.client.removeExternalRef(args[0] as string);
       case "setClassProperty":
         return this.client.setClassProperty(
           args[0] as string,

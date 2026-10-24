@@ -134,6 +134,15 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   // edits cannot reorder them and why title freshness survives.
   listPages: "structure",
   roots: "structure",
+  // External-id mappings (importer/sync plugins): externalRefsOf is keyed
+  // by the node id — the applier's ChangeSummary carries the mapped node
+  // ids on set (previous + new carrier on a move) and delete, so the
+  // scope class covers both directions. resolveExternalRef is keyed by an
+  // opaque ref string that never appears in an affected set: any change
+  // may alter what the ref resolves to, so the honest class is the
+  // content-global one (the resolveAlias precedent).
+  externalRefsOf: "scope",
+  resolveExternalRef: "change",
   // Structural-global reads: definitions/membership/pure-of-args functions.
   listClasses: "structure",
   classIcons: "structure",
@@ -686,6 +695,16 @@ export class WorkerClient {
     return this.cachedRead<number>("getFeatureInstanceCount", [feature], 0);
   }
 
+  /** External-id mapping read (importer/sync plugins): ref -> node id, null when unmapped. */
+  resolveExternalRef(ref: string): string | null {
+    return this.cachedRead<string | null>("resolveExternalRef", [ref], null);
+  }
+
+  /** Every live external ref mapped to the node, sorted (many refs per node). */
+  externalRefsOf(nodeId: string): string[] {
+    return this.cachedRead<string[]>("externalRefsOf", [nodeId], []);
+  }
+
   // --- write API & sync (RPC; the worker's "changed" drives the cache refresh) --------
 
   async createObject(partial: CreateObjectInput): Promise<string> {
@@ -759,6 +778,16 @@ export class WorkerClient {
   /** Write a feature toggle (workspace.feature.set, LWW by HLC). */
   async setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean): Promise<void> {
     await this.call("setFeatureEnabled", [feature, enabled]);
+  }
+
+  /** Write an external-id mapping (external_ref.set, LWW by HLC per ref). */
+  async setExternalRef(ref: string, nodeId: string): Promise<void> {
+    await this.call("setExternalRef", [ref, nodeId]);
+  }
+
+  /** Remove an external-id mapping (external_ref.delete). */
+  async removeExternalRef(ref: string): Promise<void> {
+    await this.call("removeExternalRef", [ref]);
   }
 
   async setClassExtends(classId: string, parentClassIds: string[]): Promise<void> {
