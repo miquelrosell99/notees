@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): Sources hub — route, shell, sidebar entry (task 1 of the
+  Sources hub plan: the Zotero-parity library surface).** The `/sources`
+  route registers in the nav table — a sidebar row with the bookshelf icon,
+  between Tasks and Assets — the popstate handler maps it back, and the ONE
+  tab-title effect names it "Sources - Notees" (law 9: the surface owns its
+  URL AND its tab title from day one). The URL's query-string state —
+  `?type=<classKey>&q=<search>&sort=<field>:<dir>` — parses and serializes
+  through `apps/web/src/features/sources/sourcesQuery.ts` (invalid sorts
+  rejected outright; the sort rides a literal colon so deep links stay
+  readable in the address bar). The shell composes the shared
+  MainContentFrame: the fleet SurfaceTopBar names the surface, the left pane
+  hosts the source-type facets, the middle cell the items table, the right
+  pane the type-aware detail editor — each pane an honest empty state from
+  the start ("No source types" · the Add-your-first-source hint with a live
+  Add-source button riding the shipped add-source flow · "Select a source").
+  No data layer, table logic, or detail editor yet — those land in the
+  follow-up slices. Gate: `pnpm typecheck && pnpm test` green.
+
 - **fix(domain,store,server,web): source binds only the shared base — each
   subclass carries its Zotero field set.** The
   source-library slice seeded ALL ~85 bibliographic pool properties with a
