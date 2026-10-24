@@ -34,7 +34,7 @@ import { Icon } from "../../ui/Icon.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { Dropdown } from "../../components/ui/fleet/Dropdown.js";
 import { Input } from "../../components/ui/fleet/Input.js";
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { titleOfNode } from "../../ui/dateDisplay.js";
 import type { QueryBuilderState } from "../../ui/queryBuilder.js";
 import "./QueryBuilderFields.css";
 
@@ -88,7 +88,7 @@ export function useBuilderFacts(client: BuilderFactsClient): BuilderFacts {
       classes,
       boundProperties,
       numericProperties: boundProperties.filter((property) => property.type === "number"),
-      classNames: new Map(classes.map((cls) => [cls.id, nodeDisplayName(cls) || cls.id])),
+      classNames: new Map(classes.map((cls) => [cls.id, titleOfNode(cls) || cls.id])),
       propertyNames: new Map(boundProperties.map((property) => [property.id, property.name])),
     };
     // The bindings read follows the client's notify cycle; classes identity
@@ -193,7 +193,7 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
               { value: "", label: "Any class" },
               ...classes.map((cls) => ({
                 value: cls.id,
-                label: nodeDisplayName(cls) || cls.id,
+                label: titleOfNode(cls) || cls.id,
               })),
             ]}
             value={state.classId ?? ""}
@@ -339,7 +339,7 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
               { value: "isEmbedded", label: "Structural role" },
               ...classes.map((cls) => ({
                 value: `class:${cls.id}`,
-                label: `Class: ${nodeDisplayName(cls) || cls.id}`,
+                label: `Class: ${titleOfNode(cls) || cls.id}`,
               })),
               ...boundProperties.map((property) => ({
                 value: `property:${property.id}`,

@@ -10,7 +10,7 @@ import { Button } from "../../components/ui/fleet/Button.js";
 import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { uuidv7 } from "uuidv7";
 import "./CreatePageWithUuidModal.css";
 
@@ -220,7 +220,7 @@ export function CreatePageWithUuidModal({
                 <option key={page.id} value={page.id}>
                   {/* Fresh per-row title read (scope-classed getNode): the
                       listPages pool is structure-classed and can lag a rename. */}
-                  {displayNameFromClient(client, page.id) || "Untitled page"}
+                  {titleOf(client, page.id) || "Untitled page"}
                 </option>
               ))}
             </select>

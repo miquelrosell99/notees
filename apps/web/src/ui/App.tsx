@@ -48,7 +48,7 @@ import {
 } from "@/core/workspace-registry.js";
 import { logout } from "@/core/auth-api.js";
 
-import { nodeDisplayName } from "./dateDisplay.js";
+import { titleOfNode } from "./dateDisplay.js";
 import { parentlessBlockResolverOf } from "./renderStateLabel.js";
 import type { ShareTarget } from "../features/node-menu/NodeMenuButton.js";
 import { rendersAsInlineBlock } from "@notees/domain";
@@ -84,6 +84,7 @@ import {
   initialServerUrl,
   calendarRouteFromPath,
   pathForCalendar,
+  pathForNav,
   popStateNavHandler,
   pushSettingsSection,
   readStored,
@@ -234,6 +235,16 @@ export function App() {
    * hidden (the onToggleLayout gating idiom: no eligible page, no button).
    */
   const [condensedActive, setCondensedPref] = useCondensedPreference(selectedPageId ?? "");
+  // The root URL claims the default view on load (every
+  // view is responsible for its URL; a bare "/" rewrites to the boot view's
+  // path with a replace, so refreshing the app never leaves a bare root).
+  useEffect(() => {
+    if (window.location.pathname === "/") {
+      window.history.replaceState(null, "", pathForNav(initialNav()));
+    }
+    // Boot-time only — the initialNav read and this claim must agree.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [activeNav, setActiveNav] = useState<NavKey>(initialNav);
   /**
    * The calendar surface's parsed route: the /calendar/<zoom>/<iso> in the address bar, or null
@@ -391,7 +402,7 @@ export function App() {
           ? (() => {
               const node = client.getNode(selectedPageId);
               return node !== undefined
-                ? nodeDisplayName(node, (classId) => client.getDisplayName(classId))
+                ? titleOfNode(node, { resolveClassName: (classId) => client.getDisplayName(classId) })
                 : "";
             })()
           : "",

@@ -31,7 +31,7 @@ import {
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import {
   isEventFamilyClass,
@@ -173,8 +173,8 @@ export function datedRowNodes(client: AnyClient, dayId: string): ClientNode[] {
   }
   rows.sort(
     (a, b) =>
-      (displayNameFromClient(client, a.id) ?? a.id).localeCompare(
-        displayNameFromClient(client, b.id) ?? b.id,
+      (titleOf(client, a.id) ?? a.id).localeCompare(
+        titleOf(client, b.id) ?? b.id,
       ) || a.id.localeCompare(b.id),
   );
   return rows;
@@ -226,8 +226,8 @@ export function recurringRowsOf(client: AnyClient): RecurringRow[] {
   }
   rows.sort(
     (a, b) =>
-      (displayNameFromClient(client, a.node.id) ?? a.node.id).localeCompare(
-        displayNameFromClient(client, b.node.id) ?? b.node.id,
+      (titleOf(client, a.node.id) ?? a.node.id).localeCompare(
+        titleOf(client, b.node.id) ?? b.node.id,
       ) || a.node.id.localeCompare(b.node.id),
   );
   return rows;
@@ -306,8 +306,8 @@ export function spannedRowsOf(client: AnyClient): SpannedRow[] {
   }
   rows.sort(
     (a, b) =>
-      (displayNameFromClient(client, a.node.id) ?? a.node.id).localeCompare(
-        displayNameFromClient(client, b.node.id) ?? b.node.id,
+      (titleOf(client, a.node.id) ?? a.node.id).localeCompare(
+        titleOf(client, b.node.id) ?? b.node.id,
       ) || a.node.id.localeCompare(b.node.id),
   );
   return rows;
@@ -430,8 +430,8 @@ export function eventRowsForDays(
       if (byTime !== 0) return byTime;
     }
     return (
-      (displayNameFromClient(client, a.node.id) ?? a.node.id).localeCompare(
-        displayNameFromClient(client, b.node.id) ?? b.node.id,
+      (titleOf(client, a.node.id) ?? a.node.id).localeCompare(
+        titleOf(client, b.node.id) ?? b.node.id,
       ) || a.node.id.localeCompare(b.node.id)
     );
   });
@@ -504,7 +504,7 @@ export function timeGridSplitForDays(
   const splits: TimeGridDaySplit[] = days.map(() => ({ timed: [], chips: [], spans: [] }));
 
   const displayKey = (node: ClientNode): string =>
-    displayNameFromClient(client, node.id) ?? node.id;
+    titleOf(client, node.id) ?? node.id;
   const byName = (a: ClientNode, b: ClientNode): number =>
     displayKey(a).localeCompare(displayKey(b)) || a.id.localeCompare(b.id);
 

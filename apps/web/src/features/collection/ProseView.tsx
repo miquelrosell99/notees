@@ -19,7 +19,7 @@
 import { useCallback } from "react";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { BlockRow, useStableIdArray } from "../../ui/BlockRow.js";
 import { registerView } from "./registry.js";
 import type { NodeCollectionItem, NodeCollectionProps } from "./types.js";
@@ -35,7 +35,7 @@ export function ProseView(props: NodeCollectionProps) {
   const { client, items = [], editable = false, readOnly = !editable, condensed = false } = props;
   // Stable identity — the memoized BlockRow compares it by reference, so a
   // fresh arrow per render would defeat the row bail-out.
-  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
+  const resolveName = useCallback((id: string) => titleOf(client, id), [client]);
   // Stable identity for dnd-kit's SortableContext (the row memo's defeat
   // otherwise — see useStableIdArray).
   const stableIds = useStableIdArray(items.map((item) => item.node.id));

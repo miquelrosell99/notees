@@ -45,7 +45,7 @@ import { CSS } from "@dnd-kit/utilities";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { labelFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { ColorPickerRow } from "../pickers/ColorPickerRow.js";
@@ -192,7 +192,7 @@ function PillShell({
   // their name via the raw read; a dangling binding (the class row
   // permanently deleted — the retired class-class debt) reads "Deleted
   // class" and stays ×-removable.
-  const label = labelFromClient(client, classId) ?? "Deleted class";
+  const label = titleOf(client, classId, { read: "fallback", empty: "untitled" }) ?? "Deleted class";
   // Class-chain color/icon resolution — the class pill's identity.
   const colored = client.effectiveClassColor(classId);
   const icon = client.effectiveClassIcon(classId);
@@ -276,7 +276,7 @@ function PopupRow({
     disabled: !sortable,
   });
   // Same never-a-bare-UUID contract as PillShell.
-  const label = labelFromClient(client, classId) ?? "Deleted class";
+  const label = titleOf(client, classId, { read: "fallback", empty: "untitled" }) ?? "Deleted class";
   // Effective icon: the class glyph (display-time default when none is set).
   const icon = client.effectiveClassIcon(classId);
   const nonRemovable = isClassNonRemovable(classId);

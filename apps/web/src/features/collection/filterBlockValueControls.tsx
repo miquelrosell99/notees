@@ -15,7 +15,7 @@ import type { Condition, DatePeriod, PropertyOp } from "@notees/query";
 
 import type { AnyClient } from "./index.js";
 import { Icon } from "../../ui/Icon.js";
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { titleOfNode } from "../../ui/dateDisplay.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { NodePill } from "../metadata/NodePills.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
@@ -629,7 +629,7 @@ function NodePickBody({
         onClick={() => setOpen(true)}
       >
         <span className="nt-fb-nodepick__label">
-          {target !== undefined ? nodeDisplayName(target) || "Untitled" : placeholder}
+          {target !== undefined ? titleOfNode(target) || "Untitled" : placeholder}
         </span>
         <Icon
           path="mdi mdi-chevron-down"
@@ -686,7 +686,7 @@ function NodePillsPick({
     <span className="nt-fb-multipick" aria-label={ariaLabel}>
       {nodeIds.map((nodeId) => {
         const node = client.getNode(nodeId);
-        const label = node !== undefined ? nodeDisplayName(node) || "Untitled" : nodeId;
+        const label = node !== undefined ? titleOfNode(node) || "Untitled" : nodeId;
         return (
           <NodePill
             key={nodeId}

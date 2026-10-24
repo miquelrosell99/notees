@@ -21,7 +21,7 @@ import { zipSync } from "fflate";
 
 import { exportFileName, type ResolvedExportOptions } from "@notees/export";
 
-import { nodeDisplayName } from "../dateDisplay.js";
+import { titleOfNode } from "../dateDisplay.js";
 
 import {
   buildSubtreeDocument,
@@ -146,7 +146,7 @@ export async function renderSubtreePdf(
   const blob = await pdf(
     <ExportPdfDocument document={document} options={merged} assetDataUrls={assetDataUrls} iconPaths={iconPaths} />,
   ).toBlob();
-  const filename = exportFileSlugName(nodeDisplayName(root).trim(), rootId, "pdf");
+  const filename = exportFileSlugName(titleOfNode(root).trim(), rootId, "pdf");
   return { blob, filename };
 }
 

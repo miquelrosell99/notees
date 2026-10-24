@@ -33,6 +33,7 @@ import {
 } from "../../ui/app/routing.js";
 import {
   addDaysIso,
+  addMonthsIso,
   isoWeekNumber,
   todayIsoLocal,
   weekdayLabel,
@@ -118,20 +119,24 @@ export function CalendarView({
     setSelectedIso(route?.iso ?? todayIsoLocal());
   }, [route]);
   /**
-   * A bare or route-less calendar (the sidebar entry, an invalid zoom
-   * segment) claims its URL once: the device setting fills the zoom, the
-   * selection fills the day — a REPLACE, never a history push (the sidebar
-   * already pushed the bare path).
+   * The view claims its FULL URL on load: a bare or route-less calendar (the
+   * sidebar entry, an invalid zoom segment) AND a zoom-without-day URL
+   * (/calendar/agenda) each claim the missing segments once — the URL's
+   * values win where present, the device setting fills the zoom, today
+   * fills the day — a REPLACE, never a history push.
    */
   const claimedRouteRef = useRef(false);
   useEffect(() => {
-    if (route !== null && route.zoom !== null) {
+    if (route !== null && route.zoom !== null && route.iso !== null) {
       claimedRouteRef.current = false;
       return;
     }
     if (claimedRouteRef.current || onRouteChange === undefined) return;
     claimedRouteRef.current = true;
-    onRouteChange({ zoom: deviceZoom, iso: route?.iso ?? todayIsoLocal() }, "replace");
+    onRouteChange(
+      { zoom: route?.zoom ?? deviceZoom, iso: route?.iso ?? todayIsoLocal() },
+      "replace",
+    );
   });
   /** Zoom ladder change: PUSH a new history entry (a real navigation). */
   const changeZoom = (value: CalendarZoom): void => {
@@ -176,10 +181,14 @@ export function CalendarView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- follow the selection only
   }, [selectedIso, calendarZoom]);
   const shiftPeriod = (delta: number): void => {
-    if (calendarZoom === "week" || calendarZoom === "agenda") {
-      // Week/Agenda step the SELECTION by a week — a selected-day change
-      // (the URL rides along with a replace).
+    if (calendarZoom === "week") {
+      // Week steps the SELECTION by a week — a selected-day change (the
+      // URL rides along with a replace).
       pickDay(addDaysIso(selectedIso, delta * 7));
+    } else if (calendarZoom === "agenda") {
+      // Agenda steps MONTH to month (the agenda lists
+      // days with events across months; a week's stride is noise there).
+      pickDay(addMonthsIso(selectedIso, delta));
     } else if (calendarZoom === "year") setPeriod((p) => ({ ...p, year: p.year + delta }));
     else setPeriod((p) => shiftMonth(p, delta));
   };
@@ -362,6 +371,7 @@ export function CalendarView({
               recurringRows={recurringEvents}
               spannedRows={spannedEvents}
               onOpenEvent={onOpenPage}
+              onOpenDayPage={openDayPage}
             />
           )}
           {(calendarZoom === "month" || calendarZoom === "year") && (

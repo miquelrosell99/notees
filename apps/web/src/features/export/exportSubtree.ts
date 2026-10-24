@@ -69,7 +69,7 @@ import {
 } from "@notees/export";
 import { rendersAsInlineBlock, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
-import { nodeDisplayName, displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOfNode, titleOf } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { resolveCssColor } from "../../components/ui/fleet/colorPresets.js";
 import { nodeIcon } from "../../ui/iconFor.js";
@@ -128,7 +128,7 @@ export function toExportNode(client: ExportReadSurface, id: string): ExportNode 
     parentId: node.parentId,
     // Export DTO name = the node's resolved display name (title-is-content:
     // derived from its content, rename-free).
-    name: nodeDisplayName(node) || null,
+    name: titleOfNode(node) || null,
     contentAst: node.contentAst,
     classIds: node.classIds,
     properties,
@@ -205,7 +205,7 @@ function makeExportContext(
   hooks?: { assetPath?: ((assetId: string) => string | undefined) | undefined },
 ): ExportContext {
   return {
-    nameOf: (id) => displayNameFromClient(client, id) ?? undefined,
+    nameOf: (id) => titleOf(client, id) ?? undefined,
     childrenOf: (id) => blockChildrenOf(client, id),
     ...chromeHooks(client),
     ...(hooks?.assetPath !== undefined ? { assetPath: hooks.assetPath } : {}),
@@ -297,7 +297,7 @@ export function exportSubtreeMarkdown(
 
   const ordered = collectSubtree(client, rootId, options.includeChildPages ?? true);
   const bundle = bundleMarkdown(ordered, makeExportContext(client), engineOptions(options));
-  const title = nodeDisplayName(root).trim();
+  const title = titleOfNode(root).trim();
   const filename = exportFileSlugName(title, rootId, "md");
   return { markdown: concatBundleMarkdown(bundle), filename };
 }
@@ -367,7 +367,7 @@ export function exportSubtreeJsonArchive(
   const includeChildPages = options.includeChildPages ?? true;
   const ordered = rootIds.flatMap((id) => collectSubtreeArchiveNodes(client, id, includeChildPages));
   const ctx: ExportContext = {
-    nameOf: (id) => displayNameFromClient(client, id) ?? undefined,
+    nameOf: (id) => titleOf(client, id) ?? undefined,
     childrenOf: (id) =>
       client
         .getChildren(id)
@@ -376,7 +376,7 @@ export function exportSubtreeJsonArchive(
   };
   const archive = buildJsonArchive(ordered, ctx);
   const firstRoot = client.getNode(rootIds[0]!);
-  const title = firstRoot === undefined ? "" : nodeDisplayName(firstRoot).trim();
+  const title = firstRoot === undefined ? "" : titleOfNode(firstRoot).trim();
   return {
     blob: new Blob([renderJsonArchive(archive)], { type: "application/json" }),
     filename: exportFileSlugName(title, rootIds[0]!, "json"),
@@ -492,7 +492,7 @@ export function zipExportBundle(
 /** Batch-zip download name: the first root's title slug (E5's `<slug>.zip`). */
 export function exportZipFileName(client: ExportClient, firstRootId: string, date: Date = new Date()): string {
   const root = client.getNode(firstRootId);
-  const title = root === undefined ? "" : nodeDisplayName(root).trim();
+  const title = root === undefined ? "" : titleOfNode(root).trim();
   const slug = title.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
   return `${slug.length > 0 ? slug : "export"}-${exportTimestamp(date)}.zip`;
 }
@@ -544,14 +544,14 @@ export function exportSubtreeBibliography(
       seen.add(node.id);
       items.push(
         nodeToCsl(node, node.properties, {
-          resolveName: (id) => displayNameFromClient(client, id) ?? undefined,
+          resolveName: (id) => titleOf(client, id) ?? undefined,
           resolveAgentName: (id) => agentCitationName(client, id) ?? undefined,
         }),
       );
     }
   }
   const firstRoot = client.getNode(rootIds[0]!);
-  const title = firstRoot === undefined ? "" : nodeDisplayName(firstRoot).trim();
+  const title = firstRoot === undefined ? "" : titleOfNode(firstRoot).trim();
   const content =
     options.format === "bib"
       ? serializeBibtex(items.map(cslToBib))
@@ -580,7 +580,7 @@ function agentCitationName(client: ExportReadSurface, agentId: string): string |
   }
   const parts = [family, given].filter((part): part is string => part !== undefined && part.trim().length > 0);
   if (parts.length > 0) return parts.map((part) => part.trim()).join(", ");
-  return displayNameFromClient(client, agentId);
+  return titleOf(client, agentId);
 }
 
 // --- format-routed delivery -----------------------------------------------------
@@ -625,7 +625,7 @@ export function buildSubtreeDocument(
   const resolved = resolveExportOptions(engineOptions(options));
   const includeChildPages = options.includeChildPages ?? true;
   const ctx: ExportContext = {
-    nameOf: (id) => displayNameFromClient(client, id) ?? undefined,
+    nameOf: (id) => titleOf(client, id) ?? undefined,
     childrenOf: (id) => subtreeChildrenOf(client, id, includeChildPages),
     ...chromeHooks(client),
   };
@@ -679,7 +679,7 @@ export async function exportSubtreeFile(
   const root = client.getNode(rootId);
   if (root === undefined) throw new Error("exportSubtreeFile: node not found");
   const { document, resolved } = buildSubtreeDocument(client, rootId, options);
-  const filename = exportFileSlugName(nodeDisplayName(root).trim(), rootId, delivery.extension);
+  const filename = exportFileSlugName(titleOfNode(root).trim(), rootId, delivery.extension);
   switch (options.format) {
     case "html":
       return {

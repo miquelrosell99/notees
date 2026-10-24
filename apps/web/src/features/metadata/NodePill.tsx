@@ -11,7 +11,7 @@ import { createPortal } from "react-dom";
 
 import { Icon } from "../../ui/Icon.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { titleOfNode } from "../../ui/dateDisplay.js";
 import { ColorPickerRow } from "../pickers/ColorPickerRow.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import "./NodePill.css";
@@ -66,7 +66,7 @@ export function NodePill({
 
   // Title-is-content: the pill label is the node's display name (its content
   // excerpt); the id is the last-resort fallback so a pill never renders raw.
-  const displayText = nodeDisplayName(node) || node.id;
+  const displayText = titleOfNode(node) || node.id;
   const title = `Page: ${displayText}\nRight-click for actions`;
 
   return (

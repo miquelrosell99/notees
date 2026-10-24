@@ -26,7 +26,7 @@ describe("calendarRouteFromPath / pathForCalendar", () => {
     const zooms: CalendarZoom[] = ["day", "week", "month", "year", "agenda"];
     for (const zoom of zooms) {
       const path = pathForCalendar(zoom, "2026-10-20");
-      expect(path, zoom).toBe(`/calendar/${zoom}/2026-10-20`);
+      expect(path, zoom).toBe(`/calendar/${zoom}/20261020`);
       expect(calendarRouteFromPath(path), zoom).toEqual({ zoom, iso: "2026-10-20" });
     }
   });
@@ -49,7 +49,7 @@ describe("calendarRouteFromPath / pathForCalendar", () => {
   it("a malformed or impossible iso is ignored (today default), the zoom survives", () => {
     expect(calendarRouteFromPath("/calendar/week/not-a-date")).toEqual({ zoom: "week", iso: null });
     expect(calendarRouteFromPath("/calendar/week/20-10-2026")).toEqual({ zoom: "week", iso: null });
-    expect(calendarRouteFromPath("/calendar/week/2026-13-40")).toEqual({ zoom: "week", iso: null });
+    expect(calendarRouteFromPath("/calendar/week/20261340")).toEqual({ zoom: "week", iso: null });
     expect(calendarRouteFromPath("/calendar/week/20260230")).toEqual({ zoom: "week", iso: null });
   });
 
@@ -61,12 +61,14 @@ describe("calendarRouteFromPath / pathForCalendar", () => {
   });
 
   it("isCalendarZoom / isIsoDay gate the segments", () => {
-    expect(isCalendarZoom("month")).toBe(true);
-    expect(isCalendarZoom("fortnight")).toBe(false);
-    expect(isIsoDay("2026-10-20")).toBe(true);
-    expect(isIsoDay("2026-10-32")).toBe(false);
-    expect(isIsoDay("2026-1-1")).toBe(false);
-    expect(isIsoDay("20-10-2026")).toBe(false);
+    expect(isCalendarZoom("week")).toBe(true);
+    expect(isCalendarZoom("nope")).toBe(false);
+    // The compact URL register: YYYYMMDD validates, the
+    // dashed internal form does not.
+    expect(isIsoDay("20261020")).toBe(true);
+    expect(isIsoDay("2026-10-20")).toBe(false);
+    expect(isIsoDay("20261340")).toBe(false);
+    expect(calendarRouteFromPath("/calendar/week/nope")).toEqual({ zoom: "week", iso: null });
   });
 });
 
@@ -74,7 +76,7 @@ describe("navFromPath with the calendar subroutes", () => {
   it("every /calendar/* path lands on the calendar hub", () => {
     expect(navFromPath("/calendar")).toBe("calendar");
     expect(navFromPath("/calendar/week")).toBe("calendar");
-    expect(navFromPath("/calendar/week/2026-10-20")).toBe("calendar");
+    expect(navFromPath("/calendar/week/20261020")).toBe("calendar");
     expect(navFromPath("/calendar/bogus")).toBe("calendar");
   });
 
@@ -98,7 +100,7 @@ describe("popStateNavHandler's setCalendarRoute seam", () => {
       setCalendarRoute,
     });
 
-    window.history.replaceState({}, "", "/calendar/week/2026-10-20");
+    window.history.replaceState({}, "", "/calendar/week/20261020");
     handler();
     expect(setCalendarRoute).toHaveBeenLastCalledWith({ zoom: "week", iso: "2026-10-20" });
 

@@ -65,7 +65,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { UndoUiState } from "@/core/undo-journal.js";
 
-import { nodeDisplayName, displayNameFromClient, isDatePageNode, rawDateKeywordOf } from "../../ui/dateDisplay.js";
+import { titleOf, titleOfNode, isDatePageNode, rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { flipTheme, toggleFocusMode } from "../settings/deviceSettings.js";
@@ -155,7 +155,7 @@ function containingPageLabel(client: AnyClient, node: ClientNode): string | null
     const parent = client.getNode(currentId);
     if (parent === undefined) return null;
     if (rendersWithDocumentChrome(parent, undefined, parentlessBlockResolverOf(client)))
-      return nodeDisplayName(parent) || "Untitled";
+      return titleOfNode(parent) || "Untitled";
     currentId = parent.parentId;
     guard += 1;
   }
@@ -203,7 +203,7 @@ function pickRandomRows(
     rows.push({
       key: `random:${page.id}`,
       group: "Random",
-      label: nodeDisplayName(page) || "Untitled",
+      label: titleOfNode(page) || "Untitled",
       icon: page.icon ?? "mdi-file-document-outline",
       keywords: rawDateKeywordOf(page),
       run: () => onOpenNode(page.id),
@@ -430,7 +430,7 @@ export function CommandPalette({
         if (node === undefined || node.classIds.includes(assetClassId)) continue;
         recentPool.push({
           id: node.id,
-          label: nodeDisplayName(node) || "Untitled",
+          label: titleOfNode(node) || "Untitled",
           icon: node.icon ?? "mdi-file-document-outline",
           keywords: rawDateKeywordOf(node),
           run: () => onOpenNode(node.id),
@@ -469,7 +469,7 @@ export function CommandPalette({
           // The title re-reads fresh per row (scope-classed getNode): the
           // listPages pool is structure-classed, so a pooled row's own
           // contentAst can lag a rename.
-          label: displayNameFromClient(client, page.id) || "Untitled",
+          label: titleOf(client, page.id) || "Untitled",
           icon: page.icon ?? "mdi-calendar",
           // The raw compact label stays a keyword: display is formatted, but
           // users still type YYYYMMDD to find a date page.
@@ -489,7 +489,7 @@ export function CommandPalette({
           id: page.id,
           // Fresh per-row title read (scope-classed getNode) — the pool's
           // own contentAst can lag a rename (listPages is structure-classed).
-          label: displayNameFromClient(client, page.id) || "Untitled page",
+          label: titleOf(client, page.id) || "Untitled page",
           icon: page.icon ?? "mdi-file-document-outline",
           keywords: rawDateKeywordOf(page),
           run: () => onOpenNode(page.id),
@@ -504,7 +504,7 @@ export function CommandPalette({
           // Fresh per-row title read (scope-classed getNode): the class pool
           // is structure-classed, so a rename would otherwise leave both the
           // label AND the fuzzy keywords stale.
-          const fresh = displayNameFromClient(client, cls.id);
+          const fresh = titleOf(client, cls.id);
           return {
             id: cls.id,
             label: fresh || "Untitled class",
@@ -538,7 +538,7 @@ export function CommandPalette({
           // Fresh per-row title read (scope-classed getNode): the class pool
           // is structure-classed, so a rename would otherwise leave both the
           // label AND the fuzzy keywords stale.
-          const fresh = displayNameFromClient(client, cls.id);
+          const fresh = titleOf(client, cls.id);
           return {
             id: cls.id,
             label: fresh || "Untitled class",
@@ -761,7 +761,7 @@ export function CommandPalette({
                 queryTag: text,
                 key: `content:${node.id}`,
                 group: "Content" as const,
-                label: nodeDisplayName(node) || "Untitled",
+                label: titleOfNode(node) || "Untitled",
                 icon: rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
                   ? (node.icon ?? "mdi-file-document-outline")
                   : "mdi-format-text",

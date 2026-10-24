@@ -7,7 +7,7 @@
  */
 
 import { Icon } from "../../ui/Icon.js";
-import { fullTitleForSettings, nodeDisplayName } from "../../ui/dateDisplay.js";
+import { titleOfNode } from "../../ui/dateDisplay.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import "./NodeResultItem.css";
 
@@ -56,8 +56,8 @@ function rowTitles(
   if (!("id" in node)) return { lineName: node.name, fullName: node.name };
   const titleNode = client?.getNode(node.id) ?? node;
   return {
-    lineName: nodeDisplayName(titleNode) || node.id,
-    fullName: fullTitleForSettings(titleNode) || node.id,
+    lineName: titleOfNode(titleNode) || node.id,
+    fullName: titleOfNode(titleNode, { budget: "full" }) || node.id,
   };
 }
 
@@ -81,7 +81,7 @@ export function NodeResultItem({
   // archived node the live read filters out). The row crops the name (CSS
   // ellipsis); the hover tooltip shows the SAME string uncropped: the line
   // renders the capped display name, but the tooltip rides the UNCAPPED
-  // full-title funnel (fullTitleForSettings — the read-mode link
+  // full-title funnel (titleOfNode budget "full" — the read-mode link
   // derivation): for any title inside the display-name budget it is
   // byte-identical to the line, and past it the tooltip keeps the whole
   // title instead of an 80-char cut — a link must read as the page's whole

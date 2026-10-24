@@ -22,7 +22,7 @@ import type { BlockTreeNode } from "@/core/workspace-client/index.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { BlockRow } from "./BlockRow.js";
-import { displayNameFromClient, fullTitleFromClient, labelFromClient } from "./dateDisplay.js";
+import { titleOf } from "./dateDisplay.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { openNodeLinkMenu } from "../features/node-menu/NodeLinkContextMenu.js";
 import { tableClassIdOf } from "../features/classview/tableFamily.js";
@@ -206,8 +206,8 @@ export function EmbedView({
 
   // Stable identities — the memoized BlockRow compares resolveName by
   // reference, so a fresh arrow per render would defeat the row bail-out.
-  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
-  const resolveFullTitle = useCallback((id: string) => fullTitleFromClient(client, id), [client]);
+  const resolveName = useCallback((id: string) => titleOf(client, id), [client]);
+  const resolveFullTitle = useCallback((id: string) => titleOf(client, id, { budget: "full" }), [client]);
   const resolveVerb = useCallback(
     (schemaId: string) =>
       client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null,
@@ -216,7 +216,7 @@ export function EmbedView({
   // The node is verified live above; the label still rides the
   // never-a-bare-UUID seam — an untitled embed reads
   // "Untitled <render-state>", never the id.
-  const name = labelFromClient(client, nodeId) ?? "Untitled";
+  const name = titleOf(client, nodeId, { read: "fallback", empty: "untitled" }) ?? "Untitled";
   const childrenTree = client.getBlockTree(nodeId);
   const switcher =
     hostId !== undefined && tokenIndex !== undefined ? (

@@ -34,8 +34,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "../../components/ui/fleet/Button.js";
 import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import { parentlessBlockResolverOf, untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { titleOf, titleOfNode } from "../../ui/dateDisplay.js";
+import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import {
   eventRowsForDays,
@@ -46,7 +46,6 @@ import {
 import { BlockContextMenu, useEventOps } from "./calendarEventOps.js";
 import {
   dayNodeId,
-  deriveDisplayName,
   SYSTEM_CLASS_UUIDS,
 } from "@notees/domain";
 import { isoLocal, useWeekdayHeader } from "./dayGrid.js";
@@ -373,12 +372,14 @@ function EventBlock({
   if (node === undefined) return null;
   // The title register: the node's own content names the card
   // (title-is-content) — an inline class chip IS content and excerpts to
-  // the class's CURRENT name (the domain helper's resolveClassName seam;
-  // a chip's own displayText still wins). Only a genuinely empty flatten
-  // reads the Untitled placeholder.
-  const label =
-    deriveDisplayName(node, (classId) => displayNameFromClient(client, classId)) ||
-    untitledLabelOf(node, parentlessBlockResolverOf(client));
+  // the class's CURRENT name (the resolveClassName seam; a chip's own
+  // displayText still wins). Only a genuinely empty flatten reads the
+  // Untitled placeholder.
+  const label = titleOfNode(node, {
+    resolveClassName: (classId) => titleOf(client, classId),
+    empty: "untitled",
+    isParentlessBlockClass: parentlessBlockResolverOf(client),
+  });
   const color = client.effectiveNodeColor(node);
   // The clock prefix: the driving value's time on THIS
   // day — "14:30" for a timed point/range start, "14:30–16:00" for a

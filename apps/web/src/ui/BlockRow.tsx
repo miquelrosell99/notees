@@ -121,7 +121,7 @@ import { hiddenLinksOf } from "@/editor/condensed.js";
 
 import { Icon } from "./Icon.js";
 import { InlineTokens } from "./InlineTokens.js";
-import { fullTitleFromClient } from "./dateDisplay.js";
+import { titleOf } from "./dateDisplay.js";
 import { AssetView } from "./AssetView.js";
 import { BlockBacklinkPanel, BlockBacklinkToggle } from "./BlockBacklinks.js";
 import { BlockTextEditor, type EditorCaret } from "../features/block-editor/index.js";
@@ -688,7 +688,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
     <InlineTokens
       tokens={node.contentAst}
       resolveName={resolveName}
-      resolveFullTitle={(id) => fullTitleFromClient(client, id)}
+      resolveFullTitle={(id) => titleOf(client, id, { budget: "full" })}
       resolveVerb={(schemaId) =>
         outlinerClient.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null
       }

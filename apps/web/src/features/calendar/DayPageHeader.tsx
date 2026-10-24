@@ -50,7 +50,7 @@ export function DayStepper({ iso, onNavigateDay }: { iso: string; onNavigateDay:
  * DayPageHeader — the day-page header chrome: the weekday + Today flags ride a small line ABOVE
  * the title, and the ISO week number rides a small flag AFTER the title. The
  * title itself stays the user's dateFormat-aware display name (the caller
- * passes nodeDisplayName — the stored compact label must stay
+ * passes the titleOfNode funnel — the stored compact label must stay
  * canonical for sorting and date lookups). The ±1-day stepping lives in the
  * MAIN TOP BAR's right cluster now (the DayStepper,
  * replacing the header-internal bar of the same morning): the header stays

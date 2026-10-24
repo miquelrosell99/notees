@@ -82,7 +82,7 @@ import { parseDateNodeId, rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "
 
 import { Icon } from "../../ui/Icon.js";
 import { BlockRow } from "../../ui/BlockRow.js";
-import { nodeDisplayName, displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOfNode, titleOf } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { SelectionButton, Checkbox, ImageModal, SortMenuButton, type SortMenuOption } from "../../components/ui/fleet/index.js";
@@ -159,7 +159,7 @@ function CardCover({ item, props, layout }: { item: NodeCollectionItem; props: N
         <button
           type="button"
           className="node-card__cover node-card__cover--empty"
-          aria-label={`Add cover image to ${nodeDisplayName(item.node) || "Untitled"}`}
+          aria-label={`Add cover image to ${titleOfNode(item.node) || "Untitled"}`}
           title="Add cover image"
           onClick={(event) => {
             event.stopPropagation();
@@ -253,10 +253,10 @@ export function NodeCard({
   selection?: { checked: boolean; onToggle: () => void } | undefined;
 }) {
   const { client, onNodeClick } = props;
-  const label = nodeDisplayName(item.node) || "Untitled";
+  const label = titleOfNode(item.node) || "Untitled";
   // Stable identity — the memoized BlockRow compares it by reference, so a
   // fresh arrow per render would defeat the row bail-out.
-  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
+  const resolveName = useCallback((id: string) => titleOf(client, id), [client]);
   const openNode = (id: string) => onNodeClick?.(id);
   /** The title's right-click menu — position-only state. */
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);

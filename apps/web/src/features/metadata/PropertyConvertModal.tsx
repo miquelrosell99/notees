@@ -44,7 +44,7 @@ import type {
   WorkspaceClient,
 } from "@/core/workspace-client/index.js";
 
-import { labelFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { Modal } from "../../components/ui/fleet/Modal.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
@@ -203,7 +203,7 @@ export function buildConvertPlan(
         (row): row is EffectiveProperty =>
           row.propertySchemaId === schema.id && row.source === "authored",
       );
-    const label = labelFromClient(client, node.id) ?? "Untitled";
+    const label = titleOf(client, node.id, { read: "fallback", empty: "untitled" }) ?? "Untitled";
     for (const row of rows) {
       const result = convertValueForType(row.value, schema.type, targetType, targetOptions);
       const preview = JSON.stringify(row.value);
@@ -308,7 +308,7 @@ export function PropertyConvertModal({
         } catch (err) {
           dropped++;
           plan.dropped.push({
-            nodeLabel: labelFromClient(client, entry.nodeId) ?? "Untitled",
+            nodeLabel: titleOf(client, entry.nodeId, { read: "fallback", empty: "untitled" }) ?? "Untitled",
             preview: JSON.stringify(entry.value),
             reason: err instanceof Error ? err.message : String(err),
           });

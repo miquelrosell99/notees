@@ -45,11 +45,15 @@ const consoleErrors = [];
 page.on("pageerror", (err) => consoleErrors.push(String(err)));
 await page.goto(WEB, { waitUntil: "commit", timeout: 120_000 });
 await page.waitForSelector(".nt-sidebar-nav", { timeout: 600_000 });
+// The root URL claims the default view on load: a bare
+// "/" rewrites to the boot view's path.
+const bootPath = new URL(page.url()).pathname;
 
 await page.locator(".nt-sidebar-nav .nt-side-row", { hasText: "Calendar" }).first().click();
 await page.waitForSelector(".cal-grid", { timeout: 60_000 });
 
-const result = await page.evaluate(() => {
+const result = { rootClaimsView: bootPath !== "/" && bootPath.startsWith("/") };
+Object.assign(result, await page.evaluate(() => {
     return {
       // The grid IS the calendar: no side panel
       // at all — the journal owns the navigator + events panel.
@@ -67,7 +71,7 @@ const result = await page.evaluate(() => {
       ladder: [...document.querySelectorAll(".calendar-view__ladder button")].map((b) => b.getAttribute("aria-label")),
       monthChecked: document.querySelector('.calendar-view__ladder .selection-button__option--selected')?.getAttribute("aria-label"),
     };
-  });
+  }));
 
   // Routing pass: the
   // bare sidebar entry CLAIMS the URL — /calendar/<zoom>/<day>, the zoom in
@@ -79,10 +83,10 @@ const result = await page.evaluate(() => {
   await page.screenshot({ path: join(OUT, "calendar-events.png") });
 
   // Deep-link pass: a fresh page in the SAME context boots straight into
-  // /calendar/week/2026-10-20 — the week zoom renders and the selected day
+  // /calendar/week/20261020 — the week zoom renders and the selected day
   // is the 20th.
   const deepPage = await context.newPage();
-  await deepPage.goto(new URL("/calendar/week/2026-10-20", WEB).toString(), {
+  await deepPage.goto(new URL("/calendar/week/20261020", WEB).toString(), {
     waitUntil: "commit",
     timeout: 120_000,
   });
@@ -185,6 +189,7 @@ console.log(JSON.stringify({ ...result, consoleErrors }, null, 2));
 await browser.close();
 
 const pass =
+    result.rootClaimsView === true &&
     result.gridPresent === true &&
     result.sidePanelGone === true &&
     result.periodNavPresent === true &&
@@ -196,7 +201,7 @@ const pass =
     result.route.pathname.startsWith("/calendar/month/") &&
     typeof result.route.title === "string" &&
     result.route.title.endsWith("— Calendar") &&
-    result.deepLink?.pathname === "/calendar/week/2026-10-20" &&
+    result.deepLink?.pathname === "/calendar/week/20261020" &&
     result.deepLink?.weekColumns === 7 &&
     result.deepLink?.selectedDay === "2026-10-20" &&
     result.deepLink?.title.endsWith("— Calendar") &&
