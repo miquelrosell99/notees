@@ -8,7 +8,6 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { fireEvent, render, screen } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import {
@@ -18,6 +17,8 @@ import {
   parseIsoDate,
   SYSTEM_CLASS_UUIDS,
 } from "@notees/domain";
+
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { JournalsView } from "../src/features/calendar/JournalsView.js";
@@ -129,6 +130,123 @@ describe("JournalsView", () => {
     );
     const anchor = container.querySelector("[data-anchor='true']");
     expect(anchor?.getAttribute("data-journal-id")).toBe(dayNodeId(future));
+  });
+
+  it("the side panel renders the mini-month navigator and the events element", async () => {
+    const client = await seedClient();
+    const today = todayIso();
+    await createDayPage(client, today);
+    // A dated event-family member lists in the panel's events element.
+    const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
+    // The event root may be absent from this spec's seed — author it at
+    // its reserved id first (the ensureTaskFamily precedent).
+    if (client.getNodeRaw(SYSTEM_CLASS_UUIDS.event) === undefined) {
+      await client.createClass("event", { id: SYSTEM_CLASS_UUIDS.event });
+    }
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+    await client.setClassProperty(gatheringClass, schemaId, {});
+    const gathering = await client.createObject({
+      isEmbedded: false,
+      name: "Launch party",
+      classIds: [gatheringClass],
+    });
+    await client.setDatetimeProperty(gathering, schemaId, { iso: today }, 0);
+
+    const { container } = render(<JournalsView client={client} onOpenPage={vi.fn()} />);
+    const panel = await (async () => {
+      await screen.findByText("Journal");
+      const el = container.querySelector(".journals-panel");
+      expect(el).not.toBeNull();
+      return el as HTMLElement;
+    })();
+    expect(panel.querySelector(".month-calendar")).not.toBeNull();
+    expect(within(panel).getByLabelText("Events")).toBeDefined();
+    await waitFor(() => {
+      expect(panel.textContent).toContain("Launch party");
+    });
+  });
+
+  it("focus mode hides the navigator panel (the all-side-panels ruling)", async () => {
+    const client = await seedClient();
+    await createDayPage(client, todayIso());
+    window.localStorage.setItem("notees.settings.focusMode", JSON.stringify(true));
+
+    const { container } = render(<JournalsView client={client} onOpenPage={vi.fn()} />);
+    await screen.findByText("Journal");
+    expect(container.querySelector(".journals-panel")).toBeNull();
+
+    window.localStorage.setItem("notees.settings.focusMode", JSON.stringify(false));
+    window.dispatchEvent(new CustomEvent("notees-settings-changed"));
+    await waitFor(() => {
+      expect(container.querySelector(".journals-panel")).not.toBeNull();
+    });
+  });
+
+  it("the navigator panel collapses from the top bar (device-local toggle)", async () => {
+    const client = await seedClient();
+    await createDayPage(client, todayIso());
+
+    const { container } = render(<JournalsView client={client} onOpenPage={vi.fn()} />);
+    await screen.findByText("Journal");
+    expect(container.querySelector(".journals-panel")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide navigator panel" }));
+    await waitFor(() => {
+      expect(container.querySelector(".journals-panel")).toBeNull();
+    });
+    expect(screen.getByRole("button", { name: "Show navigator panel" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show navigator panel" }));
+    await waitFor(() => {
+      expect(container.querySelector(".journals-panel")).not.toBeNull();
+    });
+  });
+
+  it("picking a mini-month day scroll-navigates the feed to that day", async () => {
+    const client = await seedClient();
+    const today = todayIso();
+    const target = shiftDays(today, -5);
+    await createDayPage(client, today);
+    await createDayPage(client, target);
+
+    const { container } = render(<JournalsView client={client} onOpenPage={vi.fn()} />);
+    await screen.findByText("Journal");
+    const panel = container.querySelector(".journals-panel") as HTMLElement;
+    const dayButton = Array.from(panel.querySelectorAll(".calendar-day")).find(
+      (el) => el.textContent?.trim() === String(Number(target.slice(8))),
+    ) as HTMLElement;
+    expect(dayButton).toBeDefined();
+    fireEvent.click(dayButton);
+
+    await waitFor(() => {
+      expect(
+        container.querySelector(".journal-entry[data-anchor='true']")?.getAttribute("data-journal-id"),
+      ).toBe(dayNodeId(target));
+    });
+  });
+
+  it("picking a day with no page materializes it and navigates", async () => {
+    const client = await seedClient();
+    const today = todayIso();
+    const target = shiftDays(today, -2);
+    await createDayPage(client, today);
+    expect(client.getNodeRaw(dayNodeId(target))).toBeUndefined();
+
+    const { container } = render(<JournalsView client={client} onOpenPage={vi.fn()} />);
+    await screen.findByText("Journal");
+    const panel = container.querySelector(".journals-panel") as HTMLElement;
+    const dayButton = Array.from(panel.querySelectorAll(".calendar-day")).find(
+      (el) => el.textContent?.trim() === String(Number(target.slice(8))),
+    ) as HTMLElement;
+    fireEvent.click(dayButton);
+
+    await waitFor(() => {
+      expect(client.getNodeRaw(dayNodeId(target))).toBeDefined();
+      expect(
+        container.querySelector(".journal-entry[data-anchor='true']")?.getAttribute("data-journal-id"),
+      ).toBe(dayNodeId(target));
+    });
   });
 
   it("renders only a window around the anchor for large journals", async () => {
