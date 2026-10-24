@@ -7,7 +7,7 @@
  * through the clone engine.
  */
 
-import { deriveDisplayName } from "@notees/domain";
+import { titleOfNode } from "../../ui/dateDisplay.js";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
@@ -57,7 +57,7 @@ export function TemplatePickerModal({
               className="template-picker-modal__option"
               onClick={() => onPick(template.id)}
             >
-              {deriveDisplayName(template) || "Untitled template"}
+              {titleOfNode(template) || "Untitled template"}
             </Button>
           ))}
         </div>

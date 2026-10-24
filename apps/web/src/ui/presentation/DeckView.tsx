@@ -30,7 +30,7 @@ import { InlineTokens } from "../InlineTokens.js";
 import { QueryBlockView } from "../QueryBlockView.js";
 import { WhiteboardCanvas } from "../WhiteboardCanvas.js";
 import { AssetView } from "../AssetView.js";
-import { displayNameFromClient, fullTitleFromClient } from "../dateDisplay.js";
+import { titleOf } from "../dateDisplay.js";
 import { nodeIcon } from "../iconFor.js";
 import { OutlinerContext, useOutliner, useOutlinerValue } from "../outliner-context.js";
 import { assetImageUrl } from "../../features/collection/assetThumbs.js";
@@ -95,8 +95,8 @@ function DeckBlock({ tree }: { tree: BlockTreeNode }) {
             seam) resolves node aliases to their terminal. */}
         <InlineTokens
           tokens={node.contentAst}
-          resolveName={(id) => displayNameFromClient(client, id)}
-          resolveFullTitle={(id) => fullTitleFromClient(client, id)}
+          resolveName={(id) => titleOf(client, id)}
+          resolveFullTitle={(id) => titleOf(client, id, { budget: "full" })}
           resolveVerb={(schemaId) =>
             client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null
           }
@@ -219,7 +219,7 @@ function DeckSlideView({
           </span>
         )}
         <h1 className="nt-deck-title">
-          {displayNameFromClient(client, slide.nodeId) ?? "Untitled"}
+          {titleOf(client, slide.nodeId) ?? "Untitled"}
         </h1>
       </div>
     );
@@ -262,7 +262,7 @@ function DeckSlideView({
               <Icon path={titleIcon} size={1.2} />
             </span>
           )}
-          <h2>{displayNameFromClient(client, titleNode.id) ?? "Untitled"}</h2>
+          <h2>{titleOf(client, titleNode.id) ?? "Untitled"}</h2>
         </div>
       )}
       <EmbedBoundary rootId={pageId}>
@@ -342,7 +342,7 @@ export function DeckView({
         count={deck.length}
         onIndexChange={setIndex}
         onClose={onClose}
-        ariaLabel={`Presenting ${displayNameFromClient(client, pageId) ?? "page"}`}
+        ariaLabel={`Presenting ${titleOf(client, pageId) ?? "page"}`}
       >
         {slide !== undefined ? (
           <DeckSlideView client={client} pageId={pageId} slide={slide} />

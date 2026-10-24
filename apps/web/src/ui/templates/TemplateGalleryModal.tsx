@@ -14,13 +14,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { foldSearchText } from "@notees/store";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { nodeDisplayName } from "../dateDisplay.js";
+import { titleOfNode } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { Modal } from "../../components/ui/fleet/Modal.js";
@@ -76,8 +76,8 @@ export function TemplateGalleryModal({
       .getClassMembers(SYSTEM_CLASS_UUIDS.template)
       .filter((node) => node.isActive)
       .sort((a, b) => {
-        const nameA = nodeDisplayName(a) ?? a.id;
-        const nameB = nodeDisplayName(b) ?? b.id;
+        const nameA = titleOfNode(a) ?? a.id;
+        const nameB = titleOfNode(b) ?? b.id;
         return nameA.localeCompare(nameB) || a.id.localeCompare(b.id);
       });
   }, [client, version]);
@@ -86,7 +86,7 @@ export function TemplateGalleryModal({
     const q = foldSearchText(query.trim().toLowerCase());
     if (q === "") return templates;
     return templates.filter((node) =>
-      foldSearchText((nodeDisplayName(node) ?? node.id).toLowerCase()).includes(q),
+      foldSearchText((titleOfNode(node) ?? node.id).toLowerCase()).includes(q),
     );
   }, [templates, query]);
 
@@ -155,7 +155,7 @@ export function TemplateGalleryModal({
             ) : (
               filtered.map((template, index) => {
                 const isSelected = index === effectiveSelectedIndex;
-                const label = deriveDisplayName(template) || "Untitled template";
+                const label = titleOfNode(template) || "Untitled template";
                 return (
                   <div
                     key={template.id}

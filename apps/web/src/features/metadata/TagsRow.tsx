@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
-import { labelFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
@@ -37,8 +37,8 @@ export function TagsRow({
   // Tags render alphabetically everywhere: order by display name.
   const assignedTags = [...tagIds]
     .sort((a, b) =>
-      (labelFromClient(client, a) ?? "Untitled").localeCompare(
-        labelFromClient(client, b) ?? "Untitled",
+      (titleOf(client, a, { read: "fallback", empty: "untitled" }) ?? "Untitled").localeCompare(
+        titleOf(client, b, { read: "fallback", empty: "untitled" }) ?? "Untitled",
       ),
     )
     .map((tagId) => client.getNode(tagId))
@@ -49,7 +49,7 @@ export function TagsRow({
       <div className="section-label">Tags:</div>
       <div className="nt-property-chips node-metadata-pills">
         {assignedTags.map((tag) => {
-          const label = labelFromClient(client, tag.id) ?? "Untitled";
+          const label = titleOf(client, tag.id, { read: "fallback", empty: "untitled" }) ?? "Untitled";
           // Pill chrome like classes: grey surface by default, the tag's
           // effectiveColor (own, else its classes') as the background when set.
           const colored = client.effectiveNodeColor(tag);

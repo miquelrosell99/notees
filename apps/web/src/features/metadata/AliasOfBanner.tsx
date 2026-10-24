@@ -13,7 +13,7 @@
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { labelFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { Pill } from "../../components/ui/fleet/Pill.js";
 import "./AliasOfBanner.css";
@@ -31,7 +31,7 @@ export function AliasOfBanner({
 }) {
   const mainId = client.getNode(aliasPageId)?.aliasedNodeId ?? null;
   if (mainId === null) return null;
-  const label = labelFromClient(client, mainId) ?? "Untitled";
+  const label = titleOf(client, mainId, { read: "fallback", empty: "untitled" }) ?? "Untitled";
   return (
     <button
       type="button"

@@ -72,7 +72,7 @@ import type { WorkspaceFeature } from "@notees/protocol";
 import { foldSearchText } from "@notees/store";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { titleOfNode } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { readRecentIds } from "../sidebar/recentPages.js";
 import { Icon } from "../../ui/Icon.js";
@@ -573,7 +573,7 @@ export function NodeSelector({
     const hit = client
       .listClasses()
       .map((cls) => {
-        const raw = nodeDisplayName(cls) ?? "";
+        const raw = titleOfNode(cls) ?? "";
         return { cls, raw, folded: foldSearchText(raw.toLowerCase()) };
       })
       .filter(
@@ -668,7 +668,7 @@ export function NodeSelector({
     const q = foldSearchText(effectiveQuery.toLowerCase());
     return client
       .listClasses()
-      .some((cls) => foldSearchText((nodeDisplayName(cls) ?? "").toLowerCase()) === q);
+      .some((cls) => foldSearchText((titleOfNode(cls) ?? "").toLowerCase()) === q);
   }, [client, searchMode, effectiveQuery]);
   const showCreateOption =
     !!effectiveCreateNew &&
@@ -892,7 +892,7 @@ export function NodeSelector({
       const classes = client.listClasses().filter((node) => {
         if (!matchesInlineFilters(node)) return false;
         if (q === "") return true;
-        const name = nodeDisplayName(node) ?? node.id;
+        const name = titleOfNode(node) ?? node.id;
         return foldSearchText(name.toLowerCase()).includes(q);
       });
       return classes;
@@ -975,7 +975,7 @@ export function NodeSelector({
     const q = foldSearchText(effectiveQuery.toLowerCase());
     return client
       .listArchivedClasses()
-      .filter((cls) => foldSearchText((nodeDisplayName(cls) ?? "").toLowerCase()).includes(q));
+      .filter((cls) => foldSearchText((titleOfNode(cls) ?? "").toLowerCase()).includes(q));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dataVersion rides the async landing notify like the search memo.
   }, [client, searchMode, effectiveQuery, dataVersion]);
 
@@ -1213,7 +1213,7 @@ export function NodeSelector({
     while (currentId !== null && guard < 64) {
       const parent: ClientNode | undefined = client.getNode(currentId);
       if (!parent || !rendersWithDocumentChrome(parent, undefined, parentlessBlock)) break;
-      segments.unshift(nodeDisplayName(parent) || "Untitled");
+      segments.unshift(titleOfNode(parent) || "Untitled");
       currentId = parent.parentId;
       guard += 1;
     }
@@ -1241,7 +1241,7 @@ export function NodeSelector({
       if (parent === undefined) break;
       if (rendersWithDocumentChrome(parent, undefined, parentlessBlock)) {
         const ancestors = buildParentPath(parent);
-        const name = nodeDisplayName(parent) || "Untitled";
+        const name = titleOfNode(parent) || "Untitled";
         return ancestors !== "" ? `${ancestors} ${name}` : name;
       }
       currentId = parent.parentId;
@@ -1257,7 +1257,7 @@ export function NodeSelector({
       .map((classUuid) => {
         const classNode = client.getNode(classUuid);
         if (!classNode) return null;
-        const name = nodeDisplayName(classNode);
+        const name = titleOfNode(classNode);
         if (!name) return null;
         return { nodeUuid: classUuid, name };
       })
@@ -1344,7 +1344,7 @@ export function NodeSelector({
       })}
       {archivedMatches.map((node, index) => {
         const globalIndex = leadingOffset + visibleResults.length + index;
-        const name = nodeDisplayName(node) ?? node.id;
+        const name = titleOfNode(node) ?? node.id;
         return (
           <NodeResultItem
             key={node.id}

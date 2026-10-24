@@ -44,7 +44,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { BlockRow, useStableIdArray } from "../../ui/BlockRow.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { GhostRow, realizeGhost } from "../../ui/GhostRow.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 
@@ -90,7 +90,7 @@ export function ReferenceSubtree({
   const node = client.getNode(rootId);
   // Stable identity — the memoized BlockRow compares it by reference, so a
   // fresh arrow per render would defeat the row bail-out.
-  const resolveName = useCallback((id: string) => displayNameFromClient(client, id), [client]);
+  const resolveName = useCallback((id: string) => titleOf(client, id), [client]);
   // Stable identity for dnd-kit's SortableContext (the row memo's defeat
   // otherwise — see useStableIdArray).
   const rootIds = useStableIdArray(node !== undefined ? [node.id] : []);

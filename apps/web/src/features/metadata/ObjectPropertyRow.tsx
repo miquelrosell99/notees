@@ -5,7 +5,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { AnnotationsSection } from "../../ui/AnnotationsSection.js";
-import { labelFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { NodePill } from "./NodePills.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
@@ -82,7 +82,7 @@ export function ObjectPropertyRow({
       const info = client.getAssetInfo(ref);
       if (info !== undefined) return info.originalName;
     }
-    return labelFromClient(client, ref) ?? "Untitled";
+    return titleOf(client, ref, { read: "fallback", empty: "untitled" }) ?? "Untitled";
   };
 
   const linkNode = async (target: string, idx: number = nextIdx): Promise<void> => {
@@ -196,7 +196,7 @@ export function ObjectPropertyRow({
               <NodePill
                 color={client.effectiveNodeColor(linked)}
                 icon={linked.icon}
-                label={labelFromClient(client, singleRef) ?? "Untitled"}
+                label={titleOf(client, singleRef, { read: "fallback", empty: "untitled" }) ?? "Untitled"}
                 onOpen={() => onOpenPage?.(singleRef)}
               />
             </span>
@@ -242,7 +242,7 @@ export function ObjectPropertyRow({
           }
           navigateLabel={
             singleRef !== null
-              ? `Open ${labelFromClient(client, singleRef) ?? "Untitled"}`
+              ? `Open ${titleOf(client, singleRef, { read: "fallback", empty: "untitled" }) ?? "Untitled"}`
               : undefined
           }
           trailing={

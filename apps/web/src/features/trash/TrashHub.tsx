@@ -17,7 +17,7 @@
 
 import { useEffect, useState } from "react";
 
-import { deriveDisplayName } from "@notees/domain";
+import { titleOfNode } from "../../ui/dateDisplay.js";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { TrashedEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
@@ -83,7 +83,7 @@ export function TrashHub({
           ) : (
             <ul className="nt-trash-hub__rows">
           {entries.map((entry) => {
-            const name = deriveDisplayName(entry.node) || "Untitled";
+            const name = titleOfNode(entry.node) || "Untitled";
             return (
               <li key={entry.node.id} className="nt-trash-hub__row">
                 <span className="nt-trash-hub__icon" aria-hidden="true">
@@ -131,7 +131,7 @@ export function TrashHub({
           isOpen
           variant="danger"
           title="Delete permanently?"
-          message={`"${deriveDisplayName(permanentTarget.node) || "Untitled"}" and its subtree will be gone for good — this cannot be undone.`}
+          message={`"${titleOfNode(permanentTarget.node) || "Untitled"}" and its subtree will be gone for good — this cannot be undone.`}
           confirmLabel="Delete permanently"
           onConfirm={() => {
             void client.deleteObject(permanentTarget.node.id, { permanent: true });

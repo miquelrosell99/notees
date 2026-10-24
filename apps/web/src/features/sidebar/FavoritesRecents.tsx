@@ -10,8 +10,9 @@
  * confirmation-gated Delete, and the shared row markup.
  *
  * Row labels are PLAIN TEXT: the row is chrome,
- * not content — the label is plainTitleOf (the shared chrome-label
- * derivation: nodeDisplayName + class chips resolved + markdown links
+ * not content — the label rides titleOfNode's chrome flatten (the shared
+ * chrome-label derivation: the display name + class chips resolved +
+ * markdown links
  * reduced to their labels), so mentions, class chips and marks fold into
  * their captured text, markdown links reduce to
  * their label (no hrefs in a row), and nothing inside the label is
@@ -31,14 +32,14 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { plainTitleOf } from "../../ui/dateDisplay.js";
+import { titleOfNode } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
 import { nodeIcon } from "../../ui/iconFor.js";
-import { parentlessBlockResolverOf, untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { useNodePrefs, toggleNodeFavorite, reorderNodeFavorites, removeSyncedRecent } from "../settings/nodePrefs.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "../node-menu/SidebarItemMenu.js";
 import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
@@ -148,7 +149,8 @@ export function FavoritesRecents({
     .slice(0, 12);
 
   /**
-   * Row label: PLAIN TEXT — plainTitleOf, the
+   * Row label: PLAIN TEXT — titleOfNode's chrome
+   * flatten, the
    * shared chrome-label derivation: mentions fold to their captured text,
    * class chips to the class's current name, marks to their words; markdown
    * link spans reduce to their label (the href never reaches a row). The
@@ -167,12 +169,13 @@ export function FavoritesRecents({
     // row's own contentAst can be stale after a rename — the title never
     // renders from the pool.
     const fresh = client.getNode(node.id);
-    const text = plainTitleOf(fresh ?? node, (classId) => client.getDisplayName(classId));
-    return (
-      <span className="nt-side-item-label">
-        {text === "" ? untitledLabelOf(node, parentlessBlockResolverOf(client)) : text}
-      </span>
-    );
+    const text = titleOfNode(fresh ?? node, {
+      flatten: "chrome",
+      resolveClassName: (classId) => client.getDisplayName(classId),
+      empty: "untitled",
+      isParentlessBlockClass: parentlessBlockResolverOf(client),
+    });
+    return <span className="nt-side-item-label">{text}</span>;
   };
 
   /**

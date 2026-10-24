@@ -27,7 +27,7 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import { rendersWithDocumentChrome } from "@notees/domain";
 
 import { Icon } from "../../ui/Icon.js";
-import { labelFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { aliasedNodeTargetError } from "./aliasProperty.js";
@@ -62,7 +62,7 @@ export function AliasedNodeRow({
 
   const main = client.getNode(mainId);
   const broken = main === undefined;
-  const label = broken ? mainId : (labelFromClient(client, mainId) ?? "Untitled");
+  const label = broken ? mainId : (titleOf(client, mainId, { read: "fallback", empty: "untitled" }) ?? "Untitled");
 
   /** Re-point the alias: the carrier's OWN field, cycle-checked at the applier. */
   const repoint = async (pickedId: string): Promise<void> => {

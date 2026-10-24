@@ -233,7 +233,7 @@ import type { ClientNode } from "@/core/workspace-client/index.js";
 import { VerbPopover } from "../../ui/VerbPopover.js";
 import { useOutliner } from "../../ui/outliner-context.js";
 import { nodeLinkUrl, parseNodeLink } from "../../ui/nodeLink.js";
-import { fullTitleFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { CarrierEnterContext, registerCarrierValue } from "../../ui/textCarrier.js";
 import { copyToClipboard } from "../modals/clipboard.js";
 import { readDeviceSetting } from "../settings/deviceSettings.js";
@@ -310,7 +310,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   );
   // Mention pill labels ride the SAME re-resolution ruling as read mode
   // (BlockRow's InlineTokens): the label is the target's CURRENT FULL
-  // TITLE — read mode's uncapped funnel (fullTitleFromClient), never the
+  // TITLE — read mode's uncapped funnel (titleOf budget "full"), never the
   // capped displayName —, so a stale import-era captured text (nested-link
   // UUIDs baked in) never surfaces in edit mode. Null for a broken target:
   // the editor layer then falls back to the captured text, else the raw id
@@ -320,7 +320,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   // resolver, so a label's length is consistent across all three (the
   // single coordinate system — a mismatch would splice at wrong offsets).
   const resolveMentionName = useCallback(
-    (targetId: string): string | null => fullTitleFromClient(client, targetId),
+    (targetId: string): string | null => titleOf(client, targetId, { budget: "full" }),
     [client],
   );
   // The chip atom's wavy underline tint: the class's effective color — the
