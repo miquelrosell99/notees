@@ -399,7 +399,10 @@ Two traps already shipped and cost fixes (2026-10-14):
 ## 8. Where things are designed but not built (don't fake them)
 
 Registered so contributors don't re-invent or mis-document them: typed-link target
-resolution (candidate spans are recorded now), citations pipeline + Markdown export,
+resolution (candidate spans are recorded now), in-editor `cites` citations
+(the source library itself SHIPPED 2026-10-24 — the resolver, the Sources
+settings, the add-source flow, .bib/CSL-JSON export: `docs/features/sources.md`;
+only the `cites` verb marking text with a source + locator stays designed),
 annotations on assets and selective asset sync, property-schema CRUD UX and
 create-and-bind, `notees shell` REPL (owed, cheap, not shipped), computed
 properties (deferred owner decision), E2EE activation (the `{"$e": …}` slot is

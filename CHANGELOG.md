@@ -9,221 +9,183 @@ predating this file.
 
 ## 2026-10-24
 
-- **fix(web): add-source review round 1 — gesture semantics documented,
-  empty-render citekey skip.** `beginSourceCreate`'s doc now states the
-  ordering contract (the un-archive commits even if the create throws — both
-  land as one undo entry via the finally-flush; the un-archive is an
-  idempotent, undoable preference, never half-created data — and the
-  property writes run after the gesture, so a late write failure can leave a
-  titled but property-less source, the pre-existing pattern). Test/docs
-  polish: the quick-create header no longer claims person find-or-create,
-  the ISBN duplicate test is named for what it asserts. New pins: the
-  collision suffix continues past `z` (`aa`), a failed CAS upload creates no
-  half-source, and — the one behavior change — `generateCitekey` no longer
-  falls back to the default pattern when the stored pattern merely RENDERS
-  empty (`[year]` with no year); the fallback is only for an uncompilable
-  pattern, and an empty render skips the citekey write.
-
-- **feat(web): add-source flow — resolve, prefill, plain-text authors,
-  archived filtering, duplicate warning (source-library slices 3–6 task 6).**
-  The user-facing heart of the feature. **Entries:** a command-palette
-  **Add source…** row (primary; hidden offline, the shareTarget pattern), an
-  **Add source…** button in the Sources settings section, and a picker
-  **Create source from link** row whenever a node's create-row query is
-  shaped like a DOI (`10.xxxx/…`), an arXiv id/URL, an ISBN, or an http(s)
-  URL (identifier detection in `features/sources/resolver.ts`; the row routes
-  through the app-level `AddSourceHost` request queue — the
-  PropertyCreateHost idiom). **The dialog** (`features/sources/
-  AddSourceDialog.tsx`): one input for DOI/ISBN/arXiv/URL plus a PDF file
-  input; doi/isbn/arxiv → `GET /api/resolve`, a plain URL → `POST
-  /api/resolve/pdf?url=` (the bytes stay server-side; the record's
+- **feat(web): Sources settings + the add-source flow (source-library
+  slices 3–6 tasks 5–6, with both review rounds).** The Sources settings
+  section under the workspace settings' Features tab — the first feature
+  settings section: the **citekey pattern** input compiles the shared pattern
+  language (`apps/web/src/features/sources/citekey.ts`, the task-6 generation
+  surface imports the SAME module): tokens `[auth]`/`[auth:lower]`/`[year]`/
+  `[title]`/`[title:lower]`/`[title:lower:N]` + literals, default
+  `[auth:lower][year][title:lower:3]`; a LIVE PREVIEW of the owner-ruling
+  sample (Lovelace, Ada / 1843 / "Notes on the Analytical Engine" →
+  `lovelace1843notesonthe`); an invalid pattern shows the inline compile
+  error and the write is refused client-side; commits on blur/Enter (the
+  rename precedent). The **metadata resolver** toggle carries the honest
+  sub-note (a lookup reveals the queried identifier to the provider, never
+  workspace content) and mirrors the server's default-ON contract (absent
+  row/key = allowed — the old absent-means-off reading showed OFF against a
+  server that allowed). The **auto-citekey** toggle gates the import-time
+  citekey fill. The **Source types** visibility list renders all 39 source
+  type-classes (the SYSTEM_SOURCE_CLASS_BINDINGS roster order, live display
+  names) as checked rows: unchecked = archived — the SAME `active` bit the
+  classes gallery and the pickers respect (two doors to one switch; enable =
+  un-archive, disable = archive, the `setArchived` object.update seam).
+  Every settings write is ONE `workspace.feature.set {feature: "sources",
+  enabled: true, settings}` with the caller read-modify-merging the current
+  record (new client surface `setFeatureSettings`, worker-plumbed), and the
+  SHARED family-toggle writer (`setFeatureEnabled` — family toggles, the
+  journal toggle, the gallery's F4 inverse) now merges too: a toggle off/on
+  against a row carrying `settings` no longer clears the record via
+  whole-row LWW (when the row is old-shape, the plain write stays legal —
+  nothing to lose). The undo journal's feature-set capture records the
+  captured prior enabled AND prior settings and restores both — the key is
+  omitted when the prior row was old-shape (NULL is the honest prior state,
+  never approximated with `{}`); a write whose toggle AND settings both
+  match is a no-op; the routed family-base arms (object.delete / class.create
+  inverses) restore the settings too. SCHEMA.md "Workspace features" names
+  the `sources` settings vocabulary normatively (`{citekeyPattern?,
+  autoCitekey?, resolverEnabled?}`). The retired inert General-tab "Sources"
+  block (the archived modal's "not available in this build" citekey row)
+  leaves with this slice.
+  **The add-source flow** (the user-facing heart): entries are the
+  command-palette **Add source…** row (primary; hidden offline, the
+  shareTarget pattern), an **Add source…** button in the Sources settings
+  section, and a picker **Create source from link** row whenever a node's
+  create-row query is shaped like a DOI (`10.xxxx/…`), an arXiv id/URL, an
+  ISBN, or an http(s) URL (identifier detection in
+  `features/sources/resolver.ts`; the row routes through the app-level
+  `AddSourceHost` request queue — the PropertyCreateHost idiom). The dialog
+  (`features/sources/AddSourceDialog.tsx`): one input for DOI/ISBN/arXiv/URL
+  plus a PDF file input; doi/isbn/arxiv → `GET /api/resolve`, a plain URL →
+  `POST /api/resolve/pdf?url=` (the bytes stay server-side; the record's
   `pdf:{url}` becomes the source's full-text URL), a file → multipart
-  `POST /api/resolve/pdf` and THAT file uploads to CAS + links on the created
-  source (upload-before-create: a failed upload means no half-source). On
-  success the QuickCreateModal opens PREFILLED (class from `classKey`, title,
-  authors/editors monoblock, the class's venue fields by display name, year →
-  year-chain publicationDate, doi/isbn/url/publisher). Errors are inline and
-  honest: 422 `no_identifier_found` says the PDF carried no DOI, 403
+  `POST /api/resolve/pdf` and THAT file uploads to CAS + links on the
+  created source (upload-before-create: a failed upload means no
+  half-source). On success the QuickCreateModal opens PREFILLED (class from
+  `classKey`, title, authors/editors monoblock, the class's venue fields by
+  display name, year → year-chain publicationDate, doi/isbn/url/publisher).
+  **QuickCreateModal rewiring:** the authors field writes PLAIN `authors`
+  TEXT values — split on `;`/newline (a comma lives inside a "Family, Given"
+  name), one element each, NO person find-or-create; the type list FILTERS
+  archived type-classes (a resolved archived class stays selected, marked
+  "(archived)" — auto-enable at create, the un-archive riding the SAME undo
+  batch as the create via the new `client.beginSourceCreate` gesture +
+  `UndoJournal.batchAsync`, worker-RPC concrete since a closure cannot cross
+  the worker boundary); an empty citekey auto-fills from the settings
+  pattern when auto-citekey is on — `generateCitekey` renders the pattern
+  with the deterministic `a`/`b`/`c` collision suffix against live citekeys
+  (case-insensitive, continuing past `z` into `aa`); the default-pattern
+  fallback applies ONLY to an uncompilable stored pattern — a pattern that
+  merely RENDERS empty (`[year]` with no year) skips the citekey write (the
+  one behavior change of the review round). A prefilled doi/isbn already on
+  a live source surfaces "Already in your library: <title>" with a link —
+  create stays allowed, the warning is honest. `beginSourceCreate`'s doc
+  pins the ordering contract: the un-archive commits even if the create
+  throws (both land as one undo entry via the finally-flush — an idempotent,
+  undoable preference, never half-created data) and the property writes run
+  after the gesture (a late write failure can leave a titled but
+  property-less source, the pre-existing pattern). `ensureCitationFamily`
+  self-heals from `SYSTEM_PROPERTY_SPECS`/`SYSTEM_PROPERTY_DISPLAY_NAMES`
+  now (authors text multi per the 2026-10-23 retype) and authors the venue
+  schemas a prefill carries. Errors are inline and honest: 422
+  `no_identifier_found` says the PDF carried no DOI, 403
   `resolver_disabled` points at the Sources settings (the client-side
   resolver-off setting shows the same note and disables Resolve), 404/502
-  surface the provider message, unrecognized input never fires a request.
-  A bare URL with the resolver OFF creates a plain `web_page` weblink instead
-  (the dialog would only show the note). **QuickCreateModal rewiring:** the
-  authors field writes PLAIN `authors` TEXT values — split on `;`/newline
-  (a comma lives inside a "Family, Given" name), one element each, NO person
-  find-or-create; the type list FILTERS archived type-classes (a resolved
-  archived class stays selected, marked "(archived)" — auto-enable at create,
-  the un-archive riding the SAME undo batch as the create via the new
-  `client.beginSourceCreate` gesture + `UndoJournal.batchAsync`, worker-RPC
-  concrete since a closure cannot cross the worker boundary); an empty
-  citekey auto-fills from the settings pattern when auto-citekey is on —
-  `generateCitekey` renders the pattern (default fallback) and appends the
-  deterministic `a`/`b`/`c` suffix against live citekeys, compared
-  case-insensitively; a prefilled doi/isbn already on a live source surfaces
-  "Already in your library: <title>" with a link — create stays allowed, the
-  warning is honest. `ensureCitationFamily` self-heals from
-  `SYSTEM_PROPERTY_SPECS`/`SYSTEM_PROPERTY_DISPLAY_NAMES` now (authors text
-  multi per the 2026-10-23 retype) and authors the venue schemas a prefill
-  carries. The Sources settings' resolver toggle now mirrors the server
-  default-ON contract (absent row/key = allowed — the old absent-means-off
-  reading showed OFF against a server that allowed). Tests: 17 new
-  add-source cases (classification, resolve → prefill mapping for DOI/ISBN/
-  URL/PDF-multipart with a mocked server + CAS attach, every error path,
-  host routing), 15 new/rewired quick-create cases (plain-text authors, the
-  a/b/c collision, archived filtering, the duplicate warning + override,
-  same-batch undo), 2 `batchAsync` journal units; the settings toggle test
-  updated to the corrected default. Docs: SCHEMA.md "Sources as containers"
-  SHIPPED line, classes.md's Sources section, the resolver client's taxonomy
-  documented in its module header.
+  surface the provider message, unrecognized input never fires a request. A
+  bare URL with the resolver OFF creates a plain `web_page` weblink instead
+  (the dialog would only show the note). Tests: the citekey module
+  (compile/render/fold/word-count/literal/error), the section through the
+  real modal + client (rendering, live preview, merge-semantics writes,
+  archived-list round-trip, undo restores prior settings, the toggle-merge
+  round-trip off → settings survive → on → settings survive + the old-shape
+  row staying old-shape), 17 add-source cases (classification, resolve →
+  prefill mapping for DOI/ISBN/URL/PDF-multipart with a mocked server + CAS
+  attach, every error path, host routing), 15 new/rewired quick-create cases
+  (plain-text authors, the a/b/c collision, archived filtering, the
+  duplicate warning + override, same-batch undo), 2 `batchAsync` journal
+  units; the settings-modals inert-controls test follows the moved control.
+  Docs: SCHEMA.md "Sources as containers", classes.md's Sources section, the
+  resolver client's taxonomy documented in its module header.
 
-- **fix(web): the feature toggle carries a settings row forward (review
-  round 1 on the Sources settings).** The Features-tab family ToggleSwitch
-  wrote old-shape `{feature, enabled}` — the web client sat two pixels above
-  the settings it could destroy: two clicks (off, on) against a row carrying
-  `settings` cleared the record via whole-row LWW. `setFeatureEnabled` (the
-  SHARED toggle writer — family toggles, the journal toggle, the gallery's
-  F4 inverse) now read-modify-merges: when the current row carries settings,
-  the toggle write carries them forward; when the row is old-shape (no
-  settings), the plain write stays legal (nothing to lose). Also: the
-  object.delete family-base arm's settings-restore unit test (symmetric to
-  the class.create arm), and `[title:N]` joins the pattern input's token
-  help text. Tests: the toggle-merge round-trip (off → settings survive →
-  on → settings survive) + the old-shape-no-settings row staying old-shape;
-  the new journal arm case.
-
-- **feat(web): Sources settings — citekey pattern, resolver + auto-citekey
-  toggles, class visibility list (source-library slices 3–6 task 5).** The
-  first feature settings section under the workspace settings' Features tab.
-  The citekey pattern input compiles the new shared pattern language
-  (`apps/web/src/features/sources/citekey.ts`, task 6's generation surface
-  imports the SAME module): tokens `[auth]`/`[auth:lower]`/`[year]`/`[title]`/
-  `[title:lower]`/`[title:lower:N]` + literals, default
-  `[auth:lower][year][title:lower:3]`; an invalid pattern shows the inline
-  compile error and the write is refused client-side. The input renders a
-  LIVE PREVIEW of the owner-ruling sample (Lovelace, Ada / 1843 / "Notes on
-  the Analytical Engine" → `lovelace1843notesonthe`); it commits on blur/
-  Enter (the rename precedent). The resolver toggle carries the honest
-  sub-note — a lookup reveals the queried identifier to the provider, never
-  workspace content; the auto-citekey toggle gates the import-time fill.
-  The class-visibility list renders all 39 source type-classes (the
-  SYSTEM_SOURCE_CLASS_BINDINGS roster order, live display names) as checked
-  rows: unchecked = archived — the SAME `active` bit the classes gallery and
-  the pickers respect (two doors to one switch; enable = un-archive, disable
-  = archive, the `setArchived` object.update seam). Every settings write is
-  ONE `workspace.feature.set {feature: "sources", enabled: true, settings}`
-  with the caller read-modify-merging the current record (new client surface
-  `setFeatureSettings`, worker-plumbed), so the three keys never clobber
-  each other. The undo journal's feature-set capture now records the
-  captured prior enabled AND prior settings and restores both — the key is
-  omitted when the prior row was old-shape (a winning payload without
-  `settings` stores NULL; that absence is the honest prior state, never
-  approximated with `{}`); the routed family-base arms (object.delete /
-  class.create inverses) restore the settings too, and a write whose toggle
-  AND settings both match the captured row is a no-op. SCHEMA.md "Workspace
-  features" names the `sources` settings vocabulary normatively
-  (`{citekeyPattern?, autoCitekey?, resolverEnabled?}`). The retired inert
-  General-tab "Sources" block (the archived modal's "not available in this
-  build" citekey row) leaves with this slice. Tests: the citekey module
-  (compile/render/fold/word-count/literal/error cases), the section through
-  the real modal + client (rendering, live preview, merge-semantics writes,
-  archived-list round-trip, undo restores prior settings), the undo journal's
-  new settings cases; the settings-modals inert-controls test follows the
-  moved control.
-
-- **feat(server): PDF → DOI extraction → resolved metadata (source-library
-  slices 3–6 task 4).** `POST /api/resolve/pdf` — the owner's PDF flow:
-  intake a PDF either as a multipart upload (the CAS asset route's intake
-  idiom) or via `?url=` for a server-side fetch, scan the RAW BYTES
-  (latin1 decode, no new dependency — no PDF parser) with the Crossref DOI
-  pattern, and resolve the first stable hit through the ordinary DOI path
-  (same pref gate, same 24 h cache, same Crossref contract). Normalization:
-  trailing `. , ; ) ] }` trimmed, percent-entities decoded best-effort,
-  `/pdf`-style suffixes kept; multiple DOIs → first hit wins (documented).
-  No DOI → 422 `no_identifier_found` (a new pinned taxonomy code beside
-  `resolver_disabled`/`resolver_unavailable`). `?url=` is SSRF-guarded —
-  http(s) only, loopback/private/link-local literals (127/8, 10/8,
-  172.16/12, 192.168/16, 169.254/16, 0.0.0.0, 100.64/10, ::1, fe80::/10,
-  fc00::/7, `localhost`) refused before any fetch — and BOTH paths carry a
-  25MB cap (declared content-length pre-check plus actual-bytes check on
-  the url path). The pref gate runs BEFORE the outbound PDF fetch: a
-  hard-off resolver never touches the network. The response is the unified
-  record plus — in `?url=` mode — `pdf: { url }`, the source URL the
-  slice-6 web client's create flow uploads to CAS. RECORD AMENDMENT from
-  the task-3 review: `publisher?: string` joins the unified record
-  (Crossref `publisher`, OpenLibrary `publishers[0]`) — a top-level field,
-  never a `fields` entry. Tests: a hand-built minimal real-PDF-bytes
+- **feat(server): the metadata resolver — Crossref/OpenLibrary/arXiv +
+  PDF → DOI extraction (source-library slices 3–6 tasks 3–4).** The
+  identifier backbone of the add-source flow. `GET /api/resolve` grows its
+  second mode beside the existing `?name=` name→id lookup: `?doi=` / `?isbn=`
+  / `?arxiv=` (exactly one, 400 otherwise) resolve the identifier to a
+  unified source-metadata record — `{classKey, title, authors[] ("Family,
+  Given"), editors[], fields{} (the class's own SYSTEM_SOURCE_CLASS_BINDINGS
+  keys only), doi?, isbn?, url?, publisher?, year?}` — that the create flow
+  consumes verbatim. The provider item type maps to a Zotero citable type,
+  then the class via `ZOTERO_ITEM_TYPE_TO_CLASS` (no second hand-maintained
+  mapping). This is the server's FIRST outbound egress, documented as the
+  route module's honest privacy note: only the queried identifier leaves the
+  server — no request body, no workspace content — and Crossref, OpenLibrary,
+  and arXiv are the complete egress list. The workspace's `sources`
+  feature-row settings gate it (`resolverEnabled: false` → 403
+  `resolver_disabled`; absent row/key = default ON — the web settings UI
+  owns the toggle); provider failure/timeout (AbortController,
+  `NOTEES_RESOLVER_TIMEOUT_MS`, default 10 s) answers 502
+  `resolver_unavailable`; an unknown identifier answers 404. Resolved
+  records cache in a server-state `resolve_cache` table on relay.db (24 h
+  TTL, normalized-identifier key — the prefs/shares/plugins coordination
+  ruling, never log state). Three pinned error-taxonomy codes
+  (`resolver_disabled` 403, `resolver_unavailable` 502,
+  `no_identifier_found` 422); `search` scope covers the route, as before.
+  `POST /api/resolve/pdf` — the owner's PDF flow: intake a PDF either as a
+  multipart upload (the CAS asset route's intake idiom) or via `?url=` for a
+  server-side fetch, scan the RAW BYTES (latin1 decode, no new dependency —
+  no PDF parser) with the Crossref DOI pattern, and resolve the first stable
+  hit through the ordinary DOI path (same pref gate, same 24 h cache, same
+  Crossref contract). Normalization: trailing `. , ; ) ] }` trimmed,
+  percent-entities decoded best-effort, `/pdf`-style suffixes kept; multiple
+  DOIs → first hit wins (documented). No DOI → 422 `no_identifier_found`.
+  `?url=` is SSRF-guarded — http(s) only, loopback/private/link-local
+  literals (127/8, 10/8, 172.16/12, 192.168/16, 169.254/16, 0.0.0.0,
+  100.64/10, ::1, fe80::/10, fc00::/7, `localhost`) refused before any
+  fetch, IPv4-mapped IPv6 literals unwrapped (fe80::/10 covered) — and BOTH
+  paths carry a 25 MB cap (declared content-length pre-check plus
+  actual-bytes check on the url path). The pref gate runs BEFORE the
+  outbound PDF fetch: a hard-off resolver never touches the network. The
+  response is the unified record plus — in `?url=` mode — `pdf: { url }`,
+  the source URL the slice-6 web client's create flow uploads to CAS (the
+  review round's RECORD AMENDMENT: `publisher?: string` joins the unified
+  record — Crossref `publisher`, OpenLibrary `publishers[0]` — a top-level
+  field, never a `fields` entry). Tests: a hand-built minimal real-PDF-bytes
   fixture (uncompressed text object, the latin1 scan finds the DOI),
   mocked-fetch url mode, multipart intake, no-DOI 422, SSRF refusals, both
-  size caps, publisher population, gate-before-egress. Docs: `docs/api.md`
+  size caps, publisher population, gate-before-egress; the exact Crossref
+  journal-article record shape, 404/500/timeout mapping, the pref gate,
+  cache-hit single-fetch, OpenLibrary + arXiv happy paths. Docs: `docs/api.md`
   row + the OpenAPI route entry (the route-coverage gate).
 
-- **feat(server): metadata resolution route — Crossref/OpenLibrary/arXiv,
-  pref-gated, cached (source-library slices 3–6 task 3).** `GET /api/resolve`
-  grows its second mode beside the existing `?name=` name→id lookup:
-  `?doi=` / `?isbn=` / `?arxiv=` (exactly one, 400 otherwise) resolve the
-  identifier to a unified source-metadata record — `{classKey, title,
-  authors[] ("Family, Given"), editors[], fields{} (the class's own
-  SYSTEM_SOURCE_CLASS_BINDINGS keys only), doi?, isbn?, url?, year?}` — that
-  the slice-4 create flow and slice-6 web client consume verbatim. The
-  provider item type maps to a Zotero citable type, then the class via
-  `ZOTERO_ITEM_TYPE_TO_CLASS` (no second hand-maintained mapping). This is
-  the server's FIRST outbound egress, documented as the route module's
-  honest privacy note: only the queried identifier leaves the server —
-  no request body, no workspace content — and Crossref, OpenLibrary, and
-  arXiv are the complete egress list. The workspace's `sources` feature-row
-  settings gate it (`resolverEnabled: false` → 403 `resolver_disabled`;
-  absent row/key = default ON — the web settings UI owns the toggle);
-  provider failure/timeout (AbortController, `NOTEES_RESOLVER_TIMEOUT_MS`,
-  default 10 s) answers 502 `resolver_unavailable`; an unknown identifier
-  answers 404. Resolved records cache in a server-state `resolve_cache`
-  table on relay.db (24 h TTL, normalized-identifier key — the
-  prefs/shares/plugins coordination ruling, never log state). Two new pinned
-  error-taxonomy codes (`resolver_disabled` 403, `resolver_unavailable`
-  502); `search` scope covers the route, as before. Tests stub global fetch:
-  the exact Crossref journal-article record shape, 404/500/timeout mapping,
-  the pref gate, cache-hit single-fetch, OpenLibrary + arXiv happy paths.
-
-- **feat(web): .bib + CSL-JSON export formats for the current view
-  (source-library slices 3–6 task 2).** The export modal registers two
-  bibliography cards — **BibTeX** and **CSL JSON** — alongside the existing
-  formats. Both are node-set formats in the JSON-archive mold: ONE document
-  over the whole selection (batch included — no per-root zip), the entry set
-  the markdown single-file walk (each root plus, with "Include child pages",
-  every child-page subtree; inline body blocks are content, not sources, and
-  never become entries), deduped by node id across overlapping batch roots.
-  Each node projects through the package's `nodeToCsl` (the task-1 dual-track
-  read contract — `authors` rows first, `linkedAuthors` agent derivation when
-  empty, the agent's citation name resolved web-side from givenName/familyName
-  with the display-title fallback); `.bib` re-serializes through the package's
-  own `cslToBib` bridge, CSL-JSON is the item array verbatim. No package API
-  change — existing serializers only; delivery metadata (MIME/extension) is a
-  web-registry table row like the JSON archive card.
-
-- **feat(export): bidirectional source tables over the 39-class roster + the
-  dual-track read contract (source-library slices 3–6 task 1).** The
-  pre-roster 8-class mapping tables in `packages/export/src/csl.ts` were
+- **feat(export): bidirectional source tables + the dual-track read
+  contract, and web .bib/CSL-JSON export (source-library slices 3–6
+  tasks 1–2).** The export half of the source library. The pre-roster
+  8-class mapping tables in `packages/export/src/csl.ts` had been
   mechanically renamed in slice 1 and the SCHEMA.md read rule had no shipped
-  caller — this slice implements the contract. `SourceClassName` is now the
-  full 39-class source roster (the 9 everyday classes + the 30 Zotero
-  long-tail + the 3 judgment classes), and all three mappings are DERIVED at
-  module scope instead of hand-written per direction: `SOURCE_CLASS_NAMES`
-  builds from `ZOTERO_ITEM_TYPE_TO_CLASS` (+ `conference`/`song`/`tv_series`,
-  the documented no-exact-counterpart classes), and `CLASS_BIBLIOGRAPHY` —
-  the one hand-written table, 39 entries of BibTeX entry type + CSL type per
-  class (Zotero-schema CSL types; Zotero/citeproc BibTeX conventions,
-  keeping the established nonstandard `movie`/`series`; `misc` + the
-  `document` fallback where BibTeX has no type) — feeds `BIB_TYPE_TO_CLASS_NAME`
-  (first-wins + canonical picks: `inproceedings`→conference, `song`→song,
+  caller — these tasks implement the contract and ship it to the web.
+  `SourceClassName` is now the full 39-class source roster (the 9 everyday
+  classes + the 30 Zotero long-tail + the 3 judgment classes), and all three
+  mappings are DERIVED at module scope instead of hand-written per direction:
+  `SOURCE_CLASS_NAMES` builds from `ZOTERO_ITEM_TYPE_TO_CLASS` (+
+  `conference`/`song`/`tv_series`, the documented no-exact-counterpart
+  classes), and `CLASS_BIBLIOGRAPHY` — the one hand-written table, 39
+  entries of BibTeX entry type + CSL type per class (Zotero-schema CSL
+  types; Zotero/citeproc BibTeX conventions, keeping the established
+  nonstandard `movie`/`series`; `misc` + the `document` fallback where
+  BibTeX has no type) — feeds `BIB_TYPE_TO_CLASS_NAME` (first-wins +
+  canonical picks: `inproceedings`→conference, `song`→song,
   `series`→tv_series; legacy aliases `incollection`/`conference`/`proceedings`/
-  `mastersthesis`/`video`/`tv`), `CLASS_NAME_TO_CSL_TYPE`, `CSL_TYPE_TO_CLASS_NAME`
-  (canonical picks: `article`→journal_article, `broadcast`→tv_series,
-  `personal_communication`→letter, `paper-conference`→conference,
-  `legal_case`→document) and `CSL_TYPE_TO_BIB_TYPE` (`broadcast`→series,
-  `article`→article). `nodeToCsl` implements the dual-track read contract:
-  `authors` text rows parse straight to CSL names ("Family, Given" comma
-  form wins; stale post-flip `{nodeId}` elements read as empty); when NO
-  authors row resolves, names derive from `linkedAuthors` targets via the
-  caller's `resolveAgentName` (agent givenName/familyName, title fallback);
+  `mastersthesis`/`video`/`tv`), `CLASS_NAME_TO_CSL_TYPE`,
+  `CSL_TYPE_TO_CLASS_NAME` (canonical picks: `article`→journal_article,
+  `broadcast`→tv_series, `personal_communication`→letter,
+  `paper-conference`→conference, `legal_case`→document) and
+  `CSL_TYPE_TO_BIB_TYPE` (`broadcast`→series, `article`→article).
+  `nodeToCsl` implements the dual-track read contract: `authors` text rows
+  parse straight to CSL names ("Family, Given" comma form wins; stale
+  post-flip `{nodeId}` elements read as empty); when NO authors row
+  resolves, names derive from `linkedAuthors` targets via the caller's
+  `resolveAgentName` (agent givenName/familyName, title fallback);
   `editors` rows project to CSL `editor` and the BibTeX `editor` field on
   serialize; the per-class pool fields (container-title/volume/issue/page/
   ISSN) read through `SYSTEM_SOURCE_CLASS_BINDINGS` — the binding list is
@@ -233,7 +195,20 @@ predating this file.
   params (caller-supplied author strings, `resolveName`) move into a
   `NodeToCslOptions` bag — in-repo caller latex.ts updated; the CLI adapts
   at its next vendor bump.
-  - **Tests**: new `packages/export/test/csl.test.ts` pins the roster, the
+  **Web (task 2):** the export modal registers two bibliography cards —
+  **BibTeX** and **CSL JSON** — alongside the existing formats. Both are
+  node-set formats in the JSON-archive mold: ONE document over the whole
+  selection (batch included — no per-root zip), the entry set the markdown
+  single-file walk (each root plus, with "Include child pages", every
+  child-page subtree; inline body blocks are content, not sources, and never
+  become entries), deduped by node id across overlapping batch roots. Each
+  node projects through the package's `nodeToCsl` (the task-1 read contract
+  — the agent's citation name resolved web-side from givenName/familyName
+  with the display-title fallback); `.bib` re-serializes through the
+  package's own `cslToBib` bridge, CSL-JSON is the item array verbatim. No
+  package API change — existing serializers only; delivery metadata
+  (MIME/extension) is a web-registry table row like the JSON archive card.
+  - **Tests**: `packages/export/test/csl.test.ts` pins the roster, the
     39-entry table, and all three derived mappings verbatim + the read
     contract (authors rows, linkedAuthors fallback + stale-element
     emptiness, editors, per-class pool bindings + the locality rule);
@@ -245,8 +220,9 @@ predating this file.
     LOSES the element LWW to the migrated text value.
   - **Verification**: root `pnpm -r build` + `pnpm test` green; export
     package 14 files / 263 tests. Docs same-pass: SCHEMA.md "Citations"
-    (the read contract marked SHIPPED), `docs/feature-status.md`, this
-    entry; the csl.ts/latex.ts "designed-not-built" headers now say shipped.
+    (the read contract marked SHIPPED), `docs/feature-status.md`, the
+    changelog; the csl.ts/latex.ts "designed-not-built" headers now say
+    shipped.
 
 ## 2026-10-23
 
