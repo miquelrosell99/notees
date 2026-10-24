@@ -3,16 +3,17 @@
  * rides the shared hub-surface register in PageCard.css
  * and the three-pane composition rides the shared MainContentFrame
  * (MainContentFrame.css — the raised-card panel registers included), so the
- * shell owns only the middle cell's fill rule below. Token-only
+ * shell owns only the detail pane's focus seam below. The middle cell (the
+ * items table + toolbar) is styled in SourcesTable.css. Token-only
  * (variables.css).
  */
 
-/* The items-table cell: the EmptyState fills the middle column so the
-   Add-your-first-source hint reads centered between the two panels. */
-.nt-sources-hub__table {
-  flex: 1;
-  min-height: 0;
+/* The detail pane's keyboard-nav focus target (Enter from the items
+   table hands the focus here — the task-3 wiring; the detail body lands
+   with the detail task). Programmatic-focus only, no tab stop. */
+.nt-sources-hub__detail-focus {
+  outline: none;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
 }

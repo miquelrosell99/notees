@@ -164,6 +164,9 @@ const ROW_WINDOW = 100;
  * min-width, so the share is a real col width here, not a CSS minimum.
  */
 function defaultColumnWidth(column: TableColumn): string {
+  // A container-pinned share (the custom kind's lanes) wins over the kind's
+  // default; the ch units stay the adaptive form (the table font's box).
+  if (column.width !== undefined) return column.width;
   if (column.kind === "name") return "32ch";
   if (column.kind === "classes") return "16ch";
   if (column.kind === "created" || column.kind === "edited") return "12ch";
@@ -227,6 +230,9 @@ function nameCellText(client: AnyClient, node: ClientNode): string {
  */
 function csvCellText(client: AnyClient, row: TableRow, column: TableColumn): string {
   const node = row.item.node;
+  // The custom kind (container-composed projection columns): the container's
+  // csvText projection, "" when it offers none (WYSIWYG stays the contract).
+  if (column.kind === "custom") return column.csvText?.(row.item, client) ?? "";
   if (column.kind === "name") return nameCellText(client, node);
   if (column.kind === "classes") {
     return node.classIds
@@ -253,6 +259,8 @@ function columnSortValue(
   column: TableColumn,
   row: TableRow,
 ): string | number | null {
+  // The custom kind: the container's projection comparator value.
+  if (column.kind === "custom") return column.sortValue?.(row.item, client) ?? null;
   if (column.kind === "name") {
     return nameCellText(client, row.item.node);
   }
@@ -1386,6 +1394,17 @@ export function TableView(props: NodeCollectionProps) {
    * change) `chosen` latches and the choice survives default flips.
    */
   const defaultSortKey = JSON.stringify(defaultSort ?? null);
+  // The OPTIONAL CONTROLLED sort seam (law-9 URL containers): a container
+  // that OWNS its sort state — the Sources hub riding ?sort=field:dir —
+  // passes `sort` (the rendered spec, [] = none) and `onSortChange`; header
+  // clicks report the next single-spec cycle (asc → desc → none) through
+  // the callback INSTEAD of latching session-local state, and the view
+  // sorts/describes the controlled spec (the header arrows, the aria-sort
+  // register, the window reset all read it). `sort` WITHOUT the callback
+  // renders the spec STATICALLY (a URL-less container still honors its
+  // deep link; header clicks are inert). Neither prop keeps the historical
+  // session-local behavior.
+  const controlledSort = props.sort !== undefined || props.onSortChange !== undefined;
   const [sortState, setSortState] = useState<{
     key: string;
     specs: SortSpec[];
@@ -1395,15 +1414,18 @@ export function TableView(props: NodeCollectionProps) {
     specs: defaultSort !== undefined ? [defaultSort] : [],
     chosen: false,
   });
-  if (sortState.key !== defaultSortKey && !sortState.chosen) {
+  if (!controlledSort && sortState.key !== defaultSortKey && !sortState.chosen) {
     setSortState({
       key: defaultSortKey,
       specs: defaultSort !== undefined ? [defaultSort] : [],
       chosen: false,
     });
   }
-  const sort = sortState.specs;
-  const setSort = (specs: SortSpec[]) => setSortState({ key: defaultSortKey, specs, chosen: true });
+  const sort = controlledSort ? (props.sort ?? []) : sortState.specs;
+  const setSort = (specs: SortSpec[]) => {
+    if (props.onSortChange !== undefined) props.onSortChange(specs);
+    else setSortState({ key: defaultSortKey, specs, chosen: true });
+  };
   const [hiddenColumns, setHiddenColumns] = useState<ReadonlySet<string>>(new Set());
   const [extraColumns, setExtraColumns] = useState<ReadonlySet<string>>(new Set());
   /**
@@ -1427,6 +1449,8 @@ export function TableView(props: NodeCollectionProps) {
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const selectable = props.selectable ?? true;
+  /** The view's per-view toolbar; containers owning the chrome opt out. */
+  const showToolbar = props.toolbar ?? true;
 
   const rows = useMemo<TableRow[]>(
     () => items.map((item) => ({ item, properties: propertiesOf?.(item.node.id) ?? [] })),
@@ -1719,6 +1743,11 @@ export function TableView(props: NodeCollectionProps) {
         </td>
       );
     }
+    if (column.kind === "custom") {
+      // The container-composed projection column (the Sources hub's library
+      // columns): the cell chrome arrives from the container.
+      return <td key={column.id}>{column.renderCell?.(row.item, client) ?? null}</td>;
+    }
     return (
       <td key={column.id}>
         <PropertyCell row={row} column={column} props={props} peek={peekNode} />
@@ -1844,8 +1873,10 @@ export function TableView(props: NodeCollectionProps) {
   return (
     <div className="nt-table-wrap">
       {/* Hosted: the toolbar renders into the tab bar's right-hand cluster
-; un-hosted: it rides the body top as before. */}
-      {chromeTarget !== null ? createPortal(toolbar, chromeTarget) : toolbar}
+; un-hosted: it rides the body top as before.
+          Containers that own the chrome around the table pass
+          `toolbar={false}` (the Sources hub's toolbar). */}
+      {showToolbar && (chromeTarget !== null ? createPortal(toolbar, chromeTarget) : toolbar)}
       <OutlinerContext.Provider value={outliner}>
       <table className={`nt-table${resizing !== null ? " nt-table--resizing" : ""}`} ref={tableRef}>
         <colgroup>
@@ -1942,7 +1973,15 @@ export function TableView(props: NodeCollectionProps) {
         </thead>
         <tbody>
           {visible.map((row) => (
-            <tr key={row.item.node.id} data-node-id={row.item.node.id} className={selected.has(row.item.node.id) ? "nt-table-row--selected" : ""}>
+            <tr
+              key={row.item.node.id}
+              data-node-id={row.item.node.id}
+              className={[
+                selected.has(row.item.node.id) ? "nt-table-row--selected" : "",
+                props.highlightedId === row.item.node.id ? "nt-table-row--active" : "",
+              ].filter(Boolean).join(" ")}
+              onClick={props.onRowClick !== undefined ? () => props.onRowClick!(row.item.node.id) : undefined}
+            >
               {selectable && (
                 <td className="nt-table-select-col">
                   <Checkbox

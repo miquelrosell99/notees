@@ -78,14 +78,32 @@ export type SortMode = "dates-first" | "alphabetical" | "position" | "edit-date"
  * carry the schema id and resolve values per row through `propertiesOf`.
  * The Revision-11 boolean columns (`isClass` / `isEmbedded`) replace the
  * retired single type column — render states, not identities.
+ *
+ * The `custom` kind:
+ * a container composes its own projection INTO the shared table view's row
+ * renderer instead of mounting a parallel table. `renderCell` draws the
+ * cell from the item (the `NodeCollectionItem.meta` bag carries the
+ * container's per-row projection); `sortValue` feeds the column comparator
+ * (empties sink last in both directions, the shared convention);
+ * `csvText` projects the cell for the CSV/Excel exports (absent = "");
+ * `width` pins the column's fixed-layout share (a ch-unit length, the
+ * adaptive-values law).
  */
 export interface TableColumn {
   id: string;
-  kind: "name" | "classes" | "created" | "edited" | "isClass" | "isEmbedded" | "property";
+  kind: "name" | "classes" | "created" | "edited" | "isClass" | "isEmbedded" | "property" | "custom";
   label: string;
   /** Required when kind === "property". */
   propertySchemaId?: string;
   sortable?: boolean;
+  /** kind === "custom": the cell renderer (item + client in, chrome out). */
+  renderCell?: ((item: NodeCollectionItem, client: AnyClient) => ReactNode) | undefined;
+  /** kind === "custom": the column comparator's value (null/"" = empty). */
+  sortValue?: ((item: NodeCollectionItem, client: AnyClient) => string | number | null) | undefined;
+  /** kind === "custom": the CSV/Excel projection (default ""). */
+  csvText?: ((item: NodeCollectionItem, client: AnyClient) => string) | undefined;
+  /** The fixed-layout share (e.g. "12ch"); absent = the kind's default. */
+  width?: string | undefined;
 }
 
 /** Card cover placement (the four placements). */
@@ -334,6 +352,37 @@ export interface NodeCollectionProps {
    * Edited-desc).
    */
   defaultSort?: SortSpec | undefined;
+  /**
+   * The OPTIONAL CONTROLLED sort seam (the hosted tab's selected/onSelectTab
+   * precedent): a container that OWNS its sort state — the law-9 URL
+   * surfaces, e.g. the Sources hub riding ?sort=field:dir — passes `sort`
+   * (the rendered spec, [] = none) + `onSortChange`; header clicks report
+   * the next single-spec cycle (asc → desc → none) through the callback
+   * INSTEAD of the session-local state, and the view sorts/describes the
+   * controlled spec (the header arrows, the aria-sort register, the window
+   * reset all read it). Containers that pass neither keep the historical
+   * session-local behavior.
+   */
+  sort?: SortSpec[] | undefined;
+  onSortChange?: ((specs: SortSpec[]) => void) | undefined;
+  /**
+   * The view's per-view toolbar (the Columns/Sort configurators + the "…"
+   * data-actions menu). Default true; a container that owns the chrome
+   * around the table (the Sources hub's toolbar) passes false.
+   */
+  toolbar?: boolean | undefined;
+  /**
+   * The single-select keyboard-nav highlight (the Sources hub's items
+   * table): the matching row wears the active-row register; the container
+   * owns the state + the arrow-key conventions.
+   */
+  highlightedId?: string | null | undefined;
+  /**
+   * Row click (single-select containers like the Sources hub's items
+   * table): invoked with the row's node id on a tbody row click — the
+   * checkbox selection above stays the multi-select bulk contract.
+   */
+  onRowClick?: ((nodeId: string) => void) | undefined;
   /**
    * List/cards: the sort mode the view starts in (session state after; the
    * view owns the sort button). The list view supports `dates-first` /

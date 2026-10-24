@@ -15,6 +15,7 @@ import type { StoreMode } from "./storeMode.js";
 import { InProcessStoreBanner } from "../../components/ui/fleet/InProcessStoreBanner.js";
 import { SyncDetailsModal } from "../../features/modals/SyncDetailsModal.js";
 import { WorkspaceSettingsModal } from "../../features/workspaces/WorkspaceSettingsModal.js";
+import { WorkspaceSettingsHost } from "../../features/workspaces/WorkspaceSettingsHost.js";
 import { requestAddSource } from "../../features/sources/AddSourceHost.js";
 import { BackendUnavailableOverlay } from "../../components/ui/fleet/BackendUnavailableOverlay.js";
 import { NotificationToaster } from "../../components/ui/fleet/NotificationToaster.js";
@@ -84,6 +85,16 @@ export function AppOverlays(props: AppOverlaysProps) {
       )}
       <BackendUnavailableOverlay syncStatus={syncStatus} />
       <NotificationToaster />
+      {/* The workspace-settings modal's app-level host: the Sources hub's
+          settings shortcut requests the modal (on the Sources settings
+          tab) through the module-level queue, the AddSourceHost idiom. */}
+      <WorkspaceSettingsHost
+        client={client}
+        serverUrl={serverUrl}
+        credential={token}
+        workspaceName={workspaceName}
+        onRenamed={(name) => setWorkspaceName(name)}
+      />
     </>
   );
 }
