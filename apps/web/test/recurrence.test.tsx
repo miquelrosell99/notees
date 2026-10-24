@@ -1,6 +1,6 @@
 /**
  * Recurrence web tests (compute-on-read engine):
- * the day agenda lists virtual occurrences (one card per series, never
+ * the day time grid lists virtual occurrences (one chip per series, never
  * phantom rows), a repeating task schedules on occurrence days without ever
  * going overdue (asserted through the day page's Tasks section), the month
  * grid blocks every occurrence day, the property-panel picker
@@ -140,7 +140,7 @@ const repeatPickerOption = async (label: string) => {
 };
 
 describe("CalendarView recurrence", () => {
-  it("lists a weekly event on virtual occurrence days in the day agenda — one card, no phantoms", async () => {
+  it("lists a weekly event on virtual occurrence days in the day time grid — one chip, no phantoms", async () => {
     const client = await seedClient();
     const { classId, schemaId } = await eventFamily(client);
     // Anchor on the 3rd: the 3rd/10th/13th navigation below stays
@@ -157,31 +157,32 @@ describe("CalendarView recurrence", () => {
       fireEvent.click(screen.getByRole("radio", { name: "Day" }));
     };
 
-    // The anchor day lists the series as an agenda card.
+    // The anchor day lists the series as an all-day chip (untimed series).
     selectAndOpenDay("3");
-    const anchorAgenda = await screen.findByLabelText("Day agenda");
+    const anchorGrid = await screen.findByLabelText("Calendar day view");
     await waitFor(() => {
-      expect(anchorAgenda.textContent).toContain("Standup");
+      expect(anchorGrid.textContent).toContain("Standup");
     });
 
     // +7 (the 10th) is a pure virtual occurrence: no backlink exists on
-    // that day, the expansion puts it there — one card, no phantoms.
+    // that day, the expansion puts it there — one chip, no phantoms.
     fireEvent.click(screen.getByRole("radio", { name: "Month" }));
     await screen.findByLabelText("Calendar month view");
     selectAndOpenDay("10");
-    const occurrenceAgenda = await screen.findByLabelText("Day agenda");
+    const occurrenceGrid = await screen.findByLabelText("Calendar day view");
     await waitFor(() => {
-      expect(occurrenceAgenda.textContent).toContain("Standup");
+      expect(occurrenceGrid.textContent).toContain("Standup");
     });
     expect(
-      occurrenceAgenda.querySelectorAll(".cal-agenda__card"),
+      occurrenceGrid.querySelectorAll(".cal-timegrid__chip"),
     ).toHaveLength(1);
 
-    // The 13th is NOT an occurrence: the agenda shows the honest empty line.
+    // The 13th is NOT an occurrence: the grid is still there, the event is not.
     fireEvent.click(screen.getByRole("radio", { name: "Month" }));
     await screen.findByLabelText("Calendar month view");
     selectAndOpenDay("13");
-    expect(await screen.findByText("No events this day.")).toBeDefined();
+    const emptyGrid = await screen.findByLabelText("Calendar day view");
+    expect(emptyGrid.textContent).not.toContain("Standup");
   });
 
   it("a repeating task schedules on occurrence days and never goes overdue (the day page's Tasks section)", async () => {
