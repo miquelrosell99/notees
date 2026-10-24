@@ -75,6 +75,8 @@ export function JournalsView({
    * there reveals the rest of the future); else the top.
    */
 
+  /** The side panel's device-local collapse (the calendar view's old register). */
+  const [panelCollapsed, setPanelCollapsed] = useDeviceSetting("journalPanelCollapsed", false);
   /** The side panel's selected day (local ISO) — the events scope anchor. */
   const [panelIso, setPanelIso] = useState(todayIsoLocal());
   /** The feed's focus day while set: overrides the today anchor. */
@@ -264,20 +266,34 @@ export function JournalsView({
         icon="mdi-notebook-outline"
         title="Journal"
         actions={
-          pages.length > 0 ? (
-            /* The outline variant + "Jump to today" title/aria: the bordered button reads
-               clickable where the ghost idiom doesn't, and the short
-               "Today" label names the destination, not the jump. */
+          <>
+            {pages.length > 0 && (
+              /* The outline variant + "Jump to today" title/aria: the bordered button reads
+                 clickable where the ghost idiom doesn't, and the short
+                 "Today" label names the destination, not the jump. */
+              <Button
+                variant="outline"
+                size="sm"
+                title="Jump to today"
+                aria-label="Jump to today"
+                onClick={scrollToToday}
+              >
+                Today
+              </Button>
+            )}
+            {/* The navigator panel's device-local collapse (the calendar
+               view's old toggle register). */}
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              title="Jump to today"
-              aria-label="Jump to today"
-              onClick={scrollToToday}
-            >
-              Today
-            </Button>
-          ) : undefined
+              icon="mdi-view-agenda-outline"
+              aria-label={panelCollapsed ? "Show navigator panel" : "Hide navigator panel"}
+              aria-pressed={!panelCollapsed}
+              title={panelCollapsed ? "Show navigator panel" : "Hide navigator panel"}
+              active={!panelCollapsed}
+              onClick={() => setPanelCollapsed(!panelCollapsed)}
+            />
+          </>
         }
       />
       {pages.length === 0 ? (
@@ -307,6 +323,7 @@ export function JournalsView({
             <div ref={bottomSentinelRef} className="journals-sentinel" aria-hidden="true" />
           )}
         </div>
+        {!panelCollapsed && (
         <aside className="journals-panel" aria-label="Journal navigator">
           <MonthCalendar
             selectedDate={panelIso}
@@ -324,6 +341,7 @@ export function JournalsView({
           />
           <EventsPanel client={client} selectedIso={panelIso} onOpenPage={onOpenPage} />
         </aside>
+        )}
         </div>
       )}
     </div>
