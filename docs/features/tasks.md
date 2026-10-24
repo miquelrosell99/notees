@@ -6,6 +6,8 @@ The Tasks hub and the task lifecycle: buckets, the done checkbox, and the task S
 
 The **Tasks** hub keeps its table/cards collection and leads with a collapsible **Buckets** section: **Overdue / Today / Upcoming / Unscheduled / Completed**. A task lands in exactly one open bucket by its earliest Scheduled/Deadline day; Completed is the whole closed set. Rows carry the same done checkbox as everywhere else — closing a task moves it into Completed under your hands. The section's collapsed state is device-local. The buckets compute client-side from the effective Scheduled/Deadline/Status values — the same derived reads the table renders from — with the earliest-day rule so every open task lands in exactly one bucket and far-future work is never dropped. No query, no op.
 
+**New** in the hub's header creates a task: a task class with bound templates opens the template picker (the pick instantiates through the clone engine); without templates it creates directly — the new task lands **Unscheduled** (the date pill schedules it), and creation follows the calendar's day-view retirement (owner 2026-10-24).
+
 The hub's table/cards collection follows the shared collection rulings ([views.md](views.md)); its table opens on **Edited, newest first** ([the sort defaults](views.md#the-sort-button)).
 
 ## The checkbox semantics

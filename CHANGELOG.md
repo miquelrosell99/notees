@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): the Tasks hub gains the New-task flow — the
+  create-with-template flow's new home (owner 2026-10-24 follow-up).** The
+  calendar's day-view retirement orphaned the TemplatePickerModal flow
+  (the calendar's Tasks section was its only driver). The Tasks hub's
+  header now carries **New**: a task class with bound templates opens the
+  picker (the pick instantiates through the clone engine, the retired
+  calendar flow's exact write); without templates it creates directly.
+  The new task lands **Unscheduled** — the date pill schedules it, the
+  bucket partition reads honest. Specs: direct create + picker
+  instantiation (hub-create-buttons).
+  - **Verification**: web gate green; hub-create-buttons 5/5. Deployed:
+    verify-min VERIFY-PASS.
+## 2026-10-24
+
 - **feat(web): the calendar reads times + ranges; blocks and the day agenda
   wear the clock prefix; the Day zoom becomes the day agenda; a cell
   dblclick creates an event (owner rulings 2026-10-24).** (1) The read

@@ -15,7 +15,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { HubView } from "../src/ui/app/HubView.js";
@@ -52,6 +52,83 @@ async function seedClient(): Promise<WorkspaceClient> {
 async function flushSync(): Promise<void> {
   for (let i = 0; i < 6; i += 1) await act(async () => {});
 }
+
+/**
+ * The Tasks hub's New flow (owner 2026-10-24 — the calendar's Tasks
+ * section retired with the day view; the hub owns task creation now):
+ * no bound templates -> a direct unscheduled task-classed create + open;
+ * bound templates -> the picker opens and the pick instantiates through
+ * the clone engine.
+ */
+describe("the Tasks hub's New task flow", () => {
+  it("creates an unscheduled task directly when the class has no templates", async () => {
+    const client = await seedClient();
+    const { ensureTaskFamily } = await import("../src/features/classview/taskFamily.js");
+    await ensureTaskFamily(client);
+    const opened: string[] = [];
+    render(<HubView client={client} nav="tasks" onOpenNode={(id) => opened.push(id)} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "New task" }));
+    await flushSync();
+
+    expect(opened).toHaveLength(1);
+    const created = client.getNode(opened[0]!)!;
+    expect(created.classIds).toContain(SYSTEM_CLASS_UUIDS.task);
+    // Unscheduled: no AUTHORED taskScheduled value (the bound-but-empty
+    // virtual row synthesizes by design — value null is the honest read).
+    const scheduled = client
+      .getEffectiveProperties(created.id)
+      .find(
+        (row) =>
+          row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled &&
+          row.source === "authored" &&
+          row.value != null,
+      );
+    expect(scheduled).toBeUndefined();
+  });
+
+  it("offers the template picker when the task class has bound templates; the pick instantiates", async () => {
+    const client = await seedClient();
+    const { ensureTaskFamily } = await import("../src/features/classview/taskFamily.js");
+    const { ensureTemplateProperty } = await import("../src/features/templates/templateFamily.js");
+    await ensureTaskFamily(client);
+    await ensureTemplateProperty(client);
+    const templateId = await client.createObject({
+      isEmbedded: false,
+      name: "Recurring checklist",
+      classIds: [SYSTEM_CLASS_UUIDS.template],
+    });
+    await client.createObject({
+      parentId: templateId,
+      contentAst: [{ type: "text", text: "Step one" }],
+    });
+    await client.setProperty(
+      SYSTEM_CLASS_UUIDS.task,
+      SYSTEM_PROPERTY_UUIDS.hasTemplate,
+      { nodeId: templateId },
+      0,
+    );
+
+    const opened: string[] = [];
+    render(<HubView client={client} nav="tasks" onOpenNode={(id) => opened.push(id)} />);
+    fireEvent.click(await screen.findByRole("button", { name: "New task" }));
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: /Recurring checklist/i }))[0]!,
+    );
+
+    await flushSync();
+    expect(opened).toHaveLength(1);
+    const created = client.getNode(opened[0]!)!;
+    expect(created.classIds).toContain(SYSTEM_CLASS_UUIDS.task);
+    // Instantiated: the template's child cloned beneath the new task.
+    const children = client.getChildren(created.id);
+    expect(children.map((child) => child.contentAst)).toEqual([
+      [{ type: "text", text: "Step one" }],
+    ]);
+  });
+});
 
 describe("hub header creation buttons", () => {
   it("the Pages hub's New page writes a main page and opens it", async () => {
