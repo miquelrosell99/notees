@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(server): PDF → DOI extraction → resolved metadata (source-library
+  slices 3–6 task 4).** `POST /api/resolve/pdf` — the owner's PDF flow:
+  intake a PDF either as a multipart upload (the CAS asset route's intake
+  idiom) or via `?url=` for a server-side fetch, scan the RAW BYTES
+  (latin1 decode, no new dependency — no PDF parser) with the Crossref DOI
+  pattern, and resolve the first stable hit through the ordinary DOI path
+  (same pref gate, same 24 h cache, same Crossref contract). Normalization:
+  trailing `. , ; ) ] }` trimmed, percent-entities decoded best-effort,
+  `/pdf`-style suffixes kept; multiple DOIs → first hit wins (documented).
+  No DOI → 422 `no_identifier_found` (a new pinned taxonomy code beside
+  `resolver_disabled`/`resolver_unavailable`). `?url=` is SSRF-guarded —
+  http(s) only, loopback/private/link-local literals (127/8, 10/8,
+  172.16/12, 192.168/16, 169.254/16, 0.0.0.0, 100.64/10, ::1, fe80::/10,
+  fc00::/7, `localhost`) refused before any fetch — and BOTH paths carry a
+  25MB cap (declared content-length pre-check plus actual-bytes check on
+  the url path). The pref gate runs BEFORE the outbound PDF fetch: a
+  hard-off resolver never touches the network. The response is the unified
+  record plus — in `?url=` mode — `pdf: { url }`, the source URL the
+  slice-6 web client's create flow uploads to CAS. RECORD AMENDMENT from
+  the task-3 review: `publisher?: string` joins the unified record
+  (Crossref `publisher`, OpenLibrary `publishers[0]`) — a top-level field,
+  never a `fields` entry. Tests: a hand-built minimal real-PDF-bytes
+  fixture (uncompressed text object, the latin1 scan finds the DOI),
+  mocked-fetch url mode, multipart intake, no-DOI 422, SSRF refusals, both
+  size caps, publisher population, gate-before-egress. Docs: `docs/api.md`
+  row + the OpenAPI route entry (the route-coverage gate).
+
 - **feat(server): metadata resolution route — Crossref/OpenLibrary/arXiv,
   pref-gated, cached (source-library slices 3–6 task 3).** `GET /api/resolve`
   grows its second mode beside the existing `?name=` name→id lookup:

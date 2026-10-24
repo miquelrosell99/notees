@@ -689,7 +689,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["get", "/api/resolve", {
     summary: "Resolve a node id from its exact display name, OR source metadata from an identifier (DOI / ISBN / arXiv)",
     description:
-      "Two query modes on one route. `?name=` — case-insensitive exact-name match over the ranked FTS candidates (the one-round-trip counterpart of /search for name→id resolution; CLI `linked:`, query builders). 404 when no active node carries the exact name. `?doi=` / `?isbn=` / `?arxiv=` — exactly one required (400 otherwise): the server's metadata resolver fetches the record from Crossref / OpenLibrary / arXiv — the ONLY outbound egress the server ever makes, identifier-only (see the route module's privacy note) — and answers the unified record {classKey, title, authors[], editors[], fields{}, doi?, isbn?, url?, year?}. Cached 24 h (server state). The workspace's `sources` settings can hard-off the egress: `resolverEnabled: false` → 403 resolver_disabled (absent = default ON). Provider failure/timeout → 502 resolver_unavailable; an unknown identifier → 404.",
+      "Two query modes on one route. `?name=` — case-insensitive exact-name match over the ranked FTS candidates (the one-round-trip counterpart of /search for name→id resolution; CLI `linked:`, query builders). 404 when no active node carries the exact name. `?doi=` / `?isbn=` / `?arxiv=` — exactly one required (400 otherwise): the server's metadata resolver fetches the record from Crossref / OpenLibrary / arXiv — the ONLY outbound egress the server ever makes, identifier-only (see the route module's privacy note) — and answers the unified record {classKey, title, authors[], editors[], fields{}, doi?, isbn?, url?, year?, publisher?}. Cached 24 h (server state). The workspace's `sources` settings can hard-off the egress: `resolverEnabled: false` → 403 resolver_disabled (absent = default ON). Provider failure/timeout → 502 resolver_unavailable; an unknown identifier → 404.",
     tags: ["Search & Query"],
     requiredScope: "search",
     query: {
@@ -699,6 +699,18 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
       arxiv: { description: "an arXiv id — arXiv API lookup (metadata mode)", type: "string" },
     },
     errors: ["validation_failed", "not_found", "resolver_disabled", "resolver_unavailable"],
+  }],
+  ["post", "/api/resolve/pdf", {
+    summary: "Resolve source metadata from a PDF — DOI extraction over the raw bytes, then the resolver",
+    description:
+      "The owner's PDF flow: intake a PDF either as a multipart upload (one file part, the /api/assets idiom) or via `?url=` for a server-side fetch (http(s) only — loopback/private/link-local literals refused by the SSRF guard; the cap applies to both paths: 25MB). The server scans the RAW BYTES (latin1 decode) with the DOI pattern, first hit wins (trailing punctuation trimmed, percent-entities decoded), resolves it through the ordinary DOI path (same pref gate, same 24 h cache, Crossref), and answers the unified metadata record plus — in `?url=` mode — `pdf: { url }`, the source URL the web client's create flow uploads to CAS. No DOI in the bytes → 422 no_identifier_found. The scan is dependency-free by design: a DOI in the first pages' uncompressed text layer suffices for the vast majority of papers; deflated object streams simply yield no hit. When both an upload and `?url=` arrive, `?url=` wins.",
+    tags: ["Search & Query"],
+    requestBody: { type: "string", format: "binary", description: "multipart/form-data with one PDF file part (absent in ?url= mode)" },
+    query: {
+      url: { description: "a public http(s) URL of the PDF for the server to fetch (SSRF-guarded; wins over an uploaded file)", type: "string" },
+    },
+    requiredScope: "search",
+    errors: ["validation_failed", "no_identifier_found", "not_found", "resolver_disabled", "resolver_unavailable"],
   }],
   ["post", "/api/query", {
     summary: "Arbitrary QueryAST execution (the compiled query language)",
@@ -1157,7 +1169,7 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
         "objects.delete": "DELETE /api/objects/:id",
         "assets.read": "GET /api/assets/*",
         "assets.write": "POST /api/assets",
-        "search": "GET /api/search, GET /api/resolve (name→id + the metadata resolver), POST /api/query",
+        "search": "GET /api/search, GET /api/resolve (name→id + the metadata resolver), POST /api/resolve/pdf (the PDF→DOI flow), POST /api/query",
         "export": "GET /api/workspaces/:id/export.zip",
         "admin": "the whole /api/plugins surface — the FIRST enforcement of the reserved admin scope; sessions additionally require the administrator flag (routes-plugins requireAdmin)",
       },

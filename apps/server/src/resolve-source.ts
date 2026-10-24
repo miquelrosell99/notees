@@ -1,16 +1,21 @@
 /**
  * THE METADATA RESOLVER — the source-library resolver behind
- * GET /api/resolve?doi=…|?isbn=…|?arxiv=… (slices 3–6 task 3), the server's
+ * GET /api/resolve?doi=…|?isbn=…|?arxiv=… (slices 3–6 task 3) and
+ * POST /api/resolve/pdf (task 4 — the owner's PDF flow), the server's
  * FIRST (and, so far, only) outbound network egress.
  *
  * THE HONEST PRIVACY NOTE (the egress contract): nothing else in the server
  * process fetches out — no webhooks, no telemetry, no update checks. When a
  * caller asks the resolver to look up an identifier, exactly ONE thing leaves
  * the server: the queried identifier itself, embedded in the URL path/query
- * the provider expects. There is no request body and no identifying header
- * beyond what a plain GET carries. Workspace content — titles, notes,
+ * the metadata provider expects. There is no request body and no identifying
+ * header beyond what a plain GET carries. Workspace content — titles, notes,
  * properties, anything — NEVER rides along. The three providers below are
- * the complete egress list:
+ * the complete METADATA egress list. The one additional egress is the task-4
+ * PDF flow: when a caller passes `?url=`, the server fetches that ONE PDF
+ * itself — http(s) only, loopback/private/link-local literals refused (SSRF
+ * guard), 25MB cap, same timeout (see resolvePdfSource below); the metadata
+ * providers then see only the extracted DOI, never the URL or the bytes.
  *
  *  - Crossref    https://api.crossref.org/works/{doi}          (DOI)
  *  - OpenLibrary https://openlibrary.org/isbn/{isbn}.json      (ISBN)
@@ -19,7 +24,8 @@
  * Responses are normalized into ONE record shape (the task-4 create flow and
  * the task-6 web client consume it verbatim):
  *
- *    { classKey, title, authors[], editors[], fields{}, doi?, isbn?, url?, year? }
+ *    { classKey, title, authors[], editors[], fields{}, doi?, isbn?, url?,
+ *      year?, publisher? }
  *
  *  - classKey  the system class via ZOTERO_ITEM_TYPE_TO_CLASS — the provider's
  *              item type maps to a Zotero citable type first, then the
@@ -29,10 +35,12 @@
  *              family format);
  *  - fields    pool-key → value for the class's OWN bindings only
  *              (SYSTEM_SOURCE_CLASS_BINDINGS); base-bound properties
- *              (publisher, publicationDate, …) and the creator family never
- *              appear here — doi/isbn/url/year are top-level instead;
- *  - year      the publication year as a number.
- *
+ *              (publicationDate, …) and the creator family never
+ *              appear here — doi/isbn/url/year/publisher are top-level instead;
+ *  - year      the publication year as a number;
+ *  - publisher the publishing house (Crossref `publisher`, OpenLibrary
+ *              `publishers[0]`) — a top-level record field, never a `fields`
+ *              entry (the publisher binding rides the source base).
  * The pref gate: the workspace's `sources` feature-row settings
  * (`resolverEnabled === false`) answer 403 resolver_disabled; an absent row
  * or absent key means ALLOWED (default ON — the task-5 web settings UI owns
@@ -76,6 +84,8 @@ export interface SourceMetadataRecord {
   isbn?: string;
   url?: string;
   year?: number;
+  /** The publishing house (Crossref `publisher` / OpenLibrary `publishers[0]`). */
+  publisher?: string;
 }
 
 /** Cache freshness: 24 h (server coordination state, not log state). */
@@ -247,6 +257,7 @@ function buildRecord(input: {
   isbn?: string | undefined;
   url?: string | undefined;
   year?: number | undefined;
+  publisher?: string | undefined;
 }): SourceMetadataRecord {
   const fields: Record<string, string> = {};
   for (const key of SYSTEM_SOURCE_CLASS_BINDINGS[input.classKey] ?? []) {
@@ -264,6 +275,7 @@ function buildRecord(input: {
   if (input.isbn !== undefined) record.isbn = input.isbn;
   if (input.url !== undefined) record.url = input.url;
   if (input.year !== undefined) record.year = input.year;
+  if (input.publisher !== undefined) record.publisher = input.publisher;
   return record;
 }
 
@@ -344,11 +356,11 @@ async function resolveDoi(
       pages: str(work.page),
       issn: firstString(work.ISSN),
       place: str(work["publisher-location"]),
-      publisher: str(work.publisher),
     },
     doi: str(work.DOI) ?? normalizeIdentifier("doi", doi),
     url: str(work.URL),
     year: yearFromDateParts(work.issued),
+    publisher: str(work.publisher),
   });
 }
 
@@ -433,11 +445,11 @@ async function resolveIsbn(
     candidates: {
       place: firstOpenLibraryName(work.publish_places),
       numPages: typeof work.number_of_pages === "number" ? String(work.number_of_pages) : undefined,
-      publisher: firstOpenLibraryName(work.publishers),
     },
     isbn: firstString(work.isbn_13) ?? firstString(work.isbn_10) ?? normalized,
     url: `${OPENLIBRARY_ISBN}/${normalized}`,
     year: yearFromDateString(work.publish_date),
+    publisher: firstOpenLibraryName(work.publishers),
   });
 }
 
@@ -509,6 +521,21 @@ async function resolveArxiv(
 // --- the route entry ------------------------------------------------------------
 
 /**
+ * THE PREF GATE: the workspace's `sources` feature-row settings; absent row
+ * or absent key means ALLOWED (default ON — the web settings UI owns the
+ * toggle in task 5). Exported because the PDF flow must run the gate BEFORE
+ * its own outbound fetch (?url= mode) — a hard-off resolver never touches
+ * the network.
+ */
+export function assertResolverEnabled(ctx: ServerContext, workspaceId: string): void {
+  const settings = ctx.workspaces.storeFor(workspaceId).getFeatureRow(workspaceId, "sources")
+    ?.settings;
+  if (settings?.resolverEnabled === false) {
+    throw new AppError(403, "resolver_disabled", "the metadata resolver is disabled (sources settings)");
+  }
+}
+
+/**
  * Resolve one metadata identifier to the unified record. Exactly one of
  * doi/isbn/arxiv (400 otherwise — the route only delegates here when at least
  * one is present, so this is the two-or-more guard). The pref gate runs
@@ -536,14 +563,7 @@ export async function resolveSourceMetadata(
   }
   const [kind, raw] = present[0]!;
 
-  // THE PREF GATE: the workspace's `sources` feature-row settings; absent row
-  // or absent key means ALLOWED (default ON — the web settings UI owns the
-  // toggle in task 5).
-  const settings = ctx.workspaces.storeFor(workspaceId).getFeatureRow(workspaceId, "sources")
-    ?.settings;
-  if (settings?.resolverEnabled === false) {
-    throw new AppError(403, "resolver_disabled", "the metadata resolver is disabled (sources settings)");
-  }
+  assertResolverEnabled(ctx, workspaceId);
 
   const key = `${kind}:${normalizeIdentifier(kind, raw)}`;
   const cached = ctx.resolverCache.get(key);
@@ -561,4 +581,198 @@ export async function resolveSourceMetadata(
   }
   ctx.resolverCache.set(key, record);
   return record;
+}
+
+
+// --- the PDF flow (POST /api/resolve/pdf, task 4) --------------------------------
+
+/**
+ * The owner's PDF flow: hand the server a PDF (multipart upload or `?url=`)
+ * and get the source-metadata record for the DOI printed in it. The scan is
+ * deliberately primitive — NO new dependency, NO PDF parser: the raw bytes
+ * latin1-decoded, run over with the DOI pattern. A DOI lives in the first
+ * pages' uncompressed text layer for the vast majority of papers (fonts
+ * uncompressed enough for the ASCII to survive verbatim), and deflate-encoded
+ * object streams simply yield no hit — an honest 422, never a half-guess.
+ */
+
+/** The PDF intake cap for BOTH paths (multipart and ?url=): 25MB. */
+export const RESOLVE_PDF_MAX_BYTES = 25 * 1024 * 1024;
+
+/**
+ * The Crossref DOI pattern (their own documented shape): `10.` + 4–9 digits +
+ * `/` + one or more of the allowed suffix characters. `g` + `i` flags, reset
+ * per scan (`lastIndex` is shared module state otherwise).
+ */
+const PDF_DOI_PATTERN = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+/gi;
+
+/** The trailing punctuation the raw match may swallow (PDF text-layer noise). */
+const DOI_TRAILING_PUNCTUATION = /[.,;)\]}]+$/u;
+
+/**
+ * The first stable hit: first regex match whose normalized form is non-empty.
+ * The latin1 text is percent-DECODED before scanning (best-effort, `%XX` →
+ * byte) so href-style DOIs (`10.1000%2Fxyz123`) surface as ordinary DOIs.
+ * Per-match normalization: trim trailing `. , ; ) ] }`, decode (again —
+ * idempotent for plain text), then trim again. A trailing `/pdf`-style suffix
+ * is KEPT — it is part of the matched token and Crossref's normalization
+ * sorts the lookup out. Multiple DOIs in one document: first hit wins
+ * (documented; the owner's flow points at one paper per PDF).
+ */
+export function extractDoiFromPdfBytes(bytes: Buffer): string | null {
+  const text = bytes
+    .toString("latin1")
+    .replace(/%[0-9A-Fa-f]{2}/g, (hex) => String.fromCharCode(Number.parseInt(hex.slice(1), 16)));
+  PDF_DOI_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = PDF_DOI_PATTERN.exec(text)) !== null) {
+    const candidate = match[0]
+      .replace(DOI_TRAILING_PUNCTUATION, "")
+      .replace(/%[0-9A-Fa-f]{2}/g, (hex) =>
+        String.fromCharCode(Number.parseInt(hex.slice(1), 16)),
+      )
+      .replace(DOI_TRAILING_PUNCTUATION, "");
+    if (candidate.length > 0) return candidate;
+  }
+  return null;
+}
+
+/**
+ * The SSRF guard for `?url=` — the server fetches a caller-named URL, so the
+ * bar is higher than for the fixed provider hosts above: http(s) ONLY, and
+ * host literals that are loopback / private / link-local / unspecified are
+ * refused outright (127/8, 10/8, 172.16/12, 192.168/16, 169.254/16,
+ * 0.0.0.0, 100.64/10, ::1, fe80::/10, fc00::/7, `localhost`). DNS names are
+ * NOT re-resolved per redirect hop — the deployment contract is a
+ * single-user self-hosted server; the guard blocks the literal-address
+ * attacks, redirect-following to a private address stays the operator's
+ * network-trust call. Anything refused → 422 validation_failed, never a fetch.
+ */
+export function assertFetchablePdfUrl(rawUrl: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new AppError(422, "validation_failed", `url is not a valid URL ("${rawUrl}")`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new AppError(
+      422,
+      "validation_failed",
+      `url must be http(s) (got "${parsed.protocol}")`,
+    );
+  }
+  const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  const refused =
+    host === "localhost" ||
+    host === "0.0.0.0" ||
+    (host.includes(":") &&
+      (host === "::" ||
+        host === "::1" ||
+        host.startsWith("fe80:") ||
+        host.startsWith("fc") ||
+        host.startsWith("fd"))) ||
+    (ipv4 !== null &&
+      (Number(ipv4[1]) === 127 ||
+        Number(ipv4[1]) === 10 ||
+        Number(ipv4[1]) === 0 ||
+        Number(ipv4[1]) >= 224 ||
+        (Number(ipv4[1]) === 169 && Number(ipv4[2]) === 254) ||
+        (Number(ipv4[1]) === 172 && Number(ipv4[2]) >= 16 && Number(ipv4[2]) <= 31) ||
+        (Number(ipv4[1]) === 192 && Number(ipv4[2]) === 168) ||
+        (Number(ipv4[1]) === 100 && Number(ipv4[2]) >= 64 && Number(ipv4[2]) <= 127)));
+  if (refused) {
+    throw new AppError(
+      422,
+      "validation_failed",
+      `url host "${host}" is loopback/private/link-local (SSRF guard)`,
+    );
+  }
+  return parsed;
+}
+
+/**
+ * Fetch the PDF bytes for `?url=` mode: SSRF guard first, then the one
+ * outbound GET (same AbortController timeout budget as the providers). The
+ * cap is enforced twice — on the declared content-length before reading and
+ * on the actual bytes after (chunked responses may declare nothing). A host
+ * failure or non-2xx answers 502 resolver_unavailable (the resolver's
+ * upstream fetch failed); a size breach answers 422 validation_failed.
+ */
+async function fetchPdfBytes(rawUrl: string, timeoutMs: number): Promise<Buffer> {
+  const target = assertFetchablePdfUrl(rawUrl);
+  let res: Response;
+  try {
+    res = await fetchProvider(target.toString(), timeoutMs);
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw new AppError(502, "resolver_unavailable", `pdf could not be fetched (${error.message})`);
+    }
+    throw error;
+  }
+  if (!res.ok) {
+    throw new AppError(502, "resolver_unavailable", `pdf host answered ${res.status}`);
+  }
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > RESOLVE_PDF_MAX_BYTES) {
+    throw new AppError(
+      422,
+      "validation_failed",
+      `pdf exceeds the ${RESOLVE_PDF_MAX_BYTES}-byte cap (declared ${declared})`,
+    );
+  }
+  const bytes = Buffer.from(await res.arrayBuffer());
+  if (bytes.length > RESOLVE_PDF_MAX_BYTES) {
+    throw new AppError(
+      422,
+      "validation_failed",
+      `pdf exceeds the ${RESOLVE_PDF_MAX_BYTES}-byte cap (received ${bytes.length})`,
+    );
+  }
+  return bytes;
+}
+
+/** The pdf-mode answer: the unified record, flattened, plus the asset-attach intent. */
+export type PdfResolveResult = SourceMetadataRecord & { pdf?: { url?: string } };
+
+/**
+ * The PDF flow's core: intake bytes (multipart) or fetch them (`?url=`),
+ * extract the DOI, resolve it through the ordinary DOI path (pref gate —
+ * which also runs BEFORE the outbound PDF fetch — cache, Crossref, the whole
+ * contract). No DOI in the bytes → 422 no_identifier_found (a pinned taxonomy
+ * code beside resolver_disabled/resolver_unavailable).
+ */
+export async function resolvePdfSource(
+  ctx: ServerContext,
+  workspaceId: string,
+  input: { bytes?: Buffer | undefined; url?: string | undefined },
+): Promise<PdfResolveResult> {
+  // The gate runs before ANY egress: a hard-off resolver never fetches the PDF.
+  assertResolverEnabled(ctx, workspaceId);
+
+  let bytes: Buffer;
+  let sourceUrl: string | undefined;
+  if (input.bytes !== undefined) {
+    bytes = input.bytes;
+  } else if (input.url !== undefined) {
+    sourceUrl = input.url;
+    bytes = await fetchPdfBytes(input.url, ctx.config.resolverTimeoutMs);
+  } else {
+    throw new AppError(422, "validation_failed", "a multipart file part or ?url= is required");
+  }
+  if (bytes.length > RESOLVE_PDF_MAX_BYTES) {
+    throw new AppError(
+      422,
+      "validation_failed",
+      `pdf exceeds the ${RESOLVE_PDF_MAX_BYTES}-byte cap (received ${bytes.length})`,
+    );
+  }
+
+  const doi = extractDoiFromPdfBytes(bytes);
+  if (doi === null) {
+    throw new AppError(422, "no_identifier_found", "the PDF carried no extractable DOI");
+  }
+  const record = await resolveSourceMetadata(ctx, workspaceId, { doi });
+  return sourceUrl !== undefined ? { ...record, pdf: { url: sourceUrl } } : { ...record };
 }
