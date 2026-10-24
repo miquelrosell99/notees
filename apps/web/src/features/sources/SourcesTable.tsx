@@ -34,7 +34,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { AnyClient } from "../../ui/app/clients.js";
 import { Icon } from "../../ui/Icon.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { Badge, Button, EmptyState, SearchField, Spinner } from "../../components/ui/fleet/index.js";
 import { NodeCollection } from "../collection/index.js";
 import type { NodeCollectionItem, SortSpec, TableColumn } from "../collection/index.js";
@@ -64,7 +64,7 @@ function sourceOf(item: NodeCollectionItem): SourceRow | undefined {
 function typeLabelOf(client: AnyClient, row: SourceRow): string {
   const classId =
     SYSTEM_CLASS_UUIDS[row.classKey as keyof typeof SYSTEM_CLASS_UUIDS] ?? SYSTEM_CLASS_UUIDS.source;
-  return displayNameFromClient(client, classId) ?? row.classKey;
+  return titleOf(client, classId) ?? row.classKey;
 }
 
 /**

@@ -34,7 +34,7 @@ import {
 } from "@notees/domain";
 import type { QueryAst } from "@notees/query";
 
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import type { ClientNode, EffectiveProperty } from "../../core/workspace-client/index.js";
 
 /**
@@ -115,7 +115,7 @@ export function sourcesPathFor(state: SourcesQueryState): string {
 export interface SourcesReadSurface {
   runQueryAst(rawAst: unknown): { ids: string[] } | Promise<{ ids: string[] }>;
   getNode(id: string): ClientNode | undefined;
-  getNodeRaw(id: string): { isActive: boolean } | undefined;
+  getNodeRaw(id: string): { id: string; isActive: boolean } | undefined;
   getEffectiveProperties(id: string): EffectiveProperty[];
   getClassParents(classId: string): string[];
   getClassMembers(classId: string): ClientNode[];
@@ -307,7 +307,7 @@ function agentCitationName(client: SourcesReadSurface, agentId: string): string 
     (part): part is string => part !== undefined && part.trim().length > 0,
   );
   if (parts.length > 0) return parts.map((part) => part.trim()).join(", ");
-  return displayNameFromClient(client, agentId);
+  return titleOf(client, agentId);
 }
 
 /** Every non-empty string an effective row carries for the schema, in row
@@ -536,7 +536,7 @@ export function facetCounts(client: SourcesReadSurface): SourceFacet[] {
   return SOURCE_TYPE_ROSTER.map((name) => ({
     classKey: name,
     label:
-      displayNameFromClient(client, SYSTEM_CLASS_UUIDS[name]) ??
+      titleOf(client, SYSTEM_CLASS_UUIDS[name]) ??
       SYSTEM_CLASS_DISPLAY_NAMES[name],
     count: counts.get(name) ?? 0,
     archived: !classIsActive(client, name),
