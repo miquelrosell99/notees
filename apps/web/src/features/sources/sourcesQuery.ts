@@ -216,6 +216,18 @@ function primaryClassKey(
   return hits[0]!;
 }
 
+/**
+ * The primary type pick for ONE node — the same enabled-most-specific roster
+ * rule the table's rows carry (the detail pane's type chip reads it, so the
+ * chip and the row always agree).
+ */
+export function sourceTypeKey(
+  client: SourcesReadSurface,
+  node: ClientNode,
+): SystemClassName {
+  return primaryClassKey(client, node, new Map());
+}
+
 // --- buildSourcesAst ------------------------------------------------------------------
 
 export interface SourcesFilters {

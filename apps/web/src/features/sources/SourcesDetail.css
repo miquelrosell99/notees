@@ -1,11 +1,15 @@
 /**
- * SourcesDetail styles — the detail pane's task-3 wiring register: the
- * selected source's title. The type-aware editor chrome lands with the
- * detail task. Token-only (variables.css).
+ * SourcesDetail styles — the detail pane's register: the inline-editable
+ * title, the type-chip + actions row, and the metadata panel's composition
+ * slot. Token-only (variables.css); values that track type metrics take the
+ * adaptive form.
  */
 
 .nt-sources-detail {
   padding: var(--spacing-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
 }
 
 .nt-sources-detail__title {
@@ -13,4 +17,30 @@
   font-size: var(--font-size-lg);
   line-height: 1.3;
   overflow-wrap: anywhere;
+  cursor: text;
+  /* An empty title keeps a clickable line box (the untitled source). */
+  min-height: 1.3em;
+}
+
+.nt-sources-detail__title-input {
+  width: 100%;
+}
+
+.nt-sources-detail__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.nt-sources-detail__type {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  overflow-wrap: anywhere;
+}
+
+.nt-sources-detail__spacer {
+  flex: 1;
 }
