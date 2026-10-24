@@ -857,7 +857,10 @@ function verify(
       }
     };
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
-      if (spec === undefined || spec.bindTo === undefined) continue;
+      // Mirror the plan loop (owner ruling 2026-10-24): `bind: false` specs
+      // seed NO binding row on their bindTo — asserting one here would
+      // demand the stale pre-ruling base rows back.
+      if (spec === undefined || spec.bindTo === undefined || spec.bind === false) continue;
       assertBinding(SYSTEM_CLASS_UUIDS[spec.bindTo], SYSTEM_PROPERTY_UUIDS[name as SystemPropertyName]);
     }
     for (const extra of SYSTEM_EXTRA_CLASS_BINDINGS) {
