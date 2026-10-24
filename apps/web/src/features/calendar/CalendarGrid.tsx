@@ -40,7 +40,12 @@ import {
   editOccurrence,
   type RecurrenceScope,
 } from "./calendarRecurrence.js";
-import { dayNodeId, recurrenceRuleOf, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import {
+  dayNodeId,
+  deriveDisplayName,
+  recurrenceRuleOf,
+  SYSTEM_CLASS_UUIDS,
+} from "@notees/domain";
 import { isoLocal, useWeekdayHeader } from "./dayGrid.js";
 import { addDaysIso, scheduledIsoOf, weekDaysOfIso } from "./calendarViewUtils.js";
 import "./CalendarGrid.css";
@@ -459,11 +464,14 @@ function EventBlock({
 }) {
   const node = client.getNode(nodeId);
   if (node === undefined) return null;
-  // The title register: ONLY the node's own content names the card
-  // (title-is-content) — a class chip is render chrome, not content, so a
-  // chip-only node is a non-content node and reads the Untitled
-  // placeholder (owner 2026-10-23), never the class name.
-  const label = displayNameFromClient(client, nodeId) || untitledLabelOf(node);
+  // The title register: the node's own content names the card
+  // (title-is-content) — an inline class chip IS content and excerpts to
+  // the class's CURRENT name (the domain helper's resolveClassName seam;
+  // a chip's own displayText still wins). Only a genuinely empty flatten
+  // reads the Untitled placeholder.
+  const label =
+    deriveDisplayName(node, (classId) => displayNameFromClient(client, classId)) ||
+    untitledLabelOf(node);
   const color = client.effectiveNodeColor(node);
   return (
     <button
