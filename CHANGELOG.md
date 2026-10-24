@@ -9,6 +9,16 @@ predating this file.
 
 ## 2026-10-24
 
+- **docs(AGENTS): the system-components law is codified.** ALWAYS the system components — unless the UI is genuinely
+  one-of-a-kind, in which case it is created as an independent component
+  under `components/ui/fleet/`, never ad-hoc styled markup in feature code
+  (the "does not make sense" escape is rare and must be obvious). Born from
+  the agenda open-arrow shipping as a bespoke circle instead of the fleet
+  ghost Button. Known candidates for a fleet audit sweep (the recurring
+  scope sheet's buttons, the block context menu, the calendar title
+  buttons) are noted for a follow-up pass.
+## 2026-10-24
+
 - **fix(web): the agenda's open-page arrow moves next to the header text and
   wears the fleet button register.** Two owner nits:
   the hover-reveal arrow rides DIRECTLY after the day meta (no far-right
