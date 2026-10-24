@@ -75,12 +75,16 @@ import {
   currentNavUrl,
   initialNav,
   initialServerUrl,
+  calendarRouteFromPath,
+  pathForCalendar,
   popStateNavHandler,
   pushSettingsSection,
   readStored,
   recordNavPop,
   recordNavPush,
   tabTitle,
+  type CalendarRoute,
+  type CalendarZoom,
   type CredentialType,
   type NavStack,
   useBootFlow,
@@ -219,6 +223,22 @@ export function App() {
   const [condensedActive, setCondensedPref] = useCondensedPreference(selectedPageId ?? "");
   const [activeNav, setActiveNav] = useState<NavKey>(initialNav);
   /**
+   * The calendar surface's parsed route: the /calendar/<zoom>/<iso> in the address bar, or null
+   * when the current URL is not a calendar route. A null zoom inside the
+   * route is the bare path (the `calendarZoom` device setting fills it).
+   * Boot deep links and every popstate landing set it; the view's
+   * push/replace callbacks keep it in step; every other navigation clears
+   * it (the sidebar's calendar row re-lands on the bare default).
+   */
+  const [calendarRoute, setCalendarRoute] = useState<CalendarRoute | null>(() =>
+    calendarRouteFromPath(window.location.pathname),
+  );
+  /**
+   * The calendar view's tab-title contribution while mounted ("October 2026
+   * — Calendar"); null cedes to the hub register (law 9).
+   */
+  const [calendarTitle, setCalendarTitle] = useState<string | null>(null);
+  /**
    * The in-app Back/Forward stack behind the top-bar arrows: our own
    * entries + cursor (the browser stack reaches beyond the app — see
    * recordNavPush/recordNavPop). Boots at the deep-linked URL.
@@ -232,6 +252,26 @@ export function App() {
   function pushNav(url: string, state: Record<string, unknown>): void {
     setNavStack((stack) => recordNavPush(stack, url));
     window.history.pushState(state, "", url);
+  }
+
+  /**
+   * The calendar view's URL seam: a zoom change PUSHES a
+   * new history entry; a selected-day change REPLACES the current one (day
+   * picking must not spam history) — the nav stack's current slot follows
+   * the replaced URL so back/forward stays consistent.
+   */
+  function navigateCalendar(next: { zoom: CalendarZoom; iso: string }, mode: "push" | "replace"): void {
+    const url = pathForCalendar(next.zoom, next.iso);
+    if (mode === "push") {
+      pushNav(url, { nav: "calendar", calendar: next });
+    } else {
+      window.history.replaceState({ nav: "calendar", calendar: next }, "", url);
+      setNavStack((stack) => ({
+        ...stack,
+        entries: stack.entries.map((entry, i) => (i === stack.index ? url : entry)),
+      }));
+    }
+    setCalendarRoute(next);
   }
 
   const boot = useBootFlow(conn, pushNav);
@@ -292,7 +332,8 @@ export function App() {
   // Browser tab title: the ONE writer — the tabTitle rule (law 9; exported
   // and unit-tested). pagesVersion keeps the open node's title fresh across
   // renames and sync updates; searchOpen/activeNav name the selection-less
-  // surfaces (hubs and the full-page search).
+  // surfaces (hubs and the full-page search); the calendar hands up its own
+  // period title while mounted (it owns its URL AND its tab title).
   useEffect(() => {
     document.title = tabTitle({
       clientPresent: client !== null,
@@ -300,6 +341,7 @@ export function App() {
       settingsSection,
       searchOpen,
       activeNav,
+      calendarTitle,
       nodeName:
         client !== null && selectedPageId !== null
           ? (() => {
@@ -310,7 +352,7 @@ export function App() {
             })()
           : "",
     });
-  }, [client, selectedPageId, pagesVersion, settingsSection, searchOpen, activeNav]);
+  }, [client, selectedPageId, pagesVersion, settingsSection, searchOpen, activeNav, calendarTitle]);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   useGlobalGestures({
@@ -340,6 +382,7 @@ export function App() {
     setSettingsSection(null);
     setSearchOpen(false);
     setSelectedPageId(id);
+    setCalendarRoute(null);
     pushNav(`/${id}`, { node: id });
     recordRecent(id);
   }
@@ -355,6 +398,7 @@ export function App() {
     setSettingsSection(section);
     setSearchOpen(false);
     setSelectedPageId(null);
+    setCalendarRoute(null);
     setNavStack((stack) => recordNavPush(stack, pathForSettingsSection(section)));
     pushSettingsSection(section);
   }
@@ -381,6 +425,7 @@ export function App() {
     setSearchOpen(true);
     setSettingsSection(null);
     setSelectedPageId(null);
+    setCalendarRoute(null);
     const path =
       query !== undefined && query !== "" ? `/search?q=${encodeURIComponent(query)}` : "/search";
     pushNav(path, { view: "search" });
@@ -400,6 +445,7 @@ export function App() {
       setSearchOpen(false);
       setActiveNav(nav);
       setSelectedPageId(null);
+      setCalendarRoute(null);
       pushNav(path, { nav });
     };
     if (view === "today" && live !== null) {
@@ -431,6 +477,7 @@ export function App() {
       setNode: setSelectedPageId,
       setSettingsSection,
       setSearch: setSearchOpen,
+      setCalendarRoute,
       onNavigated: (url) => setNavStack((stack) => recordNavPop(stack, url)),
     });
     window.addEventListener("popstate", onPopState);
@@ -710,6 +757,10 @@ export function App() {
         sidebarCards={sidebarCards}
         setSidebarCards={setSidebarCards}
         closeSidebarCard={closeSidebarCard}
+        calendarRoute={calendarRoute}
+        onCalendarRouteChange={navigateCalendar}
+        onCalendarTitle={setCalendarTitle}
+        resetCalendarRoute={() => setCalendarRoute(null)}
       />
       <AppModals
         client={client}
