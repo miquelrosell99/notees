@@ -173,6 +173,9 @@ describe("migrate-authors-to-text", () => {
     expect(dry.stdout).toContain('{"nodeId":"' + AGENT_E + '"} (target ' + AGENT_E + " gone)"); // the kept broken ref
     expect(dry.stdout).toContain("meaning-flip report: 1 saved view(s)");
     expect(dry.stdout).toContain("property:contains");
+    // The legacy pre-strict view on the same host is reported skipped, per
+    // token, and never aborts the enumeration — the normal view still lists.
+    expect(dry.stdout).toContain(`unparseable saved view (skipped): ${QUERIES_PAGE}`);
     expect(dry.stdout).toContain("dry run");
     expect(dry.stdout).not.toContain("ingested");
     const relayDry = openRelay(dataDir);
@@ -188,6 +191,8 @@ describe("migrate-authors-to-text", () => {
     expect(apply.stdout).toContain("ingested 8 envelope(s)");
     expect(apply.stdout).toContain("verify: 8 new envelope(s) read back");
     expect(apply.stdout).toContain("tail applied clean");
+    // Verify tolerated the legacy token sharing the saved-view host.
+    expect(apply.stdout).toContain(`unparseable saved view (skipped): ${QUERIES_PAGE}`);
 
     // The replica, rebuilt in-process: restore the PRE-MIGRATION snapshot and
     // apply the migrated tail by hand. Any StoreError fails the test here —

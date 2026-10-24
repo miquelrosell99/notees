@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-24
 
+- **fix(scripts): migrations tolerate legacy unparseable saved views
+  (live-dry-run discovery).** The task-8 authors migration's first live
+  `--all` dry run died before any planning output: the meaning-flip
+  enumeration parses stored query views with the strict query-ast schema, and
+  a LEGACY saved view in the personal workspace (a pre-strict AST token —
+  "Unrecognized key(s): 'type', 'root_group', 'id'") threw and aborted the
+  whole run. The task-7 roster migration had the same unguarded parse in its
+  verify — its first live `--apply` crashed at that view AFTER ingesting the
+  personal workspace (recovery confirmed: a second run idempotently reports
+  "nothing to migrate", but verification could never complete on this data).
+  Both scripts now wrap EVERY stored-view parse per token: an unparseable
+  view is reported as `unparseable saved view (skipped): <node id/title>`
+  and the enumeration/verify CONTINUES — unparseable views can never abort
+  planning, apply, or verify. The task-8 scratch harness grows the exact
+  legacy shape on the SAME host as the parseable views (per-token tolerance
+  proof), and the vitest pins both the skipped line and the still-enumerated
+  normal view.
+
 - **feat(web): Sources settings + the add-source flow (source-library
   slices 3–6 tasks 5–6, with both review rounds).** The Sources settings
   section under the workspace settings' Features tab — the first feature

@@ -20,6 +20,10 @@
  *  - a saved query view authored BEFORE the migration: a property condition
  *    on …0012 (`contains "Lovelace"`) plus a class-condition control — the
  *    dry run's meaning-flip enumeration must list the first, not the second;
+ *    and a LEGACY pre-strict view token (unrecognized `type`/`root_group`/
+ *    `id` AST keys — the live personal-workspace crash) sharing the same
+ *    host, which must be reported "unparseable saved view (skipped)" and
+ *    never abort the enumeration, planning, apply, or verify;
  *  - agent name corners: full family+given ("Lovelace, Ada"), a no-name
  *    agent (title fallback), a given-name-only agent (single-part format).
  *
@@ -265,6 +269,25 @@ export function buildSeedEnvelopes(): Envelope[] {
             version: 1,
             scope: { type: "entire_workspace" },
             root: {
+              type: "group",
+              logic: "and",
+              children: [{ type: "class", classId: SOURCE_ID }],
+            },
+          },
+        },
+        // A LEGACY pre-strict saved view, hand-shaped to mirror the live
+        // personal-workspace discovery (2026-10-24): the strict query-ast
+        // schema rejects it ("Unrecognized key(s): 'type', 'root_group',
+        // 'id'"). It shares the host with the parseable views on purpose —
+        // the enumeration and verify must report it skipped PER TOKEN and
+        // still enumerate/run the others. NEVER abort.
+        {
+          type: "query",
+          queryAst: {
+            version: 1,
+            type: "saved_query",
+            id: "8b000000-0000-4000-8000-000000000001",
+            root_group: {
               type: "group",
               logic: "and",
               children: [{ type: "class", classId: SOURCE_ID }],
