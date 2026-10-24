@@ -80,6 +80,11 @@ export interface NodeRow {
    * "alpha" | "roman", NULL = bullet (the default). Mapped by
    * object.create/update. */
   list_style: string | null;
+  /** Class-level parentlessRole (store schema v32): "block" = parentless
+   * members render in the Block role; NULL = "page" (the default). Mapped by
+   * class.create/update on class rows (render contract, PC1 — no write-path
+   * enforcement). */
+  parentless_role: string | null;
   is_active: number;
   created_at: string | null;
   updated_at: string | null;
