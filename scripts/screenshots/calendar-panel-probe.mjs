@@ -48,12 +48,12 @@ await page.waitForSelector(".nt-sidebar-nav", { timeout: 600_000 });
 // The root URL claims the default view on load: a bare
 // "/" rewrites to the boot view's path.
 const bootPath = new URL(page.url()).pathname;
-result.rootClaimsView = bootPath !== "/" && bootPath.startsWith("/");
 
 await page.locator(".nt-sidebar-nav .nt-side-row", { hasText: "Calendar" }).first().click();
 await page.waitForSelector(".cal-grid", { timeout: 60_000 });
 
-const result = await page.evaluate(() => {
+const result = { rootClaimsView: bootPath !== "/" && bootPath.startsWith("/") };
+Object.assign(result, await page.evaluate(() => {
     return {
       // The grid IS the calendar: no side panel
       // at all — the journal owns the navigator + events panel.
@@ -71,7 +71,7 @@ const result = await page.evaluate(() => {
       ladder: [...document.querySelectorAll(".calendar-view__ladder button")].map((b) => b.getAttribute("aria-label")),
       monthChecked: document.querySelector('.calendar-view__ladder .selection-button__option--selected')?.getAttribute("aria-label"),
     };
-  });
+  }));
 
   // Routing pass: the
   // bare sidebar entry CLAIMS the URL — /calendar/<zoom>/<day>, the zoom in
