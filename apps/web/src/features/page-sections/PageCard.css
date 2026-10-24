@@ -83,6 +83,7 @@
    own CSS. */
 .nt-page-card > .journals-view,
 .nt-page-card > .calendar-view,
+.nt-page-card > .day-page-surface,
 .nt-page-card > .nt-hub,
 .nt-page-card > .nt-hub-tasks,
 .nt-page-card > .nt-trash-hub,
@@ -282,4 +283,12 @@
   .nt-right-card {
     display: none;
   }
+}
+
+/* The day-page surface (owner 2026-10-24): a day page rides the hub
+   register — the SurfaceTopBar (the DayStepper) pins at the card's top,
+   the page body scrolls beneath. */
+.day-page-surface > :last-child {
+  flex: 1;
+  min-height: 0;
 }

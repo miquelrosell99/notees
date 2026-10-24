@@ -46,11 +46,12 @@
   flex-shrink: 0;
 }
 
-/* The stepping bar (owner 2026-10-24): rides the flags row, right-pinned —
-   the flags name the day on the left, the navigation sits on the right. */
-.day-page-header__nav {
-  margin-left: auto;
-  display: flex;
+/* The DayStepper (owner 2026-10-24): the ‹ Today › cluster. The
+   inline-flex + center alignment IS the register — the icon-only
+   chevrons and the text-bearing bordered Today have different
+   intrinsic heights, and only the flex centering aligns them. */
+.day-stepper {
+  display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
 }

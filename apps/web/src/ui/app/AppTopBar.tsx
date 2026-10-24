@@ -8,14 +8,13 @@
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
-import { dayNodeId, parseDateNodeId } from "@notees/domain";
+import { dayNodeId } from "@notees/domain";
 import type { UndoUiState } from "@/core/undo-journal.js";
 import { rememberWorkspaceName } from "@/core/workspace-registry.js";
 import { STORAGE_KEYS, readStored } from "./storage.js";
 import type { AnyClient } from "./clients.js";
 import type { WorkspaceConnection } from "./useWorkspaceConnection.js";
 import { TopBar } from "./TopBar.js";
-import { DayStepper } from "../../features/calendar/DayPageHeader.js";
 import { Breadcrumbs } from "../../features/node-menu/Breadcrumbs.js";
 import { WorkspaceSwitcher } from "../../features/workspaces/WorkspaceSwitcher.js";
 import { createNodesWithClasses } from "../../features/templates/createNodesWithClasses.js";
@@ -109,18 +108,6 @@ export function AppTopBar(props: AppTopBarProps) {
     setManagerOpen,
     setWorkspaceName,
   } = props;
-  // The day-stepping cluster (owner 2026-10-24): rides the right cluster
-  // while the open page is a DAY page; the target day page is materialized
-  // on demand (the ensureDateChain pattern).
-  const dayIso =
-    selectedPageId === null
-      ? null
-      : (() => {
-          const parsed = parseDateNodeId(selectedPageId);
-          return parsed !== null && parsed.precision === "day"
-            ? `${parsed.year}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`
-            : null;
-        })();
   return (
     <>
       <TopBar
@@ -152,21 +139,6 @@ export function AppTopBar(props: AppTopBarProps) {
         onToggleLayout={selectedPageId !== null ? () => setSectionsLayout((v) => !v) : undefined}
         focusMode={focusMode}
         onToggleFocusMode={() => setFocusMode(toggleFocusMode())}
-        dayNav={
-          dayIso !== null
-            ? (
-                <DayStepper
-                  iso={dayIso}
-                  onNavigateDay={(iso) => {
-                    void client
-                      .ensureDateChain(iso)
-                      .then(({ day }) => openPage(day))
-                      .catch(() => {});
-                  }}
-                />
-              )
-            : undefined
-        }
         condensedActive={condensedActive}
         onToggleCondensed={
           selectedPageId !== null ? () => setCondensedPref(!condensedActive) : undefined

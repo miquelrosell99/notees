@@ -9,6 +9,27 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): the day stepper moves to the day page's SURFACE top bar —
+  and the calendar's zoom ladder switches to the SelectionButton register
+  (owner pass 2026-10-24, the vocabulary: the APP top bar is the global
+  bar — workspace switcher, breadcrumbs; the SURFACE top bar is the
+  per-view bar beneath it).** (1) The DayStepper (‹ bordered Today ›,
+  vertically centered by the stepper's own inline-flex register) moves
+  off the app top bar: a day page now rides the hub-surface register
+  (`.day-page-surface` joins PageCard.css's full-bleed list) — a
+  SurfaceTopBar with the calendar-today icon pins at the card's top, the
+  stepper in its actions cluster, the page body scrolling beneath; the
+  target day page materializes on demand (ensureDateChain). (2) The
+  calendar's Day/Week/Month/Year ladder switches from ad-hoc pressed
+  buttons to the fleet `SelectionButton` — the same button-switch the
+  mini-month's zoom rides: icons (today / agenda / month / range),
+  radiogroup semantics (aria-checked), the sliding indicator.
+  - **Verification**: web suites green (the ladder specs move to the
+    radio register); browser probe: the stepper inside the surface top
+    bar, Next materializes + advances the day, the ladder's radios name
+    Day/Week/Month/Year with Month checked. Full gate below.
+## 2026-10-24
+
 - **feat(web): the day stepper moves to the main top bar's right cluster;
   focus mode hides every side panel; the journal's horizontal overflow
   clips (owner pass 2026-10-24).** (1) The ‹ / Today / › stepping from the

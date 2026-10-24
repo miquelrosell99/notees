@@ -90,6 +90,7 @@ import { Button } from "../../components/ui/fleet/Button.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
+import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
 import { MonthCalendar } from "./MonthCalendar.js";
 import {
   CalendarGrid,
@@ -104,14 +105,17 @@ type DayFilter = "all" | "daily" | "tasks" | "dated" | "created";
 
 /** The calendar's own zoom ladder (owner 2026-10-23, google-calendar slice 2):
     Day = the day view (sections + the right panel), Week/Month/Year = the
-    colored-blocks grids. Grid-first per the owner: month is the default. */
+    colored-blocks grids. Grid-first per the owner: month is the default.
+    The switch rides the SelectionButton register (owner 2026-10-24 — the
+    same button-switch the mini-month's zoom uses): icons, radiogroup
+    semantics, the sliding indicator. */
 type CalendarZoom = "day" | GridZoom;
 
-const CALENDAR_ZOOMS: ReadonlyArray<{ value: CalendarZoom; label: string }> = [
-  { value: "day", label: "Day" },
-  { value: "week", label: "Week" },
-  { value: "month", label: "Month" },
-  { value: "year", label: "Year" },
+const CALENDAR_ZOOMS: ReadonlyArray<{ value: CalendarZoom; label: string; icon: string }> = [
+  { value: "day", label: "Day", icon: "mdi-calendar-today" },
+  { value: "week", label: "Week", icon: "mdi-view-agenda-outline" },
+  { value: "month", label: "Month", icon: "mdi-calendar-month" },
+  { value: "year", label: "Year", icon: "mdi-calendar-range" },
 ];
 
 const FILTERS: Array<{ value: DayFilter; label: string }> = [
@@ -504,19 +508,17 @@ export function CalendarView({
             }
             actions={
               <>
-                <div className="calendar-view__ladder" role="group" aria-label="Calendar zoom">
-                  {CALENDAR_ZOOMS.map((zoom) => (
-                    <Button
-                      key={zoom.value}
-                      variant="ghost"
-                      size="sm"
-                      active={calendarZoom === zoom.value}
-                      aria-pressed={calendarZoom === zoom.value}
-                      onClick={() => setCalendarZoom(zoom.value)}
-                    >
-                      {zoom.label}
-                    </Button>
-                  ))}
+                <div className="calendar-view__ladder">
+                  <SelectionButton
+                    size="sm"
+                    options={CALENDAR_ZOOMS.map((zoom) => ({
+                      value: zoom.value,
+                      icon: zoom.icon,
+                      label: zoom.label,
+                    }))}
+                    value={calendarZoom}
+                    onChange={(value) => setCalendarZoom(value as CalendarZoom)}
+                  />
                 </div>
               </>
             }

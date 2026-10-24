@@ -165,7 +165,7 @@ describe("CalendarView recurrence", () => {
     await screen.findByLabelText("Calendar month view");
     const selectAndOpenDay = (dayNumber: string): void => {
       fireEvent.click(dayCell(container, dayNumber));
-      fireEvent.click(screen.getByRole("button", { name: "Day", pressed: false }));
+      fireEvent.click(screen.getByRole("radio", { name: "Day" }));
     };
 
     // The anchor day lists the series.
@@ -177,7 +177,7 @@ describe("CalendarView recurrence", () => {
 
     // +7 (the 10th) is a pure virtual occurrence: no backlink exists on
     // that day, the expansion puts it there — one row, no phantoms.
-    fireEvent.click(screen.getByRole("button", { name: "Month", pressed: false }));
+    fireEvent.click(screen.getByRole("radio", { name: "Month" }));
     await screen.findByLabelText("Calendar month view");
     selectAndOpenDay("10");
     const occurrenceSection = await screen.findByLabelText("Dated");
@@ -187,7 +187,7 @@ describe("CalendarView recurrence", () => {
     expect(rowTexts(occurrenceSection).filter((t) => t === "Standup")).toHaveLength(1);
 
     // The 13th is NOT an occurrence: the series does not list.
-    fireEvent.click(screen.getByRole("button", { name: "Month", pressed: false }));
+    fireEvent.click(screen.getByRole("radio", { name: "Month" }));
     await screen.findByLabelText("Calendar month view");
     selectAndOpenDay("13");
     await waitFor(() => {

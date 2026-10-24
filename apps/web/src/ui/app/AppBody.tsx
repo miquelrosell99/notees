@@ -8,6 +8,8 @@
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
+import { parseDateNodeId } from "@notees/domain";
+
 import type { ClientNode, SyncStatusSnapshot } from "@/core/workspace-client/index.js";
 import type { AccountUser } from "@/core/auth-api.js";
 import type { AnyClient } from "./clients.js";
@@ -34,6 +36,8 @@ import { NodeCardFrame } from "../../features/collection/NodeCardFrame.js";
 import { todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { HubView } from "./HubView.js";
+import { DayStepper } from "../../features/calendar/DayPageHeader.js";
+import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 
 export interface AppBodyProps {
   client: AnyClient;
@@ -181,20 +185,56 @@ export function AppBody(props: AppBodyProps) {
             : null
         }
       >
-        {selectedPageId !== null ? (
-          <NodeView
-            client={client}
-            nodeId={selectedPageId}
-            onOpenNode={openPage}
-            onOpenNodeRaw={openPageAt}
-            onOpenInSidebar={openInSidebar}
-            onDeleted={handleNodeDeleted}
-            onPresent={(id) => setPresentingId(id)}
-            cornerMenu
-            shareTarget={shareTarget}
-            sectionsLayout={sectionsLayout}
-          />
-        ) : searchOpen ? (
+        {selectedPageId !== null ? (() => {
+          // Day pages ride a SURFACE top bar (owner 2026-10-24 pass 4 — the
+          // per-view bar, not the app top bar): the DayStepper (‹ bordered
+          // Today ›) in the actions cluster; the target day page is
+          // materialized on demand (the ensureDateChain pattern).
+          const parsedDay =
+            selectedPageId === null
+              ? null
+              : (() => {
+                  const parsed = parseDateNodeId(selectedPageId);
+                  return parsed !== null && parsed.precision === "day"
+                    ? `${parsed.year}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`
+                    : null;
+                })();
+          const pageView = (
+            <NodeView
+              client={client}
+              nodeId={selectedPageId}
+              onOpenNode={openPage}
+              onOpenNodeRaw={openPageAt}
+              onOpenInSidebar={openInSidebar}
+              onDeleted={handleNodeDeleted}
+              onPresent={(id) => setPresentingId(id)}
+              cornerMenu
+              shareTarget={shareTarget}
+              sectionsLayout={sectionsLayout}
+            />
+          );
+          return parsedDay !== null ? (
+            <div className="day-page-surface">
+              <SurfaceTopBar
+                icon="mdi-calendar-today"
+                actions={
+                  <DayStepper
+                    iso={parsedDay}
+                    onNavigateDay={(iso) => {
+                      void client
+                        .ensureDateChain(iso)
+                        .then(({ day }) => openPage(day))
+                        .catch(() => {});
+                    }}
+                  />
+                }
+              />
+              {pageView}
+            </div>
+          ) : (
+            pageView
+          );
+        })() : searchOpen ? (
           <SearchPage
             client={client}
             onOpenNode={openPage}

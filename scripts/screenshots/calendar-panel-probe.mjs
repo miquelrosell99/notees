@@ -56,8 +56,8 @@ const result = await page.evaluate(() => {
       yearTitleButton: document.querySelector(
         '.calendar-view__period-nav .calendar-title-btn[title="Open yearly page"]',
       ) !== null,
-      ladder: [...document.querySelectorAll(".calendar-view__ladder button")].map((b) => b.textContent?.trim()),
-      monthPressed: document.querySelector('.calendar-view__ladder button[aria-pressed="true"]')?.textContent?.trim(),
+      ladder: [...document.querySelectorAll(".calendar-view__ladder button")].map((b) => b.getAttribute("aria-label")),
+      monthChecked: document.querySelector('.calendar-view__ladder .selection-button__option--selected')?.getAttribute("aria-label"),
     };
   });
 await page.screenshot({ path: join(OUT, "calendar-events.png") });
@@ -117,7 +117,7 @@ const pass =
     result.monthTitleButton === true &&
     result.yearTitleButton === true &&
     result.ladder.join(",") === "Day,Week,Month,Year" &&
-    result.monthPressed === "Month" &&
+    result.monthChecked === "Month" &&
     result.journalNoHScroll === true &&
     result.dayStepper?.present === true &&
     result.dayStepper?.inTopBarRight === true &&

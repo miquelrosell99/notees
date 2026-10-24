@@ -77,7 +77,6 @@ export function TopBar({
    * quick settings modal (owner 2026-10-14).
    */
   focusMode = false,
-  dayNav = undefined,
   onToggleFocusMode,
   /**
    * The condensed layer toggle (owner 2026-10-15): rides directly beside the
@@ -132,8 +131,6 @@ export function TopBar({
   onToggleLayout?: (() => void) | undefined;
   /** Focus mode's current state (drives the pressed/active chrome). */
   focusMode?: boolean | undefined;
-  /** The day-page stepping cluster (AppTopBar builds it for day pages). */
-  dayNav?: import("react").ReactNode | undefined;
   /** Flips focus mode (the App layer owns the device-setting write). */
   onToggleFocusMode?: (() => void) | undefined;
   /** The condensed layer's current state for the ACTIVE page (pressed chrome). */
@@ -188,10 +185,6 @@ export function TopBar({
         {breadcrumbs}
       </div>
       <div className="nt-topbar-right">
-        {/* The day-stepping cluster while a day page is open (owner
-           2026-10-24): first in the right cluster, Today bordered between
-           the chevrons. */}
-        {dayNav}
         {(onGoBack !== undefined || onGoForward !== undefined) && (
           <span className="nt-topbar-nav" role="group" aria-label="Back and forward">
             <Button
