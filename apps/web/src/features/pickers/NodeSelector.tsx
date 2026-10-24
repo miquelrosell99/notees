@@ -18,7 +18,11 @@
  * All modes render the shared NodeResultItem rows; keyboard navigation,
  * date suggestions, and create-from-query are built in (`noCreate` turns
  * the create affordance off — search-without-match shows the honest empty
- * state instead). With `scopeTabs`
+ * state instead). A query shaped like a DOI, an arXiv id/URL, an ISBN, or
+ * an http(s) URL additionally offers "Create source from link" below the
+ * create row (source-library task 6) — the gesture routes into the
+ * add-source dialog via the app-level queue (or the host's
+ * `onCreateSourceFromLink` override). With `scopeTabs`
  * the picker adds Main/Blocks tabs scoping the results to document-chrome
  * nodes vs inline child blocks. `searchMode="blocks"` is the block-
  * linking candidate set — inline blocks only, each labeled with its
@@ -78,6 +82,8 @@ import { NodeResultItem } from "./NodeResultItem.js";
 import { useKeyboardListNav } from "./useKeyboardListNav.js";
 import { useViewportPosition } from "./useViewportPosition.js";
 import { QuickCreateModal } from "../modals/QuickCreateModal.js";
+import { classifySourceInput } from "../sources/resolver.js";
+import { requestAddSource } from "../sources/AddSourceHost.js";
 import { enableArchivedSystemClass } from "../classview/systemClassDeploy.js";
 import type { QuickCreateClient, QuickCreatePlan } from "../modals/quickCreate.js";
 import { resolveQuickCreate } from "../modals/quickCreate.js";
@@ -293,6 +299,14 @@ interface NodeSelectorProps {
   /** Custom label for the create row (default: `Create "<query>"`). */
   createLabel?: string | undefined;
   /**
+   * The paste-URL row's host hook (a contribution point): a query shaped
+   * like a DOI (10.xxxx/…), an arXiv id/URL, an ISBN, or an http(s) URL
+   * offers "Create source from link" below the create row; the callback
+   * receives the raw query. Defaults to the app-level add-source queue
+   * (the created source links into this picker like a create-row result).
+   */
+  onCreateSourceFromLink?: ((raw: string) => void) | undefined;
+  /**
    * Classes picker only — the "Browse all classes…" footer row's host hook:
    * opens the classes gallery (the ClassCreateModal), carrying the typed
    * query. The return resolves like onCreateNew's (created id → assigned).
@@ -346,6 +360,7 @@ export function NodeSelector({
   anchorRect,
   onClose,
   createLabel,
+  onCreateSourceFromLink,
   onBrowseAllTypes,
   hint,
   id,
@@ -665,6 +680,38 @@ export function NodeSelector({
     (isPlainYearQuery(effectiveQuery)
       ? `Create year "${effectiveQuery}"`
       : `Create "${effectiveQuery}"`);
+
+  /**
+   * The paste-URL detection row (source-library slice 3 task 6): a query
+   * shaped like a DOI (10.xxxx/…), an arXiv id/URL, an ISBN, or an http(s)
+   * URL offers "Create source from link" below the create row — the gesture
+   * routes into the add-source dialog (identifier mode; a bare URL with the
+   * resolver off creates a plain weblink instead). Classification runs on
+   * the effective query (filter prefixes stripped), never the raw input.
+   */
+  const sourceLinkMatch = useMemo(
+    () => (searchMode === "classes" ? null : classifySourceInput(effectiveQuery)),
+    [searchMode, effectiveQuery],
+  );
+  const showSourceLinkOption =
+    createEnabled && sourceLinkMatch !== null && effectiveQuery.length > 0 && !exactClassNameMatch;
+  const handleCreateSourceFromLink = () => {
+    if (sourceLinkMatch === null) return;
+    const raw = effectiveQuery;
+    // The same dismissal + cleanup contract as the create row.
+    if (trigger === "pill-row") {
+      setIsPickerOpen(false);
+    }
+    setSearchQuery("");
+    resetFilters();
+    if (onCreateSourceFromLink !== undefined) {
+      onCreateSourceFromLink(raw);
+      return;
+    }
+    // The default route: the app-level add-source queue, the created source
+    // linking into this picker like a create-row result.
+    requestAddSource({ initialInput: raw, onCreated: (id) => resolveCreateResult(id) });
+  };
 
   const handleCreateNew = () => {
     if (effectiveCreateNew === undefined) return;
@@ -1078,10 +1125,11 @@ export function NodeSelector({
   const leadingOffset = (emptyQueryOptionActive ? 1 : 0) + (dateSuggestion ? 1 : 0);
   const archivedCount = archivedMatches.length;
   // Row order: results, then the archived-class Enable rows, the create row,
-  // the browse-all-types row, and the show-more pager.
+  // the paste-URL source row, the browse-all-types row, the show-more pager.
   const createIndex = leadingOffset + visibleResults.length + archivedCount;
+  const sourceLinkIndex = createIndex + (showCreateOption ? 1 : 0);
   const showBrowseAll = searchMode === "classes" && onBrowseAllTypes !== undefined;
-  const browseAllIndex = createIndex + (showCreateOption ? 1 : 0);
+  const browseAllIndex = sourceLinkIndex + (showSourceLinkOption ? 1 : 0);
   const showMoreIndex = browseAllIndex + (showBrowseAll ? 1 : 0);
   const totalItems = filterMode
     ? filterOptions.length
@@ -1089,6 +1137,7 @@ export function NodeSelector({
       leadingOffset +
       archivedCount +
       (showCreateOption ? 1 : 0) +
+      (showSourceLinkOption ? 1 : 0) +
       (showBrowseAll ? 1 : 0) +
       (showMoreOption ? 1 : 0);
 
@@ -1116,14 +1165,27 @@ export function NodeSelector({
     } else if (showCreateOption && adjusted === visibleResults.length + archivedCount) {
       handleCreateNew();
     } else if (
-      showBrowseAll &&
+      showSourceLinkOption &&
       adjusted === visibleResults.length + archivedCount + (showCreateOption ? 1 : 0)
+    ) {
+      handleCreateSourceFromLink();
+    } else if (
+      showBrowseAll &&
+      adjusted ===
+        visibleResults.length +
+          archivedCount +
+          (showCreateOption ? 1 : 0) +
+          (showSourceLinkOption ? 1 : 0)
     ) {
       handleBrowseAllTypes();
     } else if (
       showMoreOption &&
       adjusted ===
-        visibleResults.length + archivedCount + (showCreateOption ? 1 : 0) + (showBrowseAll ? 1 : 0)
+        visibleResults.length +
+          archivedCount +
+          (showCreateOption ? 1 : 0) +
+          (showSourceLinkOption ? 1 : 0) +
+          (showBrowseAll ? 1 : 0)
     ) {
       setDisplayLimit((prev) => prev + 20);
     }
@@ -1311,6 +1373,17 @@ export function NodeSelector({
           onMouseEnter={() => setSelectedIndex(createIndex)}
           className="node-result-item--create"
           iconOverride={<Icon path="mdi-plus" size={createIconSize} />}
+        />
+      )}
+      {showSourceLinkOption && (
+        <NodeResultItem
+          key="__source-link"
+          node={{ name: "Create source from link" }}
+          isHighlighted={selectedIndex === sourceLinkIndex}
+          onClick={handleCreateSourceFromLink}
+          onMouseEnter={() => setSelectedIndex(sourceLinkIndex)}
+          className="node-result-item--create"
+          iconOverride={<Icon path="mdi-link-variant" size={createIconSize} />}
         />
       )}
       {showBrowseAll && (

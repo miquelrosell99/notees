@@ -81,6 +81,33 @@ export class WorkspaceClientWrites {
     await this.updateObject(id, { active });
   }
 
+  /**
+   * The add-source create gesture (source-library slice 3 task 6): when the
+   * picked source type-class is ARCHIVED (the class-visibility list), the
+   * un-archive (object.update {active: true}) rides the SAME undo-journal
+   * batch as the object.create — ONE undo restores the archived bit AND
+   * removes the created source. Returns the new node id; the caller writes
+   * the bibliographic properties through the normal surface afterwards.
+   */
+  async beginSourceCreate(input: {
+    classId: string;
+    title: string;
+    unarchive: boolean;
+  }): Promise<string> {
+    let id = "";
+    await this.ctx.undoJournal.batchAsync(async () => {
+      if (input.unarchive) {
+        await this.setArchived(input.classId, true);
+      }
+      id = await this.createObject({
+        isEmbedded: false,
+        name: input.title,
+        classIds: [input.classId],
+      });
+    });
+    return id;
+  }
+
   /** Trash (default) or permanently delete an object and its subtree. */
   async deleteObject(id: string, opts: DeleteObjectOptions = {}): Promise<void> {
     this.ctx.enqueueLocal(

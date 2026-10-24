@@ -7,6 +7,7 @@ import type { AnyClient } from "../../ui/app/Sidebar.js";
 import { Icon } from "../../ui/Icon.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import { WorkspaceSettingsModal } from "./WorkspaceSettingsModal.js";
+import { requestAddSource } from "../sources/AddSourceHost.js";
 import "./WorkspaceSwitcher.css";
 
 /**
@@ -259,6 +260,7 @@ export function WorkspaceSwitcher({
           workspaceName={settingsWorkspace.name ?? "Workspace"}
           workspaceRole={settingsWorkspace.role}
           client={client}
+          onAddSource={() => requestAddSource({})}
           onRenamed={(name) => {
             setWorkspaces((prev) =>
               prev?.map((w) => (w.id === settingsWorkspace.id ? { ...w, name } : w)) ?? null,

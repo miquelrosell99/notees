@@ -720,6 +720,19 @@ export class WorkerClient {
     await this.call("setArchived", [id, active]);
   }
 
+  /**
+   * The add-source create gesture: an archived class un-archive + the
+   * object.create ride ONE worker-side undo batch (the modal cannot ship a
+   * closure across the RPC, so the gesture is a concrete data payload).
+   */
+  async beginSourceCreate(input: {
+    classId: string;
+    title: string;
+    unarchive: boolean;
+  }): Promise<string> {
+    return (await this.call("beginSourceCreate", [input])) as string;
+  }
+
   async deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void> {
     await this.call("deleteObject", [id, opts]);
   }

@@ -15,6 +15,7 @@ import type { StoreMode } from "./storeMode.js";
 import { InProcessStoreBanner } from "../../components/ui/fleet/InProcessStoreBanner.js";
 import { SyncDetailsModal } from "../../features/modals/SyncDetailsModal.js";
 import { WorkspaceSettingsModal } from "../../features/workspaces/WorkspaceSettingsModal.js";
+import { requestAddSource } from "../../features/sources/AddSourceHost.js";
 import { BackendUnavailableOverlay } from "../../components/ui/fleet/BackendUnavailableOverlay.js";
 import { NotificationToaster } from "../../components/ui/fleet/NotificationToaster.js";
 
@@ -73,6 +74,7 @@ export function AppOverlays(props: AppOverlaysProps) {
           }
           initialTab="plugins"
           client={client}
+          onAddSource={() => requestAddSource({})}
           onRenamed={(name) => {
             const id = readStored(STORAGE_KEYS.workspaceId);
             rememberWorkspaceName(id, name);

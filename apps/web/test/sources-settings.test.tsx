@@ -215,16 +215,28 @@ describe("SourcesSettingsSection rendering", () => {
 describe("SourcesSettingsSection writes", () => {
   it("ONE workspace.feature.set per toggle, read-modify-merged so the keys never clobber", async () => {
     const client = await seedClient();
-    renderModal(client);
+    const first = renderModal(client);
 
-    fireEvent.click(screen.getByRole("switch", { name: /metadata resolver/i }));
+    // The resolver default is ON (absent row/key allows, the server gate's
+    // contract) — the toggle renders checked; clicking turns it OFF.
+    expect(first.getByRole("switch", { name: /metadata resolver/i })).toBeChecked();
+    fireEvent.click(first.getByRole("switch", { name: /metadata resolver/i }));
     await waitFor(() => {
-      expect(sourcesRow(client)?.settings).toEqual({ resolverEnabled: true });
+      expect(sourcesRow(client)?.settings).toEqual({ resolverEnabled: false });
     });
     expect(sourcesRow(client)?.enabled).toBe(true);
 
+    // A fresh mount mirrors the stored OFF; clicking turns it back ON.
+    first.unmount();
+    const second = renderModal(client);
+    expect(second.getByRole("switch", { name: /metadata resolver/i })).not.toBeChecked();
+    fireEvent.click(second.getByRole("switch", { name: /metadata resolver/i }));
+    await waitFor(() => {
+      expect(sourcesRow(client)?.settings).toEqual({ resolverEnabled: true });
+    });
+
     // The second toggle merges against the current row — the first key rides.
-    fireEvent.click(screen.getByRole("switch", { name: /auto-citekey/i }));
+    fireEvent.click(second.getByRole("switch", { name: /auto-citekey/i }));
     await waitFor(() => {
       expect(sourcesRow(client)?.settings).toEqual({
         resolverEnabled: true,

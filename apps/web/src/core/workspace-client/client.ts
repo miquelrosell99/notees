@@ -545,6 +545,10 @@ export class WorkspaceClient {
     return this.writes.setArchived(id, active);
   }
 
+  beginSourceCreate(input: { classId: string; title: string; unarchive: boolean }) {
+    return this.writes.beginSourceCreate(input);
+  }
+
   deleteObject(id: string, opts: DeleteObjectOptions = {}) {
     return this.writes.deleteObject(id, opts);
   }
