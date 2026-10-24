@@ -771,6 +771,26 @@ describe("CalendarView URL seam", () => {
     expect(onRouteChange).toHaveBeenCalledWith({ zoom: "month", iso: todayIsoLocal() }, "replace");
   });
 
+  it("a zoom-without-day route claims the day once — the URL zoom wins, today fills", async () => {
+    const client = await seedClient();
+    const onRouteChange = vi.fn();
+    render(
+      <CalendarView
+        client={client}
+        onOpenPage={vi.fn()}
+        route={{ zoom: "agenda", iso: null }}
+        onRouteChange={onRouteChange}
+      />,
+    );
+
+    await screen.findByLabelText("Calendar agenda view");
+    expect(onRouteChange).toHaveBeenCalledTimes(1);
+    expect(onRouteChange).toHaveBeenCalledWith(
+      { zoom: "agenda", iso: todayIsoLocal() },
+      "replace",
+    );
+  });
+
   it("a zoom change PUSHES the new zoom with the selected day; the device setting follows", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
