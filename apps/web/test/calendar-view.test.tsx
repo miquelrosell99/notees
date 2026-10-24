@@ -411,7 +411,7 @@ describe("CalendarView", () => {
     ).toBeDefined();
   });
 
-  it("an event whose content is only an inline class chip reads the Untitled placeholder", async () => {
+  it("an event whose content is only an inline class chip wears the class's current name", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const gatheringClass = await client.createClass("gathering");
@@ -419,21 +419,57 @@ describe("CalendarView", () => {
     await client.updateObject(gatheringClass, {
       contentAst: [{ type: "text", text: "gathering" }],
     });
-    // The event's whole content is the class chip — render chrome, not
-    // content: the card reads the Untitled placeholder (owner 2026-10-23).
+    // The event is an EMBEDDED block (the day-page events register): blocks
+    // keep the rich stream, so its whole content can be the inline class
+    // chip — an inline class link IS content (a bare class pill/assignment
+    // is not): the card excerpts to the class's current name.
+    const { day } = await client.ensureDateChain(today);
     const gathering = await client.createObject({
-      isEmbedded: false,
+      isEmbedded: true,
+      parentId: day,
       contentAst: [{ type: "class_link", classId: gatheringClass }],
       classIds: [gatheringClass],
     });
-    await client.ensureDateChain(today);
     await client.setDatetimeProperty(gathering, await dateSchemaOf(client), { iso: today }, 0);
 
     window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
     render(<CalendarView client={client} onOpenPage={vi.fn()} />);
     const grid = await screen.findByLabelText("Calendar month view");
     await waitFor(() => expect(grid.querySelector(".cal-block")).not.toBeNull());
-    expect(grid.querySelector(".cal-block")!.textContent).toContain("Untitled page");
+    expect(grid.querySelector(".cal-block")!.textContent).toContain("gathering");
+    // Rename the class: the card follows the CURRENT name (chip resolves
+    // live, not a stored snapshot).
+    await client.updateObject(gatheringClass, {
+      contentAst: [{ type: "text", text: "assembly" }],
+    });
+    await waitFor(() => {
+      expect(grid.querySelector(".cal-block")!.textContent).toContain("assembly");
+    });
+  });
+
+  it("an event with only a class pill (membership, no inline chip) reads Untitled", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+    await client.updateObject(gatheringClass, {
+      contentAst: [{ type: "text", text: "gathering" }],
+    });
+    const { day } = await client.ensureDateChain(today);
+    // Membership only: classIds, empty content, no inline class_link token.
+    const gathering = await client.createObject({
+      isEmbedded: true,
+      parentId: day,
+      classIds: [gatheringClass],
+    });
+    await client.setDatetimeProperty(gathering, await dateSchemaOf(client), { iso: today }, 0);
+
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    render(<CalendarView client={client} onOpenPage={vi.fn()} />);
+    const grid = await screen.findByLabelText("Calendar month view");
+    await waitFor(() => expect(grid.querySelector(".cal-block")).not.toBeNull());
+    expect(grid.querySelector(".cal-block")!.textContent).toContain("Untitled");
+    expect(grid.querySelector(".cal-block")!.textContent).not.toContain("gathering");
   });
 
   it("the day number opens the day page; the ladder reaches week and year", async () => {
