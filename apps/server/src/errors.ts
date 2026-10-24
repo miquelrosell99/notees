@@ -25,6 +25,7 @@ export type ErrorCode =
   | "attach_failed"
   | "resolver_disabled"
   | "resolver_unavailable"
+  | "no_identifier_found"
   | "internal";
 
 export class AppError extends Error {
@@ -87,6 +88,9 @@ export const ERROR_TAXONOMY: Readonly<
   // the resolver's upstream provider (Crossref / OpenLibrary / arXiv) failed,
   // answered an error status, or timed out — the identifier never resolved.
   resolver_unavailable: { status: 502, description: "the metadata provider failed or timed out" },
+  // POST /api/resolve/pdf: the PDF bytes carried no extractable DOI — there
+  // is nothing to resolve (the scan is documented on the route).
+  no_identifier_found: { status: 422, description: "the PDF carried no extractable identifier (DOI)" },
   internal: { status: 500, description: "unclassified server failure (the only code not thrown by route code)" },
 };
 

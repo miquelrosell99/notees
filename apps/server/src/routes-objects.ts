@@ -30,7 +30,7 @@ import { visiblePropertyValueRows, type NodeRow, type Store, planMerge, MergeGua
 
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
-import { resolveSourceMetadata } from "./resolve-source.js";
+import { resolvePdfSource, resolveSourceMetadata } from "./resolve-source.js";
 
 /**
  * Query-string booleans: only the strings "true"/"false" coerce (a bare
@@ -1159,6 +1159,54 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       }
     }
     throw new AppError(404, "not_found", `no node named "${name}"`);
+  });
+
+  /**
+   * THE OWNER'S PDF FLOW (slices 3–6 task 4): hand the server a PDF — either
+   * as a multipart upload (the CAS asset route's intake idiom) or as `?url=`
+   * for a server-side fetch — and get the source-metadata record for the DOI
+   * printed in it. The scan, the SSRF guard, and the error taxonomy live in
+   * resolve-source.ts (resolvePdfSource); the 25MB cap applies to both intake
+   * paths. A `?url=` answer also carries `pdf: { url }` — the task-6 web
+   * client's attach intent: the create flow uploads THAT pdf to CAS. When
+   * both an upload and `?url=` arrive, `?url=` wins (documented); neither →
+   * 422. No DOI in the bytes → 422 no_identifier_found; the usual resolver
+   * gate/codes apply to the metadata leg (403/404/502).
+   */
+  app.post("/resolve/pdf", async (request) => {
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const query = request.query as Record<string, unknown>;
+    const url =
+      typeof query["url"] === "string" && (query["url"] as string).length > 0
+        ? (query["url"] as string)
+        : undefined;
+    let bytes: Buffer | undefined;
+    if (url === undefined) {
+      // request.file() itself throws 406 for a non-multipart body; the
+      // route's contract is the pinned 422 for "no intake at all".
+      if (!request.isMultipart()) {
+        throw new AppError(
+          422,
+          "validation_failed",
+          "multipart body must include a file part, or pass ?url=",
+        );
+      }
+      const file = await request.file();
+      if (file === undefined) {
+        throw new AppError(
+          422,
+          "validation_failed",
+          "multipart body must include a file part, or pass ?url=",
+        );
+      }
+      try {
+        bytes = await file.toBuffer();
+      } catch {
+        throw new AppError(422, "validation_failed", "upload exceeded the multipart size limit");
+      }
+    }
+    return resolvePdfSource(ctx, workspaceId, { bytes, url });
   });
 
   /**
