@@ -28,7 +28,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 
 import { ContextMenu } from "../../components/ui/fleet/ContextMenu.js";
 import { LinkEditModalHost, useLinkEditModalOpener } from "../../ui/editor-popups/LinkEditModal.js";
-import { renderStateLabel } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, renderStateLabel } from "../../ui/renderStateLabel.js";
 
 export interface NodeLinkMenuState {
   x: number;
@@ -218,7 +218,10 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
 interface NodeLinkContextMenuProps {
   state: NodeLinkMenuState;
   /** Resolves the target node (label + kind for the "Open" item). */
-  client: { getNode(id: string): ClientNode | undefined };
+  client: {
+    getNode(id: string): ClientNode | undefined;
+    effectiveClassParentlessBlock(classId: string): boolean;
+  };
   onClose(): void;
   onOpen(nodeId: string): void;
   onOpenInSidebar(nodeId: string): void;
@@ -240,7 +243,9 @@ export function NodeLinkContextMenu({
 }: NodeLinkContextMenuProps) {
   const target = client.getNode(state.targetNodeId);
   const openLabel =
-    target !== undefined ? `Open ${renderStateLabel(target).toLowerCase()}` : "Open";
+    target !== undefined
+      ? `Open ${renderStateLabel(target, parentlessBlockResolverOf(client)).toLowerCase()}`
+      : "Open";
   return (
     <ContextMenu
       companion

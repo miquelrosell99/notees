@@ -18,6 +18,7 @@ import { parseQueryAst, type QueryAst } from "@notees/query";
 import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 
 import type { NodeCollectionItem, TableColumn } from "../features/collection/index.js";
+import { parentlessBlockResolverOf } from "./renderStateLabel.js";
 import type {
   ClientNode,
   QueryAggregateResult,
@@ -37,6 +38,8 @@ export interface QueryRunClient {
   /** The notify subscription the coalesced re-run rides. */
   subscribe(listener: () => void): () => void;
   getNode(id: string): { id: string; parentId: string | null } | undefined;
+  /** The parentlessRole "block" demote resolver for the role predicates. */
+  effectiveClassParentlessBlock(classId: string): boolean;
 }
 
 /** Loose-token parse for the render path: invalid ASTs surface as the error. */
@@ -144,7 +147,8 @@ export function openQueryResult(
   onOpenNode: ((nodeId: string) => void) | undefined,
 ): void {
   if (onOpenNode === undefined) return;
-  if (!rendersAsInlineBlock(row, client.getNode(row.parentId ?? ""))) {
+  const parentlessBlock = parentlessBlockResolverOf(client);
+  if (!rendersAsInlineBlock(row, client.getNode(row.parentId ?? ""), parentlessBlock)) {
     onOpenNode(row.id);
     return;
   }
@@ -154,11 +158,19 @@ export function openQueryResult(
   let current = client.getNode(row.parentId ?? "");
   let currentParent =
     current !== undefined && current.parentId !== null ? client.getNode(current.parentId) : undefined;
-  while (current !== undefined && !rendersWithDocumentChrome(current, currentParent) && !seen.has(current.id)) {
+  while (
+    current !== undefined &&
+    !rendersWithDocumentChrome(current, currentParent, parentlessBlock) &&
+    !seen.has(current.id)
+  ) {
     seen.add(current.id);
     current = currentParent;
     currentParent =
       current !== undefined && current.parentId !== null ? client.getNode(current.parentId) : undefined;
   }
-  onOpenNode(current !== undefined && rendersWithDocumentChrome(current, currentParent) ? current.id : row.id);
+  onOpenNode(
+    current !== undefined && rendersWithDocumentChrome(current, currentParent, parentlessBlock)
+      ? current.id
+      : row.id,
+  );
 }

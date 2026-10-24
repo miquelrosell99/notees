@@ -55,7 +55,13 @@ export class WorkspaceClientReadsProps {
     const ids: string[] = [];
     for (const aliasId of this.ctx.store.aliasNodesOf(id)) {
       const alias = this.reads.getNode(aliasId);
-      if (alias === undefined || !rendersWithDocumentChrome(alias, this.reads.parentFactsOf(alias))) continue;
+      if (
+        alias === undefined ||
+        !rendersWithDocumentChrome(alias, this.reads.parentFactsOf(alias), (classId) =>
+          this.reads.effectiveClassParentlessBlock(classId),
+        )
+      )
+        continue;
       ids.push(aliasId);
     }
     return ids;

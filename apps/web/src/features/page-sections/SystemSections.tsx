@@ -73,7 +73,7 @@ import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspa
 import { Icon } from "../../ui/Icon.js";
 import { Section } from "../../ui/Section.js";
 import { nodeDisplayName } from "../../ui/dateDisplay.js";
-import { untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, untitledLabelOf } from "../../ui/renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../../ui/viewPrefs.js";
 import { promoteMentionInAst } from "../collection/unlinkedRefs.js";
 import { FilterBar } from "../collection/FilterBar.js";
@@ -239,7 +239,7 @@ export function ReferenceList({
                 <button
                   type="button"
                   className="nt-ref-action"
-                  aria-label={`Promote ${displayNameOf(item.node)} to a link`}
+                  aria-label={`Promote ${displayNameOf(item.node, parentlessBlockResolverOf(client))} to a link`}
                   title="Promote to link"
                   onClick={() => promote(item.node)}
                 >
@@ -248,7 +248,7 @@ export function ReferenceList({
                 <button
                   type="button"
                   className="nt-ref-action"
-                  aria-label={`Ignore ${displayNameOf(item.node)}`}
+                  aria-label={`Ignore ${displayNameOf(item.node, parentlessBlockResolverOf(client))}`}
                   title="Ignore (this device)"
                   onClick={() => writeIgnoredUnlinkedRef(unlinkedPageId, item.node.id, true)}
                 >
@@ -264,8 +264,11 @@ export function ReferenceList({
 }
 
 /** Crumb-safe row label for the action aria labels. */
-function displayNameOf(node: ClientNode): string {
-  return nodeDisplayName(node) || untitledLabelOf(node);
+function displayNameOf(
+  node: ClientNode,
+  isParentlessBlockClass?: (classId: string) => boolean,
+): string {
+  return nodeDisplayName(node) || untitledLabelOf(node, isParentlessBlockClass);
 }
 
 /**

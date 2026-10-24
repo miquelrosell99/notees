@@ -27,6 +27,7 @@ import {
   undoRedoKeyHandler,
 } from "./keymap.js";
 import type { AnyClient } from "./clients.js";
+import { parentlessBlockResolverOf } from "../renderStateLabel.js";
 import type { SettingsSection } from "../../features/settings/SettingsPage.js";
 
 export interface GlobalGestureDeps {
@@ -111,7 +112,12 @@ export function useGlobalGestures(deps: GlobalGestureDeps): void {
       if (openId === null) return;
       const live = clientRef.current;
       const node = live?.getNode(openId);
-      if (node === undefined || !rendersWithDocumentChrome(node, live?.getNode(node.parentId ?? "")))
+      if (
+        live === null ||
+        live === undefined ||
+        node === undefined ||
+        !rendersWithDocumentChrome(node, live.getNode(node.parentId ?? ""), parentlessBlockResolverOf(live))
+      )
         return;
       event.preventDefault();
       setPresentingId(openId);

@@ -28,7 +28,7 @@ import { rendersWithDocumentChrome } from "@notees/domain";
 
 import { Icon } from "../../ui/Icon.js";
 import { labelFromClient } from "../../ui/dateDisplay.js";
-import { parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { aliasedNodeTargetError } from "./aliasProperty.js";
 
@@ -54,7 +54,8 @@ export function AliasedNodeRow({
   // The page restriction (SCHEMA.md "Node aliases"): every read filters
   // aliases to pages — a non-page carrier (raw-writer bypass) renders no row.
   const mainId =
-    node !== undefined && rendersWithDocumentChrome(node, parentRenderFacts(client, node))
+    node !== undefined &&
+    rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
       ? (node.aliasedNodeId ?? null)
       : null;
   if (mainId === null) return null;

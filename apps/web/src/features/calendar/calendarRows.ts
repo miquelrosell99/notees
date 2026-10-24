@@ -32,6 +32,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import {
   isEventFamilyClass,
   minutesOfTime,
@@ -626,12 +627,13 @@ export function agendaTimeLabelOf(
  */
 export function containingPageIdOf(client: AnyClient, node: ClientNode): string {
   let current = node;
+  const parentlessBlock = parentlessBlockResolverOf(client);
   for (let guard = 0; guard < 64; guard += 1) {
     if (current.parentId === null) break;
     const parent = client.getNode(current.parentId);
     // The parent-page condition rides along: a bit under a non-page parent
     // is inert, so the walk continues past it to the real containing page.
-    if (parent === undefined || rendersWithDocumentChrome(current, parent)) break;
+    if (parent === undefined || rendersWithDocumentChrome(current, parent, parentlessBlock)) break;
     current = parent;
   }
   return current.id;

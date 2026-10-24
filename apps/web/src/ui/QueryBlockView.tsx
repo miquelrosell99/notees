@@ -57,7 +57,7 @@ import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain"
 import { parseQueryAst, type QueryAst } from "@notees/query";
 
 import { displayNameFromClient } from "./dateDisplay.js";
-import { parentRenderFacts } from "./renderStateLabel.js";
+import { parentlessBlockResolverOf, parentRenderFacts } from "./renderStateLabel.js";
 import { NodeCollection, ViewSwitcher } from "../features/collection/index.js";
 import type { NodeCollectionItem } from "../features/collection/index.js";
 import {
@@ -146,6 +146,8 @@ export interface QueryExportClient {
   getDisplayName(id: string): string | null;
   getEffectiveProperties(id: string): EffectiveProperty[];
   getChildren(id: string): ClientNode[];
+  /** The parentlessRole "block" demote resolver for the role predicates. */
+  effectiveClassParentlessBlock(classId: string): boolean;
 }
 
 function toExportNode(client: QueryExportClient, id: string): ExportNode | undefined {
@@ -184,7 +186,9 @@ export function buildQueryExportMarkdown(client: QueryExportClient, ids: readonl
     childrenOf: (id) =>
       client
         .getChildren(id)
-        .filter((child) => rendersAsInlineBlock(child, client.getNode(id)))
+        .filter((child) =>
+          rendersAsInlineBlock(child, client.getNode(id), parentlessBlockResolverOf(client)),
+        )
         .map((child) => toExportNode(client, child.id))
         .filter((node): node is ExportNode => node !== undefined),
   };
@@ -296,7 +300,8 @@ export function QueryBlockView({
 
   const rootNode = client.getNode(rootId);
   const rootIsPage =
-    rootNode !== undefined && rendersWithDocumentChrome(rootNode, parentRenderFacts(client, rootNode));
+    rootNode !== undefined &&
+    rendersWithDocumentChrome(rootNode, parentRenderFacts(client, rootNode), parentlessBlockResolverOf(client));
   // Picker sources for the builder fields + the aggregate grid labels.
   const facts = useBuilderFacts(client);
   const { classNames, propertyNames } = facts;

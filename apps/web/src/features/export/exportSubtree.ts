@@ -70,6 +70,7 @@ import {
 import { rendersAsInlineBlock, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { nodeDisplayName, displayNameFromClient } from "../../ui/dateDisplay.js";
+import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { resolveCssColor } from "../../components/ui/fleet/colorPresets.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 
@@ -98,6 +99,8 @@ export interface ExportReadSurface {
   effectiveClassColor(classId: string): string | null;
   effectiveClassIcons(): ReadonlyMap<string, string | null>;
   getDisplayName(id: string): string | null;
+  /** The parentlessRole "block" demote resolver for the role predicates. */
+  effectiveClassParentlessBlock(classId: string): boolean;
 }
 
 /** Map a client node to the exporter's shape, with its effective properties. */
@@ -170,7 +173,7 @@ function blockChildrenOf(client: ExportReadSurface, id: string): ExportNode[] {
   const hostNode = client.getNode(id);
   const nodes: ExportNode[] = [];
   for (const child of client.getChildren(id)) {
-    if (!rendersAsInlineBlock(child, hostNode)) continue;
+    if (!rendersAsInlineBlock(child, hostNode, parentlessBlockResolverOf(client))) continue;
     if (carriers.has(child.id)) continue;
     const mapped = toExportNode(client, child.id);
     if (mapped !== undefined) nodes.push(mapped);

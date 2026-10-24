@@ -41,6 +41,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { useViewModePreference } from "../../ui/viewPrefs.js";
@@ -153,8 +154,9 @@ export function ClassedNodesSection({
    * matching the document-chrome predicate).
    */
   const openMember = (member: ClientNode) => {
+    const parentlessBlock = parentlessBlockResolverOf(client);
     const parentNode = member.parentId !== null ? client.getNode(member.parentId) : undefined;
-    if (rendersWithDocumentChrome(member, parentNode)) {
+    if (rendersWithDocumentChrome(member, parentNode, parentlessBlock)) {
       onOpenPage?.(member.id);
       return;
     }
@@ -164,14 +166,20 @@ export function ClassedNodesSection({
     let current = parentNode;
     let currentParent =
       current !== undefined && current.parentId !== null ? client.getNode(current.parentId) : undefined;
-    while (current !== undefined && !rendersWithDocumentChrome(current, currentParent) && !seen.has(current.id)) {
+    while (
+      current !== undefined &&
+      !rendersWithDocumentChrome(current, currentParent, parentlessBlock) &&
+      !seen.has(current.id)
+    ) {
       seen.add(current.id);
       current = currentParent;
       currentParent =
         current !== undefined && current.parentId !== null ? client.getNode(current.parentId) : undefined;
     }
     onOpenPage?.(
-      current !== undefined && rendersWithDocumentChrome(current, currentParent) ? current.id : member.id,
+      current !== undefined && rendersWithDocumentChrome(current, currentParent, parentlessBlock)
+        ? current.id
+        : member.id,
     );
   };
 

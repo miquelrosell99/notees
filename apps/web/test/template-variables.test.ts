@@ -39,6 +39,7 @@ function fakeNode(partial: Partial<ClientNode> & { id: string }): ClientNode {
     bannerAssetId: null,
     listStyle: null,
     aliasedNodeId: null,
+    parentlessRole: "page",
     description: null,
     color: null,
     isActive: true,
@@ -63,6 +64,9 @@ class FakeReads implements CloneReadSurface {
   }
   getEffectiveProperties(): EffectiveProperty[] {
     return [];
+  }
+  effectiveClassParentlessBlock(): boolean {
+    return false;
   }
 }
 

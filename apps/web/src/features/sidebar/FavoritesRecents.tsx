@@ -38,7 +38,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 
 import { nodeIcon } from "../../ui/iconFor.js";
-import { untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, untitledLabelOf } from "../../ui/renderStateLabel.js";
 import { useNodePrefs, toggleNodeFavorite, reorderNodeFavorites, removeSyncedRecent } from "../settings/nodePrefs.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "../node-menu/SidebarItemMenu.js";
 import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
@@ -169,7 +169,9 @@ export function FavoritesRecents({
     const fresh = client.getNode(node.id);
     const text = plainTitleOf(fresh ?? node, (classId) => client.getDisplayName(classId));
     return (
-      <span className="nt-side-item-label">{text === "" ? untitledLabelOf(node) : text}</span>
+      <span className="nt-side-item-label">
+        {text === "" ? untitledLabelOf(node, parentlessBlockResolverOf(client)) : text}
+      </span>
     );
   };
 
@@ -301,6 +303,7 @@ export function FavoritesRecents({
         <SidebarItemMenu
           state={rowMenu}
           isFavorited={favorites.includes(rowMenu.node.id)}
+          isParentlessBlockClass={parentlessBlockResolverOf(client)}
           onClose={() => setRowMenu(null)}
           onOpen={(id) => {
             setRowMenu(null);

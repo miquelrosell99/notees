@@ -26,6 +26,13 @@ export function parseListStyle(raw: string | null | undefined): ListStyle | null
   return raw === "numbered" || raw === "alpha" || raw === "roman" ? raw : null;
 }
 
+/** The class-level parentlessRole column (store v32): "block" renders the
+ * class's parentless members Block-role; anything else (NULL, drift) is the
+ * "page" default. */
+export function parseParentlessRole(raw: string | null | undefined): "page" | "block" {
+  return raw === "block" ? "block" : "page";
+}
+
 export function mapNode(row: NodeRow): ClientNode {
   // Each column parses independently: a missing/legacy column must never
   // wipe the other (cross-version snapshots can predate a column).
@@ -62,6 +69,7 @@ export function mapNode(row: NodeRow): ClientNode {
     aliasedNodeId: row.aliased_node_id ?? null,
     description: row.description ?? null,
     listStyle: parseListStyle(row.list_style),
+    parentlessRole: parseParentlessRole(row.parentless_role),
     isActive: row.is_active === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -108,6 +116,7 @@ export function nodeRowStamp(row: NodeRow): { h1: number; h2: number } {
   mix(row.aliased_node_id);
   mix(row.description);
   mix(row.list_style);
+  mix(row.parentless_role);
   mix(row.is_active);
   mix(row.created_at);
   mix(row.updated_at);

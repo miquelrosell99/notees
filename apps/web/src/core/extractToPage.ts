@@ -28,10 +28,13 @@
 import { deriveDisplayName, parseDateNodeId, rendersAsInlineBlock } from "@notees/domain";
 
 import type { ClientNode, CreateObjectInput } from "./workspace-client/index.js";
+import { parentlessBlockResolverOf } from "../ui/renderStateLabel.js";
 
 /** Read surface the gesture composes from (both client classes satisfy it). */
 export interface ExtractReadSurface {
   getNode(id: string): ClientNode | undefined;
+  /** The parentlessRole "block" demote resolver for the role predicates. */
+  effectiveClassParentlessBlock(classId: string): boolean;
   /**
    * Children in position order through a FRESH read — never a render
    * cache. The composition plans child reparenting from this list; a stale
@@ -78,7 +81,7 @@ export async function extractBlockToPage(
   if (node === undefined || !node.isActive) {
     throw new Error(`extractBlockToPage: node ${nodeId} not found`);
   }
-  if (!rendersAsInlineBlock(node)) {
+  if (!rendersAsInlineBlock(node, undefined, parentlessBlockResolverOf(reads))) {
     throw new Error("extractBlockToPage: only an inline block can be extracted to a page");
   }
   if (parseDateNodeId(nodeId) !== null) {

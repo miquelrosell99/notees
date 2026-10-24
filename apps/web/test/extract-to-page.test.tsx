@@ -41,6 +41,7 @@ function nodeOf(partial: Partial<ClientNode> & { id: string }): ClientNode {
     bannerAssetId: null,
     listStyle: null,
     aliasedNodeId: null,
+    parentlessRole: "page",
     description: null,
     color: null,
     isActive: true,
@@ -65,6 +66,7 @@ function stubSurfaces(entries: Map<string, ClientNode[]>) {
   const reads = {
     getNode: (id: string) => nodes.get(id),
     getChildren: (id: string) => entries.get(id) ?? [],
+    effectiveClassParentlessBlock: () => false,
     // The fresh read the extraction actually plans from — tests can stub
     // it independently of the (possibly stale) cached read.
     getChildrenFresh: async (id: string) => entries.get(id) ?? [],
@@ -211,6 +213,7 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
       listPropertySchemas: () => [],
       effectiveClassColor: () => null,
       effectiveClassIcons: () => new Map<string, string | null>(),
+      effectiveClassParentlessBlock: () => false,
       getDisplayName: () => null,
     };
     return { client, ...base };

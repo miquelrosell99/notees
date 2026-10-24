@@ -93,6 +93,7 @@ function fakeNode(id: string, title: string, updatedAt: string | null = null): C
     bannerAssetId: null,
     listStyle: null,
     aliasedNodeId: null,
+    parentlessRole: "page",
     description: null,
     isActive: true,
     createdAt: null,

@@ -19,6 +19,7 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { NodeResultItem } from "../pickers/NodeResultItem.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import type { HiddenLinkTarget } from "@/editor/condensed.js";
@@ -32,13 +33,14 @@ type AnyClient = WorkspaceClient | WorkerClient;
  * targets whose chain can't be resolved) render no breadcrumb.
  */
 function containingPageLabel(client: AnyClient, targetId: string): string | null {
+  const parentlessBlock = parentlessBlockResolverOf(client);
   let current = client.getNode(targetId);
   let currentParent =
     current !== undefined && current.parentId !== null ? client.getNode(current.parentId) : undefined;
   let guard = 0;
   while (
     current !== undefined &&
-    !rendersWithDocumentChrome(current, currentParent) &&
+    !rendersWithDocumentChrome(current, currentParent, parentlessBlock) &&
     currentParent !== undefined &&
     guard < 64
   ) {

@@ -17,7 +17,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Button } from "../../components/ui/fleet/Button.js";
-import { parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { ExportPageModal } from "../export/ExportPageModal.js";
 import { SharePageModal } from "../sharing/SharePageModal.js";
 import { NodeContextMenu, type NodeMenuState } from "./NodeContextMenu.js";
@@ -71,7 +71,7 @@ export function NodeMenuButton({
                   x: 0,
                   y: 0,
                   node,
-                  isPage: rendersWithDocumentChrome(node, parentRenderFacts(client, node)),
+                  isPage: rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client)),
                   anchorEl: buttonRef.current,
                 }
               : null,

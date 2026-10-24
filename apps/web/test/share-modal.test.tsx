@@ -181,6 +181,7 @@ describe("NodeContextMenu Share… item", () => {
       bannerAssetId: null,
       listStyle: null,
       aliasedNodeId: null,
+    parentlessRole: "page",
       description: null,
       color: null,
       isActive: true,
@@ -205,6 +206,7 @@ describe("NodeContextMenu Share… item", () => {
     listPropertySchemas: () => [],
     effectiveClassColor: () => null,
     effectiveClassIcons: () => new Map(),
+    effectiveClassParentlessBlock: () => false,
     getDisplayName: () => null,
   };
 
