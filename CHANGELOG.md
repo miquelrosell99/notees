@@ -9,6 +9,43 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): Sources hub — sortable, searchable items table + toolbar
+  (task 3 of the Sources hub plan).** The middle pane ships: the items
+  table RIDES the shared NodeCollection table view (never a
+  parallel table), its library columns composing INTO the view's row
+  renderer as `custom` columns drawn from the task-2 display projection
+  (type icon + label, title, authors, year, venue, citekey, the
+  attachments badge — the `TableColumn` `custom` kind + `width` share are
+  the new additive seams, zero behavior change for existing tables). Sort
+  is the view's new OPTIONAL CONTROLLED seam (the hosted-tab precedent):
+  the URL owns the state — header clicks push `?sort=<field>:<dir>`
+  through navigateSources (asc → desc → clear), a deep link renders
+  statically even URL-less, and the shared comparator sinks EMPTY values
+  last in BOTH directions (Review Focus 2 — the data layer's `sortRows`
+  aligns, years AND strings). The search box filters live over the loaded
+  set (title/authorsText/citekey, the exported `rowMatchesQ` predicate) and
+  the URL follows debounced with replace semantics; the toolbar names the
+  count ("N sources"), exports **.bib + CSL-JSON over exactly the CURRENT
+  filtered set** (Review Focus 5 — `exportSubtreeBibliography` over the
+  displayed row ids, `includeChildPages: false`; a test pins the payload
+  carries the filtered rows only), opens the shipped add-source dialog,
+  and hosts a settings shortcut — the new `WorkspaceSettingsHost`
+  (AddSourceHost idiom) opens the workspace settings on the features tab,
+  the Sources settings section's home. Keyboard nav follows the existing
+  keyboard-list conventions (up/down move the single selection — the new
+  `highlightedId` + `onRowClick` row seams — Enter hands the focus to the
+  detail pane); the hub owns the selection state and SourcesDetail renders
+  the selected title (the type-aware editor body lands with the detail
+  task). Empty states: an empty library keeps the Add-first-source hint;
+  filters excluding everything render the honest "No sources match" with
+  the toolbar intact. 14 new table tests (projection columns, URL-sort
+  deep-link, empties-last both directions across year/authors/venue,
+  header-click push cycle, live search + debounced replace, count,
+  keyboard nav + Enter focus + the search-box guard, row-click selection,
+  filtered-set .bib/CSL-JSON payloads, the Add-source dialog, the settings
+  shortcut); the task-2 citekey-sort test updates to the empties-last
+  contract. Gate: `pnpm typecheck && pnpm test` green.
+
 - **feat(web): Sources hub — facet data + type facets pane (task 2 of the
   Sources hub plan).** The hub's data layer lands in
   `apps/web/src/features/sources/sourcesQuery.ts`: `buildSourcesAst` (the
