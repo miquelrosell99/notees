@@ -91,7 +91,12 @@ import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
 import { MonthCalendar } from "./MonthCalendar.js";
-import { CalendarGrid, type GridZoom } from "./CalendarGrid.js";
+import {
+  CalendarGrid,
+  periodOf,
+  shiftMonth,
+  type GridZoom,
+} from "./CalendarGrid.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import "./CalendarView.css";
 
@@ -141,17 +146,6 @@ export function CalendarView({
   const [selectedIso, setSelectedIso] = useState(todayIsoLocal);
   const [filter, setFilter] = useState<DayFilter>("all");
   const [firstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
-  /**
-   * The agenda panel's device-local collapse (the MainContentFrame opt-in,
-   * owner 2026-10-23 — the calendar is the frame's second host): the
-   * mini-month / week-agenda column rides the frame's raised-
-   * card right panel, toggled from the top bar like the nodeview's
-   * properties panel.
-   */
-  const [agendaCollapsed, setAgendaCollapsed] = useDeviceSetting(
-    "calendarAgendaPanelCollapsed",
-    false,
-  );
 
   // Family ensure: idempotent no-op once the six schemas + bindings exist.
   // Fire-and-forget: a rejection (e.g. the store closing mid-deploy) must not
@@ -319,6 +313,30 @@ export function CalendarView({
     "calendarZoom",
     "month",
   );
+  /** The grid's visible period — the top-bar navigator owns it (owner
+   * 2026-10-24): it follows the selection when that drifts across a
+   * boundary (the MonthCalendar contract) and shifts by the zoom's step. */
+  const [period, setPeriod] = useState(() => periodOf(selectedIso));
+  useEffect(() => {
+    const next = periodOf(selectedIso);
+    if (calendarZoom === "month" && (next.year !== period.year || next.month0 !== period.month0)) {
+      setPeriod(next);
+    }
+    if (calendarZoom === "year" && next.year !== period.year) setPeriod(next);
+    if (calendarZoom === "week") setPeriod(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- follow the selection only
+  }, [selectedIso, calendarZoom]);
+  const shiftPeriod = (delta: number): void => {
+    if (calendarZoom === "week") setSelectedIso((iso) => addDaysIso(iso, delta * 7));
+    else if (calendarZoom === "year") setPeriod((p) => ({ ...p, year: p.year + delta }));
+    else setPeriod((p) => shiftMonth(p, delta));
+  };
+  const jumpToToday = (): void => {
+    // The period resets too — the selection may ALREADY be today (a bare
+    // setSelectedIso would no-op and leave a wandered period behind).
+    setSelectedIso(todayIsoLocal());
+    setPeriod(periodOf(todayIsoLocal()));
+  };
   const openDayPage = (iso: string): void => {
     void client
       .ensureDateChain(iso)
@@ -329,6 +347,18 @@ export function CalendarView({
   const openMonthZoom = (year: number, month0: number): void => {
     setSelectedIso(`${year}-${String(month0 + 1).padStart(2, "0")}-01`);
     setCalendarZoom("month");
+  };
+  // The grid title buttons (panel/popup parity): open the monthly/yearly
+  // date-chain pages.
+  const openMonthPage = (year: number, month0: number): void => {
+    const iso = `${year}-${String(month0 + 1).padStart(2, "0")}-01`;
+    void client.ensureDateChain(iso).then(({ month }) => onOpenPage(month)).catch(() => {});
+  };
+  const openYearPage = (year: number): void => {
+    void client
+      .ensureDateChain(`${year}-01-01`)
+      .then(({ year: yearId }) => onOpenPage(yearId))
+      .catch(() => {});
   };
 
   // --- create flow (create-with-template) ---------------------------------------
@@ -407,39 +437,73 @@ export function CalendarView({
                   <span className="calendar-view__date">{formattedDate}</span>
                   <span className="calendar-view__week">Week {isoWeekNumber(selectedIso)}</span>
                 </div>
-              ) : undefined
-            }
-            actions={
-              <>
-                <div className="calendar-view__nav">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon="mdi-chevron-left"
-                    aria-label="Previous day"
-                    onClick={() => setSelectedIso((iso) => addDaysIso(iso, -1))}
-                  />
-                  {/* The outline variant + "Jump to today" title/aria (the
-                     Journals view's register, owner 2026-10-23): the
-                     bordered button reads clickable where the ghost idiom
-                     doesn't. */}
+              ) : (
+                /* The period navigator (owner 2026-10-24): centered in the
+                   top bar — Today, the prev/next chevrons stepping by the
+                   zoom's period, and the panel/popup title buttons (month
+                   prominent, year greyed) opening the date-chain pages. */
+                <div className="calendar-view__period-nav">
                   <Button
                     variant="outline"
                     size="sm"
                     title="Jump to today"
                     aria-label="Jump to today"
-                    onClick={() => setSelectedIso(todayIsoLocal())}
+                    onClick={jumpToToday}
                   >
                     Today
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
+                    icon="mdi-chevron-left"
+                    aria-label="Previous period"
+                    onClick={() => shiftPeriod(-1)}
+                  />
+                  <span className="calendar-title">
+                    {calendarZoom === "year" ? (
+                      <button
+                        type="button"
+                        className="calendar-title-btn"
+                        title="Open yearly page"
+                        onClick={() => openYearPage(period.year)}
+                      >
+                        {period.year}
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="calendar-title-btn calendar-title-btn--month"
+                          title="Open monthly page"
+                          onClick={() => openMonthPage(period.year, period.month0)}
+                        >
+                          {new Date(period.year, period.month0, 1).toLocaleDateString(undefined, {
+                            month: calendarZoom === "month" ? "long" : "short",
+                          })}
+                        </button>
+                        <button
+                          type="button"
+                          className="calendar-title-btn"
+                          title="Open yearly page"
+                          onClick={() => openYearPage(period.year)}
+                        >
+                          {period.year}
+                        </button>
+                      </>
+                    )}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     icon="mdi-chevron-right"
-                    aria-label="Next day"
-                    onClick={() => setSelectedIso((iso) => addDaysIso(iso, 1))}
+                    aria-label="Next period"
+                    onClick={() => shiftPeriod(1)}
                   />
                 </div>
+              )
+            }
+            actions={
+              <>
                 <div className="calendar-view__ladder" role="group" aria-label="Calendar zoom">
                   {CALENDAR_ZOOMS.map((zoom) => (
                     <Button
@@ -454,46 +518,9 @@ export function CalendarView({
                     </Button>
                   ))}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon="mdi-view-agenda-outline"
-                  aria-label={agendaCollapsed ? "Show agenda panel" : "Hide agenda panel"}
-                  aria-pressed={!agendaCollapsed}
-                  title={agendaCollapsed ? "Show agenda panel" : "Hide agenda panel"}
-                  active={!agendaCollapsed}
-                  onClick={() => setAgendaCollapsed(!agendaCollapsed)}
-                />
               </>
             }
           />
-        }
-        rightLabel="Agenda"
-        rightPanelWidth="var(--layout-size-8xl)"
-        rightPanel={
-          !agendaCollapsed ? (
-            <div className="calendar-view__panel">
-              <MonthCalendar
-                selectedDate={selectedIso}
-                onSelectDate={setSelectedIso}
-                firstDayOfWeek={firstDayOfWeek}
-                hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
-                extraMarks={dayExtraMarks}
-                /* The popup's title-button wiring (owner 2026-10-23): the
-                   month/year buttons open the monthly/yearly date-chain
-                   pages. */
-                onSelectMonth={(year, month) => {
-                  const iso = `${year}-${String(month).padStart(2, "0")}-01`;
-                  void client.ensureDateChain(iso).then(({ month: monthId }) => onOpenPage(monthId));
-                }}
-                onSelectYear={(year) => {
-                  void client
-                    .ensureDateChain(`${year}-01-01`)
-                    .then(({ year: yearId }) => onOpenPage(yearId));
-                }}
-              />
-            </div>
-          ) : undefined
         }
       >
         <div className="calendar-view__main">
@@ -505,10 +532,13 @@ export function CalendarView({
               firstDayOfWeek={firstDayOfWeek}
               recurringRows={recurringEvents}
               spannedRows={spannedEvents}
+              period={period}
               onSelectDay={setSelectedIso}
               onOpenEvent={onOpenPage}
               onOpenDayPage={openDayPage}
               onOpenMonth={openMonthZoom}
+              onOpenMonthPage={openMonthPage}
+              onOpenYearPage={openYearPage}
             />
           )}
           {calendarZoom === "day" && (

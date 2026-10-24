@@ -172,7 +172,8 @@ const REGISTERED_MD_SYS_EXTENSIONS = new Set([
 // .nt-page-context / .nt-page-side-panel card rules), so the alias's home
 // moved with its surface.
 const SURFACE_ALIAS_HOMES = new Map<string, RegExp>([
-  ["--md-sys-color-sidebar-card", /^(variables|app)\.css$|^PageCard\.css$|^MainContentFrame\.css$/],
+  ["--md-sys-color-sidebar-card",
+    /^(variables|app)\.css$|^PageCard\.css$|^MainContentFrame\.css$|^JournalsView\.css$/],
 ]);
 
 /**

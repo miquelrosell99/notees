@@ -79,12 +79,6 @@
   color: var(--md-sys-color-on-surface-variant);
 }
 
-.calendar-view__nav {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  flex-shrink: 0;
-}
 
 .calendar-view__filter {
   flex-shrink: 0;
@@ -168,4 +162,15 @@
   align-items: center;
   gap: var(--spacing-1);
   flex-shrink: 0;
+}
+
+/* The period navigator (owner 2026-10-24): centered in the top bar's
+   context slot — Today, the prev/next chevrons stepping by the zoom's
+   period, and the panel/popup title buttons (month prominent, year
+   greyed) opening the date-chain pages. */
+.calendar-view__period-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-inline: auto;
 }

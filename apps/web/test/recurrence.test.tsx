@@ -116,15 +116,19 @@ async function createEvent(
 }
 
 function renderCalendar(client: WorkspaceClient, onOpenPage = vi.fn()) {
-  window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
+  // The zoom is each spec's own pin (day for the section specs, month for
+  // the grid specs) — this helper stays neutral.
   return { onOpenPage, ...render(<CalendarView client={client} onOpenPage={onOpenPage} />) };
 }
 
-/** The `.calendar-day` cell (button) showing the given day number. */
+/** The grid CELL (background click selects) for the given day of month. */
 function dayCell(container: HTMLElement, dayNumber: string): HTMLElement {
-  const cell = Array.from(container.querySelectorAll(".calendar-day")).find(
-    (el) => el.textContent?.trim() === dayNumber,
+  const suffix = `-${dayNumber.padStart(2, "0")}`;
+  const matches = Array.from(
+    container.querySelectorAll(`.cal-grid__cell[data-day$="${suffix}"]`),
   );
+  const cell =
+    matches.find((el) => !el.classList.contains("cal-grid__cell--outside")) ?? matches[0];
   expect(cell, `day cell ${dayNumber}`).toBeDefined();
   return cell as HTMLElement;
 }
@@ -150,30 +154,42 @@ describe("CalendarView recurrence", () => {
   it("lists a weekly event on virtual occurrence days — one row, no phantoms", async () => {
     const client = await seedClient();
     const { classId, schemaId } = await eventFamily(client);
-    const today = todayIsoLocal();
-    await createEvent(client, classId, schemaId, "Standup", today, "weekly");
+    // Anchor on the 3rd: the 3rd/10th/13th navigation below stays
+    // deterministic whatever day of the month today is.
+    const [y, m] = todayIsoLocal().split("-");
+    const anchorIso = `${y}-${m}-03`;
+    await createEvent(client, classId, schemaId, "Standup", anchorIso, "weekly");
 
-    renderCalendar(client);
-    await screen.findByLabelText("Dated");
-    const anchorSection = labeledSection("Dated");
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
+    await screen.findByLabelText("Calendar month view");
+    const selectAndOpenDay = (dayNumber: string): void => {
+      fireEvent.click(dayCell(container, dayNumber));
+      fireEvent.click(screen.getByRole("button", { name: "Day", pressed: false }));
+    };
+
+    // The anchor day lists the series.
+    selectAndOpenDay("3");
+    const anchorSection = await screen.findByLabelText("Dated");
     await waitFor(() => {
       expect(rowTexts(anchorSection)).toContain("Standup");
     });
 
-    // +7 is a pure virtual occurrence: no backlink exists on that day, the
-    // expansion puts it there.
-    for (let i = 0; i < 7; i++) fireEvent.click(screen.getByRole("button", { name: "Next day" }));
-    await waitFor(() => {
-      expect(screen.getByLabelText("Dated")).toBeDefined();
-    });
-    const occurrenceSection = labeledSection("Dated");
+    // +7 (the 10th) is a pure virtual occurrence: no backlink exists on
+    // that day, the expansion puts it there — one row, no phantoms.
+    fireEvent.click(screen.getByRole("button", { name: "Month", pressed: false }));
+    await screen.findByLabelText("Calendar month view");
+    selectAndOpenDay("10");
+    const occurrenceSection = await screen.findByLabelText("Dated");
     await waitFor(() => {
       expect(rowTexts(occurrenceSection)).toContain("Standup");
     });
     expect(rowTexts(occurrenceSection).filter((t) => t === "Standup")).toHaveLength(1);
 
-    // +3 more is NOT an occurrence: the series does not list.
-    for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole("button", { name: "Next day" }));
+    // The 13th is NOT an occurrence: the series does not list.
+    fireEvent.click(screen.getByRole("button", { name: "Month", pressed: false }));
+    await screen.findByLabelText("Calendar month view");
+    selectAndOpenDay("13");
     await waitFor(() => {
       expect(screen.queryByLabelText("Dated")).toBeNull();
     });
@@ -182,6 +198,7 @@ describe("CalendarView recurrence", () => {
   it("a repeating task schedules on occurrence days and never goes overdue", async () => {
     const client = await seedClient();
     await ensureTaskFamily(client);
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
     const status = client
       .listPropertySchemas()
       .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus)!;
@@ -238,16 +255,17 @@ describe("CalendarView recurrence", () => {
     const anchorIso = `${y}-${m}-03`;
     await createEvent(client, classId, schemaId, "Standup", anchorIso, "weekly");
 
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
     const { container } = renderCalendar(client);
-    await screen.findByText("Calendar");
-    fireEvent.click(dayCell(container, "3"));
-    await screen.findByLabelText("Dated");
-    // The anchor dots via its real backlink; +7 dots purely from the virtual
-    // expansion; +10 is not an occurrence and stays plain.
+    await screen.findByLabelText("Calendar month view");
+    // The anchor blocks via its real backlink; +7 (the 10th) blocks purely
+    // from the virtual expansion; the 13th is not an occurrence and stays
+    // plain (the grid blocks are the retired dots' register).
     await waitFor(() => {
-      expect(dayCell(container, "10").classList.contains("dated")).toBe(true);
+      expect(dayCell(container, "10").querySelector(".cal-block")).not.toBeNull();
     });
-    expect(dayCell(container, "13").classList.contains("dated")).toBe(false);
+    expect(dayCell(container, "3").querySelector(".cal-block")).not.toBeNull();
+    expect(dayCell(container, "13").querySelector(".cal-block")).toBeNull();
   });
 
   it("the property panel picker writes the rule and a date re-pick preserves it", async () => {
@@ -294,19 +312,15 @@ describe("CalendarView recurrence", () => {
     const anchorIso = `${y}-${m}-02`;
     await createEvent(client, classId, schemaId, "One-off", anchorIso);
 
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
     const { container } = renderCalendar(client);
-    await screen.findByText("Calendar");
-    fireEvent.click(dayCell(container, "2"));
-    const section = labeledSection("Dated");
+    await screen.findByLabelText("Calendar month view");
+    // Only the anchor day blocks (its real backlink); +7 (the 9th) has
+    // nothing.
     await waitFor(() => {
-      expect(rowTexts(section)).toContain("One-off");
+      expect(dayCell(container, "2").querySelector(".cal-block")).not.toBeNull();
     });
-
-    // Only the anchor day dots (its real backlink); +7 has nothing.
-    await waitFor(() => {
-      expect(dayCell(container, "2").classList.contains("dated")).toBe(true);
-    });
-    expect(dayCell(container, "9").classList.contains("dated")).toBe(false);
+    expect(dayCell(container, "9").querySelector(".cal-block")).toBeNull();
   });
 
   it("a corrupt rule fails loud in the read scan, never reads as plain", async () => {

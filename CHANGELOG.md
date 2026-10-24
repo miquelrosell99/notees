@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): the calendar view goes full-width — the side panel, the
+  day-stepping arrows retire; the period navigator lifts into the top bar,
+  centered, with the panel/popup title-button UI (owner 2026-10-24 pass
+  2).** Three owner nits closed: (1) the calendar's right panel is GONE
+  entirely — the journal owns the mini-month + events panel, the calendar
+  is the Google register: one full-view calendar, no sidebar (the grid
+  blocks are the marks; the retired dot assertions become block
+  assertions); (2) the grid header's chevrons/title lift into the top
+  bar's context slot, centered (`margin-inline: auto`): **Today ‹ [Month]
+  [Year] ›** — the chevrons step by the zoom's period (day-week ±7 days,
+  month ±1, year ±1; the visible-period state lifts from the grid into the
+  view and still follows the selection across boundaries), and the
+  month/year wear the exact panel/popup title-button register
+  (`calendar-title-btn--month` prominent, year greyed), opening the
+  monthly/yearly date-chain pages; the grid renders cells only; (3) the
+  day-level ‹ Today › arrow navigator retires from the top bar (day
+  picking rides the grid + the Today jump). The journal's side panel
+  meanwhile wears the standard raised-card element (`.nt-page-side-panel`
+  register: sidebar-card fill, hairline frame, card radius — no more bare
+  divider column) and the feed gains a proper left inset.
+  - **Verification**: calendar specs (the navigator steps the period, the
+    title buttons open the month/year pages, Today resets a wandered
+    period — the bare-setSelectedIso no-op bug it caught, the grid-cell
+    selection register) + journals specs; full gate below. Deployed:
+    verify-min VERIFY-PASS + the calendar-panel probe (no side panel,
+    period nav with title buttons, ladder at Month) green.
+## 2026-10-24
+
 - **feat(protocol,store): `workspace.feature.set` settings payload — the
   source-library plan's ONLY wire change (fixture gate).** The strict payload
   gains an additive optional `settings: z.record(z.unknown())` key —

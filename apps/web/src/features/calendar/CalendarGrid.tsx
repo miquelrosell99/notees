@@ -65,6 +65,8 @@ export interface CalendarGridProps {
   recurringRows: readonly RecurringRow[];
   /** The multi-day span scan (same register — endDate-carrying date values). */
   spannedRows: readonly SpannedRow[];
+  /** The visible period (the host's state — the navigator lives in the top bar). */
+  period: VisiblePeriod;
   /** Day pick: select the day (a cell click; the "+N" row jumps with it). */
   onSelectDay: (iso: string) => void;
   /** Block click: open the event node. */
@@ -73,20 +75,25 @@ export interface CalendarGridProps {
   onOpenDayPage: (iso: string) => void;
   /** Year zoom: open a month (the host switches the zoom + selects its first day). */
   onOpenMonth: (year: number, month0: number) => void;
+  /** The title-button register (panel/popup parity): open the monthly page. */
+  onOpenMonthPage: (year: number, month0: number) => void;
+  /** The title-button register: open the yearly page. */
+  onOpenYearPage: (year: number) => void;
 }
 
-/** The visible-period window, owned by the grid (navigation stays local). */
-interface VisiblePeriod {
+/** The visible-period window — owned by the HOST since the navigator
+ * lifted into the top bar (owner 2026-10-24). */
+export interface VisiblePeriod {
   year: number;
   month0: number;
 }
 
-function periodOf(iso: string): VisiblePeriod {
+export function periodOf(iso: string): VisiblePeriod {
   const [y, m] = iso.split("-").map(Number);
   return { year: y!, month0: m! - 1 };
 }
 
-function shiftMonth(period: VisiblePeriod, delta: number): VisiblePeriod {
+export function shiftMonth(period: VisiblePeriod, delta: number): VisiblePeriod {
   const total = period.year * 12 + period.month0 + delta;
   return { year: Math.floor(total / 12), month0: total % 12 };
 }
@@ -98,12 +105,15 @@ export function CalendarGrid({
   firstDayOfWeek,
   recurringRows,
   spannedRows,
+  period,
   onSelectDay,
   onOpenEvent,
   onOpenDayPage,
   onOpenMonth,
+  onOpenMonthPage,
+  onOpenYearPage,
 }: CalendarGridProps) {
-  const [period, setPeriod] = useState<VisiblePeriod>(() => periodOf(selectedIso));
+
   /** The recurring scope dialog's pending action (a move or a delete). */
   const [pendingAction, setPendingAction] = useState<
     | { kind: "move"; nodeId: string; fromIso: string; toIso: string }
@@ -115,18 +125,6 @@ export function CalendarGrid({
   /** Drag-create anchor: the day the press started on (null = not creating). */
   const [createAnchor, setCreateAnchor] = useState<string | null>(null);
   const [createEnd, setCreateEnd] = useState<string | null>(null);
-  // The visible window follows the selection when it drifts across a
-  // boundary (prev/next day, an open from another surface) — the
-  // MonthCalendar contract.
-  useEffect(() => {
-    const next = periodOf(selectedIso);
-    if (zoom === "month" && (next.year !== period.year || next.month0 !== period.month0)) {
-      setPeriod(next);
-    }
-    if (zoom === "year" && next.year !== period.year) setPeriod(next);
-    if (zoom === "week") setPeriod(next); // the week zoom always tracks the day
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- follow the selection only
-  }, [selectedIso, zoom]);
 
   const weekdayHeader = useWeekdayHeader(firstDayOfWeek);
   const todayIso = (() => {
@@ -244,53 +242,16 @@ export function CalendarGrid({
         selectedIso={selectedIso}
         todayIso={todayIso}
         eventsByIsoReader={(iso) => eventRowsForDays(client, [iso], recurringRows, spannedRows)}
-        onPrev={() => setPeriod((p) => ({ ...p, year: p.year - 1 }))}
-        onNext={() => setPeriod((p) => ({ ...p, year: p.year + 1 }))}
         onOpenMonth={(month0) => onOpenMonth(period.year, month0)}
         onOpenDayPage={onOpenDayPage}
+        onOpenYearPage={onOpenYearPage}
       />
     );
   }
 
-  const periodLabel =
-    zoom === "week"
-      ? (() => {
-          const [a, b] = [cells[0], cells[cells.length - 1]];
-          const fmt = (iso: string) =>
-            new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, {
-              month: "short",
-              day: "numeric",
-            });
-          return a && b ? `${fmt(a)} – ${fmt(b)}` : "";
-        })()
-      : new Date(period.year, period.month0, 1).toLocaleDateString(undefined, {
-          month: "long",
-          year: "numeric",
-        });
-
+  // The period label rides the host's top bar; the grid renders cells only.
   return (
     <section className="cal-grid" aria-label={`Calendar ${zoom} view`}>
-      <div className="cal-grid__header">
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="mdi-chevron-left"
-          aria-label="Previous period"
-          onClick={() =>
-            zoom === "week" ? onSelectDay(addDaysIso(selectedIso, -7)) : setPeriod((p) => shiftMonth(p, -1))
-          }
-        />
-        <h2 className="cal-grid__title">{periodLabel}</h2>
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="mdi-chevron-right"
-          aria-label="Next period"
-          onClick={() =>
-            zoom === "week" ? onSelectDay(addDaysIso(selectedIso, 7)) : setPeriod((p) => shiftMonth(p, 1))
-          }
-        />
-      </div>
       <div className="cal-grid__weekdays">
         {weekdayHeader.map((name, i) => (
           <span key={`${name}-${i}`} className="cal-grid__weekday">
@@ -595,29 +556,22 @@ function YearGrid({
   selectedIso,
   todayIso,
   eventsByIsoReader,
-  onPrev,
-  onNext,
   onOpenMonth,
   onOpenDayPage,
+  onOpenYearPage,
 }: {
   client: AnyClient;
   year: number;
   selectedIso: string;
   todayIso: string;
   eventsByIsoReader: (iso: string) => ReturnType<typeof eventRowsForDays>;
-  onPrev: () => void;
-  onNext: () => void;
   onOpenMonth: (month0: number) => void;
   onOpenDayPage: (iso: string) => void;
+  onOpenYearPage: (year: number) => void;
 }) {
   const today = new Date();
   return (
     <section className="cal-grid cal-grid--year" aria-label="Calendar year view">
-      <div className="cal-grid__header">
-        <Button variant="ghost" size="sm" icon="mdi-chevron-left" aria-label="Previous period" onClick={onPrev} />
-        <h2 className="cal-grid__title">{year}</h2>
-        <Button variant="ghost" size="sm" icon="mdi-chevron-right" aria-label="Next period" onClick={onNext} />
-      </div>
       <div className="cal-year">
         {Array.from({ length: 12 }, (_, month0) => {
           const dayCount = new Date(year, month0 + 1, 0).getDate();
