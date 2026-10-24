@@ -39,7 +39,7 @@ import {
 
 import type { AnyClient } from "../../ui/app/clients.js";
 import { Icon } from "../../ui/Icon.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import {
   Button,
   ConfirmationModal,
@@ -91,7 +91,7 @@ export function SourcesDetail({
   const typeKey: SystemClassName = sourceTypeKey(client, node);
   const typeClassId = SYSTEM_CLASS_UUIDS[typeKey];
   const typeLabel =
-    displayNameFromClient(client, typeClassId) ?? SYSTEM_CLASS_DISPLAY_NAMES[typeKey];
+    titleOf(client, typeClassId) ?? SYSTEM_CLASS_DISPLAY_NAMES[typeKey];
   const typeIcon = client.effectiveClassIcons().get(typeClassId) ?? null;
 
   const commitTitle = (value: string): void => {
