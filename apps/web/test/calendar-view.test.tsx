@@ -316,7 +316,7 @@ describe("CalendarView", () => {
       ).toBe(targetIso);
     });
     // The day zoom's date line follows the selection.
-    fireEvent.click(screen.getByRole("button", { name: "Day", pressed: false }));
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
     await waitFor(() => {
       expect(marker()).toBeNull();
       expect(screen.getByText(targetIso)).toBeDefined();
@@ -331,7 +331,7 @@ describe("CalendarView", () => {
     // uncreated day of the visible month (the grid's day number selects it).
     const otherDay = new Date().getDate() === 20 ? "21" : "20";
     fireEvent.click(dayCell(container, otherDay));
-    fireEvent.click(screen.getByRole("button", { name: "Day", pressed: false }));
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
     fireEvent.click(await screen.findByRole("tab", { name: "Created" }));
     expect(await screen.findByText("There's nothing here (yet).")).toBeDefined();
   });
@@ -370,7 +370,7 @@ describe("CalendarView", () => {
     expect(screen.queryByRole("region", { name: "Daily note" })).toBeNull();
     // The ladder is present with Month pressed.
     expect(
-      screen.getByRole("button", { name: "Month", pressed: true }),
+      screen.getByRole("radio", { name: "Month" }),
     ).toBeDefined();
   });
 
@@ -489,12 +489,12 @@ describe("CalendarView", () => {
     expect(client.getNodeRaw(opened)?.id).toBe(opened);
 
     // Week zoom: seven tall columns.
-    fireEvent.click(screen.getByRole("button", { name: "Week", pressed: false }));
+    fireEvent.click(screen.getByRole("radio", { name: "Week" }));
     await screen.findByLabelText("Calendar week view");
     expect(document.querySelectorAll(".cal-grid__cells--week > div")).toHaveLength(7);
 
     // Year zoom: twelve compact months.
-    fireEvent.click(screen.getByRole("button", { name: "Year", pressed: false }));
+    fireEvent.click(screen.getByRole("radio", { name: "Year" }));
     await screen.findByLabelText("Calendar year view");
     expect(document.querySelectorAll(".cal-year__month")).toHaveLength(12);
   });
