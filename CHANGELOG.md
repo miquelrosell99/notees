@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(server): metadata resolution route — Crossref/OpenLibrary/arXiv,
+  pref-gated, cached (source-library slices 3–6 task 3).** `GET /api/resolve`
+  grows its second mode beside the existing `?name=` name→id lookup:
+  `?doi=` / `?isbn=` / `?arxiv=` (exactly one, 400 otherwise) resolve the
+  identifier to a unified source-metadata record — `{classKey, title,
+  authors[] ("Family, Given"), editors[], fields{} (the class's own
+  SYSTEM_SOURCE_CLASS_BINDINGS keys only), doi?, isbn?, url?, year?}` — that
+  the slice-4 create flow and slice-6 web client consume verbatim. The
+  provider item type maps to a Zotero citable type, then the class via
+  `ZOTERO_ITEM_TYPE_TO_CLASS` (no second hand-maintained mapping). This is
+  the server's FIRST outbound egress, documented as the route module's
+  honest privacy note: only the queried identifier leaves the server —
+  no request body, no workspace content — and Crossref, OpenLibrary, and
+  arXiv are the complete egress list. The workspace's `sources` feature-row
+  settings gate it (`resolverEnabled: false` → 403 `resolver_disabled`;
+  absent row/key = default ON — the web settings UI owns the toggle);
+  provider failure/timeout (AbortController, `NOTEES_RESOLVER_TIMEOUT_MS`,
+  default 10 s) answers 502 `resolver_unavailable`; an unknown identifier
+  answers 404. Resolved records cache in a server-state `resolve_cache`
+  table on relay.db (24 h TTL, normalized-identifier key — the
+  prefs/shares/plugins coordination ruling, never log state). Two new pinned
+  error-taxonomy codes (`resolver_disabled` 403, `resolver_unavailable`
+  502); `search` scope covers the route, as before. Tests stub global fetch:
+  the exact Crossref journal-article record shape, 404/500/timeout mapping,
+  the pref gate, cache-hit single-fetch, OpenLibrary + arXiv happy paths.
+
 - **feat(web): .bib + CSL-JSON export formats for the current view
   (source-library slices 3–6 task 2).** The export modal registers two
   bibliography cards — **BibTeX** and **CSL JSON** — alongside the existing
