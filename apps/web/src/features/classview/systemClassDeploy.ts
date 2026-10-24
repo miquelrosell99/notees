@@ -182,7 +182,10 @@ export async function deploySystemClass(
     const bound = new Set(registry.map((binding) => binding.propertySchemaId));
     for (const [name, spec] of family) {
       const schemaId = SYSTEM_PROPERTY_UUIDS[name];
-      if (bound.has(schemaId)) continue;
+      // `bind: false`: schema-only seed — no
+      // binding row on `bindTo` (the source pool's type-specific fields bind
+      // on their own classes via SYSTEM_SOURCE_CLASS_BINDINGS below).
+      if (bound.has(schemaId) || spec!.bind === false) continue;
       await client.setClassProperty(classId, schemaId, {});
     }
   }

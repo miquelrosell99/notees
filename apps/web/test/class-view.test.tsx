@@ -279,16 +279,16 @@ describe("Class View", () => {
     );
     // PURE ALPHABETICAL by property name (binding
     // sequence retired; the seeded class panel has no configurable order).
-    // The source family carries every seed spec bound to `source` — the
-    // bibliographic property pool (source-library slice 1
-    // task 4) joined the original family set; derive the expectation from
-    // the seed manifest so the test pins ORDER, not the pool's contents.
+    // The source family panel shows ONLY the shared base: the bibliographic pool's type-specific fields are
+    // `bind: false` — scoped to source but no binding row on the base — so
+    // derive the expectation from the seed manifest filtering them out; the
+    // test pins ORDER, not the family set.
     const expectedNames = (
       Object.entries(SYSTEM_PROPERTY_SPECS) as Array<
         [keyof typeof SYSTEM_PROPERTY_DISPLAY_NAMES, (typeof SYSTEM_PROPERTY_SPECS)[keyof typeof SYSTEM_PROPERTY_SPECS]]
       >
     )
-      .filter(([, spec]) => spec?.bindTo === "source")
+      .filter(([, spec]) => spec?.bindTo === "source" && spec.bind !== false)
       .map(([name]) => SYSTEM_PROPERTY_DISPLAY_NAMES[name])
       .sort((a, b) => a.localeCompare(b));
     expect(names).toEqual(expectedNames);
