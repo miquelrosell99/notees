@@ -457,7 +457,6 @@ predating this file.
       full web suite below.
 ## 2026-10-24
 
->>>>>>> 32b01ae41 (feat(web): the Google time-grid register — Day/Week 1-hour grids with an all-day band and the red now-line, plus the infinite Agenda zoom (owner 2026-10-24, reference: Google Calendar))
 - **feat(web): the Tasks hub gains the New-task flow — the
   create-with-template flow's new home (owner 2026-10-24 follow-up).** The
   calendar's day-view retirement orphaned the TemplatePickerModal flow
