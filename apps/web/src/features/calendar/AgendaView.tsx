@@ -26,6 +26,7 @@ import { deriveDisplayName } from "@notees/domain";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import {
   agendaTimeLabelOf,
@@ -256,11 +257,15 @@ function AgendaRow({
   const color = client.effectiveNodeColor(row.node);
   const timeLabel = agendaTimeLabelOf(client, row, iso, spannedRows);
   return (
-    <button type="button" className="cal-agenda__row" onClick={onOpen}>
-      <span
-        className="cal-agenda__dot"
-        style={color !== null ? { background: color } : undefined}
-      />
+    /* The colored-card register (owner 2026-10-24): the row IS the event's
+       card — effective color fill, contrast text — the same look the grid
+       blocks and agenda everywhere else wear. */
+    <button
+      type="button"
+      className="cal-agenda__row"
+      style={color !== null ? { background: color, color: cssColorFor(color) } : undefined}
+      onClick={onOpen}
+    >
       <span className="cal-agenda__time">{timeLabel}</span>
       <span className="cal-agenda__title">{label}</span>
     </button>

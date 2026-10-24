@@ -80,10 +80,10 @@
   align-items: center;
   gap: var(--spacing-3);
   width: 100%;
-  padding: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
   border: none;
   border-radius: var(--shape-small);
-  background: none;
+  background: var(--md-sys-color-surface-container-highest);
   font: var(--font-body-large);
   color: var(--md-sys-color-on-surface);
   text-align: left;
@@ -91,7 +91,12 @@
 }
 
 .cal-agenda__row:hover {
-  background: var(--md-sys-color-surface-container-low);
+  filter: brightness(1.08);
+}
+
+.cal-agenda__row .cal-agenda__time {
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
 }
 
 .cal-agenda__row:focus-visible {
@@ -99,13 +104,6 @@
   outline-offset: var(--spacing-micro);
 }
 
-.cal-agenda__dot {
-  width: var(--spacing-3);
-  height: var(--spacing-3);
-  flex-shrink: 0;
-  border-radius: var(--shape-full);
-  background: var(--md-sys-color-primary);
-}
 
 /* The time label's column: the widest register string ("09:00 – 10:00")
    fits one line at any type size (the ch unit tracks the font). */

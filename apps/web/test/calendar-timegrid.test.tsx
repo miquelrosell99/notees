@@ -417,6 +417,8 @@ describe("AgendaView (the Agenda zoom)", () => {
     const today = todayIsoLocal();
     const later = addDaysIso(today, 10);
     const { classId, schemaId } = await eventFamily(client);
+    // A class color: the agenda row IS the colored card (owner 2026-10-24).
+    await client.updateObject(classId, { color: "#ff0000" });
     await timedEvent(client, classId, schemaId, "Anchor event", today, "09:00");
     await timedEvent(client, classId, schemaId, "Later event", later, "09:00");
 
@@ -427,6 +429,10 @@ describe("AgendaView (the Agenda zoom)", () => {
       expect(agenda.textContent).toContain("Anchor event");
       expect(agenda.textContent).toContain("Later event");
     });
+    // The colored-card register (owner 2026-10-24): the row IS the card —
+    // the event's effective color fills it.
+    const row = agenda.querySelector(".cal-agenda__row") as HTMLElement;
+    expect(row.style.background).not.toBe("");
 
     const days = [...container.querySelectorAll(".cal-agenda__day")].map((el) =>
       el.getAttribute("data-day"),
