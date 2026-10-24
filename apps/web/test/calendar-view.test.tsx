@@ -1,10 +1,13 @@
 /**
- * CalendarView tests: the day header (Today marker only on today, prev/next
- * stepping), the events element (event-family nodes dated into the scope or
- * embedded in the scope day pages, the day/week/month zoom), the tasks
- * section (scheduled/overdue partition, "N open", the checkbox done toggle
- * writing the status option id like the tasks hub), the daily-note embed via
- * ensureDateChain, the created-today list, and the MonthCalendar day pick.
+ * CalendarView tests: the day zoom's date line (Today marker only on today),
+ * the day AGENDA (the selected day's events as colored cards — timed first
+ * by start time, the clock prefix, the empty-state line, the card open),
+ * the month grid (event-family blocking — dated in or embedded, never mere
+ * date carriers — block colors, drag/drop rewrites and the recurring scope
+ * dialog, the timed blocks' clock prefix), the top-bar period navigator,
+ * the day-number → day page register, the zoom ladder, and the
+ * dblclick-to-create flow (the event modal opens on the cell, the create
+ * lands an event-classed named node and opens it).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -13,7 +16,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { newEnvelope, type Envelope } from "@notees/protocol";
-import { parseDateNodeId, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { parseDateNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/features/calendar/CalendarView.js";
@@ -22,7 +25,6 @@ import {
   scheduledIsoOf,
   todayIsoLocal,
 } from "../src/features/calendar/calendarViewUtils.js";
-import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 
 /** The deterministic day-node id for a local ISO day. */
 function dayNodeOf(iso: string): string {
@@ -50,7 +52,8 @@ let sqlModule: SqlJsStatic;
 
 beforeAll(async () => {
   sqlModule = await initSqlJs();
-  // jsdom lacks ResizeObserver; Tabs.List uses it for the active indicator.
+  // jsdom lacks ResizeObserver; the SelectionButton ladder uses it for the
+  // sliding indicator.
   class ResizeObserverStub {
     observe() {}
     unobserve() {}
@@ -113,13 +116,6 @@ async function seedClient(relay: MemoryRelay = seededRelay()): Promise<Workspace
   return client;
 }
 
-function renderCalendar(client: WorkspaceClient, onOpenPage = vi.fn()) {
-  // The day sections ride the Day zoom (the calendar defaults to the month
-  // grid since owner 2026-10-23).
-  window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
-  return { onOpenPage, ...render(<CalendarView client={client} onOpenPage={onOpenPage} />) };
-}
-
 /** The grid CELL (background click selects) for the given day of month —
     the day-NUMBER is the open-page affordance, not the selection. */
 function dayCell(container: HTMLElement, dayNumber: string): HTMLElement {
@@ -133,15 +129,11 @@ function dayCell(container: HTMLElement, dayNumber: string): HTMLElement {
   return cell as HTMLElement;
 }
 
-/** The outline-collection row texts under a root (BlockRow machinery). */
-function rowTitles(root: HTMLElement): string[] {
-  return [...root.querySelectorAll(".nt-block-content")].map((el) => el.textContent ?? "");
-}
-
 describe("CalendarView", () => {
   it("shows the Today marker and the local date only for today", async () => {
     const client = await seedClient();
-    const { container } = renderCalendar(client);
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
+    const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
     const today = todayIsoLocal();
 
     expect(screen.getByText("Calendar")).toBeDefined();
@@ -150,6 +142,161 @@ describe("CalendarView", () => {
     expect(screen.getByText(today)).toBeDefined();
   });
 
+  // --- the day agenda (the Day zoom's body, owner 2026-10-24) --------------
+
+  it("the day agenda lists the day's events as cards — timed first, with the clock prefix; a card click opens the event", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    const schemaId = await dateSchemaOf(client);
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+    await client.setClassProperty(gatheringClass, schemaId, {});
+
+    // Untimed (full-day) event, alphabetic winner by name…
+    await client.ensureDateChain(today);
+    const allDay = await client.createObject({
+      isEmbedded: false,
+      name: "Aardvark picnic",
+      classIds: [gatheringClass],
+    });
+    await client.setProperty(allDay, schemaId, { nodeId: dayNodeOf(today) }, 0);
+    // …and a TIMED event that must list FIRST despite the name (timed-first).
+    const timed = await client.createObject({
+      isEmbedded: false,
+      name: "Zebra sync",
+      classIds: [gatheringClass],
+    });
+    await client.setProperty(timed, schemaId, { nodeId: dayNodeOf(today), time: "14:30" }, 0);
+
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
+    const onOpenPage = vi.fn();
+    render(<CalendarView client={client} onOpenPage={onOpenPage} />);
+
+    const agenda = await screen.findByLabelText("Day agenda");
+    await waitFor(() => {
+      expect(agenda.textContent).toContain("14:30 Zebra sync");
+      expect(agenda.textContent).toContain("Aardvark picnic");
+    });
+    // Timed first, then untimed alphabetically.
+    const texts = [...agenda.querySelectorAll(".cal-agenda__card")].map(
+      (el) => el.textContent ?? "",
+    );
+    expect(texts[0]).toContain("14:30 Zebra sync");
+    expect(texts[1]).toContain("Aardvark picnic");
+
+    // A card click opens the event.
+    fireEvent.click(agenda.querySelector(".cal-agenda__card") as HTMLElement);
+    await waitFor(() => expect(onOpenPage).toHaveBeenCalledWith(timed));
+  });
+
+  it("the day agenda renders a same-day timed range as '14:30–16:00 Title'", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    const schemaId = await dateSchemaOf(client);
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+    await client.setClassProperty(gatheringClass, schemaId, {});
+
+    await client.ensureDateChain(today);
+    const id = await client.createObject({
+      isEmbedded: false,
+      name: "Deep work",
+      classIds: [gatheringClass],
+    });
+    await client.setProperty(
+      id,
+      schemaId,
+      {
+        start: { nodeId: dayNodeOf(today), time: "14:30" },
+        end: { nodeId: dayNodeOf(today), time: "16:00" },
+      },
+      0,
+    );
+
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
+    render(<CalendarView client={client} onOpenPage={vi.fn()} />);
+    const agenda = await screen.findByLabelText("Day agenda");
+    await waitFor(() => {
+      expect(agenda.textContent).toContain("14:30–16:00 Deep work");
+    });
+  });
+
+  it("the day agenda shows the honest empty line on an eventless day", async () => {
+    const client = await seedClient();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
+    await screen.findByLabelText("Calendar month view");
+    // A day of the visible month guaranteed to carry no events (the seed
+    // authors nothing dated).
+    const otherDay = new Date().getDate() === 20 ? "21" : "20";
+    fireEvent.click(dayCell(container, otherDay));
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    expect(await screen.findByText("No events this day.")).toBeDefined();
+    // The day view's retired sections stay gone — the agenda is the body.
+    expect(screen.queryByRole("region", { name: "Daily note" })).toBeNull();
+    expect(screen.queryByRole("tab")).toBeNull();
+  });
+
+  // --- dblclick-to-create (owner 2026-10-24) --------------------------------
+
+  it("a cell dblclick opens the create modal prefilled with the day; creating lands an event-classed named node and opens it", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    const onOpenPage = vi.fn();
+    const { container } = render(<CalendarView client={client} onOpenPage={onOpenPage} />);
+    await screen.findByLabelText("Calendar month view");
+
+    fireEvent.doubleClick(dayCell(container, String(new Date().getDate())));
+    const dialog = await screen.findByRole("dialog", { name: "New event" });
+    // The dblclicked day prefills the start day.
+    const startDay = within(dialog).getByLabelText("Start day") as HTMLInputElement;
+    expect(startDay.value).toBe(today);
+
+    fireEvent.change(within(dialog).getByLabelText("Name"), {
+      target: { value: "Roadmap review" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(onOpenPage).toHaveBeenCalledTimes(1));
+    const id = onOpenPage.mock.calls[0]![0] as string;
+    const created = client.getNode(id)!;
+    expect(created.classIds).toEqual([SYSTEM_CLASS_UUIDS.event]);
+    expect(created.contentAst).toEqual([{ type: "text", text: "Roadmap review" }]);
+    // The modal closed with the create.
+    expect(screen.queryByRole("dialog", { name: "New event" })).toBeNull();
+  });
+
+  it("a dblclick on a block or the day number does not open the create modal", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    const schemaId = await dateSchemaOf(client);
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+    await client.setClassProperty(gatheringClass, schemaId, {});
+    await client.ensureDateChain(today);
+    const id = await client.createObject({
+      isEmbedded: false,
+      name: "Occupied day",
+      classIds: [gatheringClass],
+    });
+    await client.setProperty(id, schemaId, { nodeId: dayNodeOf(today) }, 0);
+
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
+    const grid = await screen.findByLabelText("Calendar month view");
+    await waitFor(() => expect(grid.querySelector(".cal-block")).not.toBeNull());
+
+    const todayCell = dayCell(container, String(new Date().getDate()));
+    // On the block: no modal (the block owns its own click).
+    fireEvent.doubleClick(todayCell.querySelector(".cal-block") as HTMLElement);
+    expect(screen.queryByRole("dialog", { name: "New event" })).toBeNull();
+    // On the day number: no modal (the open-page affordance).
+    fireEvent.doubleClick(todayCell.querySelector(".cal-grid__daynum") as HTMLElement);
+    expect(screen.queryByRole("dialog", { name: "New event" })).toBeNull();
+  });
+
+  // --- the grids ------------------------------------------------------------
 
   it("the month grid blocks event-family nodes dated into the scope, not mere date carriers", async () => {
     const client = await seedClient();
@@ -222,77 +369,90 @@ describe("CalendarView", () => {
     expect(grid.textContent).not.toContain("Plain note");
   });
 
-  it("partitions open tasks into Overdue/Scheduled groups with a count", async () => {
+  it("a timed block prefixes the label with the clock time; a same-day range shows both", async () => {
     const client = await seedClient();
-    await ensureTaskFamily(client);
-    const status = client
-      .listPropertySchemas()
-      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus)!;
-    const pendingId = status.options!.find((option) => option.label === "Pending")!.id;
-    const doneId = status.options!.find((option) => option.label === "Done")!.id;
     const today = todayIsoLocal();
+    const schemaId = await dateSchemaOf(client);
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+    await client.setClassProperty(gatheringClass, schemaId, {});
 
-    const makeTask = async (name: string, iso: string, statusId: string) => {
-      const id = await client.createObject({
-        isEmbedded: false,
-        name,
-        classIds: [SYSTEM_CLASS_UUIDS.task],
-      });
-      await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.taskScheduled, { iso });
-      await client.setProperty(id, SYSTEM_PROPERTY_UUIDS.taskStatus, statusId, 0);
-      return id;
-    };
-    await makeTask("Task today", today, pendingId);
-    await makeTask("Task overdue", addDaysIso(today, -3), pendingId);
-    await makeTask("Task done", today, doneId);
-
-    renderCalendar(client);
-    const section = await screen.findByRole("region", { name: "Tasks" });
-    await waitFor(() => {
-      expect(within(section).getByText("2 open")).toBeDefined();
-    });
-    expect(within(section).getByText("Overdue")).toBeDefined();
-    // Plain editable outline rows (owner 2026-10-23): the title rides the
-    // BlockRow machinery, no checkbox or status chrome.
-    const titles = () => rowTitles(section);
-    await waitFor(() => {
-      expect(titles()).toContain("Task overdue");
-      expect(titles()).toContain("Task today");
-    });
-    expect(titles()).not.toContain("Task done");
-  });
-
-  it("creates the daily note in place via the empty-state button", async () => {
-    const client = await seedClient();
-    const { container } = renderCalendar(client);
-    const today = todayIsoLocal();
-
-    const section = screen.getByRole("region", { name: "Daily note" });
-    const create = within(section).getByRole("button", { name: "Daily Note" });
-    fireEvent.click(create);
-
-    const dayId = `00000000-0000-0000-00dd-${today.replace(/-/g, "")}0000`;
-    await waitFor(() => expect(client.getNodeRaw(dayId)).not.toBeUndefined());
-    // The embed replaces the empty state once the chain exists.
-    await waitFor(() => {
-      expect(within(screen.getByRole("region", { name: "Daily note" })).queryByRole("button", { name: "Daily Note" })).toBeNull();
-    });
-    void container;
-  });
-
-  it("lists objects created on the selected day, newest first, excluding the date chain", async () => {
-    const client = await seedClient();
-    // Ensure the chain exists (created-at writes) — its nodes must NOT list.
-    const today = todayIsoLocal();
     await client.ensureDateChain(today);
-    await client.createObject({ isEmbedded: false, name: "Fresh object" });
-
-    renderCalendar(client);
-    const section = await screen.findByRole("region", { name: "Created" });
-    await waitFor(() => {
-      expect(rowTitles(section)).toContain("Fresh object");
+    const timed = await client.createObject({
+      isEmbedded: false,
+      name: "Timed sync",
+      classIds: [gatheringClass],
     });
-    expect(within(section).queryByText(today.replace(/-/g, ""))).toBeNull();
+    await client.setProperty(timed, schemaId, { nodeId: dayNodeOf(today), time: "09:15" }, 0);
+    const ranged = await client.createObject({
+      isEmbedded: false,
+      name: "Workshop",
+      classIds: [gatheringClass],
+    });
+    await client.setProperty(
+      ranged,
+      schemaId,
+      {
+        start: { nodeId: dayNodeOf(today), time: "14:30" },
+        end: { nodeId: dayNodeOf(today), time: "16:00" },
+      },
+      0,
+    );
+
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    render(<CalendarView client={client} onOpenPage={vi.fn()} />);
+    const grid = await screen.findByLabelText("Calendar month view");
+    await waitFor(() => {
+      expect(grid.textContent).toContain("09:15 Timed sync");
+      expect(grid.textContent).toContain("14:30–16:00 Workshop");
+    });
+  });
+
+  it("a multi-day range value blocks every covered day (the canonical span register)", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    const plusOne = addDaysIso(today, 1);
+    const plusTwo = addDaysIso(today, 2);
+    const schemaId = await dateSchemaOf(client);
+    const gatheringClass = await client.createClass("gathering");
+    await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
+    await client.setClassProperty(gatheringClass, schemaId, {});
+
+    await client.ensureDateChain(today);
+    await client.ensureDateChain(plusTwo);
+    const id = await client.createObject({
+      isEmbedded: false,
+      name: "Offsite",
+      classIds: [gatheringClass],
+    });
+    await client.setProperty(
+      id,
+      schemaId,
+      { start: { nodeId: dayNodeOf(today) }, end: { nodeId: dayNodeOf(plusTwo) } },
+      0,
+    );
+
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
+    const grid = await screen.findByLabelText("Calendar month view");
+    await waitFor(() => {
+      // The start day blocks from its real backlink; the middle and end
+      // days block from the client-side span expansion.
+      expect(
+        dayCell(container, String(new Date().getDate())).querySelector(".cal-block"),
+      ).not.toBeNull();
+      expect(grid.textContent).toContain("Offsite");
+    });
+    expect(
+      (container.querySelector(`[data-day="${plusOne}"]`) as HTMLElement).querySelector(
+        ".cal-block",
+      ),
+    ).not.toBeNull();
+    expect(
+      (container.querySelector(`[data-day="${plusTwo}"]`) as HTMLElement).querySelector(
+        ".cal-block",
+      ),
+    ).not.toBeNull();
   });
 
   it("month-grid day pick updates the selected day", async () => {
@@ -321,19 +481,6 @@ describe("CalendarView", () => {
       expect(marker()).toBeNull();
       expect(screen.getByText(targetIso)).toBeDefined();
     });
-  });
-
-  it("the created filter shows the EmptyState copy on an empty day", async () => {
-    const client = await seedClient(new MemoryRelay());
-    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
-    const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
-    // The view's own task-family authoring creates nodes *today*, so pick an
-    // uncreated day of the visible month (the grid's day number selects it).
-    const otherDay = new Date().getDate() === 20 ? "21" : "20";
-    fireEvent.click(dayCell(container, otherDay));
-    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
-    fireEvent.click(await screen.findByRole("tab", { name: "Created" }));
-    expect(await screen.findByText("There's nothing here (yet).")).toBeDefined();
   });
 
   it("lands on the month grid (grid-first) and renders event blocks colored by effective color", async () => {
@@ -366,8 +513,8 @@ describe("CalendarView", () => {
     })();
     expect(block.textContent).toContain("Launch party");
     expect(block.style.background).toContain("rgb(255, 0, 0)");
-    // The day view is not rendered in the month zoom.
-    expect(screen.queryByRole("region", { name: "Daily note" })).toBeNull();
+    // The agenda is not rendered in the month zoom.
+    expect(screen.queryByLabelText("Day agenda")).toBeNull();
     // The ladder is present with Month pressed.
     expect(
       screen.getByRole("radio", { name: "Month" }),
@@ -516,10 +663,7 @@ describe("CalendarView", () => {
     window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
     render(<CalendarView client={client} onOpenPage={vi.fn()} />);
     const grid = await screen.findByLabelText("Calendar month view");
-    const block = await (async () => {
-      await waitFor(() => expect(grid.querySelector(".cal-block")).not.toBeNull());
-      return grid.querySelector(".cal-block") as HTMLElement;
-    })();
+    await waitFor(() => expect(grid.querySelector(".cal-block")).not.toBeNull());
 
     const target = grid.querySelector(`[data-day="${tomorrow}"]`) as HTMLElement;
     fireEvent.drop(target, {
@@ -551,10 +695,7 @@ describe("CalendarView", () => {
     window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
     render(<CalendarView client={client} onOpenPage={vi.fn()} />);
     const grid = await screen.findByLabelText("Calendar month view");
-    const block = await (async () => {
-      await waitFor(() => expect(grid.querySelector(".cal-block")).not.toBeNull());
-      return grid.querySelector(".cal-block") as HTMLElement;
-    })();
+    await waitFor(() => expect(grid.querySelector(".cal-block")).not.toBeNull());
 
     const target = grid.querySelector(`[data-day="${tomorrow}"]`) as HTMLElement;
     fireEvent.drop(target, {
@@ -576,27 +717,6 @@ describe("CalendarView", () => {
         .getEffectiveProperties(gathering)
         .find((prop) => prop.schema?.type === "datetime");
       expect(row?.metadata).toMatchObject({ repeat: "weekly", exdates: [today] });
-    });
-  });
-
-  it("filter tabs switch the rendered sections", async () => {
-    const client = await seedClient();
-    renderCalendar(client);
-    expect(await screen.findByRole("region", { name: "Daily note" })).toBeDefined();
-
-    fireEvent.click(screen.getByRole("tab", { name: "Created" }));
-    const created = await screen.findByRole("region", { name: "Created" });
-    await waitFor(() => {
-      expect(screen.queryByRole("region", { name: "Daily note" })).toBeNull();
-    });
-    // The seed-authored task class node was created today, so it lists here.
-    await waitFor(() => {
-      expect(rowTitles(created)).toContain("task");
-    });
-
-    fireEvent.click(screen.getByRole("tab", { name: "All" }));
-    await waitFor(() => {
-      expect(screen.getByRole("region", { name: "Daily note" })).toBeDefined();
     });
   });
 });

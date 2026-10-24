@@ -1,7 +1,7 @@
 /**
  * DayPageSections — the day-page aggregations: a day page renders
  * (below its own content, ahead of the generic system sections) its tasks
- * (open, scheduled on or before the day — the Calendar day view's exact
+ * (open, scheduled on or before the day — the calendar surfaces' exact
  * partition, done-toggle included), its dated references (the day node's
  * materialized backlink set minus date-chain sources and tasks), and
  * everything created that day (the createdAt range query).

@@ -35,7 +35,7 @@ Documentation for people — using the app, and developing or operating it. One 
 
 **Time & tasks**
 
-- **[Calendar and day pages](features/calendar.md)** — the day view, day pages, recurrence, quick capture.
+- **[Calendar and day pages](features/calendar.md)** — the grid calendar and day agenda, day pages, recurrence, quick capture.
 - **[Tasks](features/tasks.md)** — the Tasks hub's buckets and the checkbox semantics.
 
 **Output**

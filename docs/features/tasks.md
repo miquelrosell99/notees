@@ -10,7 +10,7 @@ The hub's table/cards collection follows the shared collection rulings ([views.m
 
 ## The checkbox semantics
 
-The checkbox closes a task (and reopens it) everywhere it renders — the Tasks hub, the day view, the calendar's Tasks section: one write, one meaning. Off the day context (the Tasks hub), the checkbox means **the whole task**. On a day context, for a repeating task, completing one occurrence completes only that day: the toggle records the date in the value's metadata (`completedOccurrences`), the occurrence renders struck-through on its day while every other occurrence stays open, and reopening removes just that date — the full ruling is [calendar.md](calendar.md)'s.
+The checkbox closes a task (and reopens it) everywhere it renders — the Tasks hub, the day page's Tasks section: one write, one meaning. Off the day context (the Tasks hub), the checkbox means **the whole task**. On a day context, for a repeating task, completing one occurrence completes only that day: the toggle records the date in the value's metadata (`completedOccurrences`), the occurrence renders struck-through on its day while every other occurrence stays open, and reopening removes just that date — the full ruling is [calendar.md](calendar.md)'s.
 
 A task appears on a day when its **Scheduled** property points at that day; Done and Cancelled tasks never list ([calendar.md](calendar.md)).
 

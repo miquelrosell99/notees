@@ -9,6 +9,76 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): the calendar reads times + ranges; blocks and the day agenda
+  wear the clock prefix; the Day zoom becomes the day agenda; a cell
+  dblclick creates an event (owner rulings 2026-10-24).** (1) The read
+  model: `scheduledIsoOf` resolves RANGE values (the start slot's day, the
+  end's when the start side is open — strict day precision as before), with
+  new slot helpers (`slotTimeOf`, `timeOfValue`, `timePrefixOfValue`,
+  `rangeEndIsoOf`); `spannedRowsOf` expands canonical range values across
+  their covered days (the `metadata.endDate` drag-create register still
+  reads — those spans live in workspaces; the range shape is canonical
+  going forward); `eventRowsForDays` sorts TIMED events first by start
+  time ("HH:MM" lexicographic = chronological), untimed alphabetically, and
+  each row carries its clock time. (2) The grid blocks and the new day
+  agenda prefix the label with the driving value's time (`14:30 Title`;
+  `14:30–16:00 Title` for a same-day timed range). (3) The Day zoom
+  re-scopes from the old day-view body (the filter Tabs, the daily-note
+  embed, the Tasks/Dated/Created sections, the create-with-template flow —
+  all dead with it) to the Google day-cards register: the selected day's
+  events as one full-width column of large colored cards (`DayAgenda`), an
+  honest "No events this day." empty line; the day PAGE keeps the
+  aggregations (DayPageSections), the Tasks hub keeps the buckets. (4)
+  Dblclick a grid cell's empty area (Week/Month, or a day in Year — never
+  on blocks/day numbers, never mid drag-create) opens the new
+  `EventCreateModal`: Name, Start day (prefilled), optional Start/End
+  times and End day, fail-loud inline HH:MM/inverted-range validation; the
+  create lands an `event`-classed named node with the unified date union on
+  the system event class's first datetime binding (point / timed point /
+  cross-day range / same-day timed range — the drag-create register) and
+  opens it.
+  - **Verification**: web typecheck green; the calendar-family suites
+    rewritten to the new register (the agenda specs, the dblclick +
+    modal specs incl. point-vs-range writes, the timed-block/range-span
+    grid specs, the picker-level template specs, the recurrence specs
+    moved to the agenda/month grid and the day page's Tasks section) —
+    11 files / 122 tests green, full web suite below.
+## 2026-10-24
+
+- **feat(web): ONE top bar per surface — the day page's stacked second bar
+  merges into the nodeview bar; the DayStepper injects through
+  `topBarActionsExtra` (owner ruling 2026-10-24, the chrome ruling: every
+  surface gets exactly ONE top bar and that bar is the SurfaceTopBar).** The
+  day page was the violation: AppBody's `.day-page-surface` wrapper pinned its
+  own `SurfaceTopBar` (the calendar-today icon + the DayStepper) ABOVE the
+  NodeView, whose panelled chrome renders the nodeview top bar (the
+  context-panel toggle, the classes pills, the blocks view switcher, the
+  properties toggle, the "…" node menu) underneath — two stacked bars. Now
+  the wrapper carries no chrome: the stepper is INJECTED into NodeView's own
+  bar through the new optional `topBarActionsExtra` seam (AppBody → NodeView
+  → PageView → NodeTopbar, first in the bar's actions cluster; the compact
+  sections layout rides it in the corner cluster beside the switcher), and
+  the wrapper stays only for the full-bleed flex fill. NodeView's chrome row
+  needed no conversion — `NodeTopbar` already composes the fleet
+  `SurfaceTopBar` (owner 2026-10-23) — and the hub audit verified every hub
+  on the register: Journal, Calendar, Tasks/Pages/Classes/Inbox/
+  Whiteboards/Assets (CollectionHub), Trash, Archived, Shares, Search, and
+  Queries all compose `SurfaceTopBar`; Settings rides a nav rail (no chrome
+  row); the graph surface is canvas-only by design. Embedded (journal feed,
+  calendar embed) and hover-preview PageViews still grow no bar — the
+  `cornerMenu && !preview` gate suppresses the injection with the rest of the
+  chrome row. All aria-labels unchanged (Previous day / Next day / Jump to
+  today / Blocks view / Node actions).
+  - **Verification**: new `day-page-topbar.test.tsx` spec (4 specs: one bar
+    with the stepper + switcher + menu sharing it, no injection → no
+    stepper, the compact corner rides it, embedded/preview grow nothing)
+    plus the chrome-adjacent suites (focus-mode, context-column, embeds,
+    app-smoke, deck-view, view-modes, whiteboard-canvas, css-token-drift)
+    all green; zero typecheck errors in this slice's files. Docs:
+    `docs/features/calendar.md`'s stepper sentence follows the move.
+
+## 2026-10-24
+
 - **feat(web): the day stepper moves to the day page's SURFACE top bar —
   and the calendar's zoom ladder switches to the SelectionButton register
   (owner pass 2026-10-24, the vocabulary: the APP top bar is the global

@@ -1,13 +1,12 @@
 /**
  * Recurrence web tests (compute-on-read engine):
- * the day view lists virtual occurrences (one row per series, never phantom
- * rows; the sections render through the shared outline collections since
- * 2026-10-23 — row texts via the BlockRow machinery, no repeats marker), a
- * repeating task schedules on occurrence days without ever going overdue,
- * the month grid dots every occurrence day, the property-panel picker
- * writes the `repeat` metadata (and a date re-pick preserves it; the
- * quick-create bar's repeat stamping retired the same day), non-recurring
- * events stay plain, and a corrupt rule fails loud in the read scan.
+ * the day agenda lists virtual occurrences (one card per series, never
+ * phantom rows), a repeating task schedules on occurrence days without ever
+ * going overdue (asserted through the day page's Tasks section), the month
+ * grid blocks every occurrence day, the property-panel picker
+ * writes the `repeat` metadata (and a date re-pick preserves it;
+ * non-recurring events stay plain, and a corrupt rule fails loud in the
+ * read scan.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -20,6 +19,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/features/calendar/CalendarView.js";
+import { PageView } from "../src/ui/PageView.js";
 import { PropertiesSection } from "../src/features/metadata/index.js";
 import { addDaysIso, todayIsoLocal } from "../src/features/calendar/calendarViewUtils.js";
 import { recurringRowsOf } from "../src/features/calendar/calendarRows.js";
@@ -133,17 +133,6 @@ function dayCell(container: HTMLElement, dayNumber: string): HTMLElement {
   return cell as HTMLElement;
 }
 
-/** The section element carrying an aria-label. */
-function labeledSection(label: string): HTMLElement {
-  const el = screen.queryByLabelText(label);
-  expect(el, `section ${label}`).not.toBeNull();
-  return el as HTMLElement;
-}
-
-/** The outline-collection row texts under a root (BlockRow machinery). */
-function rowTexts(root: HTMLElement): string[] {
-  return [...root.querySelectorAll(".nt-block-content")].map((el) => el.textContent ?? "");
-}
 
 const repeatPickerOption = async (label: string) => {
   const option = await screen.findByText(label);
@@ -151,7 +140,7 @@ const repeatPickerOption = async (label: string) => {
 };
 
 describe("CalendarView recurrence", () => {
-  it("lists a weekly event on virtual occurrence days — one row, no phantoms", async () => {
+  it("lists a weekly event on virtual occurrence days in the day agenda — one card, no phantoms", async () => {
     const client = await seedClient();
     const { classId, schemaId } = await eventFamily(client);
     // Anchor on the 3rd: the 3rd/10th/13th navigation below stays
@@ -168,37 +157,36 @@ describe("CalendarView recurrence", () => {
       fireEvent.click(screen.getByRole("radio", { name: "Day" }));
     };
 
-    // The anchor day lists the series.
+    // The anchor day lists the series as an agenda card.
     selectAndOpenDay("3");
-    const anchorSection = await screen.findByLabelText("Dated");
+    const anchorAgenda = await screen.findByLabelText("Day agenda");
     await waitFor(() => {
-      expect(rowTexts(anchorSection)).toContain("Standup");
+      expect(anchorAgenda.textContent).toContain("Standup");
     });
 
     // +7 (the 10th) is a pure virtual occurrence: no backlink exists on
-    // that day, the expansion puts it there — one row, no phantoms.
+    // that day, the expansion puts it there — one card, no phantoms.
     fireEvent.click(screen.getByRole("radio", { name: "Month" }));
     await screen.findByLabelText("Calendar month view");
     selectAndOpenDay("10");
-    const occurrenceSection = await screen.findByLabelText("Dated");
+    const occurrenceAgenda = await screen.findByLabelText("Day agenda");
     await waitFor(() => {
-      expect(rowTexts(occurrenceSection)).toContain("Standup");
+      expect(occurrenceAgenda.textContent).toContain("Standup");
     });
-    expect(rowTexts(occurrenceSection).filter((t) => t === "Standup")).toHaveLength(1);
+    expect(
+      occurrenceAgenda.querySelectorAll(".cal-agenda__card"),
+    ).toHaveLength(1);
 
-    // The 13th is NOT an occurrence: the series does not list.
+    // The 13th is NOT an occurrence: the agenda shows the honest empty line.
     fireEvent.click(screen.getByRole("radio", { name: "Month" }));
     await screen.findByLabelText("Calendar month view");
     selectAndOpenDay("13");
-    await waitFor(() => {
-      expect(screen.queryByLabelText("Dated")).toBeNull();
-    });
+    expect(await screen.findByText("No events this day.")).toBeDefined();
   });
 
-  it("a repeating task schedules on occurrence days and never goes overdue", async () => {
+  it("a repeating task schedules on occurrence days and never goes overdue (the day page's Tasks section)", async () => {
     const client = await seedClient();
     await ensureTaskFamily(client);
-    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
     const status = client
       .listPropertySchemas()
       .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus)!;
@@ -226,25 +214,27 @@ describe("CalendarView recurrence", () => {
     await makeTask("Water plants", addDaysIso(today, -14), "weekly");
     await makeTask("Plain overdue", addDaysIso(today, -2));
 
-    renderCalendar(client);
-    const section = await screen.findByRole("region", { name: "Tasks" });
-    await waitFor(() => {
-      expect(within(section).getByText("2 open")).toBeDefined();
-    });
+    // The surviving task-on-a-day surface is the day PAGE (the calendar's
+    // day zoom is the agenda now): its Tasks section carries the partition.
+    const { day } = await client.ensureDateChain(today);
+    render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} />);
+    const toggle = await screen.findByRole("button", { name: /^tasks( \d+)?$/i });
+    fireEvent.click(toggle);
+    const section = toggle.closest("section") as HTMLElement;
     // The repeating task is Scheduled (not Overdue) on its occurrence day…
-    expect(within(section).getByText("Scheduled")).toBeDefined();
     await waitFor(() => {
-      expect(rowTexts(section)).toContain("Water plants");
+      expect(within(section).getByText("Water plants")).toBeDefined();
     });
+    expect(within(section).getByText("Scheduled")).toBeDefined();
     // …while the plain task two days past is honestly overdue, and the
     // repeating task never appears in that group.
     const overdueGroup = within(section)
       .getByText("Overdue")
       .closest("div") as HTMLElement;
     await waitFor(() => {
-      expect(rowTexts(overdueGroup)).toContain("Plain overdue");
+      expect(within(overdueGroup).getByText("Plain overdue")).toBeDefined();
     });
-    expect(rowTexts(overdueGroup)).not.toContain("Water plants");
+    expect(within(overdueGroup).queryByText("Water plants")).toBeNull();
   });
 
   it("dots every occurrence day on the month grid, even without a backlink", async () => {

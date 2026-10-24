@@ -298,7 +298,8 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     const client = await seedClient();
     await ensureMeetingFamily(client);
 
-    // CalendarView.createClassed: create classed → set the driving date.
+    // A classed create → the driving date write (the calendar's create
+    // registers — drag-create and the dblclick modal — share this shape).
     const id = await client.createObject({ isEmbedded: false, classIds: [MEETING_CLASS_ID] });
     await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.meetingDate, { iso: "2026-10-06" });
 
