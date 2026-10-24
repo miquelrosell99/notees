@@ -263,9 +263,12 @@ export function TimeGrid({
       aria-label={`Calendar ${zoom} view`}
     >
       {/* The header: weekday abbreviations + the big day numbers; today
-          wears the highlighted ring. The register (owner 2026-10-24): the
-          day NUMBER opens the day page; the header cell's empty space
-          (around the number) selects the day. */}
+          wears the highlighted ring. The register (owner 2026-10-24 pass 2,
+          the selection post-mortem): the day NUMBER opens the day page and
+          the header is NOT a selection target — day selection was heritage
+          from the mini-month era with no user-facing question to answer
+          (Google's week view selects nothing); the anchor day survives
+          internally for the navigator + URL. */}
       <div className="cal-timegrid__header">
         <div className="cal-timegrid__corner" aria-hidden="true" />
         {days.map((iso) => {
@@ -275,24 +278,7 @@ export function TimeGrid({
               key={iso}
               className={`cal-timegrid__head${
                 iso === todayIso ? " cal-timegrid__head--today" : ""
-              }${iso === selectedIso ? " cal-timegrid__head--selected" : ""}`}
-              role="button"
-              tabIndex={0}
-              aria-label={`Select day ${iso}`}
-              aria-pressed={iso === selectedIso}
-              onClick={(event) => {
-                // The number button owns the open; the surrounding header
-                // space owns selection.
-                if ((event.target as HTMLElement).closest(".cal-timegrid__daynum")) return;
-                onSelectDay(iso);
-              }}
-              onKeyDown={(event) => {
-                if ((event.target as HTMLElement).closest(".cal-timegrid__daynum")) return;
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onSelectDay(iso);
-                }
-              }}
+              }`}
             >
               <span className="cal-timegrid__weekday">{weekday}</span>
               <button

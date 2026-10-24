@@ -128,3 +128,38 @@
   font: var(--font-body-medium);
   color: var(--md-sys-color-on-surface-variant);
 }
+
+/* The day header's open-page arrow: the journal-feed hover-reveal register
+   (owner 2026-10-22) — hidden at rest on fine pointers, revealed on header
+   hover/focus-within (opacity keeps it in the tab order); always visible on
+   touch. */
+.cal-agenda__open {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--shape-full);
+  background: none;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  min-width: var(--tap-target, 24px);
+  min-height: var(--tap-target, 24px);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cal-agenda__open {
+    opacity: 0;
+    transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  }
+
+  .cal-agenda__day-header:hover .cal-agenda__open,
+  .cal-agenda__day-header:focus-within .cal-agenda__open {
+    opacity: 1;
+  }
+}
+
+.cal-agenda__open:hover {
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+}

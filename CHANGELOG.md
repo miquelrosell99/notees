@@ -9,6 +9,37 @@ predating this file.
 
 ## 2026-10-24
 
+- **refactor(web): day selection retires from the time grid (the owner's
+  post-mortem); agenda day headers gain the hover open-page arrow (owner
+  2026-10-24).** (1) "Why would we want full day column selection?" —
+  honest answer: inertia from the mini-month era, when selection WAS the
+  navigation; in the grid register it answers a question nobody asks
+  (Google's week view selects nothing). The time-grid header is no longer
+  a selection target (the number just opens the day page); the anchor day
+  survives INTERNALLY — the period navigator, Jump-to-today, and the
+  /calendar/<zoom>/<iso> URL keep feeding it. (2) The agenda's day group
+  headers wear the journal-feed hover-reveal register: an open-page arrow
+  (visible on hover/focus on fine pointers, always on touch) opens that
+  day's page, chain ensured.
+  - **Verification**: web suite green (the header spec flips to the
+    no-selection register; a new agenda-arrow spec pins the open).
+    Deployed: verify-min VERIFY-PASS + the panel probe green.
+## 2026-10-24
+
+- **fix(web): collection groupBy headers flatten markdown link spans in page
+  titles (owner 2026-10-24).** A group header (the `groupByContainingPage`
+  seam — collection outline, system sections, the calendar events panel) is
+  flattened chrome, but it read `displayNameFromClient` (the raw
+  title-is-content excerpt), so a page titled with a markdown link span
+  (`[Implaline - iRES Group](https://…)`, the imported/pasted-content shape)
+  rendered the raw `[label](href)` source in the header. The header now reads
+  `plainTitleOf` — the existing breadcrumb/sidebar derivation that reduces
+  link spans to their label text (per text token, before the 80-char cap) and
+  resolves inline class chips — with the raw-read fallback unchanged.
+  - **Verification**: new regression pin in `apps/web/test/view-modes.test.tsx`
+    (a containing page whose title IS a link span renders the group name as
+    the bare label, never the URL); the full gate green.
+
 - **fix(domain,store,server,web): source binds only the shared base — each
   subclass carries its Zotero field set (owner 2026-10-24).** The
   source-library slice seeded ALL ~85 bibliographic pool properties with a

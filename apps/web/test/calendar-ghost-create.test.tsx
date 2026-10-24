@@ -334,7 +334,7 @@ describe("TimeGrid click-to-create ghost (owner 2026-10-24)", () => {
     expect(ghost.getAttribute("data-end")).toBe("600");
   });
 
-  it("the day number opens the day page; the header's empty space selects (owner register)", async () => {
+  it("the day number opens the day page; the header is not a selection target (the selection post-mortem)", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const { onSelectDay, onOpenDayPage } = renderTimeGrid(client, today);
@@ -345,9 +345,9 @@ describe("TimeGrid click-to-create ghost (owner 2026-10-24)", () => {
     expect(onOpenDayPage).toHaveBeenCalledWith(today);
     expect(onSelectDay).not.toHaveBeenCalled();
 
-    // The header cell around the number: selects, does NOT open.
+    // The header cell around the number: neither selects nor opens.
     fireEvent.click(grid.querySelector(".cal-timegrid__head") as HTMLElement);
-    expect(onSelectDay).toHaveBeenCalledWith(today);
+    expect(onSelectDay).not.toHaveBeenCalled();
     expect(onOpenDayPage).toHaveBeenCalledTimes(1);
   });
 });

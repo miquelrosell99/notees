@@ -25,6 +25,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { deriveDisplayName } from "@notees/domain";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
 import { parentlessBlockResolverOf, untitledLabelOf } from "../../ui/renderStateLabel.js";
 import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
@@ -55,6 +56,8 @@ export interface AgendaViewProps {
   spannedRows: readonly SpannedRow[];
   /** Row click: open the event node. */
   onOpenEvent: (nodeId: string) => void;
+  /** The day header's hover arrow: open that day's page (chain ensured). */
+  onOpenDayPage: (iso: string) => void;
 }
 
 export function AgendaView({
@@ -63,6 +66,7 @@ export function AgendaView({
   recurringRows,
   spannedRows,
   onOpenEvent,
+  onOpenDayPage,
 }: AgendaViewProps) {
   const todayIso = todayIsoLocal();
   const listRef = useRef<HTMLDivElement>(null);
@@ -209,6 +213,18 @@ export function AgendaView({
                   {Number(iso.slice(8))}
                 </span>
                 <span className="cal-agenda__day-meta">{meta}</span>
+                {/* The journal-feed register (owner 2026-10-22): the open
+                    arrow reveals on header hover/focus; on touch (no hover)
+                    it stays visible. */}
+                <button
+                  type="button"
+                  className="cal-agenda__open"
+                  aria-label={`Open day page ${iso}`}
+                  title="Open day page"
+                  onClick={() => onOpenDayPage(iso)}
+                >
+                  <Icon path="mdi-arrow-right" size={0.9} />
+                </button>
               </div>
               {isToday && (
                 <div className="cal-agenda__now" data-minutes={nowMinutes} />
