@@ -358,7 +358,7 @@ describe("openTodayKeyHandler (Ctrl/Cmd+Shift+T)", () => {
 // --- #4/#7/#15 the day-page branch ------------------------------------------------
 
 describe("PageView day branch", () => {
-  it("renders the DayPageHeader: weekday flag above the date title, the Week flag after it, no ±1-day bar", async () => {
+  it("renders the DayPageHeader: weekday flag above the date title, the Week flag after it, the ±1-day bar back (owner 2026-10-24)", async () => {
     const client = await seedClient();
     const iso = "2026-06-15";
     const { day } = await client.ensureDateChain(iso);
@@ -366,9 +366,11 @@ describe("PageView day branch", () => {
 
     const { container } = render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} />);
 
-    // The old ‹ / Today / › date bar is gone — no day stepping on the page.
-    expect(screen.queryByRole("button", { name: "Previous day" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Next day" })).toBeNull();
+    // The ‹ / › stepping bar is BACK on the day page (owner 2026-10-24);
+    // on a past day the Today jump rides it too.
+    expect(screen.getByRole("button", { name: "Previous day" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Next day" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Jump to today" })).not.toBeNull();
 
     // The header IS the date header: the weekday flag rides a small line
     // above the title; the title is the user's dateFormat-formatted date
@@ -379,8 +381,9 @@ describe("PageView day branch", () => {
     const heading = within(header).getByRole("heading", { level: 1 });
     expect(heading.textContent).toContain("2026-06-15"); // default YYYY-MM-DD
     expect(within(heading).getByText("Week 25")).not.toBeNull();
-    // The "Today" pill rides the flags line only when the day IS today.
-    expect(within(header).queryByText("Today")).toBeNull();
+    // The "Today" PILL rides the flags line only when the day IS today
+    // (the stepping bar's Today BUTTON is separate chrome).
+    expect(header.querySelector(".day-page-header__today")).toBeNull();
   });
 
   it("renders the Today pill on today's day page", async () => {
@@ -391,7 +394,28 @@ describe("PageView day branch", () => {
     const { container } = render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} />);
     const header = container.querySelector(".day-page-header") as HTMLElement;
     expect(header).not.toBeNull();
+    // The Today PILL rides the flags; the Today BUTTON hides on today itself.
     expect(within(header).getByText("Today")).not.toBeNull();
+    expect(within(header).queryByRole("button", { name: "Jump to today" })).toBeNull();
+  });
+
+  it("the day-page stepping bar materializes and opens the target day", async () => {
+    const client = await seedClient();
+    const iso = "2026-06-15";
+    const nextIso = "2026-06-16";
+    const { day } = await client.ensureDateChain(iso);
+    const nextId = `00000000-0000-0000-00dd-${nextIso.replace(/-/g, "")}0000`;
+    expect(client.getNodeRaw(nextId)).toBeUndefined();
+    await flushWrites();
+
+    const onOpenPage = vi.fn();
+    render(<PageView client={client} pageId={day} onOpenPage={onOpenPage} />);
+    fireEvent.click(screen.getByRole("button", { name: "Next day" }));
+
+    await waitFor(() => {
+      expect(client.getNodeRaw(nextId)).toBeDefined();
+      expect(onOpenPage).toHaveBeenCalledWith(nextId);
+    });
   });
 
   it("hides all three sections on an empty day page", async () => {
@@ -408,7 +432,8 @@ describe("PageView day branch", () => {
     // The day header still renders (it is chrome, not an aggregation)…
     expect(screen.getByText(weekdayLabel("2026-06-15"))).toBeDefined();
     // …and the deleted date bar's stepping buttons stay gone.
-    expect(screen.queryByRole("button", { name: "Previous day" })).toBeNull();
+    // The ±1-day bar is back on the day page (owner 2026-10-24).
+    expect(screen.getByRole("button", { name: "Previous day" })).not.toBeNull();
   });
 
   it("shows the Tasks section lazily and the done-toggle writes the status", async () => {

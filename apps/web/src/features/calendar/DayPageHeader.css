@@ -45,3 +45,12 @@
   color: var(--md-sys-color-on-surface-variant);
   flex-shrink: 0;
 }
+
+/* The stepping bar (owner 2026-10-24): rides the flags row, right-pinned —
+   the flags name the day on the left, the navigation sits on the right. */
+.day-page-header__nav {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}

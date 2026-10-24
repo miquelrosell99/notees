@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-24
 
+- **feat(web): day stepping returns on the day page's header; the journal's
+  navigator panel gains the collapse toggle (owner 2026-10-24).** (1) The
+  day page wears the Logseq/Capacities register again: a ‹ / Today / ›
+  stepping bar rides the header's flags row (right-pinned; ghost chevrons,
+  the outline-variant Today hidden on today itself) — stepping
+  materializes the target day page through the ensureDateChain pattern and
+  opens it via the page chrome's onOpenPage seam (preview surfaces pass no
+  seam and get no bar). The 2026-10-06 retirement of this bar reverses —
+  the docs flip with it. (2) The journal's side panel collapses from the
+  top bar (the calendar view's old toggle register: the agenda-outline
+  icon, aria-pressed, device-local `journalPanelCollapsed`), Today and the
+  toggle sharing the actions cluster.
+  - **Verification**: day-features specs (the bar renders, Today hides on
+    today, stepping materializes + opens the target) + the journal
+    collapse round-trip — full gate below.
+## 2026-10-24
+
 - **feat(web): the calendar view goes full-width — the side panel, the
   day-stepping arrows retire; the period navigator lifts into the top bar,
   centered, with the panel/popup title-button UI (owner 2026-10-24 pass
