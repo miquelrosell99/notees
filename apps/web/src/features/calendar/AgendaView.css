@@ -132,18 +132,11 @@
  — hidden at rest on fine pointers, revealed on header
    hover/focus-within (opacity keeps it in the tab order); always visible on
    touch. */
+/* The reveal wrapper only — the SHAPE is the fleet ghost Button's own
+   (the rounded-square register, same as the journal's open button). The
+   arrow sits next to the header text (no auto margin). */
 .cal-agenda__open {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: var(--shape-full);
-  background: none;
-  color: var(--md-sys-color-on-surface-variant);
-  cursor: pointer;
-  min-width: var(--spacing-7);
-  min-height: var(--spacing-7);
+  margin-left: 0;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -156,9 +149,4 @@
   .cal-agenda__day-header:focus-within .cal-agenda__open {
     opacity: 1;
   }
-}
-
-.cal-agenda__open:hover {
-  background: var(--md-sys-color-surface-container-highest);
-  color: var(--md-sys-color-on-surface);
 }
