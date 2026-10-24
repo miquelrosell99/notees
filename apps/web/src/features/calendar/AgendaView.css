@@ -143,8 +143,8 @@
   background: none;
   color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
-  min-width: var(--tap-target, 24px);
-  min-height: var(--tap-target, 24px);
+  min-width: var(--spacing-7);
+  min-height: var(--spacing-7);
 }
 
 @media (hover: hover) and (pointer: fine) {
