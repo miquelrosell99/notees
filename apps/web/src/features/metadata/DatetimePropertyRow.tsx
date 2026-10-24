@@ -10,7 +10,7 @@ import {
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { labelFromClient, datetimeValueText } from "../../ui/dateDisplay.js";
+import { titleOf, datetimeValueText } from "../../ui/dateDisplay.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import {
   DatePickerPopup,
@@ -178,7 +178,7 @@ export function DatetimePropertyRow({
         single === undefined
           ? null
           : singleRef !== null && parseDateNodeId(singleRef) === null
-            ? (labelFromClient(client, singleRef) ?? "Untitled")
+            ? (titleOf(client, singleRef, { read: "fallback", empty: "untitled" }) ?? "Untitled")
             : pillText(single);
       if (text === null || text === "") {
         return (
@@ -264,7 +264,7 @@ export function DatetimePropertyRow({
           }
           navigateLabel={
             singleRef !== null
-              ? `Open ${labelFromClient(client, singleRef) ?? "Untitled"}`
+              ? `Open ${titleOf(client, singleRef, { read: "fallback", empty: "untitled" }) ?? "Untitled"}`
               : undefined
           }
           trailing={
@@ -281,7 +281,7 @@ export function DatetimePropertyRow({
           {singleRef !== null
             ? parseDateNodeId(singleRef) !== null
               ? pillText(single!)
-              : (labelFromClient(client, singleRef) ?? "Untitled")
+              : (titleOf(client, singleRef, { read: "fallback", empty: "untitled" }) ?? "Untitled")
             : null}
         </PropertySelectCell>
         {picker}

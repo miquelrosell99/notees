@@ -18,7 +18,7 @@ import { rendersWithDocumentChrome } from "@notees/domain";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { NodeResultItem } from "../pickers/NodeResultItem.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
@@ -50,7 +50,7 @@ function containingPageLabel(client: AnyClient, targetId: string): string | null
     guard += 1;
   }
   if (current === undefined || current.id === targetId) return null;
-  return displayNameFromClient(client, current.id) ?? null;
+  return titleOf(client, current.id) ?? null;
 }
 
 export function CondensedLinksPopup({

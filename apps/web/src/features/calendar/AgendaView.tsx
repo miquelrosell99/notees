@@ -22,10 +22,9 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { deriveDisplayName } from "@notees/domain";
-
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import { parentlessBlockResolverOf, untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { titleOf, titleOfNode } from "../../ui/dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
@@ -268,9 +267,11 @@ function AgendaRow({
   spannedRows: readonly SpannedRow[];
   onOpen: () => void;
 }) {
-  const label =
-    deriveDisplayName(row.node, (classId) => displayNameFromClient(client, classId)) ||
-    untitledLabelOf(row.node, parentlessBlockResolverOf(client));
+  const label = titleOfNode(row.node, {
+    resolveClassName: (classId) => titleOf(client, classId),
+    empty: "untitled",
+    isParentlessBlockClass: parentlessBlockResolverOf(client),
+  });
   const color = client.effectiveNodeColor(row.node);
   const timeLabel = agendaTimeLabelOf(client, row, iso, spannedRows);
   return (

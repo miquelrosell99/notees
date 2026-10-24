@@ -7,7 +7,7 @@
 
 import type { AnyClient } from "./types.js";
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
-import { datetimeValueText, labelFromClient } from "../../ui/dateDisplay.js";
+import { datetimeValueText, titleOf } from "../../ui/dateDisplay.js";
 
 export function isEmptyPropertyValue(value: unknown): boolean {
   if (value === undefined || value === null) return true;
@@ -47,7 +47,7 @@ function nodeRefText(client: AnyClient, value: unknown): string {
   // Never a bare UUID: archived/trashed targets keep
   // their name via the raw read; a permanently deleted target (no row at
   // all) reads empty like the unrecognized-shape case above.
-  return labelFromClient(client, nodeId) ?? "";
+  return titleOf(client, nodeId, { read: "fallback", empty: "untitled" }) ?? "";
 }
 
 /** datetime range display: `start → end`, either side open → `…`; refs resolve
@@ -66,7 +66,7 @@ function dateRangeText(client: AnyClient, value: unknown): string | null {
           : null;
     if (typeof ref !== "string") return "…";
     // Same never-a-bare-UUID contract as nodeRefText.
-    return labelFromClient(client, ref) ?? "";
+    return titleOf(client, ref, { read: "fallback", empty: "untitled" }) ?? "";
   };
   return `${side(range.start)} → ${side(range.end)}`;
 }

@@ -19,7 +19,9 @@
 
 import { useEffect, useState } from "react";
 
-import { deriveDisplayName, systemClassNameForId } from "@notees/domain";
+import { systemClassNameForId } from "@notees/domain";
+
+import { titleOfNode } from "../../ui/dateDisplay.js";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ArchivedEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
@@ -64,7 +66,7 @@ export function ArchivedHub({
           ) : (
             <ul className="nt-archived-hub__rows">
           {entries.map((entry: ArchivedEntry) => {
-            const name = deriveDisplayName(entry.node) || "Untitled";
+            const name = titleOfNode(entry.node) || "Untitled";
             // System classes have no trash interpretation — the delete
             // routing re-wires their delete to the toggle/archival arms,
             // which add no trash row (the row would sit in this hub

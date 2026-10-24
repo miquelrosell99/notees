@@ -56,7 +56,7 @@ import {
 import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 import { parseQueryAst, type QueryAst } from "@notees/query";
 
-import { displayNameFromClient } from "./dateDisplay.js";
+import { titleOf } from "./dateDisplay.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "./renderStateLabel.js";
 import { NodeCollection, ViewSwitcher } from "../features/collection/index.js";
 import type { NodeCollectionItem } from "../features/collection/index.js";
@@ -182,7 +182,7 @@ export function buildQueryExportMarkdown(client: QueryExportClient, ids: readonl
     .map((id) => toExportNode(client, id))
     .filter((node): node is ExportNode => node !== undefined);
   const exportCtx: ExportContext = {
-    nameOf: (id) => displayNameFromClient(client, id) ?? undefined,
+    nameOf: (id) => titleOf(client, id) ?? undefined,
     childrenOf: (id) =>
       client
         .getChildren(id)

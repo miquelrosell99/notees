@@ -49,7 +49,7 @@ import { withCandidateSpans } from "@/editor/capture.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameFromClient, labelFromClient } from "../dateDisplay.js";
+import { titleOf } from "../dateDisplay.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../renderStateLabel.js";
 import { NodeSelector } from "../../features/pickers/NodeSelector.js";
 import { requestPropertyCreate } from "../../features/metadata/PropertyCreateHost.js";
@@ -401,9 +401,9 @@ export function LinkEditModal({
                         }
                       >
                         {pickedNode !== null
-                          ? labelFromClient(client, pickedNode.id) ?? "Untitled"
+                          ? titleOf(client, pickedNode.id, { read: "fallback", empty: "untitled" }) ?? "Untitled"
                           : currentNodeId !== null && currentNodeId !== undefined
-                            ? (labelFromClient(client, currentNodeId) ?? "Untitled")
+                            ? (titleOf(client, currentNodeId, { read: "fallback", empty: "untitled" }) ?? "Untitled")
                             : "No target selected"}
                       </span>
                     </SelectTrigger>
@@ -562,7 +562,7 @@ function writeNodeLink(
   const text =
     label !== null && label !== ""
       ? label
-      : (displayNameFromClient(client, targetNodeId) ?? current.text);
+      : (titleOf(client, targetNodeId) ?? current.text);
   const token: Record<string, unknown> = { type: "mention", targetNodeId, text };
   if (label !== null && label !== "") token.displayText = label;
   // The manual embedding flag (default false — the key rides only when set).

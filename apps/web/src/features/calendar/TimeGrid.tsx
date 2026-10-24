@@ -32,13 +32,13 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { SYSTEM_CLASS_UUIDS, dayNodeId, deriveDisplayName } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, dayNodeId } from "@notees/domain";
 
 import { Button } from "../../components/ui/fleet/Button.js";
 import { Input } from "../../components/ui/fleet/Input.js";
 import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
-import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import { parentlessBlockResolverOf, untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { titleOf, titleOfNode } from "../../ui/dateDisplay.js";
+import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import {
   eventRowsForDays,
@@ -492,10 +492,11 @@ export function TimeGrid({
 function eventLabelOf(client: AnyClient, nodeId: string): string {
   const node = client.getNode(nodeId);
   if (node === undefined) return "";
-  return (
-    deriveDisplayName(node, (classId) => displayNameFromClient(client, classId)) ||
-    untitledLabelOf(node, parentlessBlockResolverOf(client))
-  );
+  return titleOfNode(node, {
+    resolveClassName: (classId) => titleOf(client, classId),
+    empty: "untitled",
+    isParentlessBlockClass: parentlessBlockResolverOf(client),
+  });
 }
 
 /** One single-day untimed chip in the all-day band. */

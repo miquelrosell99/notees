@@ -1,11 +1,10 @@
 /**
- * Date-page display — apply the user's `dateFormat` device setting to the
- * stored compact date labels (day `YYYYMMDD`, month `YYYYMM00`, year
- * `YYYY0000`). The domain's deriveDisplayName formats date names with a
- * fixed slash layout; display points that can read the device setting route
- * through here so the user's preference actually applies (the page header
- * is the main one — the stored name itself must stay compact for
- * chronological sorting and the compact lookup contract).
+ * Node titles for display — the unified `titleOf` / `titleOfNode` funnel
+ * (one entry point, four explicit axes: budget / flatten / read / empty —
+ * see the seam block below) plus the date-page formatting utilities (the
+ * user's `dateFormat` device setting applied to the stored compact date
+ * labels; the domain's derivations stay pure because they also run in the
+ * worker, where device settings do not exist).
  */
 
 import {
@@ -20,7 +19,7 @@ import {
 } from "@notees/domain";
 
 import { readDeviceSetting } from "../features/settings/deviceSettings.js";
-import { untitledLabelOf } from "./renderStateLabel.js";
+import { untitledLabelOf, type RenderStateLabelInput } from "./renderStateLabel.js";
 
 export type DateFormat =
   | "YYYY/MM/DD"
@@ -110,19 +109,152 @@ function pad2(value: number): string {
   return String(value).padStart(2, "0");
 }
 
+// --- the unified title seam --------------------------------
+//
+// Every "display name of a node" in the UI derives from ONE funnel with four
+// explicit axes — no more per-ruling helper proliferation (the bug class
+// where a surface picked the wrong sibling and leaked raw markdown). The
+// axes, each with a default matching the old most-common helper:
+//
+//   budget   "capped" (default, DISPLAY_NAME_MAX — dense chrome) | "full"
+//            (the complete title — node links / mention chips)
+//   flatten  "raw" (default — the excerpt as authored) | "chrome" (flattened
+//            chrome: markdown link spans reduced to their label text, inline
+//            class chips resolved to the class's current name — strings,
+//            never interactive markup; breadcrumbs, sidebar rows, headers)
+//   read     "live" (default — getNode, else the client's getDisplayName) |
+//            "fallback" (live → getNodeRaw → getDisplayName — the
+//            never-a-bare-UUID seam: an archived/trashed node KEEPS its name)
+//   empty    "blank" (default — "" for empty content, callers pick their
+//            placeholder) | "untitled" ("Untitled page/class/block", the
+//            renderStateLabel convention)
+//
+// The seam has two entries: `titleOf(client, id, opts)` (the client funnel —
+// resolvers come from the client) and `titleOfNode(node, opts)` (node in
+// hand, no client). The DOMAIN derivations (deriveDisplayName/fullTitleOf)
+// stay pure for the worker and for values that FEED THE LOG — this seam is
+// presentation-only and applies the user's dateFormat device setting, which
+// never crosses into the worker.
+
+export type TitleBudget = "capped" | "full";
+export type TitleFlatten = "raw" | "chrome";
+export type TitleRead = "live" | "fallback";
+export type TitleEmpty = "blank" | "untitled";
+
+export type TitleOpts = {
+  /** "capped" (default): the dense-chrome 80-char budget. "full": the
+   *  complete title (node links / mention chips never truncate). */
+  budget?: TitleBudget | undefined;
+  /** "raw" (default): the excerpt as authored. "chrome": flattened chrome —
+   *  markdown link spans reduced to their label text (per text token, BEFORE
+   *  the cap, so a long href can never crowd the label out) and inline class
+   *  chips resolved to the class's current name. */
+  flatten?: TitleFlatten | undefined;
+  /** "live" (default): the live read; a missing node defers to the client's
+   *  getDisplayName. "fallback": live → raw read → getDisplayName — an
+   *  archived or trashed node KEEPS its name (only permanent deletion leaves
+   *  no row). */
+  read?: TitleRead | undefined;
+  /** "blank" (default): empty content reads "". "untitled": empty content
+   *  reads "Untitled page/class/block" (the renderStateLabel convention). */
+  empty?: TitleEmpty | undefined;
+};
+
+/** The minimal client shape the funnel needs (WorkspaceClient and the test
+ *  mocks both satisfy it). The two optional reads power the "fallback" read
+ *  and the parentlessRole-aware "Untitled" label. */
+export type TitleClient = {
+  getNode(id: string): NodeLike | undefined;
+  getDisplayName(id: string): string | null;
+  getNodeRaw?(id: string): NodeLike | undefined;
+  effectiveClassParentlessBlock?(classId: string): boolean;
+};
+
+type TitleNodeOpts = TitleOpts & {
+  /** Class-chip resolver for the "chrome" flatten (the client funnel builds
+   *  it from the client automatically). */
+  resolveClassName?: ((classId: string) => string | null) | undefined;
+  /** The parentlessRole "block" demote for the "untitled" label (the client
+   *  funnel builds it from the client automatically). */
+  isParentlessBlockClass?: ((classId: string) => boolean) | undefined;
+};
+
+function factsOf(n: NodeLike): RenderStateLabelInput {
+  return {
+    isClass: n.isClass === true || n.isClass === 1,
+    isEmbedded: n.isEmbedded === true || n.isEmbedded === 1,
+    parentId: n.parentId ?? null,
+    classIds: n.classIds ?? [],
+  };
+}
+
+/** The settings-aware title derivation over one node (the funnel core). */
+function titleFromNode(node: NodeLike, opts: TitleNodeOpts): string {
+  const flattenChrome = opts.flatten === "chrome";
+  const strippedAst = flattenChrome
+    ? (node.contentAst ?? []).map((token) =>
+        token.type === "text"
+          ? { ...token, text: splitMarkdownLinks(token.text).map((segment) => segment.text).join("") }
+          : token,
+      )
+    : node.contentAst;
+  const effectiveNode = flattenChrome ? { ...node, contentAst: strippedAst ?? [] } : node;
+  const resolveClassName = opts.resolveClassName;
+  const name =
+    opts.budget === "full"
+      ? fullTitleForSettings(effectiveNode, resolveClassName)
+      : nodeDisplayName(effectiveNode, resolveClassName);
+  if (name !== "") return name;
+  return opts.empty === "untitled"
+    ? untitledLabelOf(factsOf(node), opts.isParentlessBlockClass)
+    : "";
+}
+
 /**
- * The display name for a node, with the user's dateFormat applied to date
- * pages; everything else defers to deriveDisplayName (title-is-content:
- * the title is the node's own text, there is no name field). Date identity
- * comes from the deterministic id first — migrated date pages may carry
- * the compact label in their content with no other marker, and the excerpt
- * must not leak through as a raw YYYYMMDD.
- *
- * Pass `resolveClassName` to include inline class chips' resolved labels in
- * the excerpt (flattened chrome: browser tab title, table cells) — without
- * it a bare chip contributes nothing (domain-pure default).
+ * The client funnel: the title for `id`, axes per `opts` (see TitleOpts).
+ * Null ONLY when no row exists at all (permanent deletion / a dangling
+ * reference) — identity is never user-facing, so callers hide the chip or
+ * pick their own placeholder on null.
  */
-export function nodeDisplayName(
+export function titleOf(client: TitleClient, id: string, opts: TitleOpts = {}): string | null {
+  const nodeOpts: TitleNodeOpts = {
+    ...opts,
+    resolveClassName:
+      opts.flatten === "chrome"
+        ? (classId) => client.getDisplayName(classId)
+        : undefined,
+    isParentlessBlockClass:
+      opts.empty === "untitled" ? client.effectiveClassParentlessBlock?.bind(client) : undefined,
+  };
+  const live = client.getNode(id);
+  if (live !== undefined) return titleFromNode(live, nodeOpts);
+  if (opts.read === "fallback" && client.getNodeRaw !== undefined) {
+    const raw = client.getNodeRaw(id);
+    if (raw !== undefined) return titleFromNode(raw, nodeOpts);
+  }
+  return client.getDisplayName(id);
+}
+
+/**
+ * The node funnel: the title for a node already in hand (no client lookup).
+ * Pass `resolveClassName` for the "chrome" flatten's class chips and
+ * `isParentlessBlockClass` for the parentlessRole-aware "untitled" label
+ * when no client defaults exist.
+ */
+export function titleOfNode(
+  node: NodeLike,
+  opts: TitleNodeOpts = {},
+): string {
+  return titleFromNode(node, opts);
+}
+
+/**
+ * The capped settings-aware derivation — the funnel core's budget:"capped"
+ * branch. Module-private on purpose: presentation reads the funnel
+ * (`titleOf` / `titleOfNode`); the domain's deriveDisplayName stays the
+ * worker/log-feeding seam.
+ */
+function nodeDisplayName(
   node: NodeLike,
   resolveClassName?: (classId: string) => string | null,
 ): string {
@@ -141,25 +273,25 @@ export function nodeDisplayName(
 }
 
 /**
- * The plain-text chrome label of a node: `nodeDisplayName` PLUS the two
- * chrome flattens dense surfaces need — markdown link spans reduced to
- * their label (per text token, BEFORE the 80-char cap, so a long href can
- * never crowd the label out; the domain's splitMarkdownLinks is the
- * canonical render grammar) and, via `resolveClassName`, inline class chips
- * resolved to the class's current name (without a resolver a bare chip
- * contributes nothing). This is the breadcrumb / sidebar-row derivation:
- * strings, never interactive or styled markup.
+ * The full-title settings-aware derivation — the funnel core's budget:"full"
+ * branch (node links and mention chips render the COMPLETE
+ * title — a link must read as the page's whole title, never a truncation).
+ * Module-private on purpose; presentation reads the funnel.
  */
-export function plainTitleOf(
+function fullTitleForSettings(
   node: NodeLike,
   resolveClassName?: (classId: string) => string | null,
 ): string {
-  const strippedAst = (node.contentAst ?? []).map((token) =>
-    token.type === "text"
-      ? { ...token, text: splitMarkdownLinks(token.text).map((segment) => segment.text).join("") }
-      : token,
-  );
-  return nodeDisplayName({ ...node, contentAst: strippedAst }, resolveClassName);
+  const fromId = parseDateNodeId(node.id);
+  if (fromId !== null) {
+    const year = String(fromId.year);
+    const month = pad2(fromId.month);
+    const day = pad2(fromId.day);
+    if (fromId.precision === "year") return year;
+    if (fromId.precision === "month") return `${year}/${month}`;
+    return formatDateName(`${year}${month}${day}`) ?? fullTitleOf(node, resolveClassName);
+  }
+  return fullTitleOf(node, resolveClassName);
 }
 
 /**
@@ -174,98 +306,6 @@ export function rawDateKeywordOf(node: { id: string }): string {
     { year: parsed.year, month: parsed.month, day: parsed.day },
     parsed.precision,
   );
-}
-
-/**
- * Setting-aware drop-in for client.getDisplayName — the single funnel for
- * name rendering in the UI (titles, mention chips, links, date properties,
- * pickers, breadcrumbs, exports). Date pages format per the user's
- * dateFormat; every other node defers to the client (deriveDisplayName).
- * The client's own method stays pure because it also runs in the worker,
- * where device settings do not exist.
- */
-export function displayNameFromClient(
-  client: Pick<
-    { getNode(id: string): NodeLike | undefined },
-    "getNode"
-  > & { getDisplayName(id: string): string | null },
-  id: string,
-): string | null {
-  const node = client.getNode(id);
-  if (node === undefined) return client.getDisplayName(id);
-  return nodeDisplayName(node);
-}
-
-/**
- * The never-a-bare-UUID label seam: the live display
- * name; else the RAW read's derived name — an archived or trashed node
- * KEEPS its name (only permanent deletion leaves no row); a live node with
- * empty content reads "Untitled <render-state>" (renderStateLabel's
- * convention). Null ONLY when no row exists at all — a dangling reference
- * (e.g. a binding to a permanently deleted class, the retired class-class
- * debt) — and callers hide the chip or pick their own placeholder: identity
- * is never user-facing.
- */
-export function labelFromClient(
-  client: Pick<{ getNode(id: string): NodeLike | undefined }, "getNode"> & {
-    /** Optional: clients/mocks without the raw read degrade to getDisplayName
-     *  (which resolves raw itself where supported). */
-    getNodeRaw?(id: string): NodeLike | undefined;
-    getDisplayName(id: string): string | null;
-    /** Optional: mocks without the parentlessRole read keep the pre-flag
-     *  label; both client classes carry it. */
-    effectiveClassParentlessBlock?(classId: string): boolean;
-  },
-  id: string,
-): string | null {
-  const facts = (n: NodeLike): Parameters<typeof untitledLabelOf>[0] => ({
-    isClass: n.isClass === true || n.isClass === 1,
-    isEmbedded: n.isEmbedded === true || n.isEmbedded === 1,
-    parentId: n.parentId ?? null,
-    classIds: n.classIds ?? [],
-  });
-  const resolver = client.effectiveClassParentlessBlock?.bind(client);
-  const live = client.getNode(id);
-  if (live !== undefined) return nodeDisplayName(live) || untitledLabelOf(facts(live), resolver);
-  if (client.getNodeRaw !== undefined) {
-    const raw = client.getNodeRaw(id);
-    if (raw !== undefined)
-      return deriveDisplayName(raw) || untitledLabelOf(facts(raw), resolver);
-  }
-  return client.getDisplayName(id);
-}
-
-/**
- * The full-title siblings (node links and mention chips
- * render the COMPLETE title — a link must read as the page's whole title,
- * never a truncation). Date pages keep the exact same deterministic-id
- * formatting branch; every other node defers to fullTitleOf, the uncapped
- * title-is-content derivation (dense chrome keeps reading
- * displayNameFromClient, which stays capped).
- */
-export function fullTitleForSettings(node: NodeLike): string {
-  const fromId = parseDateNodeId(node.id);
-  if (fromId !== null) {
-    const year = String(fromId.year);
-    const month = pad2(fromId.month);
-    const day = pad2(fromId.day);
-    if (fromId.precision === "year") return year;
-    if (fromId.precision === "month") return `${year}/${month}`;
-    return formatDateName(`${year}${month}${day}`) ?? fullTitleOf(node);
-  }
-  return fullTitleOf(node);
-}
-
-export function fullTitleFromClient(
-  client: Pick<
-    { getNode(id: string): NodeLike | undefined },
-    "getNode"
-  > & { getDisplayName(id: string): string | null },
-  id: string,
-): string | null {
-  const node = client.getNode(id);
-  if (node === undefined) return client.getDisplayName(id);
-  return fullTitleForSettings(node);
 }
 
 // --- datetime property values (SCHEMA.md "Datetime" — the unified date type) ----

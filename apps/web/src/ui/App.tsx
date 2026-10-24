@@ -48,7 +48,7 @@ import {
 } from "@/core/workspace-registry.js";
 import { logout } from "@/core/auth-api.js";
 
-import { nodeDisplayName } from "./dateDisplay.js";
+import { titleOfNode } from "./dateDisplay.js";
 import { parentlessBlockResolverOf } from "./renderStateLabel.js";
 import type { ShareTarget } from "../features/node-menu/NodeMenuButton.js";
 import { rendersAsInlineBlock } from "@notees/domain";
@@ -354,7 +354,7 @@ export function App() {
           ? (() => {
               const node = client.getNode(selectedPageId);
               return node !== undefined
-                ? nodeDisplayName(node, (classId) => client.getDisplayName(classId))
+                ? titleOfNode(node, { resolveClassName: (classId) => client.getDisplayName(classId) })
                 : "";
             })()
           : "",

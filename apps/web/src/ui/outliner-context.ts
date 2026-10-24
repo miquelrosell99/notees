@@ -29,7 +29,7 @@ import type {
   UpdatePropertySchemaInput,
 } from "@/core/workspace-client/index.js";
 
-import { displayNameFromClient } from "./dateDisplay.js";
+import { titleOf } from "./dateDisplay.js";
 
 export interface OutlinerClient {
   getNode(id: string): ClientNode | undefined;
@@ -743,13 +743,13 @@ export function useOutlinerValue(
             if (q === "") return true;
             // Diacritics fold on both sides (the store search mirror): `@video`
             // surfaces the class "Vídeo".
-            return foldSearchText((displayNameFromClient(client, node.id) ?? "").toLowerCase()).includes(
+            return foldSearchText((titleOf(client, node.id) ?? "").toLowerCase()).includes(
               q,
             );
           });
         },
         listClasses: () => client.listClasses(),
-        displayName: (id) => displayNameFromClient(client, id),
+        displayName: (id) => titleOf(client, id),
       },
       ensureTemplateFamily: () => {
         const ensure = ensureTemplateFamilyRef.current;

@@ -111,7 +111,7 @@
  */
 
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { isRangeDatetimeValue, isReadonlyProperty, isValidTimeOfDay, parseDateNodeId, fullTitleOf, plainTextExcerpt, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { isRangeDatetimeValue, isReadonlyProperty, isValidTimeOfDay, parseDateNodeId, plainTextExcerpt, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
 import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu, AddPill } from "../../components/ui/fleet/index.js";
@@ -134,7 +134,7 @@ import { downloadBlob } from "../modals/download.js";
 import { exportTimestamp } from "../export/exportSubtree.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
-import { nodeDisplayName, displayNameFromClient, labelFromClient, datetimeValueText, formatIsoDate } from "../../ui/dateDisplay.js";
+import { titleOf, titleOfNode, datetimeValueText, formatIsoDate } from "../../ui/dateDisplay.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
@@ -206,17 +206,18 @@ function formatCreated(createdAt: string | null): string {
  * chip reads complete in the cell, the CSV projection, and the sort key,
  * all three riding this same text). The cell WRAPS long titles across
  * multiple lines, so the dense-chrome 80-char budget
- * doesn't apply — the cell reads fullTitleOf, the same uncapped derivation
- * node links render (the links' whole-title ruling). Date nodes keep the
- * settings-formatted nodeDisplayName branch: their titles are short
- * (the cap never binds) and only that branch applies the user's dateFormat.
+ * doesn't apply — the cell reads the full-budget funnel (titleOfNode
+ * budget "full"), the same uncapped derivation node links render (the
+ * links' whole-title ruling). Date nodes keep the settings-formatted
+ * capped branch: their titles are short (the cap never binds) and only
+ * that branch applies the user's dateFormat.
  */
 function nameCellText(client: AnyClient, node: ClientNode): string {
   const resolve = (classId: string) => client.getDisplayName(classId);
   if (parseDateNodeId(node.id) !== null) {
-    return nodeDisplayName(node, resolve) || "Untitled";
+    return titleOfNode(node, { resolveClassName: resolve }) || "Untitled";
   }
-  return fullTitleOf(node, resolve) || "Untitled";
+  return titleOfNode(node, { budget: "full", resolveClassName: resolve }) || "Untitled";
 }
 
 /**
@@ -230,7 +231,7 @@ function csvCellText(client: AnyClient, row: TableRow, column: TableColumn): str
   if (column.kind === "name") return nameCellText(client, node);
   if (column.kind === "classes") {
     return node.classIds
-      .map((classId) => displayNameFromClient(client, classId))
+      .map((classId) => titleOf(client, classId))
       .filter((name): name is string => name !== null && name !== undefined)
       .join(", ");
   }
@@ -325,7 +326,7 @@ function ClassChips({ item, props }: { item: NodeCollectionItem; props: NodeColl
     <span className="nt-table-chips">
       {classes.map((cls) => (
         <span key={cls.id} className="nt-table-chip" style={cls.color !== null ? { color: cls.color } : undefined}>
-          {labelFromClient(client, cls.id) ?? "Untitled"}
+          {titleOf(client, cls.id, { read: "fallback", empty: "untitled" }) ?? "Untitled"}
         </span>
       ))}
     </span>
@@ -481,7 +482,7 @@ function TextCell({
     );
   }
 
-  const label = displayNameFromClient(client, carrier.id) ?? "carrier";
+  const label = titleOf(client, carrier.id) ?? "carrier";
   return (
     <span className="nt-table-node">
       <span className="nt-table-text-cell" ref={wrapRef}>
@@ -579,7 +580,7 @@ function MultiNodeCell({
     <span className="nt-table-chips">
       {pills.map(({ row: pillRow, ref }) => {
         const linked = client.getNode(ref);
-        const label = labelFromClient(client, ref) ?? "Untitled";
+        const label = titleOf(client, ref, { read: "fallback", empty: "untitled" }) ?? "Untitled";
         if (linked === undefined) {
           // PB1 honest state — the raw id, never a silently empty chip.
           return (
@@ -679,7 +680,7 @@ function AssetCell({
   const isAssetTarget = assetClassId !== undefined;
 
   const pillLabel = (ref: string): string =>
-    client.getAssetInfo(ref)?.originalName ?? labelFromClient(client, ref) ?? "Untitled";
+    client.getAssetInfo(ref)?.originalName ?? titleOf(client, ref, { read: "fallback", empty: "untitled" }) ?? "Untitled";
 
   const linkAsset = async (assetNodeId: string, idx: number): Promise<void> => {
     await client.setProperty(row.item.node.id, schemaId, { nodeId: assetNodeId }, idx);
@@ -1074,14 +1075,14 @@ function NodeCell({ row, schemaId, props, schemaName, peek }: { row: TableRow; s
         onClick={() => setOpen(true)}
       >
         {targetId !== null ? (
-          labelFromClient(props.client, targetId) ?? "Untitled"
+          titleOf(props.client, targetId, { read: "fallback", empty: "untitled" }) ?? "Untitled"
         ) : (
           <span className="nt-table-date-placeholder">Empty</span>
         )}
       </button>
       {targetId !== null && (
         <OpenButton
-          label={displayNameFromClient(props.client, targetId) ?? "target"}
+          label={titleOf(props.client, targetId) ?? "target"}
           onOpen={() => props.onNodeClick?.(targetId)}
           onPeek={() => peek(targetId)}
         />
@@ -1209,7 +1210,7 @@ function PropertyCell({ row, column, props, peek }: { row: TableRow; column: Tab
           <span className="nt-table-node">
             {propertyDisplayText(client, prop)}
             <OpenButton
-              label={displayNameFromClient(client, ref) ?? "target"}
+              label={titleOf(client, ref) ?? "target"}
               onOpen={() => props.onNodeClick?.(ref)}
               onPeek={() => peek(ref)}
             />
@@ -1949,7 +1950,7 @@ export function TableView(props: NodeCollectionProps) {
                     size="sm"
                     checked={selected.has(row.item.node.id)}
                     onChange={() => toggleSelected(row.item.node.id)}
-                    aria-label={`Select ${nodeDisplayName(row.item.node) || "Untitled"}`}
+                    aria-label={`Select ${titleOfNode(row.item.node) || "Untitled"}`}
                   />
                 </td>
               )}

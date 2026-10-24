@@ -34,9 +34,9 @@ import { cloneSubtree, type CloneReadSurface, type CloneWriteSurface } from "@/c
 import { extractBlockToPage } from "@/core/extractToPage.js";
 import type { ClientNode, ClientPropertySchema } from "@/core/workspace-client/index.js";
 
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { titleOfNode } from "../../ui/dateDisplay.js";
 import { nodeLinkUrl } from "../../ui/nodeLink.js";
-import { parentlessBlockResolverOf, parentRenderFacts, untitledLabelOf } from "../../ui/renderStateLabel.js";
+import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { copyToClipboard } from "../modals/clipboard.js";import { notificationStore } from "../../components/ui/fleet/notificationStore.js";
 import { clipboardMarkdown } from "../export/exportSubtree.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
@@ -98,7 +98,7 @@ export function displayLabelOf(
   node: ClientNode,
   isParentlessBlockClass?: (classId: string) => boolean,
 ): string {
-  return nodeDisplayName(node) || untitledLabelOf(node, isParentlessBlockClass);
+  return titleOfNode(node, { empty: "untitled", isParentlessBlockClass });
 }
 
 /**

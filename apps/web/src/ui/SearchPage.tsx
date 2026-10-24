@@ -28,7 +28,7 @@ import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain"
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { nodeDisplayName } from "./dateDisplay.js";
+import { titleOfNode } from "./dateDisplay.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "./renderStateLabel.js";
 import { NodeResultItem } from "../features/pickers/NodeResultItem.js";
 import { Button } from "../components/ui/fleet/Button.js";
@@ -174,7 +174,7 @@ export function SearchPage({
   const classOptions = useMemo(() => {
     const classes = client.listClasses().map((cls) => ({
       value: cls.id,
-      label: nodeDisplayName(cls) || "Untitled class",
+      label: titleOfNode(cls) || "Untitled class",
     }));
     return [{ value: "", label: "Any class" }, ...classes];
   }, [client]);
@@ -189,7 +189,7 @@ export function SearchPage({
     while (currentId !== null && guard < 64) {
       const parent: ClientNode | undefined = client.getNode(currentId);
       if (!parent || !rendersWithDocumentChrome(parent, undefined, parentlessBlockResolverOf(client))) break;
-      segments.unshift(nodeDisplayName(parent) || "Untitled");
+      segments.unshift(titleOfNode(parent) || "Untitled");
       currentId = parent.parentId;
       guard += 1;
     }
@@ -216,7 +216,7 @@ export function SearchPage({
       if (parent === undefined) break;
       if (rendersWithDocumentChrome(parent, undefined, parentlessBlockResolverOf(client))) {
         const ancestors = buildParentPath(parent);
-        const name = nodeDisplayName(parent) || "Untitled";
+        const name = titleOfNode(parent) || "Untitled";
         return ancestors !== "" ? `${ancestors} ${name}` : name;
       }
       currentId = parent.parentId;
@@ -232,7 +232,7 @@ export function SearchPage({
       .map((classUuid) => {
         const classNode = client.getNode(classUuid);
         if (!classNode) return null;
-        const name = nodeDisplayName(classNode);
+        const name = titleOfNode(classNode);
         if (!name) return null;
         return { nodeUuid: classUuid, name };
       })

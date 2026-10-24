@@ -7,7 +7,7 @@
  *   pages A–Z; the within-page order (group rows, tree siblings) keeps the
  *   container's position order — the mode orders PAGES, never blocks.
  * - `alphabetical`: by display name A–Z (display-name derivation rides
- *   `nodeDisplayName`, the same text the table name column sorts).
+ *   `titleOfNode`, the same text the table name column sorts).
  * - `edit-date` (cards): by `updatedAt`, most recently edited first, nulls
  *   last (the table's Edited column default).
  *
@@ -19,7 +19,7 @@ import { parseDateNodeId } from "@notees/domain";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
-import { nodeDisplayName } from "../../ui/dateDisplay.js";
+import { titleOfNode } from "../../ui/dateDisplay.js";
 import type { CollectionGroup, NodeCollectionItem, SortMode } from "./types.js";
 
 type NameResolver = (classId: string) => string | null;
@@ -41,7 +41,7 @@ export function dateSortKeyOf(nodeId: string): string | null {
 }
 
 function displayNameOf(node: ClientNode, resolveName?: NameResolver): string {
-  return nodeDisplayName(node, resolveName) || "Untitled";
+  return titleOfNode(node, { resolveClassName: resolveName }) || "Untitled";
 }
 
 function compareNames(a: ClientNode, b: ClientNode, resolveName?: NameResolver): number {

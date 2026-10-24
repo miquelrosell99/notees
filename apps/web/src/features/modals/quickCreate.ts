@@ -32,9 +32,10 @@ import {
   SYSTEM_PROPERTY_DISPLAY_NAMES,
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
-  deriveDisplayName,
   type SystemPropertyName,
 } from "@notees/domain";
+
+import { titleOfNode } from "../../ui/dateDisplay.js";
 
 import type {
   AssetUploadResult,
@@ -589,5 +590,5 @@ export async function createAgentObject(
 
 /** The created node's display name (modal result toasts). */
 export function displayNameOf(node: ClientNode | undefined): string {
-  return node === undefined ? "" : (deriveDisplayName(node) ?? "");
+  return node === undefined ? "" : titleOfNode(node);
 }
