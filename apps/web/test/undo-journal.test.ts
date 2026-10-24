@@ -821,11 +821,25 @@ describe("invertEnvelope — the inversion matrix", () => {
   it("the routed family-base arms restore the captured settings too", () => {
     const TASK = "00000000-0000-0000-0001-000000000012";
     const prior = { citekeyPattern: "[auth][year]" };
-    const classSnap = { isClass: true };
+    const classSnap = { isClass: true, active: true };
     expect(
       invertEnvelope(
         env("class.create", { classId: TASK }),
         fakeCapture({ node: null, feature: true, featureSettings: prior, ...classSnap }),
+      ),
+    ).toEqual([
+      {
+        opType: "workspace.feature.set",
+        payload: { feature: "tasks", enabled: true, settings: prior },
+        affected: [],
+      },
+    ]);
+    // The object.delete family-base arm (the routed disable) is symmetric:
+    // undoing the delete restores the toggle AND the captured settings.
+    expect(
+      invertEnvelope(
+        env("object.delete", { objectId: TASK }),
+        fakeCapture({ node: { ...snapOf(classSnap), active: true }, feature: true, featureSettings: prior }),
       ),
     ).toEqual([
       {
