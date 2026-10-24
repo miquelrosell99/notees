@@ -102,6 +102,10 @@ describe("GET /api/resolve — metadata branch", () => {
       doi: "10.1000/xyz123",
       url: "https://doi.org/10.1000/xyz123",
       year: 2023,
+      // The task-4 record amendment: publisher is a TOP-LEVEL record field
+      // (Crossref `publisher`), never a `fields` entry — it rides the source
+      // base, not the class's own bindings.
+      publisher: "Test Press",
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]![0]).toBe("https://api.crossref.org/works/10.1000%2Fxyz123");
@@ -230,6 +234,7 @@ describe("GET /api/resolve — metadata branch", () => {
       isbn: "9780143127741",
       url: "https://openlibrary.org/isbn/9780143127741",
       year: 2019,
+      publisher: "Penguin",
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
