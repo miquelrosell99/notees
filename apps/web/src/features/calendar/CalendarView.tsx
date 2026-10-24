@@ -1,25 +1,23 @@
 /**
  * CalendarView — the grid-first Google-style calendar behind the sidebar's
- * Calendar entry: a top bar with the Day/Week/Month/Year ladder (the
+ * Calendar entry: a top bar with the Day/Week/Month/Year/Agenda ladder (the
  * SelectionButton button-switch) and a centered period navigator, and one
- * body per zoom. Week/Month/Year ride the CalendarGrid — the events read
- * model (calendarRows.eventRowsForDays: event-family nodes dated into the
- * day or embedded in its page) as colored blocks, drag-and-drop, the
- * recurring scope dialog, dblclick-to-create. Day zoom is the DAY AGENDA
- * (owner 2026-10-24): the selected day's events as one full-width column
- * of large colored cards (DayAgenda) — NOT the day note (the journal/day
- * page owns the note; the day zoom owns the agenda). The old day-view
- * sections (the daily-note embed, Tasks/Dated/Created partitions, the
- * filter Tabs, the create-with-template flow) retired with it — the day
- * PAGE carries those aggregations (DayPageSections), and the tasks hub
- * carries the buckets.
+ * body per zoom. Day and Week ride the TimeGrid (owner 2026-10-24, the
+ * Google time-grid register): an all-day band above a 24-hour interval
+ * grid, timed events as absolutely-positioned cards, the red now-line,
+ * dblclick-at-hour creates. Month/Year ride the CalendarGrid — the events
+ * read model (calendarRows.eventRowsForDays: event-family nodes dated into
+ * the day or embedded in its page) as colored blocks, drag-create,
+ * dblclick-to-create. The Agenda zoom (owner 2026-10-24) lists the days
+ * with events in one windowed column (AgendaView). The old day agenda
+ * (the DayAgenda cards column) retired with the time grid.
  *
  * Data flow follows the JournalsView pattern: synchronous reads off the
  * local store plus client.subscribe re-render. Times and ranges (owner
  * 2026-10-24): a datetime value may carry a clock time and span a range of
- * days — blocks and agenda cards prefix the label with the driving value's
- * time, spannedRowsOf expands ranges across their covered days, and a grid
- * cell dblclick opens the event creation modal (EventCreateModal).
+ * days — spannedRowsOf expands ranges across their covered days, and the
+ * time grid splits each day's rows into the all-day band vs the hour grid
+ * (calendarRows.timeGridSplitForDays).
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -34,39 +32,36 @@ import {
   isoWeekNumber,
   todayIsoLocal,
   weekdayLabel,
+  weekDaysOfIso,
 } from "./calendarViewUtils.js";
 import {
-  eventRowsForDays,
   recurringRowsOf,
   spannedRowsOf,
-  type DatedRow,
 } from "./calendarRows.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
-import { DayAgenda } from "./DayAgenda.js";
-import {
-  CalendarGrid,
-  periodOf,
-  shiftMonth,
-  type GridZoom,
-} from "./CalendarGrid.js";
+import { TimeGrid } from "./TimeGrid.js";
+import { AgendaView } from "./AgendaView.js";
+import { CalendarGrid, periodOf, shiftMonth } from "./CalendarGrid.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import "./CalendarView.css";
 
-/** The calendar's own zoom ladder (owner 2026-10-23, google-calendar slice 2):
-    Day = the day agenda (the day's event cards), Week/Month/Year = the
-    colored-blocks grids. Grid-first per the owner: month is the default.
-    The switch rides the SelectionButton register (owner 2026-10-24 — the
-    same button-switch the mini-month's zoom uses): icons, radiogroup
-    semantics, the sliding indicator. */
-type CalendarZoom = "day" | GridZoom;
+/** The calendar's own zoom ladder (owner 2026-10-23, google-calendar slice 2;
+    the Agenda zoom joins 2026-10-24): Day/Week = the time grid, Month/Year =
+    the colored-blocks grids, Agenda = the days-with-events column.
+    Grid-first per the owner: month is the default. The switch rides the
+    SelectionButton register (owner 2026-10-24 — the same button-switch the
+    mini-month's zoom uses): icons, radiogroup semantics, the sliding
+    indicator. */
+type CalendarZoom = "day" | "week" | "month" | "year" | "agenda";
 
 const CALENDAR_ZOOMS: ReadonlyArray<{ value: CalendarZoom; label: string; icon: string }> = [
   { value: "day", label: "Day", icon: "mdi-calendar-today" },
-  { value: "week", label: "Week", icon: "mdi-view-agenda-outline" },
+  { value: "week", label: "Week", icon: "mdi-view-column" },
   { value: "month", label: "Month", icon: "mdi-calendar-month" },
   { value: "year", label: "Year", icon: "mdi-calendar-range" },
+  { value: "agenda", label: "Agenda", icon: "mdi-view-agenda-outline" },
 ];
 
 export function CalendarView({
@@ -100,19 +95,10 @@ export function CalendarView({
     [recurringRows],
   );
   // Multi-day spans (the datetime-range ruling): the client-side expansion
-  // feed for the grid blocks and the day agenda — canonical range values
-  // plus the legacy endDate metadata register (spannedRowsOf's doc).
+  // feed for the grid blocks, the time grid, and the agenda — canonical
+  // range values plus the legacy endDate metadata register (spannedRowsOf's
+  // doc).
   const spannedEvents = useMemo(() => spannedRowsOf(client), [client, version]);
-
-  // The day agenda's rows: the events read model over the selected day
-  // only (the zoom gates the work — the grid computes its own per cells).
-  const agendaRows = useMemo<DatedRow[]>(
-    () =>
-      calendarZoom === "day"
-        ? eventRowsForDays(client, [selectedIso], recurringEvents, spannedEvents)
-        : [],
-    [client, calendarZoom, selectedIso, recurringEvents, spannedEvents, version],
-  );
 
   // --- the grid's visible period — the top-bar navigator owns it (owner
   // 2026-10-24): it follows the selection when that drifts across a
@@ -125,11 +111,15 @@ export function CalendarView({
     }
     if (calendarZoom === "year" && next.year !== period.year) setPeriod(next);
     if (calendarZoom === "week") setPeriod(next);
+    if (calendarZoom === "agenda" && (next.year !== period.year || next.month0 !== period.month0)) {
+      setPeriod(next);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- follow the selection only
   }, [selectedIso, calendarZoom]);
   const shiftPeriod = (delta: number): void => {
-    if (calendarZoom === "week") setSelectedIso((iso) => addDaysIso(iso, delta * 7));
-    else if (calendarZoom === "year") setPeriod((p) => ({ ...p, year: p.year + delta }));
+    if (calendarZoom === "week" || calendarZoom === "agenda") {
+      setSelectedIso((iso) => addDaysIso(iso, delta * 7));
+    } else if (calendarZoom === "year") setPeriod((p) => ({ ...p, year: p.year + delta }));
     else setPeriod((p) => shiftMonth(p, delta));
   };
   const jumpToToday = (): void => {
@@ -271,7 +261,32 @@ export function CalendarView({
         }
       >
         <div className="calendar-view__main">
-          {calendarZoom !== "day" && (
+          {(calendarZoom === "day" || calendarZoom === "week") && (
+            <TimeGrid
+              client={client}
+              days={
+                calendarZoom === "day"
+                  ? [selectedIso]
+                  : weekDaysOfIso(selectedIso, firstDayOfWeek)
+              }
+              selectedIso={selectedIso}
+              recurringRows={recurringEvents}
+              spannedRows={spannedEvents}
+              onSelectDay={setSelectedIso}
+              onOpenEvent={onOpenPage}
+              onOpenDayPage={openDayPage}
+            />
+          )}
+          {calendarZoom === "agenda" && (
+            <AgendaView
+              client={client}
+              anchorIso={selectedIso}
+              recurringRows={recurringEvents}
+              spannedRows={spannedEvents}
+              onOpenEvent={onOpenPage}
+            />
+          )}
+          {(calendarZoom === "month" || calendarZoom === "year") && (
             <CalendarGrid
               client={client}
               zoom={calendarZoom}
@@ -286,14 +301,6 @@ export function CalendarView({
               onOpenMonth={openMonthZoom}
               onOpenMonthPage={openMonthPage}
               onOpenYearPage={openYearPage}
-            />
-          )}
-          {calendarZoom === "day" && (
-            <DayAgenda
-              client={client}
-              iso={selectedIso}
-              rows={agendaRows}
-              onOpenEvent={onOpenPage}
             />
           )}
         </div>

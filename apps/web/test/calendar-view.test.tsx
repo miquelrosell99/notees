@@ -1,13 +1,13 @@
 /**
  * CalendarView tests: the day zoom's date line (Today marker only on today),
- * the day AGENDA (the selected day's events as colored cards — timed first
- * by start time, the clock prefix, the empty-state line, the card open),
- * the month grid (event-family blocking — dated in or embedded, never mere
- * date carriers — block colors, drag/drop rewrites and the recurring scope
- * dialog, the timed blocks' clock prefix), the top-bar period navigator,
- * the day-number → day page register, the zoom ladder, and the
- * dblclick-to-create flow (the event modal opens on the cell, the create
- * lands an event-classed named node and opens it).
+ * the DAY/WEEK TIME GRID (the all-day band membership, the timed cards'
+ * placement math, the overlap clustering, the now-line, the dblclick-at-hour
+ * create prefill), the month grid (event-family blocking — dated in or
+ * embedded, never mere date carriers — block colors, drag/drop rewrites and
+ * the recurring scope dialog, the timed blocks' clock prefix), the top-bar
+ * period navigator, the day-number → day page register, the five-option zoom
+ * ladder, and the dblclick-to-create flow (the event modal opens on the
+ * cell, the create lands an event-classed named node and opens it).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -142,9 +142,9 @@ describe("CalendarView", () => {
     expect(screen.getByText(today)).toBeDefined();
   });
 
-  // --- the day agenda (the Day zoom's body, owner 2026-10-24) --------------
+  // --- the day time grid (the Day zoom's body, owner 2026-10-24) -------------
 
-  it("the day agenda lists the day's events as cards — timed first, with the clock prefix; a card click opens the event", async () => {
+  it("the day time grid paints the timed event as a card and the untimed one as an all-day chip; a card click opens the event", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const schemaId = await dateSchemaOf(client);
@@ -152,15 +152,15 @@ describe("CalendarView", () => {
     await client.setClassExtends(gatheringClass, [SYSTEM_CLASS_UUIDS.event]);
     await client.setClassProperty(gatheringClass, schemaId, {});
 
-    // Untimed (full-day) event, alphabetic winner by name…
     await client.ensureDateChain(today);
+    // Untimed (full-day) event — the all-day band's chip register…
     const allDay = await client.createObject({
       isEmbedded: false,
       name: "Aardvark picnic",
       classIds: [gatheringClass],
     });
     await client.setProperty(allDay, schemaId, { nodeId: dayNodeOf(today) }, 0);
-    // …and a TIMED event that must list FIRST despite the name (timed-first).
+    // …and a TIMED event — the hour grid's card register.
     const timed = await client.createObject({
       isEmbedded: false,
       name: "Zebra sync",
@@ -172,24 +172,25 @@ describe("CalendarView", () => {
     const onOpenPage = vi.fn();
     render(<CalendarView client={client} onOpenPage={onOpenPage} />);
 
-    const agenda = await screen.findByLabelText("Day agenda");
+    const grid = await screen.findByLabelText("Calendar day view");
     await waitFor(() => {
-      expect(agenda.textContent).toContain("14:30 Zebra sync");
-      expect(agenda.textContent).toContain("Aardvark picnic");
+      expect(grid.textContent).toContain("Aardvark picnic");
+      expect(grid.textContent).toContain("Zebra sync");
     });
-    // Timed first, then untimed alphabetically.
-    const texts = [...agenda.querySelectorAll(".cal-agenda__card")].map(
-      (el) => el.textContent ?? "",
-    );
-    expect(texts[0]).toContain("14:30 Zebra sync");
-    expect(texts[1]).toContain("Aardvark picnic");
+    // The untimed event rides the band; the timed one paints a card
+    // (14:30 = 870 minutes after midnight, the 1h default duration).
+    expect(grid.querySelector(".cal-timegrid__chip")?.textContent).toContain("Aardvark picnic");
+    const card = grid.querySelector(".cal-timegrid__card") as HTMLElement;
+    expect(card.textContent).toContain("Zebra sync");
+    expect(card.getAttribute("data-start")).toBe("870");
+    expect(card.getAttribute("data-duration")).toBe("60");
 
     // A card click opens the event.
-    fireEvent.click(agenda.querySelector(".cal-agenda__card") as HTMLElement);
+    fireEvent.click(card);
     await waitFor(() => expect(onOpenPage).toHaveBeenCalledWith(timed));
   });
 
-  it("the day agenda renders a same-day timed range as '14:30–16:00 Title'", async () => {
+  it("a same-day timed range paints a card with the real duration and the '14:30 – 16:00' line", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const schemaId = await dateSchemaOf(client);
@@ -215,13 +216,17 @@ describe("CalendarView", () => {
 
     window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
     render(<CalendarView client={client} onOpenPage={vi.fn()} />);
-    const agenda = await screen.findByLabelText("Day agenda");
+    const grid = await screen.findByLabelText("Calendar day view");
     await waitFor(() => {
-      expect(agenda.textContent).toContain("14:30–16:00 Deep work");
+      expect(grid.querySelector(".cal-timegrid__card")).not.toBeNull();
     });
+    const card = grid.querySelector(".cal-timegrid__card") as HTMLElement;
+    expect(card.getAttribute("data-start")).toBe("870");
+    expect(card.getAttribute("data-duration")).toBe("90");
+    expect(card.textContent).toContain("14:30 – 16:00");
   });
 
-  it("the day agenda shows the honest empty line on an eventless day", async () => {
+  it("the day time grid is always there — an eventless day renders the empty grid, not an empty state", async () => {
     const client = await seedClient();
     window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
     const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
@@ -231,8 +236,10 @@ describe("CalendarView", () => {
     const otherDay = new Date().getDate() === 20 ? "21" : "20";
     fireEvent.click(dayCell(container, otherDay));
     fireEvent.click(screen.getByRole("radio", { name: "Day" }));
-    expect(await screen.findByText("No events this day.")).toBeDefined();
-    // The day view's retired sections stay gone — the agenda is the body.
+    const grid = await screen.findByLabelText("Calendar day view");
+    expect(grid.querySelectorAll(".cal-timegrid__card")).toHaveLength(0);
+    expect(grid.querySelectorAll(".cal-timegrid__chip")).toHaveLength(0);
+    // The day view's retired sections stay gone — the grid is the body.
     expect(screen.queryByRole("region", { name: "Daily note" })).toBeNull();
     expect(screen.queryByRole("tab")).toBeNull();
   });
@@ -513,8 +520,9 @@ describe("CalendarView", () => {
     })();
     expect(block.textContent).toContain("Launch party");
     expect(block.style.background).toContain("rgb(255, 0, 0)");
-    // The agenda is not rendered in the month zoom.
-    expect(screen.queryByLabelText("Day agenda")).toBeNull();
+    // The time grid is not rendered in the month zoom.
+    expect(screen.queryByLabelText("Calendar day view")).toBeNull();
+    expect(screen.queryByLabelText("Calendar week view")).toBeNull();
     // The ladder is present with Month pressed.
     expect(
       screen.getByRole("radio", { name: "Month" }),
@@ -635,10 +643,10 @@ describe("CalendarView", () => {
     const opened = onOpenPage.mock.calls[0]![0] as string;
     expect(client.getNodeRaw(opened)?.id).toBe(opened);
 
-    // Week zoom: seven tall columns.
+    // Week zoom: the time grid with seven day columns.
     fireEvent.click(screen.getByRole("radio", { name: "Week" }));
     await screen.findByLabelText("Calendar week view");
-    expect(document.querySelectorAll(".cal-grid__cells--week > div")).toHaveLength(7);
+    expect(document.querySelectorAll(".cal-timegrid__day")).toHaveLength(7);
 
     // Year zoom: twelve compact months.
     fireEvent.click(screen.getByRole("radio", { name: "Year" }));

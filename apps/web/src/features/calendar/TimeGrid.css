@@ -1,0 +1,247 @@
+/* TimeGrid — the Day/Week zoom's hourly grid (owner 2026-10-24, the
+   Google time-grid register). Tokens from variables.css: the hour height
+   and the gutter width are the component's locally-scoped scale tokens
+   (--cal-hour-height/--cal-gutter — one hour row's rhythm, referenced by
+   both the label gutter and the hour cells so the geometry never drifts);
+   the events' percentage geometry is set inline from the placement facts.
+   Hairlines ride the border-width tokens; the now-line rides the error
+   role. */
+
+.cal-timegrid {
+  --cal-hour-height: 3.5rem;
+  --cal-gutter: 3.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-height: 0;
+  height: 100%;
+}
+
+/* --- the header (weekday abbreviations + the big day numbers) ------------- */
+
+.cal-timegrid__header {
+  display: flex;
+  gap: var(--spacing-1);
+  align-items: end;
+}
+
+.cal-timegrid__corner {
+  width: var(--cal-gutter);
+  flex-shrink: 0;
+}
+
+.cal-timegrid__head {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-0-5);
+}
+
+.cal-timegrid__weekday {
+  font: var(--font-label-medium);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.cal-timegrid__daynum {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-10);
+  height: var(--spacing-10);
+  border: var(--border-width-medium) solid transparent;
+  border-radius: var(--shape-full);
+  padding: 0;
+  background: none;
+  font: var(--font-headline-small);
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+}
+
+.cal-timegrid__daynum:hover {
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+/* Today wears the highlighted ring (the Google register). */
+.cal-timegrid__daynum--today {
+  border-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-primary);
+}
+
+.cal-timegrid__daynum--selected {
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+/* --- the all-day band ------------------------------------------------------ */
+
+.cal-timegrid__band {
+  display: flex;
+  gap: var(--spacing-1);
+  align-items: stretch;
+}
+
+.cal-timegrid__band-gutter {
+  width: var(--cal-gutter);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: var(--spacing-2);
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.cal-timegrid__band-grid {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: var(--spacing-1);
+}
+
+.cal-timegrid--day .cal-timegrid__band-grid {
+  grid-template-columns: 1fr;
+}
+
+.cal-timegrid--week .cal-timegrid__band-grid {
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.cal-timegrid__band-cell {
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: var(--spacing-6);
+  border-radius: var(--shape-extra-small);
+}
+
+.cal-timegrid__chip,
+.cal-timegrid__span {
+  border: none;
+  border-radius: var(--shape-extra-small);
+  padding: 1px var(--spacing-1-5);
+  font: var(--font-label-medium);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* --- the hour grid ---------------------------------------------------------- */
+
+.cal-timegrid__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.cal-timegrid__hours {
+  display: flex;
+  gap: var(--spacing-1);
+  align-items: stretch;
+}
+
+.cal-timegrid__hour-gutter {
+  width: var(--cal-gutter);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-timegrid__hour-label {
+  height: var(--cal-hour-height);
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding-right: var(--spacing-2);
+  transform: translateY(-50%);
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.cal-timegrid__day {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: var(--border-width-default) solid transparent;
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface-container-low);
+  cursor: pointer;
+}
+
+.cal-timegrid__day--selected {
+  border-color: var(--md-sys-color-tertiary);
+}
+
+.cal-timegrid__hour {
+  height: var(--cal-hour-height);
+  flex-shrink: 0;
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+/* The events layer spans the column; only the cards take pointer events
+   (the hour cells underneath keep the dblclick-at-hour + drop targets). */
+.cal-timegrid__events {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cal-timegrid__card {
+  position: absolute;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-0-5);
+  padding: var(--spacing-1) var(--spacing-1-5);
+  border: none;
+  border-radius: var(--shape-extra-small);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  font: var(--font-label-medium);
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.cal-timegrid__card-title {
+  max-width: 100%;
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-timegrid__card-time {
+  font: var(--font-label-small);
+  opacity: 0.85;
+}
+
+/* The red now-line (today's column): a hairline + the leading dot. */
+.cal-timegrid__now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: var(--border-width-medium) solid var(--md-sys-color-error);
+  pointer-events: none;
+}
+
+.cal-timegrid__now::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc(0px - var(--spacing-1));
+  width: var(--spacing-2);
+  height: var(--spacing-2);
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-error);
+}

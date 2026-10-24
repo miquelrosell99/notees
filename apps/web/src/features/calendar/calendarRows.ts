@@ -34,7 +34,9 @@ import type { ClientNode, ClientPropertySchema, WorkspaceClient } from "@/core/w
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import {
   isEventFamilyClass,
+  minutesOfTime,
   rangeEndIsoOf,
+  rangeSlotsOf,
   scheduledIsoOf,
   timeOfValue,
   type TaskBucketRow,
@@ -433,6 +435,185 @@ export function eventRowsForDays(
     );
   });
   return merged;
+}
+
+// --- the time grid split (the Day/Week zoom, owner 2026-10-24) ---------------
+
+/** The default timed duration: a timed point without an end = one hour (Google). */
+export const TIMED_POINT_DEFAULT_MINUTES = 60;
+
+/**
+ * One timed event's placement facts for the hour grid: the start minutes
+ * after midnight and the duration (a same-day range's end−start; the 1h
+ * default for a timed point).
+ */
+export interface TimedRow {
+  node: ClientNode;
+  /** The node's series rule when it repeats (the recurring routing's key). */
+  rule: RecurrenceRule | null;
+  /** Start minutes after local midnight (0..1439). */
+  startMinutes: number;
+  /** Duration in minutes (positive; a same-day range reading otherwise throws). */
+  durationMinutes: number;
+}
+
+/** One single-day untimed chip in the all-day band. */
+export interface AllDayChip {
+  node: ClientNode;
+  /** The visible day's index the chip rides. */
+  dayIndex: number;
+}
+
+/** One multi-day span bar, clamped to the visible window. */
+export interface SpanChip {
+  node: ClientNode;
+  /** The span's real start day (the drag/menu register — possibly before
+      the window; the bar clamps its first visible column to 0). */
+  startIso: string;
+  /** First visible column index the bar paints from. */
+  fromIndex: number;
+  /** Last visible column index (inclusive) the bar paints to. */
+  toIndex: number;
+}
+
+/** The per-day split of the events read for the time grid. */
+export interface TimeGridDaySplit {
+  timed: TimedRow[];
+  chips: AllDayChip[];
+  /** The day's spans: emitted on the FIRST visible day each span covers. */
+  spans: SpanChip[];
+}
+
+/**
+ * The all-day-band membership + timed placement for the time grid (the
+ * Google register): an event rides the all-day band when it is UNTIMED or
+ * CROSSES DAYS (its range/span end lands after its day); single-day timed
+ * events ride the hour grid with their start minutes + duration. `rowsForDay`
+ * is the caller's `eventRowsForDays` memo over one day; `spannedRows` the
+ * workspace span scan (both read-model inputs — no new scans here beyond the
+ * per-row driving-value lookup).
+ */
+export function timeGridSplitForDays(
+  client: AnyClient,
+  days: readonly string[],
+  rowsForDay: (iso: string) => readonly DatedRow[],
+  spannedRows: readonly SpannedRow[],
+): TimeGridDaySplit[] {
+  const indexOf = new Map(days.map((iso, i) => [iso, i]));
+  const splits: TimeGridDaySplit[] = days.map(() => ({ timed: [], chips: [], spans: [] }));
+
+  const displayKey = (node: ClientNode): string =>
+    displayNameFromClient(client, node.id) ?? node.id;
+  const byName = (a: ClientNode, b: ClientNode): number =>
+    displayKey(a).localeCompare(displayKey(b)) || a.id.localeCompare(b.id);
+
+  days.forEach((iso, dayIndex) => {
+    const split = splits[dayIndex]!;
+    for (const row of rowsForDay(iso)) {
+      // The multi-day family: the span owns the band, painted once from its
+      // first visible day as a continuous bar across the covered columns.
+      const span = spannedRows.find(
+        (entry) =>
+          entry.node.id === row.node.id &&
+          entry.endIso > entry.startIso &&
+          iso >= entry.startIso &&
+          iso <= entry.endIso,
+      );
+      if (span !== undefined) {
+        const startIndex = indexOf.get(span.startIso) ?? -1;
+        const fromIndex = startIndex === -1 ? 0 : startIndex;
+        if (dayIndex === fromIndex) {
+          const endIndex = indexOf.get(span.endIso) ?? -1;
+          split.spans.push({
+            node: span.node,
+            startIso: span.startIso,
+            fromIndex,
+            toIndex: endIndex === -1 ? days.length - 1 : endIndex,
+          });
+        }
+        continue;
+      }
+      // Single-day: the driving value's clock time decides band vs grid
+      // (a virtual recurring occurrence has no driving row — the series'
+      // anchor time rides the row).
+      const driving = drivingDateRowOf(client, row.node.id, iso);
+      const value = driving?.value;
+      const startTime = value === undefined ? row.time : timeOfValue(value);
+      if (startTime === null) {
+        split.chips.push({ node: row.node, dayIndex });
+        continue;
+      }
+      const startMinutes = minutesOfTime(startTime);
+      let durationMinutes = TIMED_POINT_DEFAULT_MINUTES;
+      if (value !== undefined && rangeEndIsoOf(value) === iso) {
+        // A same-day timed range: the duration is the end−start; an end at
+        // or before the start is malformed — fail loud.
+        const endTime = rangeSlotsOf(value)?.end?.time;
+        if (endTime !== null && endTime !== undefined) {
+          const endMinutes = minutesOfTime(endTime);
+          if (endMinutes <= startMinutes) {
+            throw new Error(
+              `Same-day range ends before it starts on ${iso} (${startTime}–${endTime}).`,
+            );
+          }
+          durationMinutes = endMinutes - startMinutes;
+        }
+      }
+      split.timed.push({ node: row.node, rule: row.rule, startMinutes, durationMinutes });
+    }
+    split.timed.sort(
+      (a, b) => a.startMinutes - b.startMinutes || byName(a.node, b.node),
+    );
+    split.chips.sort((a, b) => byName(a.node, b.node));
+    split.spans.sort((a, b) => a.fromIndex - b.fromIndex || byName(a.node, b.node));
+  });
+  return splits;
+}
+
+/**
+ * The Agenda zoom's per-row time label (the Google multi-day register):
+ * a single-day timed point reads its start ("09:00"), a same-day timed
+ * range the span ("09:00 – 10:00"), an untimed event "All day"; a multi-day
+ * span reads its START TIME on the first day ("15:00"), "All day" on the
+ * middle days, and "Until 18:00" (the end time) on the last. The driving
+ * value lookup is per (node, day); a virtual recurring occurrence falls back
+ * to the series' anchor time.
+ */
+export function agendaTimeLabelOf(
+  client: AnyClient,
+  row: DatedRow,
+  iso: string,
+  spannedRows: readonly SpannedRow[],
+): string {
+  const driving = drivingDateRowOf(client, row.node.id, iso);
+  const span = spannedRows.find(
+    (entry) =>
+      entry.node.id === row.node.id &&
+      entry.endIso > entry.startIso &&
+      iso >= entry.startIso &&
+      iso <= entry.endIso,
+  );
+  if (span !== undefined) {
+    if (driving !== undefined) {
+      const startTime = timeOfValue(driving.value);
+      return startTime ?? "All day";
+    }
+    if (iso === span.endIso) {
+      const startRow = drivingDateRowOf(client, row.node.id, span.startIso);
+      const endTime =
+        startRow === undefined ? null : (rangeSlotsOf(startRow.value)?.end?.time ?? null);
+      return endTime !== null ? `Until ${endTime}` : "All day";
+    }
+    return "All day";
+  }
+  if (driving === undefined) return row.time ?? "All day";
+  const startTime = timeOfValue(driving.value);
+  if (startTime === null) return "All day";
+  const endTime =
+    rangeEndIsoOf(driving.value) === iso
+      ? (rangeSlotsOf(driving.value)?.end?.time ?? null)
+      : null;
+  return endTime !== null ? `${startTime} – ${endTime}` : startTime;
 }
 
 /**

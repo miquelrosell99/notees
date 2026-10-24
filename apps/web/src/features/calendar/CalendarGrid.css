@@ -1,8 +1,8 @@
-/* CalendarGrid — the calendar's Week / Month / Year zooms (owner
-   2026-10-23, the google-calendar slice 2). The blocks wear the event's
-   effective color with the contrast text colorPresets derives; the
-   layout uses the frame's grid with adaptive cell heights in day-based
-   zooms. */
+/* CalendarGrid — the calendar's Month / Year zooms (owner 2026-10-23, the
+   google-calendar slice 2; the Day/Week zooms moved to the TimeGrid
+   2026-10-24). The blocks wear the event's effective color with the
+   contrast text colorPresets derives; the layout uses the frame's grid
+   with adaptive cell heights. */
 
 .cal-grid {
   display: flex;
@@ -48,11 +48,6 @@
   grid-template-columns: repeat(7, 1fr);
   grid-auto-rows: 1fr;
   gap: var(--spacing-1);
-}
-
-.cal-grid__cells--week {
-  /* The week zoom is one tall row of seven day columns. */
-  grid-template-rows: 1fr;
 }
 
 .cal-grid__cell {

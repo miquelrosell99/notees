@@ -1,7 +1,8 @@
-// One-off verification probe (2026-10-23): the calendar events element —
-// the quick-create pills row is gone, the events element renders with the
-// Day/Week/Month zoom, and empty scopes read the honest line. TEST
-// workspace only; screenshots land in /tmp.
+// One-off verification probe (2026-10-23; the time-grid + agenda pass
+// 2026-10-24): the calendar events element — the quick-create pills row is
+// gone, the calendar renders the Day/Week time grid, the Month/Year grids,
+// or the Agenda column per the zoom, and the ladder reads five options.
+// TEST workspace only; screenshots land in /tmp.
 import { chromium } from "playwright";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -62,6 +63,46 @@ const result = await page.evaluate(() => {
   });
 await page.screenshot({ path: join(OUT, "calendar-events.png") });
 
+// Day-zoom pass: the TimeGrid renders its own root (.cal-timegrid), the
+// 24h grid always there (owner 2026-10-24, the Google time-grid register).
+await page.locator(".calendar-view__ladder").getByRole("radio", { name: "Day", exact: true }).first().click();
+await page.waitForSelector(".cal-timegrid", { timeout: 60_000 });
+result.dayZoom = await page.evaluate(() => {
+  const grid = document.querySelector(".cal-timegrid");
+  return {
+    rootPresent: grid !== null,
+    hourCells: grid?.querySelectorAll(".cal-timegrid__hour").length ?? 0,
+    nowLine: grid?.querySelector(".cal-timegrid__now") !== null,
+  };
+});
+await page.screenshot({ path: join(OUT, "calendar-day-timegrid.png") });
+
+// Week-zoom pass: seven day columns in one time grid.
+await page.locator(".calendar-view__ladder").getByRole("radio", { name: "Week", exact: true }).first().click();
+await page.waitForSelector(".cal-timegrid", { timeout: 60_000 });
+result.weekZoom = await page.evaluate(() => ({
+  dayColumns: document.querySelectorAll(".cal-timegrid__day").length,
+}));
+await page.screenshot({ path: join(OUT, "calendar-week-timegrid.png") });
+
+// Agenda pass: the days-with-events column renders its own root
+// (.cal-agenda).
+await page.locator(".calendar-view__ladder").getByRole("radio", { name: "Agenda", exact: true }).first().click();
+await page.waitForSelector(".cal-agenda", { timeout: 60_000 });
+result.agendaZoom = await page.evaluate(() => {
+  const agenda = document.querySelector(".cal-agenda");
+  return {
+    rootPresent: agenda !== null,
+    empty: agenda?.textContent?.includes("No events.") ?? false,
+    nowLine: agenda?.querySelector(".cal-agenda__now") !== null,
+  };
+});
+await page.screenshot({ path: join(OUT, "calendar-agenda.png") });
+
+// Back to the month grid for the journal/day-page passes below.
+await page.locator(".calendar-view__ladder").getByRole("radio", { name: "Month", exact: true }).first().click();
+await page.waitForSelector(".cal-grid", { timeout: 60_000 });
+
 // Journal pass: no horizontal scroll (the flex min-width trap — the
 // feed and the body row must shrink below intrinsic content width).
 await page.locator(".nt-sidebar-nav .nt-side-row", { hasText: "Journal" }).first().click();
@@ -116,8 +157,12 @@ const pass =
     result.periodNavPresent === true &&
     result.monthTitleButton === true &&
     result.yearTitleButton === true &&
-    result.ladder.join(",") === "Day,Week,Month,Year" &&
+    result.ladder.join(",") === "Day,Week,Month,Year,Agenda" &&
     result.monthChecked === "Month" &&
+    result.dayZoom?.rootPresent === true &&
+    result.dayZoom?.hourCells === 24 &&
+    result.weekZoom?.dayColumns === 7 &&
+    result.agendaZoom?.rootPresent === true &&
     result.journalNoHScroll === true &&
     result.dayStepper?.present === true &&
     result.dayStepper?.inSurfaceTopBar === true &&

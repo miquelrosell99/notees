@@ -3,8 +3,8 @@
    root carries the sides inset (spacing-4; the top inset retired
    2026-10-23 — the bar hugs the card top), the top bar's horizontal
    padding zeroes itself below (the same .surface-topbar two-class
-   reconciliation the nodeview bar rides), and the body (the grids or the
-   day agenda) scrolls in the frame's middle cell. */
+   reconciliation the nodeview bar rides), and the body (the time grid,
+   the agenda, or the block grids) scrolls in the frame's middle cell. */
 
 /* The panelled surface inset (the .nt-page--panelled register) with one
    deviation (owner 2026-10-23): the top inset retires — the calendar's

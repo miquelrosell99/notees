@@ -273,6 +273,45 @@ predating this file.
     envelope 239/903 with zero writes. Full `pnpm test` green.
 
 ## 2026-10-23
+- **feat(web): the calendar's Day/Week zooms become the Google time grid;
+  the Agenda zoom joins the ladder (owner register 2026-10-24).** (1) The
+  **TimeGrid** replaces both the Week block grid and the DayAgenda cards
+  column: a header row (weekday abbreviations + big day numbers, today
+  ringed), an **all-day band** above a constant 1-hour interval grid
+  (untimed events stack as chips; multi-day events paint ONE continuous bar
+  across their covered columns — membership: untimed OR crossing days),
+  and the 24-hour grid with timed events as absolutely-positioned cards
+  (top = start minutes, height = duration, a timed point = the 1h default;
+  overlapping events split side by side via interval-graph clustering in
+  `calendarViewUtils.clusterTimedEvents`). The red **now-line** rides
+  today's column (a once-a-minute tick). A **dblclick at an hour** opens
+  the event modal prefilled with that day AND hour (`EventCreateModal`
+  gains the `startTime` prefill). (2) The read model: `calendarRows`
+  gains `timeGridSplitForDays` (the band/grid membership + placement
+  facts), `agendaTimeLabelOf` (the Google multi-day labels), and
+  `calendarViewUtils` gains `minutesOfTime`/`timeOfMinutes`/
+  `daysBetweenIsos` — `eventRowsForDays`' contract is untouched. (3) The
+  block drag-move/context-menu/recurring-scope ops move into the shared
+  `calendarEventOps` (`useEventOps` + `BlockContextMenu` +
+  `RecurrenceScopeSheet`): a day move preserves the time-of-day and shifts
+  a range's slots; a timed drop re-anchors the start, preserving the
+  duration. (4) The **Agenda** ladder option (`AgendaView`): days with
+  events only in one windowed column (the journal's sentinel pattern;
+  extension scans exhaust a direction honestly), the big-number group
+  header ("24 OCT, SAT", today filled-circle), the red now-line under
+  today's header, the "15:00" / "All day" / "Until 18:00" multi-day time
+  labels, row click opens. The navigator steps a week in Week and Agenda.
+    - **Verification**: web typecheck green; new calendar-timegrid suite
+      (band membership, span-across-columns, placement math, the 1h
+      default, overlap clustering, dblclick prefill, the now-line, the
+      timed-drop duration-preserving rewrite, the agenda's
+      days-with-events/window-extension/multi-day-labels/today-marker/row
+      open) + the rewritten calendar-view day-zoom specs and the
+      recurrence day-zoom spec — calendar family 3 files / 35 tests green;
+      full web suite below.
+## 2026-10-24
+
+>>>>>>> 32b01ae41 (feat(web): the Google time-grid register — Day/Week 1-hour grids with an all-day band and the red now-line, plus the infinite Agenda zoom (owner 2026-10-24, reference: Google Calendar))
 - **feat(web): the Tasks hub gains the New-task flow — the
   create-with-template flow's new home (owner 2026-10-24 follow-up).** The
   calendar's day-view retirement orphaned the TemplatePickerModal flow
