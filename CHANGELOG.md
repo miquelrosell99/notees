@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-24
 
+- **fix(web): the feature toggle carries a settings row forward (review
+  round 1 on the Sources settings).** The Features-tab family ToggleSwitch
+  wrote old-shape `{feature, enabled}` — the web client sat two pixels above
+  the settings it could destroy: two clicks (off, on) against a row carrying
+  `settings` cleared the record via whole-row LWW. `setFeatureEnabled` (the
+  SHARED toggle writer — family toggles, the journal toggle, the gallery's
+  F4 inverse) now read-modify-merges: when the current row carries settings,
+  the toggle write carries them forward; when the row is old-shape (no
+  settings), the plain write stays legal (nothing to lose). Also: the
+  object.delete family-base arm's settings-restore unit test (symmetric to
+  the class.create arm), and `[title:N]` joins the pattern input's token
+  help text. Tests: the toggle-merge round-trip (off → settings survive →
+  on → settings survive) + the old-shape-no-settings row staying old-shape;
+  the new journal arm case.
+
 - **feat(web): Sources settings — citekey pattern, resolver + auto-citekey
   toggles, class visibility list (source-library slices 3–6 task 5).** The
   first feature settings section under the workspace settings' Features tab.
