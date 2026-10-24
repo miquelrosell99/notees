@@ -225,6 +225,189 @@ predating this file.
     shipped.
 
 ## 2026-10-23
+- **feat(web): the Tasks hub gains the New-task flow — the
+  create-with-template flow's new home (owner 2026-10-24 follow-up).** The
+  calendar's day-view retirement orphaned the TemplatePickerModal flow
+  (the calendar's Tasks section was its only driver). The Tasks hub's
+  header now carries **New**: a task class with bound templates opens the
+  picker (the pick instantiates through the clone engine, the retired
+  calendar flow's exact write); without templates it creates directly.
+  The new task lands **Unscheduled** — the date pill schedules it, the
+  bucket partition reads honest. Specs: direct create + picker
+  instantiation (hub-create-buttons).
+  - **Verification**: web gate green; hub-create-buttons 5/5. Deployed:
+    verify-min VERIFY-PASS.
+## 2026-10-24
+
+- **feat(web): the calendar reads times + ranges; blocks and the day agenda
+  wear the clock prefix; the Day zoom becomes the day agenda; a cell
+  dblclick creates an event (owner rulings 2026-10-24).** (1) The read
+  model: `scheduledIsoOf` resolves RANGE values (the start slot's day, the
+  end's when the start side is open — strict day precision as before), with
+  new slot helpers (`slotTimeOf`, `timeOfValue`, `timePrefixOfValue`,
+  `rangeEndIsoOf`); `spannedRowsOf` expands canonical range values across
+  their covered days (the `metadata.endDate` drag-create register still
+  reads — those spans live in workspaces; the range shape is canonical
+  going forward); `eventRowsForDays` sorts TIMED events first by start
+  time ("HH:MM" lexicographic = chronological), untimed alphabetically, and
+  each row carries its clock time. (2) The grid blocks and the new day
+  agenda prefix the label with the driving value's time (`14:30 Title`;
+  `14:30–16:00 Title` for a same-day timed range). (3) The Day zoom
+  re-scopes from the old day-view body (the filter Tabs, the daily-note
+  embed, the Tasks/Dated/Created sections, the create-with-template flow —
+  all dead with it) to the Google day-cards register: the selected day's
+  events as one full-width column of large colored cards (`DayAgenda`), an
+  honest "No events this day." empty line; the day PAGE keeps the
+  aggregations (DayPageSections), the Tasks hub keeps the buckets. (4)
+  Dblclick a grid cell's empty area (Week/Month, or a day in Year — never
+  on blocks/day numbers, never mid drag-create) opens the new
+  `EventCreateModal`: Name, Start day (prefilled), optional Start/End
+  times and End day, fail-loud inline HH:MM/inverted-range validation; the
+  create lands an `event`-classed named node with the unified date union on
+  the system event class's first datetime binding (point / timed point /
+  cross-day range / same-day timed range — the drag-create register) and
+  opens it.
+  - **Verification**: web typecheck green; the calendar-family suites
+    rewritten to the new register (the agenda specs, the dblclick +
+    modal specs incl. point-vs-range writes, the timed-block/range-span
+    grid specs, the picker-level template specs, the recurrence specs
+    moved to the agenda/month grid and the day page's Tasks section) —
+    11 files / 122 tests green, full web suite below.
+## 2026-10-24
+
+- **feat(web): ONE top bar per surface — the day page's stacked second bar
+  merges into the nodeview bar; the DayStepper injects through
+  `topBarActionsExtra` (owner ruling 2026-10-24, the chrome ruling: every
+  surface gets exactly ONE top bar and that bar is the SurfaceTopBar).** The
+  day page was the violation: AppBody's `.day-page-surface` wrapper pinned its
+  own `SurfaceTopBar` (the calendar-today icon + the DayStepper) ABOVE the
+  NodeView, whose panelled chrome renders the nodeview top bar (the
+  context-panel toggle, the classes pills, the blocks view switcher, the
+  properties toggle, the "…" node menu) underneath — two stacked bars. Now
+  the wrapper carries no chrome: the stepper is INJECTED into NodeView's own
+  bar through the new optional `topBarActionsExtra` seam (AppBody → NodeView
+  → PageView → NodeTopbar, first in the bar's actions cluster; the compact
+  sections layout rides it in the corner cluster beside the switcher), and
+  the wrapper stays only for the full-bleed flex fill. NodeView's chrome row
+  needed no conversion — `NodeTopbar` already composes the fleet
+  `SurfaceTopBar` (owner 2026-10-23) — and the hub audit verified every hub
+  on the register: Journal, Calendar, Tasks/Pages/Classes/Inbox/
+  Whiteboards/Assets (CollectionHub), Trash, Archived, Shares, Search, and
+  Queries all compose `SurfaceTopBar`; Settings rides a nav rail (no chrome
+  row); the graph surface is canvas-only by design. Embedded (journal feed,
+  calendar embed) and hover-preview PageViews still grow no bar — the
+  `cornerMenu && !preview` gate suppresses the injection with the rest of the
+  chrome row. All aria-labels unchanged (Previous day / Next day / Jump to
+  today / Blocks view / Node actions).
+  - **Verification**: new `day-page-topbar.test.tsx` spec (4 specs: one bar
+    with the stepper + switcher + menu sharing it, no injection → no
+    stepper, the compact corner rides it, embedded/preview grow nothing)
+    plus the chrome-adjacent suites (focus-mode, context-column, embeds,
+    app-smoke, deck-view, view-modes, whiteboard-canvas, css-token-drift)
+    all green; zero typecheck errors in this slice's files. Docs:
+    `docs/features/calendar.md`'s stepper sentence follows the move.
+
+## 2026-10-24
+
+- **feat(web): the day stepper moves to the day page's SURFACE top bar —
+  and the calendar's zoom ladder switches to the SelectionButton register
+  (owner pass 2026-10-24, the vocabulary: the APP top bar is the global
+  bar — workspace switcher, breadcrumbs; the SURFACE top bar is the
+  per-view bar beneath it).** (1) The DayStepper (‹ bordered Today ›,
+  vertically centered by the stepper's own inline-flex register) moves
+  off the app top bar: a day page now rides the hub-surface register
+  (`.day-page-surface` joins PageCard.css's full-bleed list) — a
+  SurfaceTopBar with the calendar-today icon pins at the card's top, the
+  stepper in its actions cluster, the page body scrolling beneath; the
+  target day page materializes on demand (ensureDateChain). (2) The
+  calendar's Day/Week/Month/Year ladder switches from ad-hoc pressed
+  buttons to the fleet `SelectionButton` — the same button-switch the
+  mini-month's zoom rides: icons (today / agenda / month / range),
+  radiogroup semantics (aria-checked), the sliding indicator.
+  - **Verification**: web suites green (the ladder specs move to the
+    radio register); browser probe: the stepper inside the surface top
+    bar, Next materializes + advances the day, the ladder's radios name
+    Day/Week/Month/Year with Month checked. Full gate below.
+## 2026-10-24
+
+- **feat(web): the day stepper moves to the main top bar's right cluster;
+  focus mode hides every side panel; the journal's horizontal overflow
+  clips (owner pass 2026-10-24).** (1) The ‹ / Today / › stepping from the
+  morning's header bar moves up: the new `DayStepper` rides the main top
+  bar's RIGHT cluster while a day page is open — ghost chevrons stepping
+  one day either side with the BORDERED Today button between them (the
+  owner's "centered" = between the arrows); the target day page is
+  materialized on demand (ensureDateChain) and opened. The DayPageHeader
+  reverts to the date's own chrome. (2) Focus mode hides ALL side panels
+  (the owner's ruling): the journal's navigator panel and the right
+  rail join the page-view panels (which already honored it) behind the
+  `focusMode` device setting. (3) The journal feed clips stray
+  unbreakable overflow (`overflow-x: clip` on the list — visible with the
+  panel open, when the feed is narrowest); the probe measures at 1280px
+  and walks the view for offenders.
+  - **Verification**: DayStepper specs (chevron targets, the bordered
+    Today, visible on today) + the journals focus-mode spec; browser
+    probe: the stepper in the top bar's right cluster, Next materializes
+    and advances the day, journal scrollWidth == clientWidth. Full gate
+    below.
+## 2026-10-24
+
+- **fix(web): the journal view's horizontal scroll — the flex min-width
+  trap (owner 2026-10-24).** `.journals-body` and `.journals-list` are
+  flex children without `min-width: 0`, so the row would not shrink below
+  the feed's intrinsic content width and the view scrolled horizontally.
+  Both gain `min-width: 0` (the panel already carried it); content wraps
+  inside the entries' centered measure as designed.
+  - **Verification**: browser-verified — the calendar-panel probe now
+  opens the Journal and asserts `scrollWidth <= clientWidth` (1326 = 1326
+  on the test workspace); the css-token-drift + journals suites green.
+  Deployed: verify-min VERIFY-PASS.
+## 2026-10-24
+
+- **feat(web): day stepping returns on the day page's header; the journal's
+  navigator panel gains the collapse toggle (owner 2026-10-24).** (1) The
+  day page wears the Logseq/Capacities register again: a ‹ / Today / ›
+  stepping bar rides the header's flags row (right-pinned; ghost chevrons,
+  the outline-variant Today hidden on today itself) — stepping
+  materializes the target day page through the ensureDateChain pattern and
+  opens it via the page chrome's onOpenPage seam (preview surfaces pass no
+  seam and get no bar). The 2026-10-06 retirement of this bar reverses —
+  the docs flip with it. (2) The journal's side panel collapses from the
+  top bar (the calendar view's old toggle register: the agenda-outline
+  icon, aria-pressed, device-local `journalPanelCollapsed`), Today and the
+  toggle sharing the actions cluster.
+  - **Verification**: day-features specs (the bar renders, Today hides on
+    today, stepping materializes + opens the target) + the journal
+    collapse round-trip — full gate below.
+## 2026-10-24
+
+- **feat(web): the calendar view goes full-width — the side panel, the
+  day-stepping arrows retire; the period navigator lifts into the top bar,
+  centered, with the panel/popup title-button UI (owner 2026-10-24 pass
+  2).** Three owner nits closed: (1) the calendar's right panel is GONE
+  entirely — the journal owns the mini-month + events panel, the calendar
+  is the Google register: one full-view calendar, no sidebar (the grid
+  blocks are the marks; the retired dot assertions become block
+  assertions); (2) the grid header's chevrons/title lift into the top
+  bar's context slot, centered (`margin-inline: auto`): **Today ‹ [Month]
+  [Year] ›** — the chevrons step by the zoom's period (day-week ±7 days,
+  month ±1, year ±1; the visible-period state lifts from the grid into the
+  view and still follows the selection across boundaries), and the
+  month/year wear the exact panel/popup title-button register
+  (`calendar-title-btn--month` prominent, year greyed), opening the
+  monthly/yearly date-chain pages; the grid renders cells only; (3) the
+  day-level ‹ Today › arrow navigator retires from the top bar (day
+  picking rides the grid + the Today jump). The journal's side panel
+  meanwhile wears the standard raised-card element (`.nt-page-side-panel`
+  register: sidebar-card fill, hairline frame, card radius — no more bare
+  divider column) and the feed gains a proper left inset.
+  - **Verification**: calendar specs (the navigator steps the period, the
+    title buttons open the month/year pages, Today resets a wandered
+    period — the bare-setSelectedIso no-op bug it caught, the grid-cell
+    selection register) + journals specs; full gate below. Deployed:
+    verify-min VERIFY-PASS + the calendar-panel probe (no side panel,
+    period nav with title buttons, ladder at Month) green.
+## 2026-10-24
 
 - **feat(protocol,store): `workspace.feature.set` settings payload — the
   source-library plan's ONLY wire change (fixture gate).** The strict payload
@@ -342,6 +525,30 @@ predating this file.
     Citations + Sources-as-containers sections rewritten final, this entry,
     feature-status.
 
+- **feat(web): the events element relocates to the Journal's side panel —
+  the grid is the calendar's agenda; the journal owns the day-page context
+  (owner 2026-10-24, the redundancy ruling).** The calendar view's right
+  panel was duplicating both the main grid (mini-month) and the agenda
+  (the events element) — the Google/Apple register is ONE full-view
+  calendar plus a navigator. The calendar's panel now carries only the
+  mini-month (select a day; the month/year titles open the date-chain
+  pages); the events element — the day/week/month zoom over the event
+  family, grouped by containing page with breadcrumbs — moves to the
+  Journal, extracted as the standalone `EventsPanel` component, stacked
+  under a mini-month in a new `journals-panel` column. The journal is
+  where the events list earns its depth: picking a day in the panel's
+  mini-month **scroll-navigates the feed to that day page, materializing
+  it through the same journal-gated ensure as the Today jump** when it
+  doesn't exist yet (a `focusIso` anchor override generalizes the
+  owner-bug-2026-10-22 today-jump machinery; Today clears it). The
+  events element's calendar-view state/CSS retire with the move
+  (`eventRowsForDays` stays — the grid blocks' read model).
+  - **Verification**: journal specs (panel renders mini-month + events;
+    a mini-month pick re-anchors the feed; a pick on a missing day
+    materializes the page and navigates) + the calendar suites rewritten
+    against the grid — full gate below. Deployed: verify-min VERIFY-PASS
+    + the calendar-panel probe (grid + mini-month, no events element,
+    ladder at Month) green.
 - **feat(domain,web): multi-day event spans — the datetime-range ruling
   ships (owner 2026-10-23, google-calendar proposal).** The deferral
   closes: a datetime value whose own day is the inclusive start may carry

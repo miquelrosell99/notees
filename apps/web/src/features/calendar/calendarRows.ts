@@ -1,12 +1,13 @@
 /**
  * calendarRows — the client-side row derivation behind every calendar/day
- * surface (the Calendar day view, the day-page sections, the tasks-hub
- * buckets). One implementation so the three never drift: task rows read the
- * effective scheduled/deadline/status values (sync on both client kinds —
- * WorkerClient mirrors them through its read cache), and the done-toggle is
- * the tasks hub's exact write (property.set of the status option id, never
- * a taskClosedDate). Dated rows are the day node's existing backlink set
- * minus date-chain sources and tasks (zero model work).
+ * surface (the grid blocks + day agenda, the day-page sections, the
+ * tasks-hub buckets). One implementation so the surfaces never drift: task
+ * rows read the effective scheduled/deadline/status values (sync on both
+ * client kinds — WorkerClient mirrors them through its read cache), and
+ * the done-toggle is the tasks hub's exact write (property.set of the
+ * status option id, never a taskClosedDate). Dated rows are the day node's
+ * existing backlink set minus date-chain sources and tasks (zero model
+ * work).
  */
 
 import {
@@ -31,7 +32,13 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import { isEventFamilyClass, scheduledIsoOf, type TaskBucketRow } from "./calendarViewUtils.js";
+import {
+  isEventFamilyClass,
+  rangeEndIsoOf,
+  scheduledIsoOf,
+  timeOfValue,
+  type TaskBucketRow,
+} from "./calendarViewUtils.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -90,7 +97,7 @@ export function taskRowsOf(
 
 /**
  * The done-toggle every task row shares. `iso` is the day the toggle
- * happened on (the Calendar day view and the day-page sections pass their
+ * happened on (the day-page sections pass their viewed day).
  * viewed day).
  *
  * A PLAIN task (no recurrence rule): `property.set` of the Done/default
@@ -174,7 +181,9 @@ export function datedRowNodes(client: AnyClient, dayId: string): ClientNode[] {
 
 /**
  * One recurring node: the node plus its series (rule + anchor day + the
- * recurrence exceptions — exdates/until, owner 2026-10-23). The rule
+ * recurrence exceptions — exdates/until, owner 2026-10-23) and the anchor
+ * value's clock time (virtual occurrences inherit it — a 14:30 standup
+ * blocks at 14:30 on every occurrence day). The rule
  * lives on a date value's metadata (`repeat`); the anchor is that value's
  * own day; occurrences derive at read time, never as nodes.
  */
@@ -182,6 +191,8 @@ export interface RecurringRow {
   node: ClientNode;
   /** The full expansion input — rule, anchor, exdates, until. */
   series: RecurrenceSeries;
+  /** The anchor value's "HH:MM" (null for an untimed series). */
+  time: string | null;
 }
 
 /**
@@ -206,7 +217,7 @@ export function recurringRowsOf(client: AnyClient): RecurringRow[] {
       if (anchorIso === null) continue;
       const series = recurrenceSeriesOf(prop.metadata, anchorIso);
       if (series === null) continue;
-      rows.push({ node, series });
+      rows.push({ node, series, time: timeOfValue(prop.value) });
       break;
     }
   }
@@ -224,56 +235,43 @@ function seriesOccursOnDay(series: RecurrenceSeries, iso: string): boolean {
   return occurrenceIsosOf(series, iso, iso, 1).length === 1;
 }
 
-/** One Dated-section row: the node plus its recurrence rule, null when plain. */
+/** One event row: the node, its recurrence rule when it repeats, and its
+    clock time (the driving value's start "HH:MM" — null for untimed). */
 export interface DatedRow {
   node: ClientNode;
   /** The node's series rule when it repeats (started by the viewed day). */
   rule: RecurrenceRule | null;
+  /** The driving value's start time — the timed-first sort key + label prefix. */
+  time: string | null;
 }
 
 /**
- * The Dated rows for one day: the day node's materialized backlink
- * set (datedRowNodes) UNION the recurring nodes occurring on this day —
- * occurrences are virtual, so the backlink read alone can't see them. The
- * anchor day of a recurring node is already in the backlink set; the union
- * dedupes by id and marks it with the rule. Callers pre-filter
- * `recurringRows` (e.g. tasks out — they have their own section).
+ * The authored datetime value of `nodeId` whose day-resolution lands on
+ * `iso` (a point's own day or a range's start day), if any — the value that
+ * PLACED the node on this day. The block/agenda time prefix and the
+ * drag-move write both read through this (one effective-properties pass).
  */
-export function datedRowsForDay(
-  client: AnyClient,
-  iso: string,
-  recurringRows: readonly RecurringRow[],
-): DatedRow[] {
-  const rows = new Map<string, DatedRow>();
-  for (const node of datedRowNodes(client, dayNodeId(iso))) {
-    rows.set(node.id, { node, rule: null });
-  }
-  for (const entry of recurringRows) {
-    if (entry.series.anchorIso <= iso && rows.has(entry.node.id)) {
-      rows.get(entry.node.id)!.rule = entry.series.rule;
-      continue;
-    }
-    if (entry.series.anchorIso > iso) continue; // series hasn't started
-    if (!seriesOccursOnDay(entry.series, iso)) continue;
-    rows.set(entry.node.id, { node: entry.node, rule: entry.series.rule });
-  }
-  const merged = [...rows.values()];
-  merged.sort(
-    (a, b) =>
-      (displayNameFromClient(client, a.node.id) ?? a.node.id).localeCompare(
-        displayNameFromClient(client, b.node.id) ?? b.node.id,
-      ) || a.node.id.localeCompare(b.node.id),
-  );
-  return merged;
+export function drivingDateRowOf(client: AnyClient, nodeId: string, iso: string) {
+  return client
+    .getEffectiveProperties(nodeId)
+    .find(
+      (prop) =>
+        prop.source === "authored" &&
+        prop.schema?.type === "datetime" &&
+        scheduledIsoOf(prop.value) === iso,
+    );
 }
 
 // --- multi-day spans (the datetime-range ruling, owner 2026-10-23) ------------
 
 /**
- * One multi-day span: an event whose date value carries `metadata.endDate`
- * (the value's own day is the inclusive start). The value keeps referencing
- * its START day node — the span expands client-side at read time, the same
- * compute-on-read register as recurrence.
+ * One multi-day span: an event whose date value resolves to more than one
+ * day. The canonical form is a RANGE value `{start, end}` with both slots
+ * day-precision and the end after the start (the value's start slot day is
+ * the inclusive start). The LEGACY register rides the value's own day plus
+ * `metadata.endDate` — the drag-create path (two days before ranges shipped)
+ * still lives in workspaces, so both reads stand until a migration rewrites
+ * those logs; the range shape is canonical going forward.
  */
 export interface SpannedRow {
   node: ClientNode;
@@ -284,8 +282,9 @@ export interface SpannedRow {
 
 /**
  * Every multi-day event span in the workspace: the same document-chrome
- * scan recurringRowsOf runs, filtered to authored datetime values with an
- * endDate after their own day. Corrupt endDate metadata throws (fail loud).
+ * scan recurringRowsOf runs, filtered to values whose canonical range end
+ * (or legacy endDate metadata) lands after the value's own day. Corrupt
+ * endDate metadata throws (fail loud).
  */
 export function spannedRowsOf(client: AnyClient): SpannedRow[] {
   const rows: SpannedRow[] = [];
@@ -296,7 +295,7 @@ export function spannedRowsOf(client: AnyClient): SpannedRow[] {
       if (prop.schema?.type !== "datetime") continue;
       const startIso = scheduledIsoOf(prop.value);
       if (startIso === null) continue;
-      const endIso = spanEndOf(prop.metadata);
+      const endIso = rangeEndIsoOf(prop.value) ?? spanEndOf(prop.metadata);
       if (endIso === null || endIso <= startIso) continue;
       rows.push({ node, startIso, endIso });
       break;
@@ -311,11 +310,12 @@ export function spannedRowsOf(client: AnyClient): SpannedRow[] {
   return rows;
 }
 
-// --- events list (the panel's events element) --------------------------------
+// --- events list (the grids, the day agenda, the panel's element) ------------
 
 /**
- * The Events-list rows for a scope of days (the calendar panel's events
- * element below the mini-month, owner 2026-10-23): event-family nodes — the
+ * The Events-list rows for a scope of days (the grid blocks and the day
+ * agenda, owner 2026-10-23/24; the journal panel's events element rides the
+ * same read): event-family nodes — the
  * system `event` class and every class extending it transitively — matched
  * by EITHER family:
  *
@@ -331,7 +331,14 @@ export function spannedRowsOf(client: AnyClient): SpannedRow[] {
  * day lists the series, the Dated grammar). Tasks never list (their own
  * section), date-chain nodes neither, non-event classes neither (a node
  * that merely carries a date property stays in Dated, not here). Deduped
- * by id (dated beats embedded — one row per node), sorted by display name.
+ * by id (dated beats embedded — one row per node).
+ *
+ * Each row carries its clock time — the driving value's start "HH:MM"
+ * (untimed values read null) — and the sort is TIMED FIRST by start time
+ * ("HH:MM" lexicographic order is chronological for the validated format),
+ * then untimed alphabetically by display name (the day agenda and every
+ * grid cell list their day in the Google register: an untimed event never
+ * jumps a timed one).
  */
 export function eventRowsForDays(
   client: AnyClient,
@@ -352,19 +359,25 @@ export function eventRowsForDays(
     node.classIds.some((classId) => isEventFamilyClass(classId, parentsOf));
 
   const rows = new Map<string, DatedRow>();
-  const addNode = (node: ClientNode, rule: RecurrenceRule | null): void => {
+  const addNode = (node: ClientNode, rule: RecurrenceRule | null, time: string | null): void => {
     const existing = rows.get(node.id);
     if (existing !== undefined) {
       if (existing.rule === null && rule !== null) existing.rule = rule;
+      if (existing.time === null && time !== null) existing.time = time;
       return;
     }
-    rows.set(node.id, { node, rule });
+    rows.set(node.id, { node, rule, time });
+  };
+  /** The placing value's clock time on this day (null when untimed/absent). */
+  const timeAt = (nodeId: string, iso: string): string | null => {
+    const row = drivingDateRowOf(client, nodeId, iso);
+    return row === undefined ? null : timeOfValue(row.value);
   };
 
   for (const iso of isos) {
     const dayId = dayNodeId(iso);
     for (const node of datedRowNodes(client, dayId)) {
-      if (isEventNode(node)) addNode(node, null);
+      if (isEventNode(node)) addNode(node, null, timeAt(node.id, iso));
     }
     // The embedded family: every descendant of the day page (the day node
     // itself excluded — a date-chain node is never an event). The walk
@@ -381,7 +394,7 @@ export function eventRowsForDays(
           queue.push(child.id);
           if (parseDateNodeId(child.id) !== null) continue;
           if (child.classIds.length === 0 || !isEventNode(child)) continue;
-          addNode(child, null);
+          addNode(child, null, timeAt(child.id, iso));
         }
       }
     }
@@ -393,24 +406,32 @@ export function eventRowsForDays(
       }
       if (entry.series.anchorIso > iso) continue; // series hasn't started
       if (!seriesOccursOnDay(entry.series, iso)) continue;
-      addNode(entry.node, entry.series.rule);
+      addNode(entry.node, entry.series.rule, entry.time);
     }
     // The multi-day span family: the event covers every day in [start, end].
     for (const entry of spannedRows) {
       if (rows.has(entry.node.id)) continue;
       if (iso < entry.startIso || iso > entry.endIso) continue;
       if (!isEventNode(entry.node)) continue;
-      addNode(entry.node, null);
+      addNode(entry.node, null, timeAt(entry.node.id, iso));
     }
   }
 
   const merged = [...rows.values()];
-  merged.sort(
-    (a, b) =>
+  merged.sort((a, b) => {
+    // Timed first, chronological by the start time; untimed alphabetically.
+    if (a.time !== null || b.time !== null) {
+      if (a.time === null) return 1;
+      if (b.time === null) return -1;
+      const byTime = a.time.localeCompare(b.time);
+      if (byTime !== 0) return byTime;
+    }
+    return (
       (displayNameFromClient(client, a.node.id) ?? a.node.id).localeCompare(
         displayNameFromClient(client, b.node.id) ?? b.node.id,
-      ) || a.node.id.localeCompare(b.node.id),
-  );
+      ) || a.node.id.localeCompare(b.node.id)
+    );
+  });
   return merged;
 }
 

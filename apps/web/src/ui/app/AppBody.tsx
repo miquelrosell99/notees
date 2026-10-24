@@ -8,6 +8,8 @@
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
+import { parseDateNodeId } from "@notees/domain";
+
 import type { ClientNode, SyncStatusSnapshot } from "@/core/workspace-client/index.js";
 import type { AccountUser } from "@/core/auth-api.js";
 import type { AnyClient } from "./clients.js";
@@ -34,6 +36,7 @@ import { NodeCardFrame } from "../../features/collection/NodeCardFrame.js";
 import { todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { HubView } from "./HubView.js";
+import { DayStepper } from "../../features/calendar/DayPageHeader.js";
 
 export interface AppBodyProps {
   client: AnyClient;
@@ -69,6 +72,8 @@ export interface AppBodyProps {
   reorderSidebarCard: (activeId: string, targetId: string, position: "before" | "after") => void;
   rightPanelOpen: boolean;
   setRightPanelOpen: Dispatch<SetStateAction<boolean>>;
+  /** Focus mode hides every side panel (owner ruling 2026-10-24). */
+  focusMode: boolean;
   sidebarCards: string[];
   setSidebarCards: Dispatch<SetStateAction<string[]>>;
   closeSidebarCard: (nodeId: string) => void;
@@ -109,6 +114,7 @@ export function AppBody(props: AppBodyProps) {
     reorderSidebarCard,
     rightPanelOpen,
     setRightPanelOpen,
+    focusMode,
     sidebarCards,
     setSidebarCards,
     closeSidebarCard,
@@ -178,20 +184,60 @@ export function AppBody(props: AppBodyProps) {
             : null
         }
       >
-        {selectedPageId !== null ? (
-          <NodeView
-            client={client}
-            nodeId={selectedPageId}
-            onOpenNode={openPage}
-            onOpenNodeRaw={openPageAt}
-            onOpenInSidebar={openInSidebar}
-            onDeleted={handleNodeDeleted}
-            onPresent={(id) => setPresentingId(id)}
-            cornerMenu
-            shareTarget={shareTarget}
-            sectionsLayout={sectionsLayout}
-          />
-        ) : searchOpen ? (
+        {selectedPageId !== null ? (() => {
+          // Day pages ride ONE bar (owner 2026-10-24 pass 5 — the chrome
+          // ruling): the DayStepper (‹ bordered Today ›) is INJECTED into
+          // NodeView's own SurfaceTopBar (topBarActionsExtra) instead of a
+          // second bar stacked above the page; the target day page is
+          // materialized on demand (the ensureDateChain pattern). The
+          // .day-page-surface wrapper stays for the full-bleed flex fill
+          // only — it carries no chrome of its own.
+          const parsedDay =
+            selectedPageId === null
+              ? null
+              : (() => {
+                  const parsed = parseDateNodeId(selectedPageId);
+                  return parsed !== null && parsed.precision === "day"
+                    ? `${parsed.year}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`
+                    : null;
+                })();
+          const pageView = (
+            <NodeView
+              client={client}
+              nodeId={selectedPageId}
+              onOpenNode={openPage}
+              onOpenNodeRaw={openPageAt}
+              onOpenInSidebar={openInSidebar}
+              onDeleted={handleNodeDeleted}
+              onPresent={(id) => setPresentingId(id)}
+              cornerMenu
+              shareTarget={shareTarget}
+              sectionsLayout={sectionsLayout}
+              topBarActionsExtra={
+                parsedDay !== null ? (
+                  <DayStepper
+                    iso={parsedDay}
+                    onNavigateDay={(iso) => {
+                      void client
+                        .ensureDateChain(iso)
+                        .then(({ day }) => openPage(day))
+                        .catch(() => {});
+                    }}
+                  />
+                ) : undefined
+              }
+            />
+          );
+          // The day page rides the .day-page-surface full-bleed wrapper (the
+          // flex fill beneath the card's 13xl cap); its stepper is IN the
+          // NodeView's own bar (topBarActionsExtra above) — the wrapper
+          // carries no chrome of its own (one bar per surface).
+          return parsedDay !== null ? (
+            <div className="day-page-surface">{pageView}</div>
+          ) : (
+            pageView
+          );
+        })() : searchOpen ? (
           <SearchPage
             client={client}
             onOpenNode={openPage}
@@ -249,7 +295,8 @@ export function AppBody(props: AppBodyProps) {
           <HubView client={client} nav={activeNav} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
         )}
       </PageCard>
-      {rightPanelOpen && (
+      {rightPanelOpen && !focusMode && (
+        /* Focus mode hides every side panel (owner ruling 2026-10-24). */
         <aside className="nt-right-card" aria-label="Right sidebar">
           {/* The cards-only rail: the node-relevant widgets
               (graph/TOC/Activity/Comments) relocated into the page chrome's

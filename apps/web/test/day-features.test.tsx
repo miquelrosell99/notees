@@ -1,9 +1,9 @@
 /**
  * Dates & daily-notes feature tests (day-page branch, bucketed
- * tasks, date bars, Ctrl+Shift+T, calendar breadth, reviewed):
+ * tasks, date bars, Ctrl+Shift+T, calendar breadth):
  *
  *  - pure helpers: partitionTasksIntoBuckets, weekDaysOfIso, isoOfDateParts,
- *    scheduledIsoOf, hasDatedRefs.
+ *    scheduledIsoOf.
  *  - openTodayKeyHandler: the Ctrl/Cmd+Shift+T chord (text-field guard).
  *  - PageView day branch: the DayPageHeader (weekday line above the title,
  *    the Today pill when the day is today, the Week-N flag after the
@@ -12,8 +12,7 @@
  *    done-toggle write), embedded suppression.
  *  - TaskBuckets over HubView nav=tasks: the five buckets + counts, the
  *    done-toggle moving rows, the device-local collapse, the empty hub.
- *  - CalendarView breadth: the range-aware dated dot, the reviewed tint,
- *    the week strip, the week agenda.
+ *  - CalendarView breadth: event blocks mark the days that carry them.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -36,7 +35,6 @@ import { openTodayKeyHandler } from "../src/ui/app/keymap.js";
 import { CalendarView } from "../src/features/calendar/CalendarView.js";
 import {
   addDaysIso,
-  hasDatedRefs,
   isoOfDateParts,
   partitionTasksIntoBuckets,
   scheduledIsoOf,
@@ -45,6 +43,7 @@ import {
   weekdayLabel,
   type TaskBucketRow,
 } from "../src/features/calendar/calendarViewUtils.js";
+import { DayStepper } from "../src/features/calendar/DayPageHeader.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
@@ -185,11 +184,15 @@ async function createDatedMeeting(
   return id;
 }
 
-/** The `.calendar-day` cell (button) showing the given day number. */
+/** The grid CELL (background click selects) for the given day of month —
+    the day-NUMBER is the open-page affordance, not the selection. */
 function dayCell(container: HTMLElement, dayNumber: string): HTMLElement {
-  const cell = Array.from(container.querySelectorAll(".calendar-day")).find(
-    (el) => el.textContent?.trim() === dayNumber,
+  const suffix = `-${dayNumber.padStart(2, "0")}`;
+  const matches = Array.from(
+    container.querySelectorAll(`.cal-grid__cell[data-day$="${suffix}"]`),
   );
+  const cell =
+    matches.find((el) => !el.classList.contains("cal-grid__cell--outside")) ?? matches[0];
   expect(cell, `day cell ${dayNumber}`).toBeDefined();
   return cell as HTMLElement;
 }
@@ -239,16 +242,6 @@ describe("calendarViewUtils day helpers", () => {
     const sunFirst = weekDaysOfIso("2026-10-04", 0);
     expect(sunFirst[0]).toBe("2026-10-04");
     expect(sunFirst).toHaveLength(7);
-  });
-
-  it("hasDatedRefs ignores date-chain sources", () => {
-    expect(hasDatedRefs([])).toBe(false);
-    expect(
-      hasDatedRefs([
-        { sourceId: "00000000-0000-0000-00aa-202606000000" }, // month node fan-in
-      ]),
-    ).toBe(false);
-    expect(hasDatedRefs([{ sourceId: "some-meeting-id" }])).toBe(true);
   });
 
   it("partitionTasksIntoBuckets places every row in exactly one bucket", () => {
@@ -354,7 +347,7 @@ describe("openTodayKeyHandler (Ctrl/Cmd+Shift+T)", () => {
 // --- #4/#7/#15 the day-page branch ------------------------------------------------
 
 describe("PageView day branch", () => {
-  it("renders the DayPageHeader: weekday flag above the date title, the Week flag after it, no ±1-day bar", async () => {
+  it("renders the DayPageHeader: weekday flag above the date title, the Week flag after it — the stepping lives in the top bar now (owner pass 2026-10-24)", async () => {
     const client = await seedClient();
     const iso = "2026-06-15";
     const { day } = await client.ensureDateChain(iso);
@@ -362,7 +355,8 @@ describe("PageView day branch", () => {
 
     const { container } = render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} />);
 
-    // The old ‹ / Today / › date bar is gone — no day stepping on the page.
+    // The ‹ / › stepping moved to the MAIN TOP BAR (DayStepper); the header
+    // stays the date's own chrome.
     expect(screen.queryByRole("button", { name: "Previous day" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Next day" })).toBeNull();
 
@@ -375,8 +369,9 @@ describe("PageView day branch", () => {
     const heading = within(header).getByRole("heading", { level: 1 });
     expect(heading.textContent).toContain("2026-06-15"); // default YYYY-MM-DD
     expect(within(heading).getByText("Week 25")).not.toBeNull();
-    // The "Today" pill rides the flags line only when the day IS today.
-    expect(within(header).queryByText("Today")).toBeNull();
+    // The "Today" PILL rides the flags line only when the day IS today
+    // (the stepping bar's Today BUTTON is separate chrome).
+    expect(header.querySelector(".day-page-header__today")).toBeNull();
   });
 
   it("renders the Today pill on today's day page", async () => {
@@ -387,7 +382,28 @@ describe("PageView day branch", () => {
     const { container } = render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} />);
     const header = container.querySelector(".day-page-header") as HTMLElement;
     expect(header).not.toBeNull();
+    // The Today PILL rides the flags; the Today BUTTON hides on today itself.
     expect(within(header).getByText("Today")).not.toBeNull();
+    expect(within(header).queryByRole("button", { name: "Jump to today" })).toBeNull();
+  });
+
+  it("the DayStepper: chevrons around the bordered Today, stepping one day either side", async () => {
+    const onNavigate = vi.fn();
+    render(<DayStepper iso="2026-06-15" onNavigateDay={onNavigate} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous day" }));
+    expect(onNavigate).toHaveBeenLastCalledWith("2026-06-14");
+    fireEvent.click(screen.getByRole("button", { name: "Next day" }));
+    expect(onNavigate).toHaveBeenLastCalledWith("2026-06-16");
+    fireEvent.click(screen.getByRole("button", { name: "Jump to today" }));
+    expect(onNavigate).toHaveBeenLastCalledWith(todayIsoLocal());
+    // Today is the BORDERED variant between the ghost chevrons — and stays
+    // visible on today itself (the calendar navigator's register).
+    const today = within(screen.getByRole("group", { name: "Day navigation" }));
+    const todayButton = today.getByRole("button", { name: "Jump to today" });
+    expect(todayButton.className).toContain("border");
+    render(<DayStepper iso={todayIsoLocal()} onNavigateDay={vi.fn()} />);
+    expect(screen.getAllByRole("button", { name: "Jump to today" }).length).toBeGreaterThan(0);
   });
 
   it("hides all three sections on an empty day page", async () => {
@@ -404,6 +420,8 @@ describe("PageView day branch", () => {
     // The day header still renders (it is chrome, not an aggregation)…
     expect(screen.getByText(weekdayLabel("2026-06-15"))).toBeDefined();
     // …and the deleted date bar's stepping buttons stay gone.
+    // The stepping lives in the main top bar (DayStepper) — not in the
+    // page chrome.
     expect(screen.queryByRole("button", { name: "Previous day" })).toBeNull();
   });
 
@@ -590,54 +608,48 @@ describe("CalendarView breadth (dots, agenda)", () => {
     const { day: _todayDay } = await client.ensureDateChain(today);
     await flushWrites();
 
-    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
     const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
     // Navigate the month grid when the targets land in the next month.
     if (future.slice(0, 7) !== today.slice(0, 7)) {
       fireEvent.click(screen.getByRole("button", { name: "Next period" }));
     }
-    // A day some object references: marked (setting the date auto-created
-    // its chain, so the page exists too — the dot composes with the fill).
+    // A day some object references blocks its event (the grid's mark
+    // register — the retired dots' honest successor); the chain exists
+    // too (setting the date auto-created it).
     const target = dayCell(container, String(Number(future.slice(8))));
-    expect(target.classList.contains("dated")).toBe(true);
-    expect(target.classList.contains("has-note")).toBe(true);
-    // A bare chain day: a page exists but nothing references it — no dot.
+    await waitFor(() => {
+      expect(target.querySelector(".cal-block")).not.toBeNull();
+    });
+    // A bare chain day: a page exists but nothing references it — no block.
     if (bare.slice(0, 7) !== future.slice(0, 7)) {
       fireEvent.click(screen.getByRole("button", { name: "Next period" }));
     }
     const bareCell = dayCell(container, String(Number(bare.slice(8))));
-    expect(bareCell.classList.contains("has-note")).toBe(true);
-    expect(bareCell.classList.contains("dated")).toBe(false);
+    expect(bareCell.querySelector(".cal-block")).toBeNull();
   });
 
-  it("renders the events element around the selected day", async () => {
+  it("renders the dated meeting as a grid block around the selected day", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const future = addDaysIso(today, 2);
     await createDatedMeeting(client, "Agenda meeting", future);
     await flushWrites();
 
-    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
     const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
-    // Select the meeting's day: the events element follows the selection
-    // (week zoom covers the whole week around the selected day).
+    const grid = await screen.findByLabelText("Calendar month view");
+    // The block rides the same cell register as the selection.
+    await waitFor(() => {
+      expect(grid.textContent).toContain("Agenda meeting");
+    });
+    // Select the meeting's day: the grid's outlined selection follows.
     if (future.slice(0, 7) !== today.slice(0, 7)) {
       fireEvent.click(screen.getByRole("button", { name: "Next period" }));
     }
     fireEvent.click(dayCell(container, String(Number(future.slice(8)))));
-    const events = await screen.findByLabelText("Events");
-    // The events element renders the event-family row through the BlockRow
-    // machinery.
-    await waitFor(() => {
-      const titles = [...events.querySelectorAll(".nt-block-content")].map(
-        (el) => el.textContent ?? "",
-      );
-      expect(titles).toContain("Agenda meeting");
-    });
-    // The grid's outlined selection moved with the selection (the week
-    // strip that mirrored this retired, owner 2026-10-23).
     expect(
-      container.querySelector(".calendar-day.selected")?.getAttribute("aria-label"),
-    ).toContain(String(Number(future.slice(8))));
+      container.querySelector(".cal-grid__cell--selected")?.getAttribute("data-day"),
+    ).toBe(future);
   });
 });

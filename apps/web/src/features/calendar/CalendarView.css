@@ -1,11 +1,10 @@
-/* CalendarView — the Capacities-style Day view. Tokens from variables.css.
-   The composition rides the shared MainContentFrame (owner 2026-10-23 — the
-   calendar is the frame's second host): the root carries the sides inset
-   (spacing-4; the top inset retired 2026-10-23 — the bar hugs the card
-   top), the top bar's horizontal padding zeroes itself below
-   (the same .surface-topbar two-class reconciliation the nodeview bar
-   rides), the day content scrolls in the middle cell, and the mini-month +
-   week strip + week agenda ride the frame's raised-card right panel. */
+/* CalendarView — the grid-first Google-style calendar. Tokens from
+   variables.css. The composition rides the shared MainContentFrame: the
+   root carries the sides inset (spacing-4; the top inset retired
+   2026-10-23 — the bar hugs the card top), the top bar's horizontal
+   padding zeroes itself below (the same .surface-topbar two-class
+   reconciliation the nodeview bar rides), and the body (the grids or the
+   day agenda) scrolls in the frame's middle cell. */
 
 /* The panelled surface inset (the .nt-page--panelled register) with one
    deviation (owner 2026-10-23): the top inset retires — the calendar's
@@ -25,14 +24,6 @@
 .surface-topbar.calendar-view__topbar {
   padding-left: 0;
   padding-right: 0;
-}
-
-/* The agenda panel's content stack: the frame's aside is the scroll box,
-   the calendar's three widgets keep their rhythm inside it. */
-.calendar-view__panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
 }
 
 .calendar-view__main {
@@ -79,124 +70,20 @@
   color: var(--md-sys-color-on-surface-variant);
 }
 
-.calendar-view__nav {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  flex-shrink: 0;
-}
-
-.calendar-view__filter {
-  flex-shrink: 0;
-}
-
-.calendar-view__sections {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-5);
-  min-height: 0;
-}
-
-.calendar-view__section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-}
-
-.calendar-view__section-head {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-}
-
-.calendar-view__section-title {
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-  font: var(--font-title-medium);
-  color: var(--md-sys-color-on-surface);
-}
-
-.calendar-view__count {
-  font: var(--font-label-medium);
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.calendar-view__empty-block {
-  padding: var(--spacing-4);
-  border: var(--border-width-default) dashed var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-medium);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.calendar-view__group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.calendar-view__group-title {
-  margin: 0;
-  font: var(--font-label-medium);
-  letter-spacing: var(--letter-spacing-label);
-  text-transform: uppercase;
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.calendar-view__group-title--overdue {
-  color: var(--md-sys-color-error);
-}
-
-.calendar-view__muted {
-  margin: 0;
-  font: var(--font-body-small);
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-/* The events element under the month grid: the events list with its
-   day/week/month zoom — event-family nodes dated into the scope days or
-   embedded inside the scope day pages, grouped by containing page with
-   breadcrumbs (owner 2026-10-23). */
-.calendar-view__agenda {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  margin-top: var(--spacing-3);
-}
-
-.calendar-view__agenda-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-}
-
-.calendar-view__agenda-title {
-  margin: 0;
-  font: var(--font-label-medium);
-  letter-spacing: var(--letter-spacing-label);
-  text-transform: uppercase;
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.calendar-view__zoom {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-}
-
-.calendar-view__error {
-  margin: 0;
-  font: var(--font-body-small);
-  color: var(--md-sys-color-error);
-}
-
-
 .calendar-view__ladder {
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
   flex-shrink: 0;
+}
+
+/* The period navigator (owner 2026-10-24): centered in the top bar's
+   context slot — Today, the prev/next chevrons stepping by the zoom's
+   period, and the panel/popup title buttons (month prominent, year
+   greyed) opening the date-chain pages. */
+.calendar-view__period-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-inline: auto;
 }

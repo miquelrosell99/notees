@@ -13,6 +13,9 @@ import { CollectionHub } from "../../features/collection/CollectionHub.js";
 import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
 import { TaskBuckets } from "../../features/classview/TaskBuckets.js";
 import { createNodesWithClasses } from "../../features/templates/createNodesWithClasses.js";
+import { ensureTemplateProperty, listClassTemplates } from "../../features/templates/templateFamily.js";
+import { TemplatePickerModal } from "../../features/templates/TemplatePickerModal.js";
+import { instantiateTemplate } from "@/core/clone.js";
 import { ClassCreateModal } from "../../features/modals/ClassCreateModal.js";
 import { AssetUploadModal } from "../../features/modals/AssetUploadModal.js";
 import { Button } from "../../components/ui/fleet/Button.js";
@@ -97,6 +100,10 @@ export function HubView({
 }) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  /** The tasks-hub create flow's pending template picker (owner 2026-10-24). */
+  const [pendingTaskCreate, setPendingTaskCreate] = useState<{
+    templates: ClientNode[];
+  } | null>(null);
   // Author the six task property schemas + bindings on first
   // tasks-hub open (idempotent no-op once present); before this, a fresh
   // workspace silently dropped the Scheduled/Deadline columns.
@@ -128,6 +135,38 @@ export function HubView({
   if (nav === "tasks") {
     // Any node classed task — pages AND blocks (owner rule), table default.
     const members = client.getClassMembers(SYSTEM_CLASS_UUIDS.task);
+    // New-task flow (owner 2026-10-24 — the calendar's Tasks section retired
+    // with the day view; the hub owns creation now): a class with bound
+    // templates opens the picker; a class without creates directly. The new
+    // task is unscheduled (the Unscheduled bucket is its honest home; the
+    // date pill schedules it).
+    const createTaskWithTemplate = async (templateId: string | null): Promise<void> => {
+      const id = await client.createObject({
+        isEmbedded: false,
+        classIds: [SYSTEM_CLASS_UUIDS.task],
+      });
+      if (templateId !== null) {
+        await instantiateTemplate(
+          { reads: client, writes: client },
+          { templateRootId: templateId, objectId: id },
+        );
+      }
+      onOpenNode(id);
+    };
+    const offerTaskCreate = async (): Promise<void> => {
+      await ensureTemplateProperty(client);
+      const templates = listClassTemplates(client, SYSTEM_CLASS_UUIDS.task);
+      if (templates.length === 0) {
+        await createTaskWithTemplate(null);
+        return;
+      }
+      setPendingTaskCreate({ templates });
+    };
+    const newTaskAction = (
+      <Button size="sm" variant="ghost" icon="mdi-plus" aria-label="New task" onClick={() => void offerTaskCreate()}>
+        New
+      </Button>
+    );
     // The cards board groups by the status property; the cards mode renders
     // it when a usable select schema exists (task family is authored on demand).
     const groupByProperty = taskGroupingProperty(client, members);
@@ -154,9 +193,22 @@ export function HubView({
           editable
           emptyTitle="No tasks yet"
           prepend={<TaskBuckets client={client} onOpenNode={onOpenNode} />}
+          headerActions={newTaskAction}
           onOpenNode={onOpenNode}
           onOpenInSidebar={onOpenInSidebar}
         />
+        {pendingTaskCreate !== null && (
+          <TemplatePickerModal
+            isOpen
+            onClose={() => setPendingTaskCreate(null)}
+            classLabel="Task"
+            templates={pendingTaskCreate.templates}
+            onPick={(templateId) => {
+              setPendingTaskCreate(null);
+              void createTaskWithTemplate(templateId);
+            }}
+          />
+        )}
       </div>
     );
   }

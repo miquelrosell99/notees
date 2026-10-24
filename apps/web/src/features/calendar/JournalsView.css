@@ -5,15 +5,20 @@
 
 .journals-list {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
+  /* Stray unbreakable content (long URLs, wide code) clips instead of
+     scrolling the view horizontally (owner 2026-10-24 — visible with the
+     side panel open, when the feed is at its narrowest). */
+  overflow-x: clip;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-10);
   /* No horizontal padding: the entries self-cap (each .journal-entry's
      .nt-page inherits the 46rem centered measure), so the scroller stays
      flush to the card border (owner 2026-10-22). */
-  padding: var(--spacing-4) 0 var(--spacing-12);
+  padding: var(--spacing-4) 0 var(--spacing-12) var(--spacing-6);
 }
 
 .journals-sentinel {
@@ -90,5 +95,45 @@
   .journals-list {
     gap: var(--spacing-6);
     padding: var(--spacing-4) 0;
+  }
+}
+
+/* The side panel (owner 2026-10-24): the mini-month navigator + the
+   events element, riding the calendar view's panel width. The feed and
+   the panel sit in a row under the top bar; the feed keeps the card's
+   scroll border, the panel scrolls independently. */
+.journals-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+}
+
+/* The raised-card register (owner 2026-10-24 pass 2): the panel wears
+   the SAME card element the frame's side panels do (.nt-page-side-panel,
+   MainContentFrame.css) — sidebar-card fill, hairline frame, card radius —
+   instead of a bare column split by a divider. The feed gains a proper
+   left inset (owner: the content hugged the card border). */
+.journals-panel {
+  flex: 0 0 var(--layout-size-8xl);
+  min-width: 0;
+  align-self: stretch;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  margin: 0 var(--spacing-3) var(--spacing-3) 0;
+  padding: var(--spacing-4);
+  overflow-y: auto;
+  background: var(--md-sys-color-sidebar-card);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-card);
+}
+
+@media (width <= 768px) {
+  .journals-panel {
+    display: none;
   }
 }

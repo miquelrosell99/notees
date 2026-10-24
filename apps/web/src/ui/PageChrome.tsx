@@ -79,6 +79,13 @@ export function NodeTopbar({
   chromeModes,
   condensedChrome,
   chromeMenu,
+  /**
+   * Extra actions injected by the host into the bar's right cluster (the
+   * chrome ruling, owner 2026-10-24 — ONE bar per surface): the day
+   * page's DayStepper rides here, ahead of the view switcher, instead of
+   * the host stacking a second bar above the page.
+   */
+  topBarActionsExtra = undefined,
   onOpenPage,
   focusMode = false,
   /**
@@ -111,6 +118,9 @@ export function NodeTopbar({
    */
   condensedChrome?: ReactNode;
   chromeMenu: ReactNode;
+  /** Extra host-injected actions (the day page's DayStepper) — first in
+   *  the right cluster, ahead of the view switcher. */
+  topBarActionsExtra?: ReactNode;
   onOpenPage?: ((pageId: string) => void) | undefined;
   /** Classes-cluster override (the class variant's extends pills). */
   classesCorner?: ReactNode;
@@ -148,6 +158,7 @@ export function NodeTopbar({
       }
       actions={
         <div className="nt-node-topbar__right">
+          {topBarActionsExtra}
           {chromeModes}
           {condensedChrome}
           {!focusMode && (

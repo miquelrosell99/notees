@@ -201,6 +201,13 @@ export function PageView({
    */
   chromeModes = undefined,
   chromeMenu = undefined,
+  /**
+   * Extra content for the card top bar's actions cluster, injected by the
+   * host (the chrome ruling, owner 2026-10-24 — ONE bar per surface): the
+   * day page's DayStepper rides the nodeview top bar (panelled) or the
+   * compact corner beside the view switcher, never a second stacked bar.
+   */
+  topBarActionsExtra = undefined,
   /** shares: server coordinates for the "Share…" item + modal. */
   shareTarget = undefined,
   /**
@@ -247,6 +254,9 @@ export function PageView({
   onBlocksModeChange?: ((mode: ViewMode) => void) | undefined;
   chromeModes?: ReactNode;
   chromeMenu?: ReactNode;
+  /** Extra actions injected into the card top bar (the day page's
+   *  DayStepper) — one bar per surface, never a stacked second bar. */
+  topBarActionsExtra?: ReactNode;
   shareTarget?: ShareTarget | undefined;
   preview?: boolean;
   globalShortcuts?: boolean | undefined;
@@ -904,6 +914,7 @@ export function PageView({
                 chromeModes={chromeModes}
                 condensedChrome={condensedChrome}
                 chromeMenu={chromeMenu}
+                topBarActionsExtra={topBarActionsExtra}
                 onOpenPage={onOpenPage}
                 focusMode={focusMode}
                 classesCorner={
@@ -984,8 +995,9 @@ export function PageView({
           {headerChrome}
           {mainChrome}
           {footerChrome}
-          {(chromeModes !== undefined || chromeMenu !== undefined) && (
+          {(chromeModes !== undefined || chromeMenu !== undefined || topBarActionsExtra !== undefined) && (
             <div className="nt-node-view__corner">
+              {topBarActionsExtra}
               {chromeModes}
               {condensedChrome}
               {chromeMenu}

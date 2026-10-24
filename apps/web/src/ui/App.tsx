@@ -684,6 +684,7 @@ export function App() {
         setAdminSettingsOpen={setAdminSettingsOpen}
         selectedPageId={selectedPageId}
         activeNav={activeNav}
+        focusMode={focusMode}
         setActiveNav={setActiveNav}
         setSettingsSection={setSettingsSection}
         setSearchOpen={setSearchOpen}

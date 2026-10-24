@@ -4,23 +4,29 @@
  * Calendar view, each rendering the events list's exact membership
  * (calendarRows.eventRowsForDays — event-family nodes dated into the day
  * or embedded in the day page) as COLORED BLOCKS (effectiveNodeColor: own
- * color, else the first class's). Day zoom stays the existing day view
- * (CalendarView renders it); this component owns the other three.
+ * color, else the first class's). Day zoom is the day agenda (DayAgenda,
+ * CalendarView renders it); this component owns the other three.
  *
- * The whole-day register (the dates law): blocks are single-day — a
- * datetime value is one day; multi-day spans are a deferred datetime-range
- * ruling, so a multi-day event is N date values or N blocks, never a
- * painted span.
+ * The whole-day register retired (owner 2026-10-24): a datetime value may
+ * carry a clock time and span a RANGE of days — blocks prefix the label
+ * with the driving value's time, and a range value paints its span across
+ * every covered day (calendarRows.spannedRowsOf expands it at read time,
+ * the same compute-on-read register as recurrence).
  *
  * Interactions (the Google register): a block click opens the event; the
  * day-number opens the day PAGE (owner ruling 2026-10-23); clicking
  * elsewhere in a cell selects the day; month cells cap the visible blocks
- * (BLOCKS_PER_CELL) with an honest "+N" that jumps to the day zoom. Period
- * navigation (prev/next) steps the VISIBLE window without moving the
- * selection; the window follows the selection when it drifts across a
+ * (BLOCKS_PER_CELL) with an honest "+N" that jumps to the day zoom; a
+ * DBLCLICK on a cell's empty area opens the event creation modal
+ * (owner 2026-10-24 — it never fights the press-drag create: the drag
+ * commits only across days, the dblclick arrives on a same-day click
+ * pair). Blocks wear the driving value's clock time when it carries one
+ * ("14:30 Title"; "14:30–16:00 Title" for a same-day timed range).
+ * Period navigation (prev/next) steps the VISIBLE window without moving
+ * the selection; the window follows the selection when it drifts across a
  * boundary (the MonthCalendar contract). Drag-and-drop (move/create) and
- * the recurring scope dialog are the next slices — this grid renders their
- * drop targets already via the cell data attributes.
+ * the recurring scope dialog ship; the grid renders their drop targets
+ * already via the cell data attributes.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -32,6 +38,7 @@ import { untitledLabelOf } from "../../ui/renderStateLabel.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import {
   eventRowsForDays,
+  drivingDateRowOf,
   type RecurringRow,
   type SpannedRow,
 } from "./calendarRows.js";
@@ -47,7 +54,8 @@ import {
   SYSTEM_CLASS_UUIDS,
 } from "@notees/domain";
 import { isoLocal, useWeekdayHeader } from "./dayGrid.js";
-import { addDaysIso, scheduledIsoOf, weekDaysOfIso } from "./calendarViewUtils.js";
+import { addDaysIso, timePrefixOfValue, weekDaysOfIso } from "./calendarViewUtils.js";
+import { EventCreateModal } from "./EventCreateModal.js";
 import "./CalendarGrid.css";
 
 /** Blocks a month cell shows before the honest "+N" row. */
@@ -65,6 +73,8 @@ export interface CalendarGridProps {
   recurringRows: readonly RecurringRow[];
   /** The multi-day span scan (same register — endDate-carrying date values). */
   spannedRows: readonly SpannedRow[];
+  /** The visible period (the host's state — the navigator lives in the top bar). */
+  period: VisiblePeriod;
   /** Day pick: select the day (a cell click; the "+N" row jumps with it). */
   onSelectDay: (iso: string) => void;
   /** Block click: open the event node. */
@@ -73,20 +83,25 @@ export interface CalendarGridProps {
   onOpenDayPage: (iso: string) => void;
   /** Year zoom: open a month (the host switches the zoom + selects its first day). */
   onOpenMonth: (year: number, month0: number) => void;
+  /** The title-button register (panel/popup parity): open the monthly page. */
+  onOpenMonthPage: (year: number, month0: number) => void;
+  /** The title-button register: open the yearly page. */
+  onOpenYearPage: (year: number) => void;
 }
 
-/** The visible-period window, owned by the grid (navigation stays local). */
-interface VisiblePeriod {
+/** The visible-period window — owned by the HOST since the navigator
+ * lifted into the top bar (owner 2026-10-24). */
+export interface VisiblePeriod {
   year: number;
   month0: number;
 }
 
-function periodOf(iso: string): VisiblePeriod {
+export function periodOf(iso: string): VisiblePeriod {
   const [y, m] = iso.split("-").map(Number);
   return { year: y!, month0: m! - 1 };
 }
 
-function shiftMonth(period: VisiblePeriod, delta: number): VisiblePeriod {
+export function shiftMonth(period: VisiblePeriod, delta: number): VisiblePeriod {
   const total = period.year * 12 + period.month0 + delta;
   return { year: Math.floor(total / 12), month0: total % 12 };
 }
@@ -98,12 +113,15 @@ export function CalendarGrid({
   firstDayOfWeek,
   recurringRows,
   spannedRows,
+  period,
   onSelectDay,
   onOpenEvent,
   onOpenDayPage,
   onOpenMonth,
+  onOpenMonthPage,
+  onOpenYearPage,
 }: CalendarGridProps) {
-  const [period, setPeriod] = useState<VisiblePeriod>(() => periodOf(selectedIso));
+
   /** The recurring scope dialog's pending action (a move or a delete). */
   const [pendingAction, setPendingAction] = useState<
     | { kind: "move"; nodeId: string; fromIso: string; toIso: string }
@@ -115,18 +133,8 @@ export function CalendarGrid({
   /** Drag-create anchor: the day the press started on (null = not creating). */
   const [createAnchor, setCreateAnchor] = useState<string | null>(null);
   const [createEnd, setCreateEnd] = useState<string | null>(null);
-  // The visible window follows the selection when it drifts across a
-  // boundary (prev/next day, an open from another surface) — the
-  // MonthCalendar contract.
-  useEffect(() => {
-    const next = periodOf(selectedIso);
-    if (zoom === "month" && (next.year !== period.year || next.month0 !== period.month0)) {
-      setPeriod(next);
-    }
-    if (zoom === "year" && next.year !== period.year) setPeriod(next);
-    if (zoom === "week") setPeriod(next); // the week zoom always tracks the day
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- follow the selection only
-  }, [selectedIso, zoom]);
+  /** The dblclick-to-create target day (the event modal opens over it). */
+  const [createAt, setCreateAt] = useState<string | null>(null);
 
   const weekdayHeader = useWeekdayHeader(firstDayOfWeek);
   const todayIso = (() => {
@@ -160,15 +168,7 @@ export function CalendarGrid({
   // --- the drag-and-drop writes (owner 2026-10-23, google-calendar slice 3) --
 
   /** The authored datetime value of `nodeId` anchored at `iso`, if any. */
-  const dateRowAt = (nodeId: string, iso: string) =>
-    client
-      .getEffectiveProperties(nodeId)
-      .find(
-        (prop) =>
-          prop.source === "authored" &&
-          prop.schema?.type === "datetime" &&
-          scheduledIsoOf(prop.value) === iso,
-      );
+  const dateRowAt = (nodeId: string, iso: string) => drivingDateRowOf(client, nodeId, iso);
 
   const isRecurringAt = (nodeId: string, iso: string): boolean => {
     const row = dateRowAt(nodeId, iso);
@@ -244,53 +244,17 @@ export function CalendarGrid({
         selectedIso={selectedIso}
         todayIso={todayIso}
         eventsByIsoReader={(iso) => eventRowsForDays(client, [iso], recurringRows, spannedRows)}
-        onPrev={() => setPeriod((p) => ({ ...p, year: p.year - 1 }))}
-        onNext={() => setPeriod((p) => ({ ...p, year: p.year + 1 }))}
         onOpenMonth={(month0) => onOpenMonth(period.year, month0)}
         onOpenDayPage={onOpenDayPage}
+        onOpenYearPage={onOpenYearPage}
+        onCreateEvent={(iso) => setCreateAt(iso)}
       />
     );
   }
 
-  const periodLabel =
-    zoom === "week"
-      ? (() => {
-          const [a, b] = [cells[0], cells[cells.length - 1]];
-          const fmt = (iso: string) =>
-            new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, {
-              month: "short",
-              day: "numeric",
-            });
-          return a && b ? `${fmt(a)} – ${fmt(b)}` : "";
-        })()
-      : new Date(period.year, period.month0, 1).toLocaleDateString(undefined, {
-          month: "long",
-          year: "numeric",
-        });
-
+  // The period label rides the host's top bar; the grid renders cells only.
   return (
     <section className="cal-grid" aria-label={`Calendar ${zoom} view`}>
-      <div className="cal-grid__header">
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="mdi-chevron-left"
-          aria-label="Previous period"
-          onClick={() =>
-            zoom === "week" ? onSelectDay(addDaysIso(selectedIso, -7)) : setPeriod((p) => shiftMonth(p, -1))
-          }
-        />
-        <h2 className="cal-grid__title">{periodLabel}</h2>
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="mdi-chevron-right"
-          aria-label="Next period"
-          onClick={() =>
-            zoom === "week" ? onSelectDay(addDaysIso(selectedIso, 7)) : setPeriod((p) => shiftMonth(p, 1))
-          }
-        />
-      </div>
       <div className="cal-grid__weekdays">
         {weekdayHeader.map((name, i) => (
           <span key={`${name}-${i}`} className="cal-grid__weekday">
@@ -318,6 +282,22 @@ export function CalendarGrid({
               }`}
               data-day={iso}
               onClick={() => onSelectDay(iso)}
+              onDoubleClick={(event) => {
+                // Dblclick-to-create on the cell's empty area: never on
+                // blocks, the day number, the "+N more" row, or buttons —
+                // and never mid drag-create (the press owns the gesture;
+                // a same-day click pair commits no drag, so the two never
+                // fight).
+                if (createAnchor !== null) return;
+                if (
+                  (event.target as HTMLElement).closest(
+                    ".cal-block, .cal-grid__daynum, .cal-grid__more, button",
+                  )
+                ) {
+                  return;
+                }
+                setCreateAt(iso);
+              }}
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 event.preventDefault();
@@ -434,6 +414,16 @@ export function CalendarGrid({
           }}
         />
       )}
+      <EventCreateModal
+        isOpen={createAt !== null}
+        onClose={() => setCreateAt(null)}
+        client={client}
+        startIso={createAt ?? selectedIso}
+        onCreated={(nodeId) => {
+          setCreateAt(null);
+          onOpenEvent(nodeId);
+        }}
+      />
     </section>
   );
 }
@@ -473,12 +463,17 @@ function EventBlock({
     deriveDisplayName(node, (classId) => displayNameFromClient(client, classId)) ||
     untitledLabelOf(node);
   const color = client.effectiveNodeColor(node);
+  // The clock prefix (owner 2026-10-24): the driving value's time on THIS
+  // day — "14:30" for a timed point/range start, "14:30–16:00" for a
+  // same-day range with both times; untimed blocks ride bare as before.
+  const drivingRow = drivingDateRowOf(client, nodeId, iso);
+  const prefix = drivingRow === undefined ? null : timePrefixOfValue(drivingRow.value);
   return (
     <button
       type="button"
       className="cal-block"
       style={color !== null ? { background: color, color: cssColorFor(color) } : undefined}
-      title={label}
+      title={prefix !== null ? `${prefix} ${label}` : label}
       draggable
       onDragStart={(event) => {
         event.dataTransfer.setData("text/x-notees-event", `${nodeId}|${iso}`);
@@ -494,7 +489,7 @@ function EventBlock({
         onMenu(event.clientX, event.clientY);
       }}
     >
-      {label}
+      {prefix !== null ? `${prefix} ${label}` : label}
     </button>
   );
 }
@@ -595,29 +590,25 @@ function YearGrid({
   selectedIso,
   todayIso,
   eventsByIsoReader,
-  onPrev,
-  onNext,
   onOpenMonth,
   onOpenDayPage,
+  onOpenYearPage,
+  onCreateEvent,
 }: {
   client: AnyClient;
   year: number;
   selectedIso: string;
   todayIso: string;
   eventsByIsoReader: (iso: string) => ReturnType<typeof eventRowsForDays>;
-  onPrev: () => void;
-  onNext: () => void;
   onOpenMonth: (month0: number) => void;
   onOpenDayPage: (iso: string) => void;
+  onOpenYearPage: (year: number) => void;
+  /** Dblclick a day: open the event create modal at that day. */
+  onCreateEvent: (iso: string) => void;
 }) {
   const today = new Date();
   return (
     <section className="cal-grid cal-grid--year" aria-label="Calendar year view">
-      <div className="cal-grid__header">
-        <Button variant="ghost" size="sm" icon="mdi-chevron-left" aria-label="Previous period" onClick={onPrev} />
-        <h2 className="cal-grid__title">{year}</h2>
-        <Button variant="ghost" size="sm" icon="mdi-chevron-right" aria-label="Next period" onClick={onNext} />
-      </div>
       <div className="cal-year">
         {Array.from({ length: 12 }, (_, month0) => {
           const dayCount = new Date(year, month0 + 1, 0).getDate();
@@ -653,6 +644,13 @@ function YearGrid({
                       }`}
                       aria-label={`Open day page ${iso}`}
                       onClick={() => onOpenDayPage(iso)}
+                      onDoubleClick={(event) => {
+                        // The year zoom's days are open-page buttons: the
+                        // single clicks fired first (the day page opened) —
+                        // the dblclick still lands create on the day.
+                        event.stopPropagation();
+                        onCreateEvent(iso);
+                      }}
                     >
                       {i + 1}
                       {hasEvents ? <span className="cal-year__dot" aria-hidden="true" /> : null}

@@ -1,22 +1,21 @@
 /**
- * CalendarView helpers — the pure logic behind the Calendar day view,
- * extracted for direct testing (partition, AST bounds, chip qualification).
- * No client, no React: every function takes plain values.
+ * Calendar helpers — the pure logic behind the calendar surfaces (the
+ * grid/agenda read model, the day-page partitions), extracted for direct
+ * testing (partition, AST bounds, slot parsing). No client, no React:
+ * every function takes plain values.
  */
 
 import {
   occurrenceIsosOf,
   SYSTEM_CLASS_UUIDS,
-  SYSTEM_PROPERTY_UUIDS,
-  TASK_CLOSED_STATUSES,
   parseDateNodeId,
   type RecurrenceRule,
 } from "@notees/domain";
 import type { QueryAst } from "@notees/query";
 
 // Re-exported for callers that want the canonical import site alongside the
-// other day-view helpers.
-export { chainNodeIds, dayNodeId, recurrenceRuleOf } from "@notees/domain";
+// other calendar helpers.
+export { dayNodeId, recurrenceRuleOf } from "@notees/domain";
 
 /** Local `YYYY-MM-DD` for today — always local midnight, never UTC .slice. */
 export function todayIsoLocal(): string {
@@ -53,8 +52,8 @@ export function isoWeekNumber(iso: string): number {
 /**
  * Long weekday name for a date (the UI is English-only — the locale is
  * pinned, not `undefined`, so a host/browser es locale can never leak
- * "martes" into an English surface). Day-page header and Calendar day view
- * share this.
+ * "martes" into an English surface). The day-page header and the calendar
+ * date line share this.
  */
 export function weekdayLabel(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
@@ -72,45 +71,6 @@ export function createdTodayBounds(iso: string): { after: string; before: string
     after: new Date(`${iso}T00:00:00.000`).toISOString(),
     before: new Date(`${iso}T23:59:59.999`).toISOString(),
   };
-}
-
-/**
- * The open-task query: class:task AND property taskScheduled "exists" AND NOT
- * (property taskStatus eq <done>) AND NOT (… eq <cancelled>). The
- * compiler caveat is load-bearing: never op "neq" for open filtering — nodes
- * with no value don't match neq — so each closed status is a negated eq arm.
- * `closedOptionIds` are the taskStatus select-option ids whose labels are the
- * TASK_CLOSED_STATUSES names, resolved from the authored schema at runtime.
- */
-export function buildOpenTasksAst(
-  closedOptionIds: readonly string[],
-): QueryAst {
-  const children: QueryAst["root"]["children"] = [
-    { type: "class", classId: SYSTEM_CLASS_UUIDS.task },
-    { type: "property", schemaId: SYSTEM_PROPERTY_UUIDS.taskScheduled, op: "exists" },
-  ];
-  for (const optionId of closedOptionIds) {
-    children.push({
-      type: "not",
-      child: {
-        type: "property",
-        schemaId: SYSTEM_PROPERTY_UUIDS.taskStatus,
-        op: "eq",
-        value: optionId,
-      },
-    });
-  }
-  return {
-    version: 1,
-    scope: { type: "entire_workspace" },
-    root: { type: "group", logic: "and", children },
-  };
-}
-
-/** The created-today query over node.created_at (UTC ISO-8601 bounds). */
-export function buildCreatedTodayAst(iso: string): QueryAst {
-  const { after, before } = createdTodayBounds(iso);
-  return buildCreatedInPeriodAst(after, before);
 }
 
 /**
@@ -188,7 +148,7 @@ export interface OpenTaskRow {
   /**
    * The taskScheduled value's completed occurrence days
    * (metadata.completedOccurrences; [] for plain tasks). Per-occurrence
-   * completion: the day view's done-toggle on a recurring task records the
+   * completion: the day-context done-toggle on a recurring task records the
    * DATE here instead of the node-level status, so one occurrence closes
    * while the series stays open.
    */
@@ -255,17 +215,109 @@ export function isoOfDateParts(parts: { year: number; month: number; day: number
   ).padStart(2, "0")}`;
 }
 
+// --- datetime value slots (SCHEMA.md "Datetime") ---------------------------------
+
 /**
- * The local ISO day a `{"nodeId": …}` date property value points at (null
- * unless the target parses at day precision). Shared by the Calendar day
- * view, the day-page sections, and the tasks buckets.
+ * One normalized slot of a datetime value: a day node reference plus an
+ * optional wall-clock time ("HH:MM", 24h minute precision — absence IS the
+ * full-day register on the wire).
  */
-export function scheduledIsoOf(value: unknown): string | null {
-  const ref = value as { nodeId?: unknown } | undefined;
-  if (typeof ref?.nodeId !== "string") return null;
-  const parsed = parseDateNodeId(ref.nodeId);
+export interface DateValueSlot {
+  nodeId: string;
+  /** "HH:MM" — null for an untimed (full-day) slot. */
+  time: string | null;
+}
+
+/**
+ * Normalize one slot-ish piece of a datetime value: a point object
+ * `{ "nodeId": …, "time"?: … }` or a legacy bare-uuid string (the archived
+ * date encoding normalizes to an untimed slot at read time — the store
+ * shapes writes, reads stay lenient). Null for anything else.
+ */
+function slotOf(value: unknown): DateValueSlot | null {
+  if (typeof value === "string") return { nodeId: value, time: null };
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const nodeId = (value as { nodeId?: unknown }).nodeId;
+  if (typeof nodeId !== "string") return null;
+  const time = (value as { time?: unknown }).time;
+  return { nodeId, time: typeof time === "string" ? time : null };
+}
+
+/**
+ * The `{ start, end }` view of a RANGE datetime value (either side open).
+ * Null for points and non-date shapes — callers branch on the point/range
+ * union through this and slotOf.
+ */
+export function rangeSlotsOf(
+  value: unknown,
+): { start: DateValueSlot | null; end: DateValueSlot | null } | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (!("start" in record) && !("end" in record)) return null;
+  const side = (v: unknown): DateValueSlot | null =>
+    v === undefined || v === null ? null : slotOf(v);
+  return { start: side(record.start), end: side(record.end) };
+}
+
+/** The local ISO day of one slot (null unless the target parses at day precision). */
+function slotIsoOf(slot: DateValueSlot | null): string | null {
+  if (slot === null) return null;
+  const parsed = parseDateNodeId(slot.nodeId);
   if (parsed === null || parsed.precision !== "day") return null;
   return isoOfDateParts(parsed);
+}
+
+/** The "HH:MM" of one slot (null when absent or untimed). */
+export function slotTimeOf(slot: unknown): string | null {
+  return slotOf(slot)?.time ?? null;
+}
+
+/**
+ * The local ISO day a datetime value points at: a POINT's own day; a RANGE's
+ * START slot day, falling back to the END slot's day when the start side is
+ * open (`{start: null, end: {nodeId}}` lands on its end day). Null unless the
+ * resolved slot parses at day precision — the strictness is load-bearing
+ * (month/year-precision refs never read as a day). Shared by the calendar
+ * grids/agenda, the day-page sections, and the tasks buckets.
+ */
+export function scheduledIsoOf(value: unknown): string | null {
+  const range = rangeSlotsOf(value);
+  if (range !== null) return slotIsoOf(range.start) ?? slotIsoOf(range.end);
+  return slotIsoOf(slotOf(value));
+}
+
+/**
+ * The value's clock time: the START slot's "HH:MM" for a range (a range
+ * without a start time is untimed — null), the point's own time otherwise.
+ * The block/agenda prefix derives from this.
+ */
+export function timeOfValue(value: unknown): string | null {
+  const range = rangeSlotsOf(value);
+  if (range !== null) return range.start?.time ?? null;
+  return slotOf(value)?.time ?? null;
+}
+
+/** The RANGE's end-slot day (strict day precision; null for points and
+    open/missing ends) — the span read's canonical end. */
+export function rangeEndIsoOf(value: unknown): string | null {
+  return slotIsoOf(rangeSlotsOf(value)?.end ?? null);
+}
+
+/**
+ * The label prefix the grid blocks and the day agenda wear: "HH:MM" for a
+ * timed point or a timed range start; "HH:MM–HH:MM" when a timed range's end
+ * slot lands the SAME day with its own time (the Google same-day register).
+ * Null for untimed values — the label rides bare, exactly as before times.
+ */
+export function timePrefixOfValue(value: unknown): string | null {
+  const startTime = timeOfValue(value);
+  if (startTime === null) return null;
+  const range = rangeSlotsOf(value);
+  if (range === null || range.end === null) return startTime;
+  if (range.end.time !== null && slotIsoOf(range.end) === slotIsoOf(range.start)) {
+    return `${startTime}–${range.end.time}`;
+  }
+  return startTime;
 }
 
 /**
@@ -278,19 +330,6 @@ export function weekDaysOfIso(iso: string, firstDayOfWeek: number): string[] {
   const weekday = new Date(y!, m! - 1, d!, 12).getDay();
   const offset = (weekday - firstDayOfWeek + 7) % 7;
   return Array.from({ length: 7 }, (_, i) => addDaysIso(iso, i - offset));
-}
-
-/**
- * Range-aware day activity: true when the day node's backlink
- * set holds any non-date-chain source. The edge projection fans date refs
- * (and range ends) out to the deterministic day node, so one
- * materialized read answers "objects dated this day" — a day-precision ref
- * lands on its day, a range end lands on its end day. (Qualified-link
- * metadata ranges edge only from their start day — the middle days stay
- * dotless, the same visibility the Dated section has.)
- */
-export function hasDatedRefs(backlinks: ReadonlyArray<{ sourceId: string }>): boolean {
-  return backlinks.some((edge) => parseDateNodeId(edge.sourceId) === null);
 }
 
 // --- bucketed tasks --------------------------------------------------------------
@@ -359,18 +398,6 @@ export function partitionTasksIntoBuckets(
   unscheduled.sort(byId);
   completed.sort(byId);
   return { overdue, today, upcoming, unscheduled, completed };
-}
-
-// --- quick-create chips ----------------------------------------------------------
-
-/** The option ids whose labels name closed statuses (labels, never colors —
- * select options carry no color on the wire). */
-export function closedStatusOptionIds(
-  schema: { options: Array<{ id: string; label: string }> | null } | undefined,
-): string[] {
-  return (schema?.options ?? [])
-    .filter((option) => TASK_CLOSED_STATUSES.has(option.label as "Done" | "Cancelled"))
-    .map((option) => option.id);
 }
 
 /** One class's chip candidacy input (resolved by the view from the client). */

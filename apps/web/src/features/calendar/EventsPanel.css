@@ -1,0 +1,38 @@
+/* EventsPanel — the journal side panel's events element (owner
+   2026-10-24, relocated from the calendar view per the redundancy
+   ruling): the day/week/month zoom over the event family, grouped by
+   containing page with breadcrumbs. */
+
+.events-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-height: 0;
+}
+
+.events-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.events-panel__title {
+  margin: 0;
+  font: var(--font-label-medium);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.events-panel__zoom {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.events-panel__muted {
+  margin: 0;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}

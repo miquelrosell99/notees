@@ -31,6 +31,8 @@
  * class pages stay visually identical minus the deleted curated chrome.)
  */
 
+import type { ReactNode } from "react";
+
 import { rendersAsInlineBlock } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
@@ -85,6 +87,16 @@ export function NodeView({
    * column). The app top bar's layout button flips it; it lasts the session.
    */
   sectionsLayout = false,
+  /**
+   * Extra content for the view's own top-bar actions cluster (the chrome
+   * ruling, owner 2026-10-24 — ONE bar per surface): the host injects
+   * surface-specific actions (the day page's DayStepper) into the bar
+   * NodeView/PageView already render instead of stacking a second bar
+   * above. Main-surface chrome only: embedded/preview renders suppress
+   * it with the rest of the chrome (the pieces below gate on cornerMenu
+   * && !preview).
+   */
+  topBarActionsExtra = undefined,
 }: {
   client: WorkspaceClient | WorkerClient;
   nodeId: string;
@@ -116,6 +128,9 @@ export function NodeView({
   globalShortcuts?: boolean | undefined;
   /** Session-only: render the main content as in-flow sections (see above). */
   sectionsLayout?: boolean | undefined;
+  /** Extra actions injected into the view's own top bar (the day page's
+   *  DayStepper) — one bar per surface, never a stacked second bar. */
+  topBarActionsExtra?: ReactNode;
 }) {
   /**
    * The child-blocks view mode, owned here because the switcher rides this
@@ -213,6 +228,7 @@ export function NodeView({
       onBlocksModeChange={setBlocksMode}
       chromeModes={chromeModes}
       chromeMenu={chromeMenu}
+      topBarActionsExtra={cornerMenu && !preview ? topBarActionsExtra : undefined}
       globalShortcuts={globalShortcuts}
     />
   );
