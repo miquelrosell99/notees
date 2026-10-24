@@ -141,8 +141,9 @@ export function SourcesSettingsSection({ client }: { client: AnyClient }) {
           <p className="settings-item__description">
             Pattern used when import integrations fill an empty citekey. Tokens:{" "}
             <code>[auth]</code>, <code>[auth:lower]</code>, <code>[year]</code>, <code>[title]</code>,{" "}
-            <code>[title:lower]</code>, <code>[title:lower:N]</code> (first N words); anything else is a
-            literal. Existing citekeys are never recomputed — changes apply only to future generations.
+            <code>[title:lower]</code>, <code>[title:N]</code>, <code>[title:lower:N]</code> (first N
+            words); anything else is a literal. Existing citekeys are never recomputed — changes apply
+            only to future generations.
           </p>
         </div>
         <div className="sources-settings__pattern-field">
