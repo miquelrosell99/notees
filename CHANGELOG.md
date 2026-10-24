@@ -26,6 +26,74 @@ predating this file.
   legacy shape on the SAME host as the parseable views (per-token tolerance
   proof), and the vitest pins both the skipped line and the still-enumerated
   normal view.
+- **feat(web): the calendar time grid's click-to-create ghost (owner
+  2026-10-24, refining the Google click-to-create register).** The Day/Week
+  time grid (`apps/web/src/features/calendar/TimeGrid.tsx`) spawns an inline
+  GHOST card on a plain click over an empty hour area: the outline register
+  (a dashed primary border on the base surface), positioned exactly like a
+  timed event card — top = start minutes, height = the provisional span. The
+  clicked hour row anchors a 1-hour span (`HH:00 – HH+1:00`); a click inside
+  the small divider hit zone around an hour boundary (±3px) anchors the
+  half-hour offset (`HH:30 – HH+1:30`). The ghost carries an autofocused
+  title field (the fleet Input), a small button into the detailed
+  EventCreateModal, and TOP/BOTTOM resize handles dragging at the
+  30-minute snap (guards: start < end with a 30-minute floor, the day
+  bounds 00:00–24:00). **Enter confirms** — the EventCreateModal write
+  register mirrored: an `event`-classed standalone node named by its content
+  (title-is-content), `ensureDateChain` for the day, the system event
+  class's first datetime binding carrying the same-day timed range
+  `{start: {nodeId, time}, end: {nodeId, time}}` — and the new event opens.
+  An empty-text Enter cancels (the text IS the content; nothing is
+  created); **Escape or clicking elsewhere on the grid dismisses** (a click
+  in another hour re-anchors the ghost there). The ghost's button (or a
+  click on the ghost shell — the dblclick second-click register) dismisses
+  the ghost and opens the modal prefilled with the ghost's day + span (the
+  modal gains the optional `endTime` prefill). **Grid-body clicks no longer
+  select the day column** (the "selects the whole column" reading made no
+  sense) — the header day-number button now owns selection alongside
+  opening the day page. Dblclick-at-hour still opens the modal as today;
+  block drag-move/delete, drag-create, and the band ride untouched. Tests:
+  `apps/web/test/calendar-ghost-create.test.tsx` (the snap math, the
+  divider hit zone, Enter/Escape/empty confirms, the modal prefill, the
+  resize drags, the selection move).
+
+- **feat(web): the calendar is URL-addressable — `/calendar/<zoom>/<day>`
+  (owner ruling 2026-10-24, the Google register).** The calendar's zoom and
+  selected day ride the URL: `/calendar/day`, `/calendar/week`,
+  `/calendar/month`, `/calendar/year`, `/calendar/agenda`, optionally with
+  the selected day in the path (`/calendar/week/2026-10-20`). Parse: boot
+  and back/forward deep links set the view's zoom + day from the path —
+  valid zooms only (anything else falls back to the bare-calendar default:
+  the `calendarZoom` device setting, then month) and a malformed/absent iso
+  is ignored (today). Set: a **zoom change pushes** history
+  (`/calendar/<newZoom>/<selectedIso>`); a **selected-day change replaces**
+  the current entry (day picking never spams history) — the in-app nav
+  stack's current slot follows the replaced URL so the top-bar arrows stay
+  consistent. The `calendarZoom` device setting still updates on every zoom
+  change (it fills the bare-path default) — the URL wins whenever present.
+  The seam: `routing.ts` owns the pure path logic (`CalendarZoom`,
+  `calendarRouteFromPath`, `pathForCalendar`, `calendarPeriodTitle`, the
+  tab-title's calendar branch); the App owns the parsed `calendarRoute`
+  state (boot-initialized, set by `popStateNavHandler`'s new
+  `setCalendarRoute` seam on every landing, cleared by every other
+  navigation funnel) and `navigateCalendar` (push via `pushNav`, replace via
+  `history.replaceState` + the stack-slot rewrite); `CalendarView` derives
+  its zoom from the route (device setting as the bare fallback), re-syncs
+  the selection when the route changes underneath the mounted view (live
+  back/forward, no remount), claims a bare/invalid calendar URL once with a
+  replace (the sidebar entry lands on `/calendar/<deviceZoom>/<today>`),
+  and hands its tab title up while mounted — "October 2026 — Calendar" for
+  the month, "Week of 19 Oct – 25 Oct — Calendar" for the week, the
+  formatted day for Day, the visible period for Year/Agenda — cleared on
+  unmount per law 9 (the App's single title writer). The sidebar Calendar
+  row and the top-bar calendar popup keep working (they land on the bare
+  path). Verified: `apps/web` suite green (calendar-routing spec: parse/
+  build round-trips, invalid-segment fallbacks, the nav-parse branch, the
+  popstate seam, the title register; CalendarView spec: route-derived
+  zoom/day, push-on-zoom, replace-on-day-pick, live route-change restore,
+  the title seam), the calendar-panel probe extended (URL claim after the
+  sidebar entry + a `/calendar/week/2026-10-20` deep link boot in the same
+  auth context asserting the week grid and the selected 20th).
 
 - **feat(web): Sources settings + the add-source flow (source-library
   slices 3–6 tasks 5–6, with both review rounds).** The Sources settings

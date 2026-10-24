@@ -728,3 +728,170 @@ describe("CalendarView", () => {
     });
   });
 });
+
+describe("CalendarView URL seam (owner 2026-10-24 — the calendar is URL-addressable)", () => {
+  it("the initial zoom and day come from the route, overriding the device setting", async () => {
+    const client = await seedClient();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    const onRouteChange = vi.fn();
+    const { container } = render(
+      <CalendarView
+        client={client}
+        onOpenPage={vi.fn()}
+        route={{ zoom: "week", iso: "2026-10-20" }}
+        onRouteChange={onRouteChange}
+      />,
+    );
+
+    await screen.findByLabelText("Calendar week view");
+    expect(container.querySelectorAll(".cal-timegrid__day")).toHaveLength(7);
+    // The selected day is the route's day…
+    expect(
+      container.querySelector(".cal-timegrid__day--selected")?.getAttribute("data-day"),
+    ).toBe("2026-10-20");
+    // …and the Day zoom's date line would too — a valid route is NOT re-claimed.
+    expect(onRouteChange).not.toHaveBeenCalled();
+  });
+
+  it("a bare route claims the URL once — a REPLACE with the device zoom + today", async () => {
+    const client = await seedClient();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    const onRouteChange = vi.fn();
+    render(
+      <CalendarView
+        client={client}
+        onOpenPage={vi.fn()}
+        route={{ zoom: null, iso: null }}
+        onRouteChange={onRouteChange}
+      />,
+    );
+
+    await screen.findByLabelText("Calendar month view");
+    expect(onRouteChange).toHaveBeenCalledTimes(1);
+    expect(onRouteChange).toHaveBeenCalledWith({ zoom: "month", iso: todayIsoLocal() }, "replace");
+  });
+
+  it("a zoom change PUSHES the new zoom with the selected day; the device setting follows", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    const onRouteChange = vi.fn();
+    const { rerender } = render(
+      <CalendarView
+        client={client}
+        onOpenPage={vi.fn()}
+        route={{ zoom: "month", iso: today }}
+        onRouteChange={onRouteChange}
+      />,
+    );
+
+    await screen.findByLabelText("Calendar month view");
+    fireEvent.click(screen.getByRole("radio", { name: "Week" }));
+    expect(onRouteChange).toHaveBeenCalledTimes(1);
+    expect(onRouteChange).toHaveBeenLastCalledWith({ zoom: "week", iso: today }, "push");
+    // The device setting still updates — it fills the bare-path default.
+    expect(JSON.parse(window.localStorage.getItem("notees.settings.calendarZoom")!)).toBe("week");
+    // The App feeds the pushed route back (navigateCalendar) — the URL wins.
+    rerender(
+      <CalendarView
+        client={client}
+        onOpenPage={vi.fn()}
+        route={{ zoom: "week", iso: today }}
+        onRouteChange={onRouteChange}
+      />,
+    );
+    await screen.findByLabelText("Calendar week view");
+  });
+
+  it("a day pick REPLACES the URL entry (day picking must not spam history)", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    const onRouteChange = vi.fn();
+    const { container } = render(
+      <CalendarView
+        client={client}
+        onOpenPage={vi.fn()}
+        route={{ zoom: "month", iso: today }}
+        onRouteChange={onRouteChange}
+      />,
+    );
+
+    await screen.findByLabelText("Calendar month view");
+    const target = new Date().getDate() === 20 ? "21" : "20";
+    const [y, m] = today.split("-").map(Number);
+    const targetIso = `${y}-${String(m).padStart(2, "0")}-${target.padStart(2, "0")}`;
+    fireEvent.click(dayCell(container, target));
+    expect(onRouteChange).toHaveBeenLastCalledWith({ zoom: "month", iso: targetIso }, "replace");
+  });
+
+  it("a route change under the mounted view restores zoom + day (the back/forward seam)", async () => {
+    const client = await seedClient();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
+    const { container, rerender } = render(
+      <CalendarView
+        client={client}
+        onOpenPage={vi.fn()}
+        route={{ zoom: "week", iso: "2026-10-20" }}
+      />,
+    );
+
+    await screen.findByLabelText("Calendar week view");
+    // Back/forward: the App flows the popped route down — the live view
+    // follows without a remount.
+    rerender(
+      <CalendarView
+        client={client}
+        onOpenPage={vi.fn()}
+        route={{ zoom: "month", iso: "2026-11-05" }}
+      />,
+    );
+    await screen.findByLabelText("Calendar month view");
+    await waitFor(() => {
+      expect(
+        container.querySelector(".cal-grid__cell--selected")?.getAttribute("data-day"),
+      ).toBe("2026-11-05");
+    });
+  });
+
+  it("the tab-title seam names the visible period and clears on unmount (law 9)", async () => {
+    const client = await seedClient();
+    const onTitle = vi.fn();
+    const { unmount } = render(
+      <CalendarView
+        client={client}
+        onOpenPage={vi.fn()}
+        route={{ zoom: "month", iso: "2026-10-20" }}
+        onTitle={onTitle}
+      />,
+    );
+
+    await screen.findByLabelText("Calendar month view");
+    const expected = new Date(2026, 9, 1).toLocaleDateString(undefined, {
+      month: "long",
+      year: "numeric",
+    });
+    expect(onTitle).toHaveBeenLastCalledWith(`${expected} — Calendar`);
+    unmount();
+    // Ceding the title when leaving the surface.
+    expect(onTitle).toHaveBeenLastCalledWith(null);
+  });
+
+  it("the week title names the week's range", async () => {
+    const client = await seedClient();
+    const onTitle = vi.fn();
+    render(
+      <CalendarView
+        client={client}
+        onOpenPage={vi.fn()}
+        route={{ zoom: "week", iso: "2026-10-20" }}
+        onTitle={onTitle}
+      />,
+    );
+
+    await screen.findByLabelText("Calendar week view");
+    expect(onTitle).toHaveBeenLastCalledWith(
+      expect.stringMatching(/^Week of .+ — Calendar$/),
+    );
+  });
+});

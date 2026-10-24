@@ -16,6 +16,7 @@ import type { AnyClient } from "./clients.js";
 import type { ShareTarget } from "../../features/node-menu/NodeMenuButton.js";
 import type { NavKey } from "./Sidebar.js";
 import { pathForNav } from "./routing.js";
+import type { CalendarRoute, CalendarZoom } from "./routing.js";
 import { Sidebar } from "./Sidebar.js";
 import { NodeLinkMenuHost } from "../../features/node-menu/NodeLinkContextMenu.js";
 import { FloatingEditorHost } from "../../features/block-editor/FloatingEditor.js";
@@ -77,6 +78,14 @@ export interface AppBodyProps {
   sidebarCards: string[];
   setSidebarCards: Dispatch<SetStateAction<string[]>>;
   closeSidebarCard: (nodeId: string) => void;
+  /** The calendar surface's parsed route (null off the surface). */
+  calendarRoute: CalendarRoute | null;
+  /** The calendar's URL seam: zoom changes push, day changes replace. */
+  onCalendarRouteChange: (route: { zoom: CalendarZoom; iso: string }, mode: "push" | "replace") => void;
+  /** The calendar's tab-title contribution while mounted (law 9). */
+  onCalendarTitle: (title: string | null) => void;
+  /** Leaving the surface for another hub: the bare path becomes the default. */
+  resetCalendarRoute: () => void;
 }
 
 export function AppBody(props: AppBodyProps) {
@@ -118,6 +127,10 @@ export function AppBody(props: AppBodyProps) {
     sidebarCards,
     setSidebarCards,
     closeSidebarCard,
+    calendarRoute,
+    onCalendarRouteChange,
+    onCalendarTitle,
+    resetCalendarRoute,
   } = props;
   return (
     <div className="nt-body">
@@ -168,6 +181,7 @@ export function AppBody(props: AppBodyProps) {
           setSearchOpen(false);
           setActiveNav(key);
           setSelectedPageId(null);
+          resetCalendarRoute();
           pushNav(pathForNav(key), { node: null, nav: key });
         }}
         onOpenPage={openPage}
@@ -258,7 +272,13 @@ export function AppBody(props: AppBodyProps) {
         ) : activeNav === "journal" ? (
           <JournalsView client={client} onOpenPage={openPage} />
         ) : activeNav === "calendar" ? (
-          <CalendarView client={client} onOpenPage={openPage} />
+          <CalendarView
+            client={client}
+            onOpenPage={openPage}
+            route={calendarRoute}
+            onRouteChange={onCalendarRouteChange}
+            onTitle={onCalendarTitle}
+          />
         ) : activeNav === "queries" ? (
           <QueriesHub client={client} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
         ) : activeNav === "graph" ? (

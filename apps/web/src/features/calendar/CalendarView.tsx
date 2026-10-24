@@ -20,13 +20,18 @@
  * (calendarRows.timeGridSplitForDays).
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { formatDateName } from "../../ui/dateDisplay.js";
 import { MainContentFrame } from "../../ui/MainContentFrame.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
+import {
+  calendarPeriodTitle,
+  type CalendarRoute,
+  type CalendarZoom,
+} from "../../ui/app/routing.js";
 import {
   addDaysIso,
   isoWeekNumber,
@@ -53,8 +58,8 @@ import "./CalendarView.css";
     Grid-first per the owner: month is the default. The switch rides the
     SelectionButton register (owner 2026-10-24 — the same button-switch the
     mini-month's zoom uses): icons, radiogroup semantics, the sliding
-    indicator. */
-type CalendarZoom = "day" | "week" | "month" | "year" | "agenda";
+    indicator. The CalendarZoom type lives in routing.ts beside the path
+    mapping (owner 2026-10-24 — the zoom is URL-addressable). */
 
 const CALENDAR_ZOOMS: ReadonlyArray<{ value: CalendarZoom; label: string; icon: string }> = [
   { value: "day", label: "Day", icon: "mdi-calendar-today" },
@@ -67,22 +72,80 @@ const CALENDAR_ZOOMS: ReadonlyArray<{ value: CalendarZoom; label: string; icon: 
 export function CalendarView({
   client,
   onOpenPage,
+  route = null,
+  onRouteChange,
+  onTitle,
 }: {
   client: AnyClient;
   onOpenPage: (nodeId: string) => void;
+  /**
+   * The App-owned parsed route (owner 2026-10-24 — the calendar is
+   * URL-addressable): the URL's zoom + day. Null / a null zoom = the bare
+   * path — the `calendarZoom` device setting fills the zoom, today fills
+   * the day. The App sets it on boot and on every popstate landing.
+   */
+  route?: CalendarRoute | null;
+  /**
+   * The URL seam: a zoom change PUSHES history; a selected-day change
+   * REPLACES it (day picking must not spam history). Omitted = the view
+   * runs URL-less (the unit tests).
+   */
+  onRouteChange?: ((route: { zoom: CalendarZoom; iso: string }, mode: "push" | "replace") => void) | undefined;
+  /** The tab-title seam (law 9): the view's "… — Calendar" title while mounted. */
+  onTitle?: ((title: string | null) => void) | undefined;
 }) {
   const [version, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-  const [selectedIso, setSelectedIso] = useState(todayIsoLocal);
+  const [selectedIso, setSelectedIso] = useState(() => route?.iso ?? todayIsoLocal());
   const [firstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
 
   // The calendar's own zoom ladder state (owner 2026-10-23): grid-first,
-  // month default. The day-number register: a grid day number opens the
-  // day PAGE — the chain is ensured on demand, the page opens.
-  const [calendarZoom, setCalendarZoom] = useDeviceSetting<CalendarZoom>(
+  // month default. Since the URL ruling (owner 2026-10-24) the device
+  // setting fills the BARE path only — the URL wins whenever it carries a
+  // zoom. The day-number register: a grid day number opens the day PAGE —
+  // the chain is ensured on demand, the page opens.
+  const [deviceZoom, setDeviceZoom] = useDeviceSetting<CalendarZoom>(
     "calendarZoom",
     "month",
   );
+  const calendarZoom = route?.zoom ?? deviceZoom;
+
+  // --- the URL seam (owner 2026-10-24) ---------------------------------------
+  // Back/forward and boot deep links flow down via `route`; the zoom derives
+  // from it live, and the selection re-syncs whenever the route changes
+  // underneath the mounted view (a popstate landing, a bare re-entry).
+  const routeRef = useRef(route);
+  useEffect(() => {
+    if (route === routeRef.current) return;
+    routeRef.current = route;
+    setSelectedIso(route?.iso ?? todayIsoLocal());
+  }, [route]);
+  /**
+   * A bare or route-less calendar (the sidebar entry, an invalid zoom
+   * segment) claims its URL once: the device setting fills the zoom, the
+   * selection fills the day — a REPLACE, never a history push (the sidebar
+   * already pushed the bare path).
+   */
+  const claimedRouteRef = useRef(false);
+  useEffect(() => {
+    if (route !== null && route.zoom !== null) {
+      claimedRouteRef.current = false;
+      return;
+    }
+    if (claimedRouteRef.current || onRouteChange === undefined) return;
+    claimedRouteRef.current = true;
+    onRouteChange({ zoom: deviceZoom, iso: route?.iso ?? todayIsoLocal() }, "replace");
+  });
+  /** Zoom ladder change: PUSH a new history entry (a real navigation). */
+  const changeZoom = (value: CalendarZoom): void => {
+    setDeviceZoom(value);
+    onRouteChange?.({ zoom: value, iso: selectedIso }, "push");
+  };
+  /** Day picking: REPLACE the current entry (never spams history). */
+  const pickDay = (iso: string): void => {
+    setSelectedIso(iso);
+    onRouteChange?.({ zoom: calendarZoom, iso }, "replace");
+  };
 
   // --- recurrence + spans (compute-on-read) ---------------------------------
   // Every date value carrying a `repeat` rule, scanned once per store
@@ -118,14 +181,16 @@ export function CalendarView({
   }, [selectedIso, calendarZoom]);
   const shiftPeriod = (delta: number): void => {
     if (calendarZoom === "week" || calendarZoom === "agenda") {
-      setSelectedIso((iso) => addDaysIso(iso, delta * 7));
+      // Week/Agenda step the SELECTION by a week — a selected-day change
+      // (the URL rides along with a replace).
+      pickDay(addDaysIso(selectedIso, delta * 7));
     } else if (calendarZoom === "year") setPeriod((p) => ({ ...p, year: p.year + delta }));
     else setPeriod((p) => shiftMonth(p, delta));
   };
   const jumpToToday = (): void => {
     // The period resets too — the selection may ALREADY be today (a bare
     // setSelectedIso would no-op and leave a wandered period behind).
-    setSelectedIso(todayIsoLocal());
+    pickDay(todayIsoLocal());
     setPeriod(periodOf(todayIsoLocal()));
   };
   const openDayPage = (iso: string): void => {
@@ -134,10 +199,13 @@ export function CalendarView({
       .then(({ day }) => onOpenPage(day))
       .catch(() => {});
   };
-  // A year-zoom month pick: jump to the month grid at its first day.
+  // A year-zoom month pick: jump to the month grid at its first day (a zoom
+  // change — it PUSHES the URL, with the new day in the path).
   const openMonthZoom = (year: number, month0: number): void => {
-    setSelectedIso(`${year}-${String(month0 + 1).padStart(2, "0")}-01`);
-    setCalendarZoom("month");
+    const iso = `${year}-${String(month0 + 1).padStart(2, "0")}-01`;
+    setSelectedIso(iso);
+    setDeviceZoom("month");
+    onRouteChange?.({ zoom: "month", iso }, "push");
   };
   // The grid title buttons (panel/popup parity): open the monthly/yearly
   // date-chain pages.
@@ -154,6 +222,21 @@ export function CalendarView({
 
   const isToday = selectedIso === todayIsoLocal();
   const formattedDate = formatDateName(selectedIso.replace(/-/g, "")) ?? selectedIso;
+
+  // The tab title (law 9 — the calendar names the surface + the visible
+  // period): the period register derives from the zoom; the App's single
+  // title writer appends nothing — the view hands up the full "… — Calendar"
+  // string and clears it on unmount (ceding back to the hub register).
+  const periodTitle = calendarPeriodTitle(calendarZoom, {
+    iso: selectedIso,
+    year: period.year,
+    month0: period.month0,
+    firstDayOfWeek,
+  });
+  useEffect(() => {
+    onTitle?.(`${periodTitle} — Calendar`);
+    return () => onTitle?.(null);
+  }, [periodTitle, onTitle]);
 
   return (
     <div className="calendar-view">
@@ -253,7 +336,7 @@ export function CalendarView({
                     label: zoom.label,
                   }))}
                   value={calendarZoom}
-                  onChange={(value) => setCalendarZoom(value as CalendarZoom)}
+                  onChange={(value) => changeZoom(value as CalendarZoom)}
                 />
               </div>
             }
@@ -272,7 +355,7 @@ export function CalendarView({
               selectedIso={selectedIso}
               recurringRows={recurringEvents}
               spannedRows={spannedEvents}
-              onSelectDay={setSelectedIso}
+              onSelectDay={pickDay}
               onOpenEvent={onOpenPage}
               onOpenDayPage={openDayPage}
             />
@@ -295,7 +378,7 @@ export function CalendarView({
               recurringRows={recurringEvents}
               spannedRows={spannedEvents}
               period={period}
-              onSelectDay={setSelectedIso}
+              onSelectDay={pickDay}
               onOpenEvent={onOpenPage}
               onOpenDayPage={openDayPage}
               onOpenMonth={openMonthZoom}

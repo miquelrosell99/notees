@@ -1,7 +1,10 @@
 // One-off verification probe (2026-10-23; the time-grid + agenda pass
-// 2026-10-24): the calendar events element — the quick-create pills row is
-// gone, the calendar renders the Day/Week time grid, the Month/Year grids,
-// or the Agenda column per the zoom, and the ladder reads five options.
+// 2026-10-24; the URL-addressable routing pass 2026-10-24): the calendar
+// events element — the quick-create pills row is gone, the calendar renders
+// the Day/Week time grid, the Month/Year grids, or the Agenda column per
+// the zoom, and the ladder reads five options. Routing: opening the
+// calendar claims /calendar/<zoom>/<day>, and a deep link boots straight
+// into the zoom + day in the path.
 // TEST workspace only; screenshots land in /tmp.
 import { chromium } from "playwright";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
@@ -28,14 +31,16 @@ const { token: SESSION } = await loginRes.json();
 
 const browser = await chromium.launch({ headless: true, args: ["--disable-dev-shm-usage"] });
 const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 });
-const page = await context.newPage();
-const consoleErrors = [];
-page.on("pageerror", (err) => consoleErrors.push(String(err)));
-await page.addInitScript(([url, token, ws]) => {
+// The auth seed rides the CONTEXT: the deep-link pass below opens a second
+// page in this context and boots authenticated the same way.
+await context.addInitScript(([url, token, ws]) => {
   localStorage.setItem("notees.serverUrl", url);
   localStorage.setItem("notees.sessionToken", token);
   localStorage.setItem("notees.workspaceId", ws);
 }, [API, SESSION, WS]);
+const page = await context.newPage();
+const consoleErrors = [];
+page.on("pageerror", (err) => consoleErrors.push(String(err)));
 await page.goto(WEB, { waitUntil: "commit", timeout: 120_000 });
 await page.waitForSelector(".nt-sidebar-nav", { timeout: 600_000 });
 
@@ -61,7 +66,33 @@ const result = await page.evaluate(() => {
       monthChecked: document.querySelector('.calendar-view__ladder .selection-button__option--selected')?.getAttribute("aria-label"),
     };
   });
-await page.screenshot({ path: join(OUT, "calendar-events.png") });
+
+  // Routing pass (owner 2026-10-24 — the calendar is URL-addressable): the
+  // bare sidebar entry CLAIMS the URL — /calendar/<zoom>/<day>, the zoom in
+  // the path — and the tab title names the surface + the visible period.
+  result.route = await page.evaluate(() => ({
+    pathname: window.location.pathname,
+    title: document.title,
+  }));
+  await page.screenshot({ path: join(OUT, "calendar-events.png") });
+
+  // Deep-link pass: a fresh page in the SAME context boots straight into
+  // /calendar/week/2026-10-20 — the week zoom renders and the selected day
+  // is the 20th.
+  const deepPage = await context.newPage();
+  await deepPage.goto(new URL("/calendar/week/2026-10-20", WEB).toString(), {
+    waitUntil: "commit",
+    timeout: 120_000,
+  });
+  await deepPage.waitForSelector(".cal-timegrid", { timeout: 600_000 });
+  result.deepLink = await deepPage.evaluate(() => ({
+    pathname: window.location.pathname,
+    weekColumns: document.querySelectorAll(".cal-timegrid__day").length,
+    selectedDay:
+      document.querySelector(".cal-timegrid__day--selected")?.getAttribute("data-day") ?? null,
+    title: document.title,
+  }));
+  await deepPage.close();
 
 // Day-zoom pass: the TimeGrid renders its own root (.cal-timegrid), the
 // 24h grid always there (owner 2026-10-24, the Google time-grid register).
@@ -159,6 +190,14 @@ const pass =
     result.yearTitleButton === true &&
     result.ladder.join(",") === "Day,Week,Month,Year,Agenda" &&
     result.monthChecked === "Month" &&
+    typeof result.route?.pathname === "string" &&
+    result.route.pathname.startsWith("/calendar/month/") &&
+    typeof result.route.title === "string" &&
+    result.route.title.endsWith("— Calendar") &&
+    result.deepLink?.pathname === "/calendar/week/2026-10-20" &&
+    result.deepLink?.weekColumns === 7 &&
+    result.deepLink?.selectedDay === "2026-10-20" &&
+    result.deepLink?.title.endsWith("— Calendar") &&
     result.dayZoom?.rootPresent === true &&
     result.dayZoom?.hourCells === 24 &&
     result.weekZoom?.dayColumns === 7 &&
