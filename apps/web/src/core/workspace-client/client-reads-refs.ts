@@ -341,7 +341,7 @@ export class WorkspaceClientReadsRefs {
   }
 
   /** Toggled feature rows only (untoggled features are absent, not listed). */
-  listFeatureRows(): Array<{ feature: string; enabled: boolean }> {
+  listFeatureRows(): Array<{ feature: string; enabled: boolean; settings?: Record<string, unknown> | undefined }> {
     return this.ctx.store.listFeatureRows(this.ctx.workspaceId);
   }
 
@@ -356,6 +356,24 @@ export class WorkspaceClientReadsRefs {
       this.ctx.buildEnvelope(
         "workspace.feature.set",
         { feature, enabled },
+        [],
+      ),
+    );
+  }
+
+  /**
+   * Write a feature's settings record (workspace.feature.set with the
+   * `settings` payload, the source-library plan's feature-scoped
+   * vocabulary): ONE whole-row LWW write carrying `enabled: true` plus the
+   * caller's merged settings — the read-modify-merge lives at the call site
+   * so the three Sources keys never clobber each other, and a settings
+   * write never silently leaves the family disabled.
+   */
+  async setFeatureSettings(feature: WorkspaceFeature, settings: Record<string, unknown>): Promise<void> {
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope(
+        "workspace.feature.set",
+        { feature, enabled: true, settings },
         [],
       ),
     );

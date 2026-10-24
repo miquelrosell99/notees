@@ -425,6 +425,10 @@ export class WorkspaceClient {
     return this.readsRefs.setFeatureEnabled(feature, enabled);
   }
 
+  setFeatureSettings(feature: WorkspaceFeature, settings: Record<string, unknown>) {
+    return this.readsRefs.setFeatureSettings(feature, settings);
+  }
+
   resolveExternalRef(ref: string) {
     return this.readsRefs.resolveExternalRef(ref);
   }

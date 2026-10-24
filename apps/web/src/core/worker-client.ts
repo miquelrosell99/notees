@@ -686,8 +686,8 @@ export class WorkerClient {
   }
 
   /** Toggled feature rows only (untoggled features are absent, not listed). */
-  listFeatureRows(): Array<{ feature: string; enabled: boolean }> {
-    return this.cachedRead<Array<{ feature: string; enabled: boolean }>>("listFeatureRows", [], []);
+  listFeatureRows(): Array<{ feature: string; enabled: boolean; settings?: Record<string, unknown> | undefined }> {
+    return this.cachedRead<Array<{ feature: string; enabled: boolean; settings?: Record<string, unknown> | undefined }>>("listFeatureRows", [], []);
   }
 
   /** Active instance count across the feature's managed classes (the disable confirmation). */
@@ -778,6 +778,11 @@ export class WorkerClient {
   /** Write a feature toggle (workspace.feature.set, LWW by HLC). */
   async setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean): Promise<void> {
     await this.call("setFeatureEnabled", [feature, enabled]);
+  }
+
+  /** Write a feature's settings record (workspace.feature.set {enabled: true, settings}). */
+  async setFeatureSettings(feature: WorkspaceFeature, settings: Record<string, unknown>): Promise<void> {
+    await this.call("setFeatureSettings", [feature, settings]);
   }
 
   /** Write an external-id mapping (external_ref.set, LWW by HLC per ref). */

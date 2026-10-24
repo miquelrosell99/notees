@@ -156,7 +156,7 @@ describe("WorkspaceSettingsModal", () => {
     expect(screen.getByRole("switch", { name: /inbox/i })).toBeChecked();
   });
 
-  it("renders retention and citekey controls honestly inert", () => {
+  it("renders retention controls honestly inert (the citekey pattern moved to Features → Sources)", () => {
     render(
       <WorkspaceSettingsModal
         serverUrl="https://notees.example.com"
@@ -168,8 +168,8 @@ describe("WorkspaceSettingsModal", () => {
         workspaceRole="owner"
       />,
     );
-    expect(screen.getAllByText("Not available in this build.").length).toBeGreaterThanOrEqual(4);
-    expect(screen.getByLabelText("Citekey pattern")).toBeDisabled();
+    expect(screen.getAllByText("Not available in this build.").length).toBeGreaterThanOrEqual(3);
+    expect(screen.queryByLabelText("Citekey pattern")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /30 days/i })).toBeDisabled();
   });
 

@@ -249,6 +249,18 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
       // Absent row = enabled (the empty-table default).
       return row === undefined || row.enabled === 1;
     },
+    featureSettings: (feature) => {
+      const row = db()
+        .prepare(
+          "SELECT settings FROM workspace_feature WHERE workspace_id = ? AND feature = ?",
+        )
+        .get(ctx.workspaceId, feature) as { settings: string | null } | undefined;
+      // Absent row OR old-shape payload (the stored NULL) = undefined —
+      // distinct from the real empty record {} (SCHEMA.md "Workspace
+      // features"); the feature-set inverse restores the absence honestly.
+      if (row === undefined || row.settings === null) return undefined;
+      return JSON.parse(row.settings) as Record<string, unknown>;
+    },
     externalRefTarget: (ref) => ctx.store.resolveExternalRef(ctx.workspaceId, ref),
   };
 }
