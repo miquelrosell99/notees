@@ -43,6 +43,9 @@ export interface EventCreateModalProps {
   /** The dblclicked hour ("HH:MM") — prefills the start time (empty for a
       band/whole-day dblclick). */
   startTime?: string;
+  /** The ghost card's end ("HH:MM") — prefills the end time (the
+      click-to-create ghost's span rides the same-day timed register). */
+  endTime?: string;
   /** Called with the new event's id after the writes land (the host opens it). */
   onCreated: (nodeId: string) => void;
 }
@@ -53,6 +56,7 @@ export function EventCreateModal({
   client,
   startIso,
   startTime: prefillStartTime = "",
+  endTime: prefillEndTime = "",
   onCreated,
 }: EventCreateModalProps) {
   const [name, setName] = useState("");
@@ -74,7 +78,7 @@ export function EventCreateModal({
       setStartDay(startIso);
       setStartTime(prefillStartTime);
       setEndDay("");
-      setEndTime("");
+      setEndTime(prefillEndTime);
       setNameError(null);
       setStartTimeError(null);
       setEndDayError(null);
@@ -82,7 +86,7 @@ export function EventCreateModal({
       setError(null);
       setIsCreating(false);
     }
-  }, [isOpen, startIso, prefillStartTime]);
+  }, [isOpen, startIso, prefillStartTime, prefillEndTime]);
 
   // Live-validate the optional time fields while typing (fail loud inline).
   const onStartTimeChange = (value: string): void => {

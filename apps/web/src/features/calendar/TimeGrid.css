@@ -5,7 +5,8 @@
    both the label gutter and the hour cells so the geometry never drifts);
    the events' percentage geometry is set inline from the placement facts.
    Hairlines ride the border-width tokens; the now-line rides the error
-   role. */
+   role; the click-to-create ghost rides the outline register (a dashed
+   primary border on the base surface). */
 
 .cal-timegrid {
   --cal-hour-height: 3.5rem;
@@ -244,4 +245,46 @@
   height: var(--spacing-2);
   border-radius: var(--shape-full);
   background: var(--md-sys-color-error);
+}
+
+/* --- the click-to-create ghost (owner 2026-10-24, the Google register) --- */
+
+/* The inline creation shell: the outline register (a dashed primary border
+   on the base surface), positioned exactly like a timed event card. The
+   top/bottom borders are the resize handles — each handle's box rides the
+   ghost's own edge so the dashed outline reads as the drag affordance. */
+.cal-timegrid__ghost {
+  position: absolute;
+  left: var(--spacing-0-5);
+  right: var(--spacing-0-5);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-0-5);
+  padding: var(--spacing-1) var(--spacing-1-5);
+  border: var(--border-width-default) dashed var(--md-sys-color-primary);
+  border-radius: var(--shape-extra-small);
+  background: var(--md-sys-color-surface);
+  overflow: hidden;
+}
+
+.cal-timegrid__ghost-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--spacing-2);
+  cursor: row-resize;
+}
+
+.cal-timegrid__ghost-handle--top {
+  top: 0;
+}
+
+.cal-timegrid__ghost-handle--bottom {
+  bottom: 0;
+}
+
+.cal-timegrid__ghost-time {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
 }
