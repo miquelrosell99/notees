@@ -973,6 +973,28 @@ describe("groupBy: references grouped by containing page", () => {
     expect(iconOf("Source Two")).toBe("/mdi-sprite.svg#mdi-heart");
   });
 
+  it("group headers flatten markdown link spans in the page title to their label text", async () => {
+    const client = await seedClient();
+    const targetId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    // The containing page's title IS a markdown link span (imported/pasted
+    // content): `[Implaline - iRES Group](https://www.en.ires.dental/...)`.
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      contentAst: [{ type: "text", text: "[Implaline - iRES Group](https://www.en.ires.dental/products)" }],
+    });
+    await client.createObject({
+      parentId: sourceId,
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
+    });
+    render(<PageView client={client} pageId={targetId} onOpenPage={() => {}} />);
+
+    const linked = expandLinkedReferences();
+    const name = linked.querySelector(".outline-group__name")?.textContent;
+    // The label text renders; the raw `[label](href)` markdown never does.
+    expect(name).toBe("Implaline - iRES Group");
+    expect(linked.textContent).not.toContain("https://www.en.ires.dental/products)");
+  });
+
   it("collapses and re-expands a group via its chevron", async () => {
     const client = await seedClient();
     const targetId = await seedReferencedPage(client);
