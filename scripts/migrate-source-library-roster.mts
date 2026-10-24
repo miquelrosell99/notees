@@ -896,7 +896,20 @@ function verify(
         ) {
           continue;
         }
-        const ast = parseQueryAst((token as { queryAst: unknown }).queryAst);
+        let ast: ReturnType<typeof parseQueryAst>;
+        try {
+          ast = parseQueryAst((token as { queryAst: unknown }).queryAst);
+        } catch {
+          // A legacy pre-strict AST — reported as skipped, never an abort
+          // (live discovery 2026-10-24: one such view in the personal
+          // workspace crashed the roster's verify AFTER its ingest; the
+          // migration itself had converged idempotently, but verification
+          // must complete on this data).
+          console.log(
+            `  unparseable saved view (skipped): ${host.id} — its stored AST predates the strict query-ast schema; left untouched`,
+          );
+          continue;
+        }
         const conditions = ast.root.children.filter(
           (child): child is { type: "class"; classId: string } =>
             (child as { type?: unknown }).type === "class",
