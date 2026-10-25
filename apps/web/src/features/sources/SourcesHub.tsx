@@ -134,9 +134,16 @@ export function SourcesHub({
   }, [client, parsed.type, version]);
 
   // The empty-LIBRARY check runs only when the filtered set reads empty —
-  // it asks whether ANY source exists at all (unfiltered, unsorted).
+  // it asks whether ANY source exists at all (unfiltered, unsorted). When
+  // rows APPEAR the latch resets in place — the first add must clear the
+  // empty state without a remount (the latch never reset before: the
+  // early return kept "No sources yet" rendered until remount).
   useEffect(() => {
-    if (client === undefined || rows === null || rows.length > 0) return;
+    if (client === undefined || rows === null) return;
+    if (rows.length > 0) {
+      setLibraryEmpty(false);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {

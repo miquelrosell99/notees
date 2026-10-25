@@ -9,6 +9,15 @@ predating this file.
 
 ## 2026-10-25
 
+- **fix(web): Sources hub empty-state latch resets on first add (review
+  follow-up).** The `libraryEmpty` latch in SourcesHub never reset — the
+  effect returned early when rows appeared without `setLibraryEmpty(false)`
+  (pre-existing, moved verbatim by the shell lift), so adding the first
+  source to an empty library kept the "No sources yet" pane until a
+  remount. The early return now resets the latch; new test: empty library
+  → first add through the client → the row renders in place, no remount.
+  Gate: the six sources suites 71/71 + `tsc --noEmit` green.
+
 - **refactor(web): Sources hub shell — top-bar toolbar, panel toggles,
   frame-owned panel chrome.** Three owner
   points + one papercut, one slice. (1) The hub toolbar (search, count,
