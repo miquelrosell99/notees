@@ -76,7 +76,7 @@ export function SourcesFacets({
   };
 
   return (
-    <div className="sources-facets">
+    <div className="sources-facets nt-main-frame__panel-content">
       <div className="sources-facets__list" role="group" aria-label="Source types">
         {enabled.map((facet) => (
           <Chip

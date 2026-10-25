@@ -28,7 +28,11 @@
  * .nt-main-frame__body, the middle cell .nt-main-frame__content carries NO
  * width cap — the host wraps its children in its own cap when it wants one
  * (PageView's journal measure, .nt-page-content in app.css) and rides
- * full-bleed when it doesn't (the hubs' eventual panel adoption).
+ * full-bleed when it doesn't (the hubs' eventual panel adoption). The
+ * panel chrome (padding, scroll, column rhythm) is the CARDS' register;
+ * a single-column pane's content rides the canonical
+ * .nt-main-frame__panel-content class on its own root
+ * instead of re-styling padding per view.
  */
 
 import type { CSSProperties, ReactNode } from "react";

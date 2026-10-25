@@ -4,7 +4,8 @@
  * and the three-pane composition rides the shared MainContentFrame
  * (MainContentFrame.css — the raised-card panel registers included), so the
  * shell owns only the detail pane's focus seam below. The middle cell (the
- * items table + toolbar) is styled in SourcesTable.css. Token-only
+ * items table alone — the toolbar lives in the top bar) is styled in
+ * SourcesTable.css; the toolbar in SourcesToolbar.css. Token-only
  * (variables.css).
  */
 

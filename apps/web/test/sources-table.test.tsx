@@ -224,8 +224,12 @@ describe("SourcesTable — the items table", () => {
     // The attachments badge counts the non-null asset rows.
     expect(within(row as HTMLElement).getByText("1")).not.toBeNull();
 
-    // The toolbar names the count.
-    expect(screen.getByText("6 sources")).not.toBeNull();
+    // The toolbar rides the SURFACE TOP BAR; it names the count there.
+    const topbar = document.querySelector(".surface-topbar") as HTMLElement;
+    expect(within(topbar).getByText("6 sources")).not.toBeNull();
+    // The middle cell carries no toolbar chrome.
+    const middle = document.querySelector(".nt-main-frame__content") as HTMLElement;
+    expect(within(middle).queryByRole("textbox", { name: "Search sources" })).toBeNull();
   });
 
   /** The seed's projection facts, keyed by NODE ID (expectation register). */
@@ -423,7 +427,9 @@ describe("SourcesTable — the items table", () => {
     await waitFor(() => {
       expect(screen.getByText(/Add your first source/)).not.toBeNull();
     });
-    expect(screen.getByRole("button", { name: "Add source" })).not.toBeNull();
+    // Two doors to the same add-source flow: the top-bar toolbar's button
+    // + the empty state's action.
+    expect(screen.getAllByRole("button", { name: "Add source" }).length).toBe(2);
   });
 });
 
@@ -604,5 +610,87 @@ describe("SourcesTable — the toolbar actions", () => {
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByLabelText("Sources settings")).not.toBeNull();
     window.localStorage.clear();
+  });
+});
+
+describe("SourcesHub — the surface top bar + panel toggles", () => {
+  it("the whole toolbar rides the top bar; the middle cell shows only the table", async () => {
+    const { client } = await seedClient();
+    renderHub(client);
+    await rowsReady();
+
+    const topbar = document.querySelector(".surface-topbar") as HTMLElement;
+    expect(within(topbar).getByRole("textbox", { name: "Search sources" })).not.toBeNull();
+    expect(within(topbar).getByText("6 sources")).not.toBeNull();
+    for (const name of [/bibtex/i, /csl json/i, "Add source", "Sources settings"] as const) {
+      expect(within(topbar).getByRole("button", { name })).not.toBeNull();
+    }
+    // The middle cell carries none of the toolbar chrome.
+    const middle = document.querySelector(".nt-main-frame__content") as HTMLElement;
+    expect(within(middle).queryByRole("textbox")).toBeNull();
+    expect(within(middle).queryByRole("button", { name: /bibtex/i })).toBeNull();
+    expect(within(middle).queryByRole("button", { name: "Add source" })).toBeNull();
+  });
+
+  it("the panel toggles ride the surface top bar, pressed while their panel shows", async () => {
+    const { client } = await seedClient();
+    renderHub(client);
+    await rowsReady();
+
+    const topbar = document.querySelector(".surface-topbar") as HTMLElement;
+    const facetsToggle = within(topbar).getByRole("button", { name: "Hide facets panel" });
+    const detailToggle = within(topbar).getByRole("button", { name: "Hide details panel" });
+    expect(facetsToggle.getAttribute("aria-pressed")).toBe("true");
+    expect(detailToggle.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("toggles hide and show the facet/detail panels — device-local, persisted", async () => {
+    const { client } = await seedClient();
+    renderHub(client);
+    await rowsReady();
+    expect(screen.getByRole("complementary", { name: "Source types" })).not.toBeNull();
+    expect(screen.getByRole("complementary", { name: "Source details" })).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide facets panel" }));
+    expect(screen.queryByRole("complementary", { name: "Source types" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Show facets panel" })).not.toBeNull();
+    // Device-local session state (never an op) — the deviceSettings register.
+    expect(window.localStorage.getItem("notees.settings.sourcesPanel.facets")).toBe("false");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide details panel" }));
+    expect(screen.queryByRole("complementary", { name: "Source details" })).toBeNull();
+    expect(window.localStorage.getItem("notees.settings.sourcesPanel.detail")).toBe("false");
+
+    fireEvent.click(screen.getByRole("button", { name: "Show facets panel" }));
+    expect(screen.getByRole("complementary", { name: "Source types" })).not.toBeNull();
+    expect(window.localStorage.getItem("notees.settings.sourcesPanel.facets")).toBe("true");
+  });
+
+  it("the hidden-panel preference survives a remount (the deviceSettings read)", async () => {
+    const { client } = await seedClient();
+    const first = renderHub(client);
+    await rowsReady();
+    fireEvent.click(screen.getByRole("button", { name: "Hide facets panel" }));
+    first.unmount();
+
+    renderHub(client);
+    await rowsReady();
+    expect(screen.queryByRole("complementary", { name: "Source types" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Show facets panel" })).not.toBeNull();
+  });
+
+  it("flattens a markdown link title to its text in the Title column (owner papercut)", async () => {
+    const { client } = await seedClient();
+    await client.createObject({
+      isEmbedded: false,
+      name: "[¡Imprime en 3D tu propia...](https://makerworld.com/models/1)",
+      classIds: [SYSTEM_CLASS_UUIDS.web_page],
+    });
+    renderHub(client);
+    await rowsReady();
+
+    expect(screen.getByText("¡Imprime en 3D tu propia...")).not.toBeNull();
+    // The raw bracket syntax never renders.
+    expect(screen.queryByText(/\[¡Imprime/)).toBeNull();
   });
 });

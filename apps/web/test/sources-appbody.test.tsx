@@ -3,8 +3,8 @@
  * whole-hub review findings 1 + 2):
  *
  * - FINDING 2: an AppBody render at activeNav="sources" pins the prop
- *   forwarding — the hub receives the App-owned query state (the toolbar's
- *   search box mirrors `query.q`) and the URL seam (typing fires
+ *   forwarding — the hub receives the App-owned query state (the top-bar
+ *   toolbar's search box mirrors `query.q`) and the URL seam (typing fires
  *   onSourcesQueryChange with "replace").
  * - FINDING 1: switching hubs through the sidebar (Sources → Pages →
  *   Sources) RESETS the sources query to the default in "replace" mode
@@ -14,13 +14,13 @@
  *   after the round trip.
  *
  * Seeded over the repo's test-client pattern (MemoryRelay + sql.js), a
- * minimal source family so the table toolbar renders (an empty library
+ * minimal source family so the top-bar toolbar renders (an empty library
  * renders the Add-first-source hint, no toolbar).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useRef, useState, type RefObject } from "react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
@@ -182,15 +182,16 @@ describe("AppBody — the Sources hub branch (review finding 2)", () => {
     // The hub composes: top bar, facets pane, the table region.
     expect(screen.getByRole("heading", { name: "Sources" })).not.toBeNull();
     expect(screen.getByRole("complementary", { name: "Source types" })).not.toBeNull();
-    const region = screen.getByRole("region", { name: /sources/i });
+    expect(screen.getByRole("region", { name: /sources/i })).not.toBeNull();
 
-    // The App-owned query state reaches the hub: the search box mirrors q.
+    // The App-owned query state reaches the hub: the search box (in the
+    // surface top bar) mirrors q.
     await waitFor(() => {
-      expect(within(region).getByLabelText("Search sources")).toHaveValue("smith");
+      expect(screen.getByLabelText("Search sources")).toHaveValue("smith");
     });
 
     // The URL seam forwards: typing replaces (the App's navigateSources).
-    fireEvent.change(within(region).getByLabelText("Search sources"), {
+    fireEvent.change(screen.getByLabelText("Search sources"), {
       target: { value: "smithsonian" },
     });
     await waitFor(() => {
@@ -231,9 +232,8 @@ describe("AppBody — the hub-switch reset (review finding 1)", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Sources" })).not.toBeNull();
     });
-    const region = screen.getByRole("region", { name: /sources/i });
     await waitFor(() => {
-      expect(within(region).getByLabelText("Search sources")).toHaveValue("");
+      expect(screen.getByLabelText("Search sources")).toHaveValue("");
     });
   });
 });
