@@ -23,7 +23,7 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import {
@@ -430,6 +430,30 @@ describe("SourcesTable — the items table", () => {
     // Two doors to the same add-source flow: the top-bar toolbar's button
     // + the empty state's action.
     expect(screen.getAllByRole("button", { name: "Add source" }).length).toBe(2);
+  });
+
+  it("the empty state clears when the first source is added — no remount (the latch reset)", async () => {
+    const { client } = await seedClient(false);
+    renderHub(client);
+    await waitFor(() => {
+      expect(screen.getByText(/Add your first source/)).not.toBeNull();
+    });
+
+    // Add the first source through the client: the subscription re-reads
+    // the loaded set in place — the latch must reset and the row render,
+    // without unmounting the hub.
+    await act(async () => {
+      await client.createObject({
+        isEmbedded: false,
+        name: "The First Source",
+        classIds: [SYSTEM_CLASS_UUIDS.journal_article],
+      });
+    });
+    await waitFor(() => {
+      expect(screen.queryByText(/Add your first source/)).toBeNull();
+    });
+    expect(screen.getByText("The First Source")).not.toBeNull();
+    expect(document.querySelectorAll("tbody tr").length).toBe(1);
   });
 });
 
