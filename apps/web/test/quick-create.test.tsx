@@ -549,6 +549,44 @@ describe("QuickCreateModal via the picker create row", () => {
     expect(screen.queryByLabelText("Title")).toBeNull();
   });
 
+  it("the same create row falls back to the citation form when the resolver is off (review Minor 1)", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    // The resolver gate read: only an explicit false disables.
+    await client.setFeatureSettings("sources", { resolverEnabled: false });
+    render(
+      <>
+        <NodeSelector
+          client={client}
+          trigger="inline"
+          searchMode="all"
+          classFilters={[SYSTEM_CLASS_UUIDS.book]}
+          onAdd={() => {}}
+        />
+        <AddSourceHost
+          client={client}
+          serverUrl="http://resolver.test"
+          credential="test-key"
+          onCreated={() => {}}
+          onOpenNode={() => {}}
+        />
+      </>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "10.1000/xyz" } });
+    fireEvent.click(screen.getByText('Create "10.1000/xyz"'));
+
+    // The class-locked resolve dialog would only fail honestly (its manual
+    // form is reachable after a successful resolve — a dead-end): the seam
+    // falls back to the citation modal, locked to the picked class.
+    const dialog = await screen.findByRole("dialog", { name: /new book/i });
+    expect(within(dialog).getByLabelText("Authors")).not.toBeNull();
+    expect(within(dialog).getByLabelText("DOI")).not.toBeNull();
+    // No error dialog, no resolve form.
+    expect(screen.queryByRole("dialog", { name: "Add source" })).toBeNull();
+    expect(screen.queryByLabelText("Identifier or link")).toBeNull();
+  });
+
   it("a person-filtered picker opens the agent dialog with the name split", async () => {
     const client = await seedClient();
     await seedFamilies(client);
