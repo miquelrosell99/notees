@@ -130,9 +130,15 @@ presentational, the host passes panel content or `undefined` per side and
 owns all collapse state, so any main-content view opts in via props; the
 panel widths are the host's call too (`leftPanelWidth`/`rightPanelWidth`
 carry a token length into the flex-basis — the calendar rides
-`var(--layout-size-8xl)`). PageView and CalendarView are the hosts; the
-panel cards keep the `.nt-page-context` / `.nt-page-side-panel`
-registers),
+`var(--layout-size-8xl)`). PageView, CalendarView, and the Sources hub are
+the hosts; the panel cards keep the `.nt-page-context` / `.nt-page-side-panel`
+registers; the panel CONTENT chrome is the frame's too:
+the cards own padding/scroll/rhythm, and a single-column pane rides the
+canonical `.nt-main-frame__panel-content` class on its content root instead
+of re-styling padding per view (the hub panes do; PageView keeps riding the
+context card's own flex column directly — a wrapper would break its
+footer's `margin-top: auto` pin, so the register is opt-in, never applied
+by the frame itself)),
 `PresentationOverlay` (the fullscreen presentation host: dark
 stage, auto-hiding toolbar, edge zones, Esc/focus-trap, owned keymap).
 
