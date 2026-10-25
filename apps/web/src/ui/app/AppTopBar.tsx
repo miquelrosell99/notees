@@ -7,6 +7,7 @@
  */
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useState } from "react";
 
 import { dayNodeId } from "@notees/domain";
 import type { UndoUiState } from "@/core/undo-journal.js";
@@ -21,6 +22,10 @@ import { createNodesWithClasses } from "../../features/templates/createNodesWith
 import { HistoryMenuPopup } from "../../features/page-sections/HistoryMenuPopup.js";
 import { CalendarPopup } from "../../features/calendar/TopBarCalendarPopup.js";
 import { NodeSelector } from "../../features/pickers/NodeSelector.js";
+import { AssetUploadModal } from "../../features/modals/AssetUploadModal.js";
+import { QuickCreateModal } from "../../features/modals/QuickCreateModal.js";
+import { readSourceSettings, routeNewNodeClass } from "../../features/modals/quickCreate.js";
+import { requestAddSource } from "../../features/sources/AddSourceHost.js";
 
 export interface AppTopBarProps {
   client: AnyClient;
@@ -108,6 +113,11 @@ export function AppTopBar(props: AppTopBarProps) {
     setManagerOpen,
     setWorkspaceName,
   } = props;
+  // the New flow's class-pick routing:
+  // the source fallback's picked class (the manual citation form) and the
+  // asset upload's target class. Null = the modal is closed.
+  const [sourceQuickCreate, setSourceQuickCreate] = useState<string | null>(null);
+  const [assetUploadClassId, setAssetUploadClassId] = useState<string | null>(null);
   return (
     <>
       <TopBar
@@ -187,9 +197,28 @@ export function AppTopBar(props: AppTopBarProps) {
           onClose={() => setNewPickerOpen(false)}
           onAdd={(picked) => {
             // Single-pick contract: one class, one page —
-            // "create a person", "create a project". Picking creates the
-            // untitled page of that class and opens it.
+            // "create a person", "create a project". routes the pick: a source-family class opens the
+            // add-source dialog (resolver on) or the citation form
+            // (offline / resolver off — never a dead dialog), an asset
+            // class opens the upload modal (uploading IS creating), and
+            // everything else keeps the plain untitled create.
             setNewPickerOpen(false);
+            const route = routeNewNodeClass(client, picked.id, {
+              online: !offline && serverUrl !== "",
+              resolverEnabled: readSourceSettings(client).resolverEnabled,
+            });
+            if (route.kind === "add-source") {
+              requestAddSource({ classId: route.classId });
+              return;
+            }
+            if (route.kind === "quick-create-source") {
+              setSourceQuickCreate(route.classId);
+              return;
+            }
+            if (route.kind === "asset-upload") {
+              setAssetUploadClassId(route.classId);
+              return;
+            }
             createNodesWithClasses(client, [picked.id], openPage);
           }}
         />
@@ -222,6 +251,34 @@ export function AppTopBar(props: AppTopBarProps) {
           onSelectYear={(year) => {
             void client.ensureDateChain(`${year}-01-01`).then(({ year: yearId }) => openPage(yearId));
             setCalendarOpen(false);
+          }}
+        />
+      )}
+      {sourceQuickCreate !== null && (
+        /* The New flow's source fallback (offline or resolver off): the
+           manual citation form, prelocked to the picked class. */
+        <QuickCreateModal
+          isOpen
+          client={client}
+          kind="source"
+          defaultClassId={sourceQuickCreate}
+          onClose={() => setSourceQuickCreate(null)}
+          onCreated={(nodeId) => {
+            setSourceQuickCreate(null);
+            openPage(nodeId);
+          }}
+        />
+      )}
+      {assetUploadClassId !== null && (
+        /* The New flow's asset pick: uploading IS creating the asset. */
+        <AssetUploadModal
+          isOpen
+          client={client}
+          assetClassId={assetUploadClassId}
+          onClose={() => setAssetUploadClassId(null)}
+          onUploaded={(assetNodeId) => {
+            setAssetUploadClassId(null);
+            openPage(assetNodeId);
           }}
         />
       )}

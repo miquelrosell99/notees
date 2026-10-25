@@ -32,6 +32,12 @@ import { AddSourceDialog } from "./AddSourceDialog.js";
 export interface AddSourceRequest {
   /** A pasted identifier/link the dialog prefills its input with. */
   initialInput?: string | undefined;
+  /**
+   * The class the create is locked to (the New
+   * flow's picked class): a resolved record's own classKey yields to it
+   * in the prefilled form.
+   */
+  classId?: string | undefined;
   /** Caller-specific follow-up receiving the created node id (the picker
    *  links it like a create-row result); absent = the app opens the page. */
   onCreated?: ((nodeId: string) => void) | undefined;
@@ -90,8 +96,12 @@ export function AddSourceHost({
   const cancel = (): void => setRequest(null);
 
   // The bare-URL + resolver-off shortcut: a plain weblink create, no dialog.
+  // A class-locked request never takes it — the lock names a source-family
+  // class, not web_page (the only caller passing classId is the New flow,
+  // gated on the resolver anyway; the guard stays honest for future ones).
   const raw = (request.initialInput ?? "").trim();
   if (
+    request.classId === undefined &&
     raw !== "" &&
     classifySourceInput(raw)?.kind === "url" &&
     !readSourceSettings(client).resolverEnabled
@@ -117,6 +127,7 @@ export function AddSourceHost({
       serverUrl={serverUrl}
       credential={credential}
       initialInput={request.initialInput ?? ""}
+      {...(request.classId !== undefined ? { lockedClassId: request.classId } : {})}
       onClose={cancel}
       onCreated={finish}
       onOpenNode={(nodeId) => {

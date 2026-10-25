@@ -158,6 +158,39 @@ describe("classifySourceInput", () => {
 });
 
 describe("AddSourceDialog", () => {
+  it("a locked class wins over the resolved record's classKey (the New-popup route)", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    // The record resolves to a journal_article…
+    stubFetch((url) => {
+      if (url.includes("/api/resolve?doi=")) return jsonResponse(200, DOI_RECORD);
+      return undefined;
+    });
+    render(
+      <AddSourceDialog
+        isOpen
+        client={client}
+        serverUrl="http://resolver.test"
+        credential="test-key"
+        lockedClassId={SYSTEM_CLASS_UUIDS.book}
+        onClose={() => {}}
+        onCreated={() => {}}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: /add source/i });
+    fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
+      target: { value: "10.1000/xyz" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
+
+    // …but the picked class locks the prefill: the second step is the BOOK
+    // form, with the resolved metadata filled in.
+    const form = await screen.findByRole("dialog", { name: /new book/i });
+    expect((within(form).getByLabelText("Title") as HTMLInputElement).value).toBe(
+      "On the Analytical Engine",
+    );
+  });
+
   it("resolves a DOI and prefills the create form (all four field families)", async () => {
     const client = await seedClient();
     await seedFamilies(client);

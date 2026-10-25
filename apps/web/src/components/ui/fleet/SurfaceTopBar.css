@@ -18,6 +18,24 @@
   border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
+/* The leading cluster:
+   the hub's panel toggles lead the bar, left of the title, one icon-button
+   row at the bar's own gap rhythm. */
+.surface-topbar__leading {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+/* Title-adjacent chrome (the Sources hub's count Badge): sits right after
+   the title block, never grows — a badge/chip lane, not a freeform fill. */
+.surface-topbar__title-extra {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
 .surface-topbar__title {
   display: flex;
   align-items: center;

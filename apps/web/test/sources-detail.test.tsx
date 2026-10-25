@@ -168,8 +168,9 @@ async function selectRow(client: WorkspaceClient, id: string): Promise<void> {
   });
   const row = document.querySelector(`tr[data-node-id="${id}"]`) as HTMLElement;
   // The title cell selects (the row-click seam); the title text also rides
-  // other chrome, so aim at the cell's own span.
-  const titleCell = row.querySelector(".nt-sources-table__title") ?? row;
+  // other chrome, so aim at the cell's own span (the Title column is the
+  // second td — owner review round 2 dropped the cell's own class).
+  const titleCell = row.querySelectorAll("td")[1] ?? row;
   fireEvent.click(titleCell);
 }
 
@@ -290,10 +291,13 @@ describe("SourcesDetail — the type-aware detail editor", () => {
     await waitFor(() => {
       expect(client.getNode(items.journal)).toBeUndefined();
     });
-    // The hub clears the selection — the honest empty state is back.
+    // The hub clears the selection — and the detail pane hides with it
+    // (the pane renders only with a selection, so
+    // the "Select a source" empty state never shows).
     await waitFor(() => {
-      expect(within(detailPane()).getByText("Select a source")).not.toBeNull();
+      expect(screen.queryByRole("complementary", { name: "Source details" })).toBeNull();
     });
+    expect(screen.queryByText("Select a source")).toBeNull();
   });
 
   it("the confirm's Cancel keeps the node", async () => {

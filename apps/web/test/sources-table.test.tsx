@@ -3,10 +3,9 @@
  *
  * - The library columns render the display projection (type label, title,
  *   authors, year, venue, citekey, the attachments badge).
- * - The toolbar: the live item count ("N sources"), the search box
- *   (title/authors/citekey, debounced, URL "replace"), the filtered-set
- *   .bib + CSL-JSON exports (Review Focus 5 — the payload carries exactly
- *   the filtered rows), the Add-source door, the Sources settings shortcut.
+ * - The toolbar: search ONLY — the count
+ *   moved into a badge next to the title, the exports + Add-source +
+ *   settings doors retired (creation rides the global New flow).
  * - Sorting: the URL sort deep-links (?sort=year:desc), header clicks push
  *   the App-owned state (asc → desc → clear), and EMPTY values sink last
  *   in BOTH directions (Review Focus 2).
@@ -35,14 +34,12 @@ import {
 } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { STORAGE_KEYS, writeStored } from "../src/ui/app/storage.js";
 import { SourcesHub } from "../src/features/sources/SourcesHub.js";
 import {
   DEFAULT_SOURCES_QUERY,
   type SourcesQueryState,
 } from "../src/features/sources/sourcesQuery.js";
-import { AddSourceHost } from "../src/features/sources/AddSourceHost.js";
-import { WorkspaceSettingsHost } from "../src/features/workspaces/WorkspaceSettingsHost.js";
+
 
 const WS = "0192a000-0000-7000-8000-00000000a001";
 const ACTOR = "0192a000-0000-7000-8000-00000000a002";
@@ -224,9 +221,11 @@ describe("SourcesTable — the items table", () => {
     // The attachments badge counts the non-null asset rows.
     expect(within(row as HTMLElement).getByText("1")).not.toBeNull();
 
-    // The toolbar rides the SURFACE TOP BAR; it names the count there.
+    // The toolbar rides the SURFACE TOP BAR; the count is a BADGE next to
+    // the title (the "N sources" text retired).
     const topbar = document.querySelector(".surface-topbar") as HTMLElement;
-    expect(within(topbar).getByText("6 sources")).not.toBeNull();
+    expect(topbar.querySelector(".badge")?.textContent).toBe("6");
+    expect(within(topbar).queryByText(/sources$/)).toBeNull();
     // The middle cell carries no toolbar chrome.
     const middle = document.querySelector(".nt-main-frame__content") as HTMLElement;
     expect(within(middle).queryByRole("textbox", { name: "Search sources" })).toBeNull();
@@ -396,7 +395,10 @@ describe("SourcesTable — the items table", () => {
     await waitFor(() => {
       expect(onQueryChange).toHaveBeenCalledWith({ type: null, q: "turing", sort: null }, "replace");
     });
-    expect(screen.getByText("2 sources")).not.toBeNull();
+    // The count badge follows the narrow (a badge, not the retired text).
+    await waitFor(() => {
+      expect(document.querySelector(".surface-topbar .badge")?.textContent).toBe("2");
+    });
 
     // Citekey narrow.
     fireEvent.change(search, { target: { value: "lovelace1843" } });
@@ -416,27 +418,32 @@ describe("SourcesTable — the items table", () => {
     await waitFor(() => {
       expect(screen.getByText("No sources match")).not.toBeNull();
     });
-    expect(screen.getByText("0 sources")).not.toBeNull();
+    // The count badge reads 0 (a badge, not the retired "N sources" text).
+    const topbar0 = document.querySelector(".surface-topbar") as HTMLElement;
+    expect(topbar0.querySelector(".badge")?.textContent).toBe("0");
+    expect(screen.queryByText("0 sources")).toBeNull();
+    // The toolbar (and its search box) stays — the filters can be undone.
     // The toolbar (and its search box) stays — the filters can be undone.
     expect(screen.getByRole("textbox", { name: "Search sources" })).not.toBeNull();
   });
 
-  it("an empty library renders the Add-first-source hint", async () => {
+  it("an empty library renders the New-flow hint (no direct add-source door)", async () => {
     const { client } = await seedClient(false);
     renderHub(client);
     await waitFor(() => {
-      expect(screen.getByText(/Add your first source/)).not.toBeNull();
+      expect(screen.getByText("No sources yet")).not.toBeNull();
     });
-    // Two doors to the same add-source flow: the top-bar toolbar's button
-    // + the empty state's action.
-    expect(screen.getAllByRole("button", { name: "Add source" }).length).toBe(2);
+    // The hint points at the global New flow…
+    expect(screen.getByText(/Press New in the top bar/i)).not.toBeNull();
+    // …and the direct Add-source door is gone — creation rides the New flow.
+    expect(screen.queryByRole("button", { name: "Add source" })).toBeNull();
   });
 
   it("the empty state clears when the first source is added — no remount (the latch reset)", async () => {
     const { client } = await seedClient(false);
     renderHub(client);
     await waitFor(() => {
-      expect(screen.getByText(/Add your first source/)).not.toBeNull();
+      expect(screen.getByText("No sources yet")).not.toBeNull();
     });
 
     // Add the first source through the client: the subscription re-reads
@@ -450,7 +457,7 @@ describe("SourcesTable — the items table", () => {
       });
     });
     await waitFor(() => {
-      expect(screen.queryByText(/Add your first source/)).toBeNull();
+      expect(screen.queryByText("No sources yet")).toBeNull();
     });
     expect(screen.getByText("The First Source")).not.toBeNull();
     expect(document.querySelectorAll("tbody tr").length).toBe(1);
@@ -517,180 +524,104 @@ describe("SourcesTable — keyboard navigation + selection", () => {
   });
 });
 
-describe("SourcesTable — the toolbar actions", () => {
-  /** Capture downloadBlob's payload the selection-export way. */
-  function captureDownloads() {
-    const captured: { blob: Blob | null; filename: string | null } = { blob: null, filename: null };
-    Object.defineProperty(URL, "createObjectURL", {
-      value: vi.fn((blob: Blob) => {
-        captured.blob = blob;
-        return "blob:mock";
-      }),
-      configurable: true,
-    });
-    Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
-      this: HTMLAnchorElement,
-    ) {
-      captured.filename = this.download;
-    });
-    return captured;
-  }
-
-  function readBlobText(blob: Blob): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsText(blob);
-    });
-  }
-
-  it("Export BibTeX emits exactly the CURRENT filtered set (Review Focus 5)", async () => {
-    const { client } = await seedClient();
-    const captured = captureDownloads();
-    // The filtered set: q "turing" (a1 + a2 via authors text).
-    renderHub(client, { type: null, q: "turing", sort: null });
-    await rowsReady();
-
-    fireEvent.click(screen.getByRole("button", { name: /bibtex/i }));
-    expect(captured.blob).not.toBeNull();
-    const text = await readBlobText(captured.blob!);
-    expect(text).toContain("lovelace1843analytical");
-    expect(text).toContain("turing1950computing");
-    // The rest of the library is NOT in the payload.
-    expect(text).not.toContain("great2021article");
-    expect(text).not.toContain("smith2020another");
-    expect(text).not.toContain("doe2022third");
-    expect(text).not.toContain("piece1900archived");
-    expect(text.match(/^@[a-z-]+\{/gim)?.length).toBe(2);
-    expect(captured.filename).toContain(".bib");
-  });
-
-  it("Export CSL JSON emits exactly the filtered rows", async () => {
-    const { client } = await seedClient();
-    const captured = captureDownloads();
-    renderHub(client, { type: null, q: "turing", sort: null });
-    await rowsReady();
-
-    fireEvent.click(screen.getByRole("button", { name: /csl json/i }));
-    const text = await readBlobText(captured.blob!);
-    const parsed = JSON.parse(text) as Array<{ title?: string }>;
-    // The CSL item id IS the citekey — the titles name the filtered rows.
-    expect(parsed.map((entry) => entry.title).sort()).toEqual(
-      ["Computing Machinery", "On the Analytical Engine"].sort(),
-    );
-    expect(captured.filename).toContain(".json");
-  });
-
-  it("Add source opens the shipped add-source dialog", async () => {
-    const { client } = await seedClient();
-    render(
-      <>
-        <SourcesHub client={client} query={DEFAULT_SOURCES_QUERY} />
-        <AddSourceHost
-          client={client}
-          serverUrl="http://resolver.test"
-          credential="test-key"
-          onCreated={() => {}}
-          onOpenNode={() => {}}
-        />
-      </>,
-    );
-    await rowsReady();
-
-    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
-    await waitFor(() => {
-      expect(screen.getByRole("dialog")).not.toBeNull();
-    });
-  });
-
-  it("the settings shortcut opens the workspace settings on the Sources section", async () => {
-    const { client } = await seedClient();
-    // The modal only renders the live Sources settings for the ACTIVE
-    // workspace — seed the device-local workspace id (the host reads the
-    // same registry the account popup's admin entry does).
-    writeStored(STORAGE_KEYS.workspaceId, WS);
-    render(
-      <>
-        <SourcesHub client={client} query={DEFAULT_SOURCES_QUERY} />
-        <WorkspaceSettingsHost
-          client={client}
-          serverUrl="http://resolver.test"
-          credential="test-key"
-          workspaceName="Test"
-          onRenamed={() => {}}
-        />
-      </>,
-    );
-    await rowsReady();
-
-    fireEvent.click(screen.getByRole("button", { name: "Sources settings" }));
-    await waitFor(() => {
-      expect(screen.getByRole("dialog")).not.toBeNull();
-    });
-    // The modal opened on the features tab — the Sources settings section
-    // (the citekey pattern field) renders inside.
-    const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByLabelText("Sources settings")).not.toBeNull();
-    window.localStorage.clear();
-  });
-});
-
-describe("SourcesHub — the surface top bar + panel toggles", () => {
-  it("the whole toolbar rides the top bar; the middle cell shows only the table", async () => {
+describe("SourcesHub —", () => {
+  it("the toolbar is search-only — no exports, no Add-source, no settings shortcut", async () => {
     const { client } = await seedClient();
     renderHub(client);
     await rowsReady();
 
     const topbar = document.querySelector(".surface-topbar") as HTMLElement;
     expect(within(topbar).getByRole("textbox", { name: "Search sources" })).not.toBeNull();
-    expect(within(topbar).getByText("6 sources")).not.toBeNull();
     for (const name of [/bibtex/i, /csl json/i, "Add source", "Sources settings"] as const) {
-      expect(within(topbar).getByRole("button", { name })).not.toBeNull();
+      expect(within(topbar).queryByRole("button", { name })).toBeNull();
     }
     // The middle cell carries none of the toolbar chrome.
     const middle = document.querySelector(".nt-main-frame__content") as HTMLElement;
     expect(within(middle).queryByRole("textbox")).toBeNull();
     expect(within(middle).queryByRole("button", { name: /bibtex/i })).toBeNull();
-    expect(within(middle).queryByRole("button", { name: "Add source" })).toBeNull();
   });
 
-  it("the panel toggles ride the surface top bar, pressed while their panel shows", async () => {
+  it("the count badge rides next to the title and updates live", async () => {
     const { client } = await seedClient();
     renderHub(client);
     await rowsReady();
 
     const topbar = document.querySelector(".surface-topbar") as HTMLElement;
-    const facetsToggle = within(topbar).getByRole("button", { name: "Hide facets panel" });
-    const detailToggle = within(topbar).getByRole("button", { name: "Hide details panel" });
-    expect(facetsToggle.getAttribute("aria-pressed")).toBe("true");
-    expect(detailToggle.getAttribute("aria-pressed")).toBe("true");
+    const badge = topbar.querySelector(".badge") as HTMLElement;
+    expect(badge.textContent).toBe("6");
+    // The badge sits in the title cluster: right of the heading, left of
+    // the spacer/actions.
+    const heading = within(topbar).getByRole("heading", { name: "Sources" });
+    expect(heading.compareDocumentPosition(badge) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // Live: the search narrows the set AND the badge.
+    fireEvent.change(within(topbar).getByRole("textbox", { name: "Search sources" }), {
+      target: { value: "turing" },
+    });
+    await waitFor(() => expect(topbar.querySelector(".badge")?.textContent).toBe("2"));
   });
 
-  it("toggles hide and show the facet/detail panels — device-local, persisted", async () => {
+  it("the panel toggles lead the bar, left of the title (the general hub convention)", async () => {
+    const { client } = await seedClient();
+    renderHub(client);
+    await rowsReady();
+
+    const topbar = document.querySelector(".surface-topbar") as HTMLElement;
+    const heading = within(topbar).getByRole("heading", { name: "Sources" });
+    for (const name of ["Hide facets panel", "Hide details panel"] as const) {
+      const toggle = within(topbar).getByRole("button", { name });
+      expect(
+        toggle.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+  });
+
+  it("the detail panel shows iff the toggle is on AND a selection exists", async () => {
+    const { client, items } = await seedClient();
+    renderHub(client);
+    await rowsReady();
+
+    // No selection: no detail pane, the toggle reads unpressed (owner
+    // review round 2 — the empty "Select a source" state is gone with it).
+    expect(screen.queryByRole("complementary", { name: "Source details" })).toBeNull();
+    expect(screen.queryByText("Select a source")).toBeNull();
+    const toggle = screen.getByRole("button", { name: "Hide details panel" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+
+    // A selection opens the pane; the toggle presses.
+    const row = document.querySelector(`tr[data-node-id="${items.w2}"]`) as HTMLElement;
+    fireEvent.click(within(row).getByText("Another Page"));
+    expect(screen.getByRole("complementary", { name: "Source details" })).not.toBeNull();
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+
+    // The toggle still owns the panel once a selection exists.
+    fireEvent.click(toggle);
+    expect(screen.queryByRole("complementary", { name: "Source details" })).toBeNull();
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    // Device-local session state (never an op) — the deviceSettings register.
+    expect(window.localStorage.getItem("notees.settings.sourcesPanel.detail")).toBe("false");
+  });
+
+  it("the facets toggle hides and shows the facets panel — device-local, persisted", async () => {
     const { client } = await seedClient();
     renderHub(client);
     await rowsReady();
     expect(screen.getByRole("complementary", { name: "Source types" })).not.toBeNull();
-    expect(screen.getByRole("complementary", { name: "Source details" })).not.toBeNull();
+    const toggle = screen.getByRole("button", { name: "Hide facets panel" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
 
-    fireEvent.click(screen.getByRole("button", { name: "Hide facets panel" }));
+    fireEvent.click(toggle);
     expect(screen.queryByRole("complementary", { name: "Source types" })).toBeNull();
     expect(screen.getByRole("button", { name: "Show facets panel" })).not.toBeNull();
     // Device-local session state (never an op) — the deviceSettings register.
     expect(window.localStorage.getItem("notees.settings.sourcesPanel.facets")).toBe("false");
-
-    fireEvent.click(screen.getByRole("button", { name: "Hide details panel" }));
-    expect(screen.queryByRole("complementary", { name: "Source details" })).toBeNull();
-    expect(window.localStorage.getItem("notees.settings.sourcesPanel.detail")).toBe("false");
 
     fireEvent.click(screen.getByRole("button", { name: "Show facets panel" }));
     expect(screen.getByRole("complementary", { name: "Source types" })).not.toBeNull();
     expect(window.localStorage.getItem("notees.settings.sourcesPanel.facets")).toBe("true");
   });
 
-  it("the hidden-panel preference survives a remount (the deviceSettings read)", async () => {
+  it("a hidden facets pref survives a remount (the deviceSettings read)", async () => {
     const { client } = await seedClient();
     const first = renderHub(client);
     await rowsReady();
@@ -701,6 +632,19 @@ describe("SourcesHub — the surface top bar + panel toggles", () => {
     await rowsReady();
     expect(screen.queryByRole("complementary", { name: "Source types" })).toBeNull();
     expect(screen.getByRole("button", { name: "Show facets panel" })).not.toBeNull();
+  });
+
+  it("a hidden detail pref stays hidden across a remount until the toggle returns", async () => {
+    const { client } = await seedClient();
+    const first = renderHub(client);
+    await rowsReady();
+    fireEvent.click(screen.getByRole("button", { name: "Hide details panel" }));
+    first.unmount();
+
+    renderHub(client);
+    await rowsReady();
+    expect(screen.queryByRole("complementary", { name: "Source details" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Show details panel" })).not.toBeNull();
   });
 
   it("flattens a markdown link title to its text in the Title column (owner papercut)", async () => {

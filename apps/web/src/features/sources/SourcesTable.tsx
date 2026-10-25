@@ -17,9 +17,11 @@
  * The hub feeds the pane its state: the projection items (the filtered
  * set), the first-read loading flag, the empty-LIBRARY flag, and the live
  * search string (the region's aria-label). Empty states: an empty LIBRARY
- * renders the Add-first-source hint (the task-1 door); filters excluding
- * everything render the honest "No sources match". Without a client (the
- * URL-less shell tests) the task-1 empty state renders unchanged.
+ * renders the New-flow hint (creation rides the
+ * global New button: pick a source type, resolve a DOI/ISBN/arXiv link or
+ * URL; no direct add-source door); filters excluding everything render the
+ * honest "No sources match". Without a client (the URL-less shell tests)
+ * the New-flow hint renders unchanged.
  */
 
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
@@ -32,7 +34,6 @@ import { titleOf } from "../../ui/dateDisplay.js";
 import { Badge, EmptyState, Spinner } from "../../components/ui/fleet/index.js";
 import { NodeCollection } from "../collection/index.js";
 import type { NodeCollectionItem, SortSpec, TableColumn } from "../collection/index.js";
-import { requestAddSource } from "./AddSourceHost.js";
 import type { SourcesQueryState, SourcesSortField, SourceRow } from "./sourcesQuery.js";
 
 import "./SourcesTable.css";
@@ -88,7 +89,9 @@ const SOURCES_COLUMNS: TableColumn[] = [
     renderCell: (item) => {
       const row = sourceOf(item);
       if (row === undefined) return null;
-      return <span className="nt-sources-table__title">{row.title}</span>;
+      // The plain title span rides the shared cell typography (owner
+      // review round 2 — no projection-specific weight, no dead registers).
+      return <span>{row.title}</span>;
     },
   },
   {
@@ -144,7 +147,7 @@ const SOURCES_COLUMNS: TableColumn[] = [
     renderCell: (item) => {
       const row = sourceOf(item);
       if (row === undefined) return null;
-      return <span className="nt-sources-table__citekey">{row.citekey}</span>;
+      return <span>{row.citekey}</span>;
     },
   },
   {
@@ -206,7 +209,7 @@ export function SourcesTable({
   }, [selectedId]);
 
   if (client === undefined) {
-    // The URL-less shell (task 1): the honest empty state + the door.
+    // The URL-less shell: the honest New-flow hint.
     return (
       <div
         className="nt-sources-hub__table nt-sources-table"
@@ -216,9 +219,7 @@ export function SourcesTable({
         <EmptyState
           icon={<Icon path="mdi-bookshelf" size={2} />}
           title="No sources yet"
-          description="Add your first source — paste a DOI, ISBN, arXiv link or a URL."
-          actionLabel="Add source"
-          onAction={() => requestAddSource({})}
+          description="Press New in the top bar and pick a source type — resolve a DOI, ISBN, arXiv link or URL, or fill the form by hand."
         />
       </div>
     );
@@ -242,9 +243,7 @@ export function SourcesTable({
         <EmptyState
           icon={<Icon path="mdi-bookshelf" size={2} />}
           title="No sources yet"
-          description="Add your first source — paste a DOI, ISBN, arXiv link or a URL."
-          actionLabel="Add source"
-          onAction={() => requestAddSource({})}
+          description="Press New in the top bar and pick a source type — resolve a DOI, ISBN, arXiv link or URL, or fill the form by hand."
         />
       </div>
     );

@@ -2,12 +2,18 @@
  * SourcesHub — the Sources hub behind the sidebar's Sources entry: the
  * Zotero-parity library surface. The shell composes the shared
  * MainContentFrame: the fleet SurfaceTopBar names the surface AND carries the
- * hub toolbar + the panel toggles (the search box, the
- * count, the exports, Add source, and the settings shortcut moved OUT of
- * the middle column into the bar's actions cluster, so the table pane
- * shows only the table; the toggles show/hide the facets and detail
- * panels), the left pane hosts the source-type facets, the middle cell
- * the items table, the right pane the type-aware detail editor.
+ * hub chrome: the panel toggles ride
+ * the bar's LEADING cluster — before the title, the general hub convention
+ * — the live filtered count renders as a fleet Badge next to the title
+ * (the `titleExtra` slot; the retired "N sources" text), and the actions
+ * cluster carries the search box alone (the exports/Add-source/settings
+ * doors retired — creation rides the global New flow, whose class-pick
+ * routing resolves source-family classes into the add-source dialog and
+ * the asset class into the upload modal). The left pane hosts the
+ * source-type facets, the middle cell the items table, the right pane the
+ * type-aware detail editor — rendered ONLY while a selection exists (the
+ * toggle AND the selection: no selection, no pane, no "Select a source"
+ * empty state).
  *
  * Law 9 — /sources owns its URL AND its tab title: the route registers in
  * the nav table, and the `?type=&q=&sort=` query-string state parses and
@@ -20,10 +26,9 @@
  * The hub owns the shell state: the single SELECTION (the table's rows
  * select a source, the detail pane renders it), the library READ (the
  * loaded rows + the live search input + the filtered set — shared between
- * the top-bar toolbar's count/exports and the table's rows), and the
- * panel visibility prefs. The panel toggles are DEVICE-LOCAL session
- * state (device state is never an op), persisted per the
- * deviceSettings register.
+ * the top-bar badge and the table's rows), and the panel visibility prefs.
+ * The panel toggles are DEVICE-LOCAL session state (device
+ * state is never an op), persisted per the deviceSettings register.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -31,11 +36,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AnyClient } from "../../ui/app/clients.js";
 import { MainContentFrame } from "../../ui/MainContentFrame.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
-import { Button } from "../../components/ui/fleet/index.js";
+import { Badge, Button } from "../../components/ui/fleet/index.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
 import type { NodeCollectionItem } from "../collection/index.js";
-import { exportSubtreeBibliography } from "../export/exportSubtree.js";
-import { downloadBlob } from "../modals/download.js";
 import { SourcesFacets } from "./SourcesFacets.js";
 import { SourcesTable } from "./SourcesTable.js";
 import { SourcesDetail } from "./SourcesDetail.js";
@@ -172,29 +175,19 @@ export function SourcesHub({
     });
   }, [client, displayRows]);
 
-  const exportSet = (format: "bib" | "csl-json"): void => {
-    if (client === undefined || displayRows === null || displayRows.length === 0) return;
-    // Review Focus 5: exactly the CURRENT filtered set — the displayed row
-    // ids, no child pages (a source's subtree is not bibliography).
-    const exported = exportSubtreeBibliography(
-      client,
-      displayRows.map((row) => row.id),
-      { format, includeChildPages: false },
-    );
-    downloadBlob(exported.blob, exported.filename);
-  };
-
   const facetsToggleLabel = facetsPanelOpen ? "Hide facets panel" : "Show facets panel";
   const detailToggleLabel = detailPanelOpen ? "Hide details panel" : "Show details panel";
+  // The right pane renders ONLY with a selection (
+  // the toggle AND the selection): the pressed/active chrome reports the
+  // EFFECTIVE visibility, not the bare pref.
+  const detailVisible = detailPanelOpen && selectedId !== null;
 
   return (
     <div className="nt-sources-hub">
       <MainContentFrame
         topBar={
           <SurfaceTopBar
-            icon="mdi-bookshelf"
-            title="Sources"
-            actions={
+            leading={
               <>
                 <Button
                   type="button"
@@ -207,26 +200,32 @@ export function SourcesHub({
                   active={facetsPanelOpen}
                   onClick={() => setFacetsPanelOpen(!facetsPanelOpen)}
                 />
-                {client !== undefined && (
-                  <SourcesToolbar
-                    qInput={qInput}
-                    onQInput={setQInput}
-                    count={displayRows?.length ?? 0}
-                    onExport={exportSet}
-                  />
-                )}
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   icon="mdi-dock-right"
                   aria-label={detailToggleLabel}
-                  aria-pressed={detailPanelOpen}
+                  aria-pressed={detailVisible}
                   title={detailToggleLabel}
-                  active={detailPanelOpen}
+                  active={detailVisible}
                   onClick={() => setDetailPanelOpen(!detailPanelOpen)}
                 />
               </>
+            }
+            icon="mdi-bookshelf"
+            title="Sources"
+            titleExtra={
+              <span aria-live="polite" aria-label="Source count">
+                <Badge size="sm" variant="neutral">
+                  {displayRows?.length ?? 0}
+                </Badge>
+              </span>
+            }
+            actions={
+              client !== undefined ? (
+                <SourcesToolbar qInput={qInput} onQInput={setQInput} />
+              ) : undefined
             }
           />
         }
@@ -238,7 +237,7 @@ export function SourcesHub({
         leftLabel="Source types"
         leftPanelWidth="var(--layout-size-7xl)"
         rightPanel={
-          detailPanelOpen ? (
+          detailVisible ? (
             <div ref={detailRef} tabIndex={-1} className="nt-sources-hub__detail-focus">
               <SourcesDetail
                 client={client}

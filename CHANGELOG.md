@@ -9,6 +9,38 @@ predating this file.
 
 ## 2026-10-25
 
+- **refactor(web): Sources hub top bar + creation wiring.** Six owner points, one slice. (1) The "N sources" count text
+  left the toolbar — the live filtered count renders as a fleet `Badge`
+  next to the "Sources" title, through a new SurfaceTopBar `titleExtra`
+  slot (aria-live, token-only). (2) Panel toggles LEAD the bar, left of
+  the title, in every hub: a new SurfaceTopBar `leading` cluster carries
+  them (Sources hub + the Journal hub's navigator toggle moved; the
+  convention is documented in `docs/developers/ui-primitives.md`). (3) The
+  toolbar is search-only — .bib/CSL-JSON exports, the Add-source button,
+  and the Sources settings shortcut retired (the centralized settings
+  entry remains); creation rides the global New flow: `resolveQuickCreate`
+  gains the asset family and a pure `routeNewNodeClass` helper routes the
+  New popup's class pick — source family → the add-source dialog
+  (`requestAddSource({ classId })`, the picked class locking the resolved
+  prefill via the new `AddSourceRequest.classId` → `AddSourceDialog
+  lockedClassId`; offline or resolver-off → the prefilled QuickCreateModal,
+  the dialog's manual/edit path — never a dead dialog), asset → the
+  AssetUploadModal (uploading IS creating), everything else unchanged. The
+  NodeSelector create row reroutes the same way when the typed query is
+  identifier-shaped; a plain typed title keeps the citation form. The
+  hub's empty state now points at the New flow (copy updated, the direct
+  door gone). (4) The right/detail pane renders ONLY with a selection
+  (toggle AND selection — the "Select a source" empty state is gone with
+  the always-on panel; the toggle's pressed chrome reports the effective
+  visibility). (6) The library table's custom cells ride the shared table
+  typography (the title's 500 weight and the citekey's mono family
+  dropped) — it was always the shared TableView via the additive custom
+  column kind; now it reads as it. Gate: `pnpm typecheck && pnpm test`
+  green; new/updated tests across the six sources suites + quick-create
+  (asset resolution, `routeNewNodeClass`, the create-row reroute, the
+  locked-class prefill) + add-source (locked class wins over the record's
+  classKey).
+
 - **fix(web): Sources hub empty-state latch resets on first add (review
   follow-up).** The `libraryEmpty` latch in SourcesHub never reset — the
   effect returned early when rows appeared without `setLibraryEmpty(false)`

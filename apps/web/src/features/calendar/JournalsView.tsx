@@ -259,7 +259,8 @@ export function JournalsView({
     <div className="journals-view">
       {/* The hub chrome rides the shared SurfaceTopBar:
           pinned above the feed, full card width, so the feed's scrollbar
-          stays at the card border. The lone action is Today — a jump that
+          stays at the card border. The navigator-panel toggle leads the
+          bar, left of the title; the lone ACTION is Today — a jump that
           materializes today's page when missing (a
           pure scroll-to landed on the nearest past day). Discrete
           day-steppers stay retired: day-jumping rides the calendar popup,
@@ -267,6 +268,21 @@ export function JournalsView({
       <SurfaceTopBar
         icon="mdi-notebook-outline"
         title="Journal"
+        leading={
+          /* The navigator panel's device-local collapse (the calendar
+             view's old toggle register) — since the
+             round-2 convention it LEADS the bar, left of the title (the general hub convention). */
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="mdi-view-agenda-outline"
+            aria-label={panelCollapsed ? "Show navigator panel" : "Hide navigator panel"}
+            aria-pressed={!panelCollapsed}
+            title={panelCollapsed ? "Show navigator panel" : "Hide navigator panel"}
+            active={!panelCollapsed}
+            onClick={() => setPanelCollapsed(!panelCollapsed)}
+          />
+        }
         actions={
           <>
             {pages.length > 0 && (
@@ -283,18 +299,6 @@ export function JournalsView({
                 Today
               </Button>
             )}
-            {/* The navigator panel's device-local collapse (the calendar
-               view's old toggle register). */}
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="mdi-view-agenda-outline"
-              aria-label={panelCollapsed ? "Show navigator panel" : "Hide navigator panel"}
-              aria-pressed={!panelCollapsed}
-              title={panelCollapsed ? "Show navigator panel" : "Hide navigator panel"}
-              active={!panelCollapsed}
-              onClick={() => setPanelCollapsed(!panelCollapsed)}
-            />
           </>
         }
       />
