@@ -1,16 +1,11 @@
 /**
- * SourcesDetail styles — the detail pane's register: the inline-editable
- * title, the type-chip + actions row, and the metadata panel's composition
- * slot. Token-only (variables.css); values that track type metrics take the
- * adaptive form.
+ * SourcesDetail styles — the detail pane's CONTENT registers: the column chrome (padding, scroll, rhythm) rides the
+ * frame's canonical panel-content register (.nt-main-frame__panel-content,
+ * MainContentFrame.css — the root class in SourcesDetail.tsx); this file
+ * owns only the content internals: the inline-editable title, the
+ * type-chip + actions row. Token-only (variables.css); values that track
+ * type metrics take the adaptive form.
  */
-
-.nt-sources-detail {
-  padding: var(--spacing-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
-}
 
 .nt-sources-detail__title {
   margin: 0;

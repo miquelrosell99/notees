@@ -103,7 +103,7 @@ export function SourcesDetail({
   };
 
   return (
-    <div className="nt-sources-detail">
+    <div className="nt-sources-detail nt-main-frame__panel-content">
       {/* The whole title is the click-to-edit target (the page-header idiom). */}
       {titleEditing ? (
         <TextField

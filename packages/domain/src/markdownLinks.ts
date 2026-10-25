@@ -24,6 +24,13 @@ export type MarkdownTextSegment =
 
 const MARKDOWN_LINK_RE = /\[([^\]\n]+)\]\(([^()\s]+)\)/g;
 
+// The image form of the markdown span — flattened to its ALT text by
+// flattenMarkdownLinks (the display-name flatten); deliberately NOT part
+// of splitMarkdownLinks' linkify pass (there is no image token in the
+// render grammar — a `![alt](src)` span in a text token renders literally
+// there, the renderer's own concern).
+const MARKDOWN_IMAGE_RE = /!\[([^\]\n]*)\]\(([^()\s]+)\)/g;
+
 // Deliberately generous — balanced parens may ride inside the URL (the
 // trailing-trim pass strips the unbalanced ones a closing sentence paren
 // would otherwise swallow).
@@ -121,4 +128,20 @@ export function splitMarkdownLinks(text: string): MarkdownTextSegment[] {
     segments.push(...splitBareUrls(segment.text));
   }
   return segments;
+}
+
+/**
+ * Flatten markdown link/image spans in a plain-text run to their visible
+ * text — the display-name flatten (title-is-content): `[label](href)` →
+ * `label`, `![alt](src)` → `alt`. The image pass runs first (an image's
+ * `!` prefix would otherwise survive as literal text before the link
+ * match); then the link grammar reduces each span, keeping non-linkable
+ * hrefs and unmatched brackets literal. Bare URLs are already text — they
+ * pass through segment-for-segment.
+ */
+export function flattenMarkdownLinks(text: string): string {
+  const withoutImages = text.replace(MARKDOWN_IMAGE_RE, (_match, alt: string) => alt);
+  return splitMarkdownLinks(withoutImages)
+    .map((segment) => segment.text)
+    .join("");
 }

@@ -827,6 +827,38 @@ describe("deriveDisplayName", () => {
     ).toBe("2029");
   });
 
+  it("flattens markdown link/image titles to their visible text (title-is-content)", () => {
+    // The display-name derivation strips markdown link/image syntax to its
+    // text (owner papercut — a web source titled `[label](url)` showed the
+    // raw bracket syntax in the hub's Title column). Plain text is
+    // untouched; the flatten rides the conservative link grammar
+    // (non-linkable hrefs stay literal).
+    expect(
+      deriveDisplayName({
+        ...page,
+        contentAst: [{ type: "text", text: "[¡Imprime en 3D](https://makerworld.com/models/1)" }],
+      }),
+    ).toBe("¡Imprime en 3D");
+    expect(
+      fullTitleOf({
+        ...page,
+        contentAst: [{ type: "text", text: "![A chart](https://example.com/c.png) notes" }],
+      }),
+    ).toBe("A chart notes");
+    expect(
+      deriveDisplayName({
+        ...page,
+        contentAst: [{ type: "text", text: "Notes [draft] with (parens)" }],
+      }),
+    ).toBe("Notes [draft] with (parens)");
+    expect(
+      deriveDisplayName({
+        ...page,
+        contentAst: [{ type: "text", text: "[x](javascript:alert)" }],
+      }),
+    ).toBe("[x](javascript:alert)");
+  });
+
   it("falls back to the content excerpt for unnamed blocks", () => {
     const ast: ContentAst = [
       { type: "text", text: "Kuhn argues that paradigms" },

@@ -114,3 +114,24 @@
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-card);
 }
+
+/* The canonical panel-CONTENT register ("the style
+   should come from the main content component, and the views just define
+   what the content of each sidebar is"): the pane chrome — the card's
+   padding, its scroll, the column rhythm — belongs to the frame's cards
+   above; a view whose panel is ONE content column (the hub panes) rides
+   this class on its content root and owns nothing but its content
+   internals — no per-pane padding, no per-pane scroll. The register
+   mirrors the context card's own flex column (same gap) so a single
+   column reads exactly like the nodeview's multi-widget column.
+   PageView/CalendarView keep riding the cards' own flex column directly
+   (their content is widgets + layout seams like the footer's
+   margin-top:auto pin) — the lift leaves them pixel-identical. The frame
+   deliberately does NOT wrap panel content itself: a wrapper would break
+   those seams, so the register is opt-in on the host's content root. */
+.nt-main-frame__panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-height: 0;
+}

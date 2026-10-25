@@ -7,6 +7,42 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-25
+
+- **refactor(web): Sources hub shell — top-bar toolbar, panel toggles,
+  frame-owned panel chrome.** Three owner
+  points + one papercut, one slice. (1) The hub toolbar (search, count,
+  .bib/CSL-JSON exports, Add source, Sources settings) moved OUT of the
+  middle column INTO the fleet SurfaceTopBar's actions cluster — the
+  table pane now shows only the table; the toolbar is the new
+  `SourcesToolbar` component and the library read (loaded rows, live
+  search input, filtered set, exports) lifted into the hub, shared by
+  the bar and the table. (2) Panel toggles (mdi-dock-left/right, the
+  NodeTopbar pressed/active precedent) ride the same bar, showing/hiding
+  the facets and detail panes — device-local session state via the
+  deviceSettings register (`sourcesPanel.facets` / `sourcesPanel.detail`,
+  the device-state-never-an-op law), never log state. (3) The frame owns
+  the panel content chrome now: the canonical
+  `.nt-main-frame__panel-content` register in MainContentFrame.css (the
+  cards' padding + scroll + the context card's column rhythm); the hub's
+  facet/detail panes dropped their bespoke padding/scroll and ride it —
+  PageView/CalendarView unchanged (pixel-identical; the register is
+  opt-in on the host's content root because a frame-side wrapper would
+  break the nodeview footer pin). Papercut: the display-name derivation
+  (`fullTitleOf` in packages/domain) now flattens markdown link/image
+  spans to their visible text (`[label](url)` → label, `![alt](url)` →
+  alt — the new `flattenMarkdownLinks`, same conservative link grammar;
+  plain text and non-linkable hrefs untouched) — a source saved with a
+  web-link title no longer shows raw bracket syntax in the hub's Title
+  column (or breadcrumbs, pickers, tab titles, exports — strictly better
+  everywhere the display name reads; `plainTextExcerpt` /
+  `stringifyContentAst` stay raw, so the promotion/content boundary and
+  the wire are untouched). Gate: `pnpm -r --workspace-concurrency=1 build`
+  + `pnpm typecheck && pnpm test` green; new tests: the flatten grammar +
+  the derivation (domain), the top-bar toolbar placement, the panel
+  toggles (placement, pressed state, device-local persistence across a
+  remount), the markdown title cell (web).
+
 ## 2026-10-24
 
 - **fix(web): Sources hub — hub-switch resets the sources query (law-9

@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { splitMarkdownLinks } from "../src/markdownLinks.js";
+import { flattenMarkdownLinks, splitMarkdownLinks } from "../src/markdownLinks.js";
 
 describe("splitMarkdownLinks: markdown spans", () => {
   it("splits a markdown link out of surrounding text", () => {
@@ -103,5 +103,55 @@ describe("splitMarkdownLinks: bare URLs", () => {
     expect(splitMarkdownLinks("type https:// then rest")).toEqual([
       { kind: "text", text: "type https:// then rest" },
     ]);
+  });
+});
+
+/**
+ * flattenMarkdownLinks — the display-name flatten (title-is-content): a
+ * title authored as a markdown span reads as its visible text everywhere
+ * the display name goes (the hub's Title column, breadcrumbs, pickers) —
+ * `[label](href)` → `label`, `![alt](src)` → `alt`. The same conservative
+ * grammar as splitMarkdownLinks: non-linkable hrefs stay literal, plain
+ * text and bare URLs pass through untouched.
+ */
+describe("flattenMarkdownLinks", () => {
+  it("reduces a markdown link to its label text", () => {
+    expect(
+      flattenMarkdownLinks("[¡Imprime en 3D tu propia...](https://makerworld.com/models/1) review"),
+    ).toBe("¡Imprime en 3D tu propia... review");
+  });
+
+  it("reduces a markdown image to its alt text", () => {
+    expect(flattenMarkdownLinks("![A hand-drawn chart](https://example.com/chart.png) notes")).toBe(
+      "A hand-drawn chart notes",
+    );
+  });
+
+  it("drops an image with empty alt text", () => {
+    expect(flattenMarkdownLinks("![](https://example.com/chart.png) notes")).toBe(" notes");
+  });
+
+  it("keeps non-linkable hrefs (javascript:, relative) as literal text", () => {
+    expect(flattenMarkdownLinks("[x](javascript:alert) [y](/relative/path)")).toBe(
+      "[x](javascript:alert) [y](/relative/path)",
+    );
+  });
+
+  it("leaves plain text with brackets and parens untouched", () => {
+    expect(flattenMarkdownLinks("just [brackets] and (parens) [unclosed]( nope")).toBe(
+      "just [brackets] and (parens) [unclosed]( nope",
+    );
+  });
+
+  it("keeps bare URLs as text", () => {
+    expect(flattenMarkdownLinks("see https://example.com/page now")).toBe(
+      "see https://example.com/page now",
+    );
+  });
+
+  it("flattens a link and an image in one string", () => {
+    expect(
+      flattenMarkdownLinks("[docs](https://example.com/d) and ![pic](https://example.com/p.png) end"),
+    ).toBe("docs and pic end");
   });
 });

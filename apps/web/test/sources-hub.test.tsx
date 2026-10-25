@@ -217,6 +217,13 @@ describe("SourcesHub — the shell's honest empty states", () => {
     // …and the detail pane.
     const detail = screen.getByRole("complementary", { name: "Source details" });
     expect(withinText(detail, "Select a source")).toBe(true);
+
+    // The panel toggles ride the top bar even in the URL-less shell…
+    expect(screen.getByRole("button", { name: "Hide facets panel" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Hide details panel" })).not.toBeNull();
+    // …and without a client the toolbar's search box doesn't render (the
+    // shell keeps the task-1 shape: title, panes, the empty state's door).
+    expect(screen.queryByRole("textbox", { name: "Search sources" })).toBeNull();
   });
 });
 

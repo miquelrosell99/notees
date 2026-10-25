@@ -20,6 +20,7 @@
 import type { ContentAst, ContentToken } from "@notees/protocol";
 
 import { dateNodeDisplayLabel, parseDateNodeId } from "./dates.js";
+import { flattenMarkdownLinks } from "./markdownLinks.js";
 
 export interface NodeLike {
   id: string;
@@ -64,7 +65,11 @@ export function fullTitleOf(
 ): string {
   const fromId = parseDateNodeId(node.id);
   if (fromId !== null) return dateNodeDisplayLabel(fromId, fromId.precision);
-  const excerpt = plainTextExcerpt(node.contentAst, resolveClassName).trim();
+  // The display-name flatten reduces markdown link/image spans in the
+  // excerpt to their visible text (owner papercut — a web source titled
+  // `[label](url)` read as raw bracket syntax in the hub's Title column).
+  // Plain text passes through untouched (the conservative link grammar).
+  const excerpt = flattenMarkdownLinks(plainTextExcerpt(node.contentAst, resolveClassName)).trim();
   if (!excerpt) return "";
   const dateFormatted = formatDateNodeName(excerpt, node.classIds);
   return dateFormatted ?? excerpt;
