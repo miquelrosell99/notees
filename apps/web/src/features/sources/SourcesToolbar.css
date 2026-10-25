@@ -1,7 +1,8 @@
 /* SourcesToolbar styles — the hub toolbar composed into the surface top
-   bar's actions cluster. One chrome row: search · count · exports · Add source ·
-   settings. Token-only (variables.css); the search box's flex-basis rides
-   the adaptive ch/em form. */
+   bar's actions cluster (the toolbar moved out of the
+   middle column; round 2 slimmed it to the search box alone). Token-only
+   (variables.css); the search box's flex-basis rides the adaptive ch/em
+   form. */
 
 .nt-sources-toolbar {
   display: flex;
@@ -13,14 +14,4 @@
 
 .nt-sources-toolbar .search-field {
   flex: 0 1 24em;
-}
-
-.nt-sources-toolbar__count {
-  font-size: var(--font-size-sm);
-  color: var(--md-sys-color-on-surface-variant);
-  white-space: nowrap;
-}
-
-.nt-sources-toolbar__spacer {
-  flex: 1;
 }

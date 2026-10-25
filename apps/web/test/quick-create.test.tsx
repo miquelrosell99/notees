@@ -34,11 +34,13 @@ import {
   findSourceByIdentifier,
   generateCitekey,
   resolveQuickCreate,
+  routeNewNodeClass,
   sourceSubclassOptions,
   splitAuthorList,
   splitPersonName,
 } from "../src/features/modals/quickCreate.js";
 import { deriveDisplayName } from "@notees/domain";
+import { AddSourceHost } from "../src/features/sources/AddSourceHost.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -133,6 +135,15 @@ describe("resolveQuickCreate", () => {
     expect(resolveQuickCreate(client, [])).toBeNull();
   });
 
+  it("maps the asset class to the asset-upload flow", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    expect(resolveQuickCreate(client, [SYSTEM_CLASS_UUIDS.asset])).toEqual({
+      kind: "asset",
+      defaultClassId: SYSTEM_CLASS_UUIDS.asset,
+    });
+  });
+
   it("collectSelfAndAncestors falls back to the static system extends", async () => {
     const client = await seedClient();
     // No classes authored at all: the seeded extends map still resolves.
@@ -153,6 +164,68 @@ describe("resolveQuickCreate", () => {
     expect(options.map((option) => option.value).sort()).toEqual(expected.sort());
   });
 });
+
+describe("routeNewNodeClass — the New-popup class-pick routing", () => {
+  it("a source-family pick routes to the add-source dialog when online and the resolver is on", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    expect(
+      routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.journal_article, {
+        online: true,
+        resolverEnabled: true,
+      }),
+    ).toEqual({ kind: "add-source", classId: SYSTEM_CLASS_UUIDS.journal_article });
+    // The family base resolves to its book default, still add-source.
+    expect(
+      routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.source, {
+        online: true,
+        resolverEnabled: true,
+      }),
+    ).toEqual({ kind: "add-source", classId: SYSTEM_CLASS_UUIDS.book });
+  });
+
+  it("a source pick falls back to the quick-create form offline or with the resolver off", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    for (const opts of [
+      { online: false, resolverEnabled: true },
+      { online: true, resolverEnabled: false },
+      { online: false, resolverEnabled: false },
+    ] as const) {
+      expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.book, opts)).toEqual({
+        kind: "quick-create-source",
+        classId: SYSTEM_CLASS_UUIDS.book,
+      });
+    }
+  });
+
+  it("an asset pick routes to the asset upload", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    expect(
+      routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.asset, {
+        online: true,
+        resolverEnabled: true,
+      }),
+    ).toEqual({ kind: "asset-upload", classId: SYSTEM_CLASS_UUIDS.asset });
+  });
+
+  it("everything else routes to the plain create", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    expect(
+      routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.person, {
+        online: true,
+        resolverEnabled: true,
+      }),
+    ).toEqual({ kind: "plain" });
+    const tagClass = await client.createClass("taglike");
+    expect(
+      routeNewNodeClass(client, tagClass, { online: true, resolverEnabled: true }),
+    ).toEqual({ kind: "plain" });
+  });
+});
+
 
 describe("splitPersonName", () => {
   it("splits on the last word; a single word is the family name", () => {
@@ -440,6 +513,40 @@ describe("QuickCreateModal via the picker create row", () => {
     expect(
       client.listPages().filter((page) => deriveDisplayName(page) === "Dune").length,
     ).toBe(1);
+  });
+
+  it("a source-filtered create row with an identifier-shaped query opens the add-source dialog", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    render(
+      <>
+        <NodeSelector
+          client={client}
+          trigger="inline"
+          searchMode="all"
+          classFilters={[SYSTEM_CLASS_UUIDS.book]}
+          onAdd={() => {}}
+        />
+        <AddSourceHost
+          client={client}
+          serverUrl="http://resolver.test"
+          credential="test-key"
+          onCreated={() => {}}
+          onOpenNode={() => {}}
+        />
+      </>,
+    );
+
+    // The typed identifier rides the create row into the resolver dialog
+    // (the picked/filter class locks the prefill — resolution asserts that).
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "10.1000/xyz" } });
+    fireEvent.click(screen.getByText('Create "10.1000/xyz"'));
+    const dialog = await screen.findByRole("dialog", { name: "Add source" });
+    expect(
+      (within(dialog).getByLabelText("Identifier or link") as HTMLInputElement).value,
+    ).toBe("10.1000/xyz");
+    // The bare QuickCreateModal is NOT the create-row destination anymore.
+    expect(screen.queryByLabelText("Title")).toBeNull();
   });
 
   it("a person-filtered picker opens the agent dialog with the name split", async () => {

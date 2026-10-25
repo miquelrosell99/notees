@@ -17,7 +17,10 @@
   outline: none;
 }
 
-/* The projection cells (the custom column renderers). */
+/* The projection cells (the custom column renderers). the cells ride the SHARED table's typography register (the
+   td's own font/padding — TableView.css) so the library reads as the
+   standard table; only true projection chrome stays (the muted type lane
+   like the name-cell icon register, the tabular-numeric year). */
 .nt-sources-table__type {
   display: inline-flex;
   align-items: center;
@@ -28,16 +31,8 @@
   text-overflow: ellipsis;
 }
 
-.nt-sources-table__title {
-  font-weight: 500;
-}
-
 .nt-sources-table__year {
   font-variant-numeric: tabular-nums;
-}
-
-.nt-sources-table__citekey {
-  font-family: var(--font-family-mono);
 }
 
 .nt-sources-table__attachments {

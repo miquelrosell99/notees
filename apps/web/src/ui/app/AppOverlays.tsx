@@ -85,9 +85,10 @@ export function AppOverlays(props: AppOverlaysProps) {
       )}
       <BackendUnavailableOverlay syncStatus={syncStatus} />
       <NotificationToaster />
-      {/* The workspace-settings modal's app-level host: the Sources hub's
-          settings shortcut requests the modal (on the Sources settings
-          tab) through the module-level queue, the AddSourceHost idiom. */}
+      {/* The workspace-settings modal's app-level host: any surface
+          requesting the modal (the AddSourceDialog's resolver-disabled
+          pointer, the workspace switcher) opens it through the
+          module-level queue, the AddSourceHost idiom. */}
       <WorkspaceSettingsHost
         client={client}
         serverUrl={serverUrl}

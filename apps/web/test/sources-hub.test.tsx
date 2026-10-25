@@ -10,9 +10,10 @@
  *   sorts rejected outright.
  * - The sidebar entry: a "Sources" row with the bookshelf icon, placed
  *   between Tasks and Assets in the navigation order.
- * - The shell: three honest empty-state panes — facets "No source types",
- *   the table's Add-your-first-source hint + Add-source button, and the
- *   detail pane's "Select a source".
+ * - The shell: three honest panes — facets "No source types", the table's
+ *   New-flow hint (creation rides the global New
+ *   button; no direct door), and NO detail pane until a selection exists
+ *   (the "Select a source" empty state retired with the always-on panel).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -196,7 +197,7 @@ describe("sidebar — the Sources entry", () => {
 });
 
 describe("SourcesHub — the shell's honest empty states", () => {
-  it("renders the three panes with their empty states and the top bar", () => {
+  it("renders the panes with their empty states and the top bar", () => {
     // A deep link with the full query string — the shell boots on it.
     window.history.pushState({}, "", "/sources?type=book&q=smith&sort=year:desc");
     render(<SourcesHub />);
@@ -207,22 +208,32 @@ describe("SourcesHub — the shell's honest empty states", () => {
     // The facets pane…
     const facets = screen.getByRole("complementary", { name: "Source types" });
     expect(withinText(facets, "No source types")).toBe(true);
-    // …the table pane, with the Add-your-first-source hint + its button…
+    // …the table pane, with the New-flow hint (the
+    // direct Add-source door retired; creation rides the global New flow)…
     const table = document.querySelector(".nt-sources-hub__table");
     expect(table).not.toBeNull();
     expect(
-      screen.getByText(/Add your first source — paste a DOI, ISBN, arXiv link or a URL/),
+      screen.getByText(/Press New in the top bar/i),
     ).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Add source" })).not.toBeNull();
-    // …and the detail pane.
-    const detail = screen.getByRole("complementary", { name: "Source details" });
-    expect(withinText(detail, "Select a source")).toBe(true);
+    expect(screen.queryByRole("button", { name: "Add source" })).toBeNull();
+    // …and NO detail pane until a selection exists (the right panel renders
+    // only with one — the "Select a source" empty state is gone with it).
+    expect(screen.queryByRole("complementary", { name: "Source details" })).toBeNull();
 
-    // The panel toggles ride the top bar even in the URL-less shell…
-    expect(screen.getByRole("button", { name: "Hide facets panel" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Hide details panel" })).not.toBeNull();
+    // The panel toggles ride the top bar's LEADING cluster, left of the
+    // title (the general hub convention)…
+    const topbar = document.querySelector(".surface-topbar") as HTMLElement;
+    const heading = screen.getByRole("heading", { name: "Sources" });
+    const facetsToggle = screen.getByRole("button", { name: "Hide facets panel" });
+    const detailToggle = screen.getByRole("button", { name: "Hide details panel" });
+    expect(
+      facetsToggle.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      detailToggle.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     // …and without a client the toolbar's search box doesn't render (the
-    // shell keeps the task-1 shape: title, panes, the empty state's door).
+    // shell keeps the shape: title, panes, the New-flow hint).
     expect(screen.queryByRole("textbox", { name: "Search sources" })).toBeNull();
   });
 });
