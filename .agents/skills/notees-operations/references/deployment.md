@@ -51,6 +51,15 @@ publishes both images at the tag + `latest`), or
 `gh workflow run release-docker.yml -f image_tag=X.Y.Z` to re-publish without
 a tag.
 
+**Build source discipline:** the image content is whatever
+checkout builds it — never build from a git worktree, and never build from a
+main checkout that sits behind `origin/main` (a stale-checkout rebuild
+silently re-ships old code; learned 2026-10-25 when a pre-hub rebuild
+clobbered the deployed Sources hub). Before `docker compose build` on a
+checkout-built host: `git fetch && git status` — the checkout must be clean
+and at `origin/main`. On hosts with the source/stack split, build/up from the
+live stack folder only.
+
 ## First boot
 
 The bootstrap API key is generated+persisted once (or taken from
