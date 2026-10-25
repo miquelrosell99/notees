@@ -113,15 +113,23 @@ popup register the menus ride, surface-container-high + level-2 shadow +
 4dp menu corner; presentational only, the caller owns positioning, so the
 editor's selection formatting bar portals it and writes top/left
 imperatively against the live selection Range),
-`SurfaceTopBar` (the in-card top bar for full-bleed hub surfaces, icon + title + muted count + context + right-aligned actions,
-pinned above the surface's card-border scrolling body — every hub view
-composes it instead of a hand-rolled header; the bottom hairline marks the
-seam, a body scrolling tight under the bar read as cut. Extended
+`SurfaceTopBar` (the in-card top bar for full-bleed hub surfaces, leading cluster + icon + title + title-extra chrome + context +
+right-aligned actions, pinned above the surface's card-border scrolling body —
+every hub view composes it instead of a hand-rolled header; the bottom hairline marks
+the seam, a body scrolling tight under the bar read as cut. Extended
 2026-10-23: `title` optional with a freeform `lead` slot + `className`
 passthrough — the nodeview top bar (NodeTopbar, PageChrome.tsx) composes it
 with its own toggle/pills cluster through `lead`, closing the loop the
 extraction announced: every in-card top bar rides one element and one
-hairline register),
+hairline register. Extended 2026-10-25: `leading`
+panel-toggle cluster BEFORE the title and `titleExtra` title-adjacent
+chrome. **The hub convention: a hub's panel
+toggles live in the `leading` cluster — before (left of) the title — in
+every hub**, not among the right-aligned actions; the Sources hub and the
+Journal hub (JournalsView) are the reference hosts, and future hubs inherit
+the placement by composing `leading`. Counts that name the surface's items
+render as a fleet `Badge` in `titleExtra` next to the title — never an
+"N things" text in the actions),
 `MainContentFrame` (`src/ui/`, NOT a fleet primitive — the app-chrome
 composition layer: the panelled main-content layout generalized out of
 PageView, a full-width top bar above a three-column body
