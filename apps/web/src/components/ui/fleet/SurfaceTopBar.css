@@ -3,13 +3,17 @@
  * scrolling body. Token-only (variables.css); the
  * horizontal padding matches the journal header's register and compacts on
  * small widths so the bar and its body's inner cap share one inset.
+ * The vertical rhythm is deliberately tight (the bar is
+ * chrome — it hugs its content, spacing-1 top / spacing-2 bottom); hosts
+ * that carry their own top gap (the panelled nodeview's page root) zero
+ * the top in their override.
  */
 
 .surface-topbar {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-6) var(--spacing-3);
+  padding: var(--spacing-1) var(--spacing-6) var(--spacing-2);
   flex-shrink: 0;
   min-width: 0;
   /* The bottom hairline: the body below

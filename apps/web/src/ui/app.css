@@ -627,14 +627,14 @@ select:focus-visible {
    hairline rides the primitive's own border-bottom (the divider returns —
    the 2026-10-13 retirement predated the body scrolling tight under the
    bar; the hub commit's second pass established the seam rule, the clipped
-   content read as cut). No VERTICAL padding: the two-class override below
-   zeroes the primitive's own vertical padding (the panelled page's
-   padding-top carries the bar's top gap); the override
-   carries the bar's horizontal inset itself since 2026-10-26 — see there.
+   content read as cut). The TOP padding stays zeroed: the host page root's
+   own spacing-2 carries the bar's top gap; the override carries the bar's horizontal
+   inset itself since 2026-10-26 — see there.
    The primitive's base padding rules — the base rule and its small-width
    variant — both lose to the higher specificity. The bottom gap stays the
    margin-bottom spacing-2: the bar is
-   chrome and reads best hugging its content — top gap 8, bottom gap 8. */
+   chrome and reads best hugging its content — top gap 8, bottom 8 padding
+   + 8 margin around the hairline. */
 .nt-node-topbar {
   display: flex;
   align-items: center;
@@ -648,13 +648,16 @@ select:focus-visible {
   /* The bar's insets ride THIS register since the panelled page's horizontal
      padding retired (the frame's body row owns the outer side inset
      universally), so the bar carries its own — var(--spacing-4), pixel-
-     identical to the retired host padding. The verticals ride the
-     primitive's rhythm too (the frame refactor shrank
-     the page root's top gap to spacing-2 — too tight — and the zero bottom
-     let the chrome touch the hairline): spacing-2 top / spacing-3 bottom,
-     same as the hub bars. The primitive's base padding and its small-width
-     variant both still lose to this two-class rule. */
-  padding: var(--spacing-2) var(--spacing-4) var(--spacing-3);
+     identical to the retired host padding. The verticals tightened the
+     same day (owner: "too much top and bottom padding" — the host root's
+     spacing-2 top padding AND the bar's own spacing-2 doubled the top
+     gap to 16, and spacing-3 bottom + the spacing-2 margin stacked to 20
+     below): the top padding retires (the host root's spacing-2 carries
+     the bar's top gap alone, the original 2026-10-13 register), the
+     bottom is spacing-2 padding + the spacing-2 margin — 8 above the
+     hairline, 8 below it. The primitive's base padding and its
+     small-width variant both still lose to this two-class rule. */
+  padding: 0 var(--spacing-4) var(--spacing-2);
 }
 
 .nt-node-topbar__classes {

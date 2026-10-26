@@ -132,8 +132,11 @@ describe("the frame owns the outer body inset (CSS registers)", () => {
     const css = readCss("ui/app.css");
     const blocks = ruleBlocks(css, ".surface-topbar.nt-node-topbar");
     expect(blocks.length).toBe(1);
+    // The top padding retired (the host root's spacing-2
+    // carries the top gap alone — the stacked pair read as double); the
+    // bottom is spacing-2 + the bar's spacing-2 margin around the hairline.
     expect(declaration(blocks[0]!, "padding")).toBe(
-      "var(--spacing-2) var(--spacing-4) var(--spacing-3)",
+      "0 var(--spacing-4) var(--spacing-2)",
     );
   });
 
@@ -148,12 +151,15 @@ describe("the frame owns the outer body inset (CSS registers)", () => {
     expect(declaration(barBlocks[0]!, "padding-right")).toBe("var(--spacing-4)");
   });
 
-  it("the SurfaceTopBar base vertical rhythm: tighter top, real gap above the divider", () => {
+  it("the SurfaceTopBar base vertical rhythm: chrome-hugging top, real gap above the divider", () => {
     const css = readCss("components/ui/fleet/SurfaceTopBar.css");
     const blocks = ruleBlocks(css, ".surface-topbar");
     expect(blocks.length).toBeGreaterThanOrEqual(1);
+    // Tightened (was spacing-2 / spacing-3 — the bar is
+    // chrome and hugs its content; hosts with their own top gap zero the
+    // top in their override).
     expect(declaration(blocks[0]!, "padding")).toBe(
-      "var(--spacing-2) var(--spacing-6) var(--spacing-3)",
+      "var(--spacing-1) var(--spacing-6) var(--spacing-2)",
     );
   });
 
