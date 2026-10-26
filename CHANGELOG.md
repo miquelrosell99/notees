@@ -91,8 +91,14 @@ predating this file.
   stacked adaptation is unaffected (the cell flows at content height and
   the frame body scrolls). No JS reads the scroll box's identity, so the
   change is pure CSS-register ownership + comment updates
-  (`app.css`, `PageView.tsx`, `MainContentFrame.tsx/css` seam notes).
-  Gate: `pnpm typecheck && pnpm test` green.
+  (`app.css`, `PageView.tsx`, `MainContentFrame.tsx/css` seam notes); the
+  focus-mode suite's CSS-source pin re-pins the cap on its new home (+ the
+  scroll-box rule, still cap-free). Verified: `frame-body-inset`,
+  `focus-mode`, `context-column` suites green; live probe against the test
+  workspace (tall probe page created, photographed, trashed) — the scroll
+  box overflows at full cell width, its right edge 16px (spacing-4) left of
+  the Properties panel, while the centered 46rem text cap floats ~211px
+  slack a side inside it.
 
 - **refactor(web): frame-owned body inset + split panel toggles.** Two owner points from the annotated screenshots, one
   slice. (1) The right-panel toggle moves to the FAR RIGHT END of the

@@ -5,8 +5,11 @@
  * (.nt-page-context / .nt-page-side-panel — the raised-card registers the
  * nodeview introduced); the layout classes are the frame's own. The middle
  * cell carries NO width cap — the host wraps its children in its own cap
- * when it wants one (PageView's journal measure rides .nt-page-content in
- * app.css) and full-bleed when it doesn't.
+ * when it wants one (PageView's journal measure rides .nt-nodeview-body in
+ * app.css) and full-bleed when it doesn't. The scrollbar seam: a host's scroll box scrolls at its own right edge — beside
+ * the right side pane — with the text cap centered inside it (the panelled
+ * nodeview: .nt-page-content scrolls full cell width, the 46rem cap rides
+ * .nt-nodeview-body inside it).
  */
 
 /* The frame root: fills the host's panelled surface (the nodeview page,
