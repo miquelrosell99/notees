@@ -35,7 +35,11 @@ predating this file.
   class LINEAGE, not hardcoded field sets: auto-citekey fills an empty
   staged citekey from the settings pattern (deterministic a/b/c suffix),
   and the duplicate warning now covers DOI, ISBN, **and citekey**
-  (case-insensitive ); the publicationDate date-chain write
+  (case-insensitive ) — plus an **exact title match** (a live
+  class member whose flattened title equals the staged title, trim-only,
+  case-sensitive), re-checked live as the title
+  edits, the same non-blocking warning + open-existing affordance; the
+  publicationDate date-chain write
   and the ensureCitationFamily self-heal (now authoring class-local venue
   bindings for a resolver prefill) ride the same flush. Routing:
   `routeNewNodeClass` sends every class pick to the modal (the bare source
@@ -48,11 +52,11 @@ predating this file.
   dialog; AddSourceDialog's prefill is now seeded staged values keyed by
   property schema id. Docs: `docs/features/sources.md`, `classes.md`,
   `feature-status.md`. Web-only surface (no wire/model change — no fixture
-  gate). Verified by the rewritten `quick-create` suite (38 tests: every-
+  gate). Verified by the rewritten `quick-create` suite (39 tests: every-
   class routing, the staged-type filter, the one-batch undo gesture, cancel
   writes nothing, auto-citekey, the DOI/ISBN/citekey duplicate warnings,
-  the archived-class auto-enable, the resolver prefill) + the full web
-  suite.
+  the exact-title-match duplicate warning, the archived-class auto-enable,
+  the resolver prefill) + the full web suite.
 
 - **fix(web): popups inside modals work — clickable, focusable, above the
   dialog, dismissed in LIFO order ("popups in modals don't work
