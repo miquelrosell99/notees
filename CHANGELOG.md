@@ -9,6 +9,91 @@ predating this file.
 
 ## 2026-10-26
 
+- **refactor(web): the resolver unwired from the class-pick popup — the
+  palette is the magic wand.** Picking a source class
+  in the New-node popup is Zotero's MANUAL entry creation again: the
+  citation form, always (the round-2 route to the locked add-source dialog
+  is retired, lock machinery and all). Identifier-based creation lives in
+  the command palette's "Add source…" row (already wired — the Zotero wand
+  equivalent, DOI/ISBN/arXiv/PDF/URL). The picker's identifier-shaped
+  create-row reroute stays but loses the class lock: the resolved record's
+  own type picks the prefill. Asset-class → upload-modal routing unchanged.
+  Also: an export-package type mismatch the stale dist had hidden
+  (`nameOf` undefined-vs-null at the `deriveDisplayName` boundary) fixed so
+  the dts build is green.
+- **feat(protocol+web+store+export): no stored link text — the mention token
+  carries `customLabel` only; the visible text is computed (the breadcrumb "Untitled" bug + drift).** The reported bug: blocks whose
+  content is ONLY a node link crumbed as "Untitled" — v1-migrated mentions
+  carry `"text": ""` (`scripts/migrate-v1/content_ast.py` left the capture
+  empty when a link had no label), and the display-name derivation flattened
+  the captured text. The owner's ruling generalizes the fix: stored link text
+  is a drift class (captures go stale on rename), so the wire stops carrying
+  it. **Wire** (`mentionTokenSchema`, envelope v3 unchanged): the captured
+  `text` and the `displayText` override retire; ONE optional `customLabel`
+  is the only text a mention stores (camelCase per the content-grammar
+  convention — `targetNodeId`/`displayText`/`linkId` precedent). The link's
+  visible text computes at render: `customLabel` ?? the target's current
+  display name (broken targets render the raw id, Fork 4 unchanged). The
+  strict schema rejects `text`/`displayText` outright (no backward
+  compatibility — the one-time log rewrite is the migration). **Fixture
+  gate**: new `mention-custom-label.json` (bare + labeled + label-clear
+  across three envelopes; gate list 41→42); `link-embedded.json` and
+  `typed-link-mark.json` re-encoded mention-clean. GTK/Flutter lockstep
+  PENDING (their strict validators must accept `customLabel` and reject the
+  retired keys before the live migration runs — migrations.md §2 law).
+  **Web**: every writer emits bare mentions (`BlockTextEditor` pick/paste/
+  date/template paths, `LinkEditModal`, `extractToPage`, `unlinkedRefs`);
+  caret placement rides the RESOLVED label length via `mentionProse`. All
+  readers resolve live — `mentionProse` (customLabel → resolved full title →
+  raw id), `InlineTokens`, the editable DOM, the title seam (`titleOf`/
+  `titleOfNode` gain `resolveMentionName`, built automatically for the
+  "chrome" flatten — breadcrumbs, sidebar rows, collection group headers,
+  table/sort labels now crumb a link-only block as the TARGET'S NAME, never
+  "Untitled"), the condensed layer (`excerptOf`/`hiddenLinksOf` thread the
+  same resolver so the cut stays one coordinate system), find-in-page
+  (navigable-only label matches), and the node-link context menu (Remove
+  keeps the customLabel, else the resolved name). Editor splices treat
+  mentions as atomic (no stored text to boundary-trim, the chip precedent).
+  **Store**: the applier's promotion/stringify boundary resolves mention
+  labels from the derived node rows (a promoted link-only block keeps the
+  target's current name in its flattened title); FTS extraction indexes a
+  bare mention's target display name, resolved at index time from the node
+  row (one level; reindex heals renames). **Export**: markdown/html/json
+  archive resolve `customLabel ?? ctx.nameOf(target) ?? id`. **Migration**:
+  `scripts/migrate-mention-custom-label.mts` (Path A, migrations.md §B —
+  dry-run default): rewrites every stored envelope carrying a retired key
+  (displayText → customLabel, text stripped, quote/heading children
+  recursed), patches the newest snapshot's node.content bytes + rebuilds
+  its search rows, bumps restore_epoch, verifies (payload re-validation +
+  full scratch replay + no retired key survives). Gate: `pnpm -r build` +
+  `pnpm typecheck && pnpm test` green; new regression pins (the seam's
+  link-only-block title, the strict-schema rejection of the retired keys,
+  the store promotion fold, the domain excerpt resolver precedence). The
+  GTK/Flutter seed/validator alignment records this ruling as lockstep
+  pending — the sibling repos converge on the `mention-custom-label.json`
+  fixture before the migration runs against the live relay.
+
+- **fix(web): nodeview scrollbar rides beside the right side pane.** The
+  panelled node view's scroll box was the capped content column
+  (`.nt-nodeview-body` inside the centered 46rem `.nt-page-content`), so
+  the scrollbar floated at the text column's right edge — mid-gap between
+  the content and the Properties panel — and visually read as a stray
+  border. The ownership swaps: `.nt-page-content` (the
+  middle cell wrapper) is now the SCROLL box at full cell width, so the
+  scrollbar sits at the cell's right edge directly beside the right side
+  pane; the journal-measure cap (46rem, centered, spacing-6 inline
+  padding) moved one level down onto `.nt-nodeview-body`, so the text
+  measure is unchanged — toggling a panel still never re-measures the
+  text, and with a panel closed the cap still holds the centered journal
+  width. The find-in-page bar stays the capped column's first child and
+  still sticks directly below the node top bar (sticky now resolves
+  against the wrapper's scrollport — same visual). The compact (≤768px)
+  stacked adaptation is unaffected (the cell flows at content height and
+  the frame body scrolls). No JS reads the scroll box's identity, so the
+  change is pure CSS-register ownership + comment updates
+  (`app.css`, `PageView.tsx`, `MainContentFrame.tsx/css` seam notes).
+  Gate: `pnpm typecheck && pnpm test` green.
+
 - **refactor(web): frame-owned body inset + split panel toggles.** Two owner points from the annotated screenshots, one
   slice. (1) The right-panel toggle moves to the FAR RIGHT END of the
   surface top bar: the panel toggles split by panel side — the LEFT-panel
