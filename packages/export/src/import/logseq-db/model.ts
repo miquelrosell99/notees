@@ -52,6 +52,8 @@ export interface LogseqDbSkipped {
   views: number;
   system: number;
   assets: number;
+  /** Select-option backing entities (`:logseq.property/closed-value-property`) — counted, never imported as pages. */
+  closedValues: number;
 }
 
 export interface LogseqDbModel {
@@ -92,7 +94,7 @@ export function buildLogseqDbModel(entities: Map<number, LqEntity>): LogseqDbMod
     classes: [],
     properties: [],
     dateByUuid: new Map(),
-    skipped: { views: 0, system: 0, assets: 0 },
+    skipped: { views: 0, system: 0, assets: 0, closedValues: 0 },
   };
 
   // --- definitions -------------------------------------------------------
@@ -142,6 +144,20 @@ export function buildLogseqDbModel(entities: Map<number, LqEntity>): LogseqDbMod
     }
   }
 
+  // --- closed values -------------------------------------------------------
+  // Select-option backing entities (`:logseq.property/closed-value-property`)
+  // are vocabulary, not content: counted for the report, never imported as
+  // pages. Property-value resolution still reads their titles from the
+  // entities map below (resolvePropValue → titleOf), independent of the
+  // node classification.
+  const closedValueEids = new Set<number>();
+  for (const [eid, o] of entities) {
+    if (":logseq.property/closed-value-property" in o) {
+      closedValueEids.add(eid);
+      model.skipped.closedValues += 1;
+    }
+  }
+
   // --- $$$views subtrees --------------------------------------------------
   const inViews = new Set<number>();
   const ancestorChain = (eid: number): number[] => {
@@ -179,6 +195,11 @@ export function buildLogseqDbModel(entities: Map<number, LqEntity>): LogseqDbMod
         ? { kind: "date", day: String(day) }
         : { kind: "text", text: String(raw) };
     }
+    // Checkbox stores booleans; a defensive string form normalizes (real
+    // exports carry booleans, but never guess wrong on the string shape).
+    if (valueType === ":checkbox" && (raw === "true" || raw === "false")) {
+      return { kind: "boolean", value: raw === "true" };
+    }
     if (typeof raw === "boolean") return { kind: "boolean", value: raw };
     if (valueType === ":number" && typeof raw === "number") {
       return { kind: "number", value: raw };
@@ -196,7 +217,9 @@ export function buildLogseqDbModel(entities: Map<number, LqEntity>): LogseqDbMod
   for (const [eid, o] of entities) {
     const uuid = asString(o[":block/uuid"]);
     if (!uuid) continue;
-    if (journalEids.has(eid) || assetEids.has(eid) || inViews.has(eid)) continue;
+    if (journalEids.has(eid) || assetEids.has(eid) || closedValueEids.has(eid) || inViews.has(eid)) {
+      continue;
+    }
     const ident = asString(o[":db/ident"]);
     if (ident && (ident.startsWith(USER_PROP_PREFIX) || ident.startsWith(USER_CLASS_PREFIX))) {
       continue;
