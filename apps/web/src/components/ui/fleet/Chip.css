@@ -41,6 +41,16 @@
   background: var(--md-sys-color-pressed-overlay);
 }
 
+.chip:disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+}
+
+.chip:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
 .chip--on {
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);

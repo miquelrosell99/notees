@@ -43,6 +43,9 @@ export interface ToggleSwitchProps extends Omit<HTMLAttributes<HTMLButtonElement
   onChange: (checked: boolean) => void;
   /** Whether the switch is disabled */
   disabled?: boolean;
+  /** Working state: interaction is blocked and the control announces
+   *  `aria-busy` (the loading register — never a silent disable). */
+  loading?: boolean;
 }
 
 /** Track geometry per size — the register the old ToggleSwitch CSS owned. */
@@ -82,6 +85,7 @@ export const ToggleSwitch = forwardRef<HTMLButtonElement, ToggleSwitchProps>(
       checked,
       onChange,
       disabled = false,
+      loading = false,
       className = "",
       ...props
     },
@@ -111,12 +115,13 @@ export const ToggleSwitch = forwardRef<HTMLButtonElement, ToggleSwitchProps>(
         ref={ref}
         checked={checked}
         onCheckedChange={onChange}
-        disabled={disabled}
+        disabled={disabled || loading}
+        aria-busy={loading || undefined}
         {...(explicitName === undefined ? { "aria-labelledby": `${leftId} ${rightId}` } : {})}
         className={cn(
           "relative inline-flex items-center gap-2 select-none bg-transparent p-0 border-0 text-inherit rounded-item",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-offset-micro",
-          disabled ? "opacity-50 cursor-not-allowed pointer-events-none" : "cursor-pointer",
+          disabled || loading ? "opacity-50 cursor-not-allowed pointer-events-none" : "cursor-pointer",
           className,
         )}
         {...props}
@@ -148,7 +153,7 @@ export const ToggleSwitch = forwardRef<HTMLButtonElement, ToggleSwitchProps>(
         {/* Invisible minimum hit-area overlay (M3's 48dp floor) — the same
             contract the old .toggle-switch::after carried, as a real
             element so it needs no stylesheet. */}
-        {!disabled && (
+        {!disabled && !loading && (
           <span
             aria-hidden="true"
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 min-w-touch min-h-touch"

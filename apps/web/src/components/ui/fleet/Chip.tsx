@@ -19,12 +19,13 @@ export interface ChipProps {
   icon?: string;
   /** Accessible name when the chip is icon-only. */
   ariaLabel?: string;
+  disabled?: boolean;
   className?: string;
   children?: ReactNode;
 }
 
 export const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
-  { active = false, onClick, icon, ariaLabel, className = '', children },
+  { active = false, onClick, icon, ariaLabel, disabled = false, className = '', children },
   ref,
 ) {
   return (
@@ -34,6 +35,7 @@ export const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
       className={`chip${active ? ' chip--on' : ''} ${className}`.trim()}
       aria-pressed={active}
       aria-label={ariaLabel}
+      disabled={disabled}
       onClick={onClick}
     >
       {icon !== undefined && <Icon path={icon} size="0.9em" className="chip__icon" />}

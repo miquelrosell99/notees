@@ -6,6 +6,30 @@ the skill's defaults/foundations is recorded here; an undocumented deviation
 is drift, a documented one is a decision. Newest first. Entries bind until the
 rule they override changes, the review trigger fires, or the owner re-rules.
 
+### The app's Button register extensions — hit-area on every button, rest surfaces, app-only registers
+- **Rule**: the skill's Button template ships the variant register with the icon-only `::after` hit-area floor; `default` rests on `surface` with an `outline` border; sizes sm–lg; no haptics/badges/loading registers.
+- **Decision**: the app Button (a) carries the invisible 48px hit-area overlay on EVERY button, not only icon-only, and (b) rests `default` on `surface-container` with `outline-variant` — the app surfaces sit on paper/graphite grounds where the template's `surface` rest is invisible. App-only registers the template lacks: `xs` size, haptics, icon badges, the delayed-spinner loading register, the `active` toggle state, and `danger-solid` (kept for the bridge fixture; nothing composes it by default since the soft-danger ruling).
+- **Rationale**: surfaced by the fleet audit (2026-10-26) — registers cited only in code comments belong here per this register's own contract.
+- **Scope**: `apps/web/src/components/ui/fleet/Button.tsx` (+ `.css`).
+- **Ruled**: recorded 2026-10-26.
+- **Review trigger**: the skill template adopts the extensions, or a register here drifts from them.
+
+### Tabs: the active identity and hover ride the app's sliding-indicator register
+- **Rule**: the skill's Tabs template — active tab = accent-primary text + a full-width 2px underline; hover = the state-layer overlay on inactive tabs.
+- **Decision**: the app tabs keep the active identity in ink, not accent color: on-surface text at weight 500 with the short centered sliding bar (the indicator register documented as app-owned below); hover on an inactive tab is an ink shift, not a background layer.
+- **Rationale**: the sliding bar already marks the active tab — accent text on top double-signals; the fleet audit (2026-10-26) found the drift undocumented. The sliding-indicator register itself was documented as app-owned at the 2026-10-19 migration.
+- **Scope**: `apps/web/src/components/ui/fleet/Tabs.css`.
+- **Ruled**: fleet audit 2026-10-26, recorded same day.
+- **Review trigger**: the fleet tab template changes, or the owner flags the active tab as under-signaled.
+
+### Modal chrome density — dividers, title size, no backdrop blur
+- **Rule**: the skill's Modal template — title at `font-size-xl` semibold, a transparent (borderless) footer, and a 2px backdrop blur.
+- **Decision**: the app modal chrome runs denser: title at `font-title-medium`, hairline dividers on the header and footer (the 2026-10-22 dialog-density ruling tightened the header padding; the dividers frame the scroll region), and no backdrop blur — the scrim rides opacity alone.
+- **Rationale**: fleet audit (2026-10-26) found the drift undocumented; the density and shape passes landed it without a separate recorded reason. Stated as fact, not re-litigated.
+- **Scope**: `apps/web/src/components/ui/fleet/Modal.css`.
+- **Ruled**: fleet audit 2026-10-26, recorded same day.
+- **Review trigger**: the fleet template codifies chrome density, or blur returns for a specific surface.
+
 ### Card default elevation stays `none`, default radius stays `md` — documented deviation from the template
 - **Rule**: the skill's Card template (`assets/templates/Card.css.template`) ships M3 level-1 elevation at rest and the `--radius-card` (20px) default radius.
 - **Decision**: the app Card keeps `elevation = 'none'` and `radius = 'md'` as defaults (elevation/radius remain opt-in per call site). The app's surfaces — the PageCard slot, settings cards, hub cards — sit directly on the background and carry their own chrome; a default shadow reads as double elevation on the paper ground.
