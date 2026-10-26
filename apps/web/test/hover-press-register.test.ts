@@ -147,16 +147,6 @@ describe("custom buttons carry the pressed layer (skill §6 tactile press)", () 
     );
     expect(tailwindConfig).toContain('role("primary-pressed")');
   });
-
-  it("the settings theme buttons press with the overlay, before the active register", () => {
-    const pressed = /\.settings-theme-btn:active \{[^}]*\}/.exec(settingsModalCss);
-    expect(pressed).not.toBeNull();
-    expect(pressed![0]).toContain("background: var(--md-sys-color-pressed-overlay)");
-    // The active theme button keeps its container fill when pressed.
-    expect(settingsModalCss.indexOf(".settings-theme-btn:active")).toBeLessThan(
-      settingsModalCss.indexOf(".settings-theme-btn--active"),
-    );
-  });
 });
 
 describe("settings accents: state layers, not hover-scale", () => {

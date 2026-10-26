@@ -82,22 +82,32 @@ button.context-menu-item:hover:not(.disabled) {
   background-color: var(--md-sys-color-hover-overlay);
 }
 
-.context-menu-item.focused {
-  background-color: var(--md-sys-color-hover-overlay);
+/* Pressed layer on every interactive item. */
+.context-menu-item:active:not(.disabled) {
+  background-color: var(--md-sys-color-pressed-overlay);
 }
 
-.context-menu-item.active {
+/* The active identity survives hover (combined rule — a bare .active loses
+   its fill to the :hover wash by specificity). */
+.context-menu-item.active,
+.context-menu-item.active:hover:not(.disabled) {
   background: var(--md-sys-color-primary-container);
+}
+
+.context-menu-item.focused {
+  background-color: var(--md-sys-color-hover-overlay);
 }
 
 .context-menu-item.danger {
   color: var(--md-sys-color-error);
 }
 
+/* Danger items ride the same state layer — the error ink carries the
+   signal, not a fill (fleet law: hover = state-layer overlay only). */
 .context-menu-item.danger:hover:not(.disabled),
 .context-menu-item.danger:focus:not(.disabled),
 .context-menu .context-menu-item.danger:hover:not(.disabled) {
-  background-color: var(--md-sys-color-error-container);
+  background-color: var(--md-sys-color-hover-overlay);
 }
 
 .context-menu-item.disabled {

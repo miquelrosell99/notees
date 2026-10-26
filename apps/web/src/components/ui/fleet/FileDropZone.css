@@ -37,12 +37,12 @@
 
 .file-drop-zone:hover:not(.file-drop-zone--disabled) {
   border-color: var(--md-sys-color-primary);
-  background-color: var(--md-sys-color-primary-container);
+  background-color: var(--md-sys-color-hover-overlay);
 }
 
 .file-drop-zone--dragging {
   border-color: var(--md-sys-color-primary);
-  background-color: var(--md-sys-color-primary-container);
+  background-color: var(--md-sys-color-pressed-overlay);
 }
 
 .file-drop-zone--disabled {
@@ -107,7 +107,7 @@
 }
 
 .file-drop-zone__selected-action:hover {
-  background: var(--md-sys-color-surface-variant);
+  background-color: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-on-surface);
 }
 

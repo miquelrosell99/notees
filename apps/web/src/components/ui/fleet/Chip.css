@@ -2,6 +2,7 @@
    families, group toggles). Token-only; the metrics ride the type scale. */
 
 .chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
@@ -19,8 +20,21 @@
   white-space: nowrap;
 }
 
+/* Invisible 48px hit-area floor over the 24px visible chip (the M3 touch
+   floor — the same slop the buttons carry). */
+.chip::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
 .chip:hover {
-  background: var(--md-sys-color-surface-variant);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .chip:active {

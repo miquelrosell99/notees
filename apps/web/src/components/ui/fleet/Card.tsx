@@ -110,7 +110,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
     mobileLayout ? "shadow-none" : ELEVATION_CLASSES[elevation],
     padding && !mobileLayout && PADDING_CLASSES[paddingSize],
     interactive &&
-      "cursor-pointer transition-card duration-short ease-standard hover:bg-hover-overlay hover:border-outline hover:-translate-y-hairline active:bg-pressed-overlay active:translate-y-0 active:scale-card",
+      "cursor-pointer transition-card duration-short ease-standard hover:bg-hover-overlay hover:border-outline active:bg-pressed-overlay",
     selected && "border-primary bg-primary-container",
     showCloseButton && "relative",
     variant === "dashed" &&

@@ -199,9 +199,17 @@
   display: none;
 }
 
-/* …and reveal the add affordance only when the group is hovered. */
-.nt-property-chips:not(:hover) .pill--add.pill--icon-only {
+/* …and reveal the add affordance only when the group is hovered or
+   keyboard-focused (a focusable-but-invisible button is the rejected
+   hover-only pattern — fleet audit 2026-10-26). */
+.nt-property-chips:not(:hover):not(:focus-within) .pill--add.pill--icon-only {
   opacity: 0;
+}
+
+/* The pill itself is always visible while focused, whatever the parent's
+   hover state (the selector above only gates the group-hover reveal). */
+.pill--add.pill--icon-only:focus-visible {
+  opacity: var(--opacity-100);
 }
 
 .pill--add:hover {

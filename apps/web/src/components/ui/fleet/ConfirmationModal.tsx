@@ -79,7 +79,10 @@ export function ConfirmationModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onCancel}
+      // Busy guard: an in-flight confirm must not be dismissible — neither
+      // Escape nor a backdrop click may cancel it out from under the user
+      // (the skill template's contract; the fleet audit found it missing).
+      onClose={isPending ? () => {} : onCancel}
       size="sm"
       ariaLabel={title}
       showCloseButton={false}

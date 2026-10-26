@@ -19,7 +19,7 @@ import { forwardRef, useState, useRef, useLayoutEffect, type ButtonHTMLAttribute
 import { createPortal } from 'react-dom';
 import { Button } from './Button.js';
 import { TextField } from './TextField.js';
-import { observeResizes } from './overlay-hooks.js';
+import { observeResizes, useFocusTrap } from './overlay-hooks.js';
 import { usePopupDismissal } from './usePopupDismissal.js';
 import { PRESET_COLOR_ENTRIES, canonicalColor, cssColorFor } from './colorPresets.js';
 import './ColorButton.css';
@@ -191,6 +191,15 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
     anchorRefs: [buttonRef],
     isOpen: isPickerOpen,
     onClose: () => setIsPickerOpen(false),
+  });
+
+  // The picker declares role="dialog" aria-modal — a bare dialog is fleet
+  // law, so focus is trapped (Tab cycles the swatches + inputs) and restored
+  // to the anchor button on close (fleet audit 2026-10-26).
+  useFocusTrap(pickerRef, {
+    enabled: isPickerOpen,
+    restoreFocus: true,
+    autoFocus: true,
   });
 
   const handleColorSelect = (selectedColor: string | null) => {
