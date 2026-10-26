@@ -146,6 +146,15 @@ describe("the frame owns the outer body inset (CSS registers)", () => {
     expect(declaration(barBlocks[0]!, "padding-right")).toBe("var(--spacing-4)");
   });
 
+  it("the SurfaceTopBar base vertical rhythm: tighter top, real gap above the divider", () => {
+    const css = readCss("components/ui/fleet/SurfaceTopBar.css");
+    const blocks = ruleBlocks(css, ".surface-topbar");
+    expect(blocks.length).toBeGreaterThanOrEqual(1);
+    expect(declaration(blocks[0]!, "padding")).toBe(
+      "var(--spacing-2) var(--spacing-6) var(--spacing-3)",
+    );
+  });
+
   it("the Sources hub bar carries the frame's inset measure (the two-class override)", () => {
     const css = readCss("features/sources/SourcesHub.css");
     const blocks = ruleBlocks(css, ".surface-topbar.sources-hub__topbar");
