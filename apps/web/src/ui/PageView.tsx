@@ -773,6 +773,7 @@ export function PageView({
               client={client}
               nodeId={pageId}
               onOpenPage={onOpenPage}
+              onOpenInSidebar={onOpenInSidebar}
               onOpenPageRaw={(id) => (onOpenPageRaw ?? onOpenPage)?.(id)}
             />
             <div className="nt-metadata-divider" />
@@ -956,6 +957,7 @@ export function PageView({
                     client={client}
                     nodeId={pageId}
                     onOpenPage={onOpenPage}
+                    onOpenInSidebar={onOpenInSidebar}
                     onOpenPageRaw={(id) => (onOpenPageRaw ?? onOpenPage)?.(id)}
                   />
                   {/* The class variant's panel stack:

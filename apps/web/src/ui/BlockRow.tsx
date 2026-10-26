@@ -422,6 +422,14 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
     // The click that RELEASED a selection drag is swallowed (accidental);
     // any other click edits normally.
     if (consumeDragClick(node.id)) return;
+    // The title row's Shift+click peeks the page in the right rail (the
+    // bullet gesture's header twin) — the body rows keep their selection
+    // semantics for the same chord.
+    if (isTitle && event.shiftKey && !readOnly) {
+      event.stopPropagation();
+      openInSidebar(node.id);
+      return;
+    }
     if (readOnly) {
       // Read-only projection: a content click opens the node — except the
       // inert flat-list variant, where the bullet is the only open gesture.

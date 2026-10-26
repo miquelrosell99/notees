@@ -106,6 +106,11 @@ interface PaletteItem {
   /** Match-context excerpt under the label (the Content group). */
   snippet?: SearchSnippetData | null;
   run: () => void;
+  /**
+   * The Shift+Enter peek: node rows carry the right-rail
+   * peek; rows without it (actions, creation flows) ignore the chord.
+   */
+  peek?: (() => void) | undefined;
 }
 
 /** One action registry entry (contribution-point shape). */
@@ -195,6 +200,7 @@ function pickRandomRows(
   client: AnyClient,
   pool: readonly string[],
   onOpenNode: (nodeId: string) => void,
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined,
 ): PaletteItem[] {
   const rows: PaletteItem[] = [];
   for (const id of shuffledIds(pool).slice(0, RANDOM_PAGE_COUNT)) {
@@ -207,6 +213,7 @@ function pickRandomRows(
       icon: page.icon ?? "mdi-file-document-outline",
       keywords: rawDateKeywordOf(page),
       run: () => onOpenNode(page.id),
+      peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar(page.id),
     });
   }
   return rows;
@@ -225,6 +232,7 @@ export function CommandPalette({
   onRequestOpen,
   onClose,
   onOpenNode,
+  onOpenInSidebar = undefined,
   onNewPage,
   onOpenClassCreate = undefined,
   onOpenProperty = undefined,
@@ -246,6 +254,12 @@ export function CommandPalette({
   onRequestOpen: () => void;
   onClose: () => void;
   onOpenNode: (nodeId: string) => void;
+  /**
+   * The Shift+Enter peek: node rows carry a right-rail
+   * peek alongside the plain Enter open. Rows without a peek (actions,
+   * creation flows, registry rows) keep Enter-only behavior.
+   */
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   /** Create (and open) a new page; a title carries the palette query. */
   onNewPage: (title?: string) => void;
   /** #14 — open the class-creation modal (blank + system deploy); the row
@@ -396,7 +410,7 @@ export function CommandPalette({
     /** Fuzzy-pass one candidate pool into a group; `always` keeps rows on an empty query. */
     const addFuzzy = (
       group: Group,
-      pool: Array<{ id: string; label: string; keywords: string; icon: string; run: () => void; meta?: string }>,
+      pool: Array<{ id: string; label: string; keywords: string; icon: string; run: () => void; peek?: (() => void) | undefined; meta?: string }>,
     ) => {
       const matched = pool
         .map((entry) => ({ entry, score: bestScore(text, entry.label, entry.keywords) }))
@@ -416,12 +430,13 @@ export function CommandPalette({
           keywords: entry.keywords,
           meta: entry.meta,
           run: entry.run,
+          peek: entry.peek,
         });
       }
     };
 
     if (home) {
-      const recentPool: Array<{ id: string; label: string; keywords: string; icon: string; run: () => void }> = [];
+      const recentPool: Array<{ id: string; label: string; keywords: string; icon: string; run: () => void; peek?: (() => void) | undefined }> = [];
       const seenRecent = new Set<string>();
       for (const id of recentIds.slice(0, 8)) {
         if (seenRecent.has(id)) continue;
@@ -434,6 +449,7 @@ export function CommandPalette({
           icon: node.icon ?? "mdi-file-document-outline",
           keywords: rawDateKeywordOf(node),
           run: () => onOpenNode(node.id),
+          peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(node.id),
         });
       }
       addFuzzy("Recent", recentPool);
@@ -444,11 +460,13 @@ export function CommandPalette({
       // "yesterday") map onto the deterministic date chain — offered even
       // when the chain nodes do not exist yet (ensureDateChain creates them).
       const parsed = text === "" ? null : parseDate(text);
-      const datePool: Array<{ id: string; label: string; keywords: string; icon: string; run: () => void }> = [];
+      const datePool: Array<{ id: string; label: string; keywords: string; icon: string; run: () => void; peek?: (() => void) | undefined }> = [];
       if (parsed !== null) {
         const iso = toIsoDate(parsed);
         const ids = chainNodeIds(iso);
         const refId = parsed.type === "year" ? ids.year : parsed.type === "month" ? ids.month : ids.day;
+        const pickChain = (chain: { year: string; month: string; day: string }): string =>
+          parsed.type === "year" ? chain.year : parsed.type === "month" ? chain.month : chain.day;
         datePool.push({
           id: refId,
           label: `${client.getNode(refId) !== undefined ? "Open" : "Create"} date page: ${parsed.label}`,
@@ -457,9 +475,17 @@ export function CommandPalette({
           run: () => {
             onClose();
             void client.ensureDateChain(iso).then((chain) => {
-              onOpenNode(parsed.type === "year" ? chain.year : parsed.type === "month" ? chain.month : chain.day);
+              onOpenNode(pickChain(chain));
             });
           },
+          peek:
+            onOpenInSidebar === undefined
+              ? undefined
+              : () => {
+                  void client.ensureDateChain(iso).then((chain) => {
+                    onOpenInSidebar?.(pickChain(chain));
+                  });
+                },
         });
       }
       for (const page of pages) {
@@ -475,6 +501,7 @@ export function CommandPalette({
           // users still type YYYYMMDD to find a date page.
           keywords: rawDateKeywordOf(page),
           run: () => onOpenNode(page.id),
+          peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(page.id),
         });
       }
       addFuzzy("Date Pages", datePool);
@@ -493,6 +520,7 @@ export function CommandPalette({
           icon: page.icon ?? "mdi-file-document-outline",
           keywords: rawDateKeywordOf(page),
           run: () => onOpenNode(page.id),
+          peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(page.id),
         })),
       );
     }
@@ -511,6 +539,7 @@ export function CommandPalette({
             icon: cls.icon ?? "mdi-shape-outline",
             keywords: fresh ?? "",
             run: () => onOpenNode(cls.id),
+            peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(cls.id),
           };
         }),
       );
@@ -545,6 +574,7 @@ export function CommandPalette({
             icon: cls.icon ?? "mdi-shape-outline",
             keywords: fresh ?? "",
             run: () => onOpenNode(cls.id),
+            peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(cls.id),
           };
         }),
       );
@@ -699,7 +729,7 @@ export function CommandPalette({
     return items;
     // cacheVersion rides through classesCache (the memo re-derives the
     // sections when the worker cache refreshes).
-  }, [client, classesCache, home, dailyOnly, text, chip, anyChip, hasMemberOf, memberOfSet, onOpenNode, onNewPage, onOpenClassCreate, onOpenAddSource, onOpenProperty, currentNodeId, onOpenMerge, onToggleCondensed, condensedActive, onSignOut, onClose, recentIds, undoState, onUndo, onRedo]);
+  }, [client, classesCache, home, dailyOnly, text, chip, anyChip, hasMemberOf, memberOfSet, onOpenNode, onOpenInSidebar, onNewPage, onOpenClassCreate, onOpenAddSource, onOpenProperty, currentNodeId, onOpenMerge, onToggleCondensed, condensedActive, onSignOut, onClose, recentIds, undoState, onUndo, onRedo]);
 
   // --- `/` filter mode: the option list -------------------------------------
 
@@ -771,6 +801,7 @@ export function CommandPalette({
                   : undefined,
                 snippet: client.getSearchSnippet(node.id, text),
                 run: () => onOpenNode(node.id),
+                peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(node.id),
               })),
           );
         })
@@ -782,7 +813,7 @@ export function CommandPalette({
         });
     }, 150);
     return () => clearTimeout(timer);
-  }, [open, dailyOnly, text, chip, hasMemberOf, memberOfSet, client, onOpenNode, cacheVersion]);
+  }, [open, dailyOnly, text, chip, hasMemberOf, memberOfSet, client, onOpenNode, onOpenInSidebar, cacheVersion]);
 
   // Dedupe + flatten: the cross-group node-id dedupe, stale content pages
   // (answered query ≠ current) dropped, content ids already surfaced as
@@ -862,7 +893,7 @@ export function CommandPalette({
       .listPages()
       .filter((page) => rendersWithDocumentChrome(page, undefined, parentlessBlockResolverOf(client)));
     randomPoolRef.current = pool.map((page) => page.id);
-    setRandomRows(pickRandomRows(client, randomPoolRef.current, onOpenNodeRef.current));
+    setRandomRows(pickRandomRows(client, randomPoolRef.current, onOpenNodeRef.current, onOpenInSidebar));
   }, [open, client]);
 
   useEffect(() => {
@@ -876,7 +907,7 @@ export function CommandPalette({
    * list, never a fresh worker query.
    */
   const refreshRandomPages = () => {
-    setRandomRows(pickRandomRows(client, randomPoolRef.current, onOpenNode));
+    setRandomRows(pickRandomRows(client, randomPoolRef.current, onOpenNode, onOpenInSidebar));
   };
 
   if (!open) return null;
@@ -900,7 +931,17 @@ export function CommandPalette({
         if (option !== undefined) applyFilterOption(option);
       } else {
         const item = filtered[clampedActive];
-        if (item !== undefined) select(item);
+        if (item !== undefined) {
+          // Shift+Enter on a node row peeks it in the right rail instead of
+          // opening it; rows without a peek fall through
+          // to the plain select.
+          if (event.shiftKey && item.peek !== undefined) {
+            onClose();
+            item.peek();
+            return;
+          }
+          select(item);
+        }
       }
     } else if (event.key === "Escape") {
       event.preventDefault();
@@ -1038,6 +1079,7 @@ export function CommandPalette({
         <div className="nt-palette-footer">
           <span>↑↓ navigate</span>
           <span>↵ select</span>
+          <span>⇧↵ peek in sidebar</span>
           <span>esc close</span>
           <span>/ filters</span>
           <span>is_daily: dates</span>

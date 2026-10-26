@@ -29,6 +29,7 @@ export function PropertiesTable({
   client,
   nodeId,
   onOpenPage,
+  onOpenInSidebar,
   omitDisplayPositions,
   /** Read-only projection: values render statically; no add/label menus. */
   readOnly = false,
@@ -36,6 +37,8 @@ export function PropertiesTable({
   client: AnyClient;
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** The carrier bullet's Shift+click peek. */
+  onOpenInSidebar?: ((pageId: string) => void) | undefined;
   /** Schema display positions (bullet/inline) the host surfaces
    *  itself — filter out. */
   omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
@@ -131,6 +134,7 @@ export function PropertiesTable({
       bindingFilter={bindingFilter}
       groupRows={groupRows}
       onOpenPage={onOpenPage}
+      onOpenInSidebar={onOpenInSidebar}
       readOnly={readOnly}
     />
   );
@@ -187,7 +191,7 @@ export function PropertiesTable({
                   {label}
                   {row.boundBy !== null && <span className="nt-property-hint" title="From a class">C</span>}
                 </span>
-                <ScalarPropertyValue client={client} nodeId={nodeId} row={row} onOpenPage={onOpenPage} readOnly={readOnly} />
+                <ScalarPropertyValue client={client} nodeId={nodeId} row={row} onOpenPage={onOpenPage} onOpenInSidebar={onOpenInSidebar} readOnly={readOnly} />
               </li>
             );
           })}

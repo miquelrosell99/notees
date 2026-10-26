@@ -27,6 +27,7 @@ export function GroupedPropertyRow({
   bindingFilter,
   groupRows,
   onOpenPage,
+  onOpenInSidebar,
   /** Hide the label/hints (the host chrome carries them — the sidebar). */
   bare = false,
   /** Read-only projection: the value renders statically, no mutation UI. */
@@ -42,6 +43,8 @@ export function GroupedPropertyRow({
   bindingFilter: string[] | null;
   groupRows: EffectiveProperty[];
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** The carrier bullet's Shift+click peek. */
+  onOpenInSidebar?: ((pageId: string) => void) | undefined;
   bare?: boolean;
   readOnly?: boolean | undefined;
 }) {
@@ -109,6 +112,7 @@ export function GroupedPropertyRow({
         multi={multi}
         rows={groupRows}
         onOpenPage={onOpenPage}
+        onOpenInSidebar={onOpenInSidebar}
         bare={bare}
         readOnly={readOnly}
         rowClassName={rowClassName}

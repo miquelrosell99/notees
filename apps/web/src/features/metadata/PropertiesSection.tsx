@@ -18,6 +18,7 @@ export function PropertiesSection({
   client,
   nodeId,
   onOpenPage,
+  onOpenInSidebar,
   onOpenPageRaw = undefined,
   hideWhenEmpty = false,
   omitDisplayPositions,
@@ -28,6 +29,8 @@ export function PropertiesSection({
   client: AnyClient;
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** The carrier bullet's Shift+click peek. */
+  onOpenInSidebar?: ((pageId: string) => void) | undefined;
   /** The RAW open for the aliases row's pill (bypasses the alias redirect). */
   onOpenPageRaw?: ((pageId: string) => void) | undefined;
   /** Block mode: render nothing when the node carries no properties. */
@@ -57,6 +60,7 @@ export function PropertiesSection({
           client={client}
           nodeId={nodeId}
           onOpenPage={onOpenPage}
+          onOpenInSidebar={onOpenInSidebar}
           omitDisplayPositions={omitDisplayPositions}
           readOnly={readOnly}
         />
