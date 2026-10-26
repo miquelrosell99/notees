@@ -1,18 +1,19 @@
 /**
- * Quick-create tests: resolveQuickCreate's family resolution
- * over the extends graph (source subclass → source flow with the subclass
- * preselected; bare source → book default; person/organization → agent
- * flow), splitPersonName's Zotero convention, splitAuthorList's
- * plain-text split (";" or newline — a comma lives inside a "Family, Given"
- * name), the modal's citation writes (authors/editors as PLAIN TEXT
- * elements — no person find-or-create; year links the chain's year node;
- * DOI/ISBN/URL/publisher/citekey scalars; venue fields self-heal their
- * schemas), auto-citekey with the deterministic a/b/c collision suffix,
- * archived-type filtering + the same-batch un-archive/create gesture,
- * the duplicate-DOI warning, the add-source resolver prefill, and the
- * picker integration — a class-filtered NodeSelector create row opens the
- * modal with the typed query prefilled, and a DOI/URL-shaped query offers
- * the "Create source from link" row.
+ * Quick-create tests: the class-driven create modal —
+ * routeNewNodeClass's every-class routing (source subclass → the modal with
+ * that class; bare source → book default; user classes → the modal; asset →
+ * the upload flow), the staged-bindings resolution (extends-aware,
+ * alphabetical, the staged-type filter — object/asset excluded), the staged
+ * value expansion (multi text splits into one element per entry; the staged
+ * date resolves through the date chain to `{ nodeId }`; numbers parse;
+ * untouched booleans/options write nothing), the createClassedObject flush
+ * (un-archive + create + property writes in ONE undo batch), auto-citekey
+ * with the deterministic a/b/c collision suffix, the duplicate DOI/ISBN/
+ * citekey warning, the archived-class auto-enable, the resolver prefill, and
+ * the picker integration — every class-filtered NodeSelector create row
+ * opens the modal with the typed query as the title (no subclass switch, no
+ * agent toggle), an identifier-shaped query under a source filter still
+ * reroutes to the add-source dialog, and a filter-less create stays plain.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -20,24 +21,24 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { SYSTEM_CLASS_EXTENDS, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, parseDateNodeId } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, parseDateNodeId } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { NodeSelector } from "../src/features/pickers/NodeSelector.js";
 import { QuickCreateModal } from "../src/features/modals/QuickCreateModal.js";
 import {
-  activeSourceSubclassOptions,
   collectSelfAndAncestors,
-  createAgentObject,
-  createSourceObject,
+  createClassedObject,
+  ensureCitationFamily,
   existingCitekeys,
+  expandStagedValues,
   findSourceByIdentifier,
   generateCitekey,
-  resolveQuickCreate,
+  initialStagedValue,
+  parseStagedDateText,
   routeNewNodeClass,
-  sourceSubclassOptions,
   splitAuthorList,
-  splitPersonName,
+  stagedBindingsOf,
 } from "../src/features/modals/quickCreate.js";
 import { deriveDisplayName } from "@notees/domain";
 import { AddSourceHost } from "../src/features/sources/AddSourceHost.js";
@@ -75,7 +76,11 @@ async function seedClient(): Promise<WorkspaceClient> {
   return client;
 }
 
-/** Author the source/agent family the way the server seed does. */
+/**
+ * Author the source/agent family the way the server seed does, then run the
+ * citation self-heal (the write-time schema/binding authoring the flush
+ * composes) — mirrors a server-seeded workspace.
+ */
 async function seedFamilies(client: WorkspaceClient): Promise<void> {
   for (const name of ["source", "book", "journal_article", "agent", "person", "organization"] as const) {
     await client.createClass(name, { id: SYSTEM_CLASS_UUIDS[name] });
@@ -84,100 +89,60 @@ async function seedFamilies(client: WorkspaceClient): Promise<void> {
   await client.setClassExtends(SYSTEM_CLASS_UUIDS.journal_article, [SYSTEM_CLASS_UUIDS.source]);
   await client.setClassExtends(SYSTEM_CLASS_UUIDS.person, [SYSTEM_CLASS_UUIDS.agent]);
   await client.setClassExtends(SYSTEM_CLASS_UUIDS.organization, [SYSTEM_CLASS_UUIDS.agent]);
+  await ensureCitationFamily(client);
 }
 
-describe("resolveQuickCreate", () => {
-  it("maps source subclasses to the source flow with the subclass preselected", async () => {
+/** A book create input as staged rows (the modal's flush shape). */
+async function stagedInput(
+  client: WorkspaceClient,
+  classId: string,
+  seeds: Record<string, string>,
+): Promise<Array<{ row: ReturnType<typeof stagedBindingsOf>[number]; value: ReturnType<typeof initialStagedValue> }>> {
+  const rows = stagedBindingsOf(client, classId);
+  return rows
+    .filter((row) => seeds[row.binding.propertySchemaId] !== undefined)
+    .map((row) => {
+      const empty = initialStagedValue(row);
+      const seed = seeds[row.binding.propertySchemaId]!;
+      return {
+        row,
+        value:
+          empty.kind === "text" || empty.kind === "number" || empty.kind === "date"
+            ? { ...empty, text: seed }
+            : empty,
+      };
+    });
+}
+
+describe("routeNewNodeClass — the New-popup class-pick routing", () => {
+  it("EVERY class pick routes to the modal with that class (source family no longer special)", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    expect(resolveQuickCreate(client, [SYSTEM_CLASS_UUIDS.book])).toEqual({
-      kind: "source",
-      defaultClassId: SYSTEM_CLASS_UUIDS.book,
-    });
-    expect(resolveQuickCreate(client, [SYSTEM_CLASS_UUIDS.journal_article])).toEqual({
-      kind: "source",
-      defaultClassId: SYSTEM_CLASS_UUIDS.journal_article,
-    });
-  });
-
-  it("defaults a bare source filter to book; resolves the agent family", async () => {
-    const client = await seedClient();
-    await seedFamilies(client);
-    expect(resolveQuickCreate(client, [SYSTEM_CLASS_UUIDS.source])).toEqual({
-      kind: "source",
-      defaultClassId: SYSTEM_CLASS_UUIDS.book,
-    });
-    expect(resolveQuickCreate(client, [SYSTEM_CLASS_UUIDS.person])).toEqual({
-      kind: "agent",
-      defaultClassId: SYSTEM_CLASS_UUIDS.person,
-    });
-    expect(resolveQuickCreate(client, [SYSTEM_CLASS_UUIDS.organization])).toEqual({
-      kind: "agent",
-      defaultClassId: SYSTEM_CLASS_UUIDS.organization,
-    });
-    // Subclass of person resolves through the agent lineage.
-    await client.createClass("scholar", { id: "0192a000-0000-7000-8000-000000000099" });
-    await client.setClassExtends("0192a000-0000-7000-8000-000000000099", [
-      SYSTEM_CLASS_UUIDS.person,
-    ]);
-    expect(
-      resolveQuickCreate(client, ["0192a000-0000-7000-8000-000000000099"]),
-    ).toEqual({ kind: "agent", defaultClassId: SYSTEM_CLASS_UUIDS.person });
-  });
-
-  it("returns null for unrelated filters and empty filters", async () => {
-    const client = await seedClient();
-    await seedFamilies(client);
-    const tag = await client.createObject({ isEmbedded: false, name: "Some tag" });
-    const tagClass = await client.createClass("taglike");
-    await client.assignClass(tag, tagClass);
-    expect(resolveQuickCreate(client, [tagClass])).toBeNull();
-    expect(resolveQuickCreate(client, [])).toBeNull();
-  });
-
-  it("maps the asset class to the asset-upload flow", async () => {
-    const client = await seedClient();
-    await seedFamilies(client);
-    expect(resolveQuickCreate(client, [SYSTEM_CLASS_UUIDS.asset])).toEqual({
-      kind: "asset",
-      defaultClassId: SYSTEM_CLASS_UUIDS.asset,
-    });
-  });
-
-  it("collectSelfAndAncestors falls back to the static system extends", async () => {
-    const client = await seedClient();
-    // No classes authored at all: the seeded extends map still resolves.
-    const lineage = collectSelfAndAncestors(client, SYSTEM_CLASS_UUIDS.book);
-    expect(lineage.has(SYSTEM_CLASS_UUIDS.source)).toBe(true);
-  });
-
-  it("sourceSubclassOptions covers every seeded source subclass", async () => {
-    const options = sourceSubclassOptions();
-    // Derived expectation (the 2026-10-23 roster added 30 source subclasses):
-    // every extends-source class in the seed manifest appears as an option —
-    // same filter the production derivation (SOURCE_SUBCLASS_IDS) applies.
-    const expected = (
-      Object.entries(SYSTEM_CLASS_EXTENDS) as Array<[string, string[]]>
-    )
-      .filter(([, parents]) => parents.includes("source"))
-      .map(([name]) => SYSTEM_CLASS_UUIDS[name as keyof typeof SYSTEM_CLASS_UUIDS]);
-    expect(options.map((option) => option.value).sort()).toEqual(expected.sort());
-  });
-});
-
-describe("routeNewNodeClass — the New-popup class-pick routing (round 2, amended round 4 2026-10-26)", () => {
-  it("a source-family pick routes to the MANUAL citation form (the resolver's door is the palette)", async () => {
-    const client = await seedClient();
-    await seedFamilies(client);
-    // The class pick is Zotero's manual entry creation — always the
-    // quick-create form, regardless of connectivity/resolver state.
     expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.journal_article)).toEqual({
-      kind: "quick-create-source",
+      kind: "quick-create",
       classId: SYSTEM_CLASS_UUIDS.journal_article,
     });
-    // The family base resolves to its book default, still the manual form.
+    expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.person)).toEqual({
+      kind: "quick-create",
+      classId: SYSTEM_CLASS_UUIDS.person,
+    });
+    expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.organization)).toEqual({
+      kind: "quick-create",
+      classId: SYSTEM_CLASS_UUIDS.organization,
+    });
+    // User classes route too — the modal is class-driven, not family-driven.
+    const userClass = await client.createClass("project");
+    expect(routeNewNodeClass(client, userClass)).toEqual({
+      kind: "quick-create",
+      classId: userClass,
+    });
+  });
+
+  it("the bare source base resolves to its designed book default", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
     expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.source)).toEqual({
-      kind: "quick-create-source",
+      kind: "quick-create",
       classId: SYSTEM_CLASS_UUIDS.book,
     });
   });
@@ -191,25 +156,64 @@ describe("routeNewNodeClass — the New-popup class-pick routing (round 2, amend
     });
   });
 
-  it("everything else routes to the plain create", async () => {
+  it("collectSelfAndAncestors falls back to the static system extends", async () => {
     const client = await seedClient();
-    await seedFamilies(client);
-    expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.person)).toEqual({ kind: "plain" });
-    const tagClass = await client.createClass("taglike");
-    expect(routeNewNodeClass(client, tagClass)).toEqual({ kind: "plain" });
+    // No classes authored at all: the seeded extends map still resolves.
+    const lineage = collectSelfAndAncestors(client, SYSTEM_CLASS_UUIDS.book);
+    expect(lineage.has(SYSTEM_CLASS_UUIDS.source)).toBe(true);
   });
 });
 
+describe("stagedBindingsOf — the dynamic form's row resolution", () => {
+  it("resolves the citation rows extends-aware and ALPHABETICAL, excluding object/asset types", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    const rows = stagedBindingsOf(client, SYSTEM_CLASS_UUIDS.book);
+    const labels = rows.map((row) => row.schema?.name ?? row.binding.name);
+    // Alphabetical by property name (the read-time derivation law).
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)));
+    // The family base's bindings resolve through the extends chain…
+    for (const name of ["Authors", "Citekey", "DOI", "Editors", "ISBN", "Publication date", "Publisher", "URL"]) {
+      expect(labels).toContain(name);
+    }
+    // …and the object/asset-typed bindings never stage (settable later from
+    // the metadata panel): linkedAuthors (object), attachments (asset).
+    const ids = rows.map((row) => row.binding.propertySchemaId);
+    expect(ids).not.toContain(SYSTEM_PROPERTY_UUIDS.linkedAuthors);
+    expect(ids).not.toContain(SYSTEM_PROPERTY_UUIDS.attachments);
+    // authors is the multi-text monoblock.
+    const authors = rows.find((row) => row.binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.authors);
+    expect(authors?.schema?.multi ?? authors?.binding.multi).toBe(true);
+  });
 
-describe("splitPersonName", () => {
-  it("splits on the last word; a single word is the family name", () => {
-    expect(splitPersonName("Frank Herbert")).toEqual({ givenName: "Frank", familyName: "Herbert" });
-    expect(splitPersonName("Ursula K. Le Guin")).toEqual({
-      givenName: "Ursula K. Le",
-      familyName: "Guin",
-    });
-    expect(splitPersonName("Prince")).toEqual({ givenName: "", familyName: "Prince" });
-    expect(splitPersonName("  ")).toEqual({ givenName: "", familyName: "" });
+  it("synthesizes the seed rows on a fresh workspace (pure read — nothing writes)", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    const opsBefore = client.undoDepth().undo + client.undoDepth().redo;
+    const rows = stagedBindingsOf(client, SYSTEM_CLASS_UUIDS.book);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(client.undoDepth().undo + client.undoDepth().redo).toBe(opsBefore);
+  });
+
+  it("a user class renders exactly its own bound properties", async () => {
+    const client = await seedClient();
+    const cls = await client.createClass("project");
+    const schema = await client.createPropertySchema({ name: "Status", type: "text" });
+    await client.setClassProperty(cls, schema, {});
+    const rows = stagedBindingsOf(client, cls);
+    expect(rows.map((row) => row.binding.propertySchemaId)).toEqual([schema]);
+  });
+});
+
+describe("parseStagedDateText", () => {
+  it("accepts year, month, and day granularities; validates ranges", () => {
+    expect(parseStagedDateText("1965")).toEqual({ iso: "1965-01-01", granularity: "year" });
+    expect(parseStagedDateText("1965-03")).toEqual({ iso: "1965-03-01", granularity: "month" });
+    expect(parseStagedDateText("1965-03-04")).toEqual({ iso: "1965-03-04", granularity: "day" });
+    expect(parseStagedDateText("1965-13")).toBeNull();
+    expect(parseStagedDateText("1965-03-40")).toBeNull();
+    expect(parseStagedDateText("March 1965")).toBeNull();
+    expect(parseStagedDateText("")).toBeNull();
   });
 });
 
@@ -274,55 +278,42 @@ describe("generateCitekey", () => {
 });
 
 describe("existingCitekeys + findSourceByIdentifier", () => {
-  it("collects live citekeys and finds the duplicate doi/isbn source", async () => {
+  it("collects live citekeys and finds the duplicate doi/isbn/citekey source", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    const id = await createSourceObject(client, {
+    const id = await createClassedObject(client, {
       title: "Dune",
       classId: SYSTEM_CLASS_UUIDS.book,
-      doi: "10.1000/XYZ",
-      isbn: "978-0-123456-78-9",
-      citekey: "Herbert1965Dune",
+      values: await stagedInput(client, SYSTEM_CLASS_UUIDS.book, {
+        [SYSTEM_PROPERTY_UUIDS.doi]: "10.1000/XYZ",
+        [SYSTEM_PROPERTY_UUIDS.isbn]: "978-0-123456-78-9",
+        [SYSTEM_PROPERTY_UUIDS.citekey]: "Herbert1965Dune",
+      }),
     });
     expect(existingCitekeys(client)).toEqual(["Herbert1965Dune"]);
-    // DOI compare is case-insensitive; ISBN compare is digit/X-normalized.
-    const byDoi = findSourceByIdentifier(client, { doi: "10.1000/xyz" });
-    expect(byDoi?.id).toBe(id);
-    const byIsbn = findSourceByIdentifier(client, { isbn: "9780123456789" });
-    expect(byIsbn?.id).toBe(id);
+    // DOI compare is case-insensitive; ISBN is digit/X-normalized; citekey
+    // compare is case-insensitive (the 2026-10-26 owner addition).
+    expect(findSourceByIdentifier(client, { doi: "10.1000/xyz" })?.id).toBe(id);
+    expect(findSourceByIdentifier(client, { isbn: "9780123456789" })?.id).toBe(id);
+    expect(findSourceByIdentifier(client, { citekey: "herbert1965dune" })?.id).toBe(id);
+    expect(findSourceByIdentifier(client, { citekey: "otherkey" })).toBeNull();
     expect(findSourceByIdentifier(client, { doi: "10.9999/other" })).toBeNull();
     expect(findSourceByIdentifier(client, {})).toBeNull();
   });
 });
 
-describe("activeSourceSubclassOptions", () => {
-  it("filters archived type-classes; unseeded classes stay listed", async () => {
+describe("creators — createClassedObject flush", () => {
+  it("creates a classed source with plain-text authors, the year chain link, and DOI", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    const all = sourceSubclassOptions();
-    const live = activeSourceSubclassOptions(client);
-    // No class rows in the store yet: nothing can be archived — all listed.
-    expect(live.map((option) => option.value)).toEqual(all.map((option) => option.value));
-    // Archive the film type-class: it drops out of the modal's list.
-    await client.createClass("film", { id: SYSTEM_CLASS_UUIDS.film });
-    await client.setClassExtends(SYSTEM_CLASS_UUIDS.film, [SYSTEM_CLASS_UUIDS.source]);
-    await client.setArchived(SYSTEM_CLASS_UUIDS.film, false);
-    const after = activeSourceSubclassOptions(client);
-    expect(after.some((option) => option.value === SYSTEM_CLASS_UUIDS.film)).toBe(false);
-    expect(after.some((option) => option.value === SYSTEM_CLASS_UUIDS.book)).toBe(true);
-  });
-});
-
-describe("creators", () => {
-  it("creates a classed source with plain-text authors, year link, and DOI", async () => {
-    const client = await seedClient();
-    await seedFamilies(client);
-    const id = await createSourceObject(client, {
+    const id = await createClassedObject(client, {
       title: "Dune",
       classId: SYSTEM_CLASS_UUIDS.book,
-      authors: ["Herbert, Frank", "Lovelace, Ada"],
-      doi: "10.1000/xyz",
-      publicationYear: 1965,
+      values: await stagedInput(client, SYSTEM_CLASS_UUIDS.book, {
+        [SYSTEM_PROPERTY_UUIDS.authors]: "Herbert, Frank; Lovelace, Ada",
+        [SYSTEM_PROPERTY_UUIDS.doi]: "10.1000/xyz",
+        [SYSTEM_PROPERTY_UUIDS.publicationDate]: "1965",
+      }),
     });
 
     const node = client.getNode(id);
@@ -350,18 +341,27 @@ describe("creators", () => {
     expect(parseDateNodeId(yearId)?.year).toBe(1965);
   });
 
-  it("writes editors, isbn, url, publisher, citekey, and venue fields as provided", async () => {
+  it("writes editors, isbn, url, publisher, citekey, and venue fields as staged", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    const id = await createSourceObject(client, {
+    // The venue schemas + class-local bindings (the server seed's pool step).
+    await ensureCitationFamily(client, ["publicationTitle", "volume", "issue"]);
+    for (const name of ["publicationTitle", "volume", "issue"] as const) {
+      await client.setClassProperty(SYSTEM_CLASS_UUIDS.journal_article, SYSTEM_PROPERTY_UUIDS[name], {});
+    }
+    const id = await createClassedObject(client, {
       title: "An Essay",
       classId: SYSTEM_CLASS_UUIDS.journal_article,
-      editors: ["Smith, Jane", "Doe, John"],
-      isbn: "978-0-123456-78-9",
-      url: "https://example.test/essay",
-      publisher: "Acme Press",
-      citekey: "smith2024essay",
-      venueFields: { publicationTitle: "The Example Journal", volume: "12", issue: "3" },
+      values: await stagedInput(client, SYSTEM_CLASS_UUIDS.journal_article, {
+        [SYSTEM_PROPERTY_UUIDS.editors]: "Smith, Jane; Doe, John",
+        [SYSTEM_PROPERTY_UUIDS.isbn]: "978-0-123456-78-9",
+        [SYSTEM_PROPERTY_UUIDS.url]: "https://example.test/essay",
+        [SYSTEM_PROPERTY_UUIDS.publisher]: "Acme Press",
+        [SYSTEM_PROPERTY_UUIDS.citekey]: "smith2024essay",
+        [SYSTEM_PROPERTY_UUIDS.publicationTitle]: "The Example Journal",
+        [SYSTEM_PROPERTY_UUIDS.volume]: "12",
+        [SYSTEM_PROPERTY_UUIDS.issue]: "3",
+      }),
     });
 
     const rows = client.getEffectiveProperties(id);
@@ -372,13 +372,66 @@ describe("creators", () => {
     expect(valueOf(SYSTEM_PROPERTY_UUIDS.url)).toEqual(["https://example.test/essay"]);
     expect(valueOf(SYSTEM_PROPERTY_UUIDS.publisher)).toEqual(["Acme Press"]);
     expect(valueOf(SYSTEM_PROPERTY_UUIDS.citekey)).toEqual(["smith2024essay"]);
-    // The venue fields self-healed their schemas (fresh workspace) and wrote.
     expect(valueOf(SYSTEM_PROPERTY_UUIDS.publicationTitle)).toEqual(["The Example Journal"]);
     expect(valueOf(SYSTEM_PROPERTY_UUIDS.volume)).toEqual(["12"]);
     expect(valueOf(SYSTEM_PROPERTY_UUIDS.issue)).toEqual(["3"]);
   });
 
-  it("un-archive + create ride ONE undo batch (the archived-class gesture)", async () => {
+  it("stages boolean, select, and number values into their wire shapes", async () => {
+    const client = await seedClient();
+    const cls = await client.createClass("reading");
+    const done = await client.createPropertySchema({ name: "Done", type: "boolean" });
+    const mood = await client.createPropertySchema({
+      name: "Mood",
+      type: "select",
+      options: [
+        { id: "00000000-0000-0000-0009-000000000001", label: "calm" },
+        { id: "00000000-0000-0000-0009-000000000002", label: "tense" },
+      ],
+    });
+    const pages = await client.createPropertySchema({ name: "Pages", type: "number" });
+    await client.setClassProperty(cls, done, {});
+    await client.setClassProperty(cls, mood, {});
+    await client.setClassProperty(cls, pages, {});
+
+    const rows = stagedBindingsOf(client, cls);
+    const entries = rows.map((row) => {
+      const id = row.binding.propertySchemaId;
+      if (id === done) return { row, value: { kind: "boolean" as const, value: true } };
+      if (id === mood) {
+        return { row, value: { kind: "select" as const, optionIds: ["00000000-0000-0000-0009-000000000002"] } };
+      }
+      return { row, value: { kind: "number" as const, text: "42" } };
+    });
+    const id = await createClassedObject(client, { title: "A read", classId: cls, values: entries });
+
+    const rowsOut = client.getEffectiveProperties(id);
+    const valueOf = (schemaId: string) =>
+      rowsOut.filter((row) => row.propertySchemaId === schemaId).map((row) => row.value);
+    expect(valueOf(done)).toEqual([true]);
+    expect(valueOf(mood)).toEqual(["00000000-0000-0000-0009-000000000002"]);
+    expect(valueOf(pages)).toEqual([42]);
+  });
+
+  it("rejects an invalid staged date/number BEFORE anything writes", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    const depthBefore = client.undoDepth().undo;
+    await expect(
+      createClassedObject(client, {
+        title: "Broken",
+        classId: SYSTEM_CLASS_UUIDS.book,
+        values: await stagedInput(client, SYSTEM_CLASS_UUIDS.book, {
+          [SYSTEM_PROPERTY_UUIDS.publicationDate]: "last march",
+        }),
+      }),
+    ).rejects.toThrow();
+    // Nothing created, nothing journaled.
+    expect(client.listPages().length).toBe(0);
+    expect(client.undoDepth().undo).toBe(depthBefore);
+  });
+
+  it("un-archive + create + property writes ride ONE undo batch (the archived-class gesture)", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     // Archive the book type-class (the class-visibility flag).
@@ -386,17 +439,21 @@ describe("creators", () => {
     expect(client.getNodeRaw(SYSTEM_CLASS_UUIDS.book)?.isActive).toBe(false);
     const depthBefore = client.undoDepth().undo;
 
-    const id = await createSourceObject(client, {
+    const id = await createClassedObject(client, {
       title: "Archived Type Create",
       classId: SYSTEM_CLASS_UUIDS.book,
+      values: await stagedInput(client, SYSTEM_CLASS_UUIDS.book, {
+        [SYSTEM_PROPERTY_UUIDS.doi]: "10.1000/archived",
+      }),
       unarchiveArchivedClass: true,
     });
     expect(client.getNodeRaw(SYSTEM_CLASS_UUIDS.book)?.isActive).toBe(true);
     expect(client.getNode(id)).not.toBeNull();
 
-    // ONE journal entry for the whole gesture (un-archive + create): a
-    // single undo archives the class back AND trashes the created source
-    // (the create's inverse is the soft trash — the row survives inactive).
+    // ONE journal entry for the whole gesture (un-archive + create +
+    // property write): a single undo archives the class back AND trashes
+    // the created source (the create's inverse is the soft trash — the row
+    // survives inactive).
     expect(client.undoDepth().undo).toBe(depthBefore + 1);
     await client.undo();
     expect(client.getNodeRaw(SYSTEM_CLASS_UUIDS.book)?.isActive).toBe(false);
@@ -407,44 +464,20 @@ describe("creators", () => {
     const client = await seedClient();
     await seedFamilies(client);
     const depthBefore = client.undoDepth().undo;
-    const id = await createSourceObject(client, {
+    const id = await createClassedObject(client, {
       title: "Live Type Create",
       classId: SYSTEM_CLASS_UUIDS.book,
+      values: [],
       unarchiveArchivedClass: true,
     });
     expect(client.getNode(id)).not.toBeNull();
     // A single journal entry (the create alone — no un-archive op).
     expect(client.undoDepth().undo).toBe(depthBefore + 1);
   });
-
-  it("creates persons with given/family and organizations with a plain name", async () => {
-    const client = await seedClient();
-    await seedFamilies(client);
-    const personId = await createAgentObject(client, {
-      agentType: "person",
-      givenName: "Frank",
-      familyName: "Herbert",
-    });
-    expect(deriveDisplayName(client.getNode(personId)!)).toBe("Frank Herbert");
-    const given = client
-      .getEffectiveProperties(personId)
-      .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.givenName);
-    expect(given?.value).toBe("Frank");
-
-    const orgId = await createAgentObject(client, {
-      agentType: "organization",
-      name: "Acme Press",
-    });
-    const org = client.getNode(orgId)!;
-    expect(org.classIds).toContain(SYSTEM_CLASS_UUIDS.organization);
-    expect(deriveDisplayName(org)).toBe("Acme Press");
-
-    await expect(createAgentObject(client, { agentType: "person", givenName: "", familyName: " " })).rejects.toThrow();
-  });
 });
 
 describe("QuickCreateModal via the picker create row", () => {
-  it("a book-filtered picker create row opens the citation modal and links the result", async () => {
+  it("a book-filtered picker create row opens the class modal and links the result", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     const added: string[] = [];
@@ -468,13 +501,17 @@ describe("QuickCreateModal via the picker create row", () => {
     const titleField = within(dialog).getByLabelText("Title") as HTMLInputElement;
     expect(titleField.value).toBe("Dune");
     expect(within(dialog).getByLabelText("Authors")).not.toBeNull();
-    expect(within(dialog).getByLabelText("Year")).not.toBeNull();
+    expect(within(dialog).getByLabelText("Publication date")).not.toBeNull();
     expect(within(dialog).getByLabelText("DOI")).not.toBeNull();
+    // The retired source subclass switch is gone.
+    expect(within(dialog).queryByLabelText("Type")).toBeNull();
 
     fireEvent.change(within(dialog).getByLabelText("Authors"), {
       target: { value: "Frank Herbert" },
     });
-    fireEvent.change(within(dialog).getByLabelText("Year"), { target: { value: "1965" } });
+    fireEvent.change(within(dialog).getByLabelText("Publication date"), {
+      target: { value: "1965" },
+    });
     fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
 
     // The modal creates the node and hands it back through the picker's add
@@ -487,6 +524,78 @@ describe("QuickCreateModal via the picker create row", () => {
     expect(
       client.listPages().filter((page) => deriveDisplayName(page) === "Dune").length,
     ).toBe(1);
+  });
+
+  it("cancel leaves ZERO log entries — nothing created, nothing journaled", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    const pagesBefore = client.listPages().length;
+    const depthBefore = client.undoDepth().undo;
+    render(
+      <QuickCreateModal
+        isOpen
+        client={client}
+        classId={SYSTEM_CLASS_UUIDS.book}
+        initialName="Dune"
+        onClose={() => {}}
+        onCreated={() => {}}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: /new book/i });
+    fireEvent.change(within(dialog).getByLabelText("Authors"), {
+      target: { value: "Herbert, Frank" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Publication date"), {
+      target: { value: "1965" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^cancel$/i }));
+    expect(client.listPages().length).toBe(pagesBefore);
+    expect(client.undoDepth().undo).toBe(depthBefore);
+  });
+
+  it("a person-filtered picker opens the person modal — no agent toggle, title seeded", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        searchMode="all"
+        classFilters={[SYSTEM_CLASS_UUIDS.person]}
+        onAdd={() => {}}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Frank Herbert" } });
+    fireEvent.click(screen.getByText('Create "Frank Herbert"'));
+
+    const dialog = await screen.findByRole("dialog", { name: /new person/i });
+    // The retired person/organization toggle is gone; the given/family rows
+    // render from the person's bound properties, the typed query seeds the
+    // TITLE (title-is-content — no name splitting).
+    expect(within(dialog).queryByLabelText("Type")).toBeNull();
+    expect((within(dialog).getByLabelText("Title") as HTMLInputElement).value).toBe("Frank Herbert");
+    expect(within(dialog).getByLabelText("Given name")).not.toBeNull();
+    expect(within(dialog).getByLabelText("Family name")).not.toBeNull();
+  });
+
+  it("a user-class filter opens the modal with that class", async () => {
+    const client = await seedClient();
+    const cls = await client.createClass("project");
+    const schema = await client.createPropertySchema({ name: "Status", type: "text" });
+    await client.setClassProperty(cls, schema, {});
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        searchMode="all"
+        classFilters={[cls]}
+        onAdd={() => {}}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Fleet revamp" } });
+    fireEvent.click(screen.getByText('Create "Fleet revamp"'));
+    const dialog = await screen.findByRole("dialog", { name: /new project/i });
+    expect(within(dialog).getByLabelText("Status")).not.toBeNull();
   });
 
   it("a source-filtered create row with an identifier-shaped query opens the add-source dialog", async () => {
@@ -524,7 +633,7 @@ describe("QuickCreateModal via the picker create row", () => {
     expect(screen.queryByLabelText("Title")).toBeNull();
   });
 
-  it("the same create row opens the dialog with the honest resolver-off note when the resolver is off (round 4: the class lock is gone)", async () => {
+  it("the same create row opens the dialog with the honest resolver-off note when the resolver is off", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     // The resolver gate read: only an explicit false disables.
@@ -551,9 +660,9 @@ describe("QuickCreateModal via the picker create row", () => {
     fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "10.1000/xyz" } });
     fireEvent.click(screen.getByText('Create "10.1000/xyz"'));
 
-    // No class lock since round 4 — an IDENTIFIER (not a bare URL) opens the
-    // dialog itself, honest about the disabled resolver (the note), the
-    // typed input prefilled. No dead-end, no silent fallback.
+    // An IDENTIFIER (not a bare URL) opens the dialog itself, honest about
+    // the disabled resolver (the note), the typed input prefilled. No
+    // dead-end, no silent fallback.
     const dialog = await screen.findByRole("dialog", { name: "Add source" });
     expect(within(dialog).getByText(/resolver is turned off/i)).not.toBeNull();
     expect(
@@ -561,27 +670,7 @@ describe("QuickCreateModal via the picker create row", () => {
     ).toBe("10.1000/xyz");
   });
 
-  it("a person-filtered picker opens the agent dialog with the name split", async () => {
-    const client = await seedClient();
-    await seedFamilies(client);
-    render(
-      <NodeSelector
-        client={client}
-        trigger="inline"
-        searchMode="all"
-        classFilters={[SYSTEM_CLASS_UUIDS.person]}
-        onAdd={() => {}}
-      />,
-    );
-    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Frank Herbert" } });
-    fireEvent.click(screen.getByText('Create "Frank Herbert"'));
-
-    const dialog = await screen.findByRole("dialog", { name: /new person/i });
-    expect((within(dialog).getByLabelText("Given name") as HTMLInputElement).value).toBe("Frank");
-    expect((within(dialog).getByLabelText("Family name") as HTMLInputElement).value).toBe("Herbert");
-  });
-
-  it("unrelated filters keep the plain create row", async () => {
+  it("no class filter keeps the plain create row", async () => {
     const client = await seedClient();
     const added: string[] = [];
     render(
@@ -647,7 +736,7 @@ describe("the paste-URL source row", () => {
   });
 });
 
-describe("QuickCreateModal source rewiring", () => {
+describe("QuickCreateModal citation behaviors", () => {
   it("auto-fills the citekey from the pattern when the setting is on and the field is empty", async () => {
     const client = await seedClient();
     await seedFamilies(client);
@@ -660,8 +749,7 @@ describe("QuickCreateModal source rewiring", () => {
       <QuickCreateModal
         isOpen
         client={client}
-        kind="source"
-        defaultClassId={SYSTEM_CLASS_UUIDS.book}
+        classId={SYSTEM_CLASS_UUIDS.book}
         onClose={() => {}}
         onCreated={(id) => {
           createdId = id;
@@ -673,7 +761,9 @@ describe("QuickCreateModal source rewiring", () => {
     fireEvent.change(within(dialog).getByLabelText("Authors"), {
       target: { value: "Herbert, Frank" },
     });
-    fireEvent.change(within(dialog).getByLabelText("Year"), { target: { value: "1965" } });
+    fireEvent.change(within(dialog).getByLabelText("Publication date"), {
+      target: { value: "1965" },
+    });
     fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
     await waitFor(() => expect(createdId).not.toBe(""));
 
@@ -688,8 +778,7 @@ describe("QuickCreateModal source rewiring", () => {
       <QuickCreateModal
         isOpen
         client={client}
-        kind="source"
-        defaultClassId={SYSTEM_CLASS_UUIDS.book}
+        classId={SYSTEM_CLASS_UUIDS.book}
         onClose={() => {}}
         onCreated={(id) => {
           secondId = id;
@@ -701,7 +790,9 @@ describe("QuickCreateModal source rewiring", () => {
     fireEvent.change(within(secondDialog).getByLabelText("Authors"), {
       target: { value: "Herbert, Frank" },
     });
-    fireEvent.change(within(secondDialog).getByLabelText("Year"), { target: { value: "1965" } });
+    fireEvent.change(within(secondDialog).getByLabelText("Publication date"), {
+      target: { value: "1965" },
+    });
     fireEvent.click(within(secondDialog).getByRole("button", { name: /^create$/i }));
     await waitFor(() => expect(secondId).not.toBe(""));
     const secondCitekey = client
@@ -718,8 +809,7 @@ describe("QuickCreateModal source rewiring", () => {
       <QuickCreateModal
         isOpen
         client={client}
-        kind="source"
-        defaultClassId={SYSTEM_CLASS_UUIDS.book}
+        classId={SYSTEM_CLASS_UUIDS.book}
         onClose={() => {}}
         onCreated={(id) => {
           createdId = id;
@@ -731,7 +821,9 @@ describe("QuickCreateModal source rewiring", () => {
     fireEvent.change(within(dialog).getByLabelText("Authors"), {
       target: { value: "Herbert, Frank" },
     });
-    fireEvent.change(within(dialog).getByLabelText("Year"), { target: { value: "1965" } });
+    fireEvent.change(within(dialog).getByLabelText("Publication date"), {
+      target: { value: "1965" },
+    });
     fireEvent.change(within(dialog).getByLabelText("Citekey"), { target: { value: "my-key" } });
     fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
     await waitFor(() => expect(createdId).not.toBe(""));
@@ -750,8 +842,7 @@ describe("QuickCreateModal source rewiring", () => {
       <QuickCreateModal
         isOpen
         client={client}
-        kind="source"
-        defaultClassId={SYSTEM_CLASS_UUIDS.book}
+        classId={SYSTEM_CLASS_UUIDS.book}
         onClose={() => {}}
         onCreated={(id) => {
           createdId = id;
@@ -782,8 +873,7 @@ describe("QuickCreateModal source rewiring", () => {
       <QuickCreateModal
         isOpen
         client={client}
-        kind="source"
-        defaultClassId={SYSTEM_CLASS_UUIDS.book}
+        classId={SYSTEM_CLASS_UUIDS.book}
         onClose={() => {}}
         onCreated={(id) => {
           createdId = id;
@@ -804,10 +894,12 @@ describe("QuickCreateModal source rewiring", () => {
   it("warns 'Already in your library' on a duplicate DOI but still creates on override", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    await createSourceObject(client, {
+    await createClassedObject(client, {
       title: "Existing paper",
       classId: SYSTEM_CLASS_UUIDS.journal_article,
-      doi: "10.1000/xyz",
+      values: await stagedInput(client, SYSTEM_CLASS_UUIDS.journal_article, {
+        [SYSTEM_PROPERTY_UUIDS.doi]: "10.1000/xyz",
+      }),
     });
 
     const opened: string[] = [];
@@ -816,14 +908,13 @@ describe("QuickCreateModal source rewiring", () => {
       <QuickCreateModal
         isOpen
         client={client}
-        kind="source"
-        defaultClassId={SYSTEM_CLASS_UUIDS.journal_article}
-        sourcePrefill={{
-          classId: SYSTEM_CLASS_UUIDS.journal_article,
+        classId={SYSTEM_CLASS_UUIDS.journal_article}
+        prefill={{
           title: "Duplicate import",
-          authorsText: "Someone, Else",
-          doi: "10.1000/xyz",
-          fields: {},
+          values: {
+            [SYSTEM_PROPERTY_UUIDS.authors]: "Someone, Else",
+            [SYSTEM_PROPERTY_UUIDS.doi]: "10.1000/xyz",
+          },
         }}
         onClose={() => {}}
         onCreated={(id) => {
@@ -846,6 +937,102 @@ describe("QuickCreateModal source rewiring", () => {
     expect(sources.length).toBe(2);
   });
 
+  it("warns on an exact title match (same class) with the open-existing affordance; a near-match does not", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    const existingId = await createClassedObject(client, {
+      title: "Dune",
+      classId: SYSTEM_CLASS_UUIDS.book,
+      values: [],
+    });
+
+    const opened: string[] = [];
+    let createdId = "";
+    render(
+      <QuickCreateModal
+        isOpen
+        client={client}
+        classId={SYSTEM_CLASS_UUIDS.book}
+        onClose={() => {}}
+        onCreated={(id) => {
+          createdId = id;
+        }}
+        onOpenExisting={(id) => opened.push(id)}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: /new book/i });
+
+    // The exact title (whitespace tolerated) warns — live, as the title
+    // changes — and offers the existing node.
+    fireEvent.change(within(dialog).getByLabelText("Title"), { target: { value: "  Dune  " } });
+    expect(
+      within(dialog).getByText(/titled "Dune" already exists/i),
+    ).not.toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Dune" }));
+    expect(opened).toEqual([existingId]);
+
+    // A near-match (case differs — the compare is exact) does NOT warn, and
+    // Create proceeds.
+    fireEvent.change(within(dialog).getByLabelText("Title"), { target: { value: "dune" } });
+    expect(within(dialog).queryByText(/already exists/i)).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText("Title"), {
+      target: { value: "Dune Messiah" },
+    });
+    expect(within(dialog).queryByText(/already exists/i)).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    await waitFor(() => expect(createdId).not.toBe(""));
+    expect(createdId).not.toBe(existingId);
+  });
+
+  it("warns on a duplicate ISBN and on a duplicate CITEKEY", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    await createClassedObject(client, {
+      title: "Existing book",
+      classId: SYSTEM_CLASS_UUIDS.book,
+      values: await stagedInput(client, SYSTEM_CLASS_UUIDS.book, {
+        [SYSTEM_PROPERTY_UUIDS.isbn]: "9780123456789",
+        [SYSTEM_PROPERTY_UUIDS.citekey]: "herbert1965dune",
+      }),
+    });
+
+    // Duplicate ISBN (digit-normalized compare).
+    const { unmount: unmountIsbn } = render(
+      <QuickCreateModal
+        isOpen
+        client={client}
+        classId={SYSTEM_CLASS_UUIDS.book}
+        initialName="Another copy"
+        onClose={() => {}}
+        onCreated={() => {}}
+      />,
+    );
+    const isbnDialog = await screen.findByRole("dialog", { name: /new book/i });
+    fireEvent.change(within(isbnDialog).getByLabelText("ISBN"), {
+      target: { value: "978-0-123456-78-9" },
+    });
+    expect(within(isbnDialog).getByText(/already in your library/i)).not.toBeNull();
+    unmountIsbn();
+
+    // Duplicate citekey (case-insensitive compare) on a manual value — the
+    // auto-generator would have suffixed, so the warning is the typed key's.
+    render(
+      <QuickCreateModal
+        isOpen
+        client={client}
+        classId={SYSTEM_CLASS_UUIDS.book}
+        initialName="A different edition"
+        onClose={() => {}}
+        onCreated={() => {}}
+      />,
+    );
+    const citekeyDialog = await screen.findByRole("dialog", { name: /new book/i });
+    fireEvent.change(within(citekeyDialog).getByLabelText("Citekey"), {
+      target: { value: "HERBERT1965DUNE" },
+    });
+    expect(within(citekeyDialog).getByText(/already in your library/i)).not.toBeNull();
+  });
+
   it("prefills from a resolver record and auto-enables an archived class in the same batch", async () => {
     const client = await seedClient();
     await seedFamilies(client);
@@ -856,15 +1043,16 @@ describe("QuickCreateModal source rewiring", () => {
       <QuickCreateModal
         isOpen
         client={client}
-        kind="source"
-        defaultClassId={SYSTEM_CLASS_UUIDS.journal_article}
-        sourcePrefill={{
-          classId: SYSTEM_CLASS_UUIDS.journal_article,
+        classId={SYSTEM_CLASS_UUIDS.journal_article}
+        prefill={{
           title: "Resolved paper",
-          authorsText: "Lovelace, Ada; Turing, Alan",
-          year: "1843",
-          doi: "10.1000/resolved",
-          fields: { publicationTitle: "The Example Journal", volume: "7" },
+          values: {
+            [SYSTEM_PROPERTY_UUIDS.authors]: "Lovelace, Ada; Turing, Alan",
+            [SYSTEM_PROPERTY_UUIDS.publicationDate]: "1843",
+            [SYSTEM_PROPERTY_UUIDS.doi]: "10.1000/resolved",
+            [SYSTEM_PROPERTY_UUIDS.publicationTitle]: "The Example Journal",
+            [SYSTEM_PROPERTY_UUIDS.volume]: "7",
+          },
         }}
         onClose={() => {}}
         onCreated={(id) => {
@@ -873,6 +1061,8 @@ describe("QuickCreateModal source rewiring", () => {
       />,
     );
     const dialog = await screen.findByRole("dialog", { name: /new journal_article/i });
+    // The prefill's venue fields render as staged rows (synthesized off the
+    // prefill on a fresh workspace) and carry the seeded values.
     expect((within(dialog).getByLabelText("Title") as HTMLInputElement).value).toBe("Resolved paper");
     expect((within(dialog).getByLabelText("Authors") as HTMLInputElement).value).toBe(
       "Lovelace, Ada; Turing, Alan",
@@ -891,5 +1081,28 @@ describe("QuickCreateModal source rewiring", () => {
       .getEffectiveProperties(createdId)
       .filter((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.authors);
     expect(authors.map((row) => row.value)).toEqual(["Lovelace, Ada", "Turing, Alan"]);
+    // The venue values flushed too (the flush-time self-heal authored the
+    // schemas + class-local bindings before the property writes).
+    const venue = client
+      .getEffectiveProperties(createdId)
+      .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.publicationTitle);
+    expect(venue?.value).toBe("The Example Journal");
+  });
+});
+
+describe("expandStagedValues", () => {
+  it("writes nothing for untouched rows (empty text, unselected, untouched boolean)", async () => {
+    const client = await seedClient();
+    const cls = await client.createClass("bare");
+    const flag = await client.createPropertySchema({ name: "Flag", type: "boolean" });
+    const note = await client.createPropertySchema({ name: "Note", type: "text" });
+    await client.setClassProperty(cls, flag, {});
+    await client.setClassProperty(cls, note, {});
+    const rows = stagedBindingsOf(client, cls);
+    const writes = await expandStagedValues(
+      client,
+      rows.map((row) => ({ row, value: initialStagedValue(row) })),
+    );
+    expect(writes).toEqual([]);
   });
 });

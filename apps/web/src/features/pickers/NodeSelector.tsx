@@ -66,6 +66,7 @@ import {
   rendersAsInlineBlock,
   rendersWithDocumentChrome,
   systemClassNameForId,
+  SYSTEM_CLASS_UUIDS,
   type SystemClassName,
 } from "@notees/domain";
 import type { WorkspaceFeature } from "@notees/protocol";
@@ -87,12 +88,7 @@ import { classifySourceInput } from "../sources/resolver.js";
 import { requestAddSource } from "../sources/AddSourceHost.js";
 import { enableArchivedSystemClass } from "../classview/systemClassDeploy.js";
 import type { QuickCreateClient } from "../modals/quickCreate.js";
-
-/** The modal-bound plans — the QuickCreateModal renders the source/agent
-    families; the asset family never lands here (an
-    asset create rides the upload flow, not a title form). */
-type QuickCreateModalPlan = { kind: "source" | "agent"; defaultClassId: string };
-import { resolveQuickCreate } from "../modals/quickCreate.js";
+import { collectSelfAndAncestors } from "../modals/quickCreate.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
 import { FilterChips } from "../../components/ui/fleet/FilterChips.js";
 import { FilterMenu } from "../../components/ui/fleet/FilterMenu.js";
@@ -114,10 +110,11 @@ import "./NodeSelector.css";
  * The client surface the picker drives — structural, so both full clients
  * (in-process WorkspaceClient, WorkerClient proxy) and the outliner's
  * context client satisfy it. Extends the quick-create surface: the picker's
- * built-in create row opens the class-aware QuickCreateModal when the class
- * filter resolves to a family — and since an identifier-shaped typed query under a source-family
- * filter reroutes to the app-level add-source dialog instead (the picked
- * class locking the resolved prefill); a plain title keeps the modal.
+ * built-in create row opens the class-driven QuickCreateModal under a class
+ * filter — and since an
+ * identifier-shaped typed query under a source-family filter reroutes to
+ * the app-level add-source dialog instead (the resolved record's own type
+ * picks the prefill class); a plain title keeps the modal.
  */
 export interface NodeSelectorClient extends QuickCreateClient {
   getNode(id: string): ClientNode | undefined;
@@ -611,57 +608,64 @@ export function NodeSelector({
   }, [classFilters, classRefine, chipClassIds]);
 
   /**
-   * 1172 — the class-aware create request: when the picker's create
-   * row runs under a source/agent family filter, the QuickCreateModal opens
-   * with the citation fields instead of silently creating a plain page. The
-   * modal completes the create and hands the id back through resolveCreateResult.
+   * The class-aware create request: when the picker's
+   * create row runs under a class filter, the class-driven QuickCreateModal
+   * opens with that class (the dynamic properties form) instead of silently
+   * creating a plain page. The modal completes the create and hands the id
+   * back through resolveCreateResult.
    */
   const [quickCreate, setQuickCreate] = useState<{
-    plan: QuickCreateModalPlan;
+    classId: string;
     name: string;
   } | null>(null);
 
   // Built-in create: pages pickers create a page (carrying the effective
   // class filters), classes pickers create a class. Callers override via
-  // onCreateNew. A source/agent family filter reroutes to the quick-create
-  // modal (citation fields up front); every other filter stays plain.
+  // onCreateNew. A single class filter reroutes to the class-driven
+  // quick-create modal (the dynamic properties form); a multi-class filter
+  // set keeps the plain create (the modal carries one class).
   //, class lock retired round 4
   // (2026-10-26): a source-family filter whose typed query IS an
   // identifier/link (DOI/ISBN/arXiv/URL) reroutes further — the create row
   // opens the add-source dialog through the app-level requestAddSource
   // seam; the resolved record's own type picks the prefill class. A PLAIN
-  // typed title keeps the citation modal: the dialog resolves identifiers,
-  // it has no honest path for a non-resolvable title.
+  // typed title keeps the create modal: the dialog resolves identifiers,
+  // it has no honest path for a non-resolvable title. An asset-family
+  // filter keeps the plain create (an asset create rides the upload flow).
   const defaultCreateNew = (name: string): Promise<string> | void => {
     if (searchMode === "classes") {
       return client.createClass(name);
     }
     if (onCreateNew === undefined && effectiveClassIds.length > 0) {
-      const plan = resolveQuickCreate(client, effectiveClassIds);
-      if (plan !== null) {
-        if (
-          plan.kind === "source" &&
-          classifySourceInput(name) !== null &&
-          onCreateSourceFromLink === undefined
-        ) {
-          // The same dismissal + cleanup contract as the paste-URL row.
-          if (trigger === "pill-row") {
-            setIsPickerOpen(false);
-          }
-          setSearchQuery("");
-          resetFilters();
-          requestAddSource({
-            initialInput: name,
-            onCreated: (id) => resolveCreateResult(id),
-          });
-          return;
+      const inFamily = (base: string): boolean =>
+        effectiveClassIds.some((id) => collectSelfAndAncestors(client, id).has(base));
+      if (
+        inFamily(SYSTEM_CLASS_UUIDS.source) &&
+        classifySourceInput(name) !== null &&
+        onCreateSourceFromLink === undefined
+      ) {
+        // The same dismissal + cleanup contract as the paste-URL row.
+        if (trigger === "pill-row") {
+          setIsPickerOpen(false);
         }
-        if (plan.kind === "source" || plan.kind === "agent") {
-          // Rebuilt with the narrowed literal kind — the modal-bound state
-          // excludes the asset plan (it rides the upload flow, see above).
-          setQuickCreate({ plan: { kind: plan.kind, defaultClassId: plan.defaultClassId }, name });
-          return;
-        }
+        setSearchQuery("");
+        resetFilters();
+        requestAddSource({
+          initialInput: name,
+          onCreated: (id) => resolveCreateResult(id),
+        });
+        return;
+      }
+      if (!inFamily(SYSTEM_CLASS_UUIDS.asset) && effectiveClassIds.length === 1) {
+        // The bare source family base resolves to its book default (the
+        // routeNewNodeClass carve-out — the citation analogue of the retired
+        // superclass defaults).
+        const classId =
+          effectiveClassIds[0] === SYSTEM_CLASS_UUIDS.source
+            ? SYSTEM_CLASS_UUIDS.book
+            : effectiveClassIds[0]!;
+        setQuickCreate({ classId, name });
+        return;
       }
     }
     return client.createObject({
@@ -1600,8 +1604,7 @@ export function NodeSelector({
           <QuickCreateModal
             isOpen
             client={client}
-            kind={quickCreate.plan.kind}
-            defaultClassId={quickCreate.plan.defaultClassId}
+            classId={quickCreate.classId}
             initialName={quickCreate.name}
             onClose={() => setQuickCreate(null)}
             onCreated={(createdId) => resolveCreateResult(createdId)}
@@ -1636,8 +1639,7 @@ export function NodeSelector({
           <QuickCreateModal
             isOpen
             client={client}
-            kind={quickCreate.plan.kind}
-            defaultClassId={quickCreate.plan.defaultClassId}
+            classId={quickCreate.classId}
             initialName={quickCreate.name}
             onClose={() => setQuickCreate(null)}
             onCreated={(createdId) => resolveCreateResult(createdId)}
@@ -1704,8 +1706,7 @@ export function NodeSelector({
         <QuickCreateModal
           isOpen
           client={client}
-          kind={quickCreate.plan.kind}
-          defaultClassId={quickCreate.plan.defaultClassId}
+          classId={quickCreate.classId}
           initialName={quickCreate.name}
           onClose={() => setQuickCreate(null)}
           onCreated={(createdId) => resolveCreateResult(createdId)}

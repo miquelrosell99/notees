@@ -82,31 +82,38 @@ export class WorkspaceClientWrites {
   }
 
   /**
-   * The add-source create gesture (source-library slice 3 task 6): when the
-   * picked source type-class is ARCHIVED (the class-visibility list), the
-   * un-archive (object.update {active: true}) rides the SAME undo-journal
-   * batch as the object.create — ONE undo restores the archived bit AND
-   * removes the created source. Returns the new node id; the caller writes
-   * the bibliographic properties through the normal surface afterwards.
+   * The classed-create gesture (source-library slice 3 task 6, generalized
+   * 2026-10-26 — every class's quick-create flushes through it): when the
+   * picked class is ARCHIVED (the class-visibility flag), the un-archive
+   * (object.update {active: true}) rides the SAME undo-journal batch as the
+   * object.create AND every staged property write — ONE undo restores the
+   * archived bit, removes the created node, and drops its properties.
+   * Returns the new node id.
    *
-   * Ordering semantics (documented, review round 1):
+   * Ordering semantics (documented, review round 1; property writes joined
+   * the batch 2026-10-26):
    *  - The un-archive COMMITS EVEN IF THE CREATE THROWS — the batch's flush
    *    runs in the finally, so both applied ops land as one journal entry
    *    regardless; the un-archive is an idempotent, undoable object.update
-   *    (one undo re-archives the class and trashes the source together).
-   *    A failed create therefore leaves the class un-archived — deliberate:
-   *    the user asked for a source of that type, and the visibility flag is
-   *    a reversible preference, never half-created data.
-   *  - The PROPERTY WRITES run AFTER this gesture, outside the batch (the
-   *    pre-existing createSourceObject ordering pattern): a late
-   *    property-write failure can leave a titled but property-less source —
-   *    honest log state, no half-op. The CAS upload runs BEFORE the create
-   *    for the same reason (a failed upload means no source at all).
+   *    (one undo re-archives the class and trashes the created node
+   *    together). A failed create therefore leaves the class un-archived —
+   *    deliberate: the user asked for a node of that class, and the
+   *    visibility flag is a reversible preference, never half-created data.
+   *  - The staged property writes (`input.properties`, already-expanded
+   *    concrete values — the caller resolves date chains and the like
+   *    BEFORE the gesture, since those ops are NOT part of this batch) land
+   *    inside the batch after the create, in order. A property-write
+   *    failure still commits the create (same finally semantics) — a titled
+   *    but property-less node is honest log state, no half-op. The CAS
+   *    upload (when present) runs BEFORE the create for the same reason
+   *    (a failed upload means no node at all).
    */
-  async beginSourceCreate(input: {
+  async beginClassedCreate(input: {
     classId: string;
     title: string;
     unarchive: boolean;
+    /** The staged property writes, concrete and pre-resolved. */
+    properties?: Array<{ propertySchemaId: string; value: unknown; idx?: number }>;
   }): Promise<string> {
     let id = "";
     await this.ctx.undoJournal.batchAsync(async () => {
@@ -118,6 +125,9 @@ export class WorkspaceClientWrites {
         name: input.title,
         classIds: [input.classId],
       });
+      for (const property of input.properties ?? []) {
+        await this.setProperty(id, property.propertySchemaId, property.value, property.idx ?? 0);
+      }
     });
     return id;
   }

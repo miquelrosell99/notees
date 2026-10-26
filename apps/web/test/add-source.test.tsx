@@ -23,7 +23,7 @@ import {
 } from "../src/features/sources/resolver.js";
 import { AddSourceDialog } from "../src/features/sources/AddSourceDialog.js";
 import { AddSourceHost, requestAddSource } from "../src/features/sources/AddSourceHost.js";
-import { createSourceObject } from "../src/features/modals/quickCreate.js";
+import { ensureCitationFamily } from "../src/features/modals/quickCreate.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -283,7 +283,7 @@ describe("AddSourceDialog", () => {
       "Lovelace, Ada; Turing, Alan",
     );
     expect((within(form).getByLabelText("Editors") as HTMLInputElement).value).toBe("Babbage, Charles");
-    expect((within(form).getByLabelText("Year") as HTMLInputElement).value).toBe("1843");
+    expect((within(form).getByLabelText("Publication date") as HTMLInputElement).value).toBe("1843");
     expect((within(form).getByLabelText("DOI") as HTMLInputElement).value).toBe("10.1000/xyz");
     expect((within(form).getByLabelText("URL") as HTMLInputElement).value).toBe(
       "https://example.test/paper",
@@ -311,11 +311,13 @@ describe("AddSourceDialog", () => {
     const client = await seedClient();
     await seedFamilies(client);
     // An existing source with the same ISBN: the duplicate warning appears.
-    await createSourceObject(client, {
-      title: "The same book",
-      classId: SYSTEM_CLASS_UUIDS.book,
-      isbn: "9780123456789",
+    await ensureCitationFamily(client);
+    const existing = await client.createObject({
+      isEmbedded: false,
+      name: "The same book",
+      classIds: [SYSTEM_CLASS_UUIDS.book],
     });
+    await client.setProperty(existing, SYSTEM_PROPERTY_UUIDS.isbn, "9780123456789", 0);
     stubFetch((url) => {
       if (url.includes("/api/resolve?isbn=")) return jsonResponse(200, BOOK_RECORD);
       return undefined;

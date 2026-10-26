@@ -112,10 +112,11 @@ export function AppTopBar(props: AppTopBarProps) {
     setManagerOpen,
     setWorkspaceName,
   } = props;
-  // the New flow's class-pick routing:
-  // the source fallback's picked class (the manual citation form) and the
-  // asset upload's target class. Null = the modal is closed.
-  const [sourceQuickCreate, setSourceQuickCreate] = useState<string | null>(null);
+  // the New flow's class-pick routing,
+  // generalized 2026-10-26: EVERY class pick opens the class-driven
+  // QuickCreateModal (the picked class id); the asset pick rides the upload
+  // flow. Null = the modal is closed.
+  const [quickCreateClassId, setQuickCreateClassId] = useState<string | null>(null);
   const [assetUploadClassId, setAssetUploadClassId] = useState<string | null>(null);
   return (
     <>
@@ -196,15 +197,14 @@ export function AppTopBar(props: AppTopBarProps) {
           onClose={() => setNewPickerOpen(false)}
           onAdd={(picked) => {
             // Single-pick contract: one class, one page —
-            // "create a person", "create a project". routes the pick, amended round 4 (2026-10-26):
-            // a source-family class opens the MANUAL citation form (the
-            // resolver's door is the palette's "Add source…"), an asset
-            // class opens the upload modal (uploading IS creating), and
-            // everything else keeps the plain untitled create.
+            // "create a person", "create a project". routes the pick, generalized 2026-10-26: EVERY
+            // class opens the class-driven create modal (the dynamic
+            // properties form), an asset class opens the upload modal
+            // (uploading IS creating).
             setNewPickerOpen(false);
             const route = routeNewNodeClass(client, picked.id);
-            if (route.kind === "quick-create-source") {
-              setSourceQuickCreate(route.classId);
+            if (route.kind === "quick-create") {
+              setQuickCreateClassId(route.classId);
               return;
             }
             if (route.kind === "asset-upload") {
@@ -246,17 +246,17 @@ export function AppTopBar(props: AppTopBarProps) {
           }}
         />
       )}
-      {sourceQuickCreate !== null && (
-        /* The New flow's source fallback (offline or resolver off): the
-           manual citation form, prelocked to the picked class. */
+      {quickCreateClassId !== null && (
+        /* The New flow's class pick: the class-driven create modal (every
+           class — the dynamic properties form loads from the class's
+           bound properties). */
         <QuickCreateModal
           isOpen
           client={client}
-          kind="source"
-          defaultClassId={sourceQuickCreate}
-          onClose={() => setSourceQuickCreate(null)}
+          classId={quickCreateClassId}
+          onClose={() => setQuickCreateClassId(null)}
           onCreated={(nodeId) => {
-            setSourceQuickCreate(null);
+            setQuickCreateClassId(null);
             openPage(nodeId);
           }}
         />
