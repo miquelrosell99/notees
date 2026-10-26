@@ -84,6 +84,7 @@ export class SyncEngine {
   private readonly now: () => number;
   private readonly batchSize: number;
   private readonly catchUpLimit: number;
+  private readonly snapshotUploadLimit: number;
   private callbacks: SyncEngineCallbacks;
 
   private cursorSeq: number;
@@ -386,6 +387,24 @@ export class SyncEngine {
     if (!newerThanServer || !newerThanUploaded) return;
     try {
       const bytes = this.store.snapshot();
+      // Pre-flight guard mirroring the relay's route-local body cap
+      // (apps/server SNAPSHOT_PUT_BODY_LIMIT, 512 MiB): skip the upload
+      // rather than transfer a body the relay will reject with 413. The
+      // server-side snapshot keeps covering restore either way. Oversized
+      // projections also break tooling that observes browser traffic — a
+      // single request body can exceed a driver's frame limit.
+      if (bytes.byteLength >= 512 * 1024 * 1024) {
+        if (!this.snapshotOversizeReported) {
+          this.snapshotOversizeReported = true;
+          const message =
+            `snapshot upload skipped: the local projection (${Math.round(bytes.byteLength / 1048576)} MiB) ` +
+            "meets the relay's body cap (512 MiB) — uploading would be rejected. " +
+            "A server-side snapshot covers restore; the client upload stays skipped this session.";
+          console.error(`[sync] ${message}`);
+          this.callbacks.onError?.(new Error(message));
+        }
+        return;
+      }
       await upload(bytes, this.receivedHlc);
       this.uploadedSnapshotHlc = this.receivedHlc;
       this.snapshotOversizeReported = false;
