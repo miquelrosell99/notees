@@ -189,6 +189,7 @@ export function SourcesHub({
       <MainContentFrame
         topBar={
           <SurfaceTopBar
+            className="sources-hub__topbar"
             leading={
               <Button
                 type="button"
