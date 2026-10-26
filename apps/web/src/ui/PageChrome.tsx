@@ -155,24 +155,28 @@ export function NodeTopbar({
           </>
         ) : undefined
       }
+      /* The right-panel toggle rides the bar's TRAILING edge: it renders
+         AFTER the actions/overflow menu, the true right edge of the bar. */
+      trailing={
+        !focusMode ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            icon="mdi mdi-format-list-bulleted"
+            aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+            aria-pressed={!sidePanelCollapsed}
+            title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+            active={!sidePanelCollapsed}
+            onClick={onToggleSidePanel}
+          />
+        ) : undefined
+      }
       actions={
         <div className="nt-node-topbar__right">
           {topBarActionsExtra}
           {chromeModes}
           {condensedChrome}
-          {!focusMode && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              icon="mdi mdi-format-list-bulleted"
-              aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
-              aria-pressed={!sidePanelCollapsed}
-              title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
-              active={!sidePanelCollapsed}
-              onClick={onToggleSidePanel}
-            />
-          )}
           {chromeMenu}
         </div>
       }
