@@ -90,7 +90,7 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     });
     const mentionBlockId = await clientA.createObject({
       parentId: pageId,
-      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Hello Page" }],
+      contentAst: [{ type: "mention", targetNodeId: pageId }],
     });
 
     // A's own optimistic local state already sees the writes.

@@ -168,7 +168,7 @@ describe("GraphView component", () => {
     const pageB = await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Beta" }] });
     await client.createObject({
       parentId: pageA,
-      contentAst: [{ type: "mention", targetNodeId: pageB, text: "Beta" }],
+      contentAst: [{ type: "mention", targetNodeId: pageB }],
     });
     render(<GraphView client={client} />);
     expect(await screen.findByText("Graph renderer failed")).toBeTruthy();
@@ -566,7 +566,7 @@ describe("GraphView component", () => {
     const pageB = await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Beta" }] });
     await client.createObject({
       parentId: pageA,
-      contentAst: [{ type: "mention", targetNodeId: pageB, text: "Beta" }],
+      contentAst: [{ type: "mention", targetNodeId: pageB }],
     });
     // The real canvas path is a browser concern (the port boundary): stub
     // the renderer so the stage mounts in jsdom. The stub's fitToCanvas

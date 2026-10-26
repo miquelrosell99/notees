@@ -85,7 +85,7 @@ describe("bound-verb backlinks", () => {
       parentId: mentionSource,
       contentAst: [
         { type: "text", text: "see " },
-        { type: "mention", targetNodeId: target, text: "Target" },
+        { type: "mention", targetNodeId: target },
       ],
     });
     await flushSync();

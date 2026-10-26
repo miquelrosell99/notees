@@ -440,7 +440,7 @@ describe("the block query builder", () => {
     const linker = await client.createObject({ isEmbedded: false, name: "Linker", classIds: [classId] });
     await client.createObject({
       parentId: linker,
-      contentAst: [{ type: "mention", targetNodeId: elder, text: "Elder" }],
+      contentAst: [{ type: "mention", targetNodeId: elder }],
     });
     await client.createObject({ isEmbedded: false, name: "Plain", classIds: [classId] });
     const probe = vi.spyOn(client, "runQueryAst").mockResolvedValue({ ids: [linker], rows: [] });
@@ -558,7 +558,7 @@ describe("the block query builder", () => {
     const linker = await client.createObject({ isEmbedded: false, name: "Linker", classIds: [classId] });
     await client.createObject({
       parentId: linker,
-      contentAst: [{ type: "mention", targetNodeId: target, text: "Target" }],
+      contentAst: [{ type: "mention", targetNodeId: target }],
     });
     await client.createObject({ isEmbedded: false, name: "Plain", classIds: [classId] });
     // The probe channel is stubbed (the real SQL path is the query package's
@@ -820,7 +820,7 @@ describe("the block query builder", () => {
         name: "Linker",
         classIds: [projectId],
         parentId: holder,
-        contentAst: [{ type: "mention", targetNodeId: target, text: "Target" }],
+        contentAst: [{ type: "mention", targetNodeId: target }],
       });
       // Containment arm: InsideT sits inside Target.
       await client.createObject({ isEmbedded: false, name: "InsideT", classIds: [projectId], parentId: target });

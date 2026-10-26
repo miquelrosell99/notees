@@ -658,7 +658,7 @@ describe("L4 unlinked mentions promote/ignore", () => {
     const block = client.getNode(blockId)!;
     expect(block.contentAst).toEqual([
       { type: "text", text: "the " },
-      { type: "mention", targetNodeId: pageId, text: "Zebra" },
+      { type: "mention", targetNodeId: pageId },
       { type: "text", text: " runs" },
     ]);
     // The edge now exists: the source reads as a linked reference.

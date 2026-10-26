@@ -93,7 +93,7 @@ function mockCaretAt(editor: HTMLElement, proseOffset: number): void {
 
 function openEditLinkModal(container: HTMLElement): HTMLElement {
   const editor = clickIntoBlock(container);
-  mockCaretAt(editor, 6); // inside "the missing page" ([4, 20))
+  mockCaretAt(editor, 6); // inside the mention pill ([4, 40) — the raw id, the broken-target label)
   fireEvent.contextMenu(editor, { clientX: 12, clientY: 12 });
   const menu = document.body.querySelector<HTMLElement>('[role="menu"]');
   if (menu === null) throw new Error("context menu did not open");
@@ -118,7 +118,6 @@ describe("broken-link create page with UUID", () => {
         {
           type: "mention",
           targetNodeId: DEAD_TARGET,
-          text: "the missing page",
           linkId: "0192a000-0000-7000-8000-0000000000aa",
         },
         { type: "text", text: " soon" },
@@ -147,7 +146,6 @@ describe("broken-link create page with UUID", () => {
     expect(ast[1]).toEqual({
       type: "mention",
       targetNodeId: DEAD_TARGET,
-      text: "the missing page",
       linkId: "0192a000-0000-7000-8000-0000000000aa",
     });
   });
@@ -163,7 +161,6 @@ describe("broken-link create page with UUID", () => {
         {
           type: "mention",
           targetNodeId: targetId,
-          text: "Target",
           linkId: "0192a000-0000-7000-8000-0000000000aa",
         },
       ],

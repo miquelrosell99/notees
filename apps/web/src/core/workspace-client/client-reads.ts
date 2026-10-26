@@ -46,11 +46,27 @@ export class WorkspaceClientReads {
     return row ? this.ctx.mapNodeCached(row) : undefined;
   }
 
-  /** Display name for mentions/chips (SCHEMA.md name derivation); null when unknown. */
+  /** Display name for mentions/chips (SCHEMA.md name derivation); null when
+   *  unknown. Mention labels resolve LIVE: a bare mention contributes its TARGET's current
+   *  display name, so a block whose content is only a link reads as the
+   *  target's name everywhere this read feeds (breadcrumbs, graph labels,
+   *  search rows) — never "Untitled". The recursion guard is PATH-scoped (a
+   *  diamond's second mention still resolves; a true cycle folds to nothing
+   *  at the loop point). */
   getDisplayName(id: string): string | null {
+    return this.displayNameOf(id, new Set());
+  }
+
+  private displayNameOf(id: string, path: Set<string>): string | null {
     const node = this.getNode(id) ?? this.getNodeRaw(id);
     if (!node) return null;
-    return deriveDisplayName(node) || null;
+    path.add(id);
+    const name = deriveDisplayName(node, undefined, (targetId) => {
+      if (path.has(targetId)) return null; // mention cycle: fold, never hang
+      return this.displayNameOf(targetId, path);
+    });
+    path.delete(id);
+    return name || null;
   }
 
   /**

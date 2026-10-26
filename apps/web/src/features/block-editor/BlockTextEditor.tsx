@@ -38,7 +38,7 @@
  *   the sigil) is intercepted at a trigger boundary; the picker opens with the
  *   selected text as its search query, and the pick splices the mention over
  *   the never-deleted range. Ctrl/Cmd+Enter on a row picks WITH the query as
- *   a custom label (`displayText`). Esc restores the original selection.
+ *   a custom label (`customLabel`). Esc restores the original selection.
  * - Node-link context menu: right-clicking a mention (hit-tested via
  *   caretRangeFromPoint → prose offset → token span) opens the
  *   NodeLinkContextMenu: Open / Open in sidebar navigate; Edit link… opens
@@ -225,6 +225,7 @@ import {
   type TemplateStageState,
 } from "./captureModel.js";
 import { applyTextEdit, spliceTokens } from "@/editor/edit-apply.js";
+import { mentionProse } from "@/editor/prose.js";
 import { applyMarkToRange, marksOnRange, removeMarkFromRange } from "@/editor/marks.js";
 import { withCandidateSpans } from "@/editor/capture.js";
 import { dissolveClassLinksInAst } from "../metadata/classRemoval.js";
@@ -417,12 +418,14 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       templateStageRef.current = null;
       const el = spanRef.current;
       if (stage === null || el === null) return;
-      const label = captureApi.displayName(nodeId) ?? "Untitled";
+      // Bare mention — the wire stores no link text; the pill renders the
+      // target's current name (the caret rides the RESOLVED label length).
+      const token = { type: "mention", targetNodeId: nodeId, linkId: uuidv7() } as const;
       applySplice(
         stage.start,
         stage.start,
-        [{ type: "mention", targetNodeId: nodeId, text: label, linkId: uuidv7() }],
-        stage.start + label.length,
+        [token],
+        stage.start + mentionProse(token, resolveMentionName).length,
       );
       el.focus();
     },
@@ -872,11 +875,14 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       void client
         .ensureDateChain(iso)
         .then(() => {
+          // Bare mention: the pill renders the date node's setting-formatted
+          // name — the wire stores no captured text.
+          const token = { type: "mention", targetNodeId: refId, linkId: uuidv7() } as const;
           applySplice(
             insertAt,
             insertAt,
-            [{ type: "mention", targetNodeId: refId, text: parsed.label, linkId: uuidv7() }],
-            insertAt + parsed.label.length,
+            [token],
+            insertAt + mentionProse(token, resolveMentionName).length,
           );
         })
         .catch((error: unknown) => {
@@ -1038,7 +1044,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
    * pick on + assigns AND inserts an inline class_link in the same gesture).
    * A mention opened via Ctrl/Cmd+Shift+L (capture.fixedLabel) labels the link
    * with the original selection; a plain Ctrl/Cmd+Enter mention pick
-   * (context.withLabel) keeps the search query as a custom label (displayText)
+   * (context.withLabel) keeps the search query as a custom label (customLabel)
    * instead of resolving the target's name.
    */
   const commitNodePick = (picked: ClientNode, context?: NodePickContext) => {
@@ -1055,7 +1061,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     if (state.kind === "mention") {
       // Label precedence: a Ctrl/Cmd+Shift+L popup carries the selection
       // itself as fixedLabel (the search query stays empty); otherwise a
-      // Ctrl/Cmd+Enter pick keeps the query as the custom label.
+      // Ctrl/Cmd+Enter pick keeps the query as the custom label. The wire
+      // stores no other link text — a bare mention renders the target's
+      // current name, and the caret rides the resolved label length.
       const customLabel =
         state.fixedLabel !== undefined && state.fixedLabel !== ""
           ? state.fixedLabel.slice(0, MENTION_LABEL_MAX)
@@ -1063,29 +1071,22 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
             ? context.query.slice(0, MENTION_LABEL_MAX)
             : null;
       if (customLabel !== null && customLabel !== "") {
-        applySplice(
-          state.start,
-          end,
-          [
-            {
-              type: "mention",
-              targetNodeId: picked.id,
-              text: customLabel,
-              displayText: customLabel,
-              linkId: uuidv7(),
-            },
-          ],
-          state.start + customLabel.length,
-        );
+        const token = {
+          type: "mention",
+          targetNodeId: picked.id,
+          customLabel,
+          linkId: uuidv7(),
+        } as const;
+        applySplice(state.start, end, [token], state.start + customLabel.length);
         el.focus();
         return;
       }
-      const label = captureApi.displayName(picked.id) ?? "Untitled";
+      const token = { type: "mention", targetNodeId: picked.id, linkId: uuidv7() } as const;
       applySplice(
         state.start,
         end,
-        [{ type: "mention", targetNodeId: picked.id, text: label, linkId: uuidv7() }],
-        state.start + label.length,
+        [token],
+        state.start + mentionProse(token, resolveMentionName).length,
       );
       el.focus();
       return;
@@ -1491,11 +1492,17 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     return { menu, token: token as unknown as MentionToken };
   };
 
-  /** "Remove link": replace the mention with its visible text (custom label if set). */
+  /** "Remove link": replace the mention with its visible text (the custom
+   *  label when set, else the target's current display name — the mention
+   *  stores no other text; a broken target drops the mention). */
   const removeLink = () => {
     const hit = currentLinkMenuMention();
     if (hit === null) return;
-    const kept = hit.token.displayText ?? hit.token.text;
+    const kept = hit.token.customLabel ?? resolveMentionName(hit.token.targetNodeId) ?? "";
+    if (kept === "") {
+      applySplice(hit.menu.start, hit.menu.end, [], hit.menu.start);
+      return;
+    }
     applySplice(hit.menu.start, hit.menu.end, [{ type: "text", text: kept }], hit.menu.start + kept.length);
   };
 
@@ -1518,7 +1525,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       tokenIndex: hit.menu.tokenIndex,
       insertAt: null,
       initialNodeId: hit.token.targetNodeId,
-      initialLabel: hit.token.displayText ?? "",
+      initialLabel: hit.token.customLabel ?? "",
       initialEmbedded: hit.token.isEmbedded === true,
     });
   };
@@ -1580,11 +1587,14 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
           start: draftRef.current.length,
           end: draftRef.current.length,
         };
+        // Bare mention — the wire stores no link text; the toast and the
+        // caret ride the target's resolved name.
+        const token = { type: "mention", targetNodeId: targetId, linkId: uuidv7() } as const;
         applySplice(
           range.start,
           range.end,
-          [{ type: "mention", targetNodeId: targetId, text: name, linkId: uuidv7() }],
-          range.start + name.length,
+          [token],
+          range.start + mentionProse(token, resolveMentionName).length,
         );
         notificationStore.success("Node link pasted", name);
         el.focus();
@@ -2331,14 +2341,14 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
               const insertAt = datePick.insertAt;
               datePickCommittedRef.current = true;
               return client.ensureDateChain(iso).then(() => {
-                // The display label rides the same parser the typed path
-                // uses ("October 18, 2026").
-                const label = parseDate(iso)?.label ?? iso;
+                // Bare mention: the pill renders the date node's
+                // setting-formatted name — the wire stores no captured text.
+                const token = { type: "mention", targetNodeId: ids.day, linkId: uuidv7() } as const;
                 applySplice(
                   insertAt,
                   insertAt,
-                  [{ type: "mention", targetNodeId: ids.day, text: label, linkId: uuidv7() }],
-                  insertAt + label.length,
+                  [token],
+                  insertAt + mentionProse(token, resolveMentionName).length,
                 );
               });
             }}

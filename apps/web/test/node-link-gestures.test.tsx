@@ -5,7 +5,7 @@
  * @-over-selection: the selected text is NOT replaced by the sigil — the
  * node picker opens with it as the search query; a pick replaces the
  * selection with the mention, Ctrl/Cmd+Enter keeps the text as a custom
- * label (displayText), Escape restores the selection.
+ * label (customLabel), Escape restores the selection.
  *
  * Context menu (edit mode, right-click a mention): Remove link keeps the
  * visible text, Delete link drops the token, Edit link… opens the
@@ -188,8 +188,8 @@ describe("capture: @ over a selection", () => {
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
     expect(ast).toHaveLength(3);
     expect(ast[0]).toEqual({ type: "text", text: "see " });
-    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId, text: "Target" });
-    expect((ast[1] as { displayText?: string }).displayText).toBeUndefined();
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId });
+    expect((ast[1] as { customLabel?: string }).customLabel).toBeUndefined();
     expect(ast[2]).toEqual({ type: "text", text: " now" });
     expect(editor.textContent).toBe("see Target now");
     expect(picker()).toBeNull();
@@ -214,8 +214,7 @@ describe("capture: @ over a selection", () => {
     expect(ast[1]).toMatchObject({
       type: "mention",
       targetNodeId: targetId,
-      text: "Tar",
-      displayText: "Tar",
+      customLabel: "Tar",
     });
     expect(editor.textContent).toBe("see Tar now");
   });
@@ -236,7 +235,7 @@ describe("capture: @ over a selection", () => {
     fireEvent.keyDown(searchBox(), { key: "Enter", metaKey: true });
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
-    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId, displayText: "Tar" });
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId, customLabel: "Tar" });
   });
 
   it("Escape closes the picker and restores the selection", async () => {
@@ -285,7 +284,6 @@ describe("capture: @ over a selection", () => {
     expect(ast[1]).toMatchObject({
       type: "mention",
       targetNodeId: created[0]!.id,
-      text: "zzz",
     });
     expect(editor.textContent).toBe("see zzz now");
   });
@@ -308,7 +306,7 @@ describe("capture: @ over a selection", () => {
 });
 
 describe("node-link context menu", () => {
-  async function seedLinkedBlock(displayText?: string) {
+  async function seedLinkedBlock(customLabel?: string) {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
@@ -316,10 +314,9 @@ describe("node-link context menu", () => {
     const mention: Record<string, unknown> = {
       type: "mention",
       targetNodeId: targetId,
-      text: "Target",
       linkId: "0192a000-0000-7000-8000-0000000000aa",
     };
-    if (displayText !== undefined) mention.displayText = displayText;
+    if (customLabel !== undefined) mention.customLabel = customLabel;
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -438,10 +435,9 @@ describe("node-link context menu", () => {
     fireEvent.click(save);
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
-    const mention = ast[1] as { targetNodeId: string; text: string; displayText?: string; linkId?: string };
+    const mention = ast[1] as { targetNodeId: string; customLabel?: string; linkId?: string };
     expect(mention.targetNodeId).toBe(otherId);
-    expect(mention.text).toBe("that page");
-    expect(mention.displayText).toBe("that page");
+    expect(mention.customLabel).toBe("that page");
     // A retarget mints a fresh linkId.
     expect(mention.linkId).toMatch(UUID_RE);
     expect(mention.linkId).not.toBe("0192a000-0000-7000-8000-0000000000aa");
@@ -468,7 +464,6 @@ describe("node-link context menu", () => {
     expect(ast[1]).toEqual({
       type: "mention",
       targetNodeId: targetId,
-      text: "Target",
       linkId: "0192a000-0000-7000-8000-0000000000aa",
     });
   });
@@ -483,7 +478,7 @@ describe("node-link context menu (read mode)", () => {
       parentId: pageId,
       contentAst: [
         { type: "text", text: "see " },
-        { type: "mention", targetNodeId: targetId, text: "Target", linkId: "0192a000-0000-7000-8000-0000000000aa" },
+        { type: "mention", targetNodeId: targetId, linkId: "0192a000-0000-7000-8000-0000000000aa" },
         { type: "text", text: " again" },
       ],
     });
@@ -569,7 +564,7 @@ describe("node-link context menu (read mode)", () => {
       parentId: pageId,
       contentAst: [
         { type: "text", text: "see " },
-        { type: "mention", targetNodeId: targetId, text: "Target", linkId: "0192a000-0000-7000-8000-0000000000aa" },
+        { type: "mention", targetNodeId: targetId, linkId: "0192a000-0000-7000-8000-0000000000aa" },
         { type: "text", text: " now" },
       ],
     });
@@ -589,7 +584,7 @@ describe("node-link context menu (read mode)", () => {
     fireEvent.click(save);
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
-    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: otherId, text: "Elsewhere" });
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: otherId });
   });
 });
 

@@ -69,15 +69,18 @@ function isDateLocked(node: ClientNode | undefined): boolean {
 }
 
 /** Human crumb label: the plain-text chrome title: markdown link spans reduce to their label (no raw
- *  `[label](href)` in a crumb, no href crowding the 28-char clip) and
- *  inline class chips resolve to the class's current name — both via
- *  titleOfNode's chrome flatten, the same derivation the sidebar rows use.
- *  Never a raw uuid; per-crumb capped. */
+ *  `[label](href)` in a crumb, no href crowding the 28-char clip),
+ *  inline class chips resolve to the class's current name, and a mention
+ *  resolves to the target's current display name (its customLabel wins) —
+ *  all via titleOfNode's chrome flatten, the same derivation the sidebar
+ *  rows use, so a block whose content is ONLY a node link crumbs as the
+ *  target's name, never "Untitled". Never a raw uuid; per-crumb capped. */
 function crumbNameOf(client: AnyClient, node: ClientNode): string {
   return clipCrumbName(
     titleOfNode(node, {
       flatten: "chrome",
       resolveClassName: (classId) => client.getDisplayName(classId),
+      resolveMentionName: (targetId) => client.getDisplayName(targetId),
       empty: "untitled",
       isParentlessBlockClass: parentlessBlockResolverOf(client),
     }),

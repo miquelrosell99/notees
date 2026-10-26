@@ -66,10 +66,10 @@ const LONG =
   ) + "and then some more words to be sure";
 
 describe("hiddenLinksOf", () => {
-  const mention = (target: string, text: string) => ({
+  const mention = (target: string, label: string) => ({
     type: "mention" as const,
     targetNodeId: target,
-    text,
+    customLabel: label,
   });
 
   it("returns nothing without a cut", () => {
@@ -246,7 +246,7 @@ describe("condensed layer over PageView", () => {
     const targetId = await client.createObject({ isEmbedded: false, name: "Target Page" });
     const ast: ContentAst = [
       { type: "text", text: "see " },
-      { type: "mention", targetNodeId: targetId, text: "Target Page" },
+      { type: "mention", targetNodeId: targetId },
       { type: "hard_break" },
       { type: "text", text: "and the rest of this block lives past the cut entirely" },
     ];
@@ -266,7 +266,7 @@ describe("condensed layer over PageView", () => {
     // the cut.
     const block2: ContentAst = [
       { type: "text", text: "x".repeat(DISPLAY_NAME_MAX + 5) },
-      { type: "mention", targetNodeId: targetId, text: "Target Page" },
+      { type: "mention", targetNodeId: targetId },
     ];
     await client.createObject({ parentId: pageId, contentAst: block2 });
     await flushWrites();
@@ -292,7 +292,7 @@ describe("condensed layer over PageView", () => {
       parentId: pageId,
       contentAst: [
         { type: "text", text: "x".repeat(DISPLAY_NAME_MAX + 5) },
-        { type: "mention", targetNodeId: targetId, text: "Esc Target" },
+        { type: "mention", targetNodeId: targetId },
       ],
     });
     writeDeviceSetting(`condensed.${pageId}`, true);

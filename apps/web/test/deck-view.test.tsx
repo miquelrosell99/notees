@@ -124,7 +124,7 @@ describe("DeckView", () => {
     const targetId = await client.createObject({ isEmbedded: false, name: "Linked Target" });
     await client.createObject({
       parentId: sectionA,
-      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Linked Target" }],
+      contentAst: [{ type: "mention", targetNodeId: targetId }],
     });
 
     const onClose = vi.fn();

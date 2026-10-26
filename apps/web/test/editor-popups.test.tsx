@@ -352,7 +352,7 @@ describe("link edit modal (node links only)", () => {
     const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const blockId = await client.createObject({
       parentId: pageId,
-      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Target" }],
+      contentAst: [{ type: "mention", targetNodeId: targetId }],
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -369,7 +369,7 @@ describe("link edit modal (node links only)", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
     expect(client.getNode(blockId)?.contentAst).toEqual([
-      { type: "mention", targetNodeId: targetId, text: "Target" },
+      { type: "mention", targetNodeId: targetId },
     ]);
   });
 
@@ -379,7 +379,7 @@ describe("link edit modal (node links only)", () => {
     const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     await client.createObject({
       parentId: pageId,
-      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Target" }],
+      contentAst: [{ type: "mention", targetNodeId: targetId }],
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -434,7 +434,7 @@ describe("link edit modal (node links only)", () => {
     const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const blockId = await client.createObject({
       parentId: pageId,
-      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Target" }],
+      contentAst: [{ type: "mention", targetNodeId: targetId }],
     });
     const otherId = await client.createObject({ isEmbedded: false, name: "Target Page" });
     const { container } = render(<PageView client={client} pageId={pageId} />);

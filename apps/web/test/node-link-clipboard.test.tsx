@@ -213,7 +213,7 @@ describe("block editor node-link clipboard", () => {
     expect(editor.textContent).toBe("see Target Page");
     expect(client.getNode(blockId)?.contentAst).toEqual([
       { type: "text", text: "see " },
-      { type: "mention", targetNodeId: targetId, text: "Target Page", linkId: expect.any(String) },
+      { type: "mention", targetNodeId: targetId, linkId: expect.any(String) },
     ]);
     const toast = notificationStore.notifications;
     expect(toast).toHaveLength(1);
@@ -239,7 +239,7 @@ describe("block editor node-link clipboard", () => {
 
     expect(editor.textContent).toBe("Bare Target");
     expect(client.getNode(blockId)?.contentAst).toEqual([
-      { type: "mention", targetNodeId: targetId, text: "Bare Target", linkId: expect.any(String) },
+      { type: "mention", targetNodeId: targetId, linkId: expect.any(String) },
     ]);
   });
 
@@ -268,7 +268,7 @@ describe("block editor node-link clipboard", () => {
     expect(editor.textContent).toBe("see Target");
     expect(client.getNode(blockId)?.contentAst).toEqual([
       { type: "text", text: "see " },
-      { type: "mention", targetNodeId: targetId, text: "Target", linkId: expect.any(String) },
+      { type: "mention", targetNodeId: targetId, linkId: expect.any(String) },
     ]);
   });
 

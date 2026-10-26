@@ -106,7 +106,6 @@ describe("block text right-click", () => {
         {
           type: "mention",
           targetNodeId: targetId,
-          text: "Target",
           linkId: "0192a000-0000-7000-8000-0000000000aa",
         },
         { type: "text", text: " again" },

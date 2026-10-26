@@ -4,11 +4,11 @@
  * read-mode rendering): a mention is a `contenteditable="false"` span, one
  * caret unit, visually identical to the read-mode dashed-underline link.
  * A mention's pill text is its LABEL (`mentionProse`: the one-off
- * displayText, else the target's re-resolved CURRENT full title — the same
- * chain read mode renders —, else the captured text, else the raw target
- * id for a broken reference), so a stale import-era capture (nested-link
- * UUIDs baked into the wire text) never surfaces in edit mode. The label
- * length is what the pill contributes to the prose offsets, keeping
+ * `customLabel`, else the target's re-resolved CURRENT full title — the
+ * same chain read mode renders —, else the raw target id for a broken
+ * reference), so the link text is always live graph state — the wire
+ * stores no captured text to go stale. The label length is what the pill
+ * contributes to the prose offsets, keeping
  * `el.textContent === proseFromAst(ast)` — the single coordinate system
  * every prose-based operation rides. Class chips render the same way
  * (their label is re-resolved at build time through `resolveClassName` —
@@ -55,8 +55,9 @@ export interface EditableAtom {
   targetNodeId: string;
   /** Rendered surface text (the pill's DOM content and prose contribution). */
   text: string;
-  /** Custom label override, when set. */
-  displayText?: string;
+  /** Custom label override, when set (a mention's `customLabel`, a chip's
+   *  `displayText`). */
+  customLabel?: string;
   /** Pill kind — the class chip is atomic like a mention but references a
    *  class and owns no link menu. */
   kind?: "mention" | "chip";
@@ -64,8 +65,7 @@ export interface EditableAtom {
 
 function isMention(token: unknown): token is Record<string, unknown> & {
   targetNodeId: string;
-  text?: string;
-  displayText?: string;
+  customLabel?: string;
 } {
   return (
     typeof token === "object" &&
@@ -110,12 +110,12 @@ export function editableAtoms(
         end: span.end,
         targetNodeId: token.targetNodeId,
         // The pill's surface text — the same label precedence the prose
-        // projection and the DOM build use (displayText → re-resolved full
-        // title → captured text → raw id), so atoms, spans, and the DOM
-        // never disagree about a pill's length.
+        // projection and the DOM build use (customLabel → re-resolved full
+        // title → raw id), so atoms, spans, and the DOM never disagree
+        // about a pill's length.
         text: mentionProse(token, resolveMentionName),
         kind: "mention",
-        ...(token.displayText !== undefined ? { displayText: token.displayText } : {}),
+        ...(token.customLabel !== undefined ? { customLabel: token.customLabel } : {}),
       });
       continue;
     }
@@ -127,7 +127,7 @@ export function editableAtoms(
         targetNodeId: token.classId,
         text: chipText(token, resolveClassName),
         kind: "chip",
-        ...(typeof token.displayText === "string" ? { displayText: token.displayText } : {}),
+        ...(typeof token.displayText === "string" ? { customLabel: token.displayText } : {}),
       });
     }
   }
@@ -182,10 +182,9 @@ export function buildEditableDom(
           }
           break;
         case "mention": {
-          // The pill renders the LABEL (displayText → re-resolved full
-          // title → captured text → raw id), never the captured text
-          // verbatim — read-mode parity; a stale import-era capture must
-          // not surface in edit mode.
+          // The pill renders the LABEL (customLabel → re-resolved full
+          // title → raw id), never a stored text — the wire stores none
+          // (read-mode parity; the link text is always live graph state).
           const label = mentionProse(t, resolveMentionName);
           const pill = document.createElement("span");
           pill.className = ATOM_CLASS;

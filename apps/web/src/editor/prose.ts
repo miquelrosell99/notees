@@ -20,15 +20,15 @@
  * displayText (usually "" — the chip is prose-invisible, the pre-chip
  * behavior every non-editor consumer keeps).
  *
- * Mentions DO carry captured text, but it can go stale (import-era captures
- * baked nested-link UUIDs into it). The block editor therefore threads
+ * Mentions store NO link text at all (the wire
+ * carries only the optional `customLabel`): the block editor threads
  * `resolveMentionName` and renders the pill — prose included — from the
- * label-precedence chain `mentionProse` builds: the one-off `displayText`,
- * else the target's CURRENT full title, else the captured text, else the raw
- * target id (the broken-target fallback, read-mode parity: a mention whose
- * target is gone shows the id, never silent retargeting). Without a resolver
- * a mention contributes its captured text exactly as before — every
- * non-editor consumer keeps the pre-resolver projection.
+ * label-precedence chain `mentionProse` builds: the one-off `customLabel`,
+ * else the target's CURRENT full title, else the raw target id (the
+ * broken-target fallback, read-mode parity: a mention whose target is gone
+ * shows the id, never silent retargeting). Without a resolver a label-less
+ * mention contributes "" — the prose-invisible projection every non-editor
+ * consumer keeps.
  */
 
 import type { ContentAst, Mark } from "@notees/protocol";
@@ -59,21 +59,20 @@ function chipLabel(token: Record<string, unknown>, resolveClassName?: ClassNameR
 
 /**
  * A mention's prose contribution — the label the edit-mode pill renders,
- * the same chain read mode uses (SCHEMA.md render grammar): the one-off
- * `displayText` when set, else the target's re-resolved CURRENT full title,
- * else the captured text (possibly stale — better a stale capture than a
- * raw id), else the raw target id when a resolver was threaded (a
- * textless mention of a broken target still needs SOME pill text in the
- * editable). Without a resolver the captured text passes through
- * verbatim — the projection every non-editor consumer keeps.
+ * the same chain read mode uses (SCHEMA.md render grammar, Fork 4
+ * 2026-10-26): the one-off `customLabel` when set, else the target's
+ * re-resolved CURRENT full title, else the raw target id when a resolver was
+ * threaded (a label-less mention of a broken target still needs SOME pill
+ * text in the editable). The mention stores no other text — stored link
+ * text can never drift. Without a resolver a label-less mention contributes
+ * "" — the projection every non-editor consumer keeps.
  */
 export function mentionProse(token: Record<string, unknown>, resolveMentionName?: MentionNameResolver): string {
-  if (typeof token.displayText === "string" && token.displayText.length > 0) return token.displayText;
+  if (typeof token.customLabel === "string" && token.customLabel.length > 0) return token.customLabel;
   if (typeof token.targetNodeId === "string" && token.targetNodeId.length > 0) {
     const resolved = resolveMentionName?.(token.targetNodeId);
     if (typeof resolved === "string" && resolved.length > 0) return resolved;
   }
-  if (typeof token.text === "string") return token.text;
   return resolveMentionName !== undefined && typeof token.targetNodeId === "string"
     ? token.targetNodeId
     : "";
@@ -127,8 +126,8 @@ export function proseFromAst(
  * embed_ref, query, whiteboard, malformed entries) get a zero-length range
  * at the current offset. Length rules mirror `proseFromAst`: text /
  * typed_link count `text.length`, a mention counts its resolved label
- * length (`mentionProse` — displayText, else the re-resolved full title,
- * else the captured text), a class_link counts its resolved
+ * length (`mentionProse` — customLabel, else the re-resolved full title,
+ * else "" without a resolver), a class_link counts its resolved
  * label length, math counts `expression.length`, hard_break counts 1 (its
  * "\n"), quote counts its inline children.
  */

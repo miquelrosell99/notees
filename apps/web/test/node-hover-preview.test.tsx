@@ -93,7 +93,6 @@ async function seedLinked(): Promise<Seed> {
       {
         type: "mention",
         targetNodeId: targetId,
-        text: TARGET_TEXT,
         linkId: "0192a000-0000-7000-8000-0000000000aa",
       },
       { type: "text", text: " again" },
@@ -262,7 +261,6 @@ describe("node hover preview", () => {
         {
           type: "mention",
           targetNodeId: otherId,
-          text: "Elsewhere",
           linkId: "0192a000-0000-7000-8000-0000000000bb",
         },
         { type: "text", text: " today" },
@@ -344,7 +342,6 @@ describe("node hover preview", () => {
         {
           type: "mention",
           targetNodeId: targetId,
-          text: "Target",
           linkId: "0192a000-0000-7000-8000-0000000000dd",
         },
       ],
@@ -373,7 +370,7 @@ describe("node hover preview", () => {
       parentId: pageId,
       contentAst: [
         { type: "text", text: "see " },
-        { type: "mention", targetNodeId: "0192a000-0000-7000-8000-0000000000ff", text: "Ghost" },
+        { type: "mention", targetNodeId: "0192a000-0000-7000-8000-0000000000ff" },
         { type: "text", text: " here" },
       ],
     });
@@ -534,7 +531,6 @@ describe("floating editor", () => {
         {
           type: "mention",
           targetNodeId: blockId,
-          text: "the block body",
           linkId: "0192a000-0000-7000-8000-0000000000cc",
         },
       ],

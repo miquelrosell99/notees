@@ -41,7 +41,7 @@ export function dateSortKeyOf(nodeId: string): string | null {
 }
 
 function displayNameOf(node: ClientNode, resolveName?: NameResolver): string {
-  return titleOfNode(node, { resolveClassName: resolveName }) || "Untitled";
+  return titleOfNode(node, { resolveClassName: resolveName, resolveMentionName: resolveName }) || "Untitled";
 }
 
 function compareNames(a: ClientNode, b: ClientNode, resolveName?: NameResolver): number {

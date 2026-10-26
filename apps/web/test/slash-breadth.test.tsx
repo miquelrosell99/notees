@@ -151,7 +151,7 @@ describe("slash /date", () => {
     const dayId = chainNodeIds(iso).day;
     await waitFor(() => {
       const ast = client.getNode(blockId)?.contentAst as ContentAst;
-      expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: dayId, text: "February 14, 2026" });
+      expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: dayId });
     });
     // The chain was ensured: the day page exists.
     expect(client.getNode(dayId)).toBeDefined();
@@ -232,7 +232,7 @@ describe("slash /template", () => {
     // A fresh root page instantiated from the template…
     await waitFor(() => {
       const ast = client.getNode(blockId)?.contentAst as ContentAst;
-      expect(ast[0]).toMatchObject({ type: "mention", text: "Sync template" });
+      expect(ast[0]).toMatchObject({ type: "mention" });
     });
     const mention = (client.getNode(blockId)?.contentAst as ContentAst)[0] as {
       targetNodeId: string;

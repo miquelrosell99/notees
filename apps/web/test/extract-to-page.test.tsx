@@ -110,7 +110,7 @@ describe("extractBlockToPage composition", () => {
     expect(creates).toEqual([
       {
         parentId: "p1",
-        contentAst: [{ type: "mention", targetNodeId: "t1", text: "Question?" }],
+        contentAst: [{ type: "mention", targetNodeId: "t1" }],
         // Anchored AT THE SOURCE: the link lands immediately before the
         // block and inherits its slot when the block leaves — no sibling
         // lookup that a stale cached read can break (the "link lands last"
@@ -308,7 +308,7 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
     expect(stub.creates).toEqual([
       {
         parentId: "p1",
-        contentAst: [{ type: "mention", targetNodeId: "t1", text: "Question?" }],
+        contentAst: [{ type: "mention", targetNodeId: "t1" }],
         beforeId: "t1",
       },
     ]);

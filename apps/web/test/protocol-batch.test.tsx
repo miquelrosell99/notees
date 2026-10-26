@@ -150,10 +150,10 @@ describe("InlineTokens mention labels (full titles for node links)", () => {
     expect(container.querySelector(".nt-mention")?.textContent).toBe(capped);
   });
 
-  it("a custom displayText always wins over the full title", () => {
+  it("a customLabel always wins over the full title", () => {
     const { container } = render(
       <InlineTokens
-        tokens={[{ ...mention, displayText: "the short label" }]}
+        tokens={[{ ...mention, customLabel: "the short label" }]}
         resolveName={() => capped}
         resolveFullTitle={() => longTitle}
       />,

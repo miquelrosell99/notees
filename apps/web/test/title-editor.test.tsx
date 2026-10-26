@@ -253,7 +253,7 @@ describe("page title row", () => {
     await client.updateObject(pageId, {
       contentAst: [
         { type: "text", text: "see " },
-        { type: "mention", targetNodeId: targetId, text: "Target Page", linkId: "l1" },
+        { type: "mention", targetNodeId: targetId, linkId: "l1" },
       ],
     });
 

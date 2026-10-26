@@ -139,13 +139,15 @@ describe("structural edit application", () => {
     ]);
   });
 
-  it("mention token survives an edit before it (captured text may go stale)", () => {
-    const mention = { type: "mention", targetNodeId: TARGET, text: "Target" };
+  it("mention token survives an edit before it (the stored token is untouched)", () => {
+    const mention = { type: "mention", targetNodeId: TARGET };
     const previous = [{ type: "text", text: "see " }, mention];
-    const next = applyTextEdit(previous, "see the Target");
+    // The resolver threads the mention's label into the prose projection —
+    // the edit lands BEFORE the pill, never inside it.
+    const next = applyTextEdit(previous, "see the Target", undefined, () => "Target");
     expect(next).toEqual([
       { type: "text", text: "see the " },
-      { type: "mention", targetNodeId: TARGET, text: "Target" },
+      { type: "mention", targetNodeId: TARGET },
     ]);
     expect(next[1]).toBe(mention);
   });
@@ -153,10 +155,12 @@ describe("structural edit application", () => {
   it("a change spanning a mention flattens only the covered span", () => {
     const previous = [
       { type: "text", text: "a " },
-      { type: "mention", targetNodeId: TARGET, text: "M" },
+      { type: "mention", targetNodeId: TARGET },
       { type: "text", text: " z", marks: ["bold"] },
     ];
-    const next = applyTextEdit(previous, "a X z");
+    // The mention occupies prose [2, 3) via the threaded resolver; the edit
+    // covers it, so it flattens to plain text.
+    const next = applyTextEdit(previous, "a X z", undefined, () => "M");
     // The mention is flattened to plain text; the marked tail run survives.
     expect(next).toEqual([
       { type: "text", text: "a X" },

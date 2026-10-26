@@ -101,7 +101,7 @@ async function seeded() {
     parentId: pageId,
     contentAst: [
       { type: "text", text: "see " },
-      { type: "mention", targetNodeId: targetId, text: "Target", linkId: "0192a000-0000-7000-8000-0000000000aa" },
+      { type: "mention", targetNodeId: targetId, linkId: "0192a000-0000-7000-8000-0000000000aa" },
       { type: "text", text: " again" },
     ],
   });
@@ -221,7 +221,7 @@ describe("editor atoms", () => {
     expect(pillOf(editor).className).not.toContain("nt-atom--selected");
     expect(client.getNode(blockId)?.contentAst).toEqual([
       { type: "text", text: "see " },
-      { type: "mention", targetNodeId: targetId, text: "Target", linkId: "0192a000-0000-7000-8000-0000000000aa" },
+      { type: "mention", targetNodeId: targetId, linkId: "0192a000-0000-7000-8000-0000000000aa" },
       { type: "text", text: " again" },
     ]);
   });
@@ -278,8 +278,8 @@ describe("editor atoms", () => {
     await client.createObject({
       parentId: pageId,
       contentAst: [
-        { type: "mention", targetNodeId: t1, text: "One", linkId: "0192a000-0000-7000-8000-0000000000b1" },
-        { type: "mention", targetNodeId: t2, text: "Two", linkId: "0192a000-0000-7000-8000-0000000000b2" },
+        { type: "mention", targetNodeId: t1, linkId: "0192a000-0000-7000-8000-0000000000b1" },
+        { type: "mention", targetNodeId: t2, linkId: "0192a000-0000-7000-8000-0000000000b2" },
       ],
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -454,19 +454,17 @@ describe("editor atoms — class chips", () => {
 });
 
 /**
- * Mention label re-resolution: a mention
- * whose captured `text` is stale (import-era captures baked nested-link
- * UUIDs into it) must render the target's CURRENT full title in edit mode —
- * the same label chain read mode uses (displayText → re-resolved full
- * title → captured text → raw id). The pill is atomic and the offsets ride
- * the resolved label, so keyboard gestures keep working.
+ * Mention label resolution: a
+ * mention stores NO link text — only `targetNodeId` (+ optional
+ * `customLabel`) — so stored text can never drift. Edit mode renders the
+ * target's CURRENT full title via the editor's resolver — the label chain
+ * read mode uses (customLabel → re-resolved full title → raw id for a broken
+ * target). The pill is atomic and the offsets ride the resolved label, so
+ * keyboard gestures keep working.
  */
 describe("editor atoms — mention label re-resolution", () => {
-  // An import-era capture: a nested link's UUID is baked into the text.
-  const STALE_TEXT = "Target (0192a000-0000-7000-8000-000000000099)";
-
-  /** Seed "see <mention>" where the capture is stale; the target is "Target". */
-  async function seededStale() {
+  /** Seed "see <mention>" — a bare mention (no stored link text); the target is "Target". */
+  async function seededMention() {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
@@ -474,15 +472,15 @@ describe("editor atoms — mention label re-resolution", () => {
       parentId: pageId,
       contentAst: [
         { type: "text", text: "see " },
-        { type: "mention", targetNodeId: targetId, text: STALE_TEXT, linkId: "0192a000-0000-7000-8000-0000000000cc" },
+        { type: "mention", targetNodeId: targetId, linkId: "0192a000-0000-7000-8000-0000000000cc" },
         { type: "text", text: " again" },
       ],
     });
     return { client, pageId, targetId, blockId };
   }
 
-  it("edit mode renders the resolved current title, not the stale captured text", async () => {
-    const { client, pageId } = await seededStale();
+  it("edit mode renders the target's current title (resolved live)", async () => {
+    const { client, pageId } = await seededMention();
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const editor = clickIntoBlock(container);
     const pill = pillOf(editor);
@@ -492,7 +490,7 @@ describe("editor atoms — mention label re-resolution", () => {
   });
 
   it("the atom offsets ride the resolved label — keyboard gestures keep working", async () => {
-    const { client, pageId, blockId } = await seededStale();
+    const { client, pageId, blockId } = await seededMention();
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const editor = clickIntoBlock(container);
 
@@ -505,7 +503,7 @@ describe("editor atoms — mention label re-resolution", () => {
   });
 
   it("merely touching the block does not flatten the mention (the flush guard)", async () => {
-    const { client, pageId, blockId, targetId } = await seededStale();
+    const { client, pageId, blockId, targetId } = await seededMention();
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const editor = clickIntoBlock(container);
 
@@ -518,19 +516,19 @@ describe("editor atoms — mention label re-resolution", () => {
 
     expect(client.getNode(blockId)?.contentAst).toEqual([
       { type: "text", text: "see " },
-      { type: "mention", targetNodeId: targetId, text: STALE_TEXT, linkId: "0192a000-0000-7000-8000-0000000000cc" },
+      { type: "mention", targetNodeId: targetId, linkId: "0192a000-0000-7000-8000-0000000000cc" },
       { type: "text", text: " again!" },
     ]);
   });
 
-  it("a displayText custom label wins over the resolved title", async () => {
+  it("a customLabel wins over the resolved title", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     await client.createObject({
       parentId: pageId,
       contentAst: [
-        { type: "mention", targetNodeId: targetId, text: STALE_TEXT, displayText: "the target", linkId: "0192a000-0000-7000-8000-0000000000dd" },
+        { type: "mention", targetNodeId: targetId, customLabel: "the target", linkId: "0192a000-0000-7000-8000-0000000000dd" },
       ],
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -538,16 +536,16 @@ describe("editor atoms — mention label re-resolution", () => {
     expect(pillOf(editor).textContent).toBe("the target");
   });
 
-  it("a broken target falls back to the captured text", async () => {
+  it("a broken target renders the raw target id", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const missing = "0192a000-0000-7000-8000-00000000beef";
     await client.createObject({
       parentId: pageId,
-      contentAst: [{ type: "mention", targetNodeId: missing, text: "Ghost", linkId: "0192a000-0000-7000-8000-0000000000ee" }],
+      contentAst: [{ type: "mention", targetNodeId: missing, linkId: "0192a000-0000-7000-8000-0000000000ee" }],
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const editor = clickIntoBlock(container);
-    expect(pillOf(editor).textContent).toBe("Ghost");
+    expect(pillOf(editor).textContent).toBe(missing);
   });
 });

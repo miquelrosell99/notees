@@ -60,7 +60,7 @@ describe("PageView rendering", () => {
         { type: "text", text: " and " },
         { type: "text", text: "italic part", marks: ["italic"] },
         { type: "hard_break" },
-        { type: "mention", targetNodeId: targetPageId, text: "Mention Target" },
+        { type: "mention", targetNodeId: targetPageId },
         { type: "typed_link", verb: "cites", text: "Kuhn" },
         { type: "quote", children: [{ type: "text", text: "quoted words" }] },
       ],
@@ -141,11 +141,11 @@ describe("PageView rendering", () => {
     await client.createObject({
       parentId: pageId,
       contentAst: [
-        { type: "mention", targetNodeId: iconTargetId, text: "Iconed Target" },
+        { type: "mention", targetNodeId: iconTargetId },
         { type: "text", text: " " },
-        { type: "mention", targetNodeId: classTargetId, text: "Class Iconed Target" },
+        { type: "mention", targetNodeId: classTargetId },
         { type: "text", text: " " },
-        { type: "mention", targetNodeId: plainTargetId, text: "Plain Target" },
+        { type: "mention", targetNodeId: plainTargetId },
       ],
     });
 

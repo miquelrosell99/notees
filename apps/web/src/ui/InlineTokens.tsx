@@ -48,8 +48,8 @@ export interface InlineTokensProps {
    * node links render the COMPLETE title — resolveName is the capped
    * display name, the dense-chrome budget). When provided, mention labels
    * prefer it; when absent, resolveName stays the source (callers that
-   * have not been wired keep the capped form). A token's own displayText
-   * (a one-off custom label) always wins over both.
+   * have not been wired keep the capped form). A token's own customLabel
+   * (a one-off wording) always wins over both.
    */
   resolveFullTitle?: ((nodeId: string) => string | null) | undefined;
   /**
@@ -146,7 +146,7 @@ export interface InlineTokensProps {
     | ((info: {
         targetNodeId: string;
         tokenIndex: number;
-        displayText?: string | undefined;
+        customLabel?: string | undefined;
         x: number;
         y: number;
       }) => void)
@@ -275,13 +275,12 @@ function renderToken(
     }
     case "mention": {
       const targetNodeId = typeof t.targetNodeId === "string" ? t.targetNodeId : "";
-      const displayText = typeof t.displayText === "string" ? t.displayText : undefined;
+      const customLabel = typeof t.customLabel === "string" ? t.customLabel : undefined;
       const name =
-        displayText ??
+        customLabel ??
         (targetNodeId
           ? (resolveFullTitle?.(targetNodeId) ?? resolveName?.(targetNodeId) ?? undefined)
           : undefined) ??
-        (typeof t.text === "string" ? t.text : undefined) ??
         targetNodeId;
       if (!name) return null;
       // The target's effective icon rides ahead of the label when it has one
@@ -297,7 +296,7 @@ function renderToken(
                 onMentionMenu({
                   targetNodeId,
                   tokenIndex: key,
-                  displayText,
+                  customLabel,
                   x: event.clientX,
                   y: event.clientY,
                 });

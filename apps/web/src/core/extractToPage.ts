@@ -25,7 +25,7 @@
  * would fail at the applier anyway).
  */
 
-import { deriveDisplayName, parseDateNodeId, rendersAsInlineBlock } from "@notees/domain";
+import { parseDateNodeId, rendersAsInlineBlock } from "@notees/domain";
 
 import type { ClientNode, CreateObjectInput } from "./workspace-client/index.js";
 import { parentlessBlockResolverOf } from "../ui/renderStateLabel.js";
@@ -98,9 +98,7 @@ export async function extractBlockToPage(
 
   const linkBlockId = await writes.createObject({
     parentId,
-    contentAst: [
-      { type: "mention", targetNodeId: nodeId, text: deriveDisplayName(node) || "Untitled" },
-    ],
+    contentAst: [{ type: "mention", targetNodeId: nodeId }],
     // Anchor BEFORE the block itself: the applier's beforeId midpoint lands
     // the link immediately ahead of the block on EVERY position (first,
     // middle, last), and the block's own departure to the root leaves the
