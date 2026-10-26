@@ -53,7 +53,14 @@
  *     offenders.
  *
  * Idempotent: a second run's scan finds every first create already parentless
- * → plans nothing (the appended moves ride the log un-referenced).
+ * → plans nothing (the appended moves ride the log un-referenced). One move
+ * PER CHILD: the idempotent re-create cascade can leave two out-of-order
+ * creates for the same child — the first occurrence carries the move, the
+ * duplicates are stripped only (their deterministic envelope ids would
+ * otherwise collide and ingest would silently drop them). A zero-repair run
+ * over a workspace that already carries this script's repair moves is a
+ * RESUME of a run that died between ingest and the tail stages: it executes
+ * the snapshot-probe / epoch / verify stages instead of short-circuiting.
  *
  * --apply enforces the sync server is STOPPED (a /healthz liveness probe on
  * :8377 plus a write-lock probe on the target relay.db; the port probe is
@@ -205,6 +212,7 @@ export function planRepairs(
   }
 
   const plan: RepairPlan = { repairs: [], blockers: [], neverCreated: [] };
+  const firstRepairSeqByChild = new Map<string, number>();
   for (const row of rows) {
     if (row.op_type !== "object.create") continue;
     const payload = JSON.parse(row.payload) as Record<string, unknown>;
@@ -279,6 +287,22 @@ export function planRepairs(
       }
     } else {
       guardNote = "no move appended — the converged tree holds the child parentless";
+    }
+
+    // One move per child: the idempotent re-create cascade can leave TWO
+    // out-of-order creates for the same child (a racing batch re-issue), and
+    // the deterministic envelope ids are keyed by child — a second move would
+    // collide and ingest would silently drop it. The first occurrence carries
+    // the move; duplicates are still stripped in place (strict replay needs
+    // every offending envelope parentless at its position) but emit nothing.
+    const firstSeqForChild = firstRepairSeqByChild.get(childId);
+    if (firstSeqForChild !== undefined) {
+      moveTarget = null;
+      targetSource = "none";
+      guard = "clean";
+      guardNote = `duplicate out-of-order create for ${childId} — the first occurrence (seq ${firstSeqForChild}) carries the move; this one is stripped only`;
+    } else {
+      firstRepairSeqByChild.set(childId, row.seq);
     }
 
     plan.repairs.push({
@@ -542,24 +566,29 @@ async function assertServerStopped(dataDir: string): Promise<void> {
 // --- verification -----------------------------------------------------------------
 
 function verify(relay: RelayStorage, workspaceId: string, repairs: PlannedRepair[]): void {
+  // One expectation per child: duplicates (stripped-only re-creates) converge
+  // to the FIRST repair's move target, not to null.
+  const expectedByChild = new Map<string, string | null>();
+  for (const repair of repairs) {
+    if (!expectedByChild.has(repair.childId)) expectedByChild.set(repair.childId, repair.moveTarget);
+  }
   const store = buildScratchStore(relay, workspaceId);
   try {
     const stmt = store.database.prepare("SELECT parent_id, is_embedded FROM node WHERE id = ?");
-    for (const repair of repairs) {
-      const row = stmt.get(repair.childId) as { parent_id: string | null; is_embedded: number } | undefined;
+    for (const [childId, expected] of expectedByChild) {
+      const row = stmt.get(childId) as { parent_id: string | null; is_embedded: number } | undefined;
       if (row === undefined) {
-        throw new Error(`verification failed: child ${repair.childId} absent from the strict replay`);
+        throw new Error(`verification failed: child ${childId} absent from the strict replay`);
       }
-      const expected = repair.moveTarget;
       if (row.parent_id !== expected) {
         throw new Error(
-          `verification failed: child ${repair.childId} parent_id = ${row.parent_id}, expected ${expected}`,
+          `verification failed: child ${childId} parent_id = ${row.parent_id}, expected ${expected}`,
         );
       }
     }
     console.log(
-      `verify: strict replay clean — ${repairs.length} repaired child(ren) read back under their expected parents ` +
-        `(${repairs.filter((r) => r.moveTarget === null).length} converged parentless by design).`,
+      `verify: strict replay clean — ${expectedByChild.size} repaired child(ren) read back under their expected parents ` +
+        `(${[...expectedByChild.values()].filter((p) => p === null).length} converged parentless by design).`,
     );
   } finally {
     store.close();
@@ -614,7 +643,43 @@ function migrateWorkspace(relay: RelayStorage, dataDir: string, workspaceId: str
   }
 
   if (plan.repairs.length === 0) {
-    console.log("  nothing to repair — no out-of-order object.create in this workspace.");
+    // Resume path: a previous run may have died between the move ingest and
+    // the epoch/verify tail stages (the duplicate-move incident) — the log
+    // then carries this script's repair moves while the scan plans nothing.
+    // Re-running must still execute the snapshot/epoch/verify stages for such
+    // a workspace, not short-circuit with "nothing to repair".
+    const priorMoves = relay
+      .allEnvelopes(workspaceId)
+      .filter((envelope) => envelope.deviceId === DEVICE && envelope.opType === "object.move");
+    if (priorMoves.length === 0) {
+      console.log("  nothing to repair — no out-of-order object.create in this workspace.");
+      return;
+    }
+    const expectations = priorMoves.map((envelope) => {
+      const payload = envelope.payload as { objectId: string; parentId: string | null };
+      return { childId: payload.objectId, moveTarget: payload.parentId };
+    });
+    console.log(
+      `\n  nothing to repair — but ${expectations.length} prior repair move(s) ride the log; ` +
+        "running the snapshot/epoch/verify tail stages only (resuming a previous run).",
+    );
+    if (!apply) {
+      console.log("  dry run — re-run with --apply to execute the tail stages.");
+      return;
+    }
+    ensureSnapshotCompatible(
+      relay,
+      dataDir,
+      workspaceId,
+      expectations.flatMap((e) => [e.childId, ...(e.moveTarget !== null ? [e.moveTarget] : [])]),
+    );
+    if (relay.restoreEpoch(workspaceId) === 0) {
+      const resumedEpoch = relay.bumpRestoreEpoch(workspaceId);
+      console.log(`  restore_epoch was 0 with repair envelopes already in the log — bumped to ${resumedEpoch}.`);
+    } else {
+      console.log(`  restore_epoch already ${relay.restoreEpoch(workspaceId)} — left unchanged.`);
+    }
+    verify(relay, workspaceId, expectations);
     return;
   }
 
@@ -693,50 +758,15 @@ function migrateWorkspace(relay: RelayStorage, dataDir: string, workspaceId: str
     console.log(`  appended ${savedIds.length} object.move envelope(s) at the tail (deterministic ids — re-runs are insert-idempotent).`);
   }
 
-  // 3. Snapshot compatibility: a snapshot that lacks a node a move references
-  //    cannot serve strict snapshot+tail replay (the move would throw against
-  //    the restored rows). Back it up and drop it — full replay is the slow
-  //    correct path; the server re-saves a snapshot after hydrating.
-  const fresh = relay.latestSnapshot(workspaceId);
-  const freshBytes = fresh === null ? null : relay.readSnapshotData(fresh.id);
-  if (fresh !== null && freshBytes === null) {
-    console.log(`  snapshot ${fresh.id} has no bytes on disk — dropping the dangling row.`);
-    relay.db.prepare("DELETE FROM snapshot WHERE id = ?").run(fresh.id);
-  } else if (fresh !== null && freshBytes !== null) {
-    const movedChildren = plan.repairs.filter((r) => r.moveTarget !== null);
-    const referenced = new Map<string, string>();
-    for (const repair of movedChildren) {
-      referenced.set(repair.childId, repair.childId);
-      referenced.set(repair.moveTarget as string, repair.moveTarget as string);
-    }
-    const dir = mkdtempSync(join(tmpdir(), "notees-repair-parent-order-snap-probe-"));
-    const probeFile = join(dir, "snapshot.db");
-    let missing: string[] = [];
-    try {
-      writeFileSync(probeFile, freshBytes);
-      const probe = new Database(probeFile, { readonly: true, fileMustExist: true }) as InstanceType<typeof Database>;
-      try {
-        const stmt = probe.prepare("SELECT 1 FROM node WHERE id = ?");
-        missing = [...referenced.keys()].filter((id) => stmt.get(id) === undefined);
-      } finally {
-        probe.close();
-      }
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-    if (missing.length > 0) {
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      copyBuffer(freshBytes, `/tmp/snapshot-${fresh.id}.bak-${stamp}`);
-      relay.db.prepare("DELETE FROM snapshot WHERE id = ?").run(fresh.id);
-      unlinkSync(join(dataDir, "snapshots", `${fresh.id}.db`));
-      console.log(
-        `  snapshot ${fresh.id} lacks ${missing.length} move-referenced node(s) — backed up to /tmp/snapshot-${fresh.id}.bak-${stamp} and DELETED ` +
-          "(strict snapshot+tail replay would throw against it; full-log replay is the slow correct path).",
-      );
-    } else if (movedChildren.length > 0) {
-      console.log("  snapshot contains every move-referenced node — the moves replay as ordinary reparents; left in place.");
-    }
-  }
+  // 3. Snapshot compatibility (probe + drop when the moves cannot replay
+  //    against the restored rows).
+  const movedChildren = plan.repairs.filter((r) => r.moveTarget !== null);
+  ensureSnapshotCompatible(
+    relay,
+    dataDir,
+    workspaceId,
+    movedChildren.flatMap((repair) => [repair.childId, repair.moveTarget as string]),
+  );
 
   // 4. Epoch bump: every client wipes + resyncs from the repaired log.
   const epoch = relay.bumpRestoreEpoch(workspaceId);
@@ -749,6 +779,59 @@ function migrateWorkspace(relay: RelayStorage, dataDir: string, workspaceId: str
 /** fs-extra-free Buffer copy (copyFileSync needs a path; snapshot bytes may only exist in memory). */
 function copyBuffer(bytes: Buffer, target: string): void {
   writeFileSync(target, bytes);
+}
+
+/**
+ * Snapshot compatibility probe (shared by the apply and the resume paths): a
+ * snapshot that lacks a node a repair move references cannot serve strict
+ * snapshot+tail replay (the move would throw against the restored rows).
+ * Back it up and drop it — full replay is the slow correct path; the server
+ * re-saves a snapshot after hydrating.
+ */
+function ensureSnapshotCompatible(
+  relay: RelayStorage,
+  dataDir: string,
+  workspaceId: string,
+  referencedIds: string[],
+): void {
+  const fresh = relay.latestSnapshot(workspaceId);
+  const freshBytes = fresh === null ? null : relay.readSnapshotData(fresh.id);
+  if (fresh !== null && freshBytes === null) {
+    console.log(`  snapshot ${fresh.id} has no bytes on disk — dropping the dangling row.`);
+    relay.db.prepare("DELETE FROM snapshot WHERE id = ?").run(fresh.id);
+    return;
+  }
+  if (fresh === null || freshBytes === null || referencedIds.length === 0) return;
+
+  const referenced = new Map<string, string>();
+  for (const id of referencedIds) referenced.set(id, id);
+  const dir = mkdtempSync(join(tmpdir(), "notees-repair-parent-order-snap-probe-"));
+  const probeFile = join(dir, "snapshot.db");
+  let missing: string[] = [];
+  try {
+    writeFileSync(probeFile, freshBytes);
+    const probe = new Database(probeFile, { readonly: true, fileMustExist: true }) as InstanceType<typeof Database>;
+    try {
+      const stmt = probe.prepare("SELECT 1 FROM node WHERE id = ?");
+      missing = [...referenced.keys()].filter((id) => stmt.get(id) === undefined);
+    } finally {
+      probe.close();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  if (missing.length > 0) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    copyBuffer(freshBytes, `/tmp/snapshot-${fresh.id}.bak-${stamp}`);
+    relay.db.prepare("DELETE FROM snapshot WHERE id = ?").run(fresh.id);
+    unlinkSync(join(dataDir, "snapshots", `${fresh.id}.db`));
+    console.log(
+      `  snapshot ${fresh.id} lacks ${missing.length} move-referenced node(s) — backed up to /tmp/snapshot-${fresh.id}.bak-${stamp} and DELETED ` +
+        "(strict snapshot+tail replay would throw against it; full-log replay is the slow correct path).",
+    );
+  } else {
+    console.log("  snapshot contains every move-referenced node — the moves replay as ordinary reparents; left in place.");
+  }
 }
 
 async function main(): Promise<void> {
