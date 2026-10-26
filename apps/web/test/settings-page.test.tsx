@@ -79,7 +79,6 @@ function renderPage(overrides: Partial<SettingsPageProps> = {}): SettingsPagePro
     token: "session-token",
     user: USER,
     onSignOut: () => {},
-    syncConnected: true,
     onForgetServer: () => {},
     onConnectServer: () => {},
     ...overrides,
@@ -181,7 +180,7 @@ describe("SettingsPage", () => {
   it("renders the deep-linked section's content and marks it active in the nav", () => {
     renderPage({ section: "sync" });
     expect(screen.getAllByText("https://notees.example.com").length).toBeGreaterThan(0);
-    expect(screen.getByText("Connected")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sync Server" })).toBeInTheDocument();
     expect(screen.queryByText("Outdent behavior")).toBeNull();
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
     expect(within(nav).getByRole("button", { name: "Sync" })).toHaveAttribute(
@@ -226,18 +225,12 @@ describe("SettingsPage", () => {
     expect(localStorage.getItem("notees.settings.oledMode")).toBe("true");
   });
 
-  it("shows the configured sync server and its reachability", () => {
+  it("flags the current sync server in the list", () => {
     stubFetch({});
     renderPage({ section: "sync" });
-    expect(screen.getAllByText("https://notees.example.com").length).toBeGreaterThan(0);
-    expect(screen.getByText("Connected")).toBeInTheDocument();
-  });
-
-  it("reports the server as unavailable when the parent says so", () => {
-    stubFetch({});
-    renderPage({ section: "sync", syncConnected: false });
-    expect(screen.getByText("Unavailable")).toBeInTheDocument();
-    expect(screen.queryByText("Connected")).toBeNull();
+    const current = screen.getByRole("radio", { name: "https://notees.example.com" });
+    expect(current).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Current")).toBeInTheDocument();
   });
 
   it("disconnects only after the confirmation step", () => {
@@ -314,32 +307,30 @@ describe("SettingsPage", () => {
     expect(onForgetServer).toHaveBeenCalledTimes(1);
   });
 
-  it("adds a typed server to the remembered list when connecting", () => {
+  it("adds a typed server via the Add server modal and connects with a loading state", () => {
     stubFetch({});
     const onConnectServer = vi.fn();
     renderPage({ section: "sync", onConnectServer });
-    const field = screen.getByRole("textbox", { name: /server url/i });
+    fireEvent.click(screen.getByRole("button", { name: /add server/i }));
+    const dialog = screen.getByRole("dialog", { name: /add a sync server/i });
+    const field = within(dialog).getByRole("textbox", { name: /server url/i });
+    expect(field).toHaveValue("");
     fireEvent.change(field, { target: { value: "https://new.example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: /^connect$/i }));
+    const connect = within(dialog).getByRole("button", { name: /^connect$/i });
+    fireEvent.click(connect);
     expect(onConnectServer).toHaveBeenCalledWith("https://new.example.com");
+    expect(connect).toHaveAttribute("aria-busy", "true");
     expect(
       JSON.parse(localStorage.getItem("notees.settings.knownSyncServers")!),
     ).toContain("https://new.example.com");
   });
 
-  it("connects to a different server with the entered URL", () => {
+  it("keeps the modal connect disabled until a URL is entered", () => {
     stubFetch({});
-    const onConnectServer = vi.fn();
-    renderPage({
-      section: "sync",
-      serverUrl: "https://old.example.com",
-      onConnectServer,
-    });
-    const field = screen.getByRole("textbox", { name: /server url/i });
-    expect(field).toHaveValue("https://old.example.com");
-    fireEvent.change(field, { target: { value: "https://new.example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: /^connect$/i }));
-    expect(onConnectServer).toHaveBeenCalledWith("https://new.example.com");
+    renderPage({ section: "sync" });
+    fireEvent.click(screen.getByRole("button", { name: /add server/i }));
+    const dialog = screen.getByRole("dialog", { name: /add a sync server/i });
+    expect(within(dialog).getByRole("button", { name: /^connect$/i })).toBeDisabled();
   });
 
   it("manages API keys against the real endpoints in the Account section", async () => {
