@@ -120,6 +120,16 @@ async function seedWorld(client: WorkspaceClient) {
   return { city, paris, london };
 }
 
+/** Drive a kit Dropdown (the pivot's dimension/measure pickers): open the
+ * trigger by aria-label, pick the menu item by name (the menu portals to
+ * document.body). */
+function pickOption(label: string, option: string): void {
+  fireEvent.click(screen.getByLabelText(label));
+  fireEvent.click(
+    within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: option }),
+  );
+}
+
 describe("query node (nodecollection surface below the content row)", () => {
   it("renders the results below the row; the token renders nothing inside the content row", async () => {
     const client = await seedClient();
@@ -416,6 +426,73 @@ describe("query node (nodecollection surface below the content row)", () => {
     expect(activeTabBadge(container)).toBe("");
     // Export has nothing to ride.
     expect(within(section).getByRole("button", { name: "Export results" })).toHaveProperty("disabled", true);
+  });
+
+
+  it("pivot mode groups the full result set by two transient dimensions (count cells)", async () => {
+    const client = await seedClient();
+    const { city } = await seedWorld(client);
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
+    await client.createObject({
+      parentId: host,
+      classIds: [QUERY_CLASS_ID],
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+    });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+    await screen.findByText("Paris");
+    fireEvent.click(screen.getByRole("radio", { name: "Pivot" }));
+
+    // Class bit × structural role: the two member pages are non-class pages.
+    pickOption("Rows", "Class bit");
+    pickOption("Columns", "Structural role");
+    const pivot = () => container.querySelector(".nt-query-pivot") as HTMLElement;
+    expect(pivot()).not.toBeNull();
+    expect(await within(pivot()).findByText("Not a class")).not.toBeNull();
+    expect(within(pivot()).getByText("Page")).not.toBeNull();
+    const cells = Array.from(pivot().querySelectorAll("td")).map((td) => td.textContent);
+    expect(cells).toEqual(["2"]);
+  });
+
+  it("pivot measures: sum over a number property groups by property value", async () => {
+    const client = await seedClient();
+    const { city, london } = await seedWorld(client);
+    const rating = await client.createPropertySchema({ name: "rating", type: "number" });
+    await client.setClassProperty(city, rating, {});
+    await client.updatePropertySchema(rating, { defaultValue: 1 });
+    await client.setProperty(london, rating, 5);
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
+    const block = await client.createObject({
+      parentId: host,
+      classIds: [QUERY_CLASS_ID],
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+    });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+    await screen.findByText("Paris");
+    fireEvent.click(screen.getByRole("radio", { name: "Pivot" }));
+    pickOption("Rows", "Property: rating");
+    pickOption("Measure", "Sum of rating");
+
+    const pivot = () => container.querySelector(".nt-query-pivot") as HTMLElement;
+    // Paris rides the binding default (1); London carries the authored 5.
+    // (The "5" reads twice — the rating row header and the sum cell.)
+    await waitFor(() => {
+      const cells = Array.from(pivot().querySelectorAll("td")).map((td) => td.textContent);
+      expect(cells.sort()).toEqual(["1", "5"]);
+    });
+
+    // EVERYTHING is transient: no view record, the
+    // token's AST is untouched.
+    const token = client.getNode(block)!.contentAst[0] as unknown as { type: string; view?: unknown; queryAst: unknown };
+    expect(token.type).toBe("query");
+    expect(token.view).toBeUndefined();
+    expect(token.queryAst).toEqual(makeAst(WORKSPACE(), [{ type: "class", classId: city }]));
+
+    // Switching back to the list restores the rows.
+    fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
+    expect(await screen.findByText("Paris")).not.toBeNull();
+    expect(container.querySelector(".nt-query-pivot")).toBeNull();
   });
 
   it("invalid AST renders the placeholder without crashing", async () => {

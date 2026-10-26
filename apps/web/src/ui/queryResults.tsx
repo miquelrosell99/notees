@@ -24,11 +24,13 @@ import {
   openQueryResult,
   parseRunAst,
   queryResultItems,
-  useQueryRun,
   type QueryRunState,
 } from "./queryRun.js";
 import { NodeCollection } from "../features/collection/index.js";
 import type { AnyClient, ViewMode } from "../features/collection/index.js";
+import { QueryPivot, type QueryViewMode } from "./QueryPivot.js";
+
+export type { QueryViewMode };
 
 /** Result list cap: a per-render window, not a hard ceiling — "Load more" widens it. */
 export const QUERY_RESULT_CAP = 200;
@@ -91,7 +93,8 @@ export interface QueryResultsBodyProps {
   run: { result: QueryRunState | null; error: string | null };
   /** Unspecified query (isUnspecifiedQueryAst): render the empty state, never the run. */
   unspecified?: boolean | undefined;
-  viewMode: ViewMode;
+  /** The transient view mode — list (outline), table, or the pivot grid. */
+  viewMode: QueryViewMode;
   /** Render-cascade navigation (App routes the id). */
   onOpenNode: (nodeId: string) => void;
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
@@ -124,6 +127,12 @@ export function QueryResultsBody({ client, ast, run, unspecified = false, viewMo
   }
   if (result === null) return null;
   if (result.rows.length === 0) return <div className="nt-query-empty">No results.</div>;
+  if (viewMode === "pivot" && result.kind === "query") {
+    // The pivot is a VIEW: group the full result
+    // set by the two picked dimensions — a stored-question aggregation AST
+    // (result.kind === "aggregate") renders its own grid below, unchanged.
+    return <QueryPivot client={client} rows={result.rows} />;
+  }
   if (result.kind === "aggregate") {
     const classes = client.listClasses();
     const classNames = new Map(classes.map((cls) => [cls.id, titleOfNode(cls) || cls.id]));
@@ -186,26 +195,5 @@ export function QueryResultsBody({ client, ast, run, unspecified = false, viewMo
         </button>
       )}
     </>
-  );
-}
-
-export interface QueryResultsProps extends Omit<QueryResultsBodyProps, "run" | "unspecified"> {}
-
-/** The self-running variant: owns the live coalesced run itself. */
-export function QueryResults({ client, ast, viewMode, onOpenNode, onOpenInSidebar }: QueryResultsProps) {
-  // An unspecified AST never runs (an empty match-all must not load the
-  // whole graph) — the body renders the honest empty state.
-  const unspecified = isUnspecifiedQueryAst(ast);
-  const run = useQueryRun(client, ast, { enabled: !unspecified });
-  return (
-    <QueryResultsBody
-      client={client}
-      ast={ast}
-      run={run}
-      unspecified={unspecified}
-      viewMode={viewMode}
-      onOpenNode={onOpenNode}
-      onOpenInSidebar={onOpenInSidebar}
-    />
   );
 }

@@ -31,7 +31,8 @@ import { useEffect, useState } from "react";
 
 import { parseQueryAst, type QueryAst } from "@notees/query";
 
-import { NodeCollectionTabs, SECTION_DEFAULT_TAB, ViewSwitcher } from "../features/collection/index.js";
+import { NodeCollectionTabs, SECTION_DEFAULT_TAB } from "../features/collection/index.js";
+import { SelectionButton } from "../components/ui/fleet/SelectionButton.js";
 import { NodeCollectionBar } from "../features/collection/NodeCollectionBar.js";
 import {
   updateSectionViewAst,
@@ -44,9 +45,8 @@ import {
   type FilterQuery,
 } from "../features/collection/filterQuery.js";
 import type { AnyClient } from "../features/collection/index.js";
-import type { ViewMode } from "../features/collection/index.js";
 import { Button } from "../components/ui/fleet/Button.js";
-import { QueryResultsBody, isUnspecifiedQueryAst } from "./queryResults.js";
+import { QueryResultsBody, isUnspecifiedQueryAst, type QueryViewMode } from "./queryResults.js";
 import { useQueryRun } from "./queryRun.js";
 import { appendQueryToken, updateQueryTokenAst } from "./queryTokens.js";
 import { buildQueryExportMarkdown, downloadTextFile, queryExportFileName } from "./queryExport.js";
@@ -101,8 +101,9 @@ export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectio
 
   const [tab, setTab] = useState<string>(SECTION_DEFAULT_TAB);
   const [draft, setDraft] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
-  /** View modes are transient surface state. */
-  const [viewMode, setViewMode] = useState<ViewMode>("outline");
+  /** View modes are transient surface state —
+      the pivot's dimensions and measure are transient too (QueryPivot). */
+  const [viewMode, setViewMode] = useState<QueryViewMode>("outline");
 
   // The node's main query surface: the empty section key.
   const { views } = useSectionViews(client, nodeId, "");
@@ -181,10 +182,22 @@ export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectio
         activeCount={resultCount}
         trailing={
           <>
-            <ViewSwitcher
-              modes={["outline", "table"]}
-              value={viewMode === "table" ? "table" : "outline"}
-              onChange={setViewMode}
+            {/* The results' three transient modes — the kit SelectionButton
+                directly (pivot is a query-results view, NOT a collection
+                registry mode, so the registry-backed ViewSwitcher cannot
+                name it). */}
+            <SelectionButton
+              options={[
+                { value: "outline", icon: "mdi-format-list-bulleted", label: "Outline" },
+                { value: "table", icon: "mdi-table", label: "Table" },
+                { value: "pivot", icon: "mdi-table-pivot", label: "Pivot" },
+              ]}
+              value={viewMode}
+              onChange={(value) => setViewMode(value as QueryViewMode)}
+              size="sm"
+              maxVisibleOptions={4}
+              aria-label="View mode"
+              className="view-switcher"
             />
             <Button
               type="button"
