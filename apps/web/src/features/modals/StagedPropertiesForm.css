@@ -1,0 +1,22 @@
+/**
+ * StagedPropertiesForm styles — the quick-create modal's dynamic properties
+ * form: one controlled row per bound property, the non-TextField rows (select,
+ * boolean) carrying their own label line. Token-only.
+ */
+
+.staged-properties-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.staged-properties-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.staged-properties-form__label {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}

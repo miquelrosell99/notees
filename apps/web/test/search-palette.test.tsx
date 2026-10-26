@@ -30,7 +30,7 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { chainNodeIds, deriveDisplayName } from "@notees/domain";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
@@ -430,7 +430,7 @@ describe("NodeSelector class refine", () => {
     expect(screen.queryByText(/^Create "/)).toBeNull();
   });
 
-  it("spaced class names resolve greedily; the create row carries the refined class", async () => {
+  it("spaced class names resolve greedily; the create row opens the class modal", async () => {
     const client = await seedClient();
     const myClassId = await createTitledClass(client, "My Class");
     await client.createObject({ isEmbedded: false, name: "Ada Lovelace", classIds: [myClassId] });
@@ -442,8 +442,11 @@ describe("NodeSelector class refine", () => {
     // The create row answers the REST of the query, not the raw prefix.
     const createRow = await screen.findByText('Create "lovelace"');
     fireEvent.click(createRow);
-    // The picker clears its query on create; assert the created node through
-    // the client once the async create lands.
+    // The class pick opens the class-driven modal: the
+    // typed remainder seeds the title, the refined class is fixed.
+    const dialog = await screen.findByRole("dialog", { name: /new my class/i });
+    expect((within(dialog).getByLabelText("Title") as HTMLInputElement).value).toBe("lovelace");
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
     await waitFor(() => {
       const created = client.listPages().find((n) => deriveDisplayName(n) === "lovelace");
       expect(created).not.toBeUndefined();
@@ -654,10 +657,13 @@ describe("NodeSelector `/` filter mode", () => {
     // The empty-query member listing: only the class's members.
     expect(await screen.findByText("Dune")).not.toBeNull();
     expect(screen.queryByText("Gardening Annual")).toBeNull();
-    // The create row carries the chip's class.
+    // The create row carries the chip's class into the modal.
     fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Dune Messiah" } });
     const createRow = await screen.findByText('Create "Dune Messiah"');
     fireEvent.click(createRow);
+    const dialog = await screen.findByRole("dialog", { name: /new fiction/i });
+    expect((within(dialog).getByLabelText("Title") as HTMLInputElement).value).toBe("Dune Messiah");
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
     await waitFor(() => {
       const created = client.listPages().find((n) => deriveDisplayName(n) === "Dune Messiah");
       expect(created).not.toBeUndefined();

@@ -1,12 +1,13 @@
 /**
  * AddSourceDialog — the add-source flow's small dialog (* source-library slice 3 task 6): ONE input accepting a DOI, ISBN, arXiv
  * id/URL, plain URL, or a PDF file. On resolve success the QuickCreateModal
- * opens PREFILLED from the unified record (class from classKey, title,
- * authors/editors as monoblock text, the class's venue fields, year, DOI,
- * ISBN, URL, publisher) — one create completes the gesture. On failure the
- * error is inline and honest: nothing half-creates (the create only ever
- * runs on a fully resolved record), a 403 resolver_disabled points at the
- * Sources settings, a 422 no_identifier_found says the PDF carried no DOI.
+ * opens PREFILLED from the unified record (seeded staged values keyed by
+ * property schema id — title, authors/editors as monoblock text, year,
+ * DOI, ISBN, URL, publisher, the class's venue fields) — one create
+ * completes the gesture. On failure the error is inline and honest: nothing
+ * half-creates (the create only ever runs on a fully resolved record), a
+ * 403 resolver_disabled points at the Sources settings, a 422
+ * no_identifier_found says the PDF carried no DOI.
  *
  * Routing by input shape (features/sources/resolver.ts): doi/isbn/arxiv →
  * GET /api/resolve; a plain URL → POST /api/resolve/pdf?url= (the owner's
@@ -22,18 +23,19 @@
  * document icon + name + category chip + size). The bare native file input
  * ("Examinar") retired with this composition pass.
  *
- * The dialog's second step IS the QuickCreateModal (sourcePrefill), so the
- * duplicate-DOI warning, the archived-class auto-enable (un-archive + create
- * in ONE undo batch), and the auto-citekey all live in the one place.
+ * The dialog's second step IS the QuickCreateModal (the class-driven create
+ * form, prefill prop), so the duplicate DOI/ISBN/citekey warning, the
+ * archived-class auto-enable (un-archive + create + property writes in ONE
+ * undo batch), and the auto-citekey all live in the one place.
  */
 
 import { useEffect, useId, useRef, useState } from "react";
 
-import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { AnyClient } from "../modals/quickCreate.js";
 import { readSourceSettings } from "../modals/quickCreate.js";
-import { QuickCreateModal, type SourcePrefill } from "../modals/QuickCreateModal.js";
+import { QuickCreateModal, type QuickCreatePrefill } from "../modals/QuickCreateModal.js";
 import { CATEGORY_LABELS, categoryOf, formatSize } from "../modals/AssetUploadModal.js";
 import { Modal } from "../../components/ui/fleet/Modal.js";
 import { Button } from "../../components/ui/fleet/Button.js";
@@ -67,29 +69,45 @@ export interface AddSourceDialogProps {
 }
 
 interface PrefilledState {
-  prefill: SourcePrefill;
+  classId: string;
+  prefill: QuickCreatePrefill;
 }
 
-/** Map the unified record onto the modal's prefill (the pdf intent halves). */
-function prefillOf(record: ResolvedSourceRecord, pdfFile: File | null): SourcePrefill {
-  // The record's own type picks the prefill class (the resolver knows the
-  // work's type better than any caller guess).
-  const classId =
+/** The record's own type picks the prefill class (the resolver knows the
+ *  work's type better than any caller guess). */
+function resolveClassId(record: ResolvedSourceRecord): string {
+  return (
     SYSTEM_CLASS_UUIDS[record.classKey as keyof typeof SYSTEM_CLASS_UUIDS] ??
-    SYSTEM_CLASS_UUIDS.book;
+    SYSTEM_CLASS_UUIDS.book
+  );
+}
+
+/** Map the unified record onto the modal's staged prefill (the pdf intent halves). */
+function prefillOf(record: ResolvedSourceRecord, pdfFile: File | null): QuickCreatePrefill {
+  const values: Record<string, string> = {};
+  const seed = (name: keyof typeof SYSTEM_PROPERTY_UUIDS, value: string | undefined): void => {
+    if (value !== undefined && value.trim() !== "") values[SYSTEM_PROPERTY_UUIDS[name]] = value;
+  };
+  seed("authors", record.authors.join("; "));
+  seed("editors", record.editors.join("; "));
+  if (record.year !== undefined) seed("publicationDate", String(record.year));
+  seed("doi", record.doi ?? undefined);
+  seed("isbn", record.isbn ?? undefined);
+  // The URL-mode PDF's direct link is the honest full-text URL — it wins
+  // over the provider's landing page (the user pasted the PDF link).
+  seed("url", record.pdf?.url ?? record.url ?? undefined);
+  seed("publisher", record.publisher ?? undefined);
+  // The class's venue fields ride by pool property name (only names the
+  // seed manifest knows map onto reserved schema ids; the modal's citation
+  // self-heal authors the schemas + class-local bindings for them).
+  for (const [name, value] of Object.entries(record.fields)) {
+    const schemaId =
+      SYSTEM_PROPERTY_UUIDS[name as keyof typeof SYSTEM_PROPERTY_UUIDS];
+    if (schemaId !== undefined && value.trim() !== "") values[schemaId] = value;
+  }
   return {
-    classId,
     title: record.title,
-    authorsText: record.authors.join("; "),
-    editorsText: record.editors.length > 0 ? record.editors.join("; ") : "",
-    year: record.year !== undefined ? String(record.year) : "",
-    doi: record.doi ?? "",
-    isbn: record.isbn ?? "",
-    // The URL-mode PDF's direct link is the honest full-text URL — it wins
-    // over the provider's landing page (the user pasted the PDF link).
-    url: record.pdf?.url ?? record.url ?? "",
-    publisher: record.publisher ?? "",
-    fields: record.fields,
+    values,
     pdf: pdfFile !== null ? { file: pdfFile, filename: pdfFile.name } : null,
   };
 }
@@ -143,10 +161,10 @@ export function AddSourceDialog({
     try {
       if (file !== null) {
         const record = await resolvePdfFile(serverUrl, credential, file, file.name);
-        setPrefilled({ prefill: prefillOf(record, file) });
+        setPrefilled({ classId: resolveClassId(record), prefill: prefillOf(record, file) });
       } else {
         const record = await resolveSourceInput(serverUrl, credential, input);
-        setPrefilled({ prefill: prefillOf(record, null) });
+        setPrefilled({ classId: resolveClassId(record), prefill: prefillOf(record, null) });
       }
     } catch (caught) {
       if (caught instanceof ResolverRequestError && caught.code === "resolver_disabled") {
@@ -164,28 +182,48 @@ export function AddSourceDialog({
   // The manual path: a failed (or resolver-off) Add never dead-ends — the
   // error region offers "Add manually", landing in the same citation form
   // with a best-effort prefill from what was typed or picked.
-  const manualPrefillOf = (raw: string, picked: File | null): SourcePrefill => {
-    const base: SourcePrefill = {
+  const manualPrefillOf = (raw: string, picked: File | null): PrefilledState => {
+    const base: PrefilledState = {
       classId: SYSTEM_CLASS_UUIDS.book,
-      title: "",
-      authorsText: "",
-      fields: {},
-      ...(picked !== null ? { pdf: { file: picked, filename: picked.name } } : {}),
+      prefill: {
+        title: "",
+        values: {},
+        ...(picked !== null ? { pdf: { file: picked, filename: picked.name } } : {}),
+      },
     };
     const classified = classifySourceInput(raw);
     if (classified === null) {
-      return { ...base, title: raw.trim() };
+      return { ...base, prefill: { ...base.prefill, title: raw.trim() } };
     }
     switch (classified.kind) {
       case "doi":
-        return { ...base, doi: classified.value };
+        return {
+          ...base,
+          prefill: { ...base.prefill, values: { [SYSTEM_PROPERTY_UUIDS.doi]: classified.value } },
+        };
       case "isbn":
-        return { ...base, isbn: classified.value };
+        return {
+          ...base,
+          prefill: { ...base.prefill, values: { [SYSTEM_PROPERTY_UUIDS.isbn]: classified.value } },
+        };
       case "arxiv":
-        return { ...base, url: `https://arxiv.org/abs/${classified.value}` };
+        return {
+          ...base,
+          prefill: {
+            ...base.prefill,
+            values: { [SYSTEM_PROPERTY_UUIDS.url]: `https://arxiv.org/abs/${classified.value}` },
+          },
+        };
       case "url":
         // The weblink convention: the URL is the title.
-        return { ...base, classId: SYSTEM_CLASS_UUIDS.web_page, title: raw.trim(), url: classified.url };
+        return {
+          classId: SYSTEM_CLASS_UUIDS.web_page,
+          prefill: {
+            ...base.prefill,
+            title: raw.trim(),
+            values: { [SYSTEM_PROPERTY_UUIDS.url]: classified.url },
+          },
+        };
     }
   };
 
@@ -196,9 +234,8 @@ export function AddSourceDialog({
       <QuickCreateModal
         isOpen
         client={client}
-        kind="source"
-        defaultClassId={prefilled.prefill.classId}
-        sourcePrefill={prefilled.prefill}
+        classId={prefilled.classId}
+        prefill={prefilled.prefill}
         onClose={onClose}
         onCreated={(nodeId) => {
           onClose();
@@ -303,7 +340,7 @@ export function AddSourceDialog({
               variant="outline"
               size="sm"
               disabled={busy || (input.trim() === "" && file === null)}
-              onClick={() => setPrefilled({ prefill: manualPrefillOf(input, file) })}
+              onClick={() => setPrefilled(manualPrefillOf(input, file))}
             >
               Add manually
             </Button>

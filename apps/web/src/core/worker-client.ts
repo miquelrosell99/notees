@@ -732,16 +732,18 @@ export class WorkerClient {
   }
 
   /**
-   * The add-source create gesture: an archived class un-archive + the
-   * object.create ride ONE worker-side undo batch (the modal cannot ship a
-   * closure across the RPC, so the gesture is a concrete data payload).
+   * The classed-create gesture: an archived class un-archive + the
+   * object.create + the staged property writes ride ONE worker-side undo
+   * batch (the modal cannot ship a closure across the RPC, so the gesture
+   * is a concrete data payload).
    */
-  async beginSourceCreate(input: {
+  async beginClassedCreate(input: {
     classId: string;
     title: string;
     unarchive: boolean;
+    properties?: Array<{ propertySchemaId: string; value: unknown; idx?: number }>;
   }): Promise<string> {
-    return (await this.call("beginSourceCreate", [input])) as string;
+    return (await this.call("beginClassedCreate", [input])) as string;
   }
 
   async deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void> {
