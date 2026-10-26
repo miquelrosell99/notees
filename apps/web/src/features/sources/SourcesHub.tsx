@@ -3,17 +3,19 @@
  * Zotero-parity library surface. The shell composes the shared
  * MainContentFrame: the fleet SurfaceTopBar names the surface AND carries the
  * hub chrome: the panel toggles ride
- * the bar's LEADING cluster — before the title, the general hub convention
- * — the live filtered count renders as a fleet Badge next to the title
- * (the `titleExtra` slot; the retired "N sources" text), and the actions
- * cluster carries the search box alone (the exports/Add-source/settings
- * doors retired — creation rides the global New flow, whose class-pick
- * routing resolves source-family classes into the add-source dialog and
- * the asset class into the upload modal). The left pane hosts the
- * source-type facets, the middle cell the items table, the right pane the
- * type-aware detail editor — rendered ONLY while a selection exists (the
- * toggle AND the selection: no selection, no pane, no "Select a source"
- * empty state).
+ * the bar split by panel side: the facets (left-panel) toggle rides
+ * the LEADING cluster, before the title; the detail (right-panel) toggle
+ * rides the new additive `trailing` cluster — after the actions cluster,
+ * last in the bar — while the live filtered count renders as a fleet
+ * Badge next to the title (the `titleExtra` slot; the retired "N sources"
+ * text), and the actions cluster carries the search box alone (the
+ * exports/Add-source/settings doors retired — creation rides the global
+ * New flow, whose class-pick routing resolves source-family classes into
+ * the add-source dialog and the asset class into the upload modal). The
+ * left pane hosts the source-type facets, the middle cell the items
+ * table, the right pane the type-aware detail editor — rendered ONLY
+ * while a selection exists (the toggle AND the selection: no selection,
+ * no pane, no "Select a source" empty state).
  *
  * Law 9 — /sources owns its URL AND its tab title: the route registers in
  * the nav table, and the `?type=&q=&sort=` query-string state parses and
@@ -188,30 +190,17 @@ export function SourcesHub({
         topBar={
           <SurfaceTopBar
             leading={
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  icon="mdi-dock-left"
-                  aria-label={facetsToggleLabel}
-                  aria-pressed={facetsPanelOpen}
-                  title={facetsToggleLabel}
-                  active={facetsPanelOpen}
-                  onClick={() => setFacetsPanelOpen(!facetsPanelOpen)}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  icon="mdi-dock-right"
-                  aria-label={detailToggleLabel}
-                  aria-pressed={detailVisible}
-                  title={detailToggleLabel}
-                  active={detailVisible}
-                  onClick={() => setDetailPanelOpen(!detailPanelOpen)}
-                />
-              </>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon="mdi-dock-left"
+                aria-label={facetsToggleLabel}
+                aria-pressed={facetsPanelOpen}
+                title={facetsToggleLabel}
+                active={facetsPanelOpen}
+                onClick={() => setFacetsPanelOpen(!facetsPanelOpen)}
+              />
             }
             icon="mdi-bookshelf"
             title="Sources"
@@ -226,6 +215,19 @@ export function SourcesHub({
               client !== undefined ? (
                 <SourcesToolbar qInput={qInput} onQInput={setQInput} />
               ) : undefined
+            }
+            trailing={
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon="mdi-dock-right"
+                aria-label={detailToggleLabel}
+                aria-pressed={detailVisible}
+                title={detailToggleLabel}
+                active={detailVisible}
+                onClick={() => setDetailPanelOpen(!detailPanelOpen)}
+              />
             }
           />
         }
