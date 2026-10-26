@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): destructive confirmations compose the soft danger register
+ (resolves the audit's soft-vs-solid
+  contradiction in the skill's favor).** `ConfirmationModal`'s danger
+  confirm was the last `danger-solid` (filled) holdout; it now composes the
+  soft `danger` variant (translucent error wash + error text at rest,
+  solid on hover) — the same register the skill's template composes and
+  the settings row Disconnect already rides. `danger-solid` stays in the
+  Button register (bridge fixture contract) but nothing composes it by
+  default. The fleet audit (same session) found the contradiction; this
+  ruling answers it. Verified: `ui-primitives` spec rewritten (pins
+  `bg-error-soft`/`text-error`); 43 targeted specs green; capture of the
+  disconnect confirm shows the soft register.
+
 - **test(server): the search-freshness contract pinned — acknowledged writes
   are immediately visible on every search surface (verified live: no server
   lag exists).** Reported as read-after-write staleness on `/api/search`,
