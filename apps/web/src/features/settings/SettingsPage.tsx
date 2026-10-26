@@ -11,13 +11,15 @@
  * open this page (Appearance) directly, and the palette's Toggle theme
  * command flips light/dark without opening it.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { AccountUser } from "@/core/auth-api.js";
 
 import { Button } from "../../components/ui/fleet/Button.js";
 import { Card } from "../../components/ui/fleet/Card.js";
 import { BooleanToggle } from "../../components/ui/fleet/BooleanToggle.js";
+import { Pill } from "../../components/ui/fleet/Pill.js";
+import { Radio, RadioGroup } from "../../components/ui/fleet/Radio.js";
 import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
 import { TextField } from "../../components/ui/fleet/TextField.js";
 import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
@@ -471,6 +473,36 @@ interface SyncSectionProps {
 function SyncSection({ serverUrl, syncConnected, onForgetServer, onConnectServer }: SyncSectionProps) {
   const [syncServerDraft, setSyncServerDraft] = useState(serverUrl);
   const [forgetConfirmOpen, setForgetConfirmOpen] = useState(false);
+  // Device-local registry of every sync server address this device has seen.
+  // The current server always leads the list and is remembered on first
+  // sight, so it survives a later disconnect.
+  const [knownServers, setKnownServers] = useDeviceSetting<string[]>("knownSyncServers", []);
+
+  useEffect(() => {
+    if (serverUrl !== "" && !knownServers.includes(serverUrl)) {
+      setKnownServers([serverUrl, ...knownServers]);
+    }
+  }, [serverUrl, knownServers, setKnownServers]);
+
+  const servers =
+    serverUrl !== ""
+      ? [serverUrl, ...knownServers.filter((url) => url !== serverUrl && url.trim() !== "")]
+      : knownServers.filter((url) => url.trim() !== "");
+
+  const removeServer = (url: string) => {
+    if (url === serverUrl) {
+      // Removing the active server IS the disconnect flow — same confirm.
+      setForgetConfirmOpen(true);
+      return;
+    }
+    setKnownServers(knownServers.filter((known) => known !== url));
+  };
+
+  const rememberAndConnect = (url: string) => {
+    if (!knownServers.includes(url)) setKnownServers([...knownServers, url]);
+    onConnectServer(url);
+  };
+
   return (
     <>
       <div className="settings-section">
@@ -491,18 +523,51 @@ function SyncSection({ serverUrl, syncConnected, onForgetServer, onConnectServer
               {syncConnected ? "Connected" : "Unavailable"}
             </span>
           </div>
-        </Card>
-      </div>
 
-      <div className="settings-section">
-        <h3 className="settings-section__title">Disconnect</h3>
-        <Card>
-          <p className="settings-section__description">
-            Forgetting this server signs you out on this device; local data stays.
-          </p>
-          <Button variant="danger" size="md" onClick={() => setForgetConfirmOpen(true)}>
-            Disconnect &amp; forget this server
-          </Button>
+          <div className="settings-server-list">
+            <RadioGroup
+              name="sync-server"
+              value={serverUrl}
+              aria-label="Known sync servers"
+              onValueChange={(value) => {
+                if (value !== serverUrl) onConnectServer(value);
+              }}
+            >
+              {servers.map((url) => (
+                <div key={url} className="settings-server-row">
+                  <Radio
+                    value={url}
+                    label={url}
+                    size="sm"
+                    className="settings-server-row__radio"
+                  />
+                  {url === serverUrl ? (
+                    <Pill
+                      text="Current"
+                      className="settings-server-row__flag"
+                      leftIcon={<Icon path="mdi-flag-outline" size={0.75} />}
+                    />
+                  ) : null}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon="mdi mdi-trash-can-outline"
+                    aria-label={`Remove ${url}`}
+                    onClick={() => removeServer(url)}
+                  />
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+
+          <div className="settings-server-actions">
+            <p className="settings-section__description">
+              Forgetting this server signs you out on this device; local data stays.
+            </p>
+            <Button variant="danger" size="md" onClick={() => setForgetConfirmOpen(true)}>
+              Disconnect
+            </Button>
+          </div>
         </Card>
       </div>
 
@@ -510,7 +575,8 @@ function SyncSection({ serverUrl, syncConnected, onForgetServer, onConnectServer
         <h3 className="settings-section__title">Connect to a Different Server</h3>
         <Card>
           <p className="settings-section__description">
-            Probe a different sync server — on success you sign in there.
+            Probe a different sync server — on success you sign in there and it joins the
+            list above.
           </p>
           <div className="settings-item">
             <TextField
@@ -524,7 +590,7 @@ function SyncSection({ serverUrl, syncConnected, onForgetServer, onConnectServer
               variant="primary"
               size="md"
               disabled={syncServerDraft.trim() === ""}
-              onClick={() => onConnectServer(syncServerDraft.trim())}
+              onClick={() => rememberAndConnect(syncServerDraft.trim())}
             >
               Connect
             </Button>
@@ -540,6 +606,7 @@ function SyncSection({ serverUrl, syncConnected, onForgetServer, onConnectServer
         confirmLabel="Disconnect"
         onConfirm={() => {
           setForgetConfirmOpen(false);
+          setKnownServers(knownServers.filter((known) => known !== serverUrl));
           onForgetServer();
         }}
         onCancel={() => setForgetConfirmOpen(false)}
