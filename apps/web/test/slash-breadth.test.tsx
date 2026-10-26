@@ -113,7 +113,7 @@ async function setupPageWithBlock(): Promise<{
 }
 
 describe("slash /query", () => {
-  it("inserts a query token at the caret and opens the builder popover", async () => {
+  it("inserts a query token at the caret and opens the builder below the row", async () => {
     const { client, blockId, container } = await setupPageWithBlock();
     const editor = clickIntoBlock(container);
     typeSlashCommand(editor, "query");
@@ -134,9 +134,11 @@ describe("slash /query", () => {
         },
       });
     });
-    // …and the builder popover opened on the read-mode token view.
-    const builder = await screen.findByRole("dialog", { name: "Query builder" }, { timeout: 3000 });
-    expect(within(builder).getByText("Scope")).toBeInTheDocument();
+    // …and the toggleable builder section opened below the content row
+    //.
+    await waitFor(() => {
+      expect(container.querySelector(".nt-query-node .nt-node-collection-bar__panel")).not.toBeNull();
+    });
   });
 });
 
