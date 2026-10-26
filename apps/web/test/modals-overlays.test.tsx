@@ -1,10 +1,10 @@
 /**
  * Modals + overlays tests (jsdom): the ported dialogs render their legacy
  * chrome, write through the WorkspaceClient surface, and the export modal
- * builds its preview from the local @notees/export engine. The
- * BackendUnavailableOverlay toggles banner/lock off the sync status, and
- * the toast host connects the notification store to the presentational
- * toast.
+ * builds its preview from the local @notees/export engine. The toast host
+ * connects the notification store to the presentational toast. (The
+ * backend-down risk lock has its own dedicated suite:
+ * backend-down-lock.test.tsx.)
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -21,11 +21,9 @@ import { DuplicatePageModal } from "../src/features/modals/DuplicatePageModal.js
 import { CreatePageWithUuidModal } from "../src/features/modals/CreatePageWithUuidModal.js";
 import { QuickAddModal } from "../src/features/modals/QuickAddModal.js";
 import { WorkspaceNameModal } from "../src/features/workspaces/WorkspaceNameModal.js";
-import { BackendUnavailableOverlay } from "../src/components/ui/fleet/BackendUnavailableOverlay.js";
 import { LoadingSkeleton, Skeleton } from "../src/components/ui/fleet/LoadingSkeleton.js";
 import { NotificationToaster } from "../src/components/ui/fleet/NotificationToaster.js";
 import { notificationStore } from "../src/components/ui/fleet/notificationStore.js";
-import type { SyncStatusSnapshot } from "../src/core/workspace-client/index.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -68,17 +66,6 @@ async function makeClient(options: { serverUrl?: string; apiKey?: string } = {})
   await client.bootstrapWorkspace(WS);
   return client;
 }
-
-const OK_STATUS: SyncStatusSnapshot = {
-  status: "idle",
-  error: null,
-  pending: 0,
-  failed: 0,
-  quarantined: 0,
-  parked: 0,
-  realtime: false,
-  cursorSeq: 0,
-};
 
 /** Read a Blob's bytes in jsdom (whose Blob has no arrayBuffer()). */
 function readBlobBytes(blob: Blob): Promise<ArrayBuffer> {
@@ -1090,30 +1077,6 @@ describe("WorkspaceNameModal", () => {
     fireEvent.change(screen.getByLabelText(/workspace name/i), { target: { value: "  Garden  " } });
     fireEvent.click(screen.getByRole("button", { name: /^rename$/i }));
     expect(onSubmit).toHaveBeenCalledWith("Garden");
-  });
-});
-
-describe("BackendUnavailableOverlay", () => {
-  it("renders nothing while healthy, a banner on error, and a lock after dismiss", () => {
-    const { rerender } = render(<BackendUnavailableOverlay syncStatus={OK_STATUS} />);
-    expect(screen.queryByText(/backend unreachable/i)).not.toBeInTheDocument();
-
-    const errorStatus: SyncStatusSnapshot = { ...OK_STATUS, status: "error", error: "boom" };
-    rerender(<BackendUnavailableOverlay syncStatus={errorStatus} />);
-    const banner = screen.getByRole("status");
-    expect(banner).toHaveClass("backend-unavailable-banner");
-    expect(within(banner).getByText(/backend unreachable/i)).toBeInTheDocument();
-
-    fireEvent.click(within(banner).getByRole("button", { name: /dismiss/i }));
-
-    const lock = screen.getByLabelText(/backend is unavailable/i);
-    expect(lock).toHaveClass("backend-unavailable-overlay");
-    expect(within(lock).getByText(/no longer safe/i)).toBeInTheDocument();
-    expect(within(lock).getByRole("button", { name: /continue anyway/i })).toBeInTheDocument();
-
-    // Recovery clears the lock again.
-    rerender(<BackendUnavailableOverlay syncStatus={OK_STATUS} />);
-    expect(screen.queryByLabelText(/backend is unavailable/i)).not.toBeInTheDocument();
   });
 });
 

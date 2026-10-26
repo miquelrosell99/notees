@@ -9,6 +9,47 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(web): the edit-thread overlay's deferred settle pass no longer
+  crashes the frame when it races teardown — the blocking gate's recurring
+  unhandled error is gone.** `EditThread`'s 220 ms settling re-measure (and
+  a rAF frame queued just before unmount) can run after the editing node was
+  deleted — the Shift+Tab outdent and the ArrowDown/ArrowUp edit-handoff
+  remount the row — or after the client closed (test teardown), and the
+  store is fail-loud, so the chain read threw instead of yielding undefined;
+  vitest attributed the unhandled error to whatever test happened to be
+  running, which twice in a row failed an otherwise-green full web suite.
+  The overlay is best-effort decoration: the chain read is now guarded (a
+  torn-down chain renders no path) and the deferred schedules check a
+  disposed flag. Verified by the full web suite (197 files green twice in a
+  row after the fix; pre-fix it failed 2/2 with the same error, attributed
+  to two different tests).
+
+- **feat(web): the backend-down banner is gone — outage status lives on the
+  avatar's sync badge, and a risk-gated lock replaces the banner→dismiss→lock
+  ladder.** The
+  `BackendUnavailableOverlay` escalation ladder (dismissible banner →
+  full-screen lock on dismiss → non-dismissible persistent banner after the
+  escape hatch) interrupted the shell on every outage however brief. Now the
+  shell stays clean through short outages — the sync badge (red error state
+  on the profile avatar's corner) plus the account popup's Sync entry carry
+  the at-a-glance signal — and `BackendDownLock` renders the full-screen
+  lock, with the same honest risk statement and "Continue anyway" escape,
+  only once local work crosses into genuine risk: the outage has outlasted a
+  10-minute grace window (routine restarts/deploys finish well inside it) or
+  the local backlog (pending + failed ops) has crossed 200, either prong
+  regardless of the other. "Continue anyway" acknowledges the risk once per
+  outage and returns to the shell — there is no persistent-banner rung; the
+  next outage is gated anew after recovery. Web-only surface (no wire/model
+  change — no fixture gate). Component renamed
+  `BackendUnavailableOverlay` → `BackendDownLock` (fleet barrel, AppOverlays,
+  dedicated suite rewritten as `backend-down-lock.test.tsx`, the duplicated
+  overlay block retired from `modals-overlays.test.tsx`); docs updated
+  (`docs/features/offline-and-sync.md` ladder section, the
+  `ui-primitives.md` feedback listing, the boot-flow comment). Verified by
+  the rewritten jsdom suite (silent inside the grace window, immediate lock
+  on backlog threshold, self-tripping lock at the grace boundary under fake
+  timers, escape hatch, recovery reset) plus the repo gate.
+
 - **fix(web): two links in one edit session no longer lose the first — the
   editor computes every content write from an authoritative committed-AST
   base instead of the (stale) React prop; plus two gesture latency cuts

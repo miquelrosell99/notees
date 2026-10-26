@@ -1,7 +1,7 @@
 /**
  * AppOverlays — the shell's always-on status layer: the in-process store
  * banner, the sync-details modal, the admin workspace-settings modal, the
- * backend-unavailable overlay, and the notification toaster. Pure
+ * backend-down risk lock, and the notification toaster. Pure
  * composition: every behavior arrives via props from App.
  */
 
@@ -17,7 +17,7 @@ import { SyncDetailsModal } from "../../features/modals/SyncDetailsModal.js";
 import { WorkspaceSettingsModal } from "../../features/workspaces/WorkspaceSettingsModal.js";
 import { WorkspaceSettingsHost } from "../../features/workspaces/WorkspaceSettingsHost.js";
 import { requestAddSource } from "../../features/sources/AddSourceHost.js";
-import { BackendUnavailableOverlay } from "../../components/ui/fleet/BackendUnavailableOverlay.js";
+import { BackendDownLock } from "../../components/ui/fleet/BackendDownLock.js";
 import { NotificationToaster } from "../../components/ui/fleet/NotificationToaster.js";
 
 export interface AppOverlaysProps {
@@ -83,7 +83,7 @@ export function AppOverlays(props: AppOverlaysProps) {
           }}
         />
       )}
-      <BackendUnavailableOverlay syncStatus={syncStatus} />
+      <BackendDownLock syncStatus={syncStatus} />
       <NotificationToaster />
       {/* The workspace-settings modal's app-level host: any surface
           requesting the modal (the AddSourceDialog's resolver-disabled

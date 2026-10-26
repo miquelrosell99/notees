@@ -88,10 +88,11 @@ trails were the pattern's origin).
 
 Feedback & status: `Spinner`, `LoadingScreen`/`LoadingSkeleton`,
 `DataStateView`, `EmptyState`, `NotificationToast` (+ `NotificationToaster`
-and `notificationStore.ts`), `Badge`, `BackendUnavailableOverlay` (the
-backend-down ladder: dismissible banner → lock with a "Continue anyway"
-escape → persistent banner), `InProcessStoreBanner` (the
-in-process-store warning bar).
+and `notificationStore.ts`), `Badge`, `BackendDownLock` (the backend-down
+risk gate: full-screen lock with a "Continue anyway" escape once an outage
+outlasts the grace window or the local backlog crosses the risk threshold —
+the outage's at-a-glance signal is the avatar's sync badge, not a banner),
+`InProcessStoreBanner` (the in-process-store warning bar).
 
 Structure & surfaces: `Card`, `Tabs`, `Modal`, `ImageModal`,
 `ConfirmationModal`, `ContextMenu` (two submenu forms on one primitive —

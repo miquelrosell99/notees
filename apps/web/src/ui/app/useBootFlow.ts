@@ -120,9 +120,9 @@ export function useBootFlow(
           // sign-in screen). A server that does not answer — network failure
           // or any non-401 response — keeps the credential and opens the
           // remembered workspace from its local copy instead: the worker
-          // boots from local bytes even with the relay down, the sync-status
-          // banner says "working locally until it recovers", and the
-          // realtime reconnect catches up when the server returns.
+          // boots from local bytes even with the relay down, the avatar's
+          // sync badge reports the outage, and the realtime reconnect
+          // catches up when the server returns.
           if (
             err instanceof AuthRequestError &&
             (err.status === 401 || err.status === 403)

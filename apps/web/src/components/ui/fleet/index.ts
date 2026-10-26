@@ -36,8 +36,8 @@ export { NotificationToaster } from './NotificationToaster.js';
 export { notificationStore, useNotificationList, useNotifications } from './notificationStore.js';
 export type { Notification, NotificationType } from './notificationStore.js';
 
-export { BackendUnavailableOverlay } from './BackendUnavailableOverlay.js';
-export type { BackendUnavailableOverlayProps } from './BackendUnavailableOverlay.js';
+export { BackendDownLock, OUTAGE_GRACE_MS, RISK_BACKLOG_OPS } from './BackendDownLock.js';
+export type { BackendDownLockProps } from './BackendDownLock.js';
 
 export { InProcessStoreBanner } from './InProcessStoreBanner.js';
 
