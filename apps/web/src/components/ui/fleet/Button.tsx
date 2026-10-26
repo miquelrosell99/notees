@@ -94,7 +94,7 @@ const buttonVariants = cva(
           "active:bg-primary-pressed active:border-primary-pressed",
         ].join(" "),
         outline: [
-          "bg-transparent border-input text-on-surface-variant",
+          "bg-surface-container-low border-input text-on-surface-variant",
           "hover:bg-hover-overlay hover:text-on-surface",
           "active:bg-surface-container-high active:border-outline",
         ].join(" "),
@@ -104,9 +104,9 @@ const buttonVariants = cva(
           "active:bg-surface-container-high active:border-outline-variant active:text-on-surface",
         ].join(" "),
         danger: [
-          "bg-transparent border-error text-error",
-          "hover:bg-error-container",
-          "active:bg-error-container",
+          "bg-error-container border-transparent text-error",
+          "hover:bg-error hover:border-error hover:text-on-error",
+          "active:bg-error-pressed active:border-error-pressed active:text-on-error",
         ].join(" "),
         'danger-solid': [
           "bg-error border-error text-on-error",
@@ -134,7 +134,7 @@ const ACTIVE_CLASSES: Record<ButtonVariant, string> = {
   primary: "bg-primary-pressed border-primary-pressed text-on-primary hover:bg-primary-pressed",
   outline: "bg-surface-container-active border-input text-on-surface hover:bg-surface-container-active",
   ghost: "bg-surface-container-active border-outline-variant text-on-surface hover:bg-surface-container-active",
-  danger: "bg-error-container border-error text-error hover:bg-error-container",
+  danger: "bg-error border-error text-on-error hover:bg-error hover:border-error",
   'danger-solid': "bg-error-pressed border-error-pressed text-on-error hover:bg-error-pressed",
 };
 
