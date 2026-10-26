@@ -363,7 +363,6 @@ function viewRow(partial: Partial<SectionView> & { id: string }): SectionView {
     name: partial.id,
     sequence: 0,
     queryAst: astOf(),
-    viewMode: null,
     createdAt: 1,
     updatedAt: 1,
     ...partial,
@@ -493,7 +492,7 @@ let restCalls: { method: string; url: string; body?: unknown }[];
 function stubViewsFetch(): void {
   serverViews = [];
   restCalls = [];
-  const listPath = /\/api\/me\/nodes\/([^/]+)\/sections\/([^/]+)\/views(?:\/([^/]+)|\/order)?$/;
+  const listPath = /\/api\/nodes\/([^/]+)\/sections\/([^/]+)\/views(?:\/([^/]+)|\/order)?$/;
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     const match = listPath.exec(url);
     if (match === null) {
@@ -507,7 +506,7 @@ function stubViewsFetch(): void {
       return Response.json({ views: sectionViews().sort((a, b) => a.sequence - b.sequence) });
     }
     if (method === "POST" && match[3] === undefined) {
-      const input = body as { name: string; queryAst: unknown; viewMode?: string | null };
+      const input = body as { name: string; queryAst: unknown };
       const existing = sectionViews();
       if (existing.some((view) => view.name === input.name)) {
         return Response.json({ error: { code: "conflict" } }, { status: 409 });
@@ -519,7 +518,6 @@ function stubViewsFetch(): void {
         name: input.name,
         sequence: existing.reduce((max, entry) => Math.max(max, entry.sequence), -1) + 1,
         queryAst: input.queryAst,
-        viewMode: input.viewMode ?? null,
       });
       serverViews.push(view);
       return Response.json({ view }, { status: 201 });

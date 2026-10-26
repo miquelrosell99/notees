@@ -104,14 +104,16 @@ export class WorkspaceClientServer {
     return { ...merged, source: "local" };
   }
 
-  // --- per-user hosted section views (custom tabs — the prefs channel) --------
+  // --- node-scoped hosted views (custom tabs — the prefs channel) -------------
 
   private sectionViewsUrl(nodeId: string, sectionKey: string, suffix = ""): string {
     const { serverUrl } = this.requireRest();
-    return `${serverUrl.replace(/\/$/, "")}/api/me/nodes/${encodeURIComponent(nodeId)}/sections/${encodeURIComponent(sectionKey)}/views${suffix}`;
+    // The empty section key (a node's main query) travels as the "-" sentinel.
+    const key = sectionKey === "" ? "-" : sectionKey;
+    return `${serverUrl.replace(/\/$/, "")}/api/nodes/${encodeURIComponent(nodeId)}/sections/${encodeURIComponent(key)}/views${suffix}`;
   }
 
-  /** GET the section's custom views in tab order. Throws when the server answers non-ok. */
+  /** GET the surface's custom views in tab order. Throws when the server answers non-ok. */
   async listSectionViews(nodeId: string, sectionKey: string): Promise<SectionView[]> {
     const { apiKey } = this.requireRest();
     const response = await fetch(this.sectionViewsUrl(nodeId, sectionKey), {
@@ -125,13 +127,12 @@ export class WorkspaceClientServer {
     return normalizeSectionViewList(await response.json());
   }
 
-  /** POST a new view (appended after the last tab). Throws on 4xx/5xx (409 = name collision). */
+  /** POST a new view (appended after the last tab). Throws on 4xx/5xx (409 = name collision). No viewMode — view modes are transient surface state, not stored. */
   async createSectionView(input: {
     nodeId: string;
     sectionKey: string;
     name: string;
     queryAst: unknown;
-    viewMode?: string | null;
   }): Promise<SectionView> {
     const { apiKey } = this.requireRest();
     const response = await fetch(this.sectionViewsUrl(input.nodeId, input.sectionKey), {
@@ -140,7 +141,6 @@ export class WorkspaceClientServer {
       body: JSON.stringify({
         name: input.name,
         queryAst: input.queryAst,
-        ...(input.viewMode != null ? { viewMode: input.viewMode } : {}),
       }),
     });
     if (!response.ok) {

@@ -1055,9 +1055,9 @@ export class WorkerClient {
     return (await this.call("patchPrefs", [patch])) as UserPrefs & { source: UserPrefsSource };
   }
 
-  // --- per-user hosted section views (custom tabs — the prefs channel) --------
+  // --- node-scoped hosted views (custom tabs — the prefs channel) -------------
 
-  /** The section's custom views in tab order (REST through the worker). */
+  /** The surface's custom views in tab order (REST through the worker). */
   async listSectionViews(nodeId: string, sectionKey: string): Promise<SectionView[]> {
     return (await this.call("listSectionViews", [nodeId, sectionKey])) as SectionView[];
   }
@@ -1068,7 +1068,6 @@ export class WorkerClient {
     sectionKey: string;
     name: string;
     queryAst: unknown;
-    viewMode?: string | null;
   }): Promise<SectionView> {
     return (await this.call("createSectionView", [input])) as SectionView;
   }
