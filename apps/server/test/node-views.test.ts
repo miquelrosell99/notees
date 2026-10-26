@@ -326,6 +326,50 @@ describe("PATCH .../views/:viewId (rename)", () => {
     });
     expect(wrongSection.statusCode).toBe(404);
   });
+
+  it("rewrites a view's queryAST (with or without a rename) and validates it", async () => {
+    server = await makeTestServer();
+    const { token } = await setupUser();
+    const auth = { authorization: `Bearer ${token}` };
+    const created = server.ctx.auth.createNodeView({
+      nodeId: PAGE, sectionKey: "linked-references", name: "Q", queryAst: AST,
+    });
+
+    const rewrite = await server.app.inject({
+      method: "PATCH",
+      url: `${BASE}/${created.id}`,
+      headers: auth,
+      payload: { queryAst: AST_WITH_CONDITION },
+    });
+    expect(rewrite.statusCode).toBe(200);
+    expect(rewrite.json().view.name).toBe("Q");
+    expect(rewrite.json().view.queryAst).toEqual(AST_WITH_CONDITION);
+
+    const both = await server.app.inject({
+      method: "PATCH",
+      url: `${BASE}/${created.id}`,
+      headers: auth,
+      payload: { name: "Q2", queryAst: AST },
+    });
+    expect(both.statusCode).toBe(200);
+    expect(both.json().view).toMatchObject({ name: "Q2", queryAst: AST });
+
+    const badAst = await server.app.inject({
+      method: "PATCH",
+      url: `${BASE}/${created.id}`,
+      headers: auth,
+      payload: { queryAst: { version: 2 } },
+    });
+    expect(badAst.statusCode).toBe(422);
+
+    const empty = await server.app.inject({
+      method: "PATCH",
+      url: `${BASE}/${created.id}`,
+      headers: auth,
+      payload: {},
+    });
+    expect(empty.statusCode).toBe(422);
+  });
 });
 
 describe("PUT .../views/order (reorder)", () => {

@@ -886,13 +886,24 @@ export class AuthStorage {
     return this.getNodeView(id)!;
   }
 
-  /** Rename a view; the unique key maps collisions to 409 at the route. */
-  renameNodeView(viewId: string, name: string): NodeViewRow | null {
+  /** Patch a view's name and/or query; the unique key maps collisions to 409 at the route. */
+  patchNodeView(viewId: string, patch: { name?: string; queryAst?: unknown }): NodeViewRow | null {
     const current = this.getNodeView(viewId);
     if (current === null) return null;
     this.db
-      .prepare("UPDATE node_view SET name = ?, updated_at = ? WHERE id = ?")
-      .run(name, Date.now(), viewId);
+      .prepare(
+        `UPDATE node_view SET
+           name = COALESCE(?, name),
+           query_ast = COALESCE(?, query_ast),
+           updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(
+        patch.name ?? null,
+        patch.queryAst !== undefined ? JSON.stringify(patch.queryAst) : null,
+        Date.now(),
+        viewId,
+      );
     return this.getNodeView(viewId);
   }
 
