@@ -834,10 +834,12 @@ export function PageView({
 
   /**
    * The find-in-page bar (Ctrl/Cmd+F): docked sticky at the top of the page
-   * content column — in the panelled layout the nodeview body is the scroll
-   * box and the node top bar rides above it, so the bar mounts as the
-   * scroll box's first child (directly below the top bar); compact layouts
-   * mount it ahead of the header, sticky against whatever scrolls there.
+   * content column — in the panelled layout the cell wrapper
+   * (.nt-page-content) is the scroll box and the node top bar rides above
+   * it, so the bar mounts as the capped column's first child (directly
+   * below the top bar), sticking against the wrapper's scrollport;
+   * compact layouts mount it ahead of the header, sticky against whatever
+   * scrolls there.
    */
   const findInPageBar = findInPageOpen ? (
     <FindInPageBar
@@ -966,13 +968,16 @@ export function PageView({
               ) : undefined
             }
           >
-            {/* The journal-measure cap rides the host's own wrapper (the
-                frame's middle cell carries none): the content column caps
-                at 46rem and centers inside whatever space the panels leave. */}
+            {/* The cell wrapper (.nt-page-content) is the SCROLL box —
+                full middle-cell width so the scrollbar rides directly
+                beside the right side pane; the
+                journal-measure cap (46rem, centered in whatever space the
+                panels leave, spacing-6 inline padding) rides the capped
+                content column below. */}
             <div className="nt-page-content">
-              {/* The nodeview proper: auto height between the full-width
-                  top bar above the columns and the card bottom — it scrolls
-                  when the content outgrows the cell. The footer moved to the
+              {/* The nodeview proper: the capped, centered content column —
+                  it scrolls inside the full-width wrapper above when the
+                  content outgrows the cell. The footer moved to the
                   context column's bottom. */}
               <div className="nt-nodeview-body">
                 {findInPageBar}
