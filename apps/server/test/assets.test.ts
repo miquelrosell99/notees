@@ -18,6 +18,16 @@ const PNG = Buffer.concat([
   Buffer.from("notees-fake-png-payload"),
 ]);
 
+// ADTS frame header (0xFFF1 syncword) + payload — content sniffing is
+// inconclusive for ADTS, so acceptance rides the extension fallback.
+const AAC = Buffer.concat([
+  Buffer.from([0xff, 0xf1, 0x50, 0x80, 0x00, 0x1f, 0xfc]),
+  Buffer.from("notees-fake-aac-payload"),
+]);
+
+// Bytes with no magic-byte signature at all (zeros).
+const OPAQUE = Buffer.concat([Buffer.alloc(16, 0), Buffer.from("notees-opaque-payload")]);
+
 function multipartBody(bytes: Buffer, filename = "pixel.png", fields: Record<string, string> = {}): { payload: Buffer; contentType: string } {
   const boundary = "----noteestestboundary";
   const parts: Buffer[] = [];
@@ -132,6 +142,59 @@ describe("assets API", () => {
     expect(res.json().error.code).toBe("validation_failed");
   });
 
+  it("accepts an .aac (ADTS) file by audio extension fallback", async () => {
+    server = await makeTestServer();
+    const res = await upload(AAC, "2024-11-08-10-47-00.aac");
+    expect(res.statusCode).toBe(201);
+    const info = res.json();
+    expect(info.mimeType).toBe("audio/aac");
+    expect(info.size).toBe(AAC.length);
+    expect(info.originalName).toBe("2024-11-08-10-47-00.aac");
+  });
+
+  it("extension fallback is case-insensitive (.AAC)", async () => {
+    server = await makeTestServer();
+    const res = await upload(AAC, "VOICE.AAC");
+    expect(res.statusCode).toBe(201);
+    expect(res.json().mimeType).toBe("audio/aac");
+  });
+
+  it("sniffing still wins over the extension fallback", async () => {
+    server = await makeTestServer();
+    const res = await upload(PNG, "disguised.aac");
+    expect(res.statusCode).toBe(201);
+    expect(res.json().mimeType).toBe("image/png");
+  });
+
+  it("extension fallback covers .m4a/.ogg/.flac when sniffing is inconclusive", async () => {
+    server = await makeTestServer();
+    const cases: Array<[string, string]> = [
+      ["clip.m4a", "audio/mp4"],
+      ["clip.ogg", "audio/ogg"],
+      ["clip.flac", "audio/flac"],
+    ];
+    for (const [filename, mimeType] of cases) {
+      const res = await upload(OPAQUE, filename);
+      expect(res.statusCode, filename).toBe(201);
+      expect(res.json().mimeType, filename).toBe(mimeType);
+    }
+  });
+
+  it("extension-fallback audio rides the media size cap", async () => {
+    server = await makeTestServer({ maxMediaBytes: 8, maxDocumentBytes: 2048 });
+    const res = await upload(AAC, "big.aac");
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.message).toContain("size cap");
+  });
+
+  it("rejects an unknown-extension binary", async () => {
+    server = await makeTestServer();
+    const res = await upload(OPAQUE, "blob.bin");
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe("validation_failed");
+    expect(res.json().error.message).toContain("unsupported file type");
+  });
+
   it("enforces the media size cap", async () => {
     server = await makeTestServer({ maxMediaBytes: 1024, maxDocumentBytes: 2048 });
     const oversized = Buffer.concat([PNG, Buffer.alloc(1500)]);
@@ -232,5 +295,65 @@ describe("assets API", () => {
     );
     expect(statSync(path).isFile()).toBe(true);
     expect(readFileSync(path).equals(PNG)).toBe(true);
+  });
+
+  it("lists workspace assets newest-first with attached object ids", async () => {
+    server = await makeTestServer();
+    const object = (
+      await server.app.inject({
+        method: "POST",
+        url: "/api/objects",
+        headers: { "content-type": "application/json", ...server.authHeaders },
+        payload: { isEmbedded: false, name: "list host" },
+      })
+    ).json();
+    await upload(PNG, "first.png");
+    await upload(PNG, "second.png");
+    await upload(AAC, "voice.aac", { objectId: object.id });
+
+    const res = await server.app.inject({ method: "GET", url: "/api/assets", headers: server.authHeaders });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBe(3);
+    expect(body.assets).toHaveLength(3);
+    // newest first: the .aac upload is last
+    const first = body.assets[0];
+    expect(first.mimeType).toBe("audio/aac");
+    expect(first.originalName).toBe("voice.aac");
+    expect(first.size).toBe(AAC.length);
+    expect(first.objects).toEqual([object.id]);
+    const detached = body.assets[2];
+    expect(detached.originalName).toBe("first.png");
+    expect(detached.objects).toEqual([]);
+
+    const unauthenticated = await server.app.inject({ method: "GET", url: "/api/assets" });
+    expect(unauthenticated.statusCode).toBe(401);
+  });
+
+  it("list route honors limit and validates it", async () => {
+    server = await makeTestServer();
+    await upload(PNG, "a.png");
+    await upload(PNG, "b.png");
+    const limited = await server.app.inject({
+      method: "GET",
+      url: "/api/assets?limit=1",
+      headers: server.authHeaders,
+    });
+    expect(limited.statusCode).toBe(200);
+    expect(limited.json().assets).toHaveLength(1);
+    expect(limited.json().total).toBe(2);
+
+    const bad = await server.app.inject({
+      method: "GET",
+      url: "/api/assets?limit=0",
+      headers: server.authHeaders,
+    });
+    expect(bad.statusCode).toBe(422);
+    const huge = await server.app.inject({
+      method: "GET",
+      url: "/api/assets?limit=1001",
+      headers: server.authHeaders,
+    });
+    expect(huge.statusCode).toBe(422);
   });
 });

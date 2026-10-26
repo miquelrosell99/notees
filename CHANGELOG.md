@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(server): audio extension fallback on asset upload + a workspace
+  asset index route.** Uploads that fail magic-byte sniffing (jpeg/png/webp/
+  pdf/epub/audio) now get a second chance from the filename's extension:
+  `.aac`/`.m4a`/`.ogg`/`.flac` accept as audio (media size cap) — motivated
+  by a real voice memo (`2024-11-08-10-47-00.aac`, ADTS) rejected today
+  during a 153-file asset migration. Sniffing still wins whenever it answers
+  (a PNG named `.aac` stays `image/png`); genuinely unknown binaries still
+  reject 422 (`apps/server/src/assets.ts` `resolveAssetType`). New
+  `GET /api/assets?limit=` (default 100, max 1000) lists the workspace's
+  asset rows newest-first with ref counts and the attached object ids from
+  the derived `node_asset` projection (`RelayStorage.listAssets`/
+  `assetCount`, `apps/server/src/relay-storage.ts`); OpenAPI-documented
+  (`assets.read` scope). Tests: 7 new cases in `apps/server/test/assets.test.ts`
+  (aac fixture generated in-test, case-insensitive extension, sniff-wins,
+  m4a/ogg/flac fallback, media cap on fallback, unknown-binary reject, list +
+  limit validation) — 17/17 green plus coverage/taxonomy suites.
 - **feat(domain): colección (…0001-000000000032) extends `source` at the
   seed — the system-class mirror of the `regulación` user-class data op.**
   froze a system class's extends mapping as seeded

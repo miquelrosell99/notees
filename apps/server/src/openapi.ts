@@ -793,10 +793,18 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   }],
 
   // --- assets ---------------------------------------------------------------------------
-  ["post", "/api/assets", {
-    summary: "Multipart upload (magic-byte sniffed; CAS by sha256)",
+  ["get", "/api/assets", {
+    summary: "Workspace asset index (newest first, ?limit=1..1000, default 100)",
     description:
-      "Idempotency-Key is deliberately NOT honored here: identical bytes dedupe to one CAS hash, which is the honest idempotency story for uploads. Optional multipart field `objectId` emits an asset.attach envelope.",
+      "Every asset row for the workspace (dedupe note: identical bytes still create one asset row per upload) with the object ids each asset is attached to (from the derived node_asset projection). Response: { assets: [{ assetId, hash, mimeType, size, originalName, uploadedAt, refs, objects }], limit, total }.",
+    tags: ["Assets"],
+    requiredScope: "assets.read",
+    errors: ["validation_failed"],
+  }],
+  ["post", "/api/assets", {
+    summary: "Multipart upload (magic-byte sniffed, audio extension fallback; CAS by sha256)",
+    description:
+      "Idempotency-Key is deliberately NOT honored here: identical bytes dedupe to one CAS hash, which is the honest idempotency story for uploads. Sniffing runs first (jpeg/png/webp/pdf/epub/audio); when it is inconclusive an audio extension hint (aac/m4a/ogg/flac, from the filename, media size cap) rescues container-less audio such as ADTS .aac — genuinely unknown binaries still reject 422. Optional multipart field `objectId` emits an asset.attach envelope.",
     tags: ["Assets"],
     requestBody: { type: "string", format: "binary", description: "multipart/form-data with one file part" },
     success: { status: 201, description: "{ assetId, hash, mimeType, size, originalName, refs }" },
