@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): the button register becomes a borderless weight ladder
+ (the bordered-neutral detour retires with the
+  bordered-danger one).** `default`, `outline` (and the active-toggle
+  states of `default`/`outline`/`ghost`) drop their visible borders — the
+  border property stays transparent on every variant for size parity, and
+  hierarchy rides weight alone: accent fill (primary) → neutral fills
+  (default = surface-container, outline = surface-container-low quiet
+  step) → ghost → soft-danger wash. Rationale: bordered text buttons are
+  a web-era idiom; M3/Apple organize by weight, and the fleet already went
+  borderless with danger this session — the mixed family read
+  inconsistent. Fleet skill updated in the same pass (rosellramos-design
+  system v2.0.5: Button template rewritten — default/outline borderless,
+  outline rest transparent with the state layer on hover where an app has
+  no surface-container-low token; parity gate green). Verified: 55
+  targeted specs; full web suite green; `pnpm typecheck` 8/8; captures of
+  the add-server dialog in BOTH themes (borderless Cancel still reads as
+  a button on the warm-paper light theme).
+
 - **feat(web): destructive confirmations compose the soft danger register
  (resolves the audit's soft-vs-solid
   contradiction in the skill's favor).** `ConfirmationModal`'s danger
