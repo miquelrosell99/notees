@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(sync): snapshot upload pre-flight body cap — skip at the limit
+  instead of transferring a body the relay rejects.** The relay caps the
+  snapshot PUT at 512 MiB (route-local limit); a projection at/over that
+  (the owner's workspace reached ~518 MB after the bulk imports) uploaded
+  the whole body before the 413 — wasting bandwidth and, worse, the
+  500 MB-plus request frame breaks any tooling that observes browser
+  traffic (the verify smoke's driver died with ERR_STRING_TOO_LONG on
+  exactly this frame). SyncEngine now skips the upload at the cap (option
+  `snapshotUploadLimit`, default SNAPSHOT_UPLOAD_BODY_LIMIT shared with
+  the server value), reporting once per streak via the existing
+  snapshotOversizeReported latch; the 413 path stays as the backstop.
+  TDD: pre-flight spec (no transport call, once-per-streak report,
+  re-arm after an under-limit success), RED-verified. sync 28/28.
+
 - **fix(sync,web): console error dumps are capped at 4KB — a single unbounded
   log line could exceed any driver's frame limit.** The sync engine's status
   error (`[notees-sync] status=…: <stack>`) logged the raw error stack; during
