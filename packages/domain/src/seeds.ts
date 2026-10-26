@@ -405,6 +405,16 @@ export const SYSTEM_CLASS_EXTENDS: Partial<Record<SystemClassName, SystemClassNa
   // packages/store/src/effective.ts). Disabling `source` hides web pages
   // with the rest of the family.
   web_page: ["source"],
+  // colección IS a source family member: the system
+  // collection class mirrors the user-class ruling (`regulación` extends
+  // Source as a data op) at the SEED — a system class's extends mapping is
+  // frozen platform structure (SystemExtendsLockError), so the edge lives
+  // here, not in an op. Collection inherits the source family's property
+  // ELIGIBILITY (scope [source] reaches it through the extends chain) and
+  // rides the sources toggle with the family — it LEFT the always-on F1
+  // list the same way web_page did. Live workspaces converge by the
+  // one-time Path A migration (scripts/migrate-collection-extends-source.mts).
+  collection: ["source"],
   // Source-library roster: the 30-new
   // source type-classes ALL extend source — the Zotero-faithful long tail
   // inherits the family's bibliographic bindings; the sources toggle
