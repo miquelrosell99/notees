@@ -240,10 +240,7 @@ function EditorSection() {
     "treeEditMode",
     "logical",
   );
-  const [linkedRefsCollapseLevel, setLinkedRefsCollapseLevel] = useDeviceSetting(
-    "linkedRefsCollapseLevel",
-    0,
-  );
+  const [listCollapseLevel, setListCollapseLevel] = useDeviceSetting("listCollapseLevel", 0);
   const [hashtagPasteMode, setHashtagPasteMode] = useDeviceSetting<"inline-tag" | "inline-class">(
     "hashtagPasteMode",
     "inline-tag",
@@ -278,11 +275,12 @@ function EditorSection() {
         <div className="settings-item">
           <div className="settings-item__info">
             <label htmlFor="user-linked-refs-collapse" className="settings-item__label">
-              Auto-collapse nodes at this depth in system sections
+              Auto-collapse nodes at this depth in lists
             </label>
             <p className="settings-item__description">
-              Reference rows in system sections (Backlinks, Unlinked mentions) start
-              collapsed at this depth and deeper; 0 = disabled, rows render fully expanded
+              Rows with children in list collections start collapsed at this depth
+              (1 = the top-level rows); collections that manage their own collapse
+              (Child pages, the page body) are unaffected. 0 = disabled
             </p>
           </div>
           <SelectionButton
@@ -293,8 +291,8 @@ function EditorSection() {
               { value: "2", icon: "mdi-numeric-2", label: "Level 2" },
               { value: "3", icon: "mdi-numeric-3", label: "Level 3" },
             ]}
-            value={linkedRefsCollapseLevel.toString()}
-            onChange={(value) => setLinkedRefsCollapseLevel(parseInt(value, 10))}
+            value={listCollapseLevel.toString()}
+            onChange={(value) => setListCollapseLevel(parseInt(value, 10))}
             size="sm"
           />
         </div>

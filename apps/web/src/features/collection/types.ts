@@ -228,13 +228,15 @@ export interface NodeCollectionProps {
    */
   hideBacklinkCount?: boolean | undefined;
   /**
-   * The auto-collapse level for rows with children (the linked-references
-   * system sections' "Auto-collapse nodes at this depth" device setting):
-   * rows at this depth and deeper start folded — depth 1 names the section's
-   * top-level rows. 0 = disabled (nothing auto-folds; rows render fully
-   * expanded). ABSENT keeps the collection-wide default (* every row with children starts folded).
+   * This collection OWNS its collapse behavior — the global "Auto-collapse
+   * nodes at this depth in lists" device setting does not apply and the
+   * pre-setting collection default stands (every row with children starts
+   * folded). The Child pages tree sets it; the page body (main child
+   * blocks) is excluded structurally — it renders through the tree path and
+   * the host outliner context, never the flat list. Absent = the setting
+   * governs the starting fold state of the flat list's rows.
    */
-  defaultCollapseLevel?: number | undefined;
+  collapse?: boolean | undefined;
   /** Tree paths filter children to main children (the Pages zone). */
   pagesOnly?: boolean;
   /**

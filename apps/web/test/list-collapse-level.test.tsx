@@ -1,11 +1,12 @@
 /**
- * Linked-references auto-collapse level — the "Auto-collapse nodes at this
- * depth in system sections" device setting (`linkedRefsCollapseLevel`)
- * actually governs the reference rows' starting fold state: rows at the
- * named depth and deeper start collapsed, 0 = disabled (nothing auto-folds,
- * rows render fully expanded). The collapse default rides the collection's
- * `defaultCollapseLevel` prop; the depth count starts at 1 for the section's
- * top-level reference rows. Harness: in-process WorkspaceClient + jsdom.
+ * List auto-collapse level — the "Auto-collapse nodes at this depth in
+ * lists" device setting (`listCollapseLevel`) governs the STARTING fold
+ * state of rows with children in flat node collections: rows at the named
+ * depth and deeper start collapsed (depth 1 = the list's top-level rows),
+ * 0 = disabled renders rows fully expanded. Collections that own their
+ * collapse behavior — the `collapse` flag (the Child pages tree; the page
+ * body is excluded structurally, it never reaches the flat path) — are
+ * untouched by the setting. Harness: in-process WorkspaceClient + jsdom.
  */
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -16,10 +17,11 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { ReferenceList } from "../src/features/page-sections/SystemSections.js";
+import { NodeCollection } from "../src/features/collection/index.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000e1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000e2";
-const SETTING_KEY = "notees.settings.linkedRefsCollapseLevel";
+const SETTING_KEY = "notees.settings.listCollapseLevel";
 
 let sqlModule: SqlJsStatic;
 
@@ -38,6 +40,17 @@ async function flushSync(): Promise<void> {
   for (let i = 0; i < 6; i += 1) await act(async () => {});
 }
 
+async function seedClient(): Promise<WorkspaceClient> {
+  const client = await WorkspaceClient.create({
+    transport: new MemoryTransport(new MemoryRelay()),
+    actorId: ACTOR,
+    sqlJs: sqlModule,
+  });
+  clients.push(client);
+  await client.bootstrapWorkspace(WS);
+  return client;
+}
+
 /**
  * Target ← "Source" page (the reference row, depth 1) with a child block
  * "Middle block" (depth 2) carrying its own child "Deep block" (depth 3).
@@ -46,13 +59,7 @@ async function flushSync(): Promise<void> {
  * outline.
  */
 async function seedThreeDeep(): Promise<{ client: WorkspaceClient; target: string }> {
-  const client = await WorkspaceClient.create({
-    transport: new MemoryTransport(new MemoryRelay()),
-    actorId: ACTOR,
-    sqlJs: sqlModule,
-  });
-  clients.push(client);
-  await client.bootstrapWorkspace(WS);
+  const client = await seedClient();
   const schemaId = await client.createPropertySchema({
     name: "supports",
     type: "object",
@@ -84,8 +91,8 @@ function renderRefs(client: WorkspaceClient, target: string): void {
   );
 }
 
-describe("linked-references auto-collapse level", () => {
-  it("level 0 (disabled) renders the reference rows fully expanded", async () => {
+describe("list auto-collapse level", () => {
+  it("level 0 (disabled) renders the rows fully expanded", async () => {
     localStorage.setItem(SETTING_KEY, "0");
     const { client, target } = await seedThreeDeep();
     renderRefs(client, target);
@@ -101,7 +108,7 @@ describe("linked-references auto-collapse level", () => {
     expect(document.body.textContent).toContain("Deep block");
   });
 
-  it("level 1 folds the top-level reference rows (their children hidden)", async () => {
+  it("level 1 folds the top-level rows (their children hidden)", async () => {
     localStorage.setItem(SETTING_KEY, "1");
     const { client, target } = await seedThreeDeep();
     renderRefs(client, target);
@@ -111,7 +118,7 @@ describe("linked-references auto-collapse level", () => {
     expect(document.body.textContent).not.toContain("Middle block");
   });
 
-  it("level 2 expands the reference rows and folds their children", async () => {
+  it("level 2 expands the top-level rows and folds their children", async () => {
     localStorage.setItem(SETTING_KEY, "2");
     const { client, target } = await seedThreeDeep();
     renderRefs(client, target);
@@ -133,5 +140,77 @@ describe("linked-references auto-collapse level", () => {
       toggle.click();
     });
     expect(document.body.textContent).toContain("Middle block");
+  });
+
+  it("any flat NodeCollection honors the setting (query-result shape)", async () => {
+    localStorage.setItem(SETTING_KEY, "1");
+    const client = await seedClient();
+    const parent = await client.createObject({ isEmbedded: false, name: "Hub row" });
+    await client.createObject({
+      parentId: parent,
+      contentAst: [{ type: "text", text: "Hub child" }],
+    });
+    await flushSync();
+    render(
+      <NodeCollection
+        viewMode="outline"
+        client={client}
+        items={[{ node: client.getNode(parent)! }]}
+      />,
+    );
+    await flushSync();
+    expect(document.body.textContent).toContain("Hub row");
+    expect(document.body.textContent).not.toContain("Hub child");
+  });
+
+  it("a tree NodeCollection (the Child pages shape) never auto-folds", async () => {
+    localStorage.setItem(SETTING_KEY, "1");
+    const client = await seedClient();
+    const parent = await client.createObject({ isEmbedded: false, name: "Tree row" });
+    await client.createObject({
+      parentId: parent,
+      contentAst: [{ type: "text", text: "Tree child" }],
+    });
+    await flushSync();
+    const node = client.getNode(parent)!;
+    render(
+      <NodeCollection
+        viewMode="outline"
+        client={client}
+        tree
+        readOnly
+        items={[
+          {
+            node,
+            children: client.getChildren(parent).map((child) => ({ node: child })),
+          },
+        ]}
+      />,
+    );
+    await flushSync();
+    // The tree path owns its collapse semantics — the setting does not apply.
+    expect(document.body.textContent).toContain("Tree child");
+  });
+
+  it("the collapse flag opts a flat collection out (legacy fold at level 0)", async () => {
+    localStorage.setItem(SETTING_KEY, "0");
+    const client = await seedClient();
+    const parent = await client.createObject({ isEmbedded: false, name: "Owned row" });
+    await client.createObject({
+      parentId: parent,
+      contentAst: [{ type: "text", text: "Owned child" }],
+    });
+    await flushSync();
+    render(
+      <NodeCollection
+        viewMode="outline"
+        client={client}
+        collapse
+        items={[{ node: client.getNode(parent)! }]}
+      />,
+    );
+    await flushSync();
+    // Opted out: the pre-setting blanket default stands (row folded).
+    expect(document.body.textContent).not.toContain("Owned child");
   });
 });
