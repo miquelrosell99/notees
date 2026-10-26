@@ -18,3 +18,14 @@
   display: flex;
   flex-direction: column;
 }
+
+/* The bar's horizontal inset: the hub rides the frame's
+   body inset (var(--spacing-4) — MainContentFrame owns it universally), so
+   the bar carries the SAME measure in this two-class override, flush with
+   the panel cards below — the calendar bar's register, word for word. The
+   primitive's base padding and its small-width variant both lose to this
+   rule; the bar's vertical padding and hairline stay the primitive's own. */
+.surface-topbar.sources-hub__topbar {
+  padding-left: var(--spacing-4);
+  padding-right: var(--spacing-4);
+}

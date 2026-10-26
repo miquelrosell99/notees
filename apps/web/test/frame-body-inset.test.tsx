@@ -145,6 +145,14 @@ describe("the frame owns the outer body inset (CSS registers)", () => {
     expect(declaration(barBlocks[0]!, "padding-left")).toBe("var(--spacing-4)");
     expect(declaration(barBlocks[0]!, "padding-right")).toBe("var(--spacing-4)");
   });
+
+  it("the Sources hub bar carries the frame's inset measure (the two-class override)", () => {
+    const css = readCss("features/sources/SourcesHub.css");
+    const blocks = ruleBlocks(css, ".surface-topbar.sources-hub__topbar");
+    expect(blocks.length).toBe(1);
+    expect(declaration(blocks[0]!, "padding-left")).toBe("var(--spacing-4)");
+    expect(declaration(blocks[0]!, "padding-right")).toBe("var(--spacing-4)");
+  });
 });
 
 describe("the frame mediates the panelled nodeview's inset (render)", () => {
