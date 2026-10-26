@@ -9,7 +9,7 @@
  * empty section key traveling as the "-" sentinel); the sectionViews module
  * (features/collection/sectionViews.ts) owns syncing, the device-local
  * cache, and the React hook. queryAst is the verbatim QueryAST v1 the
- * FilterBuilderModal produced — parsed again at resolution time. There is
+ * the structured-filters panel produced — parsed again at resolution time. There is
  * deliberately no viewMode: view modes are transient surface state, not
  * stored. This module holds the wire types and the response normalizers.
  */

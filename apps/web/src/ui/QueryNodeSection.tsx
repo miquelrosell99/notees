@@ -1,8 +1,12 @@
 /**
  * QueryNodeSection — the query node's chrome BELOW the block's content row
- *: the block stays a normal, typeable row; its
- * `query` content token only MARKS the block and carries the DEFAULT tab's
- * AST. After the content row the block renders the nodecollection chrome,
+ *: the block stays a normal, typeable row, MARKED
+ * by the query system class (the whiteboard precedent — class = identity
+ * and membership, so every query in the workspace lists through the class
+ * machinery). The block's first `query` content token carries the DEFAULT
+ * tab's AST as payload and renders nothing in the stream; a classed block
+ * without a token is an unspecified query (the "Set a query to see results"
+ * state) and the first Apply creates the token. After the content row the block renders the nodecollection chrome,
  * exactly like a system section:
  *
  *  - NodeCollectionTabs — the DEFAULT tab (the token's queryAst, refined by
@@ -44,23 +48,23 @@ import type { ViewMode } from "../features/collection/index.js";
 import { Button } from "../components/ui/fleet/Button.js";
 import { QueryResultsBody, isUnspecifiedQueryAst } from "./queryResults.js";
 import { useQueryRun } from "./queryRun.js";
-import { updateQueryTokenAst } from "./queryTokens.js";
+import { appendQueryToken, updateQueryTokenAst } from "./queryTokens.js";
 import { buildQueryExportMarkdown, downloadTextFile, queryExportFileName } from "./queryExport.js";
 
 import "./QueryNodeSection.css";
 
-// --- slash-created tokens: builder auto-open ------------------------------------
+// --- slash-created query nodes: builder auto-open --------------------------------
 //
-// The `/query` slash flow (BlockTextEditor, edit mode) inserts a token and
+// The `/query` slash flow (BlockTextEditor, edit mode) marks the block and
 // wants the structured builder open when the section renders. The request is
 // a module-level queue consumed on mount (a listener pattern would race: the
 // request fires before this mounts).
 
 const pendingBuilderOpens = new Set<string>();
 
-/** Ask the live section at `ownerId`:`tokenIndex` to open its structured builder. */
-export function requestQueryBuilderOpen(ownerId: string, tokenIndex: number): void {
-  pendingBuilderOpens.add(`${ownerId}:${tokenIndex}`);
+/** Ask the live section at `ownerId` to open its structured builder. */
+export function requestQueryBuilderOpen(ownerId: string): void {
+  pendingBuilderOpens.add(ownerId);
 }
 
 /** Loose-token parse: a malformed default AST surfaces as the invalid-query line. */
@@ -74,29 +78,26 @@ function safeParseAst(raw: unknown): QueryAst | null {
 
 export interface QueryNodeSectionProps {
   client: AnyClient;
-  /** The block node whose contentAst holds the token (the write target). */
+  /** The query-classed block node (the write target). */
   nodeId: string;
-  /** The token's position in the node's contentAst (the splice key). */
-  tokenIndex: number;
   /** Render-cascade navigation (App routes the id). */
   onOpenNode?: ((nodeId: string) => void) | undefined;
 }
 
-export function QueryNodeSection({ client, nodeId, tokenIndex, onOpenNode }: QueryNodeSectionProps) {
+export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectionProps) {
   // The token read is reactive: a sibling section holds its own subscription
   // (the row above may not re-render on another surface's edit).
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
-  // Consume a `/query` slash request targeted at this token (see the module
+  // Consume a `/query` slash request targeted at this block (see the module
   // queue above). Runs on every fresh mount — the normal case finds no entry.
   const [builderAutoOpen, setBuilderAutoOpen] = useState(false);
   useEffect(() => {
-    const key = `${nodeId}:${tokenIndex}`;
-    if (!pendingBuilderOpens.has(key)) return;
-    pendingBuilderOpens.delete(key);
+    if (!pendingBuilderOpens.has(nodeId)) return;
+    pendingBuilderOpens.delete(nodeId);
     setBuilderAutoOpen(true);
-  }, [nodeId, tokenIndex]);
+  }, [nodeId]);
 
   const [tab, setTab] = useState<string>(SECTION_DEFAULT_TAB);
   const [draft, setDraft] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
@@ -107,7 +108,17 @@ export function QueryNodeSection({ client, nodeId, tokenIndex, onOpenNode }: Que
   const { views } = useSectionViews(client, nodeId, "");
   const selectedView = views.find((view) => view.id === tab) ?? null;
 
-  const token = client.getNode(nodeId)?.contentAst[tokenIndex];
+  // The payload: the FIRST query token in the content stream, when present.
+  const contentAst = client.getNode(nodeId)?.contentAst ?? [];
+  let tokenIndex = -1;
+  for (let i = 0; i < contentAst.length; i += 1) {
+    const entry = contentAst[i] as { type?: unknown };
+    if (typeof entry === "object" && entry !== null && entry.type === "query") {
+      tokenIndex = i;
+      break;
+    }
+  }
+  const token = tokenIndex >= 0 ? contentAst[tokenIndex] : undefined;
   const tokenAst =
     typeof token === "object" && token !== null
       ? (token as { queryAst?: unknown }).queryAst
@@ -138,7 +149,13 @@ export function QueryNodeSection({ client, nodeId, tokenIndex, onOpenNode }: Que
     if (selectedView !== null) {
       return updateSectionViewAst(client, nodeId, "", selectedView.id, ast);
     }
-    await updateQueryTokenAst(client, nodeId, tokenIndex, ast);
+    if (tokenIndex >= 0) {
+      await updateQueryTokenAst(client, nodeId, tokenIndex, ast);
+    } else {
+      // The class marks the block but no payload token exists yet — the
+      // first Apply creates it.
+      await appendQueryToken(client, nodeId, { queryAst: ast });
+    }
     return true;
   };
 
@@ -150,8 +167,7 @@ export function QueryNodeSection({ client, nodeId, tokenIndex, onOpenNode }: Que
     );
   };
 
-  // The token vanished (content rewritten without it) — the section goes too.
-  if (tokenAst === undefined) return null;
+
 
   return (
     <div className="nt-query-node" onClick={(event) => event.stopPropagation()}>

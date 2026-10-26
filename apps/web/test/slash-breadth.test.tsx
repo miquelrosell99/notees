@@ -121,9 +121,11 @@ describe("slash /query", () => {
 
     fireEvent.keyDown(editor, { key: "Enter" });
 
-    // The token landed with the builder-default AST…
+    // The token landed with the builder-default AST and the block carries
+    // the query system class (class = identity, token = payload)…
     await waitFor(() => {
-      const ast = client.getNode(blockId)?.contentAst as ContentAst;
+      const node = client.getNode(blockId)!;
+      const ast = node.contentAst as ContentAst;
       expect(ast).toHaveLength(1);
       expect(ast[0]).toMatchObject({
         type: "query",
@@ -133,6 +135,7 @@ describe("slash /query", () => {
           root: { type: "group", logic: "and", children: [] },
         },
       });
+      expect(node.classIds).toContain(SYSTEM_CLASS_UUIDS.query);
     });
     // …and the toggleable builder section opened below the content row
     //.

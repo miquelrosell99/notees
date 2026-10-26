@@ -113,7 +113,7 @@ import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, use
 
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { excerptOf, isRuleContent, parseDateNodeId } from "@notees/domain";
+import { excerptOf, isRuleContent, parseDateNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { BlockTreeNode, ClientNode, EffectiveProperty, WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
@@ -136,7 +136,7 @@ import { EmbedView } from "./EmbedView.js";
 import { linkOnlyMentionTarget } from "./linkOnlyBlock.js";
 import { EmbedCardView } from "./EmbedCardView.js";
 import { QueryNodeSection } from "./QueryNodeSection.js";
-import { listQueryTokens } from "./queryTokens.js";
+
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { DragSourcesContext, DropLineContext, WorkspaceDragScopeContext } from "./block-dnd.js";
 import { useOutliner } from "./outliner-context.js";
@@ -1098,25 +1098,22 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
       {backlinkCount > 0 && !focusMode && (
         <BlockBacklinkPanel nodeId={node.id} expanded={backlinksExpanded} client={client} />
       )}
-      {/* Query node: a `query` content token
-          renders NO widget inside the content row — it marks the block and
-          carries the default tab's AST. The nodecollection chrome (tabs +
-          buttons row, the toggleable full-grammar builder, the results)
-          rides as a sibling section below the row, like the backlink panel
-          and the tags row. Suppressed with the other widgets (query-result
-          rows, read-only projections) — a live section inside a query
-          result would recurse when the result contains its own owner. */}
+      {/* Query node: the block is MARKED by the
+          query system class (the whiteboard precedent — class = identity,
+          so every query lists through the class machinery); its `query`
+          content token only carries the default tab's AST as payload and
+          renders nothing in the stream. Below the content row the block
+          renders the nodecollection chrome (tabs + buttons row, the
+          toggleable full-grammar builder, the results), like the backlink
+          panel and the tags row. Suppressed with the other widgets
+          (query-result rows, read-only projections) — a live section
+          inside a query result would recurse when the result contains its
+          own owner. */}
       {!focusMode &&
         !suppressWidgets &&
-        listQueryTokens(node.contentAst).map((entry) => (
-          <QueryNodeSection
-            key={`query-${entry.index}`}
-            client={client}
-            nodeId={node.id}
-            tokenIndex={entry.index}
-            onOpenNode={openNode}
-          />
-        ))}
+        node.classIds.includes(SYSTEM_CLASS_UUIDS.query) && (
+          <QueryNodeSection client={client} nodeId={node.id} onOpenNode={openNode} />
+        )}
       {/* Tags: dedicated row below the block row, only when set (assignment
           rides the `#` trigger). Read-only projections render the same row
           with static pills (edit/read alignment). Focus mode (#12) hides

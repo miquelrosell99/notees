@@ -326,7 +326,6 @@ describe("account popup — the user menu", () => {
         .map((el) => el.textContent),
     ).toEqual([
       "Syncup to date",
-      "Queries",
       "Shares",
       "Trash",
       "Archived",

@@ -11,11 +11,12 @@
  * the server per-user prefs store is the authority, device-local cache
  * offline (see nodePrefs.ts); the two lists render through
  * features/sidebar/FavoritesRecents.tsx, composed below (extracted
- *). Trash, Shares, Archived, and Queries LEFT the nav list:
- * they open from the account popup now (the v1 account-menu shape; Queries
- * query blocks carry the saved-query surface in context)
- * — their NAV_ENTRIES rows survive with `menuOnly` (labels, paths, tab
- * titles).
+ *). Trash, Shares, and Archived LEFT the nav list: they
+ * open from the account popup now (the v1 account-menu shape) — their
+ * NAV_ENTRIES rows survive with `menuOnly` (labels, paths, tab titles).
+ * The Queries hub was REMOVED entirely: the query system
+ * class's page is the workspace's query registry, so a separate hub was a
+ * second home for the same list.
  *
  * The bottom row is the user profile: avatar + name + email (the identity
  * line, owner restore 2026-10-19) with a sync-state badge on the avatar's
@@ -44,7 +45,7 @@ import "./Sidebar.css";
 
 export type { AnyClient };
 
-export type NavKey = "today" | "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "sources" | "assets" | "queries" | "graph" | "trash" | "archived" | "shares";
+export type NavKey = "today" | "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "sources" | "assets" | "graph" | "trash" | "archived" | "shares";
 
 /**
  * The nav register: labels, icons, and `/`-paths for every hub — the tab
@@ -64,7 +65,6 @@ export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string; menu
   { key: "tasks", label: "Tasks", icon: "mdi-format-list-checks" },
   { key: "sources", label: "Sources", icon: "mdi-bookshelf" },
   { key: "assets", label: "Assets", icon: "mdi-folder-multiple-image" },
-  { key: "queries", label: "Queries", icon: "mdi-database-search-outline", menuOnly: true },
   { key: "graph", label: "Graph", icon: "mdi-graph-outline" },
   { key: "trash", label: "Trash", icon: "mdi-delete-outline", menuOnly: true },
   { key: "archived", label: "Archived", icon: "mdi-archive-outline", menuOnly: true },
@@ -305,17 +305,6 @@ export function Sidebar({
                 <span className="nt-account-item-caption">{syncStateLabel}</span>
               </button>
             )}
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setAccountMenu(false);
-                onSelectNav("queries");
-              }}
-            >
-              <Icon path="mdi-database-search-outline" size={0.9} />
-              <span>Queries</span>
-            </button>
             {!offline && (
               <button
                 type="button"

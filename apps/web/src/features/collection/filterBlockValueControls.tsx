@@ -21,7 +21,7 @@ import { NodePill } from "../metadata/NodePills.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { Dropdown } from "../../components/ui/fleet/Dropdown.js";
 import { Input } from "../../components/ui/fleet/Input.js";
-import { type BuilderFacts } from "./QueryBuilderFields.js";
+import { type BuilderFacts } from "./builderFacts.js";
 
 const PROPERTY_OP_LABELS: ReadonlyArray<{ op: PropertyOp; label: string }> = [
   { op: "eq", label: "equals" },

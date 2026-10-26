@@ -12,7 +12,7 @@
 
 import type { Child, Condition, PropertyOp } from "@notees/query";
 
-import type { BuilderFacts } from "./QueryBuilderFields.js";
+import type { BuilderFacts } from "./builderFacts.js";
 import {
   FILTER_KIND_OPTIONS,
   type ConditionKind,

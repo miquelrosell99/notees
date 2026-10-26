@@ -9,6 +9,35 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): query blocks are marked by the query system class — and the
+  Queries hub is REMOVED.** The class/token
+  question resolves the whiteboard way: the `query` system class (seeded
+  since 2026-10-01, previously unused) is the block's IDENTITY, so the class
+  page and any class-filtered collection list every query in the workspace
+  for free — the hub existed only because tokens are unenumerable, and the
+  class makes it redundant. The `query` content token survives as payload
+  only (the Default tab's AST, riding the op log); the read is strict
+  class-only (`BlockRow` checks `classIds`), `/query` writes class + token
+  together, and a classed block without a token is an unspecified query
+  whose first Apply creates the payload. Live workspaces converge by the
+  Path A migration `scripts/migrate-query-class.mts` (dry-run default; one
+  idempotent `object.create` OR-Set carrier per token-bearing node without
+  the class; date-chain nodes skipped as class-locked; verified against the
+  fleet data — 1 node in the live workspace, 0 in the test workspace).
+  **Deleted with the hub:** the `/queries` route and nav key, the account
+  popup entry, `QueriesHub`/`ViewTabs`/`FilterBuilderModal`, the subset
+  builder (`queryBuilder.ts` + the guard) and the token view record
+  (`queryViewRecord.ts` — its `title`/`isDefault` belonged to the hub's
+  saved views); `QueryBuilderFields` reduces to its facts hook
+  (`builderFacts.ts`, the structured-filters panel's picker sources) and
+  `queryTokens.ts` to the two writes the block section uses. Existing
+  "Queries" pages become ordinary pages — their tokens render as query
+  blocks exactly as before. GTK/Flutter seed check: the `query` class seed
+  predates this slice in all three manifests — no client alignment needed
+  (a class received purely through the log). Verified: gate green; the
+  query-node suite seeds carry the class; the slash spec asserts class +
+  token; the hub/guard suites retire with their subjects.
+
 - **feat(web): an empty query answers nothing — never the whole graph.** A query AST that specifies nothing (workspace scope,
   bare AND group, no aggregation — the `/query` starter shape) now renders
   "Set a query to see results." without running: `useQueryRun` gains an

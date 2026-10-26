@@ -835,15 +835,23 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       return;
     }
     if (commandId === "query") {
-      // Insert a live query token at the caret, then hand the
-      // token's read-mode view an open-builder request (it mounts when this
-      // editor exits — see QueryNodeSection's module queue).
+      // Insert a live query token at the caret, then hand the section below
+      // the row an open-builder request (it mounts when this editor exits —
+      // see QueryNodeSection's module queue). The block is MARKED by the
+      // query system class (class = identity/membership, so every query in the
+      // workspace lists through the class machinery); the token carries the
+      // default tab's AST as payload.
       const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName, resolveMentionName);
       const token = { type: "query", queryAst: STARTER_QUERY_AST } as ContentAst[number];
       const next = spliceTokens(base, start, end, [token], resolveClassName, resolveMentionName);
       const tokenIndex = next.findIndex((entry) => entry === token);
       commitAst(withCandidateSpans(next), start);
-      requestQueryBuilderOpen(nodeRef.current.id, tokenIndex);
+      if (!nodeRef.current.classIds.includes(SYSTEM_CLASS_UUIDS.query)) {
+        void client.assignClass(nodeRef.current.id, SYSTEM_CLASS_UUIDS.query).catch((error: unknown) => {
+          console.warn(`[editor] assignClass query (${nodeRef.current.id}) failed:`, error);
+        });
+      }
+      requestQueryBuilderOpen(nodeRef.current.id);
       onExitEdit();
       return;
     }

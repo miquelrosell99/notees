@@ -81,7 +81,7 @@ import { GridMenu } from "../../components/ui/fleet/GridMenu.js";
 import { Input } from "../../components/ui/fleet/Input.js";
 import { SelectionButton, type SelectionButtonOption } from "../../components/ui/fleet/SelectionButton.js";
 import { Card } from "../../components/ui/fleet/Card.js";
-import { useBuilderFacts, type BuilderFacts } from "./QueryBuilderFields.js";
+import { useBuilderFacts, type BuilderFacts } from "./builderFacts.js";
 import {
   createCondition,
   filterKindOptionsForConfig,
