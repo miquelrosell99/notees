@@ -227,6 +227,14 @@ export interface NodeCollectionProps {
    * list.
    */
   hideBacklinkCount?: boolean | undefined;
+  /**
+   * The auto-collapse level for rows with children (the linked-references
+   * system sections' "Auto-collapse nodes at this depth" device setting):
+   * rows at this depth and deeper start folded — depth 1 names the section's
+   * top-level rows. 0 = disabled (nothing auto-folds; rows render fully
+   * expanded). ABSENT keeps the collection-wide default (* every row with children starts folded).
+   */
+  defaultCollapseLevel?: number | undefined;
   /** Tree paths filter children to main children (the Pages zone). */
   pagesOnly?: boolean;
   /**

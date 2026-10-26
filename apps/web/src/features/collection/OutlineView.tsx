@@ -261,18 +261,25 @@ function FlatRows({
     resetKey,
   });
   // Rows WITH CHILDREN default COLLAPSED (every row in a collection list starts folded, its children
-  // behind the chevron, so the list reads one row per item). The set
-  // collects every rendered row with children, any node kind; the
-  // expansion override is session-local (the context contract).
+  // behind the chevron, so the list reads one row per item); the set
+  // collects every rendered row with children, any node kind; the expansion
+  // override is session-local (the context contract). A container-passed
+  // `defaultCollapseLevel` (the linked-references system sections) narrows
+  // the default to rows at that depth and deeper — depth 1 = the list's
+  // top-level rows — and 0 disables it (nothing starts folded).
+  const collapseLevel = props.defaultCollapseLevel;
   const defaultCollapsed = useMemo(() => {
     const set = new Set<string>();
-    const walk = (tree: BlockTreeNode): void => {
-      if (tree.children.length > 0) set.add(tree.node.id);
-      for (const child of tree.children) walk(child);
+    const walk = (tree: BlockTreeNode, depth: number): void => {
+      const foldsByDefault =
+        tree.children.length > 0 &&
+        (collapseLevel === undefined || (collapseLevel > 0 && depth >= collapseLevel));
+      if (foldsByDefault) set.add(tree.node.id);
+      for (const child of tree.children) walk(child, depth + 1);
     };
-    for (const item of visible) walk(flatTreeOf(client, item));
+    for (const item of visible) walk(flatTreeOf(client, item), 1);
     return set;
-  }, [client, visible]);
+  }, [client, visible, collapseLevel]);
   const outliner = useOutlinerValue(client, visible[0]?.node.id ?? "", {
     openNode: (id) => (onNodeClick ?? outer?.openNode ?? (() => {}))(id),
     openInSidebar: (id) => (onNodeShiftClick ?? outer?.openInSidebar ?? (() => {}))(id),

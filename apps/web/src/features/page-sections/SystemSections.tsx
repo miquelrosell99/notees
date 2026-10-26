@@ -76,6 +76,7 @@ import { titleOfNode } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../../ui/viewPrefs.js";
 import { promoteMentionInAst } from "../collection/unlinkedRefs.js";
+import { useDeviceSetting } from "../settings/deviceSettings.js";
 import { FilterBar } from "../collection/FilterBar.js";
 import {
   EMPTY_FILTER_QUERY,
@@ -117,8 +118,11 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
  * content edits like the tasks hub — a content click swaps in the block
  * editor; the bullet element still owns opening the source, the block
  * itself in focused view when the edge is direct, otherwise the containing
- * page): one row per entry, children folded behind the chevron like every
- * other collection list. The Logseq-era bespoke row (a breadcrumb trail +
+ * page): one row per entry, children behind the chevron like every other
+ * collection list — the STARTING fold state answers the device setting
+ * ("Auto-collapse nodes at this depth in system sections"): rows at the
+ * named depth and deeper start collapsed, 0 = disabled renders them fully
+ * expanded. The Logseq-era bespoke row (a breadcrumb trail +
  * an inline editable subtree per row) is retired; the grouping by
  * containing page, the ungrouped-page-sources-first ruling, the hosted tabs, the sort button, and the transient filter
  * layer are the shared machinery already. What a row still owns rides the
@@ -194,6 +198,15 @@ export function ReferenceList({
     for (const schema of client.listPropertySchemas()) map.set(schema.id, schema.name);
     return map;
   }, [client]);
+  /**
+   * The auto-collapse device setting (the Settings page's "Auto-collapse
+   * nodes at this depth in system sections"): rows at this depth and deeper
+   * start folded; 0 = disabled renders the rows fully expanded. Read here so
+   * EVERY linked-references rendering (the page's Backlinks / Unlinked
+   * mentions sections and the block-level backlink gutter's panel) answers
+   * the same setting.
+   */
+  const [collapseLevel] = useDeviceSetting("linkedRefsCollapseLevel", 0);
   const items: NodeCollectionItem[] = entries.map((entry) => ({
     // The reference reads are scope-classed (op-lag slice 3): a source
     // edited without touching this page leaves its pooled snapshot stale —
@@ -220,6 +233,7 @@ export function ReferenceList({
       groups={groups}
       ungroupedItems={standalone}
       defaultSortMode={defaultSortMode}
+      defaultCollapseLevel={collapseLevel}
       onNodeClick={(id) => onOpenPage?.(id)}
       {...(hostedViews !== undefined ? { hostedViews } : {})}
       {...(trailing !== undefined ? { tabBarTrailing: trailing } : {})}
