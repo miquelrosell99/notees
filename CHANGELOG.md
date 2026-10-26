@@ -9,6 +9,17 @@ predating this file.
 
 ## 2026-10-26
 
+- **docs(design): the underline text-field ruling promoted from a Notees
+  override to the fleet skill law.** The register split (underline form
+  fields / boxed dense+settings / borderless cells) was recorded as a
+  per-project deviation, but the owner ruled it a fleet-wide preference —
+  `rosellramos-design-system` → `law/spec.md` §8 now carries it (committed
+  to the skill repo). Notees' override-register entry is removed (no longer
+  a deviation); `docs/developers/ui-primitives.md` keeps only the
+  app-specific implementation notes (the global input radius/focus-ring
+  opt-outs the fleet TextField performs).
+
+
 - **docs(design): the text-field register split is recorded**. Three fixed field registers — the fleet `TextField` is the
   underline variant (straight hairline via an explicit `rounded-none` zero
   of the global input radius; the accent underline + label IS the focus

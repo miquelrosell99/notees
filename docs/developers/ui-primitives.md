@@ -172,21 +172,25 @@ implementation.
 
 ## The text-field register split
 
-Three field registers, fixed by surface kind — the full ruling lives in
-`.agents/design-overrides.md` (the design-system override register):
+**The ruling is the design system's, not this repo's**: `rosellramos-design-system`
+→ `law/spec.md` §8 — the UNDERLINE register is the fleet default for labeled
+form fields (straight hairline, 2px accent underline + accent label on focus,
+the underline IS the focus indicator); boxed is reserved for dense toolbar
+rows; in-row cells may be borderless. It was promoted from this repo's
+override register to the skill law (the preference is
+fleet-wide).
 
-- **`TextField` = the underline variant** — transparent, straight bottom
-  hairline (`rounded-none` zeroes the global input radius, else the line's
-  ends curve), 2px accent underline + accent label on focus. The underline
-  IS the focus indicator: the field opts out of both global focus rings
-  (`:focus-visible` outline + the box-shadow ring) via
-  `focus-visible:outline-none focus-visible:shadow-none`.
-- **`Input` = boxed** — the dense toolbar-row register (search, compact
-  rows). Deliberately stays a box.
-- **`.nt-property-value` = borderless** — the in-row property cells; focus
-  shows the hover overlay.
-- **`.nt-property-settings__input` = boxed small** — the settings-form
-  fields; a conversion to underline was tried and owner-reverted.
+Notees-specific implementation notes the skill cannot know:
+
+- The app.css global `input` register carries an extra-large `border-radius`
+  and a `:focus-visible` box-shadow ring; the fleet `TextField` opts out of
+  all three (`rounded-none`, `focus-visible:outline-none`,
+  `focus-visible:shadow-none`) — otherwise the underline curves and the
+  field reads as a rounded box.
+- `.nt-property-value` (the in-row property cells) and
+  `.nt-property-settings__input` (the settings-form fields, boxed small by
+  owner revert) are this app's registers per the law's borderless/boxed
+  allowances.
 
 ## Drift checks
 
