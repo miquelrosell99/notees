@@ -53,6 +53,9 @@ export type { SeparatorProps, SeparatorOrientation, SeparatorSize } from './Sepa
 export { Spinner } from './Spinner.js';
 export type { SpinnerProps } from './Spinner.js';
 
+export { Progress } from './Progress.js';
+export type { ProgressProps } from './Progress.js';
+
 export { LoadingSkeleton, Skeleton } from './LoadingSkeleton.js';
 export type { LoadingSkeletonProps, SkeletonProps, SkeletonShape, SkeletonWidth } from './LoadingSkeleton.js';
 

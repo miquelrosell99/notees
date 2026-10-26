@@ -21,6 +21,7 @@ import { PropertyView } from "../../features/metadata/PropertyView.js";
 import { PropertyCreateHost } from "../../features/metadata/PropertyCreateHost.js";
 import { QuickCreateFab } from "../../features/block-editor/QuickCreateFab.js";
 import { AddSourceHost, requestAddSource } from "../../features/sources/AddSourceHost.js";
+import { ImportHost } from "../../features/import/ImportHost.js";
 import { DeckView } from "../presentation/DeckView.js";
 
 export interface AppModalsProps {
@@ -54,6 +55,8 @@ export interface AppModalsProps {
   /** The sync server coordinates for the add-source host (null = offline). */
   addSourceServerUrl: string | null;
   addSourceCredential: string;
+  /** Switch the app to a workspace (the import host's json/markdown flows). */
+  openWorkspace: (workspaceId: string, name: string) => void;
 }
 
 export function AppModals(props: AppModalsProps) {
@@ -86,6 +89,7 @@ export function AppModals(props: AppModalsProps) {
     setPresentingId,
     addSourceServerUrl,
     addSourceCredential,
+    openWorkspace,
   } = props;
   return (
     <>
@@ -167,6 +171,16 @@ export function AppModals(props: AppModalsProps) {
         credential={addSourceCredential}
         onCreated={openPage}
         onOpenNode={openPage}
+      />
+      {/* The unified import modal's app-level host: the palette's "Import…"
+          row (and later the sidebar/settings entries) request the modal
+          through the module-level queue; the workspace-creating sources
+          switch the app through openWorkspace. */}
+      <ImportHost
+        client={client}
+        serverUrl={addSourceServerUrl}
+        credential={addSourceCredential}
+        onOpenWorkspace={openWorkspace}
       />
       {presentingId !== null && (
         <DeckView

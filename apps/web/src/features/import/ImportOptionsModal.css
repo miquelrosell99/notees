@@ -1,0 +1,215 @@
+/**
+ * ImportOptionsModal styles — the unified import hub (source radio group,
+ * per-source inputs, folder preview, progress overlay, report lists).
+ * Token-only: every value resolves to a custom property from variables.css.
+ */
+
+.import-unified__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-height: 10rem;
+}
+
+.import-unified__file-input {
+  /* The native folder/md pickers stay hidden — the visible chrome is the
+     hint + summary (folder) or nothing at all (the markdown post-create pick). */
+  display: none;
+}
+
+.import-unified__field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.import-unified__section-label {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.import-unified__radios {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.import-unified__radio-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-micro, 2px);
+}
+
+.import-unified__radio-title {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface);
+}
+
+.import-unified__radio-desc {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.import-unified__hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.import-unified__hint code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+}
+
+.import-unified__error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--md-sys-color-error);
+}
+
+.import-unified__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  width: 100%;
+}
+
+.import-unified__footer-name {
+  flex: 1;
+  min-width: 0;
+  max-width: 16rem;
+}
+
+.import-unified__footer-actions {
+  display: flex;
+  gap: var(--spacing-2);
+  margin-left: auto;
+}
+
+.import-unified__progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  min-height: 10rem;
+}
+
+.import-unified__progress-label {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.import-unified__progress-bar {
+  width: 100%;
+  max-width: 20rem;
+}
+
+.import-unified__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.import-unified__badge {
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-full);
+  background-color: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
+.import-unified__page-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.import-unified__page-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface);
+}
+
+.import-unified__page-blocks {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.import-unified__page-item--more {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.import-unified__db-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.import-unified__report {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.import-unified__report-success {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface);
+}
+
+.import-unified__report-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.import-unified__report-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-1) 0;
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface);
+}
+
+.import-unified__details {
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--spacing-2) var(--spacing-3);
+}
+
+.import-unified__details-summary {
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.import-unified__details-list {
+  margin: var(--spacing-2) 0 0;
+  padding-left: var(--spacing-5);
+  max-height: 12rem;
+  overflow-y: auto;
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  color: var(--md-sys-color-on-surface-variant);
+}

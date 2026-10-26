@@ -861,6 +861,14 @@ export function App() {
         setPresentingId={setPresentingId}
         addSourceServerUrl={shareTarget?.serverUrl ?? null}
         addSourceCredential={shareTarget?.credential ?? ""}
+        openWorkspace={(id, name) => {
+          setSelectedPageId(null);
+          void connect(serverUrl, token, id, {
+            isOffline: false,
+            credentialType: sessionSignedIn ? "session" : "apikey",
+            label: name,
+          });
+        }}
       />
       <AppOverlays
         client={client}
