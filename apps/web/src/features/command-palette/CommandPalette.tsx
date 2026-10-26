@@ -69,6 +69,7 @@ import { titleOf, titleOfNode, isDatePageNode, rawDateKeywordOf } from "../../ui
 import { Icon } from "../../ui/Icon.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { flipTheme, toggleFocusMode } from "../settings/deviceSettings.js";
+import { requestImport } from "../import/requestImport.js";
 import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
 import {
   bestScore,
@@ -618,6 +619,13 @@ export function CommandPalette({
               },
             ]
           : []),
+        {
+          key: "import",
+          label: "Import…",
+          icon: "mdiTrayArrowDown",
+          keywords: "import logseq markdown dump restore sqlite workspace",
+          run: () => requestImport(),
+        },
         ...(onOpenMerge !== undefined && currentNodeId !== undefined
           ? (() => {
               const current = client.getNode(currentNodeId);

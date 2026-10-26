@@ -42,6 +42,7 @@ Documentation for people — using the app, and developing or operating it. One 
 
 - **[Sources](features/sources.md)** — the source library: 39 Zotero-faithful type-classes, the resolver-backed add flow, citekeys, .bib/CSL-JSON export.
 - **[Exporting](features/exporting.md)** — Markdown/HTML/Word/LaTeX/PDF/JSON archive, table CSV/xlsx and import, workspace zips.
+- **[Importing](features/import.md)** — the Import Workspace modal: Notees dumps, Markdown files/workspaces, Logseq folders, and the Logseq DB reconcile.
 - **[Sharing](features/sharing.md)** — read-only public links, the Shares hub.
 - **Presenting** — the note is the deck: [features/pages.md](features/pages.md#presentation-mode--the-note-is-the-deck).
 
