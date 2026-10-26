@@ -386,6 +386,27 @@ describe("query node (nodecollection surface below the content row)", () => {
     expect(container.querySelector(".nt-table")).toBeNull();
   });
 
+  it("an unspecified (empty match-all) query renders no results — not the whole graph", async () => {
+    const client = await seedClient();
+    await seedWorld(client);
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
+    await client.createObject({
+      parentId: host,
+      // The /query starter AST: workspace scope, bare AND group, no
+      // conditions — the user has not said what they are looking for.
+      contentAst: queryToken(makeAst(WORKSPACE())),
+    });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+    const section = querySection(container);
+    // The honest empty state — not the workspace's every node.
+    expect(await within(section).findByText("Set a query to see results.")).not.toBeNull();
+    expect(section.querySelectorAll(".outline-flat > li").length).toBe(0);
+    expect(activeTabBadge(container)).toBe("");
+    // Export has nothing to ride.
+    expect(within(section).getByRole("button", { name: "Export results" })).toHaveProperty("disabled", true);
+  });
+
   it("invalid AST renders the placeholder without crashing", async () => {
     const client = await seedClient();
     await seedWorld(client);

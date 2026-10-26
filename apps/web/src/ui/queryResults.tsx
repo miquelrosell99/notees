@@ -22,6 +22,7 @@ import { titleOfNode } from "./dateDisplay.js";
 import {
   QUERY_TABLE_COLUMNS,
   openQueryResult,
+  parseRunAst,
   queryResultItems,
   useQueryRun,
   type QueryRunState,
@@ -65,6 +66,22 @@ export function formatAggregateCell(value: unknown): string {
   return String(value);
 }
 
+/**
+ * True when the AST parses and specifies NOTHING: the entire-workspace
+ * scope, a bare AND group with zero conditions, no aggregation (an empty query means the user has not yet said what
+ * they are looking for, so it renders the empty state instead of loading
+ * the whole graph). A scope-only AST (this page / pages) is a deliberate
+ * choice and still runs; an unparseable AST is not unspecified (the
+ * invalid-query placeholder names it).
+ */
+export function isUnspecifiedQueryAst(raw: unknown): boolean {
+  const parsed = parseRunAst(raw);
+  if (parsed === null) return false;
+  if (parsed.aggregation !== undefined) return false;
+  if (parsed.scope.type !== "entire_workspace") return false;
+  return parsed.root.type === "group" && parsed.root.children.length === 0;
+}
+
 export interface QueryResultsBodyProps {
   /** The full client (both classes satisfy the run seam structurally). */
   client: AnyClient;
@@ -72,6 +89,8 @@ export interface QueryResultsBodyProps {
   ast: unknown;
   /** The live run — owned by the wrapper hook or the host section (export/count). */
   run: { result: QueryRunState | null; error: string | null };
+  /** Unspecified query (isUnspecifiedQueryAst): render the empty state, never the run. */
+  unspecified?: boolean | undefined;
   viewMode: ViewMode;
   /** Render-cascade navigation (App routes the id). */
   onOpenNode: (nodeId: string) => void;
@@ -79,7 +98,7 @@ export interface QueryResultsBodyProps {
 }
 
 /** The result body over an ALREADY-RUNNING query (the host owns the run). */
-export function QueryResultsBody({ client, ast, run, viewMode, onOpenNode, onOpenInSidebar }: QueryResultsBodyProps) {
+export function QueryResultsBody({ client, ast, run, unspecified = false, viewMode, onOpenNode, onOpenInSidebar }: QueryResultsBodyProps) {
   const { result, error } = run;
   const [limit, setLimit] = useState(QUERY_RESULT_CAP);
   const [limitKey, setLimitKey] = useState(JSON.stringify(ast ?? null));
@@ -91,6 +110,11 @@ export function QueryResultsBody({ client, ast, run, viewMode, onOpenNode, onOpe
     setLimit(QUERY_RESULT_CAP);
   }
 
+  if (unspecified) {
+    // The empty match-all is NOT "everything": the
+    // user has not yet said what they are looking for.
+    return <div className="nt-query-empty">Set a query to see results.</div>;
+  }
   if (error !== null) {
     return (
       <div className="nt-query-invalid" title={error}>
@@ -165,16 +189,20 @@ export function QueryResultsBody({ client, ast, run, viewMode, onOpenNode, onOpe
   );
 }
 
-export interface QueryResultsProps extends Omit<QueryResultsBodyProps, "run"> {}
+export interface QueryResultsProps extends Omit<QueryResultsBodyProps, "run" | "unspecified"> {}
 
 /** The self-running variant: owns the live coalesced run itself. */
 export function QueryResults({ client, ast, viewMode, onOpenNode, onOpenInSidebar }: QueryResultsProps) {
-  const run = useQueryRun(client, ast);
+  // An unspecified AST never runs (an empty match-all must not load the
+  // whole graph) — the body renders the honest empty state.
+  const unspecified = isUnspecifiedQueryAst(ast);
+  const run = useQueryRun(client, ast, { enabled: !unspecified });
   return (
     <QueryResultsBody
       client={client}
       ast={ast}
       run={run}
+      unspecified={unspecified}
       viewMode={viewMode}
       onOpenNode={onOpenNode}
       onOpenInSidebar={onOpenInSidebar}
