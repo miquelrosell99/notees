@@ -5,25 +5,41 @@
  * modal dialogs throughout the app.
  *
  * Thin fleet wrapper over the normalized catalog dialog's foundation
- * (Radix Dialog — the same primitives src/components/ui/dialog.tsx wraps):
- * focus trap, focus restore, portal layering, and the dialog/tabpanel ARIA
- * wiring are the catalog's. The app chrome stays fleet-owned per the
- * sourcing table: the header/footer/content structure, the bottom-sheet
- * presentation with swipe-to-dismiss (Modal.css), the Escape LIFO ordering
- * through the app overlay stack (useOverlaySurface — Radix's own Escape is
- * disabled so the stack stays the single Escape authority), and the
- * backdrop/scrim register.
+ * (Radix Dialog — the same primitives src/components/ui/dialog.tsx wraps),
+ * with the fleet owning the layer semantics: the backdrop/scrim register,
+ * the scroll lock, the background aria-hiding pass, and the Escape LIFO
+ * ordering through the app overlay stack (useOverlaySurface — Radix's own
+ * Escape is disabled so the stack stays the single Escape authority).
+ *
+ * The Root runs `modal={false}` on purpose. Radix's modal mode locks
+ * `document.body` pointer-events and hard-traps focus, which makes any
+ * hand-rolled popup portaled to `document.body` (every picker composing
+ * usePopupDismissal) click-dead and un-focusable inside a dialog — the
+ * "popups in modals" class of bugs. The fleet re-implements what modal mode
+ * gave up, popup-aware:
+ * - backdrop click to close (the app's contract; Radix outside-press
+ *   dismissal is guarded so a press inside a `data-fleet-popup` surface —
+ *   a portaled picker — never dismisses the dialog),
+ * - body scroll lock (react-remove-scroll, the same library Radix wraps
+ *   its overlay in, with the dialog content as a shard),
+ * - background hidden from assistive tech (the same `hideOthers` pass
+ *   Radix runs in modal mode; usePopupDismissal lifts the popup roots),
+ * - soft focus containment (Radix's FocusScope still loops Tab while
+ *   focus is inside the dialog, and lets it leave into a fleet popup).
  *
  * Features:
  * - Backdrop click to close
  * - Escape key to close (via the app overlay stack)
- * - Focus trapping + restore (Radix)
+ * - Soft focus loop + close focus restore (Radix, non-modal layer)
  * - Consistent header/footer structure
  */
 import { useCallback, useEffect, useRef, type ReactNode, type MouseEvent } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { RemoveScroll } from 'react-remove-scroll';
+import { hideOthers } from 'aria-hidden';
 import { Button } from './Button.js';
 import { useOverlaySurface, useIsMobile } from './overlay-hooks.js';
+import { FLEET_POPUP_ATTR } from './usePopupDismissal.js';
 import {
   SHEET_DRAG_SLOP_PX,
   shouldEngageSheetDrag,
@@ -89,6 +105,24 @@ export function Modal({
 }: ModalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
+  const backgroundUndoRef = useRef<(() => void) | null>(null);
+
+  // Background hiding pass: same `hideOthers` Radix runs in modal mode, so
+  // the rest of the app stays out of the accessibility tree while a dialog
+  // is open. Portaled fleet popups are stamped by usePopupDismissal, which
+  // lifts the hiding from its own root while they are open.
+  //
+  // The content node is captured through a callback ref, not a mount effect:
+  // Radix's Presence can mount the portal content only after mount effects
+  // have already run, so an effect keyed on isOpen would see a null ref for
+  // an initially-open dialog. The callback ref is the one place the node is
+  // guaranteed to be observed (mount AND unmount).
+  const setContainerRef = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node;
+    backgroundUndoRef.current?.();
+    backgroundUndoRef.current = null;
+    if (node) backgroundUndoRef.current = hideOthers(node);
+  }, []);
   // Bottom-sheet below the tablet breakpoint, matching the app layout switch.
   const isMobile = useIsMobile();
   const isSheet = variant === 'sheet' || (variant === 'auto' && isMobile);
@@ -102,6 +136,24 @@ export function Modal({
     enabled: isOpen && closeOnEscape,
     onClose,
   });
+
+  // A press that lands on another overlay surface is an INSIDE press as far
+  // as this dialog is concerned:
+  // - a portaled fleet popup (a picker opened from this dialog) — a body
+  //   sibling outside this dialog's DOM subtree;
+  // - a stacked fleet dialog (the confirmation-over-form pattern) — same.
+  // Radix would otherwise treat the interaction as outside and dismiss this
+  // dialog underneath the user's click (a focus move into the stacked
+  // dialog does exactly that through the focus-outside path).
+  // A scrim press is the exception that proves the rule: it closes only the
+  // dialog whose scrim it is — another dialog's scrim leaves this one alone.
+  const isOverlaySurfacePress = (event: { target: EventTarget | null }): boolean => {
+    if (!(event.target instanceof Element)) return false;
+    if (event.target.closest(`[${FLEET_POPUP_ATTR}]`) !== null) return true;
+    if (event.target.closest('.modal') !== null) return true;
+    const scrim = event.target.closest('.modal-backdrop');
+    return scrim !== null && scrim !== backdropRef.current;
+  };
 
   // Swipe-to-dismiss for the bottom-sheet variant. Mirrors the MobileLayout
   // drawer gesture: the drag offset is injected as a CSS variable, the
@@ -250,31 +302,50 @@ export function Modal({
   return (
     <DialogPrimitive.Root
       open={isOpen}
+      // modal={false}: the fleet owns the layer semantics (see the file
+      // docstring) so portaled fleet popups stay clickable and focusable
+      // inside the dialog.
+      modal={false}
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
     >
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay
-          ref={backdropRef}
-          className="modal-backdrop"
-          // Radix dismisses on pointer-down outside; the app's contract is
-          // backdrop CLICK (callers and tests drive click) — keep both.
-          onClick={(event) => {
-            if (closeOnBackdrop && event.target === event.currentTarget) onClose();
-          }}
-        />
-        <DialogPrimitive.Content
-          ref={containerRef}
-          aria-label={title ? undefined : ariaLabel}
-          aria-labelledby={title ? 'modal-title' : undefined}
-          onEscapeKeyDown={(event) => event.preventDefault()}
-          onPointerDownOutside={(event) => {
-            if (!closeOnBackdrop) event.preventDefault();
-          }}
-          onInteractOutside={(event) => {
-            if (!closeOnBackdrop) event.preventDefault();
-          }}
+        <RemoveScroll allowPinchZoom shards={[containerRef]}>
+          {/*
+            The fleet's own scrim. Radix's DialogOverlay renders nothing when
+            modal={false}, and the scroll lock lives here in modal mode — the
+            fleet keeps both, with the dialog content as a scroll shard.
+          */}
+          <div
+            ref={backdropRef}
+            className="modal-backdrop"
+            data-state={isOpen ? 'open' : 'closed'}
+            // Radix dismisses on pointer-down outside; the app's contract is
+            // backdrop CLICK (callers and tests drive click) — keep both.
+            onClick={(event) => {
+              if (closeOnBackdrop && event.target === event.currentTarget) onClose();
+            }}
+          />
+          <DialogPrimitive.Content
+            ref={setContainerRef}
+            aria-label={title ? undefined : ariaLabel}
+            aria-labelledby={title ? 'modal-title' : undefined}
+            onEscapeKeyDown={(event) => event.preventDefault()}
+            onPointerDownOutside={(event) => {
+              if (!closeOnBackdrop || isOverlaySurfacePress(event)) event.preventDefault();
+            }}
+            onInteractOutside={(event) => {
+              if (!closeOnBackdrop || isOverlaySurfacePress(event)) event.preventDefault();
+            }}
+            onFocusOutside={(event) => {
+              // Focus may leave into a stacked dialog or a portaled popup;
+              // the move must never dismiss this one (Radix non-modal
+              // layers dismiss on focus-outside — the stacked-dialog
+              // collapse). preventDefault only blocks the dismissal; the
+              // focus move itself proceeds.
+              event.preventDefault();
+            }}
           className={cn(
             'modal',
             `modal--${size}`,
@@ -322,6 +393,7 @@ export function Modal({
             </div>
           )}
         </DialogPrimitive.Content>
+        </RemoveScroll>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );

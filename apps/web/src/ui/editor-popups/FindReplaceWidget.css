@@ -2,7 +2,8 @@
   position: fixed;
   top: calc(var(--topbar-height) + var(--spacing-2));
   right: var(--spacing-2);
-  z-index: var(--z-1000);
+  /* --z-floating: transient popups fly above the modal band. */
+  z-index: var(--z-floating);
   /* The elevated popup register: a floating widget
      rides surface-container-high + level-2 shadow — surface-bright blended
      into the content behind (this was the flagged elevation audit). */

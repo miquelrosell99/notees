@@ -187,7 +187,8 @@ export function FloatingToolbar({ rootRef, activeMarks, onToggleMark, onMention,
         // visibility to 'visible' — all imperatively, so repositioning never
         // goes through React renders.
         visibility: "hidden",
-        zIndex: "var(--z-1000)",
+        // --z-floating: transient popups fly above the modal band.
+        zIndex: "var(--z-floating)",
         pointerEvents: "auto",
       }}
       onMouseDown={handleMouseDown}

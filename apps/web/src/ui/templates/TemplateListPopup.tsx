@@ -186,7 +186,8 @@ export function TemplateListPopup({
       }`}
       style={{
         position: "fixed",
-        zIndex: "var(--z-1000)",
+        // --z-floating: transient popups fly above the modal band.
+        zIndex: "var(--z-floating)",
         visibility: isPositioned ? "visible" : "hidden",
         maxHeight: placement === "above" ? position.caretTop - 4 : undefined,
       }}

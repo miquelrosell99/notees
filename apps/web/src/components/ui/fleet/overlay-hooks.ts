@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { hasOpenFleetPopups } from './usePopupDismissal.js';
 
 /* ==================== useOverlaySurface ==================== */
 
@@ -33,6 +34,9 @@ function ensureEscapeListener(): void {
   escapeListenerInstalled = true;
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    // A fleet popup (usePopupDismissal) is the topmost surface: it owns
+    // Escape, and the stack resumes LIFO once the last one closes.
+    if (hasOpenFleetPopups()) return;
     const top = surfaceStack[surfaceStack.length - 1];
     if (!top) return;
     if (top.onEscape() === true) return; // consumed by the surface (e.g. submenu)

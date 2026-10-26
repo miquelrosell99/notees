@@ -28,6 +28,18 @@
   }
 }
 
+/*
+ * Popup surfaces stamped by usePopupDismissal (data-fleet-popup). A modal
+ * dialog may lock the body's pointer events while open (any Radix modal
+ * layer in the tree); portaled popups are body children and would inherit
+ * the lock, rendering them click-dead. The stamp re-enables hit-testing on
+ * the popup subtree — one rule for every popup the seam marks, present and
+ * future.
+ */
+[data-fleet-popup] {
+  pointer-events: auto;
+}
+
 .modal {
   display: flex;
   flex-direction: column;
