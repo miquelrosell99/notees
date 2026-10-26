@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): bordered buttons pick up a background; the danger default is
+  now filled, not bordered.** The
+  border-only danger sat on transparent — a naked outline. The danger
+  variant is now tonal-filled at rest (`error-container` bg, `error` text,
+  transparent border for size parity), escalating to solid `error` on hover
+  and `error-pressed` on press; the active-toggle register becomes the
+  solid. The `outline` variant (modal Cancel and friends) gains its slight
+  background too (`surface-container-low` at rest, hover overlay
+  unchanged). `danger-solid` (already filled+bordered) is untouched. The
+  settings **Current** flag is a pure status pill now: the fleet `Pill`
+  with `pointer-events: none` + `cursor: default` — no hover border, no
+  press scale, not an action. Verified: `ui-primitives` /
+  `settings-page` / `class-bindings` / `css-token-drift` 64 specs green;
+  captures of the sync section + the add dialog (filled Disconnect,
+  backgrounded Cancel) at 1440/390.
+
 - **feat(web): the danger button register is bordered at rest.** The fleet `Button` danger variant sat on a
   transparent border — a red text with no outline, easy to miss as the
   destructive affordance. `border-transparent` → `border-error` in the
