@@ -75,7 +75,9 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     : "border-b-outline-variant focus:border-b-primary focus:shadow-field-focus focus-visible:shadow-none";
 
   const inputClasses = cn(
-    "w-full bg-transparent border-b px-0 text-on-surface transition-colors duration-short ease-standard",
+    // rounded-none: the global input register's extra-large radius would
+    // curve the bottom border's ends.
+    "w-full bg-transparent border-b rounded-none px-0 text-on-surface transition-colors duration-short ease-standard",
     "placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed",
     SIZE_CLASSES[size],
     underlineClasses,
@@ -95,7 +97,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   );
 
   const containerClasses = cn(
-    "flex items-center w-full bg-transparent border-b transition-colors duration-short ease-standard",
+    "flex items-center w-full bg-transparent border-b rounded-none transition-colors duration-short ease-standard",
     underlineClasses,
     "focus-within:outline-none focus-within:focus-visible:outline-none",
     error ? "focus-within:border-b-error focus-within:shadow-field-error" : "focus-within:border-b-primary focus-within:shadow-field-focus",
