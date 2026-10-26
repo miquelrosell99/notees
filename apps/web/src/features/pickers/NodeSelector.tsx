@@ -624,12 +624,13 @@ export function NodeSelector({
   // class filters), classes pickers create a class. Callers override via
   // onCreateNew. A source/agent family filter reroutes to the quick-create
   // modal (citation fields up front); every other filter stays plain.
-  // a source-family filter whose typed
-  // query IS an identifier/link (DOI/ISBN/arXiv/URL) reroutes further —
-  // the create row opens the add-source dialog through the app-level
-  // requestAddSource seam, the picked/filter class locking the resolved
-  // prefill. A PLAIN typed title keeps the citation modal: the dialog
-  // resolves identifiers, it has no honest path for a non-resolvable title.
+  //, class lock retired round 4
+  // (2026-10-26): a source-family filter whose typed query IS an
+  // identifier/link (DOI/ISBN/arXiv/URL) reroutes further — the create row
+  // opens the add-source dialog through the app-level requestAddSource
+  // seam; the resolved record's own type picks the prefill class. A PLAIN
+  // typed title keeps the citation modal: the dialog resolves identifiers,
+  // it has no honest path for a non-resolvable title.
   const defaultCreateNew = (name: string): Promise<string> | void => {
     if (searchMode === "classes") {
       return client.createClass(name);
@@ -650,7 +651,6 @@ export function NodeSelector({
           resetFilters();
           requestAddSource({
             initialInput: name,
-            classId: plan.defaultClassId,
             onCreated: (id) => resolveCreateResult(id),
           });
           return;

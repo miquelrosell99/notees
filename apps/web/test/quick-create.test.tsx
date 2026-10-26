@@ -165,64 +165,38 @@ describe("resolveQuickCreate", () => {
   });
 });
 
-describe("routeNewNodeClass — the New-popup class-pick routing", () => {
-  it("a source-family pick routes to the add-source dialog when online and the resolver is on", async () => {
+describe("routeNewNodeClass — the New-popup class-pick routing (round 2, amended round 4 2026-10-26)", () => {
+  it("a source-family pick routes to the MANUAL citation form (the resolver's door is the palette)", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    expect(
-      routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.journal_article, {
-        online: true,
-        resolverEnabled: true,
-      }),
-    ).toEqual({ kind: "add-source", classId: SYSTEM_CLASS_UUIDS.journal_article });
-    // The family base resolves to its book default, still add-source.
-    expect(
-      routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.source, {
-        online: true,
-        resolverEnabled: true,
-      }),
-    ).toEqual({ kind: "add-source", classId: SYSTEM_CLASS_UUIDS.book });
-  });
-
-  it("a source pick falls back to the quick-create form offline or with the resolver off", async () => {
-    const client = await seedClient();
-    await seedFamilies(client);
-    for (const opts of [
-      { online: false, resolverEnabled: true },
-      { online: true, resolverEnabled: false },
-      { online: false, resolverEnabled: false },
-    ] as const) {
-      expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.book, opts)).toEqual({
-        kind: "quick-create-source",
-        classId: SYSTEM_CLASS_UUIDS.book,
-      });
-    }
+    // The class pick is Zotero's manual entry creation — always the
+    // quick-create form, regardless of connectivity/resolver state.
+    expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.journal_article)).toEqual({
+      kind: "quick-create-source",
+      classId: SYSTEM_CLASS_UUIDS.journal_article,
+    });
+    // The family base resolves to its book default, still the manual form.
+    expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.source)).toEqual({
+      kind: "quick-create-source",
+      classId: SYSTEM_CLASS_UUIDS.book,
+    });
   });
 
   it("an asset pick routes to the asset upload", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    expect(
-      routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.asset, {
-        online: true,
-        resolverEnabled: true,
-      }),
-    ).toEqual({ kind: "asset-upload", classId: SYSTEM_CLASS_UUIDS.asset });
+    expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.asset)).toEqual({
+      kind: "asset-upload",
+      classId: SYSTEM_CLASS_UUIDS.asset,
+    });
   });
 
   it("everything else routes to the plain create", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    expect(
-      routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.person, {
-        online: true,
-        resolverEnabled: true,
-      }),
-    ).toEqual({ kind: "plain" });
+    expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.person)).toEqual({ kind: "plain" });
     const tagClass = await client.createClass("taglike");
-    expect(
-      routeNewNodeClass(client, tagClass, { online: true, resolverEnabled: true }),
-    ).toEqual({ kind: "plain" });
+    expect(routeNewNodeClass(client, tagClass)).toEqual({ kind: "plain" });
   });
 });
 
@@ -537,8 +511,9 @@ describe("QuickCreateModal via the picker create row", () => {
       </>,
     );
 
-    // The typed identifier rides the create row into the resolver dialog
-    // (the picked/filter class locks the prefill — resolution asserts that).
+    // The typed identifier rides the create row into the resolver dialog;
+    // the resolved record's own type picks the prefill (the class lock was
+    // retired with round 4 — resolution asserts the prefill mapping).
     fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "10.1000/xyz" } });
     fireEvent.click(screen.getByText('Create "10.1000/xyz"'));
     const dialog = await screen.findByRole("dialog", { name: "Add source" });
@@ -549,7 +524,7 @@ describe("QuickCreateModal via the picker create row", () => {
     expect(screen.queryByLabelText("Title")).toBeNull();
   });
 
-  it("the same create row falls back to the citation form when the resolver is off (review Minor 1)", async () => {
+  it("the same create row opens the dialog with the honest resolver-off note when the resolver is off (round 4: the class lock is gone)", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     // The resolver gate read: only an explicit false disables.
@@ -576,15 +551,14 @@ describe("QuickCreateModal via the picker create row", () => {
     fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "10.1000/xyz" } });
     fireEvent.click(screen.getByText('Create "10.1000/xyz"'));
 
-    // The class-locked resolve dialog would only fail honestly (its manual
-    // form is reachable after a successful resolve — a dead-end): the seam
-    // falls back to the citation modal, locked to the picked class.
-    const dialog = await screen.findByRole("dialog", { name: /new book/i });
-    expect(within(dialog).getByLabelText("Authors")).not.toBeNull();
-    expect(within(dialog).getByLabelText("DOI")).not.toBeNull();
-    // No error dialog, no resolve form.
-    expect(screen.queryByRole("dialog", { name: "Add source" })).toBeNull();
-    expect(screen.queryByLabelText("Identifier or link")).toBeNull();
+    // No class lock since round 4 — an IDENTIFIER (not a bare URL) opens the
+    // dialog itself, honest about the disabled resolver (the note), the
+    // typed input prefilled. No dead-end, no silent fallback.
+    const dialog = await screen.findByRole("dialog", { name: "Add source" });
+    expect(within(dialog).getByText(/resolver is turned off/i)).not.toBeNull();
+    expect(
+      (within(dialog).getByLabelText("Identifier or link") as HTMLInputElement).value,
+    ).toBe("10.1000/xyz");
   });
 
   it("a person-filtered picker opens the agent dialog with the name split", async () => {

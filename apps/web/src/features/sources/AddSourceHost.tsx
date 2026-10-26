@@ -18,14 +18,6 @@
  * A request-level onCreated (the picker row's context) receives the
  * created id INSTEAD of the app's page-open — the picker links the node
  * like any create-row result.
- *
- * Review Minor 1 (same slice): a CLASS-LOCKED request (the picker
- * create-row reroute, the New flow's source pick) with the resolver
- * disabled or no server (offline) never opens the locked resolve dialog —
- * its manual form is only reachable after a successful resolve, so the
- * dialog would be a dead-end. The host falls back to the prefilled
- * QuickCreateModal (the citation form, locked to the picked class) — the
- * same fallback routeNewNodeClass applies at the New popup.
  */
 
 import { useEffect, useState } from "react";
@@ -34,19 +26,12 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { AnyClient } from "../modals/quickCreate.js";
 import { readSourceSettings } from "../modals/quickCreate.js";
-import { QuickCreateModal } from "../modals/QuickCreateModal.js";
 import { classifySourceInput } from "./resolver.js";
 import { AddSourceDialog } from "./AddSourceDialog.js";
 
 export interface AddSourceRequest {
   /** A pasted identifier/link the dialog prefills its input with. */
   initialInput?: string | undefined;
-  /**
-   * The class the create is locked to (the New
-   * flow's picked class): a resolved record's own classKey yields to it
-   * in the prefilled form.
-   */
-  classId?: string | undefined;
   /** Caller-specific follow-up receiving the created node id (the picker
    *  links it like a create-row result); absent = the app opens the page. */
   onCreated?: ((nodeId: string) => void) | undefined;
@@ -104,35 +89,9 @@ export function AddSourceHost({
   };
   const cancel = (): void => setRequest(null);
 
-  // Resolver-unavailable fallback (review Minor 1): a CLASS-LOCKED request
-  // (the picker create-row's identifier-shaped query, the New flow's source
-  // pick) with the resolver disabled OR no server (offline) opens the
-  // citation form directly, locked to the picked class — the locked resolve
-  // dialog could only fail honestly there (its manual form is reachable
-  // after a successful resolve): a dead-end. The client-agnostic picker
-  // cannot read connectivity, so the gate lives here, where both signals
-  // (the server coordinates + the sources feature row) are present.
-  if (
-    request.classId !== undefined &&
-    (serverUrl === null || !readSourceSettings(client).resolverEnabled)
-  ) {
-    return (
-      <QuickCreateModal
-        isOpen
-        client={client}
-        kind="source"
-        defaultClassId={request.classId}
-        onClose={cancel}
-        onCreated={finish}
-      />
-    );
-  }
-
   if (serverUrl === null) return null;
 
   // The bare-URL + resolver-off shortcut: a plain weblink create, no dialog.
-  // Class-locked requests never reach it — the resolver-off arm fell back
-  // above, the resolver-on arm resolves.
   const raw = (request.initialInput ?? "").trim();
   if (
     raw !== "" &&
@@ -160,7 +119,6 @@ export function AddSourceHost({
       serverUrl={serverUrl}
       credential={credential}
       initialInput={request.initialInput ?? ""}
-      {...(request.classId !== undefined ? { lockedClassId: request.classId } : {})}
       onClose={cancel}
       onCreated={finish}
       onOpenNode={(nodeId) => {

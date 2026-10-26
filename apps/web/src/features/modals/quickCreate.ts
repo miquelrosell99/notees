@@ -238,33 +238,23 @@ export function resolveQuickCreate(client: AnyClient, classFilters: string[]): Q
 }
 
 /**
- * The New-popup class-pick routing. Picking a class in the global New flow resolves through
- * resolveQuickCreate and routes:
+ * The New-popup class-pick routing. Picking a class in the global New flow
+ * resolves through resolveQuickCreate and routes:
  *
- * - source family → the add-source dialog (`requestAddSource` with the
- *   picked class as the prefill lock) when the resolver can run (online +
- *   enabled); offline or resolver-off the flow falls back to the
- *   QuickCreateModal — the manual citation form, the dialog's edit path —
- *   never a dead dialog.
+ * - source family → the QuickCreateModal — the manual citation form (the
+ *   resolver's magic-wand door is the command palette's "Add source…" row,
+ *  ).
  * - asset → the asset upload modal (uploading IS creating).
  * - everything else → the plain create (today's behavior).
  */
 export type NewNodeRoute =
-  | { kind: "add-source"; classId: string }
   | { kind: "quick-create-source"; classId: string }
   | { kind: "asset-upload"; classId: string }
   | { kind: "plain" };
 
-export function routeNewNodeClass(
-  client: AnyClient,
-  classId: string,
-  opts: { online: boolean; resolverEnabled: boolean },
-): NewNodeRoute {
+export function routeNewNodeClass(client: AnyClient, classId: string): NewNodeRoute {
   const plan = resolveQuickCreate(client, [classId]);
-  if (plan?.kind === "source") {
-    if (opts.online && opts.resolverEnabled) return { kind: "add-source", classId: plan.defaultClassId };
-    return { kind: "quick-create-source", classId: plan.defaultClassId };
-  }
+  if (plan?.kind === "source") return { kind: "quick-create-source", classId: plan.defaultClassId };
   if (plan?.kind === "asset") return { kind: "asset-upload", classId: plan.defaultClassId };
   return { kind: "plain" };
 }
