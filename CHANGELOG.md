@@ -69,16 +69,22 @@ predating this file.
   `parentlessRole "block"` class keep the bit (block-role citizens by the
   2026-10-24 contract). SCHEMA.md: the `is_embedded` bullet and the
   parent-page condition bullet carry the new rule; the extraction section
-  notes the later-parenting consequence. GTK/Flutter applier alignment: the
-  wire and every fixture are untouched (the rule is an applier semantic, not
-  a wire change — no sha256 churn), but the sibling ports' `object.move`
-  appliers need the same treat-as-main rule to converge on logs mixing
-  web-issued first parentings; recorded here per the lockstep discipline, the
-  client check ran. Undo note: the undo journal inverts a move as a move, so
-  undoing an Add-parent leaves the node parentless with the claim — rendered
-  state (page chrome) is identical either way. Verified: four new store tests
-  (claim acquisition + stringify, fail-loud under class/block parent,
-  block-role class member exemption); `pnpm typecheck` + `pnpm test` green.
+  notes the later-parenting consequence. **LOCKSTEP SHIPPED (2026-10-26)** —
+  the GTK port (`notees-gtk` `1c91511`) and the Flutter port
+  (`notees-flutter` `fe651c9`) converge on the same rule, each with the four
+  behavior tests ported; the wire and the fixture corpus are unchanged (an
+  applier semantic, not a wire change — zero sha256 churn), so no re-vendor
+  was needed. GTK caveat: its flatten keeps the captured-label content model
+  (the `452983f96` no-stored-link-text ruling is a separate, still-unported
+  change) — its treat-as-main stringify rides the same helper as its
+  promotion, internally consistent until that ruling ports. Undo note: the
+  undo journal inverts a move as a move, so undoing an Add-parent leaves the
+  node parentless with the claim — rendered state (page chrome) is identical
+  either way. Verified: four new store tests (claim acquisition + stringify,
+  fail-loud under class/block parent, block-role class member exemption);
+  `pnpm typecheck` + `pnpm test` green; GTK gate (`pytest` + `ruff` +
+  `mypy`) and Flutter gate (`flutter analyze` + `flutter test`) green on the
+  ported slices.
 
 - **fix(web): tighten the surface top bar's vertical padding.** The owner flagged the surface top bar — the nodeview's at least —
   for too much top and bottom padding (the class chip floating in a tall
