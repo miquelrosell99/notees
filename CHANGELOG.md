@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): the overrides discussion lands — the fleet skill absorbs five
+  app registers and the app absorbs one back.**
+  Walking `.agents/design-overrides.md` one by one: **#1 Button extensions —
+  ADOPTED by the skill** (v2.0.6: the 48px hit-area floor now rides every
+  `.btn`, `default` rests on `surface-container`; xs/haptics/badges/loading/
+  active/danger-solid stay app-only). **#2 Selected chrome —
+  ADOPTED** (v2.0.7: SegmentedControl + patterns.md prescribe the
+  `primary-container` selected container; the 2026-10-14 app ruling agrees).
+  **#3 Dialog shape — ADOPTED** (v2.0.8: new `--radius-dialog: 16px` for
+  centered dialogs, `--radius-sheet` narrowed to bottom sheets — the app's
+  2026-10-22 register becomes fleet law with the M3 delta recorded in the
+  spec). **#4 Tabs — ADOPTED** (v2.0.9: ink active identity + the short
+  centered sliding bar; accent-text double-signaling retires). **#5 Modal
+  chrome density and #6 Card defaults — kept app-only** (density and card
+  defaults are app-identity decisions; entries annotated NOT ADOPTED).
+  **#7 ToggleSwitch quiet track — REVERSED in the app**: the owner disliked
+  the neutral track; the switch now rides M3/the skill register (primary
+  track + on-primary thumb when checked), no skill change needed. The
+  app's design-overrides entries carry the ADOPTED / NOT ADOPTED
+  annotations per item. Verified: 61 targeted specs; full web suite green;
+  capture of an ON switch (green track, white thumb).
+
 - **chore(web): the fleet audit's tail closes — Chip/ToggleSwitch/TextField
   registers and the documentation pass (fleet audit 2026-10-26).** Code:
   `Chip` gains `disabled` + a `:focus-visible` ring (the template ships
