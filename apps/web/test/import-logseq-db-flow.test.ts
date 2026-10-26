@@ -72,11 +72,13 @@ function fixtureRows(): KvsRow[] {
   const PROP_READ = 23;
   const PROP_DATE = 24;
   const PROP_UNMAPPED = 25;
+  const PROP_CLIENTE = 26;
   const CLOSED_MUJER = 30;
   const AUTHOR = 40;
   const EXISTING = 50; // pre-existing in the workspace
   const NEW_NODE = 51; // missing → created with preserved uuid
   const CHILD_BLOCK = 52; // parented under NEW_NODE
+  const BAD_NODE = 53; // a write that fails at store level mid-pass-2
   const JOURNAL = 60;
   return [
     { addr: 0, content: JSON.stringify(["^ ", KW("schema"), 1]) },
@@ -123,15 +125,28 @@ function fixtureRows(): KvsRow[] {
       [PROP_UNMAPPED, KW("logseq.property/type"), KW("number"), 1],
     ]),
     pageRow(1008, [
+      [PROP_CLIENTE, KW("db/ident"), KW("user.property/cliente-2626"), 1],
+      [PROP_CLIENTE, KW("block/title"), "Cliente", 1],
+      [PROP_CLIENTE, KW("logseq.property/type"), KW("default"), 1],
+    ]),
+    pageRow(1009, [
+      [BAD_NODE, KW("block/uuid"), UU("53535353-0000-4000-8000-000000000053"), 1],
+      [BAD_NODE, KW("block/title"), "Bad Node", 1],
+      // Two values for a SINGLE-valued mapped schema: the idx-1 write fails
+      // at store level mid-pass-2 — the run must isolate it and continue.
+      [BAD_NODE, KW("user.property/cliente-2626"), "first", 1],
+      [BAD_NODE, KW("user.property/cliente-2626"), "second", 1],
+    ]),
+    pageRow(1010, [
       [CLOSED_MUJER, KW("block/title"), "Mujer", 1],
       [CLOSED_MUJER, KW("block/uuid"), UU("30303030-0000-4000-8000-000000000030"), 1],
       [CLOSED_MUJER, KW("logseq.property/closed-value-property"), PROP_SEXO, 1],
     ]),
-    pageRow(1009, [
+    pageRow(1011, [
       [AUTHOR, KW("block/uuid"), UU("40404040-0000-4000-8000-000000000040"), 1],
       [AUTHOR, KW("block/title"), "Ada Lovelace", 1],
     ]),
-    pageRow(1010, [
+    pageRow(1012, [
       [EXISTING, KW("block/uuid"), UU("50505050-0000-4000-8000-000000000050"), 1],
       [EXISTING, KW("block/title"), "Existing Book", 1],
       [EXISTING, KW("block/tags"), CLASS_PERSON, 1],
@@ -139,7 +154,7 @@ function fixtureRows(): KvsRow[] {
       [EXISTING, KW("user.property/consumido-ffff"), true, 1],
       [EXISTING, KW("user.property/paginas-2222"), 300, 1],
     ]),
-    pageRow(1011, [
+    pageRow(1013, [
       [NEW_NODE, KW("block/uuid"), UU("51515151-0000-4000-8000-000000000051"), 1],
       [NEW_NODE, KW("block/title"), "New Book", 1],
       [NEW_NODE, KW("block/tags"), CLASS_PERSON, 1],
@@ -151,18 +166,18 @@ function fixtureRows(): KvsRow[] {
       [NEW_NODE, KW("user.property/fecha-1111"), JOURNAL, 1],
       [NEW_NODE, KW("user.property/paginas-2222"), 200, 1],
     ]),
-    pageRow(1012, [
+    pageRow(1014, [
       [CHILD_BLOCK, KW("block/uuid"), UU("52525252-0000-4000-8000-000000000052"), 1],
       [CHILD_BLOCK, KW("block/title"), "A nested quote", 1],
       [CHILD_BLOCK, KW("block/parent"), NEW_NODE, 1],
       [CHILD_BLOCK, KW("block/order"), "a0", 1],
     ]),
-    pageRow(1013, [
+    pageRow(1015, [
       [JOURNAL, KW("block/uuid"), UU("60606060-0000-4000-8000-000000000060"), 1],
       [JOURNAL, KW("block/journal-day"), 20240203, 1],
     ]),
     // a $$$views subtree and system + asset entities — skipped, counted.
-    pageRow(1014, [
+    pageRow(1016, [
       [70, KW("block/title"), "$$$views", 1],
       [70, KW("block/uuid"), UU("70707070-0000-4000-8000-000000000070"), 1],
       [71, KW("block/title"), "view config", 1],
@@ -189,6 +204,7 @@ interface WorkspaceFixture {
   valoracion: string;
   consumido: string;
   fecha: string;
+  cliente: string;
   existingId: string;
 }
 
@@ -206,6 +222,9 @@ async function seedWorkspace(client: WorkspaceClient): Promise<WorkspaceFixture>
   const valoracion = await client.createPropertySchema({ name: "Valoración", type: "number" });
   const consumido = await client.createPropertySchema({ name: "Consumido", type: "boolean" });
   const fecha = await client.createPropertySchema({ name: "Fecha", type: "datetime" });
+  // SINGLE-valued: BAD_NODE carries two Logseq values, so the idx-1 write
+  // fails at store level — pass 2 must isolate it and continue.
+  const cliente = await client.createPropertySchema({ name: "Cliente", type: "text" });
   // The matched node pre-exists with its Logseq uuid, a Person, and an
   // EXISTING Valoración value the import must not overwrite.
   const existingId = "50505050-0000-4000-8000-000000000050";
@@ -218,6 +237,7 @@ async function seedWorkspace(client: WorkspaceClient): Promise<WorkspaceFixture>
     valoracion,
     consumido,
     fecha,
+    cliente,
     existingId,
   };
 }
@@ -232,18 +252,21 @@ describe("logseq-db reconcile", () => {
   it("the fixture decodes into the expected model", () => {
     const model = buildModel();
     expect(model.classes.map((c) => c.title).sort()).toEqual(["LogseqOnlyClass", "Person"]);
-    expect(model.skipped).toEqual({ views: 2, system: 1, assets: 1 });
+    // Closed values are vocabulary, not content (the "Mujer" backing entity
+    // classifies as skipped, never as an importable node).
+    expect(model.skipped).toEqual({ views: 2, system: 1, assets: 1, closedValues: 1 });
     expect(model.dateByUuid.get("60606060-0000-4000-8000-000000000060")).toBe("20240203");
     const newBook = model.nodes.find((n) => n.uuid.endsWith("00051"))!;
     expect(newBook.classTitles).toEqual(["Person", "LogseqOnlyClass"]);
+    expect(model.nodes.some((n) => n.uuid.endsWith("00030"))).toBe(false);
   });
 
   it("plan: counts create/fill/skip and reports unmapped classes/properties", async () => {
     const client = await seedClient();
     await seedWorkspace(client);
     const plan = planLogseqDbImport(buildModel(), client);
-    // Creates: New Book + nested block + Ada + the "Mujer" closed value
-    // (the parse layer ships closed values as ordinary graph entities).
+    // Creates: New Book + nested block + Ada + Bad Node (the "Mujer" closed
+    // value is skipped vocabulary — never created).
     expect(plan.counts.create).toBe(4);
     expect(plan.counts.fill).toBe(1); // Existing Book (Consumido missing)
     expect(plan.counts.skip).toBe(0);
@@ -256,7 +279,9 @@ describe("logseq-db reconcile", () => {
     const client = await seedClient();
     const fixture = await seedWorkspace(client);
     const report = await runLogseqDbImport(buildModel(), client);
-    expect(report.failures).toEqual([]);
+    // BAD_NODE's idx-1 Cliente write fails by design (isolated in its own
+    // spec below) — every other write is clean.
+    expect(report.failures.filter((f) => !f.includes("Cliente"))).toEqual([]);
 
     const newBookId = "51515151-0000-4000-8000-000000000051";
     const node = client.getNodeRaw(newBookId);
@@ -290,7 +315,24 @@ describe("logseq-db reconcile", () => {
 
     expect(report.created).toBe(4);
     expect(report.filled).toBe(1);
-    expect(report.skippedEntities).toEqual({ views: 2, system: 1, assets: 1 });
+    expect(report.skippedEntities).toEqual({ views: 2, system: 1, assets: 1, closedValues: 1 });
+  });
+
+  it("run: a mid-pass-2 store failure is isolated — the run continues and reports it", async () => {
+    const client = await seedClient();
+    const fixture = await seedWorkspace(client);
+    const report = await runLogseqDbImport(buildModel(), client);
+
+    // BAD_NODE carries two values for the SINGLE-valued "Cliente" schema:
+    // idx 0 lands, idx 1 fails at store level — reported, never aborting.
+    expect(report.failures.some((f) => f.includes("Cliente"))).toBe(true);
+    expect(authoredValue(client, "53535353-0000-4000-8000-000000000053", fixture.cliente)).toHaveLength(1);
+    // The rest of the run still happened: every other node + fill landed.
+    expect(report.created).toBe(4);
+    expect(report.filled).toBe(1);
+    expect(authoredValue(client, "51515151-0000-4000-8000-000000000051", fixture.valoracion)).toEqual([
+      4.5,
+    ]);
   });
 
   it("run: matched nodes fill MISSING values only — existing values win", async () => {

@@ -220,10 +220,31 @@ predating this file.
   and views/system/assets counted as skipped. Shared write helpers +
   bounded-concurrency scheduler in `import-writes.ts`. Verification:
   `apps/web` vitest `import-options-modal` (8), `markdown-file-flow` (7),
-  `logseq-folder-flow` (7), `import-logseq-db-flow` (6) — 38 green across
-  the five import specs including the `import-table-modal` analog — and
-  `tsc --noEmit` clean; docs: [features/import.md](features/import.md).
+  `logseq-folder-flow` (7), `import-logseq-db-flow` (6), `import-table-modal`
+  (10) — 38 green across the five import specs — and `tsc --noEmit` clean;
+  docs: [features/import.md](features/import.md).
   No op types, no wire/model/seed changes — fixture gate not triggered.
+
+- **fix(web): import modal review — wasm locateFile, pass-2 isolation, dump
+  tests, skip-info surfacing (review verdict: not mergeable until
+  landed).** The Logseq DB decode gets the sql.js `locateFile` wasm URL (a
+  bare `initSqlJs()` 404s the wasm bundle in the browser — tests passed
+  only because vitest resolves it from node_modules); pass 2 of the
+  reconcile wraps every property-value write in per-item isolation (a store
+  throw lands in the report and the run continues, the pass-1-create
+  pattern — one bad value no longer aborts a run that already created
+  hundreds of nodes); the Notees Dump flow's pure halves gain specs
+  (`notees-dump-flow`: zip traversal guard / dump.json-at-root / json
+  branch / asset counting, and the envelope replay ordering); a dump
+  restore with bundled assets or skipped values now shows a summary phase
+  ("Open workspace") instead of switching silently; the command palette's
+  "Import…" row gains a spec (palette + ImportHost: the row opens the hub
+  through the module-level queue). Web gate: `import-options-modal` (9),
+  `markdown-file-flow` (7), `logseq-folder-flow` (7),
+  `import-logseq-db-flow` (7), `notees-dump-flow` (10),
+  `import-table-modal` (10), `progress` (6) — 56 green — and `tsc --noEmit`
+  clean.
+
 - **feat(web): the button register becomes a borderless weight ladder
  (the bordered-neutral detour retires with the
   bordered-danger one).** `default`, `outline` (and the active-toggle

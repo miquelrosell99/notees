@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import initSqlJs from "sql.js";
+import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 
 import {
   buildLogseqDbModel,
@@ -132,7 +133,9 @@ async function fileText(file: File): Promise<string> {
 
 /** Decode the picked .sqlite export in-browser (sql.js) into the model. */
 export async function decodeLogseqDbFile(bytes: Uint8Array): Promise<LogseqDbModel> {
-  const SQL = await initSqlJs();
+  // The wasm locateFile matters in the browser (a bare initSqlJs 404s the
+  // wasm bundle outside vitest) — the sibling flows' exact pattern.
+  const SQL = await initSqlJs({ locateFile: () => sqlWasmUrl });
   let db: InstanceType<typeof SQL.Database> | null = null;
   try {
     db = new SQL.Database(bytes);
@@ -422,12 +425,25 @@ export function ImportOptionsModal({
     onClose();
   };
 
-  // The json flow ends by SWITCHING to the imported workspace (v1 onSuccess);
-  // the report-less handoff closes the modal.
-  useEffect(() => {
-    if (workspaceResult !== null) {
-      onOpenWorkspace(workspaceResult.workspaceId, workspaceResult.name);
+  const openImportedWorkspace = useCallback(
+    (result: NoteesDumpResult): void => {
+      onOpenWorkspace(result.workspaceId, result.name);
       handleClose();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleClose only resets form state.
+    [onOpenWorkspace],
+  );
+
+  // The json flow ends by SWITCHING to the imported workspace (v1 onSuccess).
+  // When the restore has something to surface (bundled assets not restored,
+  // values that failed validation), a summary phase shows the counts first;
+  // a clean restore switches straight away.
+  const dumpHasNotes =
+    workspaceResult !== null &&
+    (workspaceResult.assetCount > 0 || workspaceResult.skippedValues.length > 0);
+  useEffect(() => {
+    if (workspaceResult !== null && !dumpHasNotes) {
+      openImportedWorkspace(workspaceResult);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per result.
   }, [workspaceResult]);
@@ -502,6 +518,64 @@ export function ImportOptionsModal({
         }
       >
         <ReportBody view={report} />
+      </Modal>
+    );
+  }
+
+  // --- dump restore summary (assets not restored / values skipped) ----------
+
+  if (workspaceResult !== null && dumpHasNotes) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={() => openImportedWorkspace(workspaceResult)}
+        title="Import Complete"
+        size="md"
+        className="import-unified"
+        footer={
+          <Button variant="primary" onClick={() => openImportedWorkspace(workspaceResult)}>
+            Open workspace
+          </Button>
+        }
+      >
+        <div className="import-unified__report">
+          <p className="import-unified__report-success">
+            Restored <strong>{workspaceResult.nodeCount}</strong> nodes into &ldquo;
+            {workspaceResult.name}&rdquo;.
+          </p>
+          <ul className="import-unified__report-list">
+            {workspaceResult.assetCount > 0 && (
+              <li>
+                <span>Assets bundled (not restored)</span>
+                <span>{workspaceResult.assetCount}</span>
+              </li>
+            )}
+            {workspaceResult.skippedValues.length > 0 && (
+              <li>
+                <span>Values skipped</span>
+                <span>{workspaceResult.skippedValues.length}</span>
+              </li>
+            )}
+          </ul>
+          {workspaceResult.assetCount > 0 && (
+            <p className="import-unified__hint">
+              The dump bundles asset files, but a snapshot restore carries the node projection
+              only — re-upload assets into the restored workspace if you need them.
+            </p>
+          )}
+          {workspaceResult.skippedValues.length > 0 && (
+            <details className="import-unified__details">
+              <summary className="import-unified__details-summary">
+                Skipped values ({workspaceResult.skippedValues.length})
+              </summary>
+              <ul className="import-unified__details-list">
+                {workspaceResult.skippedValues.map((entry, index) => (
+                  <li key={index}>{entry}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
       </Modal>
     );
   }
@@ -743,7 +817,9 @@ function LogseqDbPreview({ model, plan }: { model: LogseqDbModel; plan: LogseqDb
       <p className="import-unified__hint">
         Skipped entities: {model.skipped.views} view{model.skipped.views === 1 ? "" : "s"},{" "}
         {model.skipped.system} system, {model.skipped.assets} asset
-        {model.skipped.assets === 1 ? "" : "s"} (metadata only — not imported).
+        {model.skipped.assets === 1 ? "" : "s"} (metadata only — not imported),{" "}
+        {model.skipped.closedValues} closed value
+        {model.skipped.closedValues === 1 ? "" : "s"} (select-option vocabulary).
       </p>
       {plan.unmappedClasses.length > 0 && (
         <p className="import-unified__hint">
@@ -883,7 +959,8 @@ function ReportBody({ view }: { view: ReportView }) {
       </ul>
       <p className="import-unified__hint">
         Skipped entities: {report.skippedEntities.views} views, {report.skippedEntities.system}{" "}
-        system, {report.skippedEntities.assets} assets.
+        system, {report.skippedEntities.assets} assets, {report.skippedEntities.closedValues} closed
+        values.
       </p>
       {(report.unmappedClasses.length > 0 || report.unmappedProperties.length > 0) && (
         <details className="import-unified__details">
