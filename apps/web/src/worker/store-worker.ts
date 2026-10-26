@@ -61,7 +61,7 @@ workerScope.onmessage = (event: MessageEvent<WorkerRequestMessage>) => {
     (error: unknown) => {
       console.error(
         "store-worker: message handler failed without a response:",
-        error instanceof Error ? (error.stack ?? error.message) : error,
+        error instanceof Error ? (error.stack ?? error.message).slice(0, 4096) : String(error).slice(0, 4096),
       );
       const id = (event.data as { id?: unknown }).id;
       if (typeof id === "number") {
