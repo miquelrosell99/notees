@@ -242,12 +242,33 @@ describe("buildLogseqDbModel", () => {
     expect(model.nodes.some((n) => n.uuid.endsWith("00050"))).toBe(false);
   });
 
-  it("classifies views, system and asset entities as skipped", () => {
+  it("classifies views, system, asset and closed-value entities as skipped", () => {
     const model = buildLogseqDbModel(decodeKvs(fixtureRows()));
     expect(model.skipped.views).toBe(2);
     expect(model.skipped.system).toBe(1);
     expect(model.skipped.assets).toBe(1);
+    expect(model.skipped.closedValues).toBe(1);
     expect(model.nodes.some((n) => n.uuid.endsWith("00070") || n.uuid.endsWith("00071"))).toBe(false);
     expect(model.nodes.some((n) => n.uuid.endsWith("00080"))).toBe(false);
+    // The closed value (Mujer) is a select option's backing entity — never a
+    // page. Its property-value resolution still works by title (the decode
+    // spec above: Sexo → "Mujer").
+    expect(model.nodes.some((n) => n.uuid.endsWith("00060"))).toBe(false);
+  });
+
+  it("normalizes a checkbox string 'true'/'false' to boolean", () => {
+    const rows = rowsOf([
+      [
+        [1, kw("block/uuid"), uu("11111111-2222-4333-8444-555555555555"), 1],
+        [2, kw("db/ident"), kw("user.property/done-zzzz"), 1],
+        [2, kw("block/title"), "Done", 1],
+        [2, kw("logseq.property/type"), kw("checkbox"), 1],
+        [1, kw("user.property/done-zzzz"), "true", 1],
+      ],
+    ]);
+    const model = buildLogseqDbModel(decodeKvs(rows));
+    expect(model.nodes[0]!.props).toEqual([
+      { ident: ":user.property/done-zzzz", title: "Done", values: [{ kind: "boolean", value: true }] },
+    ]);
   });
 });
