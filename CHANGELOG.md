@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-10-26
 
+- **test(server): the search-freshness contract pinned — acknowledged writes
+  are immediately visible on every search surface (verified live: no server
+  lag exists).** Reported as read-after-write staleness on `/api/search`,
+  `/api/objects?q=`, and the DSL exists-arm; root-caused to NOT be a server
+  property: the FTS index is maintained synchronously inside the applier
+  transaction (`packages/store/src/appliers.ts` `reindexNode` /
+  `removeSearchIndexEntry` — the same transaction that applies the op), the
+  API write path awaits that apply before responding
+  (`workspace-store.ts` `applyNow` ← `context.submit`), and reads ride the
+  same single better-sqlite3 connection — the acknowledged write IS the
+  freshness boundary. Live probes on the fleet stack through the real CLI
+  HTTP path (test workspace only): create, property set, exists-arm,
+  contains, `q=` filter, and delete all immediately consistent. Two likely
+  origins of the observation: the stack was rebuilt/recreated the same
+  morning (image 10:38 UTC, container 10:39 UTC), and a literal
+  `GET /api/search?q=<DSL string>` is not a DSL surface at all — the FTS
+  route parses it as plain terms, so the exists-arm ALWAYS answers 0 there;
+  the CLI compiles DSL to an AST and executes it via POST /api/query (which
+  read live in the report). Shipped: `apps/server/test/search-freshness.test.ts`
+  — write→read and delete→read straight through the HTTP write path, no
+  sleeps, covering `/api/search` (by title AND by property value), the
+  `q=` list filter (the CLI importer's title-match narrowing surface), and
+  the exists-arm AST; sensitivity-verified (a no-op'ed reindex turns the
+  create spec red). Docs: the freshness contract stated in `docs/api.md`
+  and the FTS runbook section. A future asynchronous indexer/debounce on
+  the server turns these specs red — that is their job.
+
 - **feat(web): soft-danger register — translucent error wash + brighter red
   text — promoted to fleet law (incorporated into
   the rosellramos-design-system skill, templates v2.0.4).** The Portainer /
