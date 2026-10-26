@@ -24,26 +24,14 @@ import type { QueryAst } from "@notees/query";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
-import { titleOfNode } from "../../ui/dateDisplay.js";
 import { useDeviceSetting, writeDeviceSetting } from "../settings/deviceSettings.js";
 import { Button, EmptyState } from "../../components/ui/fleet/index.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import { FilterBuilderModal } from "./FilterBuilderModal.js";
 import { ViewTabs } from "./ViewTabs.js";
-import { NodeCollection, ViewSwitcher } from "./index.js";
+import { ViewSwitcher } from "./index.js";
 import type { ViewMode } from "./index.js";
-import {
-  QUERY_RESULT_CAP,
-  aggregateColumnLabel,
-  formatAggregateCell,
-} from "../../ui/QueryBlockView.js";
-import {
-  QUERY_TABLE_COLUMNS,
-  openQueryResult,
-  queryResultItems,
-  useQueryRun,
-  type QueryRunClient,
-} from "../../ui/queryRun.js";
+import { QueryResults } from "../../ui/queryResults.js";
 import { parseQueryViewRecord } from "../../ui/queryViewRecord.js";
 import {
   appendQueryToken,
@@ -62,107 +50,6 @@ type HubView =
   | { kind: "saved"; index: number }
   | { kind: "adhoc"; ast: QueryAst; name: string }
   | null;
-
-/** Result body shared by the saved-view and ad-hoc branches. */
-function QueryResults({
-  client,
-  ast,
-  viewMode,
-  onViewMode,
-  onOpenNode,
-  onOpenInSidebar,
-}: {
-  client: AnyClient;
-  ast: unknown;
-  viewMode: ViewMode;
-  onViewMode: (mode: ViewMode) => void;
-  onOpenNode: (nodeId: string) => void;
-  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
-}) {
-  const { result, error } = useQueryRun(client as unknown as QueryRunClient, ast);
-  const [limit, setLimit] = useState(QUERY_RESULT_CAP);
-  const [limitKey, setLimitKey] = useState(JSON.stringify(ast ?? null));
-  const astKey = JSON.stringify(ast ?? null);
-  if (limitKey !== astKey) {
-    setLimitKey(astKey);
-    setLimit(QUERY_RESULT_CAP);
-  }
-
-  if (error !== null) {
-    return (
-      <div className="nt-query-invalid" title={error}>
-        invalid query
-      </div>
-    );
-  }
-  if (result === null) return null;
-  if (result.rows.length === 0) return <div className="nt-query-empty">No results.</div>;
-  if (result.kind === "aggregate") {
-    // Aggregates render the grouped grid (measures need columns) — the same
-    // projection the token view uses.
-    const classes = client.listClasses();
-    const classNames = new Map(classes.map((cls) => [cls.id, titleOfNode(cls) || cls.id]));
-    const propertyNames = new Map(client.listPropertySchemas().map((s) => [s.id, s.name]));
-    return (
-      <table className="nt-query-table">
-        <thead>
-          <tr>
-            {result.columns.map((column, index) => (
-              <th
-                key={`${column}:${index}`}
-                className={index >= result.dimensionCount ? "nt-query-num" : undefined}
-              >
-                {aggregateColumnLabel(column, classNames, propertyNames)}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {result.rows.map((cells, rowIndex) => (
-            <tr key={rowIndex}>
-              {cells.map((cell, cellIndex) => (
-                <td
-                  key={cellIndex}
-                  className={cellIndex >= result.dimensionCount ? "nt-query-num" : undefined}
-                >
-                  {formatAggregateCell(cell)}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
-  return (
-    <>
-      <NodeCollection
-        viewMode={viewMode === "table" ? "table" : "outline"}
-        client={client as unknown as import("./index.js").AnyClient}
-        // The query result owns ITS pagination — the 200-row window
-        // (QUERY_RESULT_CAP) + the load-more below — so the collection view
-        // must not window again (double-windowing would cut the cap to 100).
-        windowed={false}
-        items={queryResultItems(client, result.rows, limit)}
-        tableColumns={QUERY_TABLE_COLUMNS}
-        onNodeClick={(id) => {
-          const row = result.rows.find((entry) => entry.id === id);
-          if (row !== undefined) openQueryResult(client as unknown as QueryRunClient, row, onOpenNode);
-        }}
-        onNodeShiftClick={onOpenInSidebar}
-      />
-      {viewMode !== "table" && result.ids.length > limit && (
-        <button
-          type="button"
-          className="nt-query-more"
-          onClick={() => setLimit((value) => value + QUERY_RESULT_CAP)}
-        >
-          {result.ids.length - limit} more — load more
-        </button>
-      )}
-    </>
-  );
-}
 
 export function QueriesHub({
   client,
@@ -334,9 +221,6 @@ export function QueriesHub({
                     ? "table"
                     : "outline"
               }
-              onViewMode={(mode) => {
-                if (isAdhoc) setAdhocMode(mode);
-              }}
               onOpenNode={onOpenNode}
             />
           )}

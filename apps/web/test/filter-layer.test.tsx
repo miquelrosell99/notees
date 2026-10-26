@@ -103,7 +103,7 @@ function section(headerName: RegExp): HTMLElement {
 
 /** The open structured-facet panel of a visible FilterBar. */
 function structuredPanel(): HTMLElement {
-  const panel = document.querySelector(".nt-filter-bar__panel");
+  const panel = document.querySelector(".nt-node-collection-bar__panel");
   if (panel === null) throw new Error("no structured filter panel open");
   return panel as HTMLElement;
 }
@@ -336,7 +336,7 @@ describe("the classed-nodes filter bar", () => {
 
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     const section = classedNodesSection();
-    const bar = section.querySelector(".nt-section-views__bar") as HTMLElement;
+    const bar = section.querySelector(".nt-node-collection-tabs__bar") as HTMLElement;
 
     // "+" is the LAST item of the tablist.
     const add = within(bar).getByRole("button", { name: "Add custom view" });
@@ -521,7 +521,7 @@ describe("the reference sections' filter bars", () => {
     // …expand the other section: its builder slot is a DIFFERENT instance —
     // the Backlinks draft survives on its own.
     const unlinked = expandUnlinkedMentions();
-    expect(unlinked.querySelector(".nt-filter-bar__panel")).toBeNull();
+    expect(unlinked.querySelector(".nt-node-collection-bar__panel")).toBeNull();
     expect(structuredPanel().textContent).toContain("Class");
   });
 });

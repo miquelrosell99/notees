@@ -1,7 +1,7 @@
 /**
  * QueryBuilderFields — the shared builder field grid (scope / class / the
  * Revision-11 bits / text-contains / created window / sort / one aggregation
- * dimension+measure), composed identically by QueryBlockView's popover and
+ * dimension+measure), composed identically by the FilterBuilderModal and
  * the FilterBuilderModal. The representable subset lives in
  * queryBuilder.ts; this module is purely presentational.
  *
@@ -20,7 +20,7 @@
  * (the boxed field pairing with SelectTrigger: the raw
  * native selects rendered the browser's chrome, unaligned with the token
  * interface). Every control
- * keeps its label and value semantics, so the QueryBlockView/QueriesHub
+ * keeps its label and value semantics, so the FilterBuilderModal/QueriesHub
  * integrations are unchanged.
  */
 

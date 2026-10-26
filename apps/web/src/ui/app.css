@@ -2010,92 +2010,12 @@ select:focus-visible {
   border-left: 1px solid var(--md-sys-color-outline-variant);
 }
 
-/* --- query blocks (live query token) ----------------------------------------------
-   QueryBlockView: a sober bordered container (embed-adjacent chrome) with a
-   header (title + count badge + settings/export actions), a result list in
-   the references-section idiom, and the minimal builder popover. */
-
-.nt-query {
-  display: block;
-  margin: 4px 0;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-left: 3px solid var(--md-sys-color-query-accent);
-  border-radius: var(--shape-medium);
-  padding: 6px 10px;
-  background: var(--md-sys-color-surface-container-high);
-}
-
-.nt-query-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.nt-query-title {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.nt-query-badge {
-  background: var(--md-sys-color-surface-container-highest);
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-button-compact);
-  padding: 0 var(--spacing-2);
-  font-size: var(--font-size-button);
-  line-height: 1.5;
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.nt-query-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.nt-query-action {
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-small);
-  background: var(--md-sys-color-surface);
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: var(--font-size-xs);
-  padding: 1px 8px;
-  cursor: pointer;
-}
-
-.nt-query-action:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-
-
-
-
+/* --- query results (shared QueryResults body) ------------------------------- */
 
 .nt-query-empty {
   color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   padding: 2px 4px;
-}
-
-/* The read-only summary + warning shown when the AST uses
-   constructs the builder can't represent. */
-.nt-query-guard {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--md-sys-color-error);
-}
-
-.nt-query-summary {
-  margin: 0;
-  padding: 0 0 0 18px;
-  font-size: var(--font-size-sm);
-  color: var(--md-sys-color-on-surface-variant);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 
 /* Queries hub: the saved-views tab bar and the host-page footnote (the
@@ -2164,32 +2084,6 @@ select:focus-visible {
   color: var(--md-sys-color-error);
   font-size: var(--font-size-sm);
   background: var(--md-sys-color-surface);
-}
-
-.nt-query-builder {
-  margin-top: 6px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-medium);
-  background: var(--md-sys-color-surface);
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.nt-query-builder-actions {
-  display: flex;
-  gap: 6px;
-  justify-content: flex-end;
-}
-
-/* View toggle: the active mode reads pressed (same chrome, darker border). */
-
-
-.nt-query-action[aria-pressed="true"] {
-  background: var(--md-sys-color-surface-container-highest);
-  border-color: var(--md-sys-color-on-surface-variant);
-  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* Table mode + the aggregate grid: a sober bordered grid in the token's

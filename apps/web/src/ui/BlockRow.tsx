@@ -135,7 +135,8 @@ import { nodeIcon, definedNodeIcon } from "./iconFor.js";
 import { EmbedView } from "./EmbedView.js";
 import { linkOnlyMentionTarget } from "./linkOnlyBlock.js";
 import { EmbedCardView } from "./EmbedCardView.js";
-import { QueryBlockView } from "./QueryBlockView.js";
+import { QueryNodeSection } from "./QueryNodeSection.js";
+import { listQueryTokens } from "./queryTokens.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { DragSourcesContext, DropLineContext, WorkspaceDragScopeContext } from "./block-dnd.js";
 import { useOutliner } from "./outliner-context.js";
@@ -729,20 +730,6 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
           <EmbedCardView nodeId={id} view={view} hostId={node.id} tokenIndex={index} />
         ))
       }
-      renderQuery={
-        suppressWidget ??
-        widget((token: unknown, index: number) => (
-          <QueryBlockView
-            client={outlinerClient}
-            ownerId={node.id}
-            tokenIndex={index}
-            queryAst={(token as { queryAst?: unknown }).queryAst}
-            view={(token as { view?: unknown }).view}
-            rootId={rootId}
-            onOpenNode={openNode}
-          />
-        ))
-      }
       renderWhiteboard={
         suppressWidget ??
         widget((_token: unknown, index: number) => (
@@ -1111,6 +1098,25 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
       {backlinkCount > 0 && !focusMode && (
         <BlockBacklinkPanel nodeId={node.id} expanded={backlinksExpanded} client={client} />
       )}
+      {/* Query node: a `query` content token
+          renders NO widget inside the content row — it marks the block and
+          carries the default tab's AST. The nodecollection chrome (tabs +
+          buttons row, the toggleable full-grammar builder, the results)
+          rides as a sibling section below the row, like the backlink panel
+          and the tags row. Suppressed with the other widgets (query-result
+          rows, read-only projections) — a live section inside a query
+          result would recurse when the result contains its own owner. */}
+      {!focusMode &&
+        !suppressWidgets &&
+        listQueryTokens(node.contentAst).map((entry) => (
+          <QueryNodeSection
+            key={`query-${entry.index}`}
+            client={client}
+            nodeId={node.id}
+            tokenIndex={entry.index}
+            onOpenNode={openNode}
+          />
+        ))}
       {/* Tags: dedicated row below the block row, only when set (assignment
           rides the `#` trigger). Read-only projections render the same row
           with static pills (edit/read alignment). Focus mode (#12) hides

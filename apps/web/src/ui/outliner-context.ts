@@ -183,7 +183,7 @@ export interface OutlinerReader {
   getClassMembers(classId: string): ClientNode[];
   getClassBindings(classId: string): ClassBinding[];
   subscribe(listener: () => void): () => void;
-  /** Live-query bridge for `query` content tokens (QueryBlockView). */
+  /** Live-query bridge for `query` content tokens (the query node's section). */
   runQueryAst(rawAst: unknown): QueryRunResult | Promise<QueryRunResult>;
   /** Aggregation bridge for `query` tokens carrying an `aggregation`. */
   runAggregateAst(rawAst: unknown): QueryAggregateResult | Promise<QueryAggregateResult>;

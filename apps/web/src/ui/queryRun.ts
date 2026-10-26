@@ -1,6 +1,6 @@
 /**
  * queryRun — the live AST execution hook + result helpers shared by
- * QueryBlockView (the token's inline view) and the Queries hub (the
+ * The query node's section and the Queries hub (the
  * section-scale saved-views surface).
  *
  * Coalesced live re-runs: the query re-runs when the AST or the
