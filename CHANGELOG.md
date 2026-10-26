@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): the settings Sync rows become cards; Disconnect moves onto
+  the current row.** Four asks in one slice: **(1)**
+  the fleet `Radio` component centers the dot against the label — the
+  container top-aligned a 24px item with a 15px text line, leaving the text
+  ~4.5px high (measured in the running app; `items-center` + `shrink-0`,
+  fixes the PDF export picker too). **(2)** each server row is now a card
+  (surface-container-low, outline hairline, shape-large) so rows separate
+  cleanly. **(3)** the **Current** pill rides the accent
+  (`primary-container`/`on-primary-container`, accent-aware by construction).
+  **(4)** the trash button inks `error` on hover. Plus the structural ask:
+  the Disconnect button leaves the card footer and sits on the current row
+  only, left of the trash — disconnect means un-select (sign-out, address
+  stays in the list; its confirm says so), while the current row's trash now
+  means delete (remove + sign-out, its own confirm). The footer retires.
+  Mobile: the row's trailing chrome (pill + disconnect + trash) groups into
+  one wrapping unit (margin-left auto) so 390px no longer clips, and the
+  settings shell's narrow breakpoint gains `align-items: stretch` + an
+  explicit content width — the columnar flex context had been sizing the
+  content column to the widest row's max-content and the PageCard clipped
+  it (pre-existing, exposed by the wider rows). Docs:
+  `docs/features/offline-and-sync.md` (Settings → Sync). Verified:
+  `settings-page.test.tsx` 24 specs (disconnect keeps the address spec
+  added; remove-current confirm renamed); captures 1440/768/390 + the add
+  dialog; measured alignment in-app before/after.
+
 - **feat(web): the settings Sync section loses the redundant chrome — no
   current-server row, no inline connect form.** The "Current server + Connected" row duplicated the list's
   selected radio and **Current** pill, and the "Connect to a Different

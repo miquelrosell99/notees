@@ -472,7 +472,10 @@ interface SyncSectionProps {
 }
 
 function SyncSection({ serverUrl, onForgetServer, onConnectServer }: SyncSectionProps) {
-  const [forgetConfirmOpen, setForgetConfirmOpen] = useState(false);
+  // "disconnect" un-selects the current server (sign-out; the address stays
+  // in the list); "remove-current" deletes the current entry, which implies
+  // the sign-out — a removed address cannot stay selected.
+  const [confirm, setConfirm] = useState<"disconnect" | "remove-current" | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [addDraft, setAddDraft] = useState("");
   const [addConnecting, setAddConnecting] = useState(false);
@@ -492,10 +495,11 @@ function SyncSection({ serverUrl, onForgetServer, onConnectServer }: SyncSection
       ? [serverUrl, ...knownServers.filter((url) => url !== serverUrl && url.trim() !== "")]
       : knownServers.filter((url) => url.trim() !== "");
 
+  const isCurrent = (url: string) => url === serverUrl;
+
   const removeServer = (url: string) => {
-    if (url === serverUrl) {
-      // Removing the active server IS the disconnect flow — same confirm.
-      setForgetConfirmOpen(true);
+    if (isCurrent(url)) {
+      setConfirm("remove-current");
       return;
     }
     setKnownServers(knownServers.filter((known) => known !== url));
@@ -536,20 +540,33 @@ function SyncSection({ serverUrl, onForgetServer, onConnectServer }: SyncSection
                     size="sm"
                     className="settings-server-row__radio"
                   />
-                  {url === serverUrl ? (
-                    <Pill
-                      text="Current"
-                      className="settings-server-row__flag"
-                      leftIcon={<Icon path="mdi-flag-outline" size={0.75} />}
+                  <div className="settings-server-row__actions">
+                    {isCurrent(url) ? (
+                      <Pill
+                        text="Current"
+                        className="settings-server-row__flag"
+                        leftIcon={<Icon path="mdi-flag-outline" size={0.75} />}
+                      />
+                    ) : null}
+                    {isCurrent(url) ? (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        className="settings-server-row__disconnect"
+                        onClick={() => setConfirm("disconnect")}
+                      >
+                        Disconnect
+                      </Button>
+                    ) : null}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon="mdi mdi-trash-can-outline"
+                      aria-label={`Remove ${url}`}
+                      className="settings-server-row__trash"
+                      onClick={() => removeServer(url)}
                     />
-                  ) : null}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon="mdi mdi-trash-can-outline"
-                    aria-label={`Remove ${url}`}
-                    onClick={() => removeServer(url)}
-                  />
+                  </div>
                 </div>
               ))}
             </RadioGroup>
@@ -563,15 +580,6 @@ function SyncSection({ serverUrl, onForgetServer, onConnectServer }: SyncSection
                 }}
               />
             </div>
-          </div>
-
-          <div className="settings-server-actions">
-            <p className="settings-section__description">
-              Forgetting this server signs you out on this device; local data stays.
-            </p>
-            <Button variant="danger" size="md" onClick={() => setForgetConfirmOpen(true)}>
-              Disconnect
-            </Button>
           </div>
         </Card>
       </div>
@@ -614,17 +622,30 @@ function SyncSection({ serverUrl, onForgetServer, onConnectServer }: SyncSection
       </Modal>
 
       <ConfirmationModal
-        isOpen={forgetConfirmOpen}
+        isOpen={confirm === "disconnect"}
         variant="danger"
         title="Disconnect from this server?"
-        message="You will be signed out and this server's address forgotten on this device."
+        message="You will be signed out on this device; local data stays. The address stays in the list so you can reconnect from here."
         confirmLabel="Disconnect"
         onConfirm={() => {
-          setForgetConfirmOpen(false);
+          setConfirm(null);
+          onForgetServer();
+        }}
+        onCancel={() => setConfirm(null)}
+      />
+
+      <ConfirmationModal
+        isOpen={confirm === "remove-current"}
+        variant="danger"
+        title="Remove this server?"
+        message="The address leaves the list and you are signed out on this device; local data stays."
+        confirmLabel="Remove"
+        onConfirm={() => {
+          setConfirm(null);
           setKnownServers(knownServers.filter((known) => known !== serverUrl));
           onForgetServer();
         }}
-        onCancel={() => setForgetConfirmOpen(false)}
+        onCancel={() => setConfirm(null)}
       />
     </>
   );

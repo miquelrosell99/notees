@@ -22,7 +22,7 @@ The dot (idle / syncing / backlog / error) rides the **profile avatar's corner**
 
 ## Settings → Sync
 
-The settings page's **Sync** section (deep-linkable at `/settings/sync`) is one card: a device-local radio list of every server address this device remembers (`notees.settings.knownSyncServers` — the current one leads, its radio selected and flagged with a **Current** pill). Choosing another remembered server runs the connect path; a row's trash forgets that address (the current server's trash is the confirmed **Disconnect**, which signs you out and clears the remembered server and credentials on this device — local data stays). **Add server** opens a dialog to probe a new address: the **Connect** button spins while it tries, and on success you sign in there and the address joins the list.
+The settings page's **Sync** section (deep-linkable at `/settings/sync`) is one card of server rows — each row a card with the address's radio (the current server leads, its radio selected), and the current row additionally carries the accent-tinted **Current** pill and the **Disconnect** button. Choosing another remembered server runs the connect path; **Add server** opens a dialog to probe a new address (the **Connect** button spins while it tries; on success you sign in there and the address joins the list). **Disconnect** un-selects — it signs you out on this device (local data stays) and keeps the address in the list; a row's trash deletes just that address, and deleting the current row removes it and signs you out, each behind its own confirmation.
 
 ## Offline preferences and state
 
