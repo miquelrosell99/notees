@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(web): collection-row breadcrumbs name the property a stored-through
+  row lives in — and the text-property cell loses its noise trail.** Two
+  sides of the same carrier truth. The node-backed text
+  carrier shape means a property value IS a child block of the carrier, so a
+  backlink (or query/hub) row stored through a property walked a parent path
+  the trail rendered as plain nodes — or as NOTHING at all when the carrier
+  parent was the containing page (its crumb drops, no ancestors remain):
+  property-stored backlink sources showed no breadcrumb, and the property
+  they sit in was invisible. `Breadcrumbs` gains an opt-in
+  `showPropertyHops`: each ancestry hop checks the child's incoming property
+  edges (source = the parent, verb = the schema) and renders a
+  non-navigable tag+schema-name entry between the parent crumb and the node
+  below it ("Holder › Sobre › (row)"); the entry survives the dropped
+  containing-page crumb — for a row stored directly in the page's property
+  it IS the whole trail, the one place naming where the link lives. Wired
+  into the outline row trail (`RowBreadcrumbs`) and the cards-mode card
+  header; the page chrome stays pure ancestry (the default stays off). The
+  flip side: `TextPropertyRow`'s locked outline collection (the multi-line
+  text property cell) rode the default-on trail, so every value block
+  carried a breadcrumb naming the very node the cell renders on —
+  `showBreadcrumbs={false}` there now (no trail inside the
+  property cell). Verified: 3 new specs (the property entry in a flat row
+  trail; the entry surviving the dropped containing-page crumb on a
+  backlinks row; no trail inside the property cell) + the full gate.
+
 - **fix(export): the Logseq DB model skip-classification — system entities
   with uuids, and the real closed-value attr.** Two classification fixes from
   the drift-rehearsal of the owner's Notas export: Logseq's built-in classes
