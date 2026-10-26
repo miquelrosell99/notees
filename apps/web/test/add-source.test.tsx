@@ -116,6 +116,18 @@ function stubFetch(routes: (url: string, init?: RequestInit) => Response | undef
   return mock;
 }
 
+/**
+ * Pick a PDF through the dialog's FileDropZone: the visible surface is the
+ * drop-zone button (the bare native "Browse…" input retired), the change
+ * event fires on the zone's hidden input — the asset-upload-modal register.
+ */
+function pickPdf(dialog: HTMLElement, file: File): void {
+  const zone = within(dialog).getByRole("button", { name: /drop a pdf/i });
+  const input = zone.parentElement?.querySelector<HTMLInputElement>('input[type="file"]');
+  expect(input).not.toBeNull();
+  fireEvent.change(input!, { target: { files: [file] } });
+}
+
 describe("classifySourceInput", () => {
   it("classifies DOIs (bare and doi.org URLs)", () => {
     expect(classifySourceInput("10.1000/xyz")).toEqual({ kind: "doi", value: "10.1000/xyz" });
@@ -158,6 +170,44 @@ describe("classifySourceInput", () => {
 });
 
 describe("AddSourceDialog", () => {
+  it("the PDF pick rides the fleet FileDropZone with the selected-file row (the bare native input retired)", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    stubFetch(() => undefined);
+    render(
+      <AddSourceDialog
+        isOpen
+        client={client}
+        serverUrl="http://resolver.test"
+        credential="test-key"
+        onClose={() => {}}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: /add source/i });
+
+    // The drop-zone register replaces the bare "Examinar"-style file input:
+    // the visible surface is the zone button, the input is its hidden child.
+    const zone = within(dialog).getByRole("button", { name: /drop a pdf/i });
+    const input = zone.parentElement?.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(input).not.toBeNull();
+    expect(input!.accept).toBe("application/pdf,.pdf");
+
+    // A pick swaps the zone for the selected row (filename + change/remove)
+    // and fills the AssetUploadModal-register preview (name + category chip).
+    const file = new File(["%PDF-fake"], "paper.pdf", { type: "application/pdf" });
+    fireEvent.change(input!, { target: { files: [file] } });
+    const preview = dialog.querySelector(".add-source-dialog__preview") as HTMLElement;
+    expect(preview).not.toBeNull();
+    expect(within(preview).getByText("paper.pdf")).toBeTruthy();
+    expect(within(preview).getByText("Document")).toBeTruthy();
+    within(dialog).getByRole("button", { name: /remove file/i });
+
+    // …and the actions ride the fleet Modal's footer slot.
+    const footer = dialog.querySelector(".modal__footer");
+    expect(footer).not.toBeNull();
+    expect(within(footer as HTMLElement).getByRole("button", { name: /^resolve$/i })).toBeTruthy();
+  });
+
   it("the resolved record's own classKey picks the prefill form (the class lock retired, round 4)", async () => {
     const client = await seedClient();
     await seedFamilies(client);
@@ -361,9 +411,7 @@ describe("AddSourceDialog", () => {
     );
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
     const file = new File(["%PDF-fake"], "paper.pdf", { type: "application/pdf" });
-    fireEvent.change(within(dialog).getByLabelText("PDF file"), {
-      target: { files: [file] },
-    });
+    pickPdf(dialog, file);
     fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /add source/i })).toBeNull());
 
@@ -416,9 +464,7 @@ describe("AddSourceDialog", () => {
     );
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
     const file = new File(["%PDF-fake"], "paper.pdf", { type: "application/pdf" });
-    fireEvent.change(within(dialog).getByLabelText("PDF file"), {
-      target: { files: [file] },
-    });
+    pickPdf(dialog, file);
     fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
     const form = await screen.findByRole("dialog", { name: /new journal_article/i });
     fireEvent.click(within(form).getByRole("button", { name: /^create$/i }));

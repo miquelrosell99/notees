@@ -2,7 +2,8 @@
  * TextField Component
  *
  * A reusable text input component with consistent styling.
- * Features a minimal underline that highlights when active.
+ * Features a minimal underline that highlights when active — the 2px
+ * accent underline AND the accent label (the wrapper is the focus scope).
  *
  * Thin fleet wrapper over the normalized catalog input + label
  * (src/components/ui/input.tsx, label.tsx): the underline register is the
@@ -82,7 +83,16 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     className,
   );
 
-  const wrapperClasses = cn("flex flex-col gap-1", wrapperClassName);
+  // The wrapper is the `group` scope so the label rides the focus state:
+  // the classic underline register accents the label when the field is
+  // active (Material's focused-label idiom), and the error label takes the
+  // error token at rest as well as on focus.
+  const wrapperClasses = cn("flex flex-col gap-1 group", wrapperClassName);
+
+  const labelClasses = cn(
+    "text-sm font-semibold transition-colors duration-short ease-standard",
+    error ? "text-error" : "text-on-surface-variant group-focus-within:text-primary",
+  );
 
   const containerClasses = cn(
     "flex items-center w-full bg-transparent border-b transition-colors duration-short ease-standard",
@@ -128,7 +138,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   if (label) {
     return (
       <div className={wrapperClasses}>
-        <label htmlFor={id} className="text-sm font-semibold text-on-surface-variant">
+        <label htmlFor={id} className={labelClasses}>
           {label}
         </label>
         {inputElement}

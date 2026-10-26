@@ -1,6 +1,8 @@
 /**
  * AddSourceDialog styles — the add-source flow's resolve step: the input,
- * the PDF file row, the inline error/note, the actions. Token-only.
+ * the PDF drop zone + selected-file row, the inline error/note. Token-only.
+ * The actions ride the fleet Modal's footer slot (the AssetUploadModal
+ * composition); the selected-file row mirrors the AssetUploadModal register.
  */
 
 .add-source-dialog {
@@ -22,20 +24,64 @@
   gap: var(--spacing-1);
 }
 
-.add-source-dialog__file {
+.add-source-dialog__section-label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.add-source-dialog__preview {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2);
+  background: var(--md-sys-color-surface-container-low);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+}
+
+.add-source-dialog__doc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-12);
+  height: var(--spacing-12);
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.add-source-dialog__meta {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
 }
 
-.add-source-dialog__file-label {
+.add-source-dialog__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-md);
+  color: var(--md-sys-color-on-surface);
+}
+
+.add-source-dialog__sub {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
   font-size: var(--font-size-sm);
   color: var(--md-sys-color-on-surface-variant);
 }
 
-.add-source-dialog__file-name {
-  font-size: var(--font-size-sm);
-  color: var(--md-sys-color-on-surface);
+.add-source-dialog__chip {
+  padding: 0 var(--spacing-2);
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-2xs);
+  letter-spacing: var(--letter-spacing-badge);
+  text-transform: uppercase;
 }
 
 .add-source-dialog__note {
@@ -48,10 +94,4 @@
   margin: 0;
   font-size: var(--font-size-sm);
   color: var(--md-sys-color-error);
-}
-
-.add-source-dialog__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-2);
 }
