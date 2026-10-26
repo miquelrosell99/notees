@@ -80,6 +80,31 @@ describe("parseQueryLanguage: fields", () => {
     expect(only(parse("relativity"))).toEqual({ type: "content", op: "contains", value: "relativity" });
   });
 
+  it("name:term / name:=term / bare name: emit title conditions", () => {
+    // Bare ":" is a title contains (LIKE — ASCII case-insensitive at compile).
+    expect(only(parse("name:paris"))).toEqual({ type: "name", op: "contains", value: "paris" });
+    // ":=" / "=" are exact title equality (case-sensitive at compile).
+    expect(only(parse("name:=Paris"))).toEqual({ type: "name", op: "eq", value: "Paris" });
+    expect(only(parse("name=Paris"))).toEqual({ type: "name", op: "eq", value: "Paris" });
+    expect(only(parse("name!=Paris"))).toEqual({ type: "name", op: "neq", value: "Paris" });
+    // Bare ":" with no value is the exists arm (the prop: precedent)…
+    expect(only(parse("name:"))).toEqual({ type: "name", op: "exists" });
+    // …also before a boolean keyword.
+    expect(parse("name: NOT class:paper").root).toEqual({
+      type: "group",
+      logic: "and",
+      children: [
+        { type: "name", op: "exists" },
+        { type: "not", child: { type: "class", classId: CLASS_PAPER } },
+      ],
+    });
+    // Field names are case-insensitive like the rest of the grammar.
+    expect(only(parse("NAME:paris"))).toEqual({ type: "name", op: "contains", value: "paris" });
+    // Quoted multi-word titles survive whole.
+    expect(only(parse('name:"Lone Page"'))).toEqual({ type: "name", op: "contains", value: "Lone Page" });
+    expect(only(parse('name:="Lone Page"'))).toEqual({ type: "name", op: "eq", value: "Lone Page" });
+  });
+
   it("linked:Name resolves the node by name", () => {
     expect(only(parse("linked:Paris"))).toEqual({ type: "linkedTo", nodeId: NODE_PARIS });
   });
@@ -315,6 +340,7 @@ describe("parseQueryLanguage: composition", () => {
 
   it("the emitted AST validates against the strict queryAstSchema", () => {
     expect(() => parseQueryAst(parse("class:paper AND year:>2010"))).not.toThrow();
+    expect(() => parseQueryAst(parse('name:="Lone Page" AND class:paper'))).not.toThrow();
   });
 });
 
@@ -326,7 +352,7 @@ describe("parseQueryLanguage: errors (fail loud)", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(QueryLanguageError);
       expect((error as QueryLanguageError).message).toBe(
-        "unknown field 'wobble' (known fields: class, isclass, presentasmain, prop, text, linked, coverasset, bannerasset, aliasednode, year, title)",
+        "unknown field 'wobble' (known fields: class, isclass, presentasmain, prop, text, name, linked, coverasset, bannerasset, aliasednode, year, title)",
       );
     }
   });
@@ -355,12 +381,16 @@ describe("parseQueryLanguage: errors (fail loud)", () => {
   it("rejects unsupported operators per field", () => {
     expect(() => parse("class:paper>3")).toThrow(/unexpected '>'/);
     expect(() => parse("text!=foo")).toThrow(/not supported for text/);
+    expect(() => parse("name:>paris")).toThrow(/not supported for name/);
+    expect(() => parse("name:>=paris")).toThrow(/not supported for name/);
     expect(() => parse("isClass:galaxy")).toThrow(/unknown isClass value 'galaxy'.*expected true or false/);
     expect(() => parse("isEmbedded:1")).toThrow(/unknown isEmbedded value '1'/);
   });
 
   it("rejects a comparison operator without a value", () => {
     expect(() => parse("year:>")).toThrow(/requires a value/);
+    expect(() => parse("name:=")).toThrow(/requires a value/);
+    expect(() => parse("name!=")).toThrow(/requires a value/);
   });
 
   it("rejects unterminated strings, stray parens and trailing tokens", () => {

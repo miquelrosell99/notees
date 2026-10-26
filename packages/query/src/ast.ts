@@ -33,6 +33,7 @@ export type {
   DateOp,
   DatePeriod,
   Group,
+  NameOp,
   NodeFieldOp,
   Not,
   PropertyOp,

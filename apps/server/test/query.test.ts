@@ -118,6 +118,37 @@ describe("POST /api/query", () => {
     expect(res.json().ids).toEqual([recent]);
   });
 
+  it("the name condition selects by exact title (the name:= DSL arm's AST)", async () => {
+    server = await makeTestServer();
+    const paris = await createPaper("query-paris");
+    const review = await createPaper("query-paris-review");
+    await createPaper("query-london");
+
+    // Exact, case-sensitive title equality: only the whole-title match.
+    const eq = await api("POST", "/api/query", {
+      payload: { ast: ast([{ type: "name", op: "eq", value: "query-paris" }]) },
+    });
+    expect(eq.statusCode).toBe(200);
+    expect(eq.json().ids).toEqual([paris]);
+
+    // Title contains: the substring title matches too, case-insensitively.
+    const contains = await api("POST", "/api/query", {
+      payload: { ast: ast([{ type: "name", op: "contains", value: "PARIS" }]) },
+    });
+    expect(contains.json().ids.sort()).toEqual([paris, review].sort());
+
+    // exists: every titled node in the class.
+    const exists = await api("POST", "/api/query", {
+      payload: {
+        ast: ast([
+          { type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article },
+          { type: "name", op: "exists" },
+        ]),
+      },
+    });
+    expect(exists.json().ids).toHaveLength(3);
+  });
+
   it("runs an aggregated AST as the grouped grid", async () => {
     server = await makeTestServer();
     await createPaper("query-agg-a", 1901);
