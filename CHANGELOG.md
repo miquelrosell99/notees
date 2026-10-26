@@ -7,6 +7,35 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-26
+
+- **refactor(web): frame-owned body inset + split panel toggles.** Two owner points from the annotated screenshots, one
+  slice. (1) The right-panel toggle moves to the FAR RIGHT END of the
+  surface top bar: the panel toggles split by panel side — the LEFT-panel
+  toggle stays in the `leading` cluster (left of the title, the standing
+  hub convention); the RIGHT-panel toggle rides a new additive
+  SurfaceTopBar `trailing` slot (after the actions cluster — search etc.
+  stay left of it; absent renders no cluster, so no existing bar's layout
+  shifts). Applied to the Sources hub (both toggles); the Journal hub's
+  single left-panel toggle stays in `leading`. (2) The panels'
+  implementation is global, not per view: the frame's body row
+  (`.nt-main-frame__body`) now OWNS the outer body inset (the horizontal
+  padding — card-edge → panel-card gap) for every host, at the same
+  measure the panelled nodeview's host shell used to carry
+  (`var(--spacing-4)`); the per-view copies retire so the rendered result
+  is ONE consistent inset everywhere — `.nt-page--panelled` keeps only the
+  bar's top gap, the calendar root drops its duplicated copy, and each
+  frame host's top bar carries its own horizontal inset (the
+  `.nt-node-topbar` / `.calendar-view__topbar` two-class overrides) so the
+  nodeview's gaps (and bars) stay pixel-identical while the Sources hub's
+  panels gain the visible gap the nodeview always had. The compact
+  (≤768px) stacked adaptation keeps the inset (the media-query block does
+  not reset the body padding). Convention documented in
+  `docs/developers/ui-primitives.md`. Gate: `pnpm typecheck && pnpm test`
+  green; new `frame-body-inset` suite (CSS-register pins + SurfaceTopBar
+  slot order + Journal-leading render + the panelled nodeview render) and
+  the updated sources-hub shell test.
+
 ## 2026-10-25
 
 - **refactor(web): Sources hub top bar + creation wiring.** Six owner points, one slice. (1) The "N sources" count text

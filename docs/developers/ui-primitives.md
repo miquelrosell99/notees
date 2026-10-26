@@ -123,11 +123,18 @@ with its own toggle/pills cluster through `lead`, closing the loop the
 extraction announced: every in-card top bar rides one element and one
 hairline register. Extended 2026-10-25: `leading`
 panel-toggle cluster BEFORE the title and `titleExtra` title-adjacent
-chrome. **The hub convention: a hub's panel
-toggles live in the `leading` cluster — before (left of) the title — in
-every hub**, not among the right-aligned actions; the Sources hub and the
-Journal hub (JournalsView) are the reference hosts, and future hubs inherit
-the placement by composing `leading`. Counts that name the surface's items
+chrome. Extended 2026-10-26: `trailing` cluster —
+the FAR RIGHT END of the bar, after the actions cluster. **The hub
+convention (general; split 2026-10-26): a hub's panel
+toggles live in the bar split by panel side — the LEFT-panel toggle in
+the `leading` cluster, before (left of) the title; the RIGHT-panel toggle
+in the `trailing` cluster, the bar's far right end after the actions
+(actions like search stay left of it)**; a hub whose only toggle drives
+the left panel (the Journal hub, JournalsView) keeps it in `leading` and
+passes no `trailing` — the additive slot renders no cluster when absent,
+so no existing bar's layout shifts. The Sources hub and the Journal hub
+are the reference hosts, and future hubs inherit the placement by
+composing `leading`/`trailing`. Counts that name the surface's items
 render as a fleet `Badge` in `titleExtra` next to the title — never an
 "N things" text in the actions),
 `MainContentFrame` (`src/ui/`, NOT a fleet primitive — the app-chrome
@@ -146,7 +153,15 @@ canonical `.nt-main-frame__panel-content` class on its content root instead
 of re-styling padding per view (the hub panes do; PageView keeps riding the
 context card's own flex column directly — a wrapper would break its
 footer's `margin-top: auto` pin, so the register is opt-in, never applied
-by the frame itself)),
+by the frame itself). (review round 3) — the OUTER body
+inset is the frame's too: `.nt-main-frame__body` carries the horizontal
+padding (card-edge → panel-card gap, var(--spacing-4) — the measure the
+panelled nodeview's host shell used to carry per view) for EVERY host;
+hosts must NOT carry their own side padding (`.nt-page--panelled` and
+`.calendar-view` dropped their copies) and each host's top bar carries
+its own horizontal inset (the `.nt-node-topbar` / `.calendar-view__topbar`
+two-class overrides) — one consistent inset everywhere, the compact
+stacked adaptation keeps it),
 `PresentationOverlay` (the fullscreen presentation host: dark
 stage, auto-hiding toolbar, edge zones, Esc/focus-trap, owned keymap).
 
