@@ -9,6 +9,14 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(web): the aliases row renders on class nodes too.** `AliasesRow`'s render gate used `rendersWithDocumentChrome`,
+  which excludes classes by construction (the ClassView branch) — so on a
+  class page the header's "Add aliases" action wrote the backward alias but
+  the row listing the result never rendered. The gate gains an explicit
+  `isClass` arm (the SearchPage / NodeSelector idiom): the CARRIER stays
+  page-or-class-only (a block host renders no row, unchanged), the main may
+  now be a class. Verified: `pnpm typecheck` green (no test covers the row).
+
 - **fix(web): the bullet peek gesture (Shift+click → right rail) works on
   every surface that renders block bullets ("shift click on
   block bullet to open in sidebar does not work").** The gesture reads

@@ -27,8 +27,10 @@ import type { AnyClient } from "./shared.js";
  * OWN view, from where the "Alias of …" banner jumps back — the resolving
  * open would land on the page already on screen.
  *
- * Pages only: the write guard makes a non-page target unwritable, so a block
- * (BlockRow hosts the same section) renders no row.
+ * Pages and classes: the write guard makes a non-page CARRIER unwritable,
+ * so a block (BlockRow hosts the same section) renders no row — but the
+ * main (the row's host, the alias target) may itself be a class node, which
+ * carries document chrome and hosts the header's "Add aliases" action.
  *
  * Empty pages render NO row at all: the page header's
  * action row carries the "Add aliases" button until the first alias
@@ -61,9 +63,16 @@ export function AliasesRow({
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
   const node = client.getNode(nodeId);
+  // Pages AND classes: a class node carries full
+  // document chrome — the header's "Add aliases" action already writes the
+  // backward alias on class pages, so the row that lists the result must
+  // render there too (rendersWithDocumentChrome excludes classes — the
+  // ClassView branch — hence the explicit isClass arm, the SearchPage /
+  // NodeSelector idiom).
   if (
     node === undefined ||
-    !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
+    (!node.isClass &&
+      !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client)))
   )
     return null;
 
