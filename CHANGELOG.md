@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-26
 
+- **chore(web): the fleet audit's tail closes — Chip/ToggleSwitch/TextField
+  registers and the documentation pass (fleet audit 2026-10-26).** Code:
+  `Chip` gains `disabled` + a `:focus-visible` ring (the template ships
+  both); `ToggleSwitch` gains the `loading` register (`aria-busy`,
+  interaction blocked — never a silent disable); `TextField`'s disabled
+  treatment moves to `--opacity-40` — M3's 38% content-disabled step the
+  template's recipe cites. Documentation: four design-overrides entries
+  record what lived in code comments only — the Button register
+  extensions (hit-area on every button 2026-10-20/21, `default` rest on
+  `surface-container`, the app-only xs/haptics/badges/loading/active/
+  danger-solid registers), the Tabs active-identity + hover register, and
+  the Modal chrome density (title size, dividers, no blur); the
+  warning/success and callout token families get their namespace
+  registration-reason comments. With this the audit's findings are fully
+  closed: every divergence is either aligned or a recorded decision.
+  Verified: targeted 32 specs; full web suite green; `tsc --noEmit` clean.
+
 - **feat(web): the fleet ListRow is extracted and seven duplicated row
   registers migrate onto it (fleet audit 2026-10-26, the TEMPLATE-GAP
   finding).** The skill's `ListRow` template was the only fleet-owned

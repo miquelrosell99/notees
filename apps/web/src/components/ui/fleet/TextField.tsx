@@ -78,7 +78,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     // rounded-none: the global input register's extra-large radius would
     // curve the bottom border's ends.
     "w-full bg-transparent border-b rounded-none px-0 text-on-surface transition-colors duration-short ease-standard",
-    "placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed",
+    "placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none disabled:opacity-40 disabled:cursor-not-allowed",
     SIZE_CLASSES[size],
     underlineClasses,
     icon && "border-b-0 focus:shadow-none",

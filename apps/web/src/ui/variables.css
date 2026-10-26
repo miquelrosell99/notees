@@ -67,6 +67,10 @@
   --md-sys-color-error-pressed: #89211f;
 
   /* ==================== Warning ==================== */
+  /* Registered extension (namespace hygiene, fleet audit 2026-10-26): the
+     semantic status families predate the drift gate's allowlist — warning
+     and success ride the fixed M3 semantic palettes, same provenance as the
+     skill's palettes.mjs SEMANTIC block. */
   --md-sys-color-warning: #8f6216;
   --md-sys-color-on-warning: #fff;
   --md-sys-color-warning-container: #fffbeb;
@@ -688,7 +692,9 @@
   /* Query widget accent (the left border that marks an embedded query) */
   --md-sys-color-query-accent: #c11574;
 
-  /* Callout semantic colors */
+  /* Callout semantic colors — registered extension (namespace hygiene,
+     fleet audit 2026-10-26): document/markdown callout roles, fixed hues
+     with 8% washes; the drift gate's extension registry carries the reason. */
   --md-sys-color-callout-warning: #8f6216;
   --md-sys-color-callout-warning-bg: rgb(143 98 22 / 8%);
   --md-sys-color-callout-tip: #3a756d;
