@@ -1,9 +1,10 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { foldSearchText } from "@notees/store";
 
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { PropertyCreateModal } from "./PropertyCreateModal.js";
+import { ScopeRemedyButton } from "./ScopeRemedyButton.js";
 import { eligibleSchemasForNode, realizeCandidatesOf } from "./schemaEligibility.js";
 import type { AnyClient } from "./shared.js";
 
@@ -32,7 +33,15 @@ export function AddPropertyRow({
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  /** The schema whose write failed with a scope rejection — the error line
+   *  carries the guided remedy beneath it (dead-end removal, Tier 3). */
+  const [failedSchemaId, setFailedSchemaId] = useState<string | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  // The subscription (the established metadata pattern): the remedy's
+  // class.setExtends lands through the ordinary op path and the picker
+  // must re-derive its eligible/ineligible split while it stays open.
+  const [, setVersion] = useState(0);
+  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
   const node = client.getNode(nodeId);
   const schemas = client.listPropertySchemas();
@@ -58,14 +67,31 @@ export function AddPropertyRow({
   // Diacritics fold on both sides (the store search mirror): "ano" finds
   // the schema "año".
   const nameQuery = foldSearchText(newName.trim().toLowerCase());
+  // The guided scope remedy (Tier 3): an INELIGIBLE schema whose name
+  // matches the search stays visible — disabled, with the "Let <class>
+  // extend <scope class>?" offer beneath it. The user is looking for it;
+  // hiding it entirely was the dead end.
+  const eligibleIds = new Set(eligible.map((schema) => schema.id));
+  const ineligibleMatches =
+    nameQuery === ""
+      ? []
+      : schemas.filter(
+          (schema) =>
+            !eligibleIds.has(schema.id) &&
+            !realizedIds.has(schema.id) &&
+            foldSearchText(schema.name.toLowerCase()).includes(nameQuery),
+        );
 
   async function assign(schemaId: string): Promise<void> {
     try {
       await client.assignProperty(nodeId, schemaId);
       setPickerOpen(false);
       setError(null);
+      setFailedSchemaId(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      setFailedSchemaId(/not eligible for schema/.test(message) ? schemaId : null);
     }
   }
 
@@ -126,6 +152,21 @@ export function AddPropertyRow({
                   </li>
                 );
               })}
+            {/* The ineligible search matches stay visible — disabled, with
+                the remedy offer beneath (never a silent dead end). */}
+            {ineligibleMatches.map((schema) => (
+              <li key={schema.id} className="nt-add-property-ineligible">
+                <button
+                  type="button"
+                  disabled
+                  title="This node's classes don't cover this property's scope"
+                >
+                  <span className="nt-add-property-name">{schema.name}</span>
+                  <span className="nt-add-property-type">not eligible</span>
+                </button>
+                <ScopeRemedyButton client={client} nodeId={nodeId} schema={schema} />
+              </li>
+            ))}
           </ul>
           {newName.trim() !== "" && !schemas.some((s) => foldSearchText(s.name.toLowerCase()) === nameQuery) && (
             <button
@@ -136,9 +177,19 @@ export function AddPropertyRow({
               Create property "{newName.trim()}"
             </button>
           )}
-          {error !== null && <p className="nt-error">{error}</p>}
         </div>
       )}
+      {/* The write-error line + the guided remedy ride OUTSIDE the popup: a
+          rejection from the create-modal handoff (the picker closed) must
+          stay visible — the remedy is the way out of it. */}
+      {error !== null && <p className="nt-error">{error}</p>}
+      {failedSchemaId !== null &&
+        (() => {
+          const failedSchema = schemas.find((s) => s.id === failedSchemaId);
+          return failedSchema === undefined ? null : (
+            <ScopeRemedyButton client={client} nodeId={nodeId} schema={failedSchema} />
+          );
+        })()}
       {createOpen && (
         <PropertyCreateModal
           isOpen

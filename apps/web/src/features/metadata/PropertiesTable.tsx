@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 import { type DatePrecision, isReadonlyProperty } from "@notees/domain";
 
@@ -10,6 +10,7 @@ import { PropertyView } from "./PropertyView.js";
 import { PropertyHistoryModal } from "./PropertyHistoryModal.js";
 import type { AnyClient } from "./shared.js";
 import { AddPropertyRow } from "./AddPropertyRow.js";
+import { ScopeRemedyButton } from "./ScopeRemedyButton.js";
 import { propertyGroupsOf } from "./propertyGroups.js";
 import { GroupedPropertyRow } from "./GroupedPropertyRow.js";
 import { ScalarPropertyValue } from "./ScalarPropertyValue.js";
@@ -121,23 +122,37 @@ export function PropertiesTable({
     schema: { datePrecision?: DatePrecision | null } | null,
     bindingFilter: string[] | null,
     groupRows: EffectiveProperty[],
-  ) => (
-    <GroupedPropertyRow
-      key={propertySchemaId}
-      client={client}
-      nodeId={nodeId}
-      type={type}
-      propertySchemaId={propertySchemaId}
-      label={label}
-      multi={multi}
-      schema={schema}
-      bindingFilter={bindingFilter}
-      groupRows={groupRows}
-      onOpenPage={onOpenPage}
-      onOpenInSidebar={onOpenInSidebar}
-      readOnly={readOnly}
-    />
-  );
+  ) => {
+    // R4 honest rendering, the grouped arm: a grouped schema with an
+    // ineligible authored row dims the whole group — and carries the guided
+    // scope remedy on its own li beneath (the per-type row component owns
+    // its li interior, so the offer cannot nest inside it).
+    const ineligible = groupRows.some((row) => row.eligible === false);
+    const fullSchema = client.listPropertySchemas().find((s) => s.id === propertySchemaId);
+    return (
+      <Fragment key={propertySchemaId}>
+        <GroupedPropertyRow
+          client={client}
+          nodeId={nodeId}
+          type={type}
+          propertySchemaId={propertySchemaId}
+          label={label}
+          multi={multi}
+          schema={schema}
+          bindingFilter={bindingFilter}
+          groupRows={groupRows}
+          onOpenPage={onOpenPage}
+          onOpenInSidebar={onOpenInSidebar}
+          readOnly={readOnly}
+        />
+        {ineligible && fullSchema !== undefined && (
+          <li className="nt-property-remedy-row">
+            <ScopeRemedyButton client={client} nodeId={nodeId} schema={fullSchema} />
+          </li>
+        )}
+      </Fragment>
+    );
+  };
 
   return (
     <>
@@ -182,7 +197,7 @@ export function PropertiesTable({
             return (
               <li
                 key={`${row.propertySchemaId}:${row.idx}`}
-                className={`${row.source === "default" ? "nt-property nt-property-default" : "nt-property"} node-metadata-row${ineligible ? " nt-property-ineligible" : ""}`}
+                className={`${row.source === "default" ? "nt-property nt-property-default" : "nt-property"} node-metadata-row${ineligible ? " nt-property-ineligible nt-property-remedy" : ""}`}
                 {...(ineligible
                   ? { title: "This node isn’t eligible for this property (its scope excludes it)" }
                   : {})}
@@ -192,6 +207,17 @@ export function PropertiesTable({
                   {row.boundBy !== null && <span className="nt-property-hint" title="From a class">C</span>}
                 </span>
                 <ScalarPropertyValue client={client} nodeId={nodeId} row={row} onOpenPage={onOpenPage} onOpenInSidebar={onOpenInSidebar} readOnly={readOnly} />
+                {/* The guided scope remedy (Tier 3): the dimmed row carries
+                    the "Let <class> extend <scope class>?" offer (the row's
+                    schema projection has no scope — the registry lookup
+                    supplies it). */}
+                {ineligible &&
+                  (() => {
+                    const fullSchema = client.listPropertySchemas().find((s) => s.id === row.propertySchemaId);
+                    return fullSchema === undefined ? null : (
+                      <ScopeRemedyButton client={client} nodeId={nodeId} schema={fullSchema} />
+                    );
+                  })()}
               </li>
             );
           })}

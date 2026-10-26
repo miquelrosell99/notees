@@ -33,3 +33,6 @@ export {
   isSchemaEligibleForNode,
   eligibleSchemasForNode,
 } from "./schemaEligibility.js";
+// The guided scope remedy (owner-approved Tier 3, 2026-10-26): the pure
+// derivation behind the "Let <class> extend <scope class>?" offer.
+export { missingScopeClasses, nearestRemedyClass } from "./scopeRemedy.js";

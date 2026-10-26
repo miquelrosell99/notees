@@ -41,6 +41,37 @@ predating this file.
   appears as a source type option — a derived consequence, no web code
   touched in this slice. Verified: `pnpm typecheck` + `pnpm test` green in
   the slice worktree.
+- **feat(web): the guided scope remedy — "Let <class> extend <scope class>?"
+  at the scope-rejection surfaces.** Property scope is the sole locality
+  authority, but an ineligible node/class used to
+  be a dead end: the owner had to discover the missing extends edge by hand
+  and fire `class.setExtends` via a script (hit in production today). New
+  shared derivation + component in `features/metadata/`
+  (`scopeRemedy.ts` + `ScopeRemedyButton.tsx`, fleet Button/ConfirmationModal
+  composition, token-only CSS): `missingScopeClasses` names the scope classes
+  the node's closure misses (empty for global/already-eligible — a transitive
+  extends-ancestor satisfying the scope yields no offer) and
+  `nearestRemedyClass` picks the node's own first class as the extends
+  receiver; each missing class renders one offer whose confirmation submits
+  `class.setExtends` with the UNION of the class's current parents and the
+  scope class (existing parents never silently dropped), stating the
+  consequence in the modal. Wired at three surfaces: the add-property picker
+  (an ineligible search match stays visible — disabled, "not eligible" — with
+  the offer beneath), the effective read's eligible:false row (the dimmed
+  grouped/scalar rows carry the offer, on its own li for grouped types), and
+  the picker's write-rejection error line (a "not eligible for schema"
+  failure offers the remedy for the failed schema). The per-type value rows
+  fire `property.set` without a catch, so there is no row-level error line to
+  hook there — the picker's catch is the write-failure surface. No new client
+  write: `setClassExtends` already rode the workspace + worker clients. The
+  schemaEligibility closure walk factored into `classClosureFrom` (seeded
+  BFS) shared by the node/class closures and the remedy. `classClosureFrom`
+  + the remedy derivation barrel-exported from `features/metadata`.
+  Verified: new `apps/web/test/scope-remedy.test.tsx` (7 specs: the pure
+  derivation incl. the transitive-ancestor no-offer, one offer per missing
+  scope class + the classless-node no-op, the UNION confirm + post-edge
+  eligibility, the picker surface, the eligible:false row surface) — green;
+  full gate green.
 
 - **fix(store): merge plans apply clean on imported graphs — standalone
   children of embedded sources relocate, positional property refs re-address
