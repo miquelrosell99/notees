@@ -354,6 +354,29 @@ describe("compile: SQL shape", () => {
     expect(fts.params).toEqual(["capital* AND city*"]);
   });
 
+  it("name conditions probe the flattened title (the sort-by-name expression)", () => {
+    // contains LIKEs the flattened content text (title-is-content)…
+    const contains = compile(ast(entire, [{ type: "name", op: "contains", value: "paris" }]));
+    expect(contains.sql).toContain("group_concat(json_extract(j.value, '$.text'), ' ')");
+    expect(contains.sql).toContain("json_each(n.content)");
+    expect(contains.sql).toContain("LIKE '%' || ? || '%'");
+    expect(contains.params).toEqual(["paris"]);
+    // …eq/neq compare it exactly (case-sensitive BINARY)…
+    const eq = compile(ast(entire, [{ type: "name", op: "eq", value: "Paris" }]));
+    expect(eq.sql).toContain(") = ?");
+    expect(eq.params).toEqual(["Paris"]);
+    // …exists is the non-empty probe, COALESCE'd two-valued so `NOT name:` reads untitled.
+    const exists = compile(ast(entire, [{ type: "name", op: "exists" }]));
+    expect(exists.sql).toContain("COALESCE(length(");
+    expect(exists.sql).toContain("> 0");
+    expect(exists.params).toEqual([]);
+    // The probed expression IS the sort-by-name column (parse it out of the
+    // ORDER BY clause and require the condition to carry it verbatim).
+    const sorted = compile({ ...allIn(entire), sort: [{ field: "name", dir: "asc" }] });
+    const titleExpr = sorted.sql.split("ORDER BY ")[1]!.split(" IS NULL")[0]!;
+    expect(contains.sql).toContain(titleExpr);
+  });
+
   it("property condition: effective read model (authored UNION derived defaults)", () => {
     const { sql, params } = compile(
       ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "high" }]),
@@ -664,6 +687,61 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       // City extends Place, so a Place query must find City members too.
       const { ids } = runQuery(worldStore(), ast(entire, [{ type: "class", classId: PLACE }]));
       expect(ids.sort()).toEqual([FRANCE, PARIS].sort());
+    });
+  });
+
+  describe("name conditions (title-is-content)", () => {
+    const UNTITLED = "0192a000-0000-7000-8000-0000000005a1";
+
+    function storeWithUntitled(): Store {
+      const store = worldStore();
+      // A node with NO text runs: the flattened title is NULL, never "".
+      store.apply(env("object.create", { objectId: UNTITLED, contentAst: [] }, T0 + 50 * STEP));
+      return store;
+    }
+
+    it("eq is exact and case-sensitive over the title", () => {
+      const store = storeWithUntitled();
+      expect(runQuery(store, ast(entire, [{ type: "name", op: "eq", value: "Paris" }])).ids).toEqual([PARIS]);
+      // The prop := convention: case-sensitive (unlike the contains arm below).
+      expect(runQuery(store, ast(entire, [{ type: "name", op: "eq", value: "paris" }])).ids).toEqual([]);
+      // Whole-title equality: "Lone" alone is not the title of "Lone Page".
+      expect(runQuery(store, ast(entire, [{ type: "name", op: "eq", value: "Lone Page" }])).ids).toEqual([LONE]);
+      expect(runQuery(store, ast(entire, [{ type: "name", op: "eq", value: "Lone" }])).ids).toEqual([]);
+    });
+
+    it("contains is a case-insensitive title substring (title-only — not body content)", () => {
+      const store = storeWithUntitled();
+      expect(runQuery(store, ast(entire, [{ type: "name", op: "contains", value: "paris" }])).ids).toEqual([PARIS]);
+      expect(
+        runQuery(store, ast(entire, [{ type: "name", op: "contains", value: "capital" }])).ids.sort(),
+      ).toEqual([FR_BLOCK, PARIS_BLOCK].sort());
+      // frBlock's CONTENT mentions Paris, but its title is "The capital city" —
+      // a title contains "paris" leaves it out (a content contains does not).
+      expect(runQuery(store, ast(entire, [{ type: "content", op: "contains", value: "paris" }])).ids.sort()).toEqual(
+        [FR_BLOCK, PARIS].sort(),
+      );
+    });
+
+    it("neq matches every titled node except the equal one; the untitled row matches nothing", () => {
+      const store = storeWithUntitled();
+      const { ids } = runQuery(store, ast(entire, [{ type: "name", op: "neq", value: "Paris" }]));
+      // 9 titled world nodes minus Paris (SQL NULL semantics: the untitled
+      // row matches neither eq nor neq).
+      expect(ids).toHaveLength(8);
+      expect(ids).not.toContain(PARIS);
+      expect(ids).not.toContain(UNTITLED);
+    });
+
+    it("exists matches titled nodes only; the not-wrap reads untitled", () => {
+      const store = storeWithUntitled();
+      const { ids } = runQuery(store, ast(entire, [{ type: "name", op: "exists" }]));
+      expect(ids).toHaveLength(9);
+      expect(ids).not.toContain(UNTITLED);
+      const untitled = runQuery(store, ast(entire, [
+        { type: "not", child: { type: "name", op: "exists" } },
+      ]));
+      expect(untitled.ids).toEqual([UNTITLED]);
     });
   });
 

@@ -56,6 +56,7 @@ Conditions (the shipped subset, cleanly extensible by versioned addition):
 | `isEmbedded {isEmbedded}` | `node.is_embedded = 0/1` — the embedding bit for parented non-class nodes (Revision 12: the Block role = embedded in the parent's body, the Page-role claim = standalone under a page-role parent). |
 | `content {op, value}` | `contains`: LIKE substring over the derived search plaintext (name + content tokens — the only derived plaintext; it lives in the FTS index). `fts`: prefix-AND `MATCH` over `search_index`. `eq`/`neq`: plaintext equality; `starts`/`ends`: edge-anchored LIKE — the Odoo text set. |
 | `contentSet` | The title/content plaintext is non-empty (the content "is set"). |
+| `name {op, value?}` | The **title** (title-is-content: the flattened content text, the sort-by-name expression — title-only, unlike `content`'s name+content plaintext). `contains`: LIKE substring (ASCII case-insensitive, the `content`-contains convention); `eq`/`neq`: exact case-sensitive comparisons (the `prop` `:=` convention — an untitled row matches neither, SQL NULL semantics); `exists`: the title is non-empty, COALESCE'd two-valued so the not-wrap reads "is untitled". |
 | `tag {tagId}` / `tagAny {tagIds}` / `tagSet` | Tag membership over the OR-set `tag_ids` (a tag is any page — no hierarchy): single, ANY-of, non-empty. |
 | `property {schemaId, op, value?, includeDefaults?}` | See below. `eq`, `neq`, `contains`, `exists`, `gt`, `gte`, `lt`, `lte`. |
 | `linkedTo {nodeId}` | `backlinksWithRollup` membership: a direct edge to the node, **or** an edge sourced strictly inside its subtree and targeting outside it (containment roll-up). |
@@ -104,6 +105,11 @@ class:Name            class membership (by NAME; "!=" negates)
 isClass:true|false    class identity bit (Revision 11; "!=" negates)
 presentAsMain:t|f     render bit for parented nodes (main zone vs inline body)
 text:term             content contains (substring; bare words do the same)
+name:term             title contains (LIKE, ASCII case-insensitive); bare ":" =
+                      title is non-empty (exists); ":="/"=" eq, "!=" neq —
+                      exact, case-sensitive (title = the flattened content
+                      text; an untitled row matches neither, so "is untitled"
+                      is NOT name:)
 linked:Name           backlinksWithRollup to the named node ("!=" negates)
 coverAsset:<ref>      the cover wire node field: bare ":" = is set, "=" eq, "!=" neq
 bannerAsset:<ref>     the banner wire node field (same shape)

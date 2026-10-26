@@ -88,6 +88,14 @@ export const childSchema: z.ZodType<Child> = z.lazy(() =>
 export type PropertyOp = "eq" | "neq" | "contains" | "exists" | "gt" | "gte" | "lt" | "lte";
 export type ContentOp = "contains" | "fts" | "eq" | "neq" | "starts" | "ends";
 /**
+ * The title-condition operators (the `name:` DSL field): `contains` is a LIKE
+ * substring (ASCII case-insensitive, the content-contains convention);
+ * `eq`/`neq` are exact BINARY comparisons (the `prop:` `:=` convention) —
+ * an untitled row (NULL flattened text) matches neither, like the wire-field
+ * predicates. `exists` reads "has a non-empty title".
+ */
+export type NameOp = "eq" | "neq" | "contains" | "exists";
+/**
  * The date-comparison family (Odoo's date operators):
  * eq/neq are DAY-granular equality (the whole local day matches), gt/gte/lt/lte
  * compare against the resolved instant. `between`/`within` ride their own
@@ -109,6 +117,15 @@ export type Condition =
   | { type: "isClass"; isClass: boolean }
   | { type: "isEmbedded"; isEmbedded: boolean }
   | { type: "content"; op: ContentOp; value: string }
+  /**
+   * Title-is-content: the node's title IS its flattened content text (the
+   * sort-by-name expression) — the `name:` DSL field. `contains` is a LIKE
+   * substring (ASCII case-insensitive); `eq`/`neq` are exact case-sensitive
+   * comparisons; `exists` reads "the title is non-empty". An untitled row
+   * (NULL flattened text) matches neither eq nor neq under SQL NULL
+   * semantics — "is untitled" is the not-wrap of `exists`.
+   */
+  | { type: "name"; op: NameOp; value?: string | undefined }
   | {
       type: "property";
       schemaId: string;
@@ -284,6 +301,17 @@ export const conditionSchema = z.discriminatedUnion("type", [
     type: z.literal("content"),
     op: z.enum(["contains", "fts", "eq", "neq", "starts", "ends"]),
     value: z.string().min(1),
+  }).strict(),
+  /**
+   * The title condition (title-is-content: the flattened content text, the
+   * sort-by-name expression): contains LIKE (ASCII case-insensitive),
+   * eq/neq exact (case-sensitive), exists = non-empty title. An untitled
+   * row matches neither eq nor neq (SQL NULL semantics).
+   */
+  z.object({
+    type: z.literal("name"),
+    op: z.enum(["eq", "neq", "contains", "exists"]),
+    value: z.string().min(1).optional(),
   }).strict(),
   z.object({
     type: z.literal("property"),

@@ -114,16 +114,23 @@ export function buildMatchExpression(query: string): string | null {
   return clauses.join(" AND ");
 }
 
+/**
+ * The title (the flattened content text) for the node row aliased `alias` —
+ * title-is-content: concatenating the text-run tokens of the content JSON,
+ * the exact expression sort-by-name orders by. group_concat yields NULL
+ * when no text run rides the content (an untitled row).
+ */
+function titleSql(alias: string): string {
+  return (
+    `(SELECT group_concat(json_extract(j.value, '$.text'), ' ') FROM json_each(${alias}.content) j ` +
+    `WHERE json_extract(j.value, '$.type') = 'text')`
+  );
+}
+
 const SORT_COLUMNS: Record<SortSpec["field"], { column: string; nullable: boolean }> = {
   // Title-is-content: the title is the node's content text (the name column
-  // is retired). Concatenate the text-run tokens for ordering; NULL/empty
-  // titles fall to the id tiebreak the runner appends.
-  name: {
-    column:
-      "(SELECT group_concat(json_extract(j.value, '$.text'), ' ') FROM json_each(n.content) j " +
-      "WHERE json_extract(j.value, '$.type') = 'text')",
-    nullable: true,
-  },
+  // is retired). NULL/empty titles fall to the id tiebreak the runner appends.
+  name: { column: titleSql("n"), nullable: true },
   createdAt: { column: "n.created_at", nullable: true },
   isClass: { column: "n.is_class", nullable: false },
   isEmbedded: { column: "n.is_embedded", nullable: false },
@@ -766,6 +773,8 @@ class Compiler {
         return `n.is_embedded = ${this.push(condition.isEmbedded ? 1 : 0)}`;
       case "content":
         return this.contentSql(condition);
+      case "name":
+        return this.nameSql(condition);
       case "property":
         return this.propertySql(condition);
       case "linkedTo":
@@ -843,6 +852,31 @@ class Compiler {
       throw new Error(`query compile: ${type} op '${condition.op}' requires a non-null value`);
     }
     return `n.${column} ${condition.op === "eq" ? "=" : "!="} ${this.push(condition.value)}`;
+  }
+
+  /**
+   * The title condition (title-is-content): the predicate runs over the
+   * flattened content text — the same expression sort-by-name uses. exists
+   * is the non-empty probe, COALESCE'd two-valued so the not-wrap reads
+   * "is untitled" (a bare `length` would go NULL for an untitled row and
+   * `NOT NULL` excludes it again); contains LIKEs (ASCII case-insensitive,
+   * the content-contains convention); eq/neq compare exactly (case-sensitive
+   * BINARY, the prop `:=` convention) — an untitled row matches neither
+   * under SQL NULL semantics, by design.
+   */
+  private nameSql(condition: Extract<Condition, { type: "name" }>): string {
+    const title = titleSql("n");
+    if (condition.op === "exists") {
+      return `COALESCE(length(${title}), 0) > 0`;
+    }
+    if (condition.value === undefined || condition.value === null) {
+      throw new Error(`query compile: name op '${condition.op}' requires a non-null value`);
+    }
+    const param = this.push(condition.value);
+    if (condition.op === "eq" || condition.op === "neq") {
+      return `${title} ${condition.op === "eq" ? "=" : "!="} ${param}`;
+    }
+    return `${title} LIKE '%' || ${param} || '%'`;
   }
 
   private contentSql(condition: Extract<Condition, { type: "content" }>): string {

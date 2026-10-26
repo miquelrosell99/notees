@@ -9,6 +9,36 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(query): the `name:` field matches node titles in the query DSL
+.** `name:value` is a title contains, `name:=value`
+  / `name=value` exact title equality, `!=` negates, and a bare `name:` reads
+  "title is non-empty" — the first DSL arm that predicates on the title
+  alone, where `text:` only reaches the name+content search plaintext.
+  Title-is-content holds: the compiler reuses the exact flattened-content
+  expression sort-by-name orders by (extracted into one shared `titleSql`
+  helper both ride). Case sensitivity follows the compiler's existing
+  conventions: contains is LIKE (ASCII case-insensitive, the `text:` /
+  prop-contains convention), eq/neq are exact BINARY comparisons (the
+  prop `:=` convention — note `GET /api/resolve?name=` stays the
+  case-insensitive exact-match endpoint; the DSL arm deliberately mirrors
+  `prop:` instead). `name` joins the reserved fields, so a property schema
+  literally named `name` yields the title arm (the `text:`/`class:`
+  precedence). New additive AST condition `{ type: "name", op, value? }`
+  (eq/neq/contains/exists) in `packages/protocol` (version 1 grows by
+  versioned addition, like the earlier arms); the exists arm is COALESCE'd
+  two-valued so `NOT name:` reads "is untitled" (`NOT NULL` would exclude
+  the untitled row a second time), while eq/neq keep SQL NULL semantics —
+  an untitled row matches neither. No wire/op change: no fixture gate; the
+  server needed none (the search/query endpoint compiles whatever the AST
+  carries). Docs: `packages/query/README.md` (condition table + DSL grammar
+  block); the `dsl.ts` grammar doc. Verified: `dsl.test.ts` grows the arm's
+  parse/operator/error specs (+ the known-fields list), `query.test.ts`
+  grows the SQL-shape spec (incl. the sort-by-name lockstep assertion) and
+  execution specs on both store adapters (case-sensitivity, title-only
+  contrast with content contains, the untitled node), and
+  `apps/server/test/query.test.ts` runs the arm end-to-end through
+  `POST /api/query`; `pnpm typecheck` + `pnpm test` green.
+
 - **feat(web): the settings Sync rows become cards; Disconnect moves onto
   the current row.** Four asks in one slice: **(1)**
   the fleet `Radio` component centers the dot against the label — the

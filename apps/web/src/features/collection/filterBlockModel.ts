@@ -373,6 +373,12 @@ export function operatorOf(condition: Condition, negated: boolean): string {
       return negated ? "not-contains" : "contains";
     case "contentSet":
       return negated ? "not-set" : "set";
+    case "name":
+      // Title-is-content: the content register minus the fts/edge arms (the
+      // builder never authors this condition — the DSL parse can carry it in).
+      if (condition.op === "exists") return negated ? "not-set" : "set";
+      if (condition.op === "eq" || condition.op === "neq") return negated ? "is-not" : "is";
+      return negated ? "not-contains" : "contains";
     case "tag":
       return negated ? "is-not" : "is";
     case "tagAny":

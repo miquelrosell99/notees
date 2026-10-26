@@ -25,6 +25,9 @@
  *                            Block role; false = standalone — the Page
  *                            role); "!=" negates
  *     text:term         content contains (value required)
+ *     name:term         title (the flattened content text) contains;
+ *                       bare ":" = title is non-empty (exists); ":="/"=" eq,
+ *                       "!=" neq — exact, case-sensitive
  *     linked:Name       backlinksWithRollup to the named node; "!=" negates
  *     coverAsset:<ref>  the cover wire node field (uuid or node NAME via the
  *     bannerAsset:<ref> banner/alias twins): bare ":" = is set, "=" eq, "!="
@@ -48,9 +51,10 @@
  * unresolvable names are hard errors, never silent text search.
  *
  * The parser emits only the supported AST — property conditions (all eight
- * ops), class, isClass, isEmbedded, content contains, linkedTo and the
- * wire node-field predicates (coverAsset/bannerAsset/aliasedNode, eq/neq/
- * exists) — no new condition kinds.
+ * ops), class, isClass, isEmbedded, content contains, title (name) eq/neq/
+ * contains/exists, linkedTo and the wire node-field predicates
+ * (coverAsset/bannerAsset/aliasedNode, eq/neq/exists) — no new condition
+ * kinds.
  */
 
 import type { Child, Condition, Group, QueryAst, Scope } from "./ast.js";
@@ -92,6 +96,7 @@ const RESERVED_FIELDS = [
   "presentasmain",
   "prop",
   "text",
+  "name",
   "linked",
   "coverasset",
   "bannerasset",
@@ -399,6 +404,8 @@ class Parser {
       case "text":
         this.requireContainsOp(op, "text");
         return contentContains(String(this.readValue("a text term")));
+      case "name":
+        return this.nameCondition(op);
       case "linked":
         return this.negatable(op, () => ({
           type: "linkedTo",
@@ -472,6 +479,40 @@ class Parser {
     if (op !== ":" && op !== "=") {
       throw this.error(`operator '${op}' is not supported for ${field} (use ':')`);
     }
+  }
+
+  /**
+   * The title field (title-is-content: the flattened content text, the
+   * sort-by-name expression): bare ":" with no value (also before AND/OR/
+   * NOT) reads "title is non-empty" (the prop: exists precedent); a value
+   * reads contains (LIKE, ASCII case-insensitive — the text: convention);
+   * ":="/"=" eq and "!=" neq are exact, case-sensitive (the prop: :=
+   * convention). Range ops don't fit titles.
+   */
+  private nameCondition(op: Op): Child {
+    if (op === ":") {
+      if (
+        this.lookahead.kind === "eof" ||
+        this.lookahead.kind === "rparen" ||
+        this.lookahead.kind === "and" ||
+        this.lookahead.kind === "or" ||
+        this.lookahead.kind === "not"
+      ) {
+        return { type: "name", op: "exists" };
+      }
+      return { type: "name", op: "contains", value: String(this.readValue("a title")) };
+    }
+    if (op === "=" || op === ":=" || op === "!=") {
+      if (this.lookahead.kind === "eof" || this.lookahead.kind === "rparen") {
+        throw this.error(`operator '${op}' requires a value`);
+      }
+      return {
+        type: "name",
+        op: op === "!=" ? "neq" : "eq",
+        value: String(this.readValue("a title")),
+      };
+    }
+    throw this.error(`operator '${op}' is not supported for name (use ':', ':=' or '!=')`);
   }
 
   private readBoolean(field: string): boolean {
