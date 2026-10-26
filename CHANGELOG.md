@@ -9,6 +9,35 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(web): the list auto-collapse setting actually collapses — renamed,
+  collection-wide, opt-out flag (owner scope correction).** The reported
+  bug: "Auto-collapse nodes at this depth in linked references (0 =
+  disabled)" sat at 0 yet blocks stayed folded in the Backlinks section.
+  Root cause: the device setting was written only by the Settings page and
+  read NOWHERE — the fold came from the collection-wide 2026-10-21 ruling
+  (every row with children starts folded), which no setting governed.
+  **Scope**: not a linked-refs setting at all — it
+  governs EVERY flat node collection (references, query results, hubs,
+  events, classed nodes) while collections that own their collapse behavior
+  stay untouched. **Settings**: renamed to "Auto-collapse nodes at this
+  depth in lists", storage key `listCollapseLevel` (the never-functional
+  `linkedRefsCollapseLevel` key retires unreplaced — no compatibility, it
+  never governed anything). **Web**: `OutlineView.FlatRows` reads the
+  setting itself — rows at the named depth and deeper start folded (depth 1
+  = the list's top-level rows), 0 = disabled renders rows fully expanded; a
+  new `collapse` flag on `NodeCollectionProps` opts a collection out (the
+  pre-setting blanket default stands) — the Child pages tree sets it, and
+  the page body (main child blocks) is excluded structurally (it renders
+  through the tree path and the host outliner context, never the flat
+  list). **Tests**: `apps/web/test/list-collapse-level.test.tsx` — 0
+  (explicit and default) expands everything, level 1 folds the top-level
+  rows, level 2 expands them and folds their children, a folded row unfolds
+  on chevron click (session-local override), a generic flat NodeCollection
+  honors the setting, a tree NodeCollection never auto-folds, and the
+  `collapse` flag keeps the legacy fold at level 0. Gate: `apps/web`
+  typecheck clean for the touched files; the full-suite run stands in the
+  repo gate.
+
 - **refactor(web): the resolver unwired from the class-pick popup — the
   palette is the magic wand.** Picking a source class
   in the New-node popup is Zotero's MANUAL entry creation again: the
