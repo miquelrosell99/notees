@@ -62,7 +62,7 @@ function normalizeValue(value: unknown): unknown {
 export function decodeKvs(rows: KvsRow[]): Map<number, LqEntity> {
   const reader = transit.reader("json-verbose");
   // eid → attr → { values, txs }
-  const acc = new Map<number, Map<string, { values: unknown[]; txs: number[] }>>();
+  const acc = new Map<number, Map<string, { values: unknown[]; txs: number[]; seen: Set<string> }>>();
 
   for (const row of rows) {
     if (row.addr === 0 || row.addr === 1) continue;
@@ -90,10 +90,16 @@ export function decodeKvs(rows: KvsRow[]): Map<number, LqEntity> {
       }
       let slot = ent.get(attr);
       if (!slot) {
-        slot = { values: [], txs: [] };
+        slot = { values: [], txs: [], seen: new Set() };
         ent.set(attr, slot);
       }
-      slot.values.push(normalizeValue(v));
+      // The store keeps the same current datom in several index pages — a raw
+      // row collection would double-count cardinality-many values.
+      const normalized = normalizeValue(v);
+      const key = JSON.stringify(normalized) ?? String(normalized);
+      if (slot.seen.has(key)) continue;
+      slot.seen.add(key);
+      slot.values.push(normalized);
       slot.txs.push(typeof tx === "number" ? tx : 0);
     }
   }

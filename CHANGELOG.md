@@ -33,6 +33,13 @@ predating this file.
   property cell). Verified: 3 new specs (the property entry in a flat row
   trail; the entry surviving the dropped containing-page crumb on a
   backlinks row; no trail inside the property cell) + the full gate.
+- **fix(export): the Logseq DB decoder dedupes datoms repeated across index
+  pages.** The kvs store keeps the same current datom in several index pages;
+  the decoder collected raw rows, so cardinality-many property values arrived
+  duplicated (2,177 phantom extra values on the owner's Notas rehearsal —
+  single-value schemas visibly double-written). Decode now dedupes per
+  attribute by normalized value. TDD: fixture repeats a datom across two
+  rows. Verified: package suite green (302).
 
 - **fix(export): the Logseq DB model skip-classification — system entities
   with uuids, and the real closed-value attr.** Two classification fixes from
