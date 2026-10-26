@@ -110,6 +110,39 @@ predating this file.
   deferred item: the ListRow extraction (7 surfaces) lands as its own
   slice next. Verified: gates below.
 
+- **feat(web+server): the query node becomes a nodecollection query builder
+ — a block, not a widget.** A block carrying a
+  `query` content token stays a normal, typeable row; the token renders
+  nothing in the stream — it marks the block and carries the DEFAULT tab's
+  AST. Below the content row the block renders the nodecollection chrome,
+  the same surface system sections carry: `NodeCollectionTabs` (renamed
+  from `SectionViewTabs`; the empty section key hosts a node's "main query")
+  + `NodeCollectionBar` (renamed from `FilterBar`) with the toggleable
+  FULL-GRAMMAR builder (`FilterBlockBuilder`) and an "Apply to \<tab\>"
+  commit that rewrites the SELECTED tab's query — the Default tab commits
+  through the content update path (op log), a custom tab commits via the new
+  PATCH queryAst endpoint. "+" creates the tab IMMEDIATELY from the bar's
+  draft (no modal on create — name from the manage row, then
+  toggle the builder for that tab). A tab is a stored query AST only: view
+  modes are transient surface state, nowhere persisted (the per-tab mode pin
+  and its `view_mode` column die). `QueryBlockView` and its limited subset
+  popover are deleted; the read-back guard survives on the hub's
+  `FilterBuilderModal` (its suite now targets the modal). The results body
+  is lifted into a shared `QueryResults` component (hub + block, one
+  surface); export-on-query moves to `queryExport.ts`. The section renders
+  suppressed with the other widgets in query-result rows — a live section
+  inside a result would recurse when the result contains its own owner
+  (found by the rewritten suites). Storage moves from the per-user
+  `section_view` table to NODE-scoped `node_view` applied to
+  system sections too: tabs belong to the node, shared by every user of the
+  deployment; REST de-scoped to `/api/nodes/:nodeId/sections/:sectionKey/views`
+  with the `"-"` sentinel for the empty key; one-time boot migration copies
+  legacy rows dropping `user_id`/`view_mode`. Renames 
+  `query-builder.ts`/`QueryBuilderFields` survive as the hub modal's
+  composer. Verified: gate green (`pnpm typecheck` + `pnpm test`, server
+  289 + web suites incl. the rewritten `query-node` suite at 15 tests, the
+  retargeted guard suite, and the de-scoped REST stubs); docs pass
+  (queries/views/feature-status/architecture in the same slice).
 - **feat(web): the button register becomes a borderless weight ladder
  (the bordered-neutral detour retires with the
   bordered-danger one).** `default`, `outline` (and the active-toggle
