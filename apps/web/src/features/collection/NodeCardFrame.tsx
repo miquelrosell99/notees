@@ -55,6 +55,7 @@ export function NodeCardFrame({
   nodeId,
   onOpenNode,
   onOpenNodeRaw,
+  onOpenInSidebar,
   onClose,
 }: {
   client: WorkspaceClient | WorkerClient;
@@ -66,6 +67,9 @@ export function NodeCardFrame({
    * inside the card. Defaults to onOpenNode.
    */
   onOpenNodeRaw?: ((nodeId: string) => void) | undefined;
+  /** The peek gesture (Shift+click a bullet) — the same contract the main
+   *  surface's NodeView receives; unwired it silently no-ops. */
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   onClose: () => void;
 }) {
   /** Session-local collapse — display state only (card management). */
@@ -178,6 +182,7 @@ export function NodeCardFrame({
               nodeId={nodeId}
               onOpenNode={onOpenNode}
               onOpenNodeRaw={onOpenNodeRaw}
+              onOpenInSidebar={onOpenInSidebar}
               onDeleted={() => onClose()}
               globalShortcuts={false}
             />

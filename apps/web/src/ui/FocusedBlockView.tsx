@@ -36,6 +36,7 @@ export function FocusedBlockView({
   viewMode,
   readOnly = false,
   onOpenNode,
+  onOpenInSidebar,
 }: {
   client: WorkspaceClient | WorkerClient;
   /** The focused node — the collection's parent. */
@@ -45,6 +46,9 @@ export function FocusedBlockView({
   /** Read-only projection (the hover preview): clicks navigate, never edit. */
   readOnly?: boolean;
   onOpenNode?: ((nodeId: string) => void) | undefined;
+  /** The peek gesture (Shift+click a bullet): the collection self-hosts its
+   *  outliner, so the peek callback arrives only through this prop. */
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
 }) {
   // Cards/table have no defined parent display yet — the focused view wears
   // outline for them until the mode decides.
@@ -60,6 +64,7 @@ export function FocusedBlockView({
         editable={!readOnly}
         ghost={!readOnly}
         onNodeClick={(id) => onOpenNode?.(id)}
+        onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
       />
     </div>
   );

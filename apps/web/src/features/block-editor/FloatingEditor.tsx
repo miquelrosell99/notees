@@ -79,11 +79,15 @@ const CASCADE = 28;
 export function FloatingEditorHost({
   client,
   openNode,
+  openInSidebar,
   children,
 }: {
   client: AnyClient;
   /** Main-view navigation ("open in main", links inside the window). */
   openNode: (nodeId: string) => void;
+  /** The peek gesture (Shift+click a bullet inside the window) — the same
+   *  contract the main surface's NodeView receives. */
+  openInSidebar?: ((nodeId: string) => void) | undefined;
   children: ReactNode;
 }) {
   const [windows, setWindows] = useState<FloatingWindow[]>([]);
@@ -260,7 +264,7 @@ export function FloatingEditorHost({
               {node === undefined ? (
                 <div className="nt-page-missing">Page not found.</div>
               ) : (
-                <FloatingNodeView client={client} nodeId={win.nodeId} openNode={openNode} />
+                <FloatingNodeView client={client} nodeId={win.nodeId} openNode={openNode} openInSidebar={openInSidebar} />
               )}
             </div>
           </div>,
@@ -284,16 +288,19 @@ function FloatingNodeView({
   client,
   nodeId,
   openNode,
+  openInSidebar,
 }: {
   client: AnyClient;
   nodeId: string;
   openNode: (nodeId: string) => void;
+  openInSidebar?: ((nodeId: string) => void) | undefined;
 }) {
   return (
     <NodeView
       client={client}
       nodeId={nodeId}
       onOpenNode={openNode}
+      onOpenInSidebar={openInSidebar}
       onDeleted={() => closeFloatingEditor(nodeId)}
       embedded
     />

@@ -155,7 +155,7 @@ export function AppBody(props: AppBodyProps) {
           The rail's card reorder rides the same session: the host reports
           the gesture, the App owns the stack + its device-local order. */}
       <WorkspaceDndHost onRailCardReorder={reorderSidebarCard}>
-      <FloatingEditorHost client={client} openNode={openPage}>
+      <FloatingEditorHost client={client} openNode={openPage} openInSidebar={openInSidebar}>
       <Sidebar
         client={client}
         user={user}
@@ -371,6 +371,7 @@ export function AppBody(props: AppBodyProps) {
               nodeId={cardId}
               onOpenNode={openPage}
               onOpenNodeRaw={openPageAt}
+              onOpenInSidebar={openInSidebar}
               onClose={() => closeSidebarCard(cardId)}
             />
           ))}
