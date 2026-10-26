@@ -893,9 +893,116 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         ).toThrow(MoveGuardError);
         store.apply(env("object.move", { objectId: CHILD_PAGE, parentId: PAGE, afterId: BLOCK }, 1727200005700));
         expect(store.getNode(CHILD_PAGE)).toMatchObject({ parent_id: PAGE, is_embedded: 0 });
-        // Moving an embedded BLOCK anywhere stays legal — moves never write the flag.
+        // Moving an embedded BLOCK anywhere stays legal — parented moves
+        // never write the flag.
         store.apply(env("object.move", { objectId: NESTED_BLOCK, parentId: PAGE }, 1727200005800));
         expect(store.getNode(NESTED_BLOCK)).toMatchObject({ parent_id: PAGE, is_embedded: 1 });
+      });
+
+      it("first parenting of a parentless embedded node acquires the standalone claim (treat as main)", () => {
+        const store = treeStore();
+        // ORPHAN: created as a block, then un-parented (Remove parent /
+        // extract-to-page) — parentless with the bit still 1, so it renders
+        // as a page until something parents it.
+        const ORPHAN = "0192a000-0000-7000-8000-0000000005f1";
+        store.apply(
+          env(
+            "object.create",
+            {
+              objectId: ORPHAN,
+              parentId: BLOCK,
+              contentAst: [{ type: "text", text: "orphan" }],
+            },
+            1727200005900,
+          ),
+        );
+        store.apply(env("object.move", { objectId: ORPHAN, parentId: null }, 1727200006000));
+        expect(store.getNode(ORPHAN)).toMatchObject({ parent_id: null, is_embedded: 1 });
+
+        // Parenting it (the breadcrumbs "Add parent" gesture) must keep it a
+        // page: the move acquires the standalone claim.
+        store.apply(env("object.move", { objectId: ORPHAN, parentId: CHILD_PAGE }, 1727200006100));
+        expect(store.getNode(ORPHAN)).toMatchObject({ parent_id: CHILD_PAGE, is_embedded: 0 });
+      });
+
+      it("the treat-as-main acquisition stringifies rich content (the promotion boundary)", () => {
+        const store = treeStore();
+        const ORPHAN = "0192a000-0000-7000-8000-0000000005f2";
+        store.apply(
+          env(
+            "object.create",
+            {
+              objectId: ORPHAN,
+              parentId: BLOCK,
+              contentAst: [
+                { type: "text", text: "see " },
+                { type: "mention", targetNodeId: "0192a000-0000-7000-8000-0000000005ee" },
+              ],
+            },
+            1727200005900,
+          ),
+        );
+        store.apply(env("object.move", { objectId: ORPHAN, parentId: null }, 1727200006000));
+        store.apply(env("object.move", { objectId: ORPHAN, parentId: PAGE }, 1727200006100));
+        const content = JSON.parse(store.getNode(ORPHAN)?.content as string) as { type: string }[];
+        expect(store.getNode(ORPHAN)?.is_embedded).toBe(0);
+        // The mention is flattened into the single text-only token (the same
+        // lossy boundary as the object.update promotion).
+        expect(content).toHaveLength(1);
+        expect(content[0]).toMatchObject({ type: "text" });
+      });
+
+      it("treat-as-main fails loud when the new parent is a class or an embedded block", () => {
+        const store = treeStore();
+        const ORPHAN = "0192a000-0000-7000-8000-0000000005f3";
+        store.apply(
+          env(
+            "object.create",
+            { objectId: ORPHAN, parentId: BLOCK, contentAst: [{ type: "text", text: "orphan" }] },
+            1727200005900,
+          ),
+        );
+        store.apply(env("object.move", { objectId: ORPHAN, parentId: null }, 1727200006000));
+        expect(() =>
+          store.apply(env("object.move", { objectId: ORPHAN, parentId: BLOCK }, 1727200006100)),
+        ).toThrow(MoveGuardError);
+        store.apply(env("class.create", { classId: CLASS, contentAst: [{ type: "text", text: "C" }] }, 1727200006200));
+        expect(() =>
+          store.apply(env("object.move", { objectId: ORPHAN, parentId: CLASS }, 1727200006300)),
+        ).toThrow(MoveGuardError);
+        // The rejected moves left the flag untouched.
+        expect(store.getNode(ORPHAN)).toMatchObject({ parent_id: null, is_embedded: 1 });
+      });
+
+      it("a parentless block-role class member keeps the bit on parenting (stays a block)", () => {
+        const store = makeStore();
+        const TASK_CLASS = "0192a000-0000-7000-8000-0000000005e9";
+        const ORPHAN_TASK = "0192a000-0000-7000-8000-0000000005fa";
+        const PAGE = "0192a000-0000-7000-8000-0000000005fb";
+        store.apply(env("class.create", {
+          classId: TASK_CLASS,
+          contentAst: [{ type: "text", text: "Task" }],
+          parentlessRole: "block",
+        }, 1727200005000));
+        store.apply(createPage(PAGE, 1727200005100));
+        // An embedded Task block under the page, then un-parented: parentless
+        // with the bit 1 AND a block-role class — the 2026-10-24 contract
+        // wins, it stays a block when parented.
+        store.apply(
+          env(
+            "object.create",
+            {
+              objectId: ORPHAN_TASK,
+              parentId: PAGE,
+              classIds: [TASK_CLASS],
+              contentAst: [{ type: "text", text: "fix sink" }],
+            },
+            1727200005200,
+          ),
+        );
+        store.apply(env("object.move", { objectId: ORPHAN_TASK, parentId: null }, 1727200005300));
+        store.apply(env("object.move", { objectId: ORPHAN_TASK, parentId: PAGE }, 1727200005400));
+        expect(store.getNode(ORPHAN_TASK)).toMatchObject({ parent_id: PAGE, is_embedded: 1 });
       });
     });
 
