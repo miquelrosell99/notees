@@ -1,14 +1,17 @@
 /**
- * Per-user hosted section views (custom tabs — the prefs channel).
+ * Node-scoped hosted views (custom tabs — the prefs channel).
  *
  * Same ruling as favorites/recents: custom views on collection-backed
- * sections are cross-device UI state, so they live in the sync server's
- * per-user prefs store, never the op log. The client speaks REST (the five
- * endpoints under /api/me/nodes/:nodeId/sections/:sectionKey/views); the
- * sectionViews module (ui/components/sectionViews.ts) owns syncing, the
- * device-local cache, and the React hook. queryAst is the verbatim QueryAST
- * v1 the FilterBuilderModal produced — parsed again at resolution time.
- * This module holds the wire types and the response normalizers.
+ * surfaces are cross-device UI state, so they live in the sync server's
+ * prefs store, never the op log — but they belong to the NODE, not to a
+ * user: every user of the deployment shares a node's tabs (applied to system sections too). The client speaks REST (the
+ * five endpoints under /api/nodes/:nodeId/sections/:sectionKey/views, the
+ * empty section key traveling as the "-" sentinel); the sectionViews module
+ * (features/collection/sectionViews.ts) owns syncing, the device-local
+ * cache, and the React hook. queryAst is the verbatim QueryAST v1 the
+ * FilterBuilderModal produced — parsed again at resolution time. There is
+ * deliberately no viewMode: view modes are transient surface state, not
+ * stored. This module holds the wire types and the response normalizers.
  */
 
 /** The collection-backed sections that may host custom views (the server's vocabulary). */
@@ -20,7 +23,7 @@ export const HOSTED_SECTION_KEYS: readonly HostedSectionKey[] = [
   "classed-nodes",
 ];
 
-/** One custom view row (the server section_view table, wire shape). */
+/** One custom view row (the server node_view table, wire shape). */
 export interface SectionView {
   id: string;
   nodeId: string;
@@ -28,7 +31,6 @@ export interface SectionView {
   name: string;
   sequence: number;
   queryAst: unknown;
-  viewMode: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -55,7 +57,6 @@ export function normalizeSectionView(raw: unknown): SectionView {
     name: value.name,
     sequence: value.sequence,
     queryAst: value.queryAst ?? null,
-    viewMode: typeof value.viewMode === "string" ? value.viewMode : null,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   };

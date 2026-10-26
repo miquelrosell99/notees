@@ -481,7 +481,6 @@ export class WorkspaceClient {
     sectionKey: string;
     name: string;
     queryAst: unknown;
-    viewMode?: string | null;
   }) {
     return this.server.createSectionView(input);
   }

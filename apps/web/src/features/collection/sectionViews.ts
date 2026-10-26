@@ -1,16 +1,20 @@
 /**
- * sectionViews — the per-user hosted-views store (custom tabs on
- * collection-backed sections).
+ * sectionViews — the node-scoped hosted-views store (custom tabs on
+ * collection-backed surfaces).
  *
  * Same ruling as nodePrefs: custom views are cross-device UI state, so the
- * server-side per-user prefs store is the authority
- * (`GET/POST/PATCH/PUT/DELETE /api/me/nodes/:nodeId/sections/:sectionKey/views`)
- * and the operation log stays untouched ("device state is never an op"). This
- * module is the main-thread bridge, shaped on the nodePrefs precedent:
+ * server-side prefs store is the authority — but the rows belong to the
+ * NODE, not to a user (`GET/POST/PATCH/PUT/DELETE
+ * /api/nodes/:nodeId/sections/:sectionKey/views`; the empty section key,
+ * a query node's main query, travels as the "-" sentinel) and the operation
+ * log stays untouched ("device state is never an op"). Every user of the
+ * deployment shares a node's tabs (applied to
+ * system sections too). This module is the main-thread bridge, shaped on
+ * the nodePrefs precedent:
  *
  *  - one shared in-memory copy per (node, section), so every tab bar for the
- *    same section reads the same list without duplicate GETs;
- *  - boot: `ensureSectionViewsLoaded` fetches the server copy once per section
+ *    same surface reads the same list without duplicate GETs;
+ *  - boot: `ensureSectionViewsLoaded` fetches the server copy once per surface
  *    and writes it through to the device-local cache, so offline reads answer
  *    from the last synced copy (`loaded` says which side answered);
  *  - mutations are optimistic on the shared copy and confirmed by the server
@@ -20,7 +24,7 @@
  *    honestly — an offline delete that never reached the server would
  *    resurrect on the next load. Offline, hosted views are read-only;
  *  - the default view is derived-not-stored (no row, no is_default): the
- *    server table empty for a section IS factory behavior.
+ *    server table empty for a surface IS factory behavior.
  */
 
 import { useEffect, useState } from "react";
@@ -35,7 +39,6 @@ export interface SectionViewsClient {
     sectionKey: string;
     name: string;
     queryAst: unknown;
-    viewMode?: string | null;
   }): Promise<SectionView>;
   renameSectionView(
     nodeId: string,
@@ -184,7 +187,7 @@ export async function createSectionView(
   client: SectionViewsClient | null,
   nodeId: string,
   sectionKey: string,
-  input: { name: string; queryAst: unknown; viewMode?: string | null },
+  input: { name: string; queryAst: unknown },
 ): Promise<SectionView | null> {
   if (client === null) return null;
   const before = current(nodeId, sectionKey);
@@ -195,7 +198,6 @@ export async function createSectionView(
     name: input.name,
     sequence: nextSequence(before),
     queryAst: input.queryAst,
-    viewMode: input.viewMode ?? null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };

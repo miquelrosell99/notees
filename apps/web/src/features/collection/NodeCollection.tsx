@@ -152,20 +152,13 @@ export function NodeCollection({
     props.ungroupedItems,
     selectedView,
   );
-  // A custom tab may pin a display mode (null = the container's own mode).
-  const pinnedMode =
-    selectedView?.viewMode !== undefined &&
-    selectedView.viewMode !== null &&
-    getViewDefinition(selectedView.viewMode) !== undefined
-      ? (selectedView.viewMode as ViewMode)
-      : undefined;
-  const effectiveMode = pinnedMode ?? viewMode;
+  // View modes are transient surface state, not stored — the host's `viewMode` is the only mode; a hosted tab
+  // cannot pin one.
 
   if (entry === undefined) {
     return <div className="node-collection node-collection--missing">Unknown view: {viewMode}</div>;
   }
-  const effectiveEntry = pinnedMode !== undefined ? (getViewDefinition(pinnedMode) ?? entry) : entry;
-  const View = effectiveEntry.component;
+  const View = entry.component;
   // BODY MODE: rootId names the node whose children are the items — the
   // collection resolves them through the shared childQuery factory when the
   // host passes no explicit list.
@@ -215,12 +208,12 @@ export function NodeCollection({
           });
         };
   const ghost =
-    ghostRootId === undefined || ghostOnRealize === undefined ? undefined : effectiveEntry.id === "cards" ? (
+    ghostRootId === undefined || ghostOnRealize === undefined ? undefined : entry.id === "cards" ? (
       <GhostCard parentId={ghostRootId} onRealize={ghostOnRealize} />
     ) : (
       <GhostRow
         parentId={ghostRootId}
-        prose={effectiveEntry.id === "prose"}
+        prose={entry.id === "prose"}
         onRealize={ghostOnRealize}
       />
     );
@@ -236,7 +229,7 @@ export function NodeCollection({
     ungroupedItems: resolvedUngrouped,
     parentTrailing: effectiveParentTrailing,
     trailingGhost:
-      ghost !== undefined && effectiveEntry.id === "cards" && props.parent === undefined
+      ghost !== undefined && entry.id === "cards" && props.parent === undefined
         ? ghost
         : props.trailingGhost,
   };
@@ -253,7 +246,7 @@ export function NodeCollection({
         {resolution.error}
       </div>
     ) : viewProps.items.length === 0 &&
-      effectiveEntry.id !== "graph" &&
+      entry.id !== "graph" &&
       props.emptyTitle !== undefined ? (
       <EmptyState
         title={props.emptyTitle}
@@ -261,7 +254,7 @@ export function NodeCollection({
         {...(showAdd ? { actionLabel: props.addLabel ?? "Add", onAction: props.onAdd } : {})}
       />
     ) : viewProps.items.length === 0 &&
-      effectiveEntry.id !== "graph" &&
+      entry.id !== "graph" &&
       (hosted !== null || props.emptyText !== undefined) ? (
       <div className="nt-section-empty">{emptyLine}</div>
     ) : (
@@ -270,7 +263,7 @@ export function NodeCollection({
       </Suspense>
     );
   const content =
-    effectiveEntry.capabilities.errorBoundary === true ? <ErrorBoundary>{body}</ErrorBoundary> : body;
+    entry.capabilities.errorBoundary === true ? <ErrorBoundary>{body}</ErrorBoundary> : body;
   // The edit thread is the outline mode's chrome: an editable outline
   // collection without a host EditThreadProvider self-hosts one and mounts
   // the measured overlay on the collection container. The walk stops at the
@@ -278,12 +271,12 @@ export function NodeCollection({
   // edit threads from the first real row — exactly the page-body behavior;
   // the focused block renders a real bullet, so the thread starts there).
   const selfThread =
-    props.editable === true && effectiveEntry.id === "outline" && outerThread === null;
+    props.editable === true && entry.id === "outline" && outerThread === null;
   const threadRootId = props.parent?.id ?? props.rootId ?? resolvedItems[0]?.node.parentId ?? "";
   const collection = (
     <div
       ref={threadHostRef}
-      className={`node-collection node-collection--${effectiveEntry.id} ${
+      className={`node-collection node-collection--${entry.id} ${
         selfThread ? "nt-edit-thread-host " : ""
       }${props.className ?? ""}`.trim()}
     >
@@ -308,7 +301,7 @@ export function NodeCollection({
         {/* The trailing ghost rides after the content in the plain grammar;
             the focused grammar already mounted it inside the parent row's
             children container (the parentTrailing slot). */}
-        {ghost !== undefined && effectiveEntry.id !== "cards" && props.parent === undefined &&
+        {ghost !== undefined && entry.id !== "cards" && props.parent === undefined &&
           ghost}
       </ViewChromeContext.Provider>
       {selfThread && (
