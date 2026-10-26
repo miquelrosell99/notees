@@ -170,6 +170,24 @@ Calendar: `MonthCalendar` (the month-grid panel), the top-bar
 `calendar/dayGrid.tsx` day grid — calendar day cells stay one
 implementation.
 
+## The text-field register split
+
+Three field registers, fixed by surface kind — the full ruling lives in
+`.agents/design-overrides.md` (the design-system override register):
+
+- **`TextField` = the underline variant** — transparent, straight bottom
+  hairline (`rounded-none` zeroes the global input radius, else the line's
+  ends curve), 2px accent underline + accent label on focus. The underline
+  IS the focus indicator: the field opts out of both global focus rings
+  (`:focus-visible` outline + the box-shadow ring) via
+  `focus-visible:outline-none focus-visible:shadow-none`.
+- **`Input` = boxed** — the dense toolbar-row register (search, compact
+  rows). Deliberately stays a box.
+- **`.nt-property-value` = borderless** — the in-row property cells; focus
+  shows the hover overlay.
+- **`.nt-property-settings__input` = boxed small** — the settings-form
+  fields; a conversion to underline was tried and owner-reverted.
+
 ## Drift checks
 
 The 2026-10-19 shadcn-alignment slice ("full shadcn
