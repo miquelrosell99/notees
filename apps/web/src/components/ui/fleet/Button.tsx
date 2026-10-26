@@ -104,9 +104,9 @@ const buttonVariants = cva(
           "active:bg-surface-container-high active:border-outline-variant active:text-on-surface",
         ].join(" "),
         danger: [
-          "bg-error-container border-transparent text-error",
-          "hover:bg-error hover:border-error hover:text-on-error",
-          "active:bg-error-pressed active:border-error-pressed active:text-on-error",
+          "bg-error-soft border-transparent text-error",
+          "hover:bg-error hover:text-on-error",
+          "active:bg-error-pressed active:text-on-error",
         ].join(" "),
         'danger-solid': [
           "bg-error border-error text-on-error",
