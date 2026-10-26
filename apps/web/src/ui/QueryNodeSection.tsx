@@ -42,7 +42,7 @@ import {
 import type { AnyClient } from "../features/collection/index.js";
 import type { ViewMode } from "../features/collection/index.js";
 import { Button } from "../components/ui/fleet/Button.js";
-import { QueryResultsBody } from "./queryResults.js";
+import { QueryResultsBody, isUnspecifiedQueryAst } from "./queryResults.js";
 import { useQueryRun } from "./queryRun.js";
 import { updateQueryTokenAst } from "./queryTokens.js";
 import { buildQueryExportMarkdown, downloadTextFile, queryExportFileName } from "./queryExport.js";
@@ -116,8 +116,11 @@ export function QueryNodeSection({ client, nodeId, tokenIndex, onOpenNode }: Que
   // The selected tab's query: the default tab rides the token's AST (the op
   // log); a custom tab rides its stored view row.
   const effectiveAst = selectedView !== null ? selectedView.queryAst : tokenAst;
+  // The empty match-all never runs — the user has not said what they are
+  // looking for.
+  const unspecified = isUnspecifiedQueryAst(effectiveAst);
 
-  const run = useQueryRun(client, effectiveAst);
+  const run = useQueryRun(client, effectiveAst, { enabled: !unspecified });
   const resultCount =
     run.result === null ? null : run.result.kind === "query" ? run.result.ids.length : run.result.rows.length;
   const exportable = run.result !== null && run.result.kind === "query" && run.result.ids.length > 0;
@@ -202,6 +205,7 @@ export function QueryNodeSection({ client, nodeId, tokenIndex, onOpenNode }: Que
         client={client}
         ast={effectiveAst}
         run={run}
+        unspecified={unspecified}
         viewMode={viewMode}
         onOpenNode={(id) => onOpenNode?.(id)}
       />

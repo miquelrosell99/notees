@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): an empty query answers nothing — never the whole graph.** A query AST that specifies nothing (workspace scope,
+  bare AND group, no aggregation — the `/query` starter shape) now renders
+  "Set a query to see results." without running: `useQueryRun` gains an
+  `enabled` gate (a stale result clears when a query is emptied), the shared
+  `isUnspecifiedQueryAst` predicate carries the definition (a scope-only AST
+  is a deliberate choice and still runs; unparseable ASTs stay the invalid-
+  query placeholder), and the block section + the hub both ride it — no
+  count badge, export disabled. Verified: new spec in the query-node suite
+  (empty state, zero rows, disabled export); query-node / queries-hub /
+  slash-breadth suites green.
+
+- **feat(web): the Queries hub leaves the nav sidebar.**
+  The entry goes `menuOnly` — the hub opens from the account popup now (the
+  Trash/Shares/Archived precedent; query blocks carry the saved-query surface
+  in context), keeping its route and tab title. The account-popup spec gains
+  the entry. Docs: queries.md + pages.md. Verified: sidebar suites green.
+
 - **feat(web): the overrides discussion lands — the fleet skill absorbs five
   app registers and the app absorbs one back.**
   Walking `.agents/design-overrides.md` one by one: **#1 Button extensions —

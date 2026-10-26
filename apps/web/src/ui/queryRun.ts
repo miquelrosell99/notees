@@ -51,10 +51,11 @@ export function parseRunAst(raw: unknown): QueryAst | null {
   }
 }
 
-export function useQueryRun(client: QueryRunClient, rawAst: unknown): {
+export function useQueryRun(client: QueryRunClient, rawAst: unknown, options?: { enabled?: boolean }): {
   result: QueryRunState | null;
   error: string | null;
 } {
+  const enabled = options?.enabled ?? true;
   const [result, setResult] = useState<QueryRunState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
@@ -70,6 +71,15 @@ export function useQueryRun(client: QueryRunClient, rawAst: unknown): {
   const astKey = JSON.stringify(rawAst ?? null);
   useEffect(() => {
     const current = status.current;
+    if (!enabled) {
+      // Unspecified query: never run, and clear a stale result so a
+      // query emptied after a run renders nothing, not its last result.
+      current.astKey = astKey;
+      current.version = version;
+      setResult(null);
+      setError(null);
+      return;
+    }
     if (current.astKey === astKey && current.version === version) return; // already current
     const execute = async () => {
       const runAstKey = astKey;
@@ -109,7 +119,7 @@ export function useQueryRun(client: QueryRunClient, rawAst: unknown): {
       return;
     }
     void execute();
-  }, [client, astKey, version]);
+  }, [client, astKey, version, enabled]);
 
   return { result, error };
 }
