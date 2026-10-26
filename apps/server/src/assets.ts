@@ -1,11 +1,16 @@
 /**
  * Content-addressed asset storage (a port of app/features/assets):
  *  - POST   /api/assets         multipart upload; magic-byte sniffing
- *                                  (jpeg/png/webp/pdf/epub/audio); size caps
+ *                                  (jpeg/png/webp/pdf/epub/audio) with an
+ *                                  audio extension fallback (aac/m4a/ogg/flac)
+ *                                  when sniffing is inconclusive; size caps
  *                                  (50MB media / 100MB documents, the original
  *                                  caps); sha256; bytes at
  *                                  <dataDir>/workspaces/<ws>/assets/<hash[:4]>/<hash>;
  *                                  emits asset.attach when an objectId is given.
+ *  - GET    /api/assets         workspace asset index, newest first (?limit=,
+ *                                  default 100, max 1000), with the object ids
+ *                                  each asset is attached to.
  *  - GET    /api/assets/:id     auth; Range requests supported (206).
  *  - GET    /api/assets/:id/info
  *
@@ -15,7 +20,7 @@
 
 import { createHash } from "node:crypto";
 import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -62,6 +67,30 @@ export function sniffAssetType(bytes: Buffer): SniffResult | null {
     return { mimeType: "audio/wav", category: "media" };
   }
   if (ascii(bytes, 4, 4) === "ftyp") return { mimeType: "audio/mp4", category: "media" };
+  return null;
+}
+
+/**
+ * Audio extensions accepted when content sniffing is inconclusive. The
+ * allowlist advertises audio, but several real-world audio containers carry
+ * no magic bytes in their first frames (ADTS .aac — observed 2026-10-26
+ * rejecting a real voice memo) or only past byte offsets the sniffer does
+ * not reach. The extension is a hint of last resort: sniffing wins whenever
+ * it produces an answer, and genuinely unknown binaries still reject.
+ * All ride the media size cap.
+ */
+const AUDIO_EXTENSION_FALLBACK: Record<string, string> = {
+  ".aac": "audio/aac",
+  ".m4a": "audio/mp4",
+  ".ogg": "audio/ogg",
+  ".flac": "audio/flac",
+};
+
+export function resolveAssetType(bytes: Buffer, filename: string | undefined): SniffResult | null {
+  const sniffed = sniffAssetType(bytes);
+  if (sniffed !== null) return sniffed;
+  const mimeType = AUDIO_EXTENSION_FALLBACK[extname(filename ?? "").toLowerCase()];
+  if (mimeType !== undefined) return { mimeType, category: "media" };
   return null;
 }
 
@@ -119,12 +148,12 @@ export function registerAssetRoutes(app: FastifyInstance, ctx: ServerContext): v
     } catch {
       throw new AppError(422, "validation_failed", "upload exceeded the multipart size limit");
     }
-    const sniffed = sniffAssetType(bytes);
+    const sniffed = resolveAssetType(bytes, file.filename);
     if (sniffed === null) {
       throw new AppError(
         422,
         "validation_failed",
-        "unsupported file type (sniffed: not jpeg/png/webp/pdf/epub/audio)",
+        "unsupported file type (sniffed: not jpeg/png/webp/pdf/epub/audio; extension fallback: none of aac/m4a/ogg/flac)",
       );
     }
     const cap = sniffed.category === "document" ? ctx.config.maxDocumentBytes : ctx.config.maxMediaBytes;
@@ -199,6 +228,39 @@ export function registerAssetRoutes(app: FastifyInstance, ctx: ServerContext): v
       originalName: file.filename ?? assetId,
       refs: ctx.relay.assetRefs(hash),
       ...(attachedTo !== null ? { objectId: attachedTo } : {}),
+    };
+  });
+
+  app.get("/assets", async (request) => {
+    const workspaceId = workspaceFor(ctx, request);
+    const rawLimit = (request.query as { limit?: string }).limit;
+    let limit = 100;
+    if (rawLimit !== undefined) {
+      const parsed = Number.parseInt(rawLimit, 10);
+      if (!Number.isFinite(parsed) || parsed < 1 || parsed > 1000) {
+        throw new AppError(422, "validation_failed", "limit must be an integer between 1 and 1000");
+      }
+      limit = parsed;
+    }
+    const rows = ctx.relay.listAssets(workspaceId, limit);
+    // Attached object ids come from the derived node_asset projection (cheap:
+    // primary key on (node_id, asset_id)); an uploaded-but-unattached asset
+    // simply has none.
+    const store = ctx.workspaces.storeFor(workspaceId);
+    const attached = store.database.prepare("SELECT node_id FROM node_asset WHERE asset_id = ?");
+    return {
+      assets: rows.map((row) => ({
+        assetId: row.assetId,
+        hash: row.hash,
+        mimeType: row.mimeType,
+        size: row.size,
+        originalName: row.originalName,
+        uploadedAt: row.uploadedAt,
+        refs: ctx.relay.assetRefs(row.hash),
+        objects: (attached.all(row.assetId) as { node_id: string }[]).map((r) => r.node_id),
+      })),
+      limit,
+      total: ctx.relay.assetCount(workspaceId),
     };
   });
 

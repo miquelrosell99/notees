@@ -532,6 +532,37 @@ export class RelayStorage {
     return row?.refs_count ?? 0;
   }
 
+  listAssets(workspaceId: string, limit: number): Array<{
+    assetId: string;
+    hash: string;
+    mimeType: string;
+    size: number;
+    originalName: string;
+    uploadedAt: string;
+  }> {
+    const rows = this.db
+      .prepare(
+        `SELECT asset_id, hash, mime_type, size, original_name, uploaded_at
+         FROM asset WHERE workspace_id = ? ORDER BY uploaded_at DESC, asset_id DESC LIMIT ?`,
+      )
+      .all(workspaceId, limit) as Record<string, unknown>[];
+    return rows.map((row) => ({
+      assetId: row.asset_id as string,
+      hash: row.hash as string,
+      mimeType: row.mime_type as string,
+      size: row.size as number,
+      originalName: row.original_name as string,
+      uploadedAt: row.uploaded_at as string,
+    }));
+  }
+
+  assetCount(workspaceId: string): number {
+    const row = this.db
+      .prepare("SELECT COUNT(*) AS n FROM asset WHERE workspace_id = ?")
+      .get(workspaceId) as { n: number };
+    return row.n;
+  }
+
   /** Wipe everything stored for a workspace (workspace deletion). */
   deleteWorkspaceData(workspaceId: string): void {
     const snapshots = this.db
