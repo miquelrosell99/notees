@@ -104,9 +104,11 @@ describe("buildLogseqDbModel", () => {
         [CLASS_PERSON, kw("block/uuid"), uu("aaaaaaaa-0000-4000-8000-000000000001"), 1],
       ],
       // logseq system class — must be classified system, not a mapped class
+      // (uuid-bearing, as the real built-ins are)
       [
         [CLASS_QUOTE, kw("db/ident"), kw("logseq.class/Root"), 1],
         [CLASS_QUOTE, kw("block/title"), "Root Tag", 1],
+        [CLASS_QUOTE, kw("block/uuid"), uu("00000002-2737-8382-7000-000000000000"), 1],
       ],
       // property: Autor (node, cardinality many)
       [
@@ -131,7 +133,7 @@ describe("buildLogseqDbModel", () => {
       [
         [60, kw("block/title"), "Mujer", 1],
         [60, kw("block/uuid"), uu("bbbbbbbb-0000-4000-8000-000000000060"), 1],
-        [60, kw("logseq.property/closed-value-property"), PROP_SEXO, 1],
+        [60, kw("block/closed-value-property"), PROP_SEXO, 1],
       ],
       // a person node (target of Autor)
       [
@@ -254,6 +256,9 @@ describe("buildLogseqDbModel", () => {
     // page. Its property-value resolution still works by title (the decode
     // spec above: Sexo → "Mujer").
     expect(model.nodes.some((n) => n.uuid.endsWith("00060"))).toBe(false);
+    // uuid-bearing logseq system entities (the real built-in classes) are NOT
+    // importable nodes either
+    expect(model.nodes.some((n) => n.uuid === "00000002-2737-8382-7000-000000000000")).toBe(false);
   });
 
   it("normalizes a checkbox string 'true'/'false' to boolean", () => {
