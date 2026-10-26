@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(web): tighten the surface top bar's vertical padding.** The owner flagged the surface top bar — the nodeview's at least —
+  for too much top and bottom padding (the class chip floating in a tall
+  bar). The stacking was real: the panelled page root's `spacing-2` top
+  padding AND the bar's own `spacing-2` doubled the top gap to 16px, and
+  `spacing-3` bottom padding plus the `spacing-2` margin stacked to 20px
+  below the content. The primitive (`SurfaceTopBar.css`) drops to
+  `spacing-1` top / `spacing-2` bottom (the bar is chrome — it hugs its
+  content); the nodeview override retires its top padding entirely (the host
+  root's `spacing-2` carries the top gap alone, the original 2026-10-13
+  register) and keeps `spacing-2` bottom padding + the `spacing-2` margin —
+  8px above the hairline, 8px below it. Hub bars riding the primitive
+  (Sources, Calendar, the standard hubs) inherit the same tightening; their
+  horizontal-inset overrides are untouched. Verified: `pnpm typecheck` +
+  `pnpm test` green.
+
 - **refactor(web): underline TextField fleet-wide + the Add source dialog
   composition.** The owner's annotated screenshot of the
   Add source dialog carried three items. **(1) The dialog composition** —
