@@ -271,7 +271,7 @@ describe("ConfirmationModal", () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
-  it("uses the danger-solid variant class for danger confirmations", () => {
+  it("uses the soft danger variant for danger confirmations", () => {
     render(
       <ConfirmationModal
         isOpen
@@ -283,11 +283,11 @@ describe("ConfirmationModal", () => {
       />,
     );
     expect(screen.getByRole("dialog")).toHaveClass("confirmation-modal--danger");
-    // The danger-solid register as token utilities (the catalog contract).
+    // The soft-danger register as token utilities (the catalog contract):
+    // translucent error wash at rest, escalating to solid on hover.
     expect(screen.getByRole("button", { name: "Confirm" })).toHaveClass(
-      "bg-error",
-      "border-error",
-      "text-on-error",
+      "bg-error-soft",
+      "text-error",
     );
   });
 });

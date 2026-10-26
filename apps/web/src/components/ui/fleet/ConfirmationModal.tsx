@@ -112,7 +112,7 @@ export function ConfirmationModal({
           {cancelLabel}
         </Button>
         <Button
-          variant={variant === 'danger' ? 'danger-solid' : 'primary'}
+          variant={variant === 'danger' ? 'danger' : 'primary'}
           onClick={handleConfirm}
           loading={isPending}
           hapticIntensity={variant === 'danger' ? 'medium' : 'light'}
