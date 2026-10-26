@@ -36,17 +36,22 @@ predating this file.
   the drop-zone register (the change event fires on the zone's hidden input,
   the visible surface is the zone button) and the footer-slot actions; the
   two multipart flow tests retarget onto it. Docs: `docs/features/sources.md`
-  names the drop zone. **Verification:** `apps/web` typecheck clean;
+  names the drop zone. Review minors on the same branch: the "PDF file"
+  section label is programmatically associated — `FileDropZone` gained an
+  optional `labelledBy` prop (aria-labelledby on the zone button) and the
+  dialog passes its section label's id. **Verification:** `apps/web` typecheck clean;
   `test/add-source.test.tsx`, `test/ui-primitives.test.tsx`,
   `test/asset-upload-modal.test.tsx`, `test/css-token-drift.test.ts`, and
   `test/quick-create.test.tsx` green (92 tests); the full `apps/web`
   suite runs 2254 passed / 3 failed — the 3 are `test/view-modes.test.tsx`
-  fold-state tests verified red on the untouched base (today's
-  auto-collapse slices), as are the repo-level `apps/server`
-  migrate-authors-to-text failures and the `packages/export` dts build
-  (json-archive's 3-arg `deriveDisplayName` call vs the 2-arg domain src —
-  the in-flight customLabel session's stale-dist blind spot). None touched
-  by this slice.
+  fold-state tests verified red on the slice's original base (today's
+  auto-collapse slices). The base also carried two repo-level reds in files
+  this slice never touched — the `apps/server` migrate-authors-to-text
+  failures and the `packages/export` dts build (an accidentally-staged 3-arg
+  `deriveDisplayName` call vs the 2-arg domain src, breaking clean builds);
+  main repaired both while this slice sat in review (b39755aef reverted the
+  stray export hunk, 062bb4c97 fixed the migration script, and 452983f96
+  landed the mention-name resolver the 3-arg form anticipated).
 
 - **fix(web): the list auto-collapse setting actually collapses — renamed,
   collection-wide, opt-out flag (owner scope correction).** The reported

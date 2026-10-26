@@ -26,6 +26,9 @@ interface FileDropZoneProps {
   placeholder?: string;
   /** Secondary hint in the empty state (default: "or click to browse") */
   hint?: string;
+  /** id of a visible label element naming the zone (aria-labelledby) —
+   *  takes precedence over the generated aria-label. */
+  labelledBy?: string;
   disabled?: boolean;
   className?: string;
 }
@@ -38,6 +41,7 @@ export function FileDropZone({
   icon,
   placeholder = 'Drop a file here',
   hint = 'or click to browse',
+  labelledBy = undefined,
   disabled = false,
   className = '',
 }: FileDropZoneProps) {
@@ -136,7 +140,8 @@ export function FileDropZone({
         onDrop={handleDrop}
         onClick={openFilePicker}
         tabIndex={disabled ? -1 : 0}
-        aria-label={file ? undefined : `${placeholder}. ${hint}`}
+        aria-labelledby={labelledBy}
+        aria-label={labelledBy ? undefined : `${placeholder}. ${hint}`}
       >
         {icon && <div className="file-drop-zone__icon">{icon}</div>}
         <span className="file-drop-zone__primary">{placeholder}</span>
