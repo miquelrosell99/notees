@@ -9,6 +9,13 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): the toggle's checked state rides a primary thumb on a neutral
+  track.** `ToggleSwitch` drops the checked-track fill (`bg-primary` flip) —
+  the track keeps `surface-container-high` in both states and the thumb
+  becomes the signal (`primary` when checked, `on-surface-variant` off),
+  matching the fleet's quieter control register. Verified: the fleet
+  ui-primitives + css-token-drift suites green.
+
 - **feat(web): query blocks are marked by the query system class — and the
   Queries hub is REMOVED.** The class/token
   question resolves the whiteboard way: the `query` system class (seeded
