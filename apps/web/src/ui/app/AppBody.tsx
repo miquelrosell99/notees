@@ -28,7 +28,6 @@ import { SearchPage } from "../SearchPage.js";
 import { SettingsPage, type SettingsSection } from "../../features/settings/SettingsPage.js";
 import { JournalsView } from "../../features/calendar/JournalsView.js";
 import { CalendarView } from "../../features/calendar/CalendarView.js";
-import { QueriesHub } from "../../features/collection/QueriesHub.js";
 import { SourcesHub } from "../../features/sources/SourcesHub.js";
 import { DEFAULT_SOURCES_QUERY, type SourcesQueryState } from "../../features/sources/sourcesQuery.js";
 import { GraphView } from "../../features/collection/graph/GraphView.js";
@@ -288,8 +287,6 @@ export function AppBody(props: AppBodyProps) {
             onRouteChange={onCalendarRouteChange}
             onTitle={onCalendarTitle}
           />
-        ) : activeNav === "queries" ? (
-          <QueriesHub client={client} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
         ) : activeNav === "graph" ? (
           /* The graph hub renders edge-to-edge in the main content card —
              the canvas is the card's sole content (the whiteboard-surface

@@ -37,7 +37,6 @@ const NAV_PATHS: Record<string, NavKey> = {
   tasks: "tasks",
   sources: "sources",
   assets: "assets",
-  queries: "queries",
   graph: "graph",
   trash: "trash",
   archived: "archived",

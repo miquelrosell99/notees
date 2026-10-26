@@ -184,9 +184,10 @@ describe("PageView rendering", () => {
     // exist, so the broken-embed placeholder shows with the raw id visible.
     expect(screen.getByText(/broken embed/)).not.toBeNull();
     expect(screen.getByText("0192a000-0000-7000-8000-0000000000a2")).not.toBeNull();
-    // The query token renders live (QueryBlockView): a malformed AST shows
-    // the "invalid query" placeholder, never a crash.
-    expect(screen.getByText("invalid query")).not.toBeNull();
+    // The query token renders NOTHING in the stream;
+    // its rendering lives below the row on a query-classed block
+    // (query-node.test.tsx's invalid-AST spec).
+    expect(container.querySelector(".nt-query")).toBeNull();
     // The whiteboard token renders live too (WhiteboardCanvas, embedded
     // mini-canvas); the asset_ref above renders via AssetView's unknown-asset
     // fallback — known assets render as chips/previews (asset-render.test).

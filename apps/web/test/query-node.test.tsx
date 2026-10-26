@@ -20,6 +20,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import type { ContentAst } from "@notees/protocol";
 import type { Aggregation, Child, QueryAst, Scope } from "@notees/query";
 
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { InvalidQueryAstError, WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { QUERY_RESULT_CAP } from "../src/ui/queryResults.js";
@@ -31,6 +32,7 @@ import { WorkerCore } from "../src/worker/worker-core.js";
 import type { OpfsStore } from "../src/worker/opfs.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
+const QUERY_CLASS_ID = SYSTEM_CLASS_UUIDS.query;
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
 
 let sqlModule: SqlJsStatic;
@@ -125,6 +127,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
+      classIds: [QUERY_CLASS_ID],
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
     });
 
@@ -149,6 +152,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
+      classIds: [QUERY_CLASS_ID],
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
     });
 
@@ -176,6 +180,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
+      classIds: [QUERY_CLASS_ID],
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
     });
 
@@ -208,6 +213,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     });
     await client.createObject({
       parentId: host,
+      classIds: [QUERY_CLASS_ID],
       contentAst: queryToken(makeAst({ type: "subtree", pageId: host })),
     });
 
@@ -240,6 +246,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const queryBlock = await client.createObject({
       parentId: host,
+      classIds: [QUERY_CLASS_ID],
       contentAst: queryToken(
         makeAst(WORKSPACE(), [{ type: "content", op: "contains", value: "capital" }]),
       ),
@@ -275,6 +282,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const block = await client.createObject({
       parentId: host,
+      classIds: [QUERY_CLASS_ID],
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
     });
 
@@ -318,6 +326,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
+      classIds: [QUERY_CLASS_ID],
       contentAst: queryToken({ ...makeAst(WORKSPACE()), aggregation: countByRenderState }),
     });
 
@@ -349,6 +358,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const block = await client.createObject({
       parentId: host,
+      classIds: [QUERY_CLASS_ID],
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
     });
 
@@ -392,6 +402,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
+      classIds: [QUERY_CLASS_ID],
       // The /query starter AST: workspace scope, bare AND group, no
       // conditions — the user has not said what they are looking for.
       contentAst: queryToken(makeAst(WORKSPACE())),
@@ -413,6 +424,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
+      classIds: [QUERY_CLASS_ID],
       contentAst: queryToken({
         version: 2,
         scope: { type: "entire_workspace" },
@@ -435,6 +447,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
+      classIds: [QUERY_CLASS_ID],
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
     });
     const total = QUERY_RESULT_CAP + 5;
@@ -459,6 +472,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const queryBlock = await client.createObject({
       parentId: host,
+      classIds: [QUERY_CLASS_ID],
       contentAst: queryToken(
         makeAst(WORKSPACE(), [{ type: "content", op: "contains", value: "capital" }]),
       ),
@@ -521,6 +535,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
+      classIds: [QUERY_CLASS_ID],
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
     });
 

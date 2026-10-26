@@ -47,7 +47,7 @@ export function useWindowed<T>(
   const size = options?.size ?? DEFAULT_WINDOW_SIZE;
   const resetKey = options?.resetKey ?? "";
   const enabled = options?.enabled ?? true;
-  // Derived-state-from-props (the QueriesHub limitKey precedent): a resetKey
+  // Derived-state-from-props (the query-results limitKey precedent): a resetKey
   // change re-initializes during render, so the reset lands in the same
   // commit as the sort/filter that caused it.
   const [state, setState] = useState<{ key: string; end: number }>({

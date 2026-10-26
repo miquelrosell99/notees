@@ -29,7 +29,6 @@ describe("tabTitle", () => {
       ["whiteboards", "Whiteboards"],
       ["tasks", "Tasks"],
       ["assets", "Assets"],
-      ["queries", "Queries"],
       ["graph", "Graph"],
       ["trash", "Trash"],
       ["shares", "Shares"],

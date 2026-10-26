@@ -33,7 +33,7 @@
  *    leaf through the established `runQueryAst` channel over the workspace,
  *    intersected with the base set. The derived store owns those read
  *    models; re-deriving them here would duplicate the query package. The
- *    FilterBuilderModal's representable subset never produces these (its
+ *    The transient structured-filters draft never produces these (its
  *    guard names them unsupported), so the common custom tab evaluates
  *    wholly on the materialized rows.
  *
