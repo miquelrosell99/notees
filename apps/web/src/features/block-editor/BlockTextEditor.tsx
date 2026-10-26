@@ -67,8 +67,8 @@
  *   [href](href) at the trigger offset — the LinkEditModal is node-only; a
  *   URL-looking query becomes linked prose, anything else falls back to plain
  *   prose and markdown [label](url) pasting remains the label-carrying path),
- *   Query (insert a query token at the caret and open its builder
- *   popover on exit), Date (typed date → mention of the daily
+ *   Query (insert a query token at the caret and open its structured
+ *   builder below the row on exit), Date (typed date → mention of the daily
  *   page, chain ensured on demand; a bare /date or an unparseable
  *   remainder opens the calendar popup at the caret and the picked
  *   day links on commit), Template (flat unfiltered

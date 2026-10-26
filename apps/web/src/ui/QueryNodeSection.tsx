@@ -178,8 +178,11 @@ export function QueryNodeSection({ client, nodeId, tokenIndex, onOpenNode }: Que
               onClick={handleExport}
             />
             {/* The bar renders LAST in the cluster: its structured panel
-                wraps a full-width line beneath the tab row. */}
+                wraps a full-width line beneath the tab row. The key remounts
+                it once when the /query slash queue is consumed — the panel's
+                initial-open prop only reads at mount. */}
             <NodeCollectionBar
+              key={builderAutoOpen ? "builder-open" : "builder-closed"}
               client={client}
               layout="inline"
               value={draft}
