@@ -11,7 +11,9 @@
   border-radius: var(--shape-floating-panel);
   box-shadow: var(--elevation-2);
   padding: var(--spacing-3);
-  z-index: var(--z-popover);
+  /* --z-floating: transient popups fly above the modal band (a date picker
+     can open from a property row inside a dialog). */
+  z-index: var(--z-floating);
   min-width: var(--layout-size-4xl);
 }
 

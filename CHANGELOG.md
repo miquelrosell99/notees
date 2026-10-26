@@ -9,6 +9,110 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): the node-creation modal is class-driven — EVERY class picked
+  from the quick-create flow opens it, with the properties form loaded
+  dynamically from the class's bound properties and values staged until
+  Create.** The modal was specialized for the
+  source/agent families (hardcoded citation fields, a source subclass
+  switch, an agent person/organization toggle); now the class pick IS the
+  form: the rows resolve extends-aware and ALPHABETICAL by property name
+  (the read-time derivation law) off the class's bindings — a pure read for
+  system classes (the seed-spec synthesis mirrors a server-seeded
+  workspace), so opening the modal — and cancelling it — leaves ZERO log
+  entries. Covered row types: text/url/email (multi schemas are one
+  monoblock split on ";" or newline — the authors convention), number,
+  boolean (tri-state — untouched writes no op), datetime (a partial ISO
+  resolved through the date chain at flush — the publicationDate case lands
+  the chain's year node, the SCHEMA.md "Datetime" contract), and
+  select/multi_select (the metadata panel's SelectionPropertyControl, a
+  purely controlled surface, stages verbatim). Object/asset properties are
+  excluded (they need a live node's picker surfaces; settable later from
+  the node's metadata panel). On Create ONE undo batch performs the
+  archived-class un-archive (generalized `beginSourceCreate` →
+  `beginClassedCreate`) + the create + every staged property write — one
+  undo restores the whole gesture; a failed staged date/number validation
+  throws before anything writes. The citation-family behaviors key off the
+  class LINEAGE, not hardcoded field sets: auto-citekey fills an empty
+  staged citekey from the settings pattern (deterministic a/b/c suffix),
+  and the duplicate warning now covers DOI, ISBN, **and citekey**
+  (case-insensitive ); the publicationDate date-chain write
+  and the ensureCitationFamily self-heal (now authoring class-local venue
+  bindings for a resolver prefill) ride the same flush. Routing:
+  `routeNewNodeClass` sends every class pick to the modal (the bare source
+  base keeps its book default; asset keeps the upload flow);
+  `resolveQuickCreate`/`activeSourceSubclassOptions`/`createSourceObject`/
+  `createAgentObject` are retired (fail-loud — no dead registers); the
+  AppTopBar's source-specific state is gone; the NodeSelector create row
+  opens the modal for any single class filter (multi-class filters stay
+  plain) and keeps the identifier-shaped-query reroute to the add-source
+  dialog; AddSourceDialog's prefill is now seeded staged values keyed by
+  property schema id. Docs: `docs/features/sources.md`, `classes.md`,
+  `feature-status.md`. Web-only surface (no wire/model change — no fixture
+  gate). Verified by the rewritten `quick-create` suite (38 tests: every-
+  class routing, the staged-type filter, the one-batch undo gesture, cancel
+  writes nothing, auto-citekey, the DOI/ISBN/citekey duplicate warnings,
+  the archived-class auto-enable, the resolver prefill) + the full web
+  suite.
+
+- **fix(web): popups inside modals work — clickable, focusable, above the
+  dialog, dismissed in LIFO order ("popups in modals don't work
+  correctly, they can't be clicked, sometimes show below their modal").**
+  Three root causes, verified against the Radix dists before fixing. (1) The
+  fleet `Modal` ran Radix Dialog in `modal={true}` mode, which locks
+  `document.body` pointer-events and hard-traps focus while open — every
+  hand-rolled popup portaled to `document.body` (color/icon pickers,
+  NodeSelector, template list, ButtonWithPanel's portal, …) inherited the
+  click lock and could not hold focus, so pickers opened from a dialog were
+  dead. (2) Several transient popups rode z-tiers at or below the modal band
+  (date pickers at `--z-popover` 600, editor toolbar/trigger/find-replace and
+  the template list at `--z-1000`, Dropdown and the ButtonWithPanel portal
+  tying the modal's own 10001), so they painted under the dialog. (3) The
+  dialog dismissed on any outside pointer-down, and a press on a portaled
+  popup counts as outside — the modal closed under the user's click.
+  The fix: the fleet Modal now runs `modal={false}` and owns the layer
+  semantics itself, popup-aware — its own `.modal-backdrop` scrim (backdrop
+  click still closes), the body scroll lock (react-remove-scroll, the same
+  library Radix wraps its overlay in, with the dialog content as a shard),
+  the background aria-hiding pass (the same `hideOthers` Radix runs,
+  captured through a callback ref — Radix's Presence can mount the portal
+  content after mount effects have run, so an effect keyed on `isOpen` sees
+  a null ref for an initially-open dialog), and a soft focus loop (Radix's
+  FocusScope still wraps Tab inside the dialog and lets it leave into a
+  popup). `usePopupDismissal` — the dismissal seam every popup already
+  composes — now stamps the popup root `data-fleet-popup` while open, and the
+  overlay system keys off the stamp: one CSS rule re-enables pointer-events
+  on the stamped subtree; the Modal treats a press inside a stamped popup as
+  an inside press; the seam lifts the aria-hiding pass off the popup root
+  (re-asserting through an observer, since the pass re-hides dynamically
+  added siblings); and while any stamped popup is open the app overlay stack
+  stays silent so Escape closes the popup first, the dialog second (LIFO).
+  The same pass caught two related collapses, now guarded and pinned too: a
+  press or focus move into a STACKED fleet dialog (the confirmation-over-form
+  pattern, e.g. MergeNodesModal → danger ConfirmationModal) never dismisses
+  the lower dialog — Radix non-modal layers dismiss on focus-outside, so
+  raising the confirmation used to collapse the form underneath — and the
+  Modal's hideOthers pass needed a callback ref, because an effect keyed on
+  isOpen sees a null ref for an initially-open dialog (Radix's Presence can
+  mount the portal content after mount effects have already run).
+  All transient popups consolidate on the `--z-floating` tier (10002 — the
+  tier that exists for menus opened from inside dialogs). Two direct deps
+  added to `@notees/web`: `aria-hidden`, `react-remove-scroll` (both were
+  already in the store as Radix transitive deps). Verified by a new
+  `popup-in-modal` vitest suite (8 tests: inside-press survival, backdrop
+  click, closeOnBackdrop, Escape LIFO, stacked-dialog non-collapse, the
+  stamp's add/remove, the
+  aria-hidden lift and re-assertion, the NodeSelector stamp) plus updated
+  contracts in `editor-popups` (Escape is now two-step: picker, then modal)
+  and `import-table-modal` (each import session unmounts the previous
+  render — stacked dialogs now really hide the earlier content); full web
+  suite green. Docs in the same pass: `docs/developers/ui-primitives.md`
+  (seam stamp contract, the transient-popup `--z-floating` ruling, the
+  Modal's owned layer semantics), the `notees-development` skill's
+  coding-conventions law, and the `rosellramos-design-system` law
+  (`law/spec.md` §7: popups opened from inside a modal must actually work).
+  Not redeployed: a live migration is in flight (owner instruction) — the
+  running stack picks this up on the next web rebuild.
+
 - **fix(web): the edit-thread overlay's deferred settle pass no longer
   crashes the frame when it races teardown — the blocking gate's recurring
   unhandled error is gone.** `EditThread`'s 220 ms settling re-measure (and

@@ -22,6 +22,30 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 
+/**
+ * Marker attribute the seam stamps on the popup root while open. The overlay
+ * system keys off it:
+ * - `[data-fleet-popup] { pointer-events: auto }` re-enables hit-testing when
+ *   a surface above the page (a modal dialog) locks the body's pointer events;
+ * - the fleet Modal treats a press inside a marked popup as an INSIDE press,
+ *   not an outside one, so opening a picker from a dialog never dismisses it;
+ * - the seam lifts `aria-hidden` off the popup root for the same reason (the
+ *   modal's background-hiding pass hides portaled popups).
+ */
+export const FLEET_POPUP_ATTR = "data-fleet-popup";
+
+/**
+ * Count of stamped popups currently open. While non-zero, the app overlay
+ * stack (useOverlaySurface — the Escape authority for modal surfaces) stays
+ * silent: fleet popups own Escape, and the stack resumes LIFO once the last
+ * one closes.
+ */
+let openFleetPopupCount = 0;
+
+export function hasOpenFleetPopups(): boolean {
+  return openFleetPopupCount > 0;
+}
+
 export interface UsePopupDismissalOptions {
   /** The popup element. Pointer-downs inside it never dismiss. */
   popupRef: RefObject<HTMLElement | null>;
@@ -86,4 +110,31 @@ export function usePopupDismissal(options: UsePopupDismissalOptions): void {
       document.removeEventListener("pointerdown", handlePointerDown);
     };
   }, [isOpen, closeOnEscape, closeOnOutsidePress, popupRef]);
+
+  // Overlay-system contract: mark the popup root and keep it reachable while
+  // open. The aria-hidden lift counters the modal's background-hiding pass,
+  // which also hides portaled popups (and re-hides dynamically added ones —
+  // hence the observer re-asserting the lift).
+  useEffect(() => {
+    if (!isOpen) return;
+    const popup = popupRef.current;
+    if (!popup) return;
+
+    popup.setAttribute(FLEET_POPUP_ATTR, "");
+    openFleetPopupCount += 1;
+    const previousAriaHidden = popup.getAttribute("aria-hidden");
+    const lift = () => {
+      if (popup.hasAttribute("aria-hidden")) popup.removeAttribute("aria-hidden");
+    };
+    lift();
+    const observer = new MutationObserver(lift);
+    observer.observe(popup, { attributes: true, attributeFilter: ["aria-hidden"] });
+
+    return () => {
+      openFleetPopupCount -= 1;
+      observer.disconnect();
+      popup.removeAttribute(FLEET_POPUP_ATTR);
+      if (previousAriaHidden !== null) popup.setAttribute("aria-hidden", previousAriaHidden);
+    };
+  }, [isOpen, popupRef]);
 }

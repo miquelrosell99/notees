@@ -34,10 +34,36 @@ the pointer and the law.
 5. **Popups compose `usePopupDismissal`**: one dismissal layer —
    Escape (when the keydown didn't originate inside the popup) +
    pointer-down outside — so every picker/popover/menu closes the same way.
+   The seam also stamps the popup root **`data-fleet-popup`** for as long as
+   it is open; the overlay system keys off the stamp (the
+   "popups in modals" fix):
+   - `[data-fleet-popup] { pointer-events: auto }` (fleet Modal.css) — a
+     modal layer that locks the body's pointer events must not render
+     portaled popups click-dead;
+   - the fleet Modal treats a press inside a stamped popup — or inside a
+     stacked fleet dialog (the confirmation-over-form pattern) — as an
+     INSIDE press, so a portaled picker or a raised confirmation never
+     dismisses the dialog underneath the click; and focus may leave into
+     those surfaces freely (a focus move must never dismiss the dialog it
+     leaves);
+   - the seam lifts the modal's background aria-hiding off the popup root
+     (re-asserting through an observer — the hiding pass re-hides
+     dynamically added siblings);
+   - while any stamped popup is open, the app overlay stack (the Escape
+     authority for modal surfaces) stays silent — popups own Escape, the
+     stack resumes LIFO once the last one closes.
    (`usePopupDismissal.ts` lives in the library; overlay helpers and the
    sheet gesture seam sit beside it in `overlay-hooks.ts` /
    `sheetGesture.ts`.)
-6. **Adaptive values over hard-coded numbers.** When a value tracks type
+6. **Transient popups ride `--z-floating`** (10002, above the modal band —
+   the tier exists for menus/pickers opened from inside dialogs). The
+   below-modal tiers (`--z-dropdown` 100 … `--z-node-overlay` 1000) are for
+   chrome that never flies above a dialog; anything portaled and dismissible
+   composes the seam and takes `--z-floating` (Dropdown's menu, the date
+   pickers, the editor's floating toolbar/trigger/find-replace widgets, the
+   ButtonWithPanel portal, the template list — consolidated 2026-10-26 from
+   the scattered 600/1000/same-tier-modal values).
+7. **Adaptive values over hard-coded numbers.** When a value tracks type
    metrics or layout, write the adaptive form, never a fixed literal:
    `1lh` / `em` / `ch` / `%` for anything line- or glyph-sized, the
    spacing, radius, and motion tokens for rhythm and chrome, and
@@ -94,7 +120,19 @@ outlasts the grace window or the local backlog crosses the risk threshold —
 the outage's at-a-glance signal is the avatar's sync badge, not a banner),
 `InProcessStoreBanner` (the in-process-store warning bar).
 
-Structure & surfaces: `Card`, `Tabs`, `Modal`, `ImageModal`,
+Structure & surfaces: `Card`, `Tabs`, `Modal` (the fleet owns the dialog
+layer semantics deliberately: the Root runs Radix `modal={false}` so
+portaled fleet popups stay clickable and focusable inside the dialog — what
+Radix modal mode gave up is re-implemented fleet-side and popup-aware: the
+`.modal-backdrop` scrim (backdrop click to close), the body scroll lock
+(react-remove-scroll, dialog content as shard), the background aria-hiding
+pass (the same `hideOthers` Radix runs, captured through a callback ref —
+Radix's Presence can mount the portal content after mount effects have run),
+a soft focus loop (Radix FocusScope loops Tab inside, lets it leave into
+a stamped popup), and dismissal guards — a press or focus move into a
+stamped popup or a stacked fleet dialog (the confirmation-over-form
+pattern) never dismisses the dialog underneath; Radix non-modal layers
+otherwise dismiss on focus-outside, which collapsed stacked dialogs), `ImageModal`,
 `ConfirmationModal`, `ContextMenu` (two submenu forms on one primitive —
 `submenu` for custom content (the whiteboard color row) and `submenuItems`
 for a native action list (the node menu's Copy › / Convert to page ›): the

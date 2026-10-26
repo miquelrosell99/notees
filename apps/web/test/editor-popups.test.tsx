@@ -418,8 +418,13 @@ describe("link edit modal (node links only)", () => {
     fireEvent.click(targetTrigger);
     expect(screen.getByPlaceholderText("Search pages…")).toBeInTheDocument();
 
-    // Dismissal rides the kit Modal: Escape (overlay stack) and backdrop
-    // click both close; Cancel reopens nothing.
+    // Dismissal rides the overlay surfaces in LIFO order: the open picker
+    // (a stamped fleet popup) owns the first Escape; the modal closes on the
+    // next one, once the picker is gone. Backdrop click still closes
+    // directly; Cancel reopens nothing.
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByPlaceholderText("Search pages…")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Edit Link" })).not.toBeNull();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
 

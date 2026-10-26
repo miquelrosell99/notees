@@ -28,7 +28,15 @@ beforeAll(async () => {
 
 const clients: WorkspaceClient[] = [];
 
+// importCsv can run several modal sessions in one test; each render mounts
+// a fresh dialog (the helper never "closes" the previous one), so unmount
+// the prior session first — stacked dialogs would put the earlier content
+// under the top dialog's background-hiding pass.
+let unmountLastModal: (() => void) | null = null;
+
 afterEach(() => {
+  unmountLastModal?.();
+  unmountLastModal = null;
   while (clients.length > 0) clients.pop()!.close();
   vi.restoreAllMocks();
 });
@@ -80,7 +88,8 @@ function csvFile(content: string, name = "rows.csv"): File {
 }
 
 async function importCsv(client: WorkspaceClient, content: string): Promise<void> {
-  render(<ImportTableModal isOpen client={client} onClose={() => {}} />);
+  unmountLastModal?.();
+  unmountLastModal = render(<ImportTableModal isOpen client={client} onClose={() => {}} />).unmount;
   pickFile(csvFile(content));
   const counts = await screen.findByTestId("import-preview-counts");
   expect(counts).not.toBeNull();

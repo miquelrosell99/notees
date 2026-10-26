@@ -70,7 +70,9 @@
    hook for tests/feature CSS); the trigger width rides the popper's CSS
    var (JS-set by Radix, allowlisted in the drift gate). */
 .dropdown-menu {
-  z-index: var(--z-modal);
+  /* --z-floating: dropdowns fly above the modal band (the tier exists for
+     menus opened from inside dialogs); the popper wrapper hoists this. */
+  z-index: var(--z-floating);
   min-width: max(var(--layout-size-2xl), var(--radix-popover-trigger-width, 0px));
   width: max-content;
   max-width: var(--layout-size-9xl);

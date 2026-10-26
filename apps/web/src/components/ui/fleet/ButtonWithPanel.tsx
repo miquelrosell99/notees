@@ -365,8 +365,9 @@ export function ButtonWithPanel({
             style={{
               ...getPanelStyle(),
               // top/left are written imperatively by the positioning effect
+              // --z-floating: the portaled panel flies above the modal band.
               position: "fixed",
-              zIndex: "var(--z-modal)",
+              zIndex: "var(--z-floating)",
             }}
             role="dialog"
             aria-modal="true"

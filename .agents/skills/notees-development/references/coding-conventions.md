@@ -36,6 +36,12 @@ Full catalog and drift classes: `docs/developers/ui-primitives.md`.
    (`1lh`/`em`/`ch`/`%`, `clamp()`, spacing/radius/motion tokens); hard-coded
    px only where genuinely constant (hairlines, tap-target floors).
 4. Popups compose `usePopupDismissal` (Escape + pointer-down-outside seam).
+   The seam stamps the popup root `data-fleet-popup` while open; the overlay
+   system keys off the stamp (`[data-fleet-popup] { pointer-events: auto }`,
+   the Modal's inside/outside-press distinction — stamped popups AND stacked
+   fleet dialogs count as inside — the aria-hidden lift, and Escape ownership
+   while any stamped popup is open). Transient popups ride the `--z-floating`   tier (above the modal band); tiers below it are for chrome that never
+   flies above a dialog.
 5. Never mention legacy version names in files/comments/classes.
 6. The drift gate `css-token-drift.test.ts` enforces the font-size slice —
    run the web suite after touching CSS; a failure in your blast radius is

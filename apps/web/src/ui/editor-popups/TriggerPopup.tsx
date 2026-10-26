@@ -231,7 +231,8 @@ export function TriggerPopup({
         position: "fixed",
         // top/left are written imperatively by the placement pass so
         // repositioning (scroll, resize, flip) never goes through React renders.
-        zIndex: "var(--z-1000)",
+        // --z-floating: transient popups fly above the modal band.
+        zIndex: "var(--z-floating)",
         visibility: isPositioned ? "visible" : "hidden",
         maxHeight: placement === "above" ? position.caretTop - 4 : undefined,
       }}
