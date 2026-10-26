@@ -29,12 +29,13 @@
   opacity: var(--opacity-40);
 }
 
-/* Animated selection indicator */
+/* Animated selection indicator — primary-container fill per the documented
+   selected-chrome ruling (design-overrides.md), NOT a solid accent box. */
 .selection-button__indicator {
   position: absolute;
   top: var(--spacing-1); /* Match container padding */
   left: var(--spacing-1); /* Match container padding */
-  background: var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary-container);
   border-radius: var(--shape-medium);
   transition: transform var(--motion-duration-medium) var(--motion-easing-collapse),
               width var(--motion-duration-shorter) var(--motion-easing-collapse),
@@ -78,6 +79,11 @@
 
 .selection-button__option:hover:not(:disabled, .selection-button__option--selected) {
   color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.selection-button__option:active:not(:disabled, .selection-button__option--selected) {
+  background: var(--md-sys-color-pressed-overlay);
 }
 
 .selection-button__option:focus-visible {
@@ -86,7 +92,7 @@
 }
 
 .selection-button__option--selected {
-  color: var(--md-sys-color-on-primary);
+  color: var(--md-sys-color-on-primary-container);
 }
 
 /* Ensure SVG icons are perfectly centered inside flex button */
@@ -132,6 +138,11 @@
 
 .selection-button__overflow-toggle:hover:not(:disabled) {
   color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.selection-button__overflow-toggle:active:not(:disabled) {
+  background: var(--md-sys-color-pressed-overlay);
 }
 
 .selection-button__overflow-toggle:focus-visible {

@@ -54,7 +54,7 @@
 }
 
 .grid-menu__item:active:not(:disabled) {
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-pressed-overlay);
 }
 
 .grid-menu__item:focus-visible {

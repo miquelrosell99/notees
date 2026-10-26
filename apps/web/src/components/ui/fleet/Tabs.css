@@ -80,7 +80,7 @@
   transition:
     color var(--motion-duration-short) var(--motion-easing-standard),
     background var(--motion-duration-short) var(--motion-easing-standard);
-  max-width: 12rem;
+  max-width: var(--layout-size-2xl);
   min-width: var(--height-sm);
   flex-shrink: 0;
 }

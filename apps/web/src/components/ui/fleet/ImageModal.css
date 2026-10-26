@@ -29,7 +29,12 @@
 
 .image-modal-close:hover,
 .image-modal-download:hover {
-  background: var(--md-sys-color-surface-variant);
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.image-modal-close:active,
+.image-modal-download:active {
+  background: var(--md-sys-color-pressed-overlay);
 }
 
 .image-modal-bullet {

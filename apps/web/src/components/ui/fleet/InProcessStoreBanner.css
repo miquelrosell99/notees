@@ -44,6 +44,5 @@
 }
 
 .in-process-banner__dismiss:hover {
-  background-color: var(--md-sys-color-warning);
-  color: var(--md-sys-color-on-warning);
+  background-color: var(--md-sys-color-hover-overlay);
 }

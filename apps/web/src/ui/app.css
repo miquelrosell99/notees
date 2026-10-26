@@ -2277,13 +2277,6 @@ select:focus-visible {
   display: none;
 }
 
-/* Keyboard focus reveals the add pill like the fleet hover-reveal
-   contract (Pill.css's hover-only selector would leave it transparent
-   on a focus-within-without-hover entry). */
-.nt-block-classes .nt-property-chips:focus-within:not(:hover) .pill--add.pill--icon-only {
-  opacity: var(--opacity-100);
-}
-
 /* Backlink gutter toggle (SCHEMA.md:117): the materialized count rides a
    Badge; quiet by default, emphasized on row hover / when expanded. */
 .nt-block-backlink-toggle {

@@ -26,8 +26,17 @@ import "./ButtonWithPanel.css";
 const PANEL_GAP = 8;
 /** Minimum clearance from the panel to the viewport edge. */
 const VIEWPORT_MARGIN = 16;
-/** Default panel width when no explicit width is provided. */
-const DEFAULT_PANEL_WIDTH = 280;
+
+/** Default panel width — read from the --layout-size-6xl token (280px) so
+ *  this JS mirror never drifts from the CSS source of truth (fleet audit
+ *  2026-10-26). Falls back to 280 where the token is unavailable. */
+function defaultPanelWidth(): number {
+  if (typeof window === "undefined" || typeof getComputedStyle !== "function") return 280;
+  const fromToken = Number.parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue("--layout-size-6xl"),
+  );
+  return Number.isFinite(fromToken) && fromToken > 0 ? fromToken : 280;
+}
 
 export type PanelPosition = "left" | "right" | "top" | "bottom";
 export type PanelAlignment = "start" | "center" | "end";
@@ -76,7 +85,7 @@ export function ButtonWithPanel({
   size = "md",
   panelPosition = "right",
   panelAlignment = "start",
-  panelWidth = DEFAULT_PANEL_WIDTH,
+  panelWidth = defaultPanelWidth(),
   panelMaxHeight,
   open: controlledOpen,
   onOpenChange,

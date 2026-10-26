@@ -9,6 +9,41 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(web): the fleet audit's actionable findings land — a11y trio,
+  hover/pressed drift batch, register hygiene (fleet audit 2026-10-26).**
+  The two-agent sweep of every fleet component vs the skill templates
+  found 20+ items; this slice takes the actionable set. **A11Y:**
+  `ConfirmationModal` gains the busy close-guard (Escape/backdrop can no
+  longer cancel an in-flight confirm — backdrop spec added);
+  `ColorButton`'s picker actually traps focus now (it declared
+  `aria-modal` without a trap — a bare dialog); the icon-only `AddPill`
+  is visible while focused and the group reveal keys on `:focus-within`,
+  so keyboard users never meet a focusable-invisible button (the per-host
+  patch in app.css retires). **Hover/pressed register** (the state-layer
+  law: hover/press = overlay only, never a fill swap or geometry):
+  FileDropZone hover/drag (primary-container -> hover/pressed overlay),
+  InProcessStoreBanner dismiss hover (solid warning -> overlay),
+  ContextMenu danger hover (error-container fill -> overlay), Chip hover
+  (surface-variant -> overlay) + the 48px hit-floor slop, ImageModal
+  chrome hover/active, the interactive Card's hover LIFT removed
+  (translate is a banned geometry change), SelectionButton options +
+  overflow toggle gain hover/active layers, GridMenu/Dropdown pressed
+  states, and ContextMenu's active identity now survives hover (combined
+  rule) with a pressed layer on items. **Registers:** SelectionButton's
+  indicator solid primary -> primary-container (the documented
+  selected-chrome ruling; the template's "never a filled accent box"),
+  Modal header/footer radii follow the documented 16px dialog ruling
+  (`--shape-sheet` -> `--shape-dialog`), the fleet barrel drops the
+  MonthCalendar re-export (the only fleet->feature dependency), Tabs'
+  hardcoded 12rem rides `--layout-size-2xl`, `ButtonWithPanel` reads the
+  panel width from `--layout-size-6xl` instead of a JS duplicate,
+  EmptyState's icon opacity aligns with the template (60%). **Hygiene:**
+  the dead hand-rolled theme-picker CSS retires (ThemeModeControl already
+  composes the fleet SelectionButton), and Card's `elevation='none'` /
+  `radius='md'` defaults get their design-overrides entry. The one
+  deferred item: the ListRow extraction (7 surfaces) lands as its own
+  slice next. Verified: gates below.
+
 - **feat(web): the button register becomes a borderless weight ladder
  (the bordered-neutral detour retires with the
   bordered-danger one).** `default`, `outline` (and the active-toggle

@@ -271,6 +271,30 @@ describe("ConfirmationModal", () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
+  it("ignores backdrop dismissal while the confirm is pending", async () => {
+    const onCancel = vi.fn();
+    let resolveConfirm: (() => void) | undefined;
+    render(
+      <ConfirmationModal
+        isOpen
+        title="Delete it?"
+        message="m"
+        variant="danger"
+        onConfirm={() => new Promise<void>((resolve) => { resolveConfirm = resolve; })}
+        onCancel={onCancel}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    // In flight: neither the backdrop nor Escape may cancel it.
+    fireEvent.click(document.querySelector(".modal-backdrop")!);
+    expect(onCancel).not.toHaveBeenCalled();
+    resolveConfirm!();
+    await act(async () => {});
+    // Settled: dismissal works again.
+    fireEvent.click(document.querySelector(".modal-backdrop")!);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
   it("uses the soft danger variant for danger confirmations", () => {
     render(
       <ConfirmationModal
