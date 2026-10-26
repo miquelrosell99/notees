@@ -205,6 +205,7 @@ export function NodeView({
       viewMode={blocksMode}
       readOnly={preview}
       onOpenNode={onOpenNode}
+      onOpenInSidebar={onOpenInSidebar}
     />
   ) : (
     /* Page mode — plain, date (day/period), or class: PageView composes the

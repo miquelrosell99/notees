@@ -9,6 +9,49 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(web): the bullet peek gesture (Shift+click → right rail) works on
+  every surface that renders block bullets ("shift click on
+  block bullet to open in sidebar does not work").** The gesture reads
+  `openInSidebar` from the surface's own OutlinerContext; three surfaces
+  dropped the wiring, so the bullet's advertised "Shift+click: open in
+  sidebar" silently no-oped there. A real-browser probe (playwright against
+  the live stack, the test workspace) pinned the gaps: the **focused block
+  view** (the bullet-zoom surface — `FocusedBlockView` passed only
+  `onNodeClick` to the self-hosting `NodeCollection`), the **right-rail
+  cards** (`NodeCardFrame`'s `NodeView` got no `onOpenInSidebar`), and the
+  **floating editor windows** (`FloatingNodeView` the same). The main page
+  body was always wired (probe-verified: plain, parent-with-kids,
+  while-editing, selection-live, and inside-an-open-rail variants all peek).
+  The fix threads the existing callback — `NodeView.onOpenInSidebar` →
+  `FocusedBlockView.onNodeShiftClick`; `AppBody.openInSidebar` →
+  `NodeCardFrame` and `FloatingEditorHost` → their `NodeView`s; no new op,
+  no wire change, no client applier impact. (Focus mode still hides the rail
+  by the 2026-10-24 ruling — the gesture adds the card there and the rail
+  appears on mode exit, unchanged.) One known remaining gap, deliberately
+  out of scope: the property-carrier `ReferenceSubtree` (a bullet inside a
+  property value cell) has no peek wiring — six files of threading for a
+  read-only peripheral cell. Verified: new `apps/web/test/bullet-peek.test.tsx`
+  — four specs (page body / focused view / rail card / floating window) that
+  failed on the three unwired surfaces before the fix; `pnpm typecheck` +
+  `pnpm test` green; the live-stack probe re-run after deploy.
+
+- **fix(web): the metadata panel's Aliases row renders on class nodes.** Adding an alias to a class node — the header's "Add aliases"
+  action writes the backward alias there — updated nothing visible: the
+  button retired once the alias existed and the panel never grew the row.
+  Root cause: `AliasesRow`'s render guard rode `rendersWithDocumentChrome`,
+  whose first cascade branch excludes classes (`is_class → ClassView`) — so
+  the row rendered null on exactly the nodes whose header offers the add.
+  Classes are Page-role citizens with full document chrome (the right panel
+  itself renders there); the guard now takes the explicit `node.isClass ||`
+  arm, the `SearchPage` / `NodeSelector` idiom. The write path, the carrier
+  page restriction (`aliasedNodeTargetError` still rejects non-page carriers),
+  and the alias-side pseudo-property row are untouched. Verified: two new
+  full-stack regression tests over the real worker wiring (WorkerClient +
+  WorkerCore over sql.js, panelled PageView) — the LOCAL direction (the
+  picker's backward write through the worker cache) and the REMOTE direction
+  (a second core authoring the alias, the open panel converging via the
+  relay); `pnpm test` green.
+
 - **fix(store): parenting a parentless main node keeps it a page — the move
   acquires the standalone claim (treat-as-main).** Root
   cause: `object.move` never wrote `is_embedded`, and a node left parentless
