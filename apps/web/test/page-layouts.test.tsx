@@ -127,6 +127,24 @@ describe("L1 view-mode persistence (deviceSettings)", () => {
     second.unmount();
   });
 
+  it("the right-panel toggle rides the bar's trailing edge (owner edge law 2026-10-26)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Edge Law" });
+
+    render(<PageView client={client} pageId={pageId} />);
+
+    const bar = document.querySelector(".nt-node-topbar")!;
+    const trailing = bar.querySelector(".surface-topbar__trailing");
+    expect(trailing).not.toBeNull();
+    expect(
+      trailing!.querySelector("button[title='Hide properties panel']"),
+    ).not.toBeNull();
+    // The toggle is the bar's true right edge: the LAST button, after the
+    // actions/overflow cluster.
+    const buttons = [...bar.querySelectorAll("button")];
+    expect(buttons.at(-1)!.getAttribute("title")).toBe("Hide properties panel");
+  });
+
   it("hub modes persist per hub and fall back when the offered modes shrink", async () => {
     const client = await seedClient();
     await ensureTaskFamily(client);
