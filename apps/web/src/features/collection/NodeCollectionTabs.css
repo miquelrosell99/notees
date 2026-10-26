@@ -1,11 +1,11 @@
-/* SectionViewTabs — the hosted-views chrome riding a hosted NodeCollection:
+/* NodeCollectionTabs — the hosted-views chrome riding a hosted NodeCollection:
    the tab bar row (Default permanent first, custom tabs by sequence, the
    "+" add-slot, the reset rendered only when custom views exist, the host
    section's trailing chrome — filter/search/view-switch — far right), the
    active custom tab's manage row (rename / move / delete), and the
    write-error line. Token-only. */
 
-.nt-section-views {
+.nt-node-collection-tabs {
   display: flex;
   flex-direction: column;
   /* The tab row breathes before the view below it (the tab row and the first view row were reading as one
@@ -14,8 +14,8 @@
   margin-bottom: var(--spacing-3);
 }
 
-.nt-section-views__bar {
-  /* Wraps: an inline FilterBar's structured panel takes a full-width line
+.nt-node-collection-tabs__bar {
+  /* Wraps: an inline NodeCollectionBar's structured panel takes a full-width line
      beneath the row when open. */
   display: flex;
   flex-wrap: wrap;
@@ -25,25 +25,25 @@
   min-width: 0;
 }
 
-.nt-section-views__tabs {
+.nt-node-collection-tabs__tabs {
   min-width: 0;
   flex: 1;
 }
 
-.nt-section-views__tabs .tabs__list {
+.nt-node-collection-tabs__tabs .tabs__list {
   flex-wrap: wrap;
 }
 
 /* The active tab's total-count badge: the label
    becomes a flex line so the pill sits beside the name, vertically
    centered; the pill is the section-header count register one size down. */
-.nt-section-views__tabs .tabs__tab-label {
+.nt-node-collection-tabs__tabs .tabs__tab-label {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
 }
 
-.nt-section-views__tab-count {
+.nt-node-collection-tabs__tab-count {
   font: var(--font-label-small);
   line-height: 1;
   color: var(--md-sys-color-on-surface-variant);
@@ -53,7 +53,7 @@
   flex-shrink: 0;
 }
 
-.nt-section-views__reset {
+.nt-node-collection-tabs__reset {
   border: none;
   background: transparent;
   color: var(--md-sys-color-on-surface-variant);
@@ -64,18 +64,18 @@
   white-space: nowrap;
 }
 
-.nt-section-views__reset:hover {
+.nt-node-collection-tabs__reset:hover {
   background: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-on-surface);
 }
 
-.nt-section-views__manage {
+.nt-node-collection-tabs__manage {
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
 }
 
-.nt-section-views__manage-name {
+.nt-node-collection-tabs__manage-name {
   font-size: var(--font-size-sm);
   color: var(--md-sys-color-on-surface-variant);
   margin-inline-end: var(--spacing-1);

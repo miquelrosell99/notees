@@ -489,6 +489,10 @@ export class WorkspaceClient {
     return this.server.renameSectionView(nodeId, sectionKey, viewId, name);
   }
 
+  updateSectionViewAst(nodeId: string, sectionKey: string, viewId: string, queryAst: unknown) {
+    return this.server.updateSectionViewAst(nodeId, sectionKey, viewId, queryAst);
+  }
+
   reorderSectionViews(nodeId: string, sectionKey: string, orderedIds: string[]) {
     return this.server.reorderSectionViews(nodeId, sectionKey, orderedIds);
   }

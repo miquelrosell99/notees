@@ -12,7 +12,7 @@
  *
  * The section resolves through useSectionData directly (the Section chrome
  * wrapper stays the lazy contract too, but the transient filter layer needs
- * the hook's post-resolution/pre-windowing step): the FilterBar (collapsible
+ * the hook's post-resolution/pre-windowing step): the NodeCollectionBar (collapsible
  * quick search behind the magnifier toggle + the structured-filters toggle)
  * and the view switcher ride the hosted tab bar's FAR RIGHT as the
  * collection's `tabBarTrailing` (one chrome row with the
@@ -46,9 +46,10 @@ import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { useViewModePreference } from "../../ui/viewPrefs.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
-import { FilterBar } from "../collection/FilterBar.js";
+import { NodeCollectionBar } from "../collection/NodeCollectionBar.js";
 import {
   EMPTY_FILTER_QUERY,
+  draftOrFactoryAst,
   filterQueryToGroup,
   isFilterInactive,
   quickTextOf,
@@ -56,7 +57,7 @@ import {
 } from "../collection/filterQuery.js";
 import { useSectionData, type SectionRowFilter } from "../collection/useSectionData.js";
 import { NodeCollection, ViewSwitcher } from "../collection/index.js";
-import { SECTION_DEFAULT_TAB } from "../collection/SectionViewTabs.js";
+import { SECTION_DEFAULT_TAB } from "../collection/NodeCollectionTabs.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../collection/index.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -233,7 +234,7 @@ export function ClassedNodesSection({
     >
       {/* The chrome rides the hosted tab bar's far right (the collection's
           `tabBarTrailing`), every control one right-hand cluster: the view
-          switcher first, then the FilterBar (permanent quick search +
+          switcher first, then the NodeCollectionBar (permanent quick search +
           structured-filters toggle) LAST — the bar's wrapped structured
           panel lands beneath the row without moving these controls. The
           create affordance lives in the section header's trailing action
@@ -266,11 +267,11 @@ export function ClassedNodesSection({
           }}
           trailingAction={unassignAction}
           emptyTitle="No classed nodes."
-          hostedViews={{ nodeId: classId, sectionKey: "classed-nodes", selected: tab, onSelectTab: setTab }}
+          hostedViews={{ nodeId: classId, sectionKey: "classed-nodes", createAst: () => draftOrFactoryAst(memberFilter), selected: tab, onSelectTab: setTab }}
           tabBarTrailing={
             <>
               <ViewSwitcher modes={modes} value={membersMode} onChange={setMembersMode} />
-              <FilterBar
+              <NodeCollectionBar
                 client={client}
                 layout="inline"
                 value={memberFilter}

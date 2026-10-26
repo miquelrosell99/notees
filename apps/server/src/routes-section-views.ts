@@ -15,7 +15,7 @@
  * Endpoints (all under /api, authenticated but not user-scoped):
  *  - GET    /nodes/:nodeId/sections/:sectionKey/views          list, tab order
  *  - POST   /nodes/:nodeId/sections/:sectionKey/views          create (appends)
- *  - PATCH  /nodes/:nodeId/sections/:sectionKey/views/:viewId  rename
+ *  - PATCH  /nodes/:nodeId/sections/:sectionKey/views/:viewId  rename / rewrite the query (or both)
  *  - PUT    /nodes/:nodeId/sections/:sectionKey/views/order    reorder (full list)
  *  - DELETE /nodes/:nodeId/sections/:sectionKey/views/:viewId  delete
  *
@@ -67,11 +67,15 @@ const createBodySchema = z
   })
   .strict();
 
-const renameBodySchema = z
+const patchBodySchema = z
   .object({
-    name: z.string().trim().min(1, "view name is required").max(MAX_VIEW_NAME),
+    name: z.string().trim().min(1, "view name is required").max(MAX_VIEW_NAME).optional(),
+    queryAst: z.unknown().optional(),
   })
-  .strict();
+  .strict()
+  .refine((body) => body.name !== undefined || body.queryAst !== undefined, {
+    message: "a rename (name), a query rewrite (queryAst), or both is required",
+  });
 
 const reorderBodySchema = z
   .object({
@@ -152,12 +156,12 @@ export function registerSectionViewRoutes(app: FastifyInstance, ctx: ServerConte
     if (!params.success) {
       throw new AppError(422, "validation_failed", params.error.issues[0]?.message ?? "invalid view path");
     }
-    const body = renameBodySchema.safeParse(request.body);
+    const body = patchBodySchema.safeParse(request.body);
     if (!body.success) {
       throw new AppError(422, "validation_failed", body.error.issues[0]?.message ?? "invalid view body");
     }
     // The row must exist AND live on this surface — a foreign view id is 404,
-    // never a cross-section rename.
+    // never a cross-section patch.
     const existing = ctx.auth.getNodeView(params.data.viewId);
     if (
       existing === null ||
@@ -166,8 +170,11 @@ export function registerSectionViewRoutes(app: FastifyInstance, ctx: ServerConte
     ) {
       throw new AppError(404, "not_found", "node view not found");
     }
+    const patch: { name?: string; queryAst?: unknown } = {};
+    if (body.data.name !== undefined) patch.name = body.data.name;
+    if (body.data.queryAst !== undefined) patch.queryAst = parseStoredAst(body.data.queryAst);
     try {
-      const view = ctx.auth.renameNodeView(params.data.viewId, body.data.name);
+      const view = ctx.auth.patchNodeView(params.data.viewId, patch);
       return { view };
     } catch (error) {
       if (isUniqueViolation(error)) {

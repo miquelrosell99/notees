@@ -1,7 +1,7 @@
 /**
  * filterQuery — the transient filter layer's data.
  *
- * A filterable section renders a FilterBar whose state is a FilterQuery: the
+ * A filterable section renders a NodeCollectionBar whose state is a FilterQuery: the
  * quick-search text plus a DRAFT query-AST root group the structured panel's
  * block builder edits (`Group` from @notees/query, the one normative
  * grammar — the builder is the v1 query-builder block UI ported over the
@@ -36,7 +36,7 @@
  * nothing persisted.
  */
 
-import type { Child, Condition, Group } from "@notees/query";
+import type { Child, Condition, Group, QueryAst } from "@notees/query";
 
 /** The bar's state: quick-search text plus the builder's draft root group. */
 export interface FilterQuery {
@@ -55,6 +55,24 @@ export const EMPTY_FILTER_QUERY: FilterQuery = {
   group: { type: "group", logic: "and", children: [] },
 };
 
+/** The factory AST a new hosted tab starts from when the bar's draft is empty. */
+export const FACTORY_QUERY_AST: QueryAst = {
+  version: 1,
+  scope: { type: "entire_workspace" },
+  root: { type: "group", logic: "and", children: [] },
+};
+
+/**
+ * The AST a new hosted tab starts from: the composed draft verbatim, falling back
+ * to the factory AST when the draft is empty.
+ */
+export function draftOrFactoryAst(value: FilterQuery): QueryAst {
+  const group = filterQueryToGroup(value);
+  return group === null
+    ? FACTORY_QUERY_AST
+    : { version: 1, scope: { type: "entire_workspace" }, root: group };
+}
+
 /** True when the text is blank AND the draft group has no children. */
 export function isFilterInactive(query: FilterQuery): boolean {
   return (query.text?.trim() ?? "") === "" && query.group.children.length === 0;
@@ -62,13 +80,13 @@ export function isFilterInactive(query: FilterQuery): boolean {
 
 /**
  * The per-section facet configuration — `SectionSpec.filterable` and the
- * FilterBar's `config`. Every facet defaults on; `filterable: true` is the
+ * NodeCollectionBar's `config`. Every facet defaults on; `filterable: true` is the
  * full set, absent/false renders no bar at all. The facets gate the quick
  * text field and which condition KINDS the builder's add menu offers; the
  * other kinds (type/placement/content/wire fields/groups) are always
  * offered.
  */
-export interface FilterBarConfig {
+export interface NodeCollectionBarConfig {
   text?: boolean | undefined;
   class?: boolean | undefined;
   properties?: boolean | undefined;
@@ -259,7 +277,7 @@ export const FILTER_KIND_OPTIONS: readonly FilterKindOption[] = [
 ];
 
 /** The add-menu entries a config offers — the gated kinds plus the groups. */
-export function filterKindOptionsForConfig(config?: FilterBarConfig): readonly FilterKindOption[] {
+export function filterKindOptionsForConfig(config?: NodeCollectionBarConfig): readonly FilterKindOption[] {
   const showClass = config?.class ?? true;
   const showProperties = config?.properties ?? true;
   const showDateRange = config?.dateRange ?? true;

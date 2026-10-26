@@ -11,7 +11,7 @@
  * for now); the skin lands as the single render target for the
  * SectionSpec stacks.
  *
- * The transient filter layer: `filterable` renders the FilterBar — at the
+ * The transient filter layer: `filterable` renders the NodeCollectionBar — at the
  * body top for an UN-hosted collection; as the hosted tab bar's far-right
  * `tabBarTrailing` (inline, the collapsible quick search) when the collection props carry `hostedViews` — and applies
  * its FilterQuery through the hook — post-resolution, pre-windowing. The
@@ -28,13 +28,13 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { AnyClient, NodeCollectionItem, NodeCollectionProps, ViewMode } from "./index.js";
 import { NodeCollection } from "./index.js";
 
-import { FilterBar } from "./FilterBar.js";
+import { NodeCollectionBar } from "./NodeCollectionBar.js";
 import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
   isFilterInactive,
   quickTextOf,
-  type FilterBarConfig,
+  type NodeCollectionBarConfig,
   type FilterQuery,
 } from "./filterQuery.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
@@ -61,11 +61,11 @@ export interface CollectionSectionProps {
   /** The view the collection renders in. */
   viewMode: ViewMode;
   /**
-   * The transient filter layer (default OFF): true renders the FilterBar
-   * with its full facet set, a FilterBarConfig names the offered facets,
+   * The transient filter layer (default OFF): true renders the NodeCollectionBar
+   * with its full facet set, a NodeCollectionBarConfig names the offered facets,
    * absent/false renders no bar.
    */
-  filterable?: boolean | FilterBarConfig | undefined;
+  filterable?: boolean | NodeCollectionBarConfig | undefined;
   /** Exactly one resolution strategy (see useSectionData). */
   read?: ((ctx: SectionCtx) => NodeCollectionItem[]) | undefined;
   query?: ((ctx: SectionCtx) => Promise<NodeCollectionItem[]>) | undefined;
@@ -131,7 +131,7 @@ export function CollectionSection({
       onExpandedChange={setExpanded}
     >
       {filterable !== false && !hosted && (
-        <FilterBar
+        <NodeCollectionBar
           client={client}
           value={filterQuery}
           onChange={setFilterQuery}
@@ -151,12 +151,12 @@ export function CollectionSection({
           {...collection}
           {...(filterable !== false && hosted
             ? {
-                // The FilterBar renders LAST in the cluster: its wrapped structured panel lands beneath
+                // The NodeCollectionBar renders LAST in the cluster: its wrapped structured panel lands beneath
                 // the row without moving the other trailing chrome.
                 tabBarTrailing: (
                   <>
                     {collection?.tabBarTrailing}
-                    <FilterBar
+                    <NodeCollectionBar
                       client={client}
                       layout="inline"
                       value={filterQuery}

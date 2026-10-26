@@ -175,8 +175,31 @@ export class WorkspaceClientServer {
     return normalizeSectionView((await response.json()).view);
   }
 
-  /** PUT the full ordered id list; sequences rewrite 0..n-1. Throws on an incomplete list. */
-  async reorderSectionViews(
+  /** PATCH a view's query AST (the per-tab builder commit). 404 = missing/foreign row (also throws). */
+  async updateSectionViewAst(
+    nodeId: string,
+    sectionKey: string,
+    viewId: string,
+    queryAst: unknown,
+  ): Promise<SectionView> {
+    const { apiKey } = this.requireRest();
+    const response = await fetch(
+      this.sectionViewsUrl(nodeId, sectionKey, `/${encodeURIComponent(viewId)}`),
+      {
+        method: "PATCH",
+        headers: { "X-API-Key": apiKey, "content-type": "application/json" },
+        body: JSON.stringify({ queryAst }),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        `update section view query failed: HTTP ${response.status}: ${await response.text()}`,
+      );
+    }
+    return normalizeSectionView((await response.json()).view);
+  }
+
+  /** PUT the full ordered id list; sequences rewrite 0..n-1. Throws on an incomplete list. */  async reorderSectionViews(
     nodeId: string,
     sectionKey: string,
     orderedIds: string[],

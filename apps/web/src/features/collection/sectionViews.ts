@@ -46,6 +46,13 @@ export interface SectionViewsClient {
     viewId: string,
     name: string,
   ): Promise<SectionView>;
+  /** The per-tab builder commit: rewrite the view's stored query AST. */
+  updateSectionViewAst(
+    nodeId: string,
+    sectionKey: string,
+    viewId: string,
+    queryAst: unknown,
+  ): Promise<SectionView>;
   reorderSectionViews(
     nodeId: string,
     sectionKey: string,
@@ -243,8 +250,34 @@ export async function renameSectionView(
   }
 }
 
-/** Reorder the section's tabs (the full ordered id list). False when the write failed. */
-export async function reorderSectionViews(
+/** Rewrite a view's stored query AST (the per-tab builder commit). False when the write failed. */
+export async function updateSectionViewAst(
+  client: SectionViewsClient | null,
+  nodeId: string,
+  sectionKey: string,
+  viewId: string,
+  queryAst: unknown,
+): Promise<boolean> {
+  if (client === null) return false;
+  const before = current(nodeId, sectionKey);
+  apply(
+    nodeId,
+    sectionKey,
+    before.map((view) => (view.id === viewId ? { ...view, queryAst, updatedAt: Date.now() } : view)),
+  );
+  try {
+    const view = await client.updateSectionViewAst(nodeId, sectionKey, viewId, queryAst);
+    apply(nodeId, sectionKey, current(nodeId, sectionKey).map((entry) => (entry.id === viewId ? view : entry)));
+    writeSucceeded();
+    return true;
+  } catch (error) {
+    apply(nodeId, sectionKey, before);
+    writeFailed("update view query", error);
+    return false;
+  }
+}
+
+/** Reorder the section's tabs (the full ordered id list). False when the write failed. */export async function reorderSectionViews(
   client: SectionViewsClient | null,
   nodeId: string,
   sectionKey: string,

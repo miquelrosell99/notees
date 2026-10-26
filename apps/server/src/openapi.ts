@@ -408,9 +408,9 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["validation_failed", "conflict"],
   }],
   ["patch", "/api/nodes/:nodeId/sections/:sectionKey/views/:viewId", {
-    summary: "Rename a hosted view",
+    summary: "Patch a hosted view — rename it and/or rewrite its query",
     description:
-      "The row must exist and live on this node+surface — anything else is 404. A name collision on the surface's unique key is 409.",
+      "The row must exist and live on this node+surface — anything else is 404. A name collision on the surface's unique key is 409. The queryAst, when present, must parse against QueryAST v1; a rename-only patch omits it. At least one of name/queryAst is required.",
     tags: ["Nodes"],
     params: {
       nodeId: "the page/class/query node the surface lives on",
@@ -420,8 +420,10 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     requestBody: {
       type: "object",
       additionalProperties: false,
-      required: ["name"],
-      properties: { name: { type: "string", minLength: 1, maxLength: 120 } },
+      properties: {
+        name: { type: "string", minLength: 1, maxLength: 120 },
+        queryAst: { description: "QueryAST v1 (validated against the zod schema)" },
+      },
     },
     errors: ["validation_failed", "not_found", "conflict"],
   }],

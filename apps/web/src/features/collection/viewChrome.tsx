@@ -8,8 +8,8 @@
  * chrome's state — the portal teleports only the rendering.
  *
  * Ordering contract: NodeCollection mounts the slot BEFORE the host's
- * `tabBarTrailing`, and the host ends the cluster with the FilterBar — the
- * FilterBar's structured panel wraps a full-width line beneath the row, and
+ * `tabBarTrailing`, and the host ends the cluster with the NodeCollectionBar — the
+ * NodeCollectionBar's structured panel wraps a full-width line beneath the row, and
  * nothing on the row may move when it does.
  */
 

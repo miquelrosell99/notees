@@ -957,6 +957,13 @@ export class WorkerCore {
           args[2] as string,
           args[3] as string,
         );
+      case "updateSectionViewAst":
+        return this.client.updateSectionViewAst(
+          args[0] as string,
+          args[1] as string,
+          args[2] as string,
+          args[3] as unknown,
+        );
       case "reorderSectionViews":
         return this.client.reorderSectionViews(
           args[0] as string,

@@ -11,7 +11,7 @@
  * arrow-key navigation, activation, and the tab/tabpanel ARIA wiring are
  * the catalog's (Radix's). The sliding-indicator pill-bar register is the
  * app's and stays in Tabs.css, with the legacy `tabs__*` classes kept as
- * the hook feature CSS compounds on (SectionViewTabs, NodeSelector).
+ * the hook feature CSS compounds on (NodeCollectionTabs, NodeSelector).
  *
  * Usage:
  *   <Tabs value={activeTab} onChange={setActiveTab}>

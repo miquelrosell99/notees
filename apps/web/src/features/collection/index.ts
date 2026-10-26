@@ -17,7 +17,7 @@ export { useWindowed, DEFAULT_WINDOW_SIZE } from "./useWindowed.js";
 export type { UseWindowedOptions, WindowedState } from "./useWindowed.js";
 export { ShowMoreButton } from "./ShowMoreButton.js";
 export { NodeCollection } from "./NodeCollection.js";
-export { SECTION_DEFAULT_TAB, SectionViewTabs, autoViewName } from "./SectionViewTabs.js";
+export { SECTION_DEFAULT_TAB, NodeCollectionTabs, autoViewName } from "./NodeCollectionTabs.js";
 export { planSectionView, applySectionView, resolveSectionViewProbed, useSectionViewResolution } from "./sectionViewResolve.js";
 export { ViewSwitcher } from "./ViewSwitcher.js";
 export { ViewToolbar } from "./ViewToolbar.js";

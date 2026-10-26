@@ -13,7 +13,7 @@
  * Backlinks and Unlinked mentions each ride the shared collapsible-section
  * chrome — the NodeViewSection header IS the section header, the tab row is
  * gone — with the hosted view chrome, the transient
- * FilterBar, and the lazy useSectionData contract every other section has.
+ * NodeCollectionBar, and the lazy useSectionData contract every other section has.
  * One count semantics everywhere (displayed nodes), named exactly once
  *: the hosted
  * reference sections name the number dynamically on the active tab's badge
@@ -42,7 +42,7 @@
  * after the write the source moves to Backlinks, the honest place for
  * it); Ignore dismisses the source device-locally, per page — device
  * state, never an op (./viewPrefs.js). The transient filter layer
- * rides the shared FilterBar (./FilterBar.js — the same
+ * rides the shared NodeCollectionBar (./NodeCollectionBar.js — the same
  * chrome the classed-nodes section renders), since in the
  * hosted tab bar's FAR RIGHT as the collection's `tabBarTrailing` (the
  * collapsible quick search + the structured-filters toggle — one row with
@@ -76,9 +76,10 @@ import { titleOfNode } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../../ui/viewPrefs.js";
 import { promoteMentionInAst } from "../collection/unlinkedRefs.js";
-import { FilterBar } from "../collection/FilterBar.js";
+import { NodeCollectionBar } from "../collection/NodeCollectionBar.js";
 import {
   EMPTY_FILTER_QUERY,
+  draftOrFactoryAst,
   filterQueryToGroup,
   isFilterInactive,
   quickTextOf,
@@ -86,7 +87,7 @@ import {
 } from "../collection/filterQuery.js";
 import { NodeCollection, groupByContainingPage } from "../collection/index.js";
 import type { HostedViewsConfig, NodeCollectionItem, SortMode } from "../collection/index.js";
-import { SECTION_DEFAULT_TAB } from "../collection/SectionViewTabs.js";
+import { SECTION_DEFAULT_TAB } from "../collection/NodeCollectionTabs.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { useSectionData, type SectionRowFilter } from "../collection/useSectionData.js";
 import "./SystemSections.css";
@@ -158,7 +159,7 @@ export function ReferenceList({
   unlinkedPageId?: string | undefined;
   hostedViews?: HostedViewsConfig | undefined;
   /**
-   * The section's chrome (its FilterBar) riding the hosted tab bar's far
+   * The section's chrome (its NodeCollectionBar) riding the hosted tab bar's far
    * right — forwarded as the collection's `tabBarTrailing`; renders only in
    * the hosted tab bar.
    */
@@ -278,7 +279,7 @@ function displayNameOf(
  * Unlinked mentions) as a normal collapsible NodeCollection section: the
  * shared NodeViewSection chrome (title + icon — NO header count badge; a
  * hosted section names the count on the active tab) and the ReferenceList collection beneath —
- * its hosted view chrome included, the transient FilterBar riding the
+ * its hosted view chrome included, the transient NodeCollectionBar riding the
  * hosted tab bar's FAR RIGHT as the collection's `trailing`, the active
  * tab's badge naming the displayed row count. The lazy contract
  * lives in useSectionData — one instance per section (the per-view rule):
@@ -360,10 +361,10 @@ function ReferenceSection({
           client={client}
           onOpenPage={onOpenPage}
           {...(unlinkedPageId !== undefined ? { unlinkedPageId } : {})}
-          hostedViews={{ nodeId: pageId, sectionKey, selected: tab, onSelectTab: setTab }}
+          hostedViews={{ nodeId: pageId, sectionKey, createAst: () => draftOrFactoryAst(filterQuery), selected: tab, onSelectTab: setTab }}
           defaultSortMode={quickTextOf(filterQuery) === "" ? "dates-first" : "position"}
           trailing={
-            <FilterBar
+            <NodeCollectionBar
               client={client}
               layout="inline"
               value={filterQuery}
