@@ -78,6 +78,15 @@
   --md-sys-color-success-container: #d1fae5;
   --md-sys-color-on-success-container: #14532d;
 
+  /* Soft status wash (fleet ruling 2026-10-26 — the "subtle status"
+     register): a translucent status color over whatever is behind it
+     (GitHub danger-subtle / Stripe / Portainer). Resting surface for
+     soft-danger buttons, status badges, banners. One definition — the
+     base token flips per theme, the wash follows. */
+  --md-sys-color-error-soft: color-mix(in srgb, var(--md-sys-color-error) 12%, transparent);
+  --md-sys-color-warning-soft: color-mix(in srgb, var(--md-sys-color-warning) 12%, transparent);
+  --md-sys-color-success-soft: color-mix(in srgb, var(--md-sys-color-success) 12%, transparent);
+
   /* ==================== Background & Surface ==================== */
 
   /* Warm paper workspace — the Margin Green identity ground (#f7f4ec, brand

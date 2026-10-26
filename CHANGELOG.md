@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): soft-danger register — translucent error wash + brighter red
+  text — promoted to fleet law (incorporated into
+  the rosellramos-design-system skill, templates v2.0.4).** The Portainer /
+  Stripe / GitHub "soft danger" style: the danger button rests on a 12%
+  translucent error wash (`--md-sys-color-error-soft`, new token generated
+  by the skill's build-tokens for every status color) with error text,
+  escalating to the solid error fill on hover and error-pressed on press.
+  The naked-outline and solid-fill detours retire. Skill fixes landed in
+  the same pass (the law: a flaw fixed in the app is fixed in the skill):
+  build-tokens emitted invalid `color-mix(..., --md-sys-color-error 30%,
+  ...)` for every status `-container` (bare custom property, no `var()` —
+  the declarations were silently dead in the starter tokens; now
+  `var()`-wrapped), the Button template's variant register is rewritten
+  (soft danger; outline rides a slight background with a border-strength
+  hover — never transparent-on-outline), and assets/VERSION bumps to
+  v2.0.4 with every template restamped (the parity gate requires it). App:
+  the soft tokens added to variables.css (one var-referencing definition —
+  the base color flips per theme, the wash follows), registered in the
+  drift gate's MD_SYS_EXTENSIONS with the reason, tailwind aliases
+  (error/warning/success-soft), danger variant swapped to the wash.
+  Verified: targeted 55 specs; `pnpm typecheck` 8/8; full web suite green;
+  skill `check-token-parity.mjs` OK; captures of the sync section at
+  1440/390 show the soft Disconnect.
+
 - **feat(web): bordered buttons pick up a background; the danger default is
   now filled, not bordered.** The
   border-only danger sat on transparent — a naked outline. The danger

@@ -150,6 +150,10 @@ const REGISTERED_MD_SYS_EXTENSIONS = new Set([
   "hover-overlay", "pressed-overlay", "focus-overlay",
   "primary-hover", "primary-pressed", "secondary-hover", "secondary-pressed",
   "tertiary-hover", "tertiary-pressed", "error-hover", "error-pressed",
+  // Soft status wash (fleet ruling 2026-10-26 — the "subtle status"
+  // register, GitHub danger-subtle style); the skill's build-tokens
+  // generates these since v2.0.4.
+  "error-soft", "warning-soft", "success-soft",
   "success", "on-success", "success-container", "on-success-container",
   "warning", "on-warning", "warning-container", "on-warning-container",
   "callout-danger", "callout-danger-bg", "callout-success", "callout-success-bg",
