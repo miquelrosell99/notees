@@ -32,6 +32,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Button } from "../../components/ui/fleet/Button.js";
+import { ListRow } from "../../components/ui/fleet/index.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { titleOf } from "../../ui/dateDisplay.js";
@@ -187,36 +188,41 @@ function CommentRow({
 
   return (
     <li className="nt-comments__item">
-      <div className="nt-comments__row">
-        <button
-          type="button"
-          className="nt-comments__text"
-          title={label}
-          onClick={() => onOpenNode?.(thread.node.id)}
-        >
-          {label}
-        </button>
-        <span className="nt-comments__actions">
+      <ListRow
+        className="nt-comments__row"
+        primary={
           <button
             type="button"
-            className="nt-comments__action"
-            aria-label={replying ? `Cancel reply to ${label}` : `Reply to ${label}`}
-            title={replying ? "Cancel reply" : "Reply"}
-            onClick={() => setReplying((open) => !open)}
+            className="nt-comments__text"
+            title={label}
+            onClick={() => onOpenNode?.(thread.node.id)}
           >
-            <Icon path="mdi-reply-outline" size={0.75} />
+            {label}
           </button>
-          <button
-            type="button"
-            className="nt-comments__action"
-            aria-label={`Delete comment ${label}`}
-            title="Delete comment"
-            onClick={() => void client.deleteObject(thread.node.id)}
-          >
-            <Icon path="mdi-delete-outline" size={0.75} />
-          </button>
-        </span>
-      </div>
+        }
+        trailing={
+          <span className="nt-comments__actions">
+            <button
+              type="button"
+              className="nt-comments__action"
+              aria-label={replying ? `Cancel reply to ${label}` : `Reply to ${label}`}
+              title={replying ? "Cancel reply" : "Reply"}
+              onClick={() => setReplying((open) => !open)}
+            >
+              <Icon path="mdi-reply-outline" size={0.75} />
+            </button>
+            <button
+              type="button"
+              className="nt-comments__action"
+              aria-label={`Delete comment ${label}`}
+              title="Delete comment"
+              onClick={() => void client.deleteObject(thread.node.id)}
+            >
+              <Icon path="mdi-delete-outline" size={0.75} />
+            </button>
+          </span>
+        }
+      />
       {replying && (
         <CommentComposer
           client={client}

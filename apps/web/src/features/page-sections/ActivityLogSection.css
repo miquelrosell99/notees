@@ -18,29 +18,18 @@
   gap: 1px;
 }
 
+/* The row rides the fleet ListRow (the register this surface co-defined);
+   these are the surface deviations: the dense feed measure — 32px tall, no
+   vertical padding, tighter gap, the 4px radius. */
 .activity-log__row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
   min-height: var(--height-md);
   padding: 0 var(--spacing-1);
+  gap: var(--spacing-2);
   border-radius: var(--shape-small);
 }
 
-.activity-log__event {
-  /* The §7 list-row register: primary 14px/600 (the dense-register
-     deviation was retired with the 100%-alignment program). */
-  font-size: var(--font-size-base);
-  font-weight: 600;
-  color: var(--md-sys-color-on-surface);
-}
-
-.activity-log__stamp {
-  flex-shrink: 0;
-  margin-left: auto;
-  /* Secondary 12px muted (the §7 list-row register). */
+.activity-log__row .list-row__trailing {
   font-size: var(--font-size-sm);
-  color: var(--md-sys-color-on-surface-variant);
 }
 
 .activity-log__note {

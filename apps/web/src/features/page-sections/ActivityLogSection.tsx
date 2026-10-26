@@ -24,6 +24,7 @@ import { useState } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
+import { ListRow } from "../../components/ui/fleet/index.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import "./ActivityLogSection.css";
@@ -83,15 +84,17 @@ export function ActivityLogSection({ client, nodeId }: ActivityLogSectionProps) 
       {node !== undefined && (
         <div className="activity-log">
           <ul className="activity-log__rows">
-            <li className="activity-log__row">
-              <span className="activity-log__event">Created</span>
-              <span className="activity-log__stamp">{relativeTime(node.createdAt)}</span>
-            </li>
+            <ListRow
+              className="activity-log__row"
+              primary="Created"
+              trailing={relativeTime(node.createdAt)}
+            />
             {edited && (
-              <li className="activity-log__row">
-                <span className="activity-log__event">Edited</span>
-                <span className="activity-log__stamp">{relativeTime(node.updatedAt)}</span>
-              </li>
+              <ListRow
+                className="activity-log__row"
+                primary="Edited"
+                trailing={relativeTime(node.updatedAt)}
+              />
             )}
           </ul>
           <p className="activity-log__note">

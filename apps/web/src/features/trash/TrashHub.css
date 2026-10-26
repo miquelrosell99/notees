@@ -40,12 +40,14 @@
   gap: 1px;
 }
 
+/* The row rides the fleet ListRow (the register this surface co-defined);
+   these are the surface deviations: the hub's 38px measure, no vertical
+   padding, tighter gap, the 4px radius — and the hover fill stays on the
+   whole row (the row itself is not clickable; the actions own that). */
 .nt-trash-hub__row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
   min-height: var(--height-lg);
   padding: 0 var(--spacing-2);
+  gap: var(--spacing-2);
   border-radius: var(--shape-small);
 }
 
@@ -53,29 +55,16 @@
   background: var(--md-sys-color-hover-overlay);
 }
 
-.nt-trash-hub__icon {
-  flex-shrink: 0;
-  display: inline-flex;
-  color: var(--md-sys-color-on-surface-variant);
+/* The icon rides the natural-size leading slot (the 32px default slot is
+   the text-list convention; this hub's icons keep their own measure). */
+.nt-trash-hub__row .list-row__leading {
+  width: auto;
+  height: auto;
 }
 
-.nt-trash-hub__name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  /* The §7 list-row register (the feeds' precedent): primary 14px/600 —
-     truncation contract unchanged at the heavier weight. */
-  font-size: var(--font-size-base);
-  font-weight: 600;
-  color: var(--md-sys-color-on-surface);
-}
-
-.nt-trash-hub__stamp {
-  flex-shrink: 0;
-  margin-left: auto;
+.nt-trash-hub__row .list-row__trailing {
+  gap: var(--spacing-2);
   font-size: var(--font-size-sm);
-  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-trash-hub__actions {

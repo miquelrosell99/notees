@@ -24,6 +24,7 @@ import { setTaskDone, taskRowsOf, taskStatusLabel } from "../calendar/calendarRo
 import { ensureTaskFamily } from "./taskFamily.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
 import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
+import { ListRow } from "../../components/ui/fleet/index.js";
 import { Pill } from "../../components/ui/fleet/Pill.js";
 import "./TaskBuckets.css";
 
@@ -125,30 +126,40 @@ export function TaskBuckets({
               </h3>
               <ul className="task-buckets__rows">
                 {rows.map((row) => (
-                  <li key={row.id} className="task-buckets__row">
-                    <Checkbox
-                      size="sm"
-                      checked={row.closed}
-                      disabled={statusSchema === undefined}
-                      aria-label={row.closed ? "Reopen task" : "Mark task done"}
-                      onChange={(checked) =>
-                        void setTaskDone(client, statusSchema, row.id, checked)
-                      }
-                    />
-                    <button
-                      type="button"
-                      className="task-buckets__row-name"
-                      onClick={() => onOpenNode(row.id)}
-                    >
-                      {titleOf(client, row.id, { read: "fallback", empty: "untitled" }) ?? "Untitled"}
-                    </button>
-                    {statusSchema !== undefined && statusLabelOf(row.id) !== null && (
-                      <Pill text={statusLabelOf(row.id)!} />
-                    )}
-                    {showDay && row.drivingIso !== null && (
-                      <span className="task-buckets__row-day">{row.drivingIso}</span>
-                    )}
-                  </li>
+                  <ListRow
+                    key={row.id}
+                    className="task-buckets__row"
+                    leading={
+                      <Checkbox
+                        size="sm"
+                        checked={row.closed}
+                        disabled={statusSchema === undefined}
+                        aria-label={row.closed ? "Reopen task" : "Mark task done"}
+                        onChange={(checked) =>
+                          void setTaskDone(client, statusSchema, row.id, checked)
+                        }
+                      />
+                    }
+                    primary={
+                      <button
+                        type="button"
+                        className="task-buckets__row-name"
+                        onClick={() => onOpenNode(row.id)}
+                      >
+                        {titleOf(client, row.id, { read: "fallback", empty: "untitled" }) ?? "Untitled"}
+                      </button>
+                    }
+                    trailing={
+                      <>
+                        {statusSchema !== undefined && statusLabelOf(row.id) !== null && (
+                          <Pill text={statusLabelOf(row.id)!} />
+                        )}
+                        {showDay && row.drivingIso !== null && (
+                          <span className="task-buckets__row-day">{row.drivingIso}</span>
+                        )}
+                      </>
+                    }
+                  />
                 ))}
               </ul>
             </div>

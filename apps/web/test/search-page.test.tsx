@@ -17,9 +17,10 @@
  *    Ctrl/Cmd+Shift+F chord fires outside form fields, and the popstate
  *    handler maps /search back onto the route flag.
  *
- * Row-name assertions scope to `.node-result-item__name`: the snippet
- * excerpt repeats the matched text under the row, so an unscoped text
- * query matches twice.
+ * Row-name assertions scope to `.node-result-item__row .list-row__primary >
+ * span` (the fleet ListRow's primary line, the title span inside it): the
+ * snippet excerpt repeats the matched text under the row, so an unscoped
+ * text query matches twice.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -117,7 +118,7 @@ const typeQuery = (text: string): void => {
 };
 
 const rowName = (text: string): HTMLElement =>
-  screen.getByText(text, { selector: ".node-result-item__name" });
+  screen.getByText(text, { selector: ".node-result-item__row .list-row__primary > span" });
 
 const resultRows = (): Element[] => [...document.querySelectorAll(".search-page__result")];
 
@@ -128,7 +129,7 @@ describe("SearchPage results", () => {
 
     typeQuery("alpha");
     // Both the title-matched page and the content-matched block render.
-    expect(await screen.findByText("Alpha", { selector: ".node-result-item__name" })).not.toBeNull();
+    expect(await screen.findByText("Alpha", { selector: ".node-result-item__row .list-row__primary > span" })).not.toBeNull();
     expect(rowName("alpha bravo charlie")).not.toBeNull();
     // The snippet excerpt rides under the block row with the match marked.
     const mark = screen.getByText("alpha", { selector: ".nt-search-mark" });
@@ -165,16 +166,16 @@ describe("SearchPage results", () => {
     // ^ prefix: only the title that STARTS with the rest.
     typeQuery("^alpha");
     expect(
-      await screen.findByText("Alphabet Soup", { selector: ".node-result-item__name" }),
+      await screen.findByText("Alphabet Soup", { selector: ".node-result-item__row .list-row__primary > span" }),
     ).not.toBeNull();
-    expect(screen.queryByText("Beta Alpha", { selector: ".node-result-item__name" })).toBeNull();
+    expect(screen.queryByText("Beta Alpha", { selector: ".node-result-item__row .list-row__primary > span" })).toBeNull();
 
     // "…" exact: the exact substring only.
     fireEvent.change(screen.getByLabelText("Search everything"), {
       target: { value: '"beta alpha"' },
     });
-    expect(await screen.findByText("Beta Alpha", { selector: ".node-result-item__name" })).not.toBeNull();
-    expect(screen.queryByText("Alphabet Soup", { selector: ".node-result-item__name" })).toBeNull();
+    expect(await screen.findByText("Beta Alpha", { selector: ".node-result-item__row .list-row__primary > span" })).not.toBeNull();
+    expect(screen.queryByText("Alphabet Soup", { selector: ".node-result-item__row .list-row__primary > span" })).toBeNull();
   });
 });
 
@@ -183,19 +184,19 @@ describe("SearchPage scope tabs", () => {
     const { client } = await seedSearchWorld();
     renderSearchPage(client);
     typeQuery("alpha");
-    expect(await screen.findByText("Alpha", { selector: ".node-result-item__name" })).not.toBeNull();
+    expect(await screen.findByText("Alpha", { selector: ".node-result-item__row .list-row__primary > span" })).not.toBeNull();
     expect(rowName("alpha bravo charlie")).not.toBeNull();
     expect(resultRows()).toHaveLength(2);
 
     // Main: the page stays, the block drops out.
     fireEvent.click(screen.getByRole("tab", { name: "Main" }));
     expect(rowName("Alpha")).not.toBeNull();
-    expect(screen.queryByText("alpha bravo charlie", { selector: ".node-result-item__name" })).toBeNull();
+    expect(screen.queryByText("alpha bravo charlie", { selector: ".node-result-item__row .list-row__primary > span" })).toBeNull();
     expect(resultRows()).toHaveLength(1);
 
     // Blocks: the inverse.
     fireEvent.click(screen.getByRole("tab", { name: "Blocks" }));
-    expect(screen.queryByText("Alpha", { selector: ".node-result-item__name" })).toBeNull();
+    expect(screen.queryByText("Alpha", { selector: ".node-result-item__row .list-row__primary > span" })).toBeNull();
     expect(rowName("alpha bravo charlie")).not.toBeNull();
     expect(resultRows()).toHaveLength(1);
   });
@@ -218,14 +219,14 @@ describe("SearchPage class filter", () => {
     });
     renderSearchPage(client);
     typeQuery("dune gardening");
-    expect(await screen.findByText("Dune", { selector: ".node-result-item__name" })).not.toBeNull();
+    expect(await screen.findByText("Dune", { selector: ".node-result-item__row .list-row__primary > span" })).not.toBeNull();
     expect(rowName("Gardening Annual")).not.toBeNull();
 
     // Filter by Fiction: only Dune stays. The trigger labels itself.
     fireEvent.click(screen.getByRole("button", { name: /Filter by class/ }));
     fireEvent.click(await screen.findByText("Fiction", { selector: ".dropdown-option-label" }));
     expect(rowName("Dune")).not.toBeNull();
-    expect(screen.queryByText("Gardening Annual", { selector: ".node-result-item__name" })).toBeNull();
+    expect(screen.queryByText("Gardening Annual", { selector: ".node-result-item__row .list-row__primary > span" })).toBeNull();
     expect(screen.getByText("Fiction", { selector: ".dropdown-value" })).not.toBeNull();
   });
 });
@@ -246,14 +247,14 @@ describe("SearchPage pagination", () => {
     renderSearchPage(client);
     typeQuery("needle");
     // Page one: 25 of the 30 block hits.
-    await screen.findByText("needle block 25", { selector: ".node-result-item__name" });
+    await screen.findByText("needle block 25", { selector: ".node-result-item__row .list-row__primary > span" });
     expect(resultRows()).toHaveLength(25);
     const more = screen.getByRole("button", { name: "Show more results" });
 
     fireEvent.click(more);
     // The second page appends the remaining five; the cursor then reads
     // null and the button retires.
-    await screen.findByText("needle block 30", { selector: ".node-result-item__name" });
+    await screen.findByText("needle block 30", { selector: ".node-result-item__row .list-row__primary > span" });
     expect(resultRows()).toHaveLength(30);
     expect(screen.queryByRole("button", { name: "Show more results" })).toBeNull();
   });

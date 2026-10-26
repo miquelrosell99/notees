@@ -149,6 +149,9 @@ export type { FloatingButtonArrayProps, ToolbarDividerProps } from './FloatingBu
 export { FloatingToolbar } from './FloatingToolbar.js';
 export type { FloatingToolbarProps } from './FloatingToolbar.js';
 
+export { ListRow } from './ListRow.js';
+export type { ListRowProps } from './ListRow.js';
+
 export { PresentationOverlay, PRESENTATION_CHROME_HIDE_MS } from './PresentationOverlay.js';
 export type { PresentationOverlayProps } from './PresentationOverlay.js';
 

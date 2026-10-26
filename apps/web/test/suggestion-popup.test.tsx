@@ -503,7 +503,9 @@ describe("picker row hover tooltip", () => {
     typeWithCaret(editor, "@");
     typeInPicker("longtitle");
 
-    const name = resultRows()[0]?.querySelector<HTMLElement>(".node-result-item__name");
+    const name = resultRows()[0]?.querySelector<HTMLElement>(
+      ".node-result-item__row .list-row__primary > span",
+    );
     expect(name).not.toBeNull();
     expect(name?.textContent?.length).toBe(80); // the capped line
     expect(name?.getAttribute("title")).toBe(longName); // the full title
@@ -522,7 +524,9 @@ describe("picker row hover tooltip", () => {
       row.classList.contains("node-result-item--create"),
     );
     expect(createRow).not.toBeUndefined();
-    const name = createRow!.querySelector<HTMLElement>(".node-result-item__name");
+    const name = createRow!.querySelector<HTMLElement>(
+      ".node-result-item__row .list-row__primary > span",
+    );
     expect(name?.getAttribute("title")).toBe('Create "Brand new page"');
   });
 });

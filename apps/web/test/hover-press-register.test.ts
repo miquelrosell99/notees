@@ -85,28 +85,40 @@ describe("compact hub actions reach the 48px floor and press", () => {
 });
 
 describe("hub/list row names ride the §7 list-row register", () => {
+  // The register's home since the 2026-10-26 ListRow extraction is the fleet
+  // ListRow.css (14px/600 on-surface rides .list-row__primary, the muted
+  // stamp color rides .list-row__trailing); the hub stylesheets keep only
+  // their deviations — the stamp size override and the button contracts.
+  const listRowCss = readCss("components", "ui", "fleet", "ListRow.css");
+
   it("task bucket rows: primary 14px/600, the single-line ellipsis contract kept", () => {
+    const primary = /\.list-row__primary \{[^}]*\}/.exec(listRowCss);
+    expect(primary).not.toBeNull();
+    expect(primary![0]).toContain("font-size: var(--font-size-base)");
+    expect(primary![0]).toContain("var(--font-weight-semibold)");
     const name = /\.task-buckets__row-name \{[^}]*\}/.exec(taskBucketsCss);
     expect(name).not.toBeNull();
-    expect(name![0]).toContain("font-weight: 600");
     expect(name![0]).toContain("text-overflow: ellipsis");
     expect(name![0]).toContain("white-space: nowrap");
+    const trailing = /\.task-buckets__row \.list-row__trailing \{[^}]*\}/.exec(taskBucketsCss);
+    expect(trailing).not.toBeNull();
+    expect(trailing![0]).toContain("font-size: var(--font-size-sm)");
     const day = /\.task-buckets__row-day \{[^}]*\}/.exec(taskBucketsCss);
     expect(day).not.toBeNull();
-    expect(day![0]).toContain("font-size: var(--font-size-sm)");
     expect(day![0]).toContain("var(--md-sys-color-on-surface-variant)");
   });
 
-  it("trash hub rows: the name joins the register at 14px/600", () => {
-    const name = /\.nt-trash-hub__name \{[^}]*\}/.exec(trashCss);
-    expect(name).not.toBeNull();
-    expect(name![0]).toContain("font-size: var(--font-size-base)");
-    expect(name![0]).toContain("font-weight: 600");
-    expect(name![0]).toContain("text-overflow: ellipsis");
-    const stamp = /\.nt-trash-hub__stamp \{[^}]*\}/.exec(trashCss);
-    expect(stamp).not.toBeNull();
-    expect(stamp![0]).toContain("font-size: var(--font-size-sm)");
-    expect(stamp![0]).toContain("var(--md-sys-color-on-surface-variant)");
+  it("trash hub rows: the name rides the register at 14px/600, the stamp 12px muted", () => {
+    const primary = /\.list-row__primary \{[^}]*\}/.exec(listRowCss);
+    expect(primary).not.toBeNull();
+    expect(primary![0]).toContain("font-size: var(--font-size-base)");
+    expect(primary![0]).toContain("var(--font-weight-semibold)");
+    const trailing = /\.nt-trash-hub__row \.list-row__trailing \{[^}]*\}/.exec(trashCss);
+    expect(trailing).not.toBeNull();
+    expect(trailing![0]).toContain("font-size: var(--font-size-sm)");
+    const kitTrailing = /\.list-row__trailing \{[^}]*\}/.exec(listRowCss);
+    expect(kitTrailing).not.toBeNull();
+    expect(kitTrailing![0]).toContain("var(--md-sys-color-on-surface-variant)");
   });
 });
 

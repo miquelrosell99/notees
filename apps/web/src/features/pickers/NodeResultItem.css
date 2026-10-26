@@ -48,34 +48,24 @@
   margin-bottom: var(--spacing-hairline);
 }
 
+/* The row rides the fleet ListRow (the register this surface co-defined);
+   these are the surface deviations: the outer button owns the chrome
+   (padding/radius/hover/scale), so the inner row is chromeless, tighter
+   gap, and the leading slot keeps this surface's 20px icon measure. */
 .node-result-item__row {
-  display: flex;
-  align-items: center;
   gap: var(--spacing-2);
-  width: 100%;
-  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
 }
 
-.node-result-item__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.node-result-item__row .list-row__leading {
   width: var(--icon-size-md);
   height: var(--icon-size-md);
-  color: var(--md-sys-color-on-surface-variant);
-  flex-shrink: 0;
 }
 
-.node-result-item__name {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  /* The list-row recipe: primary 14px/600. */
-  font-size: var(--font-size-base);
-  font-weight: 600;
-  color: var(--md-sys-color-on-surface);
+.node-result-item__row .list-row__trailing {
+  gap: var(--spacing-2);
 }
 
 .node-result-item__class-pills {
@@ -104,16 +94,16 @@
   font-weight: 500;
 }
 
-.node-result-item--create .node-result-item__icon {
+.node-result-item--create .list-row__leading {
   color: var(--md-sys-color-primary);
 }
 
-.node-result-item--create .node-result-item__name {
+.node-result-item--create .list-row__primary {
   color: var(--md-sys-color-primary);
 }
 
 /* Convert-to-class variant */
-.node-result-item--convert .node-result-item__name::after {
+.node-result-item--convert .list-row__primary::after {
   content: " → class";
   font: var(--font-label-small);
   color: var(--md-sys-color-on-surface-variant);
