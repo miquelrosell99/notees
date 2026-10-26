@@ -37,6 +37,7 @@ import {
   gatingFeaturesForClass,
   dateChainClassId,
   dateChainParentId,
+  deriveDisplayName,
   isFamilyFeature,
   isLockedSystemClassId,
   managedClassIds,
@@ -51,6 +52,8 @@ import {
   TASK_FAMILY_SEED,
   type FamilyFeature,
 } from "@notees/domain";
+
+import { parseContentAst } from "./content.js";
 
 import { reindexNode, removeSearchIndexEntry } from "./search.js";
 import { rebuildEdges, reresolveEdgeTargets } from "./edges.js";
@@ -77,6 +80,23 @@ import {
   UnsupportedCarrierError,
 } from "./errors.js";
 import type { StoreDatabase } from "./types.js";
+
+/**
+ * The promotion/stringify boundary's mention-label source: the target's
+ * CURRENT display name read from the derived node row (the no-stored-link-
+ * text ruling, the wire carries no captured text to fold,
+ * so the flattened title resolves the live name; a broken target folds to
+ * nothing rather than a raw id).
+ */
+function mentionNameResolverIn(db: StoreDatabase): (targetNodeId: string) => string | null {
+  const stmt = db.prepare("SELECT content FROM node WHERE id = ?");
+  return (targetId) => {
+    const row = stmt.get(targetId) as { content: string | null } | undefined;
+    if (row === undefined) return null;
+    const name = deriveDisplayName({ id: targetId, contentAst: parseContentAst(row.content) });
+    return name === "" ? null : name;
+  };
+}
 
 // --- LWW comparison ----------------------------------------------------------
 
@@ -500,7 +520,7 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   // or is_embedded = 0) carry text-only content; an embedded block keeps the
   // full rich token stream.
   const content = JSON.stringify(
-    isEmbedded === 0 ? stringifyContentAst(p.contentAst as never) : (p.contentAst ?? []),
+    isEmbedded === 0 ? stringifyContentAst(p.contentAst as never, undefined, mentionNameResolverIn(db)) : (p.contentAst ?? []),
   );
 
   // Seed OR-Set membership from the payload's classIds (add-wins per pair,
@@ -790,7 +810,7 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     if (p.isEmbedded === false && row.is_embedded === 1) {
       const rowAst = JSON.parse(row.content) as unknown;
       sets.push("content = ?");
-      values.push(JSON.stringify(stringifyContentAst(rowAst as never)));
+      values.push(JSON.stringify(stringifyContentAst(rowAst as never, undefined, mentionNameResolverIn(db))));
     }
   }
   if (p.icon !== undefined) {
@@ -881,7 +901,7 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     const flatten = row.is_class === 1;
     sets.push("content = ?");
     values.push(
-      JSON.stringify(flatten ? stringifyContentAst(p.contentAst as never) : p.contentAst),
+      JSON.stringify(flatten ? stringifyContentAst(p.contentAst as never, undefined, mentionNameResolverIn(db)) : p.contentAst),
     );
     // Content-asserted membership (the no-divergence law): the class_link
     // tokens about to be stored class the node. Class rows flatten (never
@@ -1394,7 +1414,9 @@ function upsertClassNode(
   // (text-only) content. Node fields update only when the envelope wins the
   // row-level LWW.
   const hasContent = fields.contentAst !== undefined;
-  const content = hasContent ? JSON.stringify(stringifyContentAst(fields.contentAst as never)) : null;
+  const content = hasContent
+    ? JSON.stringify(stringifyContentAst(fields.contentAst as never, undefined, mentionNameResolverIn(db)))
+    : null;
   // The INSERT carries the create-time content directly (the LWW-gated
   // UPDATE below can never beat this envelope's own HLC — equal on every
   // clause — so routing create fields through it would silently drop them).

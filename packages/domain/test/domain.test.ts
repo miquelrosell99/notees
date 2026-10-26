@@ -863,21 +863,42 @@ describe("deriveDisplayName", () => {
     const ast: ContentAst = [
       { type: "text", text: "Kuhn argues that paradigms" },
       { type: "typed_link", verb: "cites", text: "cites" },
-      { type: "mention", targetNodeId: "0192a000-0000-7000-8000-000000000011", text: "Structure" },
+      // A label-less mention excerpts to nothing without a resolver (the
+      // no-stored-link-text ruling — the wire carries no text to flatten).
+      { type: "mention", targetNodeId: "0192a000-0000-7000-8000-000000000011" },
     ];
     expect(
       deriveDisplayName({ id: "b1", isClass: false, isEmbedded: true, parentId: "p1", contentAst: ast }),
+    ).toBe("Kuhn argues that paradigms cites");
+    // The caller's resolver supplies the target's current name.
+    expect(
+      deriveDisplayName(
+        { id: "b1", isClass: false, isEmbedded: true, parentId: "p1", contentAst: ast },
+        undefined,
+        (targetId) => (targetId.endsWith("0011") ? "Structure" : null),
+      ),
     ).toBe("Kuhn argues that paradigms cites Structure");
   });
 
-  it("prefers mention displayText, recurses quotes, skips structural tokens", () => {
+  it("prefers mention customLabel, resolves via the caller, recurses quotes, skips structural tokens", () => {
     const ast: ContentAst = [
       { type: "quote", children: [{ type: "text", text: "quoted line" }] },
-      { type: "mention", targetNodeId: "0192a000-0000-7000-8000-000000000011", text: "X", displayText: "the Republic" },
+      { type: "mention", targetNodeId: "0192a000-0000-7000-8000-000000000011", customLabel: "the Republic" },
       { type: "embed_ref", nodeId: "0192a000-0000-7000-8000-000000000099" },
       { type: "whiteboard", layout: {} },
     ];
     expect(plainTextExcerpt(ast)).toBe("quoted line the Republic");
+    // The customLabel wins over the resolver; a bare mention resolves.
+    expect(
+      plainTextExcerpt(
+        [
+          { type: "mention", targetNodeId: "0192a000-0000-7000-8000-000000000011", customLabel: "the Republic" },
+          { type: "mention", targetNodeId: "0192a000-0000-7000-8000-000000000022" },
+        ],
+        undefined,
+        (targetId) => (targetId.endsWith("0022") ? "current name" : null),
+      ),
+    ).toBe("the Republic current name");
   });
 
   it("returns empty string when there is nothing to derive (caller falls back to id)", () => {

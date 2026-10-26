@@ -42,7 +42,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the forty-one required fixtures", () => {
+  it("has exactly the forty-two required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
@@ -63,6 +63,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "hr.json",
       "is-embedded-parent-page.json",
       "link-embedded.json",
+      "mention-custom-label.json",
       "object-color.json",
       "object-create.json",
       "object-delete-class-routing.json",
@@ -774,6 +775,22 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       contentAstSchema.safeParse([{ type: "code_block", language: "PyThOn", text: "x" }]).success,
     ).toBe(false);
     expect(contentAstSchema.safeParse([{ type: "hr", color: "red" }]).success).toBe(false);
+  });
+
+  it("mention stores id + customLabel only — the retired text/displayText keys are rejected", () => {
+    const target = "0192a000-0000-7000-8000-000000000011";
+    // The new shapes validate: bare and customLabel-carrying mentions.
+    expect(contentAstSchema.safeParse([{ type: "mention", targetNodeId: target }]).success).toBe(true);
+    expect(
+      contentAstSchema.safeParse([{ type: "mention", targetNodeId: target, customLabel: "the Republic" }]).success,
+    ).toBe(true);
+    // The retired keys fail loud (strict — no backward compatibility).
+    expect(
+      contentAstSchema.safeParse([{ type: "mention", targetNodeId: target, text: "captured" }]).success,
+    ).toBe(false);
+    expect(
+      contentAstSchema.safeParse([{ type: "mention", targetNodeId: target, displayText: "the Republic" }]).success,
+    ).toBe(false);
   });
 
   it("property-value-elements fixture: same-idx element adds coexist; remove + re-add ride the OR-Set", () => {

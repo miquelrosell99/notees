@@ -64,7 +64,7 @@ describe("buildJsonArchive", () => {
   it("carries verbatim contentAst, classIds, properties, and the render-state bits", () => {
     const contentAst: ContentAst = [
       { type: "text", text: "Bold", marks: ["bold"] },
-      { type: "mention", targetNodeId: AUTHOR_ID, text: "Le Guin" },
+      { type: "mention", targetNodeId: AUTHOR_ID, customLabel: "Le Guin" },
     ];
     const properties = [
       {
@@ -114,13 +114,13 @@ describe("buildJsonArchive", () => {
 
   it("mines edges from the content stream (mention, embed, chip, typed links, asset) and quote nesting", () => {
     const node = page(PAGE_ID, [
-      { type: "mention", targetNodeId: AUTHOR_ID, text: "Le Guin" },
+      { type: "mention", targetNodeId: AUTHOR_ID },
       { type: "embed_ref", nodeId: EMBED_ID },
       { type: "class_link", classId: PERSON_CLASS_ID },
       { type: "typed_link", verb: "cites", text: "claim" },
       { type: "typed_link", verb: { propertySchemaId: PUBLISHED_SCHEMA_ID }, text: "journal" },
       { type: "asset_ref", assetId: ASSET_ID },
-      { type: "quote", children: [{ type: "mention", targetNodeId: AUTHOR_ID, text: "again" }] },
+      { type: "quote", children: [{ type: "mention", targetNodeId: AUTHOR_ID }] },
     ]);
     const archive = buildJsonArchive([node], makeCtx(), { now: NOW });
     expect(archive.nodes[0]!.edges).toEqual([

@@ -48,13 +48,16 @@ function chipLabel(token: { displayText?: string | undefined; classId?: string |
 }
 
 /**
- * Flatten `ast` to its excerpt. `resolveClassName` includes class chips'
- * resolved labels (optional — the pure default treats an unresolved chip as
- * prose-invisible, the prose-projection precedent).
+ * Flatten `ast` to its excerpt. `resolveClassName` / `resolveMentionName`
+ * include class chips' / mentions' resolved labels (optional — the pure
+ * default treats an unresolved chip and a label-less mention as
+ * prose-invisible, the prose-projection precedent). A mention's own
+ * `customLabel` and a chip's `displayText` win over the resolved names.
  */
 export function excerptOf(
   ast: ContentAst | null | undefined,
   resolveClassName?: (classId: string) => string | null,
+  resolveMentionName?: (targetNodeId: string) => string | null,
 ): Excerpt {
   if (!ast) return { text: "", truncated: false, cutOffset: 0 };
   let prose = "";
@@ -66,9 +69,14 @@ export function excerptOf(
       switch (token.type) {
         case "text":
         case "typed_link":
-        case "mention":
           prose += token.text;
           break;
+        case "mention": {
+          const label =
+            token.customLabel ?? resolveMentionName?.(token.targetNodeId) ?? null;
+          if (label !== null && label !== "") prose += label;
+          break;
+        }
         case "class_link":
           prose += chipLabel(token, resolveClassName);
           break;

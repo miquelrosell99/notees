@@ -97,14 +97,14 @@ describe("token → markdown mapping", () => {
     expect(nodeToMarkdown(node, makeCtx())).toContain("line one\nline two");
   });
 
-  it("renders mentions from displayText, resolved name, then raw id for broken targets", () => {
+  it("renders mentions from customLabel, resolved name, then raw id for broken targets", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000003", "mentions", [
-      { type: "mention", targetNodeId: REPUBLIC_ID, text: "the Republic", displayText: "the Republic" },
+      { type: "mention", targetNodeId: REPUBLIC_ID, customLabel: "the Republic" },
       { type: "text", text: " by " },
-      { type: "mention", targetNodeId: AUTHOR_ID, text: "Le Guin" },
+      { type: "mention", targetNodeId: AUTHOR_ID },
       { type: "text", text: " and " },
-      // Broken target (no displayText, nameOf misses) → raw id (SCHEMA Fork 4).
-      { type: "mention", targetNodeId: "88888888-8888-4888-8888-888888888888", text: "captured" },
+      // Broken target (no customLabel, nameOf misses) → raw id (SCHEMA Fork 4).
+      { type: "mention", targetNodeId: "88888888-8888-4888-8888-888888888888" },
     ]);
     const md = nodeToMarkdown(node, makeCtx());
     expect(md).toContain("[[the Republic]]");
@@ -167,7 +167,7 @@ describe("token → markdown mapping", () => {
           { type: "text", text: "first line" },
           { type: "hard_break" },
           { type: "text", text: "second " },
-          { type: "mention", targetNodeId: AUTHOR_ID, text: "Le Guin" },
+          { type: "mention", targetNodeId: AUTHOR_ID },
         ],
       },
     ]);
@@ -657,7 +657,7 @@ describe("link/asset rewriting hooks (multi-file delivery)", () => {
 
   it("rewrites a mention to a relative link when ctx.linkTarget resolves the target", () => {
     const node = page("dddddddd-0000-4000-8000-000000000002", "host", [
-      { type: "mention", targetNodeId: TARGET_ID, text: "the Republic", displayText: "the Republic" },
+      { type: "mention", targetNodeId: TARGET_ID, customLabel: "the Republic" },
     ]);
     const ctx = makeCtx({
       linkTarget: (id) => (id === TARGET_ID ? { path: "The-Republic-dddddddd.md" } : undefined),
@@ -669,9 +669,9 @@ describe("link/asset rewriting hooks (multi-file delivery)", () => {
 
   it("keeps the [[name]] convention when linkTarget misses or is absent", () => {
     const node = page("dddddddd-0000-4000-8000-000000000003", "host", [
-      { type: "mention", targetNodeId: TARGET_ID, text: "x", displayText: "the Republic" },
+      { type: "mention", targetNodeId: TARGET_ID, customLabel: "the Republic" },
       { type: "text", text: " and " },
-      { type: "mention", targetNodeId: "88888888-8888-4888-8888-888888888888", text: "y" },
+      { type: "mention", targetNodeId: "88888888-8888-4888-8888-888888888888" },
     ]);
     const withMiss = makeCtx({ linkTarget: () => undefined });
     expect(nodeToMarkdown(node, withMiss)).toContain("[[the Republic]]");

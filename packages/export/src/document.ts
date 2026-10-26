@@ -676,7 +676,7 @@ function buildSpan(token: InlineToken, ctx: ExportContext): ExportSpan {
     case "hard_break":
       return { kind: "hardBreak" };
     case "mention": {
-      const raw = token.displayText ?? ctx.nameOf(token.targetNodeId) ?? token.targetNodeId;
+      const raw = token.customLabel ?? ctx.nameOf(token.targetNodeId) ?? token.targetNodeId;
       const link = ctx.linkTarget?.(token.targetNodeId);
       return {
         kind: "mention",

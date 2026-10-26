@@ -101,7 +101,7 @@ describe("metacharacter escaping", () => {
   it("escapes ] and backslash inside mention names without touching the [[…]] convention", () => {
     const tricky = "99999999-9999-4999-8999-999999999999";
     const node = page("aaaaaaaa-0000-4000-8000-000000000005", "mentions", [
-      { type: "mention", targetNodeId: tricky, displayText: "A] B\\C", text: "A] B\\C" },
+      { type: "mention", targetNodeId: tricky, customLabel: "A] B\\C" },
     ]);
     const md = nodeToMarkdown(node, makeCtx());
     expect(md).toContain("[[A\\] B\\\\C]]");

@@ -32,6 +32,11 @@
  *    closes when the log replays clean. Excluded.
  *  - remap-reunion-evento.mts — a one-shot workspace-specific class remap
  *, no marker key. Excluded.
+ *  - migrate-mention-custom-label.mts — the mention no-stored-link-text
+ *    rewrite: self-detecting plan-nothing
+ *    idempotency (no envelope carries a retired key → nothing to rewrite),
+ *    no schema_meta marker row — a per-script invocation behind the
+ *    GTK/Flutter lockstep gate. Excluded.
  *  - every other migrate-*.mts — no schema_meta marker row (their idempotency
  *    is plan-nothing: "nothing to rewrite"); the orchestrator cannot classify
  *    them pending vs applied, so a batch run could not order them. Both the

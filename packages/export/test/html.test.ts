@@ -232,7 +232,7 @@ describe("inline spans", () => {
   it("maps mentions to pills, escaping the name", () => {
     const tricky = "99999999-9999-4999-8999-999999999999";
     const node = page("aaaaaaaa-0000-4000-8000-000000000025", "mention", [
-      { type: "mention", targetNodeId: tricky, displayText: "A <b> & C", text: "A <b> & C" },
+      { type: "mention", targetNodeId: tricky, customLabel: "A <b> & C" },
     ]);
     const html = toHtml(node, makeCtx());
     expect(html).toContain('<span class="mention">A &lt;b&gt; &amp; C</span>');
@@ -240,7 +240,7 @@ describe("inline spans", () => {
 
   it("links the mention when the IR resolved a bundle path (E5)", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000026", "mention", [
-      { type: "mention", targetNodeId: EMBED_ID, text: "Embedded target" },
+      { type: "mention", targetNodeId: EMBED_ID },
     ]);
     const html = toHtml(node, makeCtx({ linkTarget: () => ({ path: "pages/embedded-target.md" }) }));
     expect(html).toContain('<a class="mention" href="pages/embedded-target.md">Embedded target</a>');
@@ -465,7 +465,7 @@ describe("privacy: no external resources", () => {
   it("references no link/script/img tags and only the authored external href", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000080", "privacy", [
       { type: "text", text: "home [site](https://example.com/only-external) " },
-      { type: "mention", targetNodeId: EMBED_ID, text: "Embedded target" },
+      { type: "mention", targetNodeId: EMBED_ID },
       { type: "embed_ref", nodeId: EMBED_ID },
     ]);
     const html = toHtml(node, makeCtx({ linkTarget: () => ({ path: "pages/embedded-target.md" }) }));
