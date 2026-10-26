@@ -150,6 +150,22 @@ predating this file.
   GTK/Flutter seed/validator alignment records this ruling as lockstep
   pending — the sibling repos converge on the `mention-custom-label.json`
   fixture before the migration runs against the live relay.
+  **LIVE RUN 2026-10-26 (owner-ordered, the sole-user fleet)**: stack
+  stopped → images rebuilt from `origin/main` → `migrate-mention-custom-label
+  .mts --apply` against the live data dir — personal workspace 48,304
+  envelopes rewritten + snapshot byte-patched (12,366 node rows) +
+  `restore_epoch` 18; test workspace 36 envelopes + snapshot (30 rows) +
+  epoch 10; both verified (every envelope re-validates; full scratch replay
+  clean; zero retired keys in 34,654 + 939 node rows). A first attempt died
+  mid-run on a full `/tmp` (ENOSPC) after the envelope rewrite committed —
+  the script's resume path (snapshot-bytes detection, not the plan) patched
+  the snapshots and bumped the epochs on the re-run; the backup paths now
+  honor `$TMPDIR`. Pre-rewrite backups: `/root/relay.db.bak-mention-custom-
+  label-2026-10-26T08-46-51Z` + `/root/tmp-migrate/snapshot-*.bak-*`.
+  Redeploy + `verify-min.mjs` smoke in the same window. GTK/Flutter ports
+  remain LOCKSTEP-PENDING: until they ship the `customLabel` acceptance, a
+  wipe+resync on those clients stalls at the rewritten envelopes — the
+  fixture is the convergence contract.
 
 - **fix(web): nodeview scrollbar rides beside the right side pane.** The
   panelled node view's scroll box was the capped content column
