@@ -1,12 +1,20 @@
 /**
- * Hosted section views tests: the section_view table, the five prefs-channel
- * endpoints (list/create/rename/reorder/delete), the (user, node, section,
- * name) unique key, per-user scoping, and fail-loud validation. Custom tabs
- * are cross-device UI state on the prefs channel — never op-log state.
+ * Node-scoped hosted views tests: the node_view table, the five prefs-channel
+ * endpoints (list/create/rename/reorder/delete), the (node, section, name)
+ * unique key, shared-across-users visibility, the "-" sentinel for a node's
+ * main query, the legacy section_view migration, and fail-loud validation.
+ * Custom tabs are cross-device UI state on the prefs channel — never op-log
+ * state — and they belong to the node, not to a user.
  */
 
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { AuthStorage } from "../src/auth.js";
 import { closeTestServer, makeTestServer, type TestServer } from "./helpers";
 
 let server: TestServer | null = null;
@@ -27,7 +35,7 @@ async function setupUser(email = "admin@example.com"): Promise<{ token: string; 
   return { token: response.json().token as string, userId: response.json().user.id as string };
 }
 
-/** The AuthStorage seam is the honest second-account path for scoping tests. */
+/** A second account — under node-scoped storage it shares the first user's views. */
 function createSecondUser(): { token: string } {
   const user = server!.ctx.auth.createUser({
     email: "second@example.com",
@@ -57,10 +65,10 @@ const AST_WITH_CONDITION = {
   },
 };
 
-const BASE = `/api/me/nodes/${PAGE}/sections/linked-references/views`;
+const BASE = `/api/nodes/${PAGE}/sections/linked-references/views`;
 
-describe("GET /api/me/nodes/:nodeId/sections/:sectionKey/views", () => {
-  it("returns an empty list for a section that never hosted views", async () => {
+describe("GET /api/nodes/:nodeId/sections/:sectionKey/views", () => {
+  it("returns an empty list for a surface that never hosted views", async () => {
     server = await makeTestServer();
     const { token } = await setupUser();
     const response = await server.app.inject({
@@ -74,18 +82,18 @@ describe("GET /api/me/nodes/:nodeId/sections/:sectionKey/views", () => {
 
   it("lists views in sequence order across sections and nodes", async () => {
     server = await makeTestServer();
-    const { token, userId } = await setupUser();
-    const first = server.ctx.auth.createSectionView({
-      userId, nodeId: PAGE, sectionKey: "linked-references", name: "Alpha", queryAst: AST,
+    const { token } = await setupUser();
+    const first = server.ctx.auth.createNodeView({
+      nodeId: PAGE, sectionKey: "linked-references", name: "Alpha", queryAst: AST,
     });
-    server.ctx.auth.createSectionView({
-      userId, nodeId: PAGE, sectionKey: "linked-references", name: "Beta", queryAst: AST,
+    server.ctx.auth.createNodeView({
+      nodeId: PAGE, sectionKey: "linked-references", name: "Beta", queryAst: AST,
     });
-    server.ctx.auth.createSectionView({
-      userId, nodeId: PAGE, sectionKey: "unlinked-mentions", name: "Other section", queryAst: AST,
+    server.ctx.auth.createNodeView({
+      nodeId: PAGE, sectionKey: "unlinked-mentions", name: "Other section", queryAst: AST,
     });
-    server.ctx.auth.createSectionView({
-      userId, nodeId: OTHER_PAGE, sectionKey: "linked-references", name: "Other page", queryAst: AST,
+    server.ctx.auth.createNodeView({
+      nodeId: OTHER_PAGE, sectionKey: "linked-references", name: "Other page", queryAst: AST,
     });
     expect(first.sequence).toBe(0);
 
@@ -102,11 +110,36 @@ describe("GET /api/me/nodes/:nodeId/sections/:sectionKey/views", () => {
       sectionKey: "linked-references",
       sequence: 0,
       queryAst: AST,
-      viewMode: null,
     });
+    expect(views[0].viewMode).toBeUndefined();
     expect(typeof views[0].id).toBe("string");
     expect(typeof views[0].createdAt).toBe("number");
     expect(typeof views[0].updatedAt).toBe("number");
+  });
+
+  it('accepts the "-" sentinel for the empty section key (a node\'s main query)', async () => {
+    server = await makeTestServer();
+    const { token } = await setupUser();
+    const auth = { authorization: `Bearer ${token}` };
+    const created = await server.app.inject({
+      method: "POST",
+      url: `/api/nodes/${PAGE}/sections/-/views`,
+      headers: auth,
+      payload: { name: "Main query tab", queryAst: AST },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().view.sectionKey).toBe("");
+
+    const list = await server.app.inject({
+      method: "GET",
+      url: `/api/nodes/${PAGE}/sections/-/views`,
+      headers: auth,
+    });
+    expect(list.json().views.map((v: { name: string }) => v.name)).toEqual(["Main query tab"]);
+
+    // The keyed sections are a different surface — no leakage.
+    const keyed = await server.app.inject({ method: "GET", url: BASE, headers: auth });
+    expect(keyed.json().views).toEqual([]);
   });
 
   it("rejects anonymous callers and the operator key (not a user)", async () => {
@@ -127,21 +160,21 @@ describe("GET /api/me/nodes/:nodeId/sections/:sectionKey/views", () => {
     const { token } = await setupUser();
     const badKey = await server.app.inject({
       method: "GET",
-      url: `/api/me/nodes/${PAGE}/sections/child-pages/views`,
+      url: `/api/nodes/${PAGE}/sections/child-pages/views`,
       headers: { authorization: `Bearer ${token}` },
     });
     expect(badKey.statusCode).toBe(422);
     expect(badKey.json().error.code).toBe("validation_failed");
     const badId = await server.app.inject({
       method: "GET",
-      url: "/api/me/nodes/not-a-uuid/sections/linked-references/views",
+      url: "/api/nodes/not-a-uuid/sections/linked-references/views",
       headers: { authorization: `Bearer ${token}` },
     });
     expect(badId.statusCode).toBe(422);
   });
 });
 
-describe("POST /api/me/nodes/:nodeId/sections/:sectionKey/views", () => {
+describe("POST /api/nodes/:nodeId/sections/:sectionKey/views", () => {
   it("creates a view (201), appended after existing tabs, and round-trips the AST verbatim", async () => {
     server = await makeTestServer();
     const { token } = await setupUser();
@@ -154,47 +187,50 @@ describe("POST /api/me/nodes/:nodeId/sections/:sectionKey/views", () => {
       payload: { name: "Pages only", queryAst: AST_WITH_CONDITION },
     });
     expect(first.statusCode).toBe(201);
-    expect(first.json().view).toMatchObject({ name: "Pages only", sequence: 0, viewMode: null });
+    expect(first.json().view).toMatchObject({ name: "Pages only", sequence: 0 });
     expect(first.json().view.queryAst).toEqual(AST_WITH_CONDITION);
 
     const second = await server.app.inject({
       method: "POST",
       url: BASE,
       headers: auth,
-      payload: { name: "Cards", queryAst: AST, viewMode: "cards" },
+      payload: { name: "Cards", queryAst: AST },
     });
     expect(second.statusCode).toBe(201);
     expect(second.json().view.sequence).toBe(1);
-    expect(second.json().view.viewMode).toBe("cards");
 
     const list = await server.app.inject({ method: "GET", url: BASE, headers: auth });
     expect(list.json().views.map((v: { name: string }) => v.name)).toEqual(["Pages only", "Cards"]);
   });
 
-  it("409s on a duplicate name within the same (user, node, section)", async () => {
+  it("409s on a duplicate name within the same (node, section) — even from another user", async () => {
     server = await makeTestServer();
-    const { token } = await setupUser();
-    const auth = { authorization: `Bearer ${token}` };
+    const admin = await setupUser();
+    const second = createSecondUser();
     const first = await server.app.inject({
-      method: "POST", url: BASE, headers: auth, payload: { name: "Dup", queryAst: AST },
+      method: "POST", url: BASE,
+      headers: { authorization: `Bearer ${admin.token}` },
+      payload: { name: "Dup", queryAst: AST },
     });
     expect(first.statusCode).toBe(201);
     const duplicate = await server.app.inject({
-      method: "POST", url: BASE, headers: auth, payload: { name: "Dup", queryAst: AST },
+      method: "POST", url: BASE,
+      headers: { authorization: `Bearer ${second.token}` },
+      payload: { name: "Dup", queryAst: AST },
     });
     expect(duplicate.statusCode).toBe(409);
     expect(duplicate.json().error.code).toBe("conflict");
     // The same name on ANOTHER section is fine (the unique key has section_key).
     const otherSection = await server.app.inject({
       method: "POST",
-      url: `/api/me/nodes/${PAGE}/sections/unlinked-mentions/views`,
-      headers: auth,
+      url: `/api/nodes/${PAGE}/sections/unlinked-mentions/views`,
+      headers: { authorization: `Bearer ${admin.token}` },
       payload: { name: "Dup", queryAst: AST },
     });
     expect(otherSection.statusCode).toBe(201);
   });
 
-  it("422s on an invalid AST, a blank/overlong name, an overlong viewMode, unknown keys", async () => {
+  it("422s on an invalid AST, a blank/overlong name, a viewMode pin (retired), unknown keys", async () => {
     server = await makeTestServer();
     const { token } = await setupUser();
     const auth = { authorization: `Bearer ${token}` };
@@ -224,13 +260,14 @@ describe("POST /api/me/nodes/:nodeId/sections/:sectionKey/views", () => {
     });
     expect(overlong.statusCode).toBe(422);
 
-    const longMode = await server.app.inject({
+    // view_mode is retired with the table — the key is rejected outright.
+    const modePin = await server.app.inject({
       method: "POST",
       url: BASE,
       headers: auth,
-      payload: { name: "Mode", queryAst: AST, viewMode: "x".repeat(33) },
+      payload: { name: "Mode", queryAst: AST, viewMode: "table" },
     });
-    expect(longMode.statusCode).toBe(422);
+    expect(modePin.statusCode).toBe(422);
 
     const unknownKey = await server.app.inject({
       method: "POST",
@@ -245,13 +282,13 @@ describe("POST /api/me/nodes/:nodeId/sections/:sectionKey/views", () => {
 describe("PATCH .../views/:viewId (rename)", () => {
   it("renames the view and 409s on collision, 404s on foreign rows", async () => {
     server = await makeTestServer();
-    const { token, userId } = await setupUser();
+    const { token } = await setupUser();
     const auth = { authorization: `Bearer ${token}` };
-    const a = server.ctx.auth.createSectionView({
-      userId, nodeId: PAGE, sectionKey: "linked-references", name: "A", queryAst: AST,
+    const a = server.ctx.auth.createNodeView({
+      nodeId: PAGE, sectionKey: "linked-references", name: "A", queryAst: AST,
     });
-    const b = server.ctx.auth.createSectionView({
-      userId, nodeId: PAGE, sectionKey: "linked-references", name: "B", queryAst: AST,
+    const b = server.ctx.auth.createNodeView({
+      nodeId: PAGE, sectionKey: "linked-references", name: "B", queryAst: AST,
     });
 
     const renamed = await server.app.inject({
@@ -280,24 +317,14 @@ describe("PATCH .../views/:viewId (rename)", () => {
     expect(missing.statusCode).toBe(404);
     expect(missing.json().error.code).toBe("not_found");
 
-    // The user's own row under ANOTHER section's path is still 404.
+    // The same row under ANOTHER section's path is still 404.
     const wrongSection = await server.app.inject({
       method: "PATCH",
-      url: `/api/me/nodes/${PAGE}/sections/unlinked-mentions/views/${b.id}`,
+      url: `/api/nodes/${PAGE}/sections/unlinked-mentions/views/${b.id}`,
       headers: auth,
       payload: { name: "X" },
     });
     expect(wrongSection.statusCode).toBe(404);
-
-    // Another user's row id is 404 (no leak).
-    const second = createSecondUser();
-    const foreign = await server.app.inject({
-      method: "PATCH",
-      url: `${BASE}/${a.id}`,
-      headers: { authorization: `Bearer ${second.token}` },
-      payload: { name: "Stolen" },
-    });
-    expect(foreign.statusCode).toBe(404);
   });
 });
 
@@ -376,7 +403,7 @@ describe("PUT .../views/order (reorder)", () => {
 });
 
 describe("DELETE .../views/:viewId", () => {
-  it("deletes (204), 404s twice, and emptying the section restores the empty list", async () => {
+  it("deletes (204), 404s twice, and emptying the surface restores the empty list", async () => {
     server = await makeTestServer();
     const { token } = await setupUser();
     const auth = { authorization: `Bearer ${token}` };
@@ -395,25 +422,13 @@ describe("DELETE .../views/:viewId", () => {
     const again = await server.app.inject({ method: "DELETE", url: `${BASE}/${id}`, headers: auth });
     expect(again.statusCode).toBe(404);
 
-    // Another user cannot see or delete anything here.
-    const second = createSecondUser();
-    const foreignList = await server.app.inject({
-      method: "GET",
-      url: BASE,
-      headers: { authorization: `Bearer ${second.token}` },
-    });
-    expect(foreignList.json().views).toEqual([]);
-    const foreignDelete = await server.app.inject({
-      method: "DELETE",
-      url: `${BASE}/${id}`,
-      headers: { authorization: `Bearer ${second.token}` },
-    });
-    expect(foreignDelete.statusCode).toBe(404);
+    const list = await server.app.inject({ method: "GET", url: BASE, headers: auth });
+    expect(list.json().views).toEqual([]);
   });
 });
 
-describe("per-user scoping", () => {
-  it("one account never sees another's views on the same node+section", async () => {
+describe("shared node scoping", () => {
+  it("every user sees the same tabs on a node, and all of them can add to them", async () => {
     server = await makeTestServer();
     const admin = await setupUser();
     const second = createSecondUser();
@@ -430,13 +445,6 @@ describe("per-user scoping", () => {
       headers: { authorization: `Bearer ${second.token}` },
       payload: { name: "Second view", queryAst: AST },
     });
-    // Same name from both users — fine, the unique key carries the user.
-    await server.app.inject({
-      method: "POST",
-      url: BASE,
-      headers: { authorization: `Bearer ${second.token}` },
-      payload: { name: "Admin view", queryAst: AST },
-    });
 
     const adminRead = await server.app.inject({
       method: "GET",
@@ -448,10 +456,13 @@ describe("per-user scoping", () => {
       url: BASE,
       headers: { authorization: `Bearer ${second.token}` },
     });
-    expect(adminRead.json().views.map((v: { name: string }) => v.name)).toEqual(["Admin view"]);
-    expect(secondRead.json().views.map((v: { name: string }) => v.name)).toEqual([
-      "Second view",
+    expect(adminRead.json().views.map((v: { name: string }) => v.name)).toEqual([
       "Admin view",
+      "Second view",
+    ]);
+    expect(secondRead.json().views.map((v: { name: string }) => v.name)).toEqual([
+      "Admin view",
+      "Second view",
     ]);
   });
 
@@ -472,5 +483,55 @@ describe("per-user scoping", () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.json().views).toEqual([]);
+  });
+});
+
+describe("legacy section_view migration", () => {
+  it("copies rows dropping user_id/view_mode, dedupes by (node, section, name), drops the old table", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notees-node-view-migration-"));
+    const dbPath = join(dir, "auth.db");
+    try {
+      const legacy = new Database(dbPath);
+      legacy.exec(`
+        CREATE TABLE section_view (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            node_id TEXT NOT NULL,
+            section_key TEXT NOT NULL,
+            name TEXT NOT NULL,
+            sequence INTEGER NOT NULL,
+            query_ast TEXT NOT NULL,
+            view_mode TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            UNIQUE (user_id, node_id, section_key, name)
+        );
+        INSERT INTO section_view (id, user_id, node_id, section_key, name, sequence, query_ast, view_mode, created_at, updated_at)
+            VALUES
+            ('0192b000-0000-7000-8000-000000000001', 'user-a', '${PAGE}', 'linked-references', 'Keep me', 0, '${JSON.stringify(AST).replaceAll("'", "''")}', 'table', 100, 100),
+            ('0192b000-0000-7000-8000-000000000002', 'user-b', '${PAGE}', 'linked-references', 'Keep me', 1, '${JSON.stringify(AST).replaceAll("'", "''")}', NULL, 200, 200),
+            ('0192b000-0000-7000-8000-000000000003', 'user-a', '${PAGE}', 'unlinked-mentions', 'Other', 0, '${JSON.stringify(AST).replaceAll("'", "''")}', NULL, 50, 50);
+      `);
+      legacy.close();
+
+      const migrated = new AuthStorage(dbPath);
+      const linked = migrated.listNodeViews(PAGE, "linked-references");
+      expect(linked.map((v) => v.name)).toEqual(["Keep me"]);
+      expect(linked[0]).toMatchObject({ nodeId: PAGE, sectionKey: "linked-references", sequence: 0, queryAst: AST });
+      expect(migrated.listNodeViews(PAGE, "unlinked-mentions").map((v) => v.name)).toEqual(["Other"]);
+      expect(
+        (migrated as unknown as { db: Database.Database }).db
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'section_view'")
+          .get(),
+      ).toBeUndefined();
+      migrated.close();
+
+      // Idempotent: a second boot over the migrated file is a no-op.
+      const reopened = new AuthStorage(dbPath);
+      expect(reopened.listNodeViews(PAGE, "linked-references").map((v) => v.name)).toEqual(["Keep me"]);
+      reopened.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
