@@ -307,6 +307,19 @@ pair; the stock sql.js FTS4 tokenizer has no `remove_diacritics` support), so `p
 matches "Perú"; the v19 migration drops and rebuilds pre-v19 indexes from the derived
 plaintext.
 
+**Freshness contract.** The index is maintained synchronously: every content,
+property, class, and delete applier rewrites its owner's FTS row inside the same
+transaction that applies the op (`packages/store/src/appliers.ts`), and the server's
+write path awaits that apply before acknowledging (the per-workspace
+ingest→apply pair in `apps/server/src/workspace-store.ts`). There is no pending
+queue, debounce, or batch anywhere on the path — an acknowledged write is
+immediately visible to `search`/`searchPage`, and a tombstone immediately drops
+its row (`removeSearchIndexEntry`) plus the routes' `is_active` filter. Read
+surfaces that ride this index (`GET /api/search`, `GET /api/objects?q=`) are
+therefore read-after-write consistent, exactly like `POST /api/query`'s live-table
+arms. `apps/server/test/search-freshness.test.ts` pins the contract through the
+HTTP write path — an asynchronous indexer introduced later turns it red.
+
 Restore is adapter-specific: better-sqlite3 has no deserialize, so restore writes a temp
 file and swaps the connection (temp dir removed on close); sql.js exports/imports whole
 database bytes in memory.
