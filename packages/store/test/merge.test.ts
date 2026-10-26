@@ -41,6 +41,16 @@ const TAG_NODE = "0192a000-0000-7000-8000-0000000000ba";
 const SCHEMA_TEXT = "0192a000-0000-7000-8000-0000000000d1";
 const SCHEMA_NOTES = "0192a000-0000-7000-8000-0000000000d2";
 const SCHEMA_REF = "0192a000-0000-7000-8000-0000000000d3";
+const SCHEMA_SINGLE_REF = "0192a000-0000-7000-8000-0000000000d4";
+
+// Embedding-guard repro shapes (owner workspace 2026-10-26 — Logseq-imported
+// person/org duplicates merged into their twins).
+const LIST_PAGE = "0192a000-0000-7000-8000-0000000000c1";
+const EMBEDDED_SOURCE = "0192a000-0000-7000-8000-0000000000c2";
+const EMBEDDED_TARGET = "0192a000-0000-7000-8000-0000000000c3";
+const EMBEDDED_CHILD = "0192a000-0000-7000-8000-0000000000c4";
+const STANDALONE_CHILD = "0192a000-0000-7000-8000-0000000000c5";
+const REFERRER_PAGE = "0192a000-0000-7000-8000-0000000000c6";
 
 let clock = 1_000;
 
@@ -321,6 +331,7 @@ for (const adapter of adapters) {
         aliasesRepointed: 1,
         collectionsRemapped: 1,
         fieldsCopied: 0,
+        standaloneChildrenRelocated: 0,
       });
     });
 
@@ -394,6 +405,164 @@ for (const adapter of adapters) {
       const store = Store.open(adapter.makeBackend());
       for (const e of fixtureEnvelopes()) store.apply(e);
       expect(() => planMerge(store.database, COLLECTION, TARGET)).toThrow(MergeGuardError);
+    });
+
+    it("relocates standalone children when the target is an embedded block", () => {
+      // The live-data shape (Logseq import): an EMBEDDED source block whose
+      // children include a STANDALONE page (an attached study/PDF), merged
+      // into a sibling EMBEDDED block. The Revision-12 write guard rejects a
+      // standalone child under a non-page parent, so the planner must
+      // relocate it under the nearest page-role ancestor of the target
+      // instead of moving it under the target.
+      const store = Store.open(adapter.makeBackend());
+      store.applyMany([
+        env("object.create", {
+          objectId: LIST_PAGE,
+          contentAst: [{ type: "text", text: "People" }],
+        }),
+        env("object.create", {
+          objectId: EMBEDDED_SOURCE,
+          parentId: LIST_PAGE,
+          isEmbedded: true,
+          contentAst: [{ type: "text", text: "Person A (dup)" }],
+        }),
+        env("object.create", {
+          objectId: EMBEDDED_TARGET,
+          parentId: LIST_PAGE,
+          isEmbedded: true,
+          contentAst: [{ type: "text", text: "Person A" }],
+        }),
+        env("object.create", {
+          objectId: EMBEDDED_CHILD,
+          parentId: EMBEDDED_SOURCE,
+          isEmbedded: true,
+          contentAst: [{ type: "text", text: "a note" }],
+        }),
+      ]);
+      // The standalone child predates the embedding guards (imported/legacy
+      // state no current op path can author) — seed it directly, like the
+      // snapshot importer does.
+      store.database
+        .prepare(
+          "INSERT INTO node (id, workspace_id, is_embedded, parent_id) VALUES (?, ?, 0, ?)",
+        )
+        .run(STANDALONE_CHILD, WS, EMBEDDED_SOURCE);
+      store.database
+        .prepare(
+          "INSERT INTO node_child_order (parent_id, child_id, position) VALUES (?, ?, ?)",
+        )
+        .run(EMBEDDED_SOURCE, STANDALONE_CHILD, 1);
+
+      const plan = planMerge(store.database, EMBEDDED_SOURCE, EMBEDDED_TARGET);
+      for (const op of plan.ops) store.apply(env(op.opType, op.payload));
+
+      // Embedded child moved under the target; the standalone page relocated
+      // under the target's nearest page-role ancestor (the list page), still
+      // with its standalone claim.
+      expect(store.getNode(EMBEDDED_CHILD)).toMatchObject({
+        parent_id: EMBEDDED_TARGET,
+        is_embedded: 1,
+      });
+      expect(store.getNode(STANDALONE_CHILD)).toMatchObject({
+        parent_id: LIST_PAGE,
+        is_embedded: 0,
+      });
+      expect(plan.summary.childrenMoved).toBe(2);
+      expect(plan.summary.standaloneChildrenRelocated).toBe(1);
+      // The source trashes last as always.
+      expect(store.getNode(EMBEDDED_SOURCE)?.is_active).toBe(0);
+    });
+
+    it("fails loud when no page-role ancestor can host a relocated child", () => {
+      // A class flagged parentlessRole "block" demotes its parentless members
+      // to the Block role — then nothing above the embedded target renders
+      // with document chrome and no legal host exists for a relocated
+      // standalone child.
+      const BLOCK_CLASS = "0192a000-0000-7000-8000-0000000000c7";
+      const store = Store.open(adapter.makeBackend());
+      store.applyMany([
+        env("object.create", {
+          objectId: LIST_PAGE,
+          contentAst: [{ type: "text", text: "People" }],
+        }),
+        env("object.create", {
+          objectId: EMBEDDED_TARGET,
+          parentId: LIST_PAGE,
+          isEmbedded: true,
+        }),
+        env("object.create", {
+          objectId: EMBEDDED_SOURCE,
+          parentId: LIST_PAGE,
+          isEmbedded: true,
+        }),
+        env("class.create", {
+          classId: BLOCK_CLASS,
+          contentAst: [{ type: "text", text: "Demoted" }],
+          parentlessRole: "block",
+        }),
+        env("object.create", { objectId: LIST_PAGE, classIds: [BLOCK_CLASS] }),
+      ]);
+      store.database
+        .prepare(
+          "INSERT INTO node (id, workspace_id, is_embedded, parent_id) VALUES (?, ?, 0, ?)",
+        )
+        .run(STANDALONE_CHILD, WS, EMBEDDED_SOURCE);
+      store.database
+        .prepare(
+          "INSERT INTO node_child_order (parent_id, child_id, position) VALUES (?, ?, ?)",
+        )
+        .run(EMBEDDED_SOURCE, STANDALONE_CHILD, 0);
+
+      expect(() => planMerge(store.database, EMBEDDED_SOURCE, EMBEDDED_TARGET)).toThrow(
+        MergeGuardError,
+      );
+    });
+
+    it("rewrites positional (non-element) property references with a legal payload", () => {
+      // A single-value node-typed property row is stored under the
+      // deterministic positional id `node:schema:idx`, NOT a uuid. Leg 6 of
+      // the plan must re-address it WITHOUT an elementId (the positional
+      // path) — emitting the composite row id as elementId fails the wire
+      // payload schema (`elementId: uuid`).
+      const store = Store.open(adapter.makeBackend());
+      for (const e of fixtureEnvelopes()) store.apply(e);
+      store.apply(
+        env("propertySchema.create", {
+          propertySchemaId: SCHEMA_SINGLE_REF,
+          name: "Single related",
+          type: "object",
+        }),
+      );
+      store.apply(
+        env("object.create", {
+          objectId: REFERRER_PAGE,
+          contentAst: [{ type: "text", text: "referrer" }],
+        }),
+      );
+      store.apply(
+        env("property.set", {
+          objectId: REFERRER_PAGE,
+          propertySchemaId: SCHEMA_SINGLE_REF,
+          value: { nodeId: SOURCE },
+          idx: 0,
+        }),
+      );
+
+      const plan = planMerge(store.database, SOURCE, TARGET);
+      const rewrite = plan.ops.find(
+        (o) => o.opType === "property.set" && o.payload.propertySchemaId === SCHEMA_SINGLE_REF,
+      );
+      expect(rewrite).toBeDefined();
+      // The positional row re-addresses its deterministic slot — no elementId.
+      expect(rewrite!.payload.elementId).toBeUndefined();
+      expect(rewrite!.payload.idx).toBe(0);
+
+      // The whole plan applies cleanly and the value retargets.
+      for (const op of plan.ops) store.apply(env(op.opType, op.payload));
+      const rows = store.getEffectiveProperties(REFERRER_PAGE);
+      const single = rows.find((p) => p.propertySchemaId === SCHEMA_SINGLE_REF);
+      expect(single?.value).toEqual({ nodeId: TARGET });
+      expect(plan.summary.propertyValuesRewritten).toBe(2);
     });
   });
 }

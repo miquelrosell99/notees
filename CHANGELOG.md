@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(store): merge plans apply clean on imported graphs — standalone
+  children of embedded sources relocate, positional property refs re-address
+  without a bogus elementId.** Both failure classes hit the owner's live
+  merge of Logseq-imported person/org duplicates into their twins (14/14
+  merges died mid-plan at op submit; dry-run passed because it never applies):
+  (1) `object.move: node … is standalone (is_embedded = 0); it can only move
+  under a parent that renders with document chrome` — the planner moved a
+  standalone child (attached PDFs/studies) of an embedded source block under
+  an embedded target block, which the Revision-12 parent-page write-guard
+  rejects. The planner now relocates such children under the TARGET's nearest
+  page-role ancestor (same render rule the appliers enforce — `isPageRow` is
+  exported from appliers for the planner), failing loud only when no
+  page-role ancestor exists; the plan summary gains the
+  `standaloneChildrenRelocated` counter. (2) `invalid property.set payload:
+  [uuid validation]` — leg 6 re-emitted a positional row's deterministic
+  `node:schema:idx` row id as `elementId`, which the wire schema requires to
+  be a uuid. Positional rows now re-address their slot WITHOUT `elementId`
+  (the applier's positional path derives the same row); writer-minted PG5
+  element rows keep riding `elementId`. SCHEMA.md "Node merge" legs 1 + 6 +
+  the guards paragraph updated. TDD: merge.test.ts gains the embedded-source
+  repro (legacy shape seeded directly, as the importer would), the
+  no-page-role-ancestor guard, and the single-value positional-ref repro —
+  all RED with the exact live errors first. Verified: package suite green.
+
 - **fix(export): the Logseq DB model skips logseq system SUBTREES, not just
   system roots.** Logseq's built-in help content lives in blocks parented
   under `:logseq.class/*`/`:logseq.property/*` system pages; the root-only
