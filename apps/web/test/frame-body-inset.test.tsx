@@ -132,7 +132,9 @@ describe("the frame owns the outer body inset (CSS registers)", () => {
     const css = readCss("ui/app.css");
     const blocks = ruleBlocks(css, ".surface-topbar.nt-node-topbar");
     expect(blocks.length).toBe(1);
-    expect(declaration(blocks[0]!, "padding")).toBe("0 var(--spacing-4)");
+    expect(declaration(blocks[0]!, "padding")).toBe(
+      "var(--spacing-2) var(--spacing-4) var(--spacing-3)",
+    );
   });
 
   it("the calendar root drops its duplicated copy; its bar carries the inset instead", () => {

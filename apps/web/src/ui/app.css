@@ -540,42 +540,43 @@ select:focus-visible {
   margin-top: auto;
 }
 
+/* The second column's scroll box: the cell wrapper is
+   the SCROLLER now, full middle-cell width — the scrollbar rides the
+   cell's right edge, directly beside the right side pane, instead of the
+   capped column's edge mid-gap (the owner's request). The journal-measure
+   cap moved one level down onto .nt-nodeview-body. Horizontal overflow
+   clips, never scrolls: the kit icon buttons carry an
+   invisible 48×48 hit-area overlay (::after) that inflates every
+   ancestor's scrollWidth by a few px — the column must not turn that into
+   a horizontal scrollbar (wide tables scroll inside .nt-table-wrap). */
 .nt-page--panelled .nt-page-content {
   align-self: stretch;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /* The second column is the nodeview's alone now:
-     the footer moved into the context column's bottom — the cell is a
-     single auto-height scroll between the full-width top bar above and
+  /* The footer moved into the context column's bottom —
+     the cell is a single scroll between the full-width top bar above and
      the card bottom below. */
-  /* The journal measure: the content column caps at
-     the compact layout's 46rem and CENTERS inside whatever space the
-     panels leave — with both panels closed it holds the Journal view
-     width instead of stretching side to side; with a panel open the slack
-     splits evenly, so toggling a panel never re-measures the text. The
-     focus-mode cap generalized (the 2026-10-15 ruling already read
-     full-bleed worse than the centered column). The spacing-6 lateral
-     padding rides inside the cap, matching the compact column's text
-     measure exactly. */
-  flex: 0 1 auto;
+  flex: 1;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: clip;
+}
+
+/* The nodeview cell: the journal-measure CAP (46rem,
+   centered inside whatever space the panels leave, spacing-6 lateral
+   padding matching the compact column's text measure) now rides on the
+   cell's content column instead of the scroll box: the text measure is
+   unchanged (toggling a panel never re-measures it), only the scrollbar's
+   home moved to the full-width scroll box above. flex 0 0 auto: the
+   column must not shrink below its content — shrinking would let the
+   scroll box fit without scrolling and clip instead. */
+.nt-nodeview-body {
+  flex: 0 0 auto;
   width: 100%;
   max-width: 46rem;
   margin-inline: auto;
   padding-inline: var(--spacing-6);
-}
-
-/* The nodeview cell: auto height between the top bar and the card bottom;
-   scrolls when the content outgrows it. Horizontal overflow clips, never
-   scrolls: the kit icon buttons carry an invisible
-   48×48 hit-area overlay (::after) that inflates every ancestor's
-   scrollWidth by a few px — the column must not turn that into a
-   horizontal scrollbar (wide tables scroll inside .nt-table-wrap). */
-.nt-nodeview-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: clip;
 }
 
 /* The footer inside the context column: the card-bottom
@@ -644,14 +645,16 @@ select:focus-visible {
 }
 
 .surface-topbar.nt-node-topbar {
-  /* The bar's horizontal inset rides THIS register since
-     (review round 3): the panelled page's horizontal padding retired (the
-     frame's body row owns the outer side inset universally), so the bar
-     carries its own — the same var(--spacing-4) measure, pixel-identical
-     to the retired host padding. Vertical stays zero: the page root's
-     padding-top carries the top gap. The primitive's base padding and its
-     small-width variant both still lose to this two-class rule. */
-  padding: 0 var(--spacing-4);
+  /* The bar's insets ride THIS register since the panelled page's horizontal
+     padding retired (the frame's body row owns the outer side inset
+     universally), so the bar carries its own — var(--spacing-4), pixel-
+     identical to the retired host padding. The verticals ride the
+     primitive's rhythm too (the frame refactor shrank
+     the page root's top gap to spacing-2 — too tight — and the zero bottom
+     let the chrome touch the hairline): spacing-2 top / spacing-3 bottom,
+     same as the hub bars. The primitive's base padding and its small-width
+     variant both still lose to this two-class rule. */
+  padding: var(--spacing-2) var(--spacing-4) var(--spacing-3);
 }
 
 .nt-node-topbar__classes {
