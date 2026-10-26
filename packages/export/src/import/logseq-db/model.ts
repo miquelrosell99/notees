@@ -52,7 +52,7 @@ export interface LogseqDbSkipped {
   views: number;
   system: number;
   assets: number;
-  /** Select-option backing entities (`:logseq.property/closed-value-property`) — counted, never imported as pages. */
+  /** Select-option backing entities (`:block/closed-value-property`) — counted, never imported as pages. */
   closedValues: number;
 }
 
@@ -145,14 +145,14 @@ export function buildLogseqDbModel(entities: Map<number, LqEntity>): LogseqDbMod
   }
 
   // --- closed values -------------------------------------------------------
-  // Select-option backing entities (`:logseq.property/closed-value-property`)
+  // Select-option backing entities (`:block/closed-value-property`)
   // are vocabulary, not content: counted for the report, never imported as
   // pages. Property-value resolution still reads their titles from the
   // entities map below (resolvePropValue → titleOf), independent of the
   // node classification.
   const closedValueEids = new Set<number>();
   for (const [eid, o] of entities) {
-    if (":logseq.property/closed-value-property" in o) {
+    if (":block/closed-value-property" in o) {
       closedValueEids.add(eid);
       model.skipped.closedValues += 1;
     }
@@ -221,7 +221,15 @@ export function buildLogseqDbModel(entities: Map<number, LqEntity>): LogseqDbMod
       continue;
     }
     const ident = asString(o[":db/ident"]);
-    if (ident && (ident.startsWith(USER_PROP_PREFIX) || ident.startsWith(USER_CLASS_PREFIX))) {
+    if (
+      ident &&
+      (ident.startsWith(USER_PROP_PREFIX) ||
+        ident.startsWith(USER_CLASS_PREFIX) ||
+        ident.startsWith(LOGSEQ_CLASS_PREFIX) ||
+        ident.startsWith(LOGSEQ_PROP_PREFIX))
+    ) {
+      // definitions and logseq system entities are never importable nodes
+      // (system ones were counted in skipped.system above)
       continue;
     }
 

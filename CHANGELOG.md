@@ -9,6 +9,17 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(export): the Logseq DB model skip-classification — system entities
+  with uuids, and the real closed-value attr.** Two classification fixes from
+  the drift-rehearsal of the owner's Notas export: Logseq's built-in classes
+  carry uuids (`00000002-…`), so the `:logseq.class/*` skip never fired and
+  ~150 built-ins were importable as pages; and select closed values carry
+  `:block/closed-value-property` (not the `:logseq.property/` namespaced
+  form), so the closed-value skip matched nothing — 34 enum values on the
+  real export. Both now classified skipped (counted, never written).
+  Verified: fixture gains a uuid-bearing `:logseq.class/Root`; package suite
+  green (301).
+
 - **feat(web): the query results gain a transient PIVOT view mode.** The model
   ruling: the query selects the row set; every way of looking at it (list,
   table, pivot) is a transient mode, and since group-bys are never stored,
