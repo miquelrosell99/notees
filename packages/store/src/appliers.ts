@@ -188,7 +188,7 @@ function requireNode(db: StoreDatabase, nodeId: string, opType: string) {
 }
 
 /** The render facts isPageRow needs off a node row. */
-type RenderRow = {
+export type RenderRow = {
   is_class: unknown;
   parent_id: unknown;
   is_embedded: unknown;
@@ -225,7 +225,7 @@ function rowIsParentlessBlock(db: StoreDatabase, row: RenderRow): boolean {
  *  AND its parent renders with document chrome. Walks the parent chain —
  *  cycles are impossible (subtree moves are guarded); a missing parent row
  *  is a defensive "not a page". */
-function isPageRow(db: StoreDatabase, row: RenderRow): boolean {
+export function isPageRow(db: StoreDatabase, row: RenderRow): boolean {
   if (row.is_class === 1) return false;
   if (row.parent_id === null || row.parent_id === undefined) return !rowIsParentlessBlock(db, row);
   if (row.is_embedded !== 0) return false;

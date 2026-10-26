@@ -10,7 +10,15 @@
  *
  * Semantics (the v1 mergePages port, extended to the v2 model):
  *  1. children — the source's ACTIVE children move to the target, relative
- *     order preserved (sequential object.move with afterId chaining).
+ *     order preserved (sequential object.move with afterId chaining). A
+ *     STANDALONE child (is_embedded = 0) can only live under a parent that
+ *     renders with document chrome (the Revision-12 parent-page condition),
+ *     so when the target is an embedded block, standalone children relocate
+ *     under the target's NEAREST page-role ancestor instead (imported/legacy
+ *     graphs may hold standalone pages — attached studies, PDFs — under
+ *     embedded sources; no current op path can author that shape, but the
+ *     planner must merge it). The plan fails loud when no page-role ancestor
+ *     exists at all.
  *  2. class/tag bindings — re-issued object.create add carriers for the
  *     target + class.unassign/tag.unassign on the source (OR-Set remap).
  *  3. properties — authored values copy source → target: single-value slots
@@ -24,7 +32,9 @@
  *  6. property references — node-typed property values (object/asset refs,
  *     datetime anchors, date-qualified metadata) on any active node that
  *     point at the source rewrite to the target (property.set re-addressing
- *     the same element id — LWW overwrite, convergent).
+ *     the same row — uuid element ids ride elementId, positional rows
+ *     re-address their deterministic slot without one — LWW overwrite,
+ *     convergent).
  *  7. collections — memberships of the source remap to the target.
  *  8. wire fields — cover/banner/description copy only when the target has
  *     none.
@@ -43,6 +53,7 @@ import { uuidv7 } from "uuidv7";
 
 import type { OpType } from "@notees/protocol";
 
+import { isPageRow } from "./appliers.js";
 import { parseContentAst } from "./content.js";
 import { visiblePropertyValueRows, type VisiblePropertyValueRow } from "./property-values.js";
 import type { StoreDatabase } from "./types.js";
@@ -64,6 +75,12 @@ export interface MergePlanSummary {
   contentLinksRewritten: number;
   /** property.set rewrites of node-typed values referencing the source. */
   propertyValuesRewritten: number;
+  /**
+   * Standalone children relocated under the target's nearest page-role
+   * ancestor (the target was an embedded block — the Revision-12
+   * parent-page condition forbids a standalone child under it).
+   */
+  standaloneChildrenRelocated: number;
   /** Alias nodes repointed from the source to the target. */
   aliasesRepointed: number;
   /** Collection memberships remapped source → target. */
@@ -92,6 +109,7 @@ interface NodeLite {
   workspace_id: string;
   is_class: number;
   parent_id: string | null;
+  is_embedded: number;
   class_ids: string;
   tag_ids: string;
   cover_asset_id: string | null;
@@ -107,6 +125,11 @@ function mustGet(db: StoreDatabase, id: string, role: "source" | "target"): Node
   if (row.is_class === 1) throw new MergeGuardError(`merge ${role} node ${id} is a class`);
   return row;
 }
+
+/** UUID shape — distinguishes a writer-minted PG5 element id (stored AS the
+ * property_value row id) from the deterministic positional row id
+ * (`node:schema:idx`, appliers.ts positionalPropertyValueId). */
+const UUID_V7_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** JSON with recursively sorted keys — value-equality for dedup decisions. */
 function canonicalJson(value: unknown): string {
@@ -195,6 +218,28 @@ function isInSubtree(db: StoreDatabase, ancestorId: string, nodeId: string): boo
   return false;
 }
 
+/**
+ * The nearest ancestor of `startId` (inclusive) that renders with document
+ * chrome — the only legal host for a standalone child. Null when the chain
+ * tops out at a class or a block-role parentless node.
+ */
+function nearestPageRoleAncestorId(db: StoreDatabase, startId: string | null): string | null {
+  let cur = startId;
+  let guard = 0;
+  while (cur !== null && guard < 10_000) {
+    const row = db
+      .prepare("SELECT id, is_class, parent_id, is_embedded, class_ids FROM node WHERE id = ?")
+      .get(cur) as
+      | { id: string; is_class: number; parent_id: string | null; is_embedded: number; class_ids: string }
+      | undefined;
+    if (!row) return null;
+    if (isPageRow(db, row)) return row.id;
+    cur = row.parent_id;
+    guard += 1;
+  }
+  return null;
+}
+
 interface SchemaLite {
   id: string;
   multi: number;
@@ -241,23 +286,44 @@ export function planMerge(db: StoreDatabase, sourceId: string, targetId: string)
     aliasesRepointed: 0,
     collectionsRemapped: 0,
     fieldsCopied: 0,
+    standaloneChildrenRelocated: 0,
   };
 
-  // 1. children — active children move, relative order preserved.
+  // 1. children — active children move, relative order preserved. A
+  //    standalone child (is_embedded = 0) can only move under a parent that
+  //    renders with document chrome (the Revision-12 parent-page condition);
+  //    when the target is an embedded block, standalone children relocate
+  //    under the target's nearest page-role ancestor (see the module doc).
   const childRows = db
     .prepare(
-      `SELECT n.id AS id, n.is_active AS is_active
+      `SELECT n.id AS id, n.is_active AS is_active, n.is_embedded AS is_embedded
        FROM node n JOIN node_child_order o ON o.child_id = n.id
        WHERE o.parent_id = ? ORDER BY o.position`,
     )
-    .all(sourceId) as { id: string; is_active: number }[];
-  const activeChildren = childRows.filter((r) => r.is_active === 1).map((r) => r.id);
-  let prevChild: string | undefined;
-  for (const childId of activeChildren) {
-    const payload: Record<string, unknown> = { objectId: childId, parentId: targetId };
-    if (prevChild !== undefined) payload.afterId = prevChild;
+    .all(sourceId) as { id: string; is_active: number; is_embedded: number }[];
+  const activeChildren = childRows.filter((r) => r.is_active === 1);
+  const targetIsPage = isPageRow(db, target);
+  const relocationParentId = targetIsPage
+    ? null
+    : nearestPageRoleAncestorId(db, target.parent_id);
+  const prevByParent = new Map<string, string>();
+  for (const child of activeChildren) {
+    let parentId = targetId;
+    if (!targetIsPage && child.is_embedded === 0) {
+      if (relocationParentId === null) {
+        throw new MergeGuardError(
+          `merge target ${targetId} renders as a block and no page-role ancestor exists ` +
+            `to host its standalone child ${child.id}`,
+        );
+      }
+      parentId = relocationParentId;
+      summary.standaloneChildrenRelocated += 1;
+    }
+    const payload: Record<string, unknown> = { objectId: child.id, parentId };
+    const prev = prevByParent.get(parentId);
+    if (prev !== undefined) payload.afterId = prev;
     ops.push({ opType: "object.move", payload });
-    prevChild = childId;
+    prevByParent.set(parentId, child.id);
   }
   summary.childrenMoved = activeChildren.length;
 
@@ -378,8 +444,15 @@ export function planMerge(db: StoreDatabase, sourceId: string, targetId: string)
         ? rewriteNodeRefs(parsedValue, sourceId, targetId)
         : parsedValue,
       idx: row.idx,
-      elementId: row.id,
     };
+    // Re-address the row by its own identity: a writer-minted PG5 element add
+    // stores the uuid element id AS the row id (re-emitted here as elementId,
+    // the OR-Set overwrite path). A positional row's id is the deterministic
+    // `node:schema:idx` composite — NOT a wire uuid — so it re-addresses its
+    // slot via the positional path (no elementId; the applier derives the
+    // same row id from node + schema + idx). Emitting the composite as
+    // elementId fails the payload schema (`elementId: uuid`).
+    if (UUID_V7_RE.test(row.id)) payload.elementId = row.id;
     if (metadataChanged) payload.metadata = rewriteNodeRefs(parsedMetadata, sourceId, targetId);
     else if (row.metadata !== null) payload.metadata = parsedMetadata;
     ops.push({ opType: "property.set", payload });
