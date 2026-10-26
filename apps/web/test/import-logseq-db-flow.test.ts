@@ -140,7 +140,7 @@ function fixtureRows(): KvsRow[] {
     pageRow(1010, [
       [CLOSED_MUJER, KW("block/title"), "Mujer", 1],
       [CLOSED_MUJER, KW("block/uuid"), UU("30303030-0000-4000-8000-000000000030"), 1],
-      [CLOSED_MUJER, KW("logseq.property/closed-value-property"), PROP_SEXO, 1],
+      [CLOSED_MUJER, KW("block/closed-value-property"), PROP_SEXO, 1],
     ]),
     pageRow(1011, [
       [AUTHOR, KW("block/uuid"), UU("40404040-0000-4000-8000-000000000040"), 1],
