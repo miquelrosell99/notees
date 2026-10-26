@@ -182,6 +182,12 @@ describe("buildLogseqDbModel", () => {
         [BLOCK, kw("user.property/ultima-cccc"), JOURNAL, 1],
         [BLOCK, kw("user.property/sexo-dddd"), 60, 1],
       ],
+      // a built-in doc block under a logseq system page — skipped by ancestry
+      [
+        [72, kw("block/title"), "Provides parent-child relationships between nodes.", 1],
+        [72, kw("block/uuid"), uu("00000004-6576-4394-8400-000000000072"), 1],
+        [72, kw("block/parent"), CLASS_QUOTE, 1],
+      ],
       // a $$$views subtree — skipped
       [
         [70, kw("block/title"), "$$$views", 1],
@@ -268,7 +274,7 @@ describe("buildLogseqDbModel", () => {
   it("classifies views, system, asset and closed-value entities as skipped", () => {
     const model = buildLogseqDbModel(decodeKvs(fixtureRows()));
     expect(model.skipped.views).toBe(2);
-    expect(model.skipped.system).toBe(1);
+    expect(model.skipped.system).toBe(2); // the system class + its doc-block child
     expect(model.skipped.assets).toBe(1);
     expect(model.skipped.closedValues).toBe(1);
     expect(model.nodes.some((n) => n.uuid.endsWith("00070") || n.uuid.endsWith("00071"))).toBe(false);
@@ -280,6 +286,9 @@ describe("buildLogseqDbModel", () => {
     // uuid-bearing logseq system entities (the real built-in classes) are NOT
     // importable nodes either
     expect(model.nodes.some((n) => n.uuid === "00000002-2737-8382-7000-000000000000")).toBe(false);
+    // …and neither are their built-in doc-block children (ancestry skip)
+    expect(model.nodes.some((n) => n.uuid.endsWith("00072"))).toBe(false);
+    expect(model.skipped.system).toBe(2);
   });
 
   it("normalizes a checkbox string 'true'/'false' to boolean", () => {
