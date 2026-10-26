@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(store): parenting a parentless main node keeps it a page — the move
+  acquires the standalone claim (treat-as-main).** Root
+  cause: `object.move` never wrote `is_embedded`, and a node left parentless
+  with the bit still `1` — an extracted-to-page block, a block un-parented via
+  the breadcrumbs **Remove parent** — renders with document chrome by the
+  parentless cascade branch until something parents it, where the untouched
+  bit demoted it to an embedded block (it silently stopped being a page; the
+  breadcrumbs **Add parent** gesture was the reported repro). `applyObjectMove`
+  now acquires the standalone claim on the FIRST parenting of a parentless
+  non-class node (`is_embedded = 0`, content stringified in the same op — the
+  same lossy main-role boundary as the `object.update` promotion), so the node
+  stays a page. The acquisition answers to the parent-page condition like any
+  standalone claim (a class or embedded-block parent fails loud,
+  `MoveGuardError`), and parentless members of an effectively
+  `parentlessRole "block"` class keep the bit (block-role citizens by the
+  2026-10-24 contract). SCHEMA.md: the `is_embedded` bullet and the
+  parent-page condition bullet carry the new rule; the extraction section
+  notes the later-parenting consequence. GTK/Flutter applier alignment: the
+  wire and every fixture are untouched (the rule is an applier semantic, not
+  a wire change — no sha256 churn), but the sibling ports' `object.move`
+  appliers need the same treat-as-main rule to converge on logs mixing
+  web-issued first parentings; recorded here per the lockstep discipline, the
+  client check ran. Undo note: the undo journal inverts a move as a move, so
+  undoing an Add-parent leaves the node parentless with the claim — rendered
+  state (page chrome) is identical either way. Verified: four new store tests
+  (claim acquisition + stringify, fail-loud under class/block parent,
+  block-role class member exemption); `pnpm typecheck` + `pnpm test` green.
+
 - **fix(web): tighten the surface top bar's vertical padding.** The owner flagged the surface top bar — the nodeview's at least —
   for too much top and bottom padding (the class chip floating in a tall
   bar). The stacking was real: the panelled page root's `spacing-2` top

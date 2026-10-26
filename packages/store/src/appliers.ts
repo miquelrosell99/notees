@@ -1299,9 +1299,21 @@ function applyObjectRestore(db: StoreDatabase, env: Envelope): ChangeSummary {
  * node may only move under its deterministic chain parent (SCHEMA.md
  * "Datetime" — the parenting lock), and a STANDALONE (is_embedded = 0) node
  * may only move under a parent that renders with document chrome (the
- * parent-page condition). Moves never write
- * the embedding flag: a parentless non-class node renders with document
- * chrome by the second cascade branch regardless of is_embedded.
+ * parent-page condition).
+ *
+ * Treat-as-main on first parenting: a parentless non-class
+ * node renders with document chrome by the second cascade branch REGARDLESS
+ * of is_embedded, so a node left parentless with the bit still 1 — an
+ * extracted-to-page block, a block whose parent was removed — reads as a
+ * page until something parents it, and the untouched bit would then demote
+ * it to an embedded block. The first parenting therefore ACQUIRES the
+ * standalone claim (is_embedded = 0): the node stays a page. The acquisition
+ * answers to the same parent-page condition as any standalone claim (a page
+ * cannot be parented under a class or an embedded block — fail loud) and
+ * stringifies content in the same op, mirroring the object.update promotion
+ * (the lossy main-role boundary). Parentless members of a parentlessRole
+ * "block" class are block-role citizens by the 2026-10-24 contract — the
+ * claim stays inert for them, so they keep the bit and stay blocks.
  */
 function applyObjectMove(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "object.move";
@@ -1343,6 +1355,24 @@ function applyObjectMove(db: StoreDatabase, env: Envelope): ChangeSummary {
       opType,
     );
   }
+  // Treat-as-main on first parenting: a parentless node
+  // with the bit still 1 renders as a page by the second cascade branch; the
+  // first parenting acquires the standalone claim so it stays one (see the
+  // doc comment above). Block-role parentless-class members are excluded —
+  // they keep the bit and stay blocks.
+  const claimsMain =
+    (row.parent_id === null || row.parent_id === undefined) &&
+    p.parentId !== null &&
+    (row as { is_class?: number }).is_class !== 1 &&
+    (row as { is_embedded?: number }).is_embedded === 1 &&
+    !rowIsParentlessBlock(db, row as unknown as RenderRow);
+  if (claimsMain && !isPageRow(db, getNodeRow(db, p.parentId as string) as unknown as RenderRow)) {
+    throw new MoveGuardError(
+      `${opType}: node ${p.objectId} renders as a main page while parentless; parenting it requires a parent that renders with document chrome ` +
+        `(parent ${p.parentId} is a class or an embedded block)`,
+      opType,
+    );
+  }
   // Date-chain parenting lock (SCHEMA.md "Datetime"): a date node may ONLY
   // live under its deterministic chain parent (year → root, month → year,
   // day → month). The chain self-heal re-issues exactly this move, so the
@@ -1359,12 +1389,25 @@ function applyObjectMove(db: StoreDatabase, env: Envelope): ChangeSummary {
     return summary(opType, [p.objectId], true);
   }
 
+  const sets: string[] = ["parent_id = ?"];
+  const values: unknown[] = [p.parentId];
+  if (claimsMain) {
+    // The acquired standalone claim: 1 -> 0 plus the content stringify (the
+    // same lossy main-role boundary as the object.update promotion).
+    sets.push("is_embedded = 0");
+    sets.push("content = ?");
+    values.push(
+      JSON.stringify(
+        stringifyContentAst(JSON.parse(row.content as string) as never, undefined, mentionNameResolverIn(db)),
+      ),
+    );
+  }
   db.prepare(
-    `UPDATE node SET parent_id = ?, updated_at = ?, updated_by = ?,
+    `UPDATE node SET ${sets.join(", ")}, updated_at = ?, updated_by = ?,
        hlc_physical = ?, hlc_logical = ?, actor_id = ?
      WHERE id = ?`,
   ).run(
-    p.parentId,
+    ...values,
     env.timestamp,
     env.actorId,
     env.hlc.physical,
