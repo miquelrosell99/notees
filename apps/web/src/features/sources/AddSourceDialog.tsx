@@ -27,7 +27,7 @@
  * in ONE undo batch), and the auto-citekey all live in the one place.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
@@ -109,6 +109,8 @@ export function AddSourceDialog({
   const [error, setError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState<PrefilledState | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  /** The "PDF file" section label's id — the drop zone's aria-labelledby. */
+  const pdfLabelId = useId();
 
   // Reset each open; the picker's paste carries its query in.
   useEffect(() => {
@@ -214,10 +216,11 @@ export function AddSourceDialog({
           />
         </div>
         <div className="add-source-dialog__field">
-          <span className="add-source-dialog__section-label">PDF file</span>
+          <span id={pdfLabelId} className="add-source-dialog__section-label">PDF file</span>
           <FileDropZone
             file={file}
             accept="application/pdf,.pdf"
+            labelledBy={pdfLabelId}
             onSelect={(picked) => {
               setFile(picked);
               setError(null);

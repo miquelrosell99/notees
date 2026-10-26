@@ -118,11 +118,12 @@ function stubFetch(routes: (url: string, init?: RequestInit) => Response | undef
 
 /**
  * Pick a PDF through the dialog's FileDropZone: the visible surface is the
- * drop-zone button (the bare native "Browse…" input retired), the change
+ * drop-zone button (named "PDF file" by the dialog's section label through
+ * aria-labelledby; the bare native "Browse…" input retired), the change
  * event fires on the zone's hidden input — the asset-upload-modal register.
  */
 function pickPdf(dialog: HTMLElement, file: File): void {
-  const zone = within(dialog).getByRole("button", { name: /drop a pdf/i });
+  const zone = within(dialog).getByRole("button", { name: "PDF file" });
   const input = zone.parentElement?.querySelector<HTMLInputElement>('input[type="file"]');
   expect(input).not.toBeNull();
   fireEvent.change(input!, { target: { files: [file] } });
@@ -186,8 +187,10 @@ describe("AddSourceDialog", () => {
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
 
     // The drop-zone register replaces the bare "Examinar"-style file input:
-    // the visible surface is the zone button, the input is its hidden child.
-    const zone = within(dialog).getByRole("button", { name: /drop a pdf/i });
+    // the visible surface is the zone button (named by the dialog's section
+    // label through aria-labelledby), the input is its hidden child.
+    const zone = within(dialog).getByRole("button", { name: "PDF file" });
+    expect(zone).toHaveAccessibleName("PDF file");
     const input = zone.parentElement?.querySelector<HTMLInputElement>('input[type="file"]');
     expect(input).not.toBeNull();
     expect(input!.accept).toBe("application/pdf,.pdf");
