@@ -17,14 +17,16 @@ import type { ClientNode, ClientPropertySchema } from "@/core/workspace-client/i
 import type { AnyClient } from "./shared.js";
 
 /**
- * The class closure of a node: its own class ids plus every transitive
- * extends-ancestor (BFS over client.getClassParents, cycle-guarded).
- * Unknown class ids pass through unchanged (a dangling scope entry still
- * matches a node that carries the id directly).
+ * The transitive extends-closure of an arbitrary seed class-id set (BFS over
+ * client.getClassParents, cycle-guarded). Unknown class ids pass through
+ * unchanged (a dangling scope entry still matches a node that carries the
+ * id directly). Seeded from node.classIds it is the node's class closure;
+ * seeded from a single class id it is the class-context closure — both
+ * eligibility walks below and the scope-remedy derivation share it.
  */
-export function classClosureOf(client: AnyClient, node: ClientNode): Set<string> {
-  const closure = new Set<string>(node.classIds);
-  const queue = [...node.classIds];
+export function classClosureFrom(client: AnyClient, classIds: readonly string[]): Set<string> {
+  const closure = new Set<string>(classIds);
+  const queue = [...classIds];
   while (queue.length > 0) {
     const current = queue.shift()!;
     for (const parent of client.getClassParents(current)) {
@@ -35,6 +37,14 @@ export function classClosureOf(client: AnyClient, node: ClientNode): Set<string>
     }
   }
   return closure;
+}
+
+/**
+ * The class closure of a node: its own class ids plus every transitive
+ * extends-ancestor.
+ */
+export function classClosureOf(client: AnyClient, node: ClientNode): Set<string> {
+  return classClosureFrom(client, node.classIds);
 }
 
 /**
@@ -77,17 +87,7 @@ export function isSchemaEligibleForClass(
   classId: string,
 ): boolean {
   if (schema.scopeClassIds === null) return true;
-  const closure = new Set<string>([classId]);
-  const queue = [classId];
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    for (const parent of client.getClassParents(current)) {
-      if (!closure.has(parent)) {
-        closure.add(parent);
-        queue.push(parent);
-      }
-    }
-  }
+  const closure = classClosureFrom(client, [classId]);
   return schema.scopeClassIds.some((id) => closure.has(id));
 }
 

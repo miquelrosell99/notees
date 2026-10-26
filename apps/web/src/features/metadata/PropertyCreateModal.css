@@ -106,3 +106,14 @@
 .nt-property-ineligible .nt-property-chips {
   opacity: 0.55;
 }
+
+/* The guided scope remedy (Tier 3): the "Let <class> extend <scope class>?"
+   offer rides its own line beneath the dimmed row — the flex row wraps
+   only when the remedy is present (the class marks the li). */
+.node-metadata-row.nt-property-remedy {
+  flex-wrap: wrap;
+}
+
+.node-metadata-row.nt-property-remedy > .nt-scope-remedy {
+  flex-basis: 100%;
+}
