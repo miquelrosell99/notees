@@ -561,19 +561,26 @@ describe("SourcesHub —", () => {
     await waitFor(() => expect(topbar.querySelector(".badge")?.textContent).toBe("2"));
   });
 
-  it("the panel toggles lead the bar, left of the title (the general hub convention)", async () => {
+  it("the panel toggles split the bar by panel side", async () => {
     const { client } = await seedClient();
     renderHub(client);
     await rowsReady();
 
     const topbar = document.querySelector(".surface-topbar") as HTMLElement;
     const heading = within(topbar).getByRole("heading", { name: "Sources" });
-    for (const name of ["Hide facets panel", "Hide details panel"] as const) {
-      const toggle = within(topbar).getByRole("button", { name });
-      expect(
-        toggle.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy();
-    }
+    // The LEFT-panel (facets) toggle leads, left of the title…
+    const facetsToggle = within(topbar).getByRole("button", { name: "Hide facets panel" });
+    expect(
+      facetsToggle.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // …the RIGHT-panel (detail) toggle rides the bar's FAR RIGHT END — the
+    // trailing cluster after the actions, last in the bar.
+    const detailToggle = within(topbar).getByRole("button", { name: "Hide details panel" });
+    expect(
+      heading.compareDocumentPosition(detailToggle) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(topbar.lastElementChild?.classList.contains("surface-topbar__trailing")).toBe(true);
+    expect(topbar.lastElementChild?.contains(detailToggle)).toBe(true);
   });
 
   it("the detail panel shows iff the toggle is on AND a selection exists", async () => {

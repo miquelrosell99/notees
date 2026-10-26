@@ -57,9 +57,11 @@ type AnyClient = WorkspaceClient | WorkerClient;
  * primitive (the register the 2026-10-22 hub commit
  * generalized FROM this bar; composing it closes the loop): the bottom
  * hairline rides the primitive's border-bottom, and the app.css
- * `.surface-topbar.nt-node-topbar` override zeroes the primitive's own
- * padding — the panelled page's padding carries the bar's inset. Full-width
- * so the bar never rescales when a panel column shows or hides. Focus mode
+ * `.surface-topbar.nt-node-topbar` override zeroes the primitive's
+ * vertical padding while carrying the bar's horizontal inset itself
+ * (the panelled page's side padding retired with the
+ * frame-owned body inset; see app.css). Full-width so the bar never
+ * rescales when a panel column shows or hides. Focus mode
  * (#12) keeps the bar but hides BOTH panel toggles and the classes pills —
  * the toggles would control panels the mode hides, and the classes are
  * exactly the chrome it suppresses; the view switcher + the node menu stay

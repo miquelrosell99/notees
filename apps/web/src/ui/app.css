@@ -467,14 +467,13 @@ select:focus-visible {
   height: 100%;
   display: flex;
   flex-direction: column;
-  /* The top padding is one step tighter than the sides:
-     it carries only the nodeview top bar's top gap, and the bar is chrome
-     — it reads best hugging the card top like the app top bar hugs the
-     viewport. The horizontal padding stays spacing-4: it carries the
-     columns' side inset (the symmetric-side-cards law,
-     the right card lost its right padding and the left carried too much
-     when the outer spacing was asymmetric). */
-  padding: var(--spacing-2) var(--spacing-4) 0;
+  /* The top padding is one step tighter than the retired sides: it carries only the nodeview top bar's top gap, and the
+     bar is chrome — it reads best hugging the card top like the app top
+     bar hugs the viewport. The horizontal padding RETIRED the frame's body row now owns the outer
+     side inset universally (.nt-main-frame__body in MainContentFrame.css)
+     and this root padding would double it — the bar's own horizontal
+     inset rides the .nt-node-topbar override below. */
+  padding: var(--spacing-2) 0 0;
 }
 
 /* The fullscreen whiteboard surface: the canvas is the card's sole
@@ -627,13 +626,14 @@ select:focus-visible {
    hairline rides the primitive's own border-bottom (the divider returns —
    the 2026-10-13 retirement predated the body scrolling tight under the
    bar; the hub commit's second pass established the seam rule, the clipped
-   content read as cut). No vertical padding: the two-class override below
-   zeroes the primitive's own padding (the panelled page's padding-top
-   carries the bar's top gap), and the primitive's base
-   padding rules — the base rule and its small-width variant — both lose to
-   the higher specificity. The bottom gap stays the margin-bottom spacing-2
-: the bar is chrome and reads best
-   hugging its content — top gap 8, bottom gap 8. */
+   content read as cut). No VERTICAL padding: the two-class override below
+   zeroes the primitive's own vertical padding (the panelled page's
+   padding-top carries the bar's top gap); the override
+   carries the bar's horizontal inset itself since 2026-10-26 — see there.
+   The primitive's base padding rules — the base rule and its small-width
+   variant — both lose to the higher specificity. The bottom gap stays the
+   margin-bottom spacing-2: the bar is
+   chrome and reads best hugging its content — top gap 8, bottom gap 8. */
 .nt-node-topbar {
   display: flex;
   align-items: center;
@@ -644,7 +644,14 @@ select:focus-visible {
 }
 
 .surface-topbar.nt-node-topbar {
-  padding: 0;
+  /* The bar's horizontal inset rides THIS register since
+     (review round 3): the panelled page's horizontal padding retired (the
+     frame's body row owns the outer side inset universally), so the bar
+     carries its own — the same var(--spacing-4) measure, pixel-identical
+     to the retired host padding. Vertical stays zero: the page root's
+     padding-top carries the top gap. The primitive's base padding and its
+     small-width variant both still lose to this two-class rule. */
+  padding: 0 var(--spacing-4);
 }
 
 .nt-node-topbar__classes {

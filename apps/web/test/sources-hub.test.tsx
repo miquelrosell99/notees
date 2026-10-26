@@ -220,8 +220,10 @@ describe("SourcesHub — the shell's honest empty states", () => {
     // only with one — the "Select a source" empty state is gone with it).
     expect(screen.queryByRole("complementary", { name: "Source details" })).toBeNull();
 
-    // The panel toggles ride the top bar's LEADING cluster, left of the
-    // title (the general hub convention)…
+    // The panel toggles SPLIT the bar: the
+    // LEFT-panel (facets) toggle rides the LEADING cluster, left of the
+    // title; the RIGHT-panel (detail) toggle rides the bar's FAR RIGHT END
+    // — the trailing slot, after the actions cluster, last in the bar.
     const topbar = document.querySelector(".surface-topbar") as HTMLElement;
     const heading = screen.getByRole("heading", { name: "Sources" });
     const facetsToggle = screen.getByRole("button", { name: "Hide facets panel" });
@@ -230,8 +232,10 @@ describe("SourcesHub — the shell's honest empty states", () => {
       facetsToggle.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      detailToggle.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
+      heading.compareDocumentPosition(detailToggle) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(topbar.lastElementChild?.classList.contains("surface-topbar__trailing")).toBe(true);
+    expect(topbar.lastElementChild?.contains(detailToggle)).toBe(true);
     // …and without a client the toolbar's search box doesn't render (the
     // shell keeps the shape: title, panes, the New-flow hint).
     expect(screen.queryByRole("textbox", { name: "Search sources" })).toBeNull();

@@ -1,29 +1,30 @@
 /* CalendarView — the grid-first Google-style calendar. Tokens from
    variables.css. The composition rides the shared MainContentFrame: the
-   root carries the sides inset (spacing-4; the top inset retired
-   2026-10-23 — the bar hugs the card top), the top bar's horizontal
-   padding zeroes itself below (the same .surface-topbar two-class
+   root carries no inset since (review round 3 — the
+   frame's body row owns the outer side inset universally, and this root's
+   old copy would double it), the top bar's horizontal padding carries the
+   bar's own inset below (the same .surface-topbar two-class
    reconciliation the nodeview bar rides), and the body (the time grid,
    the agenda, or the block grids) scrolls in the frame's middle cell. */
 
-/* The panelled surface inset (the .nt-page--panelled register) with one
-   deviation: the top inset retires — the calendar's
-   SurfaceTopBar hugs the card top directly (its own vertical padding
-   carries the gap), one step tighter than the nodeview's spacing-2. The
-   sides keep spacing-4: they carry the columns' side inset. */
+/* The panelled surface's root retired its inset copy:
+   the frame's body row owns the side inset for every host now — the root
+   is a pass-through again. */
 .calendar-view {
-  padding: 0 var(--spacing-4);
+  padding: 0;
 }
 
-/* The bar's horizontal padding retires on this surface (the nodeview bar's
-   precedent): the root carries the inset, so the bar title, the day
-   content, and the panel card share one left/right edge. The two-class
-   override beats the primitive's base padding rule and its small-width
-   variant without !important; the bar's vertical padding and the bottom
-   hairline stay the primitive's own. */
+/* The bar's horizontal padding rides THIS register since
+   the root's copy of the inset retired (the frame body owns it), so the
+   bar carries its own — the same var(--spacing-4) measure, pixel-identical
+   to the retired root padding, so the bar title, the day content, and the
+   panel card keep one left/right edge. The two-class override beats the
+   primitive's base padding rule and its small-width variant without
+   !important; the bar's vertical padding and the bottom hairline stay the
+   primitive's own. */
 .surface-topbar.calendar-view__topbar {
-  padding-left: 0;
-  padding-right: 0;
+  padding-left: var(--spacing-4);
+  padding-right: var(--spacing-4);
 }
 
 .calendar-view__main {

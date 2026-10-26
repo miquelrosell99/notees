@@ -21,7 +21,14 @@
  * register overrides (the panelled page's padding-carrying override).
  * Two more: the `leading` cluster — the hub panel toggles
  * ride BEFORE the title, the general hub convention — and the `titleExtra`
- * slot, title-adjacent chrome (the Sources hub's count Badge).
+ * slot, title-adjacent chrome (the Sources hub's count Badge). One more
+ *: the `trailing` cluster — the FAR
+ * RIGHT END of the bar, AFTER the actions cluster. The hub panel toggles
+ * SPLIT by panel side: the LEFT-panel toggle rides `leading` (left of the
+ * title), the RIGHT-panel toggle rides `trailing` (the owner's annotated
+ * call: "the right panel toggle button should be at the far right of the
+ * surface top bar"); a hub whose only toggle drives the left panel (the
+ * Journal hub) keeps it in `leading` and passes no `trailing`.
  */
 
 import type { ReactNode } from 'react';
@@ -56,6 +63,14 @@ export interface SurfaceTopBarProps {
   lead?: ReactNode;
   /** Right-aligned control cluster. */
   actions?: ReactNode;
+  /**
+   * Freeform cluster at the bar's FAR RIGHT END — AFTER the actions
+   * cluster, the last chrome in the bar.
+   * The hub RIGHT-panel toggle rides here; the left-panel toggle stays in
+   * `leading`. Additive: absent renders no cluster, so no existing bar's
+   * layout shifts.
+   */
+  trailing?: ReactNode;
   /** Extra class merged onto the root (host register overrides). */
   className?: string | undefined;
 }
@@ -69,6 +84,7 @@ export function SurfaceTopBar({
   context,
   lead,
   actions,
+  trailing,
   className,
 }: SurfaceTopBarProps) {
   return (
@@ -89,6 +105,7 @@ export function SurfaceTopBar({
       {lead === undefined && context !== undefined && <div className="surface-topbar__context">{context}</div>}
       <span className="surface-topbar__spacer" aria-hidden="true" />
       {actions !== undefined && <div className="surface-topbar__actions">{actions}</div>}
+      {trailing !== undefined && <div className="surface-topbar__trailing">{trailing}</div>}
     </div>
   );
 }

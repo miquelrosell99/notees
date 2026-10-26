@@ -22,11 +22,22 @@
 /* The body row: the left panel card beside the content column beside the
    right panel card (three columns; the nodeview's swap
    the usually-open properties panel balances the main sidebar from the
-   right, the usually-closed context panel tucks in on the left). */
+   right, the usually-closed context panel tucks in on the left).
+   The body OWNS the outer inset too ("the panels implementation, padding and positioning and style should be
+   global/universal, not per view styled"): the horizontal padding below is
+   the window/card-edge → panel-card gap, the SAME measure the panelled
+   nodeview's host shell used to carry per view (`.nt-page--panelled`'s
+   padding-left/right, var(--spacing-4)) — the calendar had duplicated that
+   host register, the Sources hub had none (the "I see no gap" screenshot).
+   Hosts must NOT double-pad: every frame host's wrapper drops its
+   horizontal copy and each host's top bar carries its own inset (the bar
+   is chrome, not panel). The compact adaptation below keeps the inset
+   (stacked panels ride the same side padding). */
 .nt-main-frame__body {
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-4);
+  padding: 0 var(--spacing-4);
   flex: 1;
   min-height: 0;
 }

@@ -76,6 +76,17 @@
   gap: var(--spacing-1);
 }
 
+/* The far-right-end cluster: AFTER the
+   actions cluster, the last chrome in the bar — the hub right-panel toggle
+   rides here (the leading cluster's toggle sibling). Same icon-button row
+   rhythm as the leading cluster. */
+.surface-topbar__trailing {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
 @media (width <= 768px) {
   .surface-topbar {
     padding-left: var(--spacing-4);

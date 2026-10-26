@@ -25,14 +25,16 @@
  * The CSS registers move with the frame (MainContentFrame.css): the panel
  * cards keep their class names (.nt-page-context / .nt-page-side-panel —
  * the raised-card panel registers documented there), the body row is
- * .nt-main-frame__body, the middle cell .nt-main-frame__content carries NO
- * width cap — the host wraps its children in its own cap when it wants one
- * (PageView's journal measure, .nt-page-content in app.css) and rides
- * full-bleed when it doesn't (the hubs' eventual panel adoption). The
- * panel chrome (padding, scroll, column rhythm) is the CARDS' register;
- * a single-column pane's content rides the canonical
- * .nt-main-frame__panel-content class on its own root
- * instead of re-styling padding per view.
+ * .nt-main-frame__body and OWNS the outer body inset too (the horizontal padding is the card-edge → panel-card
+ * gap, universal across hosts: hosts must NOT carry their own side
+ * padding, and each host's top bar carries its own horizontal inset), the
+ * middle cell .nt-main-frame__content carries NO width cap — the host
+ * wraps its children in its own cap when it wants one (PageView's journal
+ * measure, .nt-page-content in app.css) and rides full-bleed when it
+ * doesn't (the hubs' eventual panel adoption). The panel chrome (padding,
+ * scroll, column rhythm) is the CARDS' register; a single-column pane's
+ * content rides the canonical .nt-main-frame__panel-content class on its
+ * own root instead of re-styling padding per view.
  */
 
 import type { CSSProperties, ReactNode } from "react";
