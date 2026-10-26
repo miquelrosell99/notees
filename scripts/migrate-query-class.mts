@@ -251,7 +251,7 @@ async function main(): Promise<void> {
           continue;
         }
 
-        relay.ingest(workspaceId, envelopes);
+        relay.ingest(envelopes);
 
         // Verify: a FRESH scratch store over the new tail sees every planned
         // node carrying the query class, with zero StoreError throws.
