@@ -25,6 +25,45 @@ predating this file.
   (aac fixture generated in-test, case-insensitive extension, sniff-wins,
   m4a/ogg/flac fallback, media cap on fallback, unknown-binary reject, list +
   limit validation) — 17/17 green plus coverage/taxonomy suites.
+- **fix(scripts): parent-order repair migration (`migrate-repair-parent-order.mts`)
+  — the out-of-order `object.create` audit, and why the sanctioned
+  rewrite-plus-move repair refused itself against the live log.** A
+  bulk-import session's racing batches left 61 child creates in the live
+  workspace whose `parentId`'s own first create appears LATER in
+  the relay log (seq 1021730–1026652, post-snapshot tail); every parent exists
+  and the import's idempotent re-create cascade let the TOLERANT hydration
+  (the sync server's skip-on-StoreError replay) self-heal — the server derived
+  DB holds all 61 children correctly — but STRICT log-order replay fails
+  ("object.create: parent … does not exist"), blocking every future Path A
+  migration's pre-ingest replay gate. The script (migrations.md §4 catalog):
+  two-pass scan (`objectId | id | classId` payload ids; never-created parents
+  fail loud), in-place `parentId` strip (same seq/envelope id, strict-schema
+  re-validated), one appended deterministic-id (UUIDv5) `object.move` per
+  child at tail HLC, move targets read from the CONVERGED tree (a child the
+  projection holds parentless gets no move), stopped-server gate (:8377
+  health + relay write-lock probes), `relay.db.bak-YYYYMMDD-HHMMSS` backup,
+  snapshot compatibility probe (a snapshot missing a move-referenced node is
+  backed up + dropped — strict snapshot+tail replay would throw against it),
+  `restore_epoch` bump, and the strict scratch-replay verify (zero StoreError
+  + parent read-back + zero-offender re-scan). **The live dry run classified
+  60 of the 61 moves as replay-throwing**: the owner-2026-10-26
+  treat-as-main-on-first-parenting law (`appliers.ts` applyObjectMove) makes a
+  bare move parent a previously-parentless node only under a parent that
+  renders document chrome — 60 offenders' parents are embedded blocks, so the
+  moves would throw MoveGuardError at strict replay (empirically reproduced);
+  the 61st converged parentless and needs no move. `--apply` therefore refused
+  to write (rehearsed against a /tmp copy of the live relay — nothing
+  modified, no live outage taken). The script ships as the diagnosis harness;
+  the actual log repair for the 60 block-parent edges needs a different shape
+  (candidate: parent-first resequencing of the racing window — payload-faithful,
+  but it rewrites the seq authority). Audit side-finding: the test workspace carries 113 MORE out-of-order creates (date-chain day/month
+  nodes, `isEmbedded:false`, page parents) whose moves replay clean — the
+  script repairs them on request. Verified: `pnpm typecheck` + `pnpm test`
+  green in the slice worktree; e2e at
+  `apps/server/test/migrate-repair-parent-order.test.ts` (synthetic racing
+  relay: dry-run-writes-nothing, rewrite+move+strict-replay converge,
+  block-parent refusal writes nothing, idempotent re-run). No runtime behavior
+  ships — the app images are untouched.
 - **feat(domain): colección (…0001-000000000032) extends `source` at the
   seed — the system-class mirror of the `regulación` user-class data op.**
   froze a system class's extends mapping as seeded
