@@ -158,6 +158,73 @@
   background-color: var(--md-sys-color-swatch-monochrome);
 }
 
+/* ==================== Sync Server Section ==================== */
+/* The known-servers selection list: one radio row per remembered address,
+   the active server flagged with a pill, a per-row trash to forget an
+   address (the active row's trash IS the disconnect flow). Rows ride the
+   state-layer hover/press register. */
+
+.settings-server-list {
+  padding: var(--spacing-2) 0;
+}
+
+.settings-server-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--shape-large);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-server-row:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.settings-server-row:active {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
+/* The radio grows to absorb the row width so long URLs truncate instead of
+   pushing the flag pill and the trash off the card. */
+.settings-server-row__radio {
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+}
+
+.settings-server-row__radio .radio-label-wrapper {
+  min-width: 0;
+}
+
+.settings-server-row__radio .radio-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-server-row__flag {
+  flex-shrink: 0;
+}
+
+/* The disconnect footer: help text beside the danger button, separated from
+   the list by the shared settings hairline. */
+.settings-server-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  padding-top: var(--spacing-3);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+.settings-server-actions .settings-section__description {
+  margin: 0;
+  flex: 1;
+  min-width: min(100%, 24ch);
+}
+
 /* ==================== About Section ==================== */
 .settings-about {
   text-align: center;

@@ -180,7 +180,7 @@ describe("settings history (pushSettingsSection + popStateNavHandler)", () => {
 describe("SettingsPage", () => {
   it("renders the deep-linked section's content and marks it active in the nav", () => {
     renderPage({ section: "sync" });
-    expect(screen.getByText("https://notees.example.com")).toBeInTheDocument();
+    expect(screen.getAllByText("https://notees.example.com").length).toBeGreaterThan(0);
     expect(screen.getByText("Connected")).toBeInTheDocument();
     expect(screen.queryByText("Outdent behavior")).toBeNull();
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
@@ -229,7 +229,7 @@ describe("SettingsPage", () => {
   it("shows the configured sync server and its reachability", () => {
     stubFetch({});
     renderPage({ section: "sync" });
-    expect(screen.getByText("https://notees.example.com")).toBeInTheDocument();
+    expect(screen.getAllByText("https://notees.example.com").length).toBeGreaterThan(0);
     expect(screen.getByText("Connected")).toBeInTheDocument();
   });
 
@@ -244,10 +244,87 @@ describe("SettingsPage", () => {
     stubFetch({});
     const onForgetServer = vi.fn();
     renderPage({ section: "sync", onForgetServer });
-    fireEvent.click(screen.getByRole("button", { name: /disconnect & forget this server/i }));
-    expect(onForgetServer).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /^disconnect$/i }));
+    expect(onForgetServer).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: /disconnect from this server/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^disconnect$/i }));
     expect(onForgetServer).toHaveBeenCalledTimes(1);
+  });
+
+  it("lists known sync servers with the current one first and flagged", () => {
+    stubFetch({});
+    localStorage.setItem(
+      "notees.settings.knownSyncServers",
+      JSON.stringify(["https://alpha.example.com", "https://notees.example.com"]),
+    );
+    renderPage({ section: "sync" });
+    const current = screen.getByRole("radio", { name: "https://notees.example.com" });
+    const other = screen.getByRole("radio", { name: "https://alpha.example.com" });
+    // The current server leads the list and carries the checked state.
+    expect(screen.getAllByRole("radio")[0]).toBe(current);
+    expect(current).toHaveAttribute("aria-checked", "true");
+    expect(other).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("Current")).toBeInTheDocument();
+  });
+
+  it("remembers the current sync server device-locally", () => {
+    stubFetch({});
+    renderPage({ section: "sync" });
+    expect(
+      JSON.parse(localStorage.getItem("notees.settings.knownSyncServers")!),
+    ).toContain("https://notees.example.com");
+  });
+
+  it("connects to a remembered server chosen from the radio list", () => {
+    stubFetch({});
+    localStorage.setItem(
+      "notees.settings.knownSyncServers",
+      JSON.stringify(["https://alpha.example.com"]),
+    );
+    const onConnectServer = vi.fn();
+    renderPage({ section: "sync", onConnectServer });
+    fireEvent.click(screen.getByRole("radio", { name: "https://alpha.example.com" }));
+    expect(onConnectServer).toHaveBeenCalledWith("https://alpha.example.com");
+  });
+
+  it("forgets a remembered server via its trash button", () => {
+    stubFetch({});
+    localStorage.setItem(
+      "notees.settings.knownSyncServers",
+      JSON.stringify(["https://alpha.example.com"]),
+    );
+    renderPage({ section: "sync" });
+    fireEvent.click(screen.getByRole("button", { name: "Remove https://alpha.example.com" }));
+    expect(screen.queryByRole("radio", { name: "https://alpha.example.com" })).toBeNull();
+    expect(
+      JSON.parse(localStorage.getItem("notees.settings.knownSyncServers")!),
+    ).not.toContain("https://alpha.example.com");
+  });
+
+  it("treats removing the current server as the confirmed disconnect flow", () => {
+    stubFetch({});
+    const onForgetServer = vi.fn();
+    renderPage({ section: "sync", onForgetServer });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove https://notees.example.com" }),
+    );
+    expect(onForgetServer).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: /disconnect from this server/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^disconnect$/i }));
+    expect(onForgetServer).toHaveBeenCalledTimes(1);
+  });
+
+  it("adds a typed server to the remembered list when connecting", () => {
+    stubFetch({});
+    const onConnectServer = vi.fn();
+    renderPage({ section: "sync", onConnectServer });
+    const field = screen.getByRole("textbox", { name: /server url/i });
+    fireEvent.change(field, { target: { value: "https://new.example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: /^connect$/i }));
+    expect(onConnectServer).toHaveBeenCalledWith("https://new.example.com");
+    expect(
+      JSON.parse(localStorage.getItem("notees.settings.knownSyncServers")!),
+    ).toContain("https://new.example.com");
   });
 
   it("connects to a different server with the entered URL", () => {

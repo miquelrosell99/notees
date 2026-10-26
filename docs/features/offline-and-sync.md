@@ -4,7 +4,7 @@ Notees is local-first: reads always answer from the device-local store and write
 
 ## An outage is not a sign-out
 
-When the remembered server does not answer on load, the app keeps the credential and opens the remembered workspace from its local copy — the sync banner reports "working locally until it recovers" and edits catch up when the server returns. Every workspace stays listed while offline: the switcher and the manager fall back to the device-local registry under an explicit offline caption — workspaces with a synced copy on the device open normally; the ones without stay visible but muted with a cloud-off marker (they need one online open to land a copy here). Server-side actions (create, rename, delete, export) wait for recovery. Only a rejected credential (an expired session or revoked key) lands back on the sign-in screen; clearing site data or **Disconnect & forget** is what forgets the server. The boot screen never re-routes on its own: when an address does not answer, the error explains, and a "Try … instead" button offers the same-origin guess — clicking it is the only path there.
+When the remembered server does not answer on load, the app keeps the credential and opens the remembered workspace from its local copy — the sync banner reports "working locally until it recovers" and edits catch up when the server returns. Every workspace stays listed while offline: the switcher and the manager fall back to the device-local registry under an explicit offline caption — workspaces with a synced copy on the device open normally; the ones without stay visible but muted with a cloud-off marker (they need one online open to land a copy here). Server-side actions (create, rename, delete, export) wait for recovery. Only a rejected credential (an expired session or revoked key) lands back on the sign-in screen; clearing site data or **Disconnect** (Settings → Sync) is what forgets the server. The boot screen never re-routes on its own: when an address does not answer, the error explains, and a "Try … instead" button offers the same-origin guess — clicking it is the only path there.
 
 ## The backend-down ladder
 
@@ -22,7 +22,7 @@ The dot (idle / syncing / backlog / error) rides the **profile avatar's corner**
 
 ## Settings → Sync
 
-The settings page's **Sync** section (deep-linkable at `/settings/sync`) shows the configured sync server (with reachability), offers **Connect to a different server**, and **Disconnect & forget this server** (confirmed — it signs you out and clears the remembered server and credentials on this device).
+The settings page's **Sync** section (deep-linkable at `/settings/sync`) unifies the current sync server and the disconnect action in one card: the configured server with its reachability, a device-local radio list of every server address this device remembers (the current one leads, flagged with a **Current** pill), and the danger **Disconnect** button (confirmed — it signs you out and clears the remembered server and credentials on this device). Choosing another remembered server in the list runs the same connect path as **Connect to a different server**; a remembered entry's trash forgets just that address, while the current server's trash is the disconnect flow. New addresses typed under **Connect to a different server** join the list.
 
 ## Offline preferences and state
 
