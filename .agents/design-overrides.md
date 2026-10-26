@@ -12,7 +12,7 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Rationale**: surfaced by the fleet audit (2026-10-26) — registers cited only in code comments belong here per this register's own contract.
 - **Scope**: `apps/web/src/components/ui/fleet/Button.tsx` (+ `.css`).
 - **Ruled**: recorded 2026-10-26.
-- **Review trigger**: the skill template adopts the extensions, or a register here drifts from them.
+- **Skill alignment**: ADOPTED for the hit-area floor + `default` rest (skill v2.0.6, 2026-10-26). Still app-only: `xs` size, haptics, icon badges, the delayed-spinner loading register, the `active` toggle state, `danger-solid`.
 
 ### Tabs: the active identity and hover ride the app's sliding-indicator register
 - **Rule**: the skill's Tabs template — active tab = accent-primary text + a full-width 2px underline; hover = the state-layer overlay on inactive tabs.
@@ -20,6 +20,7 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Rationale**: the sliding bar already marks the active tab — accent text on top double-signals; the fleet audit (2026-10-26) found the drift undocumented. The sliding-indicator register itself was documented as app-owned at the 2026-10-19 migration.
 - **Scope**: `apps/web/src/components/ui/fleet/Tabs.css`.
 - **Ruled**: fleet audit 2026-10-26, recorded same day.
+- **Skill alignment**: ADOPTED — the skill's Tabs template now prescribes the ink identity + sliding bar (skill v2.0.9, 2026-10-26); the app register and the fleet law agree.
 - **Review trigger**: the fleet tab template changes, or the owner flags the active tab as under-signaled.
 
 ### Modal chrome density — dividers, title size, no backdrop blur
@@ -28,6 +29,7 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Rationale**: fleet audit (2026-10-26) found the drift undocumented; the density and shape passes landed it without a separate recorded reason. Stated as fact, not re-litigated.
 - **Scope**: `apps/web/src/components/ui/fleet/Modal.css`.
 - **Ruled**: fleet audit 2026-10-26, recorded same day.
+- **Skill alignment**: NOT ADOPTED — chrome density stays an app decision; revisit if a second fleet app converges on the same density.
 - **Review trigger**: the fleet template codifies chrome density, or blur returns for a specific surface.
 
 ### Card default elevation stays `none`, default radius stays `md` — documented deviation from the template
@@ -36,6 +38,7 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Rationale**: surfaced by the fleet audit (2026-10-26); the template default suits elevated tool cards, this app's cards are mostly chrome containers. Elevation steps (`low`/`medium`/`high`) and the `xl` radius register stay available and documented.
 - **Scope**: `apps/web/src/components/ui/fleet/Card.tsx` defaults only.
 - **Ruled**: fleet audit 2026-10-26, recorded same day.
+- **Skill alignment**: NOT ADOPTED — card defaults depend on what an app's cards are (chrome containers vs elevated tool cards); the template defaults stay for the generic starter.
 - **Review trigger**: the Card template's defaults change, or a new surface family wants template-default cards.
 
 ### Dialog corner register: 16px — the centered-dialog shape (supersedes the unrecorded 28px dialog rounding)
@@ -44,6 +47,7 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Rationale**: the 28px dialog register began as a code-comment ruling that was never recorded in this register; at 28px the large dialog surfaces (the command palette prominent among them) read over-rounded to the owner. The pre-2026-10-15 12px had been judged too sharp, so the ruling lands the midpoint rather than reverting.
 - **Scope**: `--shape-dialog`/`--radius-dialog`/`rounded-dialog` and the four dialog surfaces above; sheets and Card `xl` untouched. The same density pass tightens the fleet `Modal` header to 12px vertical padding (spacing-3, horizontal stays spacing-4) — the 16px block read too tall for a one-line chrome row.
 - **Ruled**: ("modals, in general, are too rounded — decrease that"), recorded same day.
+- **Skill alignment**: ADOPTED — the skill law now carries `--radius-dialog: 16px` for centered dialogs with `--radius-sheet` narrowed to bottom sheets (skill v2.0.8, 2026-10-26); the app's 2026-10-22 register and the fleet law agree.
 - **Review trigger**: the owner flags the 16px as still too round/too sharp, or a fleet ruling sets an app-agnostic dialog shape.
 
 ### App.tsx stays at ~750 lines as the composition root — a recorded over-target
@@ -149,6 +153,7 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Rationale**: one accent hue active at a time (skill hard rule) — the fleet's "accent is the selected signal" table takes precedence over M3's quieter nav register; Notees has no secondary hue in play.
 - **Scope**: global (selected/active chrome).
 - **Ruled**: 2026-10-14, single-track token migration (semantic preservation of the pre-migration primary-container usage).
+- **Skill alignment**: ADOPTED — the segmented-control selected register in the skill template + patterns.md now prescribes `primary-container`/`on-primary-container` (skill v2.0.7, 2026-10-26); the app ruling and the fleet law agree.
 - **Review trigger**: an M3-conformance audit finding active chrome too loud, or the introduction of a real secondary palette.
 
 ### Accent presets are brand-specific (Margin Green, not fleet copper)

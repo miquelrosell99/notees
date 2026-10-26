@@ -131,7 +131,12 @@ export const ToggleSwitch = forwardRef<HTMLButtonElement, ToggleSwitchProps>(
         </span>
         <span
           aria-hidden="true"
-          className="relative inline-flex items-center shrink-0 rounded-full border border-outline-variant bg-surface-container-high transition-colors duration-short ease-standard hover:bg-hover-overlay"
+          className={cn(
+            "relative inline-flex items-center shrink-0 rounded-full border transition-colors duration-short ease-standard hover:bg-hover-overlay",
+            checked
+              ? "bg-primary border-transparent"
+              : "bg-surface-container-high border-outline-variant",
+          )}
           style={TRACK_STYLE[size]}
         >
           <SwitchPrimitive.Thumb
@@ -141,7 +146,7 @@ export const ToggleSwitch = forwardRef<HTMLButtonElement, ToggleSwitchProps>(
               height: THUMB_SIZE[size],
               left: "var(--spacing-micro)",
               background: checked
-                ? "var(--md-sys-color-primary)"
+                ? "var(--md-sys-color-on-primary)"
                 : "var(--md-sys-color-on-surface-variant)",
               transform: checked ? `translateX(${THUMB_SHIFT[size]})` : undefined,
             }}
