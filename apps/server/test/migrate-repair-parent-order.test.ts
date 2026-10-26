@@ -30,14 +30,21 @@ const SCRIPT = "../../scripts/migrate-repair-parent-order.mts";
 // Two workspaces in ONE relay (the live shape — one file, many workspaces).
 const WS_PAGE = "4b7d1a00-1111-4000-8000-0000000000a1"; // clean repair: page parent
 const WS_BLOCK = "4b7d1a00-1111-4000-8000-0000000000a2"; // guard risk: embedded-block parent
+const WS_DUP = "4b7d1a00-1111-4000-8000-0000000000a3"; // two out-of-order creates, SAME child
+const WS_RESUME = "4b7d1a00-1111-4000-8000-0000000000a4"; // crashed run: moves in the log, epoch 0
 
 const P_PAGE = "52000000-0000-4000-8000-0000000000a1";
 const C_PAGE = "52000000-0000-4000-8000-0000000000a2";
 const P_BLOCKHOST = "52000000-0000-4000-8000-0000000000b1";
 const B_BLOCK = "52000000-0000-4000-8000-0000000000b2";
 const C_BLOCK = "52000000-0000-4000-8000-0000000000b3";
+const P_DUP = "52000000-0000-4000-8000-0000000000d1";
+const C_DUP = "52000000-0000-4000-8000-0000000000d2";
+const P_RESUME = "52000000-0000-4000-8000-0000000000e1";
+const C_RESUME = "52000000-0000-4000-8000-0000000000e2";
 
 const ACTOR = "01920000-0000-7000-8000-0000000000a4";
+const REPAIR_DEVICE = "migrate-repair-parent-order";
 
 interface CliResult {
   stdout: string;
@@ -130,7 +137,63 @@ function seed(dataDir: string): void {
     contentAst: [{ type: "text", text: "the embedded block" }],
   }, [B_BLOCK]);
 
+  // WS_DUP — the live test-workspace incident: the racing import left TWO
+  // out-of-order creates for the SAME child. Both must be stripped; exactly
+  // ONE move may be appended (the deterministic envelope ids are keyed by
+  // child — a second move collides and ingest drops it).
+  seedEnvelope(relay, WS_DUP, "object.create", {
+    objectId: C_DUP,
+    parentId: P_DUP,
+    isEmbedded: true,
+    contentAst: [{ type: "text", text: "dup child" }],
+  }, [C_DUP]);
+  seedEnvelope(relay, WS_DUP, "object.create", {
+    objectId: C_DUP,
+    parentId: P_DUP,
+    isEmbedded: true,
+    contentAst: [{ type: "text", text: "dup child" }],
+  }, [C_DUP]);
+  seedEnvelope(relay, WS_DUP, "object.create", {
+    objectId: P_DUP,
+    isEmbedded: false,
+    contentAst: [{ type: "text", text: "dup parent" }],
+  }, [P_DUP]);
+
+  // WS_RESUME — a run that CRASHED between the move ingest and the epoch
+  // bump: the strips and the repair move are already in the log (issued by
+  // the migration device), restore_epoch is still 0. A re-run must execute
+  // the snapshot/epoch/verify tail stages, not short-circuit.
+  seedEnvelope(relay, WS_RESUME, "object.create", {
+    objectId: C_RESUME,
+    isEmbedded: true,
+    contentAst: [{ type: "text", text: "resumed child" }],
+  }, [C_RESUME]);
+  seedEnvelope(relay, WS_RESUME, "object.create", {
+    objectId: P_RESUME,
+    isEmbedded: false,
+    contentAst: [{ type: "text", text: "resumed parent" }],
+  }, [P_RESUME]);
+  seedEnvelope(relay, WS_RESUME, "object.move", {
+    objectId: C_RESUME,
+    parentId: P_RESUME,
+  }, [C_RESUME]); // deviceId set below
   relay.close();
+
+  // Rewrite the last envelope's device/client to the migration device's
+  // (ingest is immutable — re-ingest under the repair device).
+  const relay2 = new RelayStorage(join(dataDir, "relay.db"), join(dataDir, "snapshots"));
+  const move = relay2
+    .allEnvelopes(WS_RESUME)
+    .find((envelope) => envelope.opType === "object.move")!;
+  relay2.ingest([
+    {
+      ...move,
+      id: "7a000000-0000-4000-8000-0000000000e9",
+      deviceId: REPAIR_DEVICE,
+      client: REPAIR_DEVICE,
+    },
+  ]);
+  relay2.close();
 }
 
 /** The strict hydration shape: any StoreError fails the test. */
@@ -241,5 +304,52 @@ describe("migrate-repair-parent-order", () => {
       .find((envelope) => envelope.opType === "object.create")!.payload;
     expect(untouched).toEqual(offenderPayload);
     relayAfter.close();
+  });
+
+  it("duplicate out-of-order creates for the same child: both stripped, exactly ONE move (the deterministic-id collision incident)", () => {
+    const apply = runScript(["--data-dir", dataDir, "--workspace", WS_DUP, "--apply"]);
+    expect(apply.status).toBe(0);
+    expect(apply.stdout).toContain("rewrote 2 create envelope(s) in place");
+    expect(apply.stdout).toContain("appended 1 object.move envelope(s)");
+    expect(apply.stdout).toContain("verify: strict replay clean");
+
+    const relay = new RelayStorage(join(dataDir, "relay.db"), join(dataDir, "snapshots"));
+    const moves = relay
+      .allEnvelopes(WS_DUP)
+      .filter((envelope) => envelope.opType === "object.move" && envelope.deviceId === REPAIR_DEVICE);
+    expect(moves.length).toBe(1);
+    const store = strictHydrate(relay, WS_DUP, join(dataDir, `replica-${WS_DUP}.db`));
+    const row = store.database
+      .prepare("SELECT parent_id FROM node WHERE id = ?")
+      .get(C_DUP) as { parent_id: string | null };
+    expect(row.parent_id).toBe(P_DUP);
+    store.close();
+    relay.close();
+
+    // The resume re-run executes the tail stages and leaves the epoch alone.
+    const second = runScript(["--data-dir", dataDir, "--workspace", WS_DUP, "--apply"]);
+    expect(second.status).toBe(0);
+    expect(second.stdout).toContain("1 prior repair move(s)");
+    expect(second.stdout).toContain("restore_epoch already 1 — left unchanged");
+    expect(second.stdout).toContain("verify: strict replay clean");
+  });
+
+  it("resume of a crashed run (moves in the log, epoch 0): tail stages execute, epoch bumps, verify passes", () => {
+    const apply = runScript(["--data-dir", dataDir, "--workspace", WS_RESUME, "--apply"]);
+    expect(apply.status).toBe(0);
+    expect(apply.stdout).toContain("nothing to repair — but 1 prior repair move(s) ride the log");
+    expect(apply.stdout).toContain("restore_epoch was 0 with repair envelopes already in the log — bumped to 1");
+    expect(apply.stdout).toContain("verify: strict replay clean");
+    expect(apply.stdout).toContain("zero out-of-order creates");
+
+    const relay = new RelayStorage(join(dataDir, "relay.db"), join(dataDir, "snapshots"));
+    expect(relay.restoreEpoch(WS_RESUME)).toBe(1);
+    const store = strictHydrate(relay, WS_RESUME, join(dataDir, `replica-${WS_RESUME}.db`));
+    const row = store.database
+      .prepare("SELECT parent_id FROM node WHERE id = ?")
+      .get(C_RESUME) as { parent_id: string | null };
+    expect(row.parent_id).toBe(P_RESUME);
+    store.close();
+    relay.close();
   });
 });
