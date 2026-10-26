@@ -206,7 +206,7 @@ export function buildJsonArchive(
       isClass: node.isClass === 1,
       isEmbedded: node.isEmbedded === 1,
       parentId: node.parentId,
-      displayName: deriveDisplayName(node),
+      displayName: deriveDisplayName(node, undefined, (targetId) => ctx.nameOf(targetId) ?? null),
       contentAst: node.contentAst,
       classIds: node.classIds,
       properties: node.properties,

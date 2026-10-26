@@ -49,13 +49,6 @@ export interface AddSourceDialogProps {
   /** A pasted identifier/link the caller already holds (the picker's
    *  paste-URL row opens the dialog with its query prefilled). */
   initialInput?: string | undefined;
-  /**
-   * The class the create is locked to (the New
-   * flow's picked source type): a resolved record's own classKey yields to
-   * it in the prefilled form. The QuickCreateModal stays reachable as the
-   * dialog's manual/edit path — the second step IS that modal.
-   */
-  lockedClassId?: string | undefined;
   /** Called with the new source id once created (the app opens the page). */
   onCreated?: ((nodeId: string) => void) | undefined;
   /** Opens the duplicate warning's existing source (the app page-open). */
@@ -67,14 +60,10 @@ interface PrefilledState {
 }
 
 /** Map the unified record onto the modal's prefill (the pdf intent halves). */
-function prefillOf(
-  record: ResolvedSourceRecord,
-  pdfFile: File | null,
-  lockedClassId: string | undefined,
-): SourcePrefill {
-  // The picked class (the New flow's lock) wins over the record's own type.
+function prefillOf(record: ResolvedSourceRecord, pdfFile: File | null): SourcePrefill {
+  // The record's own type picks the prefill class (the resolver knows the
+  // work's type better than any caller guess).
   const classId =
-    lockedClassId ??
     SYSTEM_CLASS_UUIDS[record.classKey as keyof typeof SYSTEM_CLASS_UUIDS] ??
     SYSTEM_CLASS_UUIDS.book;
   return {
@@ -101,7 +90,6 @@ export function AddSourceDialog({
   serverUrl,
   credential,
   initialInput = "",
-  lockedClassId = undefined,
   onCreated = undefined,
   onOpenNode = undefined,
 }: AddSourceDialogProps) {
@@ -133,10 +121,10 @@ export function AddSourceDialog({
     try {
       if (file !== null) {
         const record = await resolvePdfFile(serverUrl, credential, file, file.name);
-        setPrefilled({ prefill: prefillOf(record, file, lockedClassId) });
+        setPrefilled({ prefill: prefillOf(record, file) });
       } else {
         const record = await resolveSourceInput(serverUrl, credential, input);
-        setPrefilled({ prefill: prefillOf(record, null, lockedClassId) });
+        setPrefilled({ prefill: prefillOf(record, null) });
       }
     } catch (caught) {
       if (caught instanceof ResolverRequestError && caught.code === "resolver_disabled") {

@@ -24,8 +24,7 @@ import { CalendarPopup } from "../../features/calendar/TopBarCalendarPopup.js";
 import { NodeSelector } from "../../features/pickers/NodeSelector.js";
 import { AssetUploadModal } from "../../features/modals/AssetUploadModal.js";
 import { QuickCreateModal } from "../../features/modals/QuickCreateModal.js";
-import { readSourceSettings, routeNewNodeClass } from "../../features/modals/quickCreate.js";
-import { requestAddSource } from "../../features/sources/AddSourceHost.js";
+import { routeNewNodeClass } from "../../features/modals/quickCreate.js";
 
 export interface AppTopBarProps {
   client: AnyClient;
@@ -197,20 +196,13 @@ export function AppTopBar(props: AppTopBarProps) {
           onClose={() => setNewPickerOpen(false)}
           onAdd={(picked) => {
             // Single-pick contract: one class, one page —
-            // "create a person", "create a project". routes the pick: a source-family class opens the
-            // add-source dialog (resolver on) or the citation form
-            // (offline / resolver off — never a dead dialog), an asset
+            // "create a person", "create a project". routes the pick, amended round 4 (2026-10-26):
+            // a source-family class opens the MANUAL citation form (the
+            // resolver's door is the palette's "Add source…"), an asset
             // class opens the upload modal (uploading IS creating), and
             // everything else keeps the plain untitled create.
             setNewPickerOpen(false);
-            const route = routeNewNodeClass(client, picked.id, {
-              online: !offline && serverUrl !== "",
-              resolverEnabled: readSourceSettings(client).resolverEnabled,
-            });
-            if (route.kind === "add-source") {
-              requestAddSource({ classId: route.classId });
-              return;
-            }
+            const route = routeNewNodeClass(client, picked.id);
             if (route.kind === "quick-create-source") {
               setSourceQuickCreate(route.classId);
               return;

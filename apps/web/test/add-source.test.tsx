@@ -158,10 +158,9 @@ describe("classifySourceInput", () => {
 });
 
 describe("AddSourceDialog", () => {
-  it("a locked class wins over the resolved record's classKey (the New-popup route)", async () => {
+  it("the resolved record's own classKey picks the prefill form (the class lock retired, round 4)", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    // The record resolves to a journal_article…
     stubFetch((url) => {
       if (url.includes("/api/resolve?doi=")) return jsonResponse(200, DOI_RECORD);
       return undefined;
@@ -172,7 +171,6 @@ describe("AddSourceDialog", () => {
         client={client}
         serverUrl="http://resolver.test"
         credential="test-key"
-        lockedClassId={SYSTEM_CLASS_UUIDS.book}
         onClose={() => {}}
         onCreated={() => {}}
       />,
@@ -183,9 +181,9 @@ describe("AddSourceDialog", () => {
     });
     fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
 
-    // …but the picked class locks the prefill: the second step is the BOOK
-    // form, with the resolved metadata filled in.
-    const form = await screen.findByRole("dialog", { name: /new book/i });
+    // The record resolves to a journal_article — the second step is THAT
+    // form (no caller lock since round 4; the resolver knows the type).
+    const form = await screen.findByRole("dialog", { name: /new journal_article/i });
     expect((within(form).getByLabelText("Title") as HTMLInputElement).value).toBe(
       "On the Analytical Engine",
     );
