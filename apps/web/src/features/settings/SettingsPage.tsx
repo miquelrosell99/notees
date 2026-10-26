@@ -278,10 +278,11 @@ function EditorSection() {
         <div className="settings-item">
           <div className="settings-item__info">
             <label htmlFor="user-linked-refs-collapse" className="settings-item__label">
-              Linked refs collapse level
+              Auto-collapse nodes at this depth in system sections
             </label>
             <p className="settings-item__description">
-              Auto-collapse nodes at this depth in linked references (0 = disabled)
+              Reference rows in system sections (Backlinks, Unlinked mentions) start
+              collapsed at this depth and deeper; 0 = disabled, rows render fully expanded
             </p>
           </div>
           <SelectionButton
