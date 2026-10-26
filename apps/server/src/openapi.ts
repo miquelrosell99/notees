@@ -376,47 +376,46 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     },
     errors: ["validation_failed"],
   }],
-  ["get", "/api/me/nodes/:nodeId/sections/:sectionKey/views", {
-    summary: "Per-user hosted section views (custom tabs) for one section of one node, in tab order",
+  ["get", "/api/nodes/:nodeId/sections/:sectionKey/views", {
+    summary: "Node-scoped hosted views (custom tabs) for one surface of one node, in tab order",
     description:
-      "Cross-device UI state on the prefs channel (like favorites/recents — never op-log state). The default view is derived-not-stored: no default row exists, an empty table renders factory behavior. Per-user scoped: one account never sees another's tabs. sectionKey ∈ linked-references | unlinked-mentions | classed-nodes.",
-    tags: ["Account"],
+      "Cross-device UI state on the prefs channel (like favorites/recents — never op-log state), but node-scoped: every user of the deployment shares a node's tabs (applied to system sections too). The default view is derived-not-stored: no default row exists, an empty table renders factory behavior. sectionKey ∈ linked-references | unlinked-mentions | classed-nodes, or the '-' sentinel for the empty key (a query node's main query).",
+    tags: ["Nodes"],
     params: {
-      nodeId: "the page/class node the section lives on",
-      sectionKey: "linked-references | unlinked-mentions | classed-nodes",
+      nodeId: "the page/class/query node the surface lives on",
+      sectionKey: "linked-references | unlinked-mentions | classed-nodes | - (empty = main query)",
     },
   }],
-  ["post", "/api/me/nodes/:nodeId/sections/:sectionKey/views", {
-    summary: "Create a hosted section view (appends after the last tab)",
+  ["post", "/api/nodes/:nodeId/sections/:sectionKey/views", {
+    summary: "Create a hosted view (appends after the last tab)",
     description:
-      "queryAst must parse against QueryAST v1 (the same grammar the FilterBuilderModal produces — a transient filter persists verbatim); viewMode is a nullable display pin (null = the container's mode). The name is unique per (user, node, section) — a collision is 409.",
-    tags: ["Account"],
+      "queryAst must parse against QueryAST v1 (the same grammar the FilterBuilderModal produces — a transient filter persists verbatim). The name is unique per (node, section) — a collision is 409. There is deliberately no viewMode: view modes are transient surface state, not stored.",
+    tags: ["Nodes"],
     params: {
-      nodeId: "the page/class node the section lives on",
-      sectionKey: "linked-references | unlinked-mentions | classed-nodes",
+      nodeId: "the page/class/query node the surface lives on",
+      sectionKey: "linked-references | unlinked-mentions | classed-nodes | - (empty = main query)",
     },
     requestBody: {
       type: "object",
       additionalProperties: false,
       required: ["name", "queryAst"],
       properties: {
-        name: { type: "string", minLength: 1, maxLength: 120, description: "tab label (unique per section)" },
+        name: { type: "string", minLength: 1, maxLength: 120, description: "tab label (unique per surface)" },
         queryAst: { description: "QueryAST v1 (validated against the zod schema)" },
-        viewMode: { type: ["string", "null"], maxLength: 32, description: "optional display-mode pin" },
       },
     },
     success: { status: 201, description: "the created view" },
     errors: ["validation_failed", "conflict"],
   }],
-  ["patch", "/api/me/nodes/:nodeId/sections/:sectionKey/views/:viewId", {
-    summary: "Rename a hosted section view",
+  ["patch", "/api/nodes/:nodeId/sections/:sectionKey/views/:viewId", {
+    summary: "Rename a hosted view",
     description:
-      "The row must exist, belong to the caller, and live on this node+section — anything else is 404 (per-user scoping never leaks). A name collision on the section's unique key is 409.",
-    tags: ["Account"],
+      "The row must exist and live on this node+surface — anything else is 404. A name collision on the surface's unique key is 409.",
+    tags: ["Nodes"],
     params: {
-      nodeId: "the page/class node the section lives on",
-      sectionKey: "linked-references | unlinked-mentions | classed-nodes",
-      viewId: "the section view id (uuid)",
+      nodeId: "the page/class/query node the surface lives on",
+      sectionKey: "linked-references | unlinked-mentions | classed-nodes | - (empty = main query)",
+      viewId: "the node view id (uuid)",
     },
     requestBody: {
       type: "object",
@@ -426,14 +425,14 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     },
     errors: ["validation_failed", "not_found", "conflict"],
   }],
-  ["put", "/api/me/nodes/:nodeId/sections/:sectionKey/views/order", {
-    summary: "Reorder the section's views (the full ordered id list; sequences rewrite 0..n-1)",
+  ["put", "/api/nodes/:nodeId/sections/:sectionKey/views/order", {
+    summary: "Reorder the surface's views (the full ordered id list; sequences rewrite 0..n-1)",
     description:
-      "The client owns ordering, like the prefs lists. orderedIds must name every view of the section exactly once — anything else is 422.",
-    tags: ["Account"],
+      "The client owns ordering, like the prefs lists. orderedIds must name every view of the surface exactly once — anything else is 422.",
+    tags: ["Nodes"],
     params: {
-      nodeId: "the page/class node the section lives on",
-      sectionKey: "linked-references | unlinked-mentions | classed-nodes",
+      nodeId: "the page/class/query node the surface lives on",
+      sectionKey: "linked-references | unlinked-mentions | classed-nodes | - (empty = main query)",
     },
     requestBody: {
       type: "object",
@@ -443,15 +442,15 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     },
     errors: ["validation_failed"],
   }],
-  ["delete", "/api/me/nodes/:nodeId/sections/:sectionKey/views/:viewId", {
-    summary: "Delete a hosted section view (204)",
+  ["delete", "/api/nodes/:nodeId/sections/:sectionKey/views/:viewId", {
+    summary: "Delete a hosted view (204)",
     description:
-      "Deleting every row of a section restores factory behavior — the default view is derived-not-stored, so reset-to-default is just this route over all rows.",
-    tags: ["Account"],
+      "Deleting every row of a surface restores factory behavior — the default view is derived-not-stored, so reset-to-default is just this route over all rows.",
+    tags: ["Nodes"],
     params: {
-      nodeId: "the page/class node the section lives on",
-      sectionKey: "linked-references | unlinked-mentions | classed-nodes",
-      viewId: "the section view id (uuid)",
+      nodeId: "the page/class/query node the surface lives on",
+      sectionKey: "linked-references | unlinked-mentions | classed-nodes | - (empty = main query)",
+      viewId: "the node view id (uuid)",
     },
     success: { status: 204, description: "deleted" },
     errors: ["not_found"],
