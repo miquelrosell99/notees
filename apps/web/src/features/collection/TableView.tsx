@@ -216,11 +216,11 @@ function formatCreated(createdAt: string | null): string {
  * that branch applies the user's dateFormat.
  */
 function nameCellText(client: AnyClient, node: ClientNode): string {
-  const resolve = (classId: string) => client.getDisplayName(classId);
+  const resolve = (id: string) => client.getDisplayName(id);
   if (parseDateNodeId(node.id) !== null) {
-    return titleOfNode(node, { resolveClassName: resolve }) || "Untitled";
+    return titleOfNode(node, { resolveClassName: resolve, resolveMentionName: resolve }) || "Untitled";
   }
-  return titleOfNode(node, { budget: "full", resolveClassName: resolve }) || "Untitled";
+  return titleOfNode(node, { budget: "full", resolveClassName: resolve, resolveMentionName: resolve }) || "Untitled";
 }
 
 /**

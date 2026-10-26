@@ -128,7 +128,7 @@ const EMBED1 = "00000000-0000-7000-8000-0000000000e9";
 
 const TPL_ROOT_AST: ContentAst = [
   { type: "text", text: "Weekly sync" },
-  { type: "mention", targetNodeId: PERSON, text: "Alice" },
+  { type: "mention", targetNodeId: PERSON },
   { type: "class_link", classId: MEETING },
   { type: "typed_link", verb: "prepares", text: "prepares" },
   { type: "asset_ref", assetId: ASSET1 },
@@ -157,7 +157,7 @@ function fixture() {
         tagIds: [TAG_B],
         contentAst: [
           { type: "text", text: "Agenda" },
-          { type: "mention", targetNodeId: PAGE9, text: "Roadmap" },
+          { type: "mention", targetNodeId: PAGE9 },
         ],
       }),
     ],
@@ -287,7 +287,7 @@ describe("composeSubtreeClone", () => {
     const childAst = create(ops, "fresh-2").contentAst;
     expect(childAst).toEqual([
       { type: "text", text: "Agenda" },
-      { type: "mention", targetNodeId: PAGE9, text: "Roadmap" },
+      { type: "mention", targetNodeId: PAGE9 },
     ]);
   });
 
@@ -527,7 +527,7 @@ describe("instantiateTemplate (real client)", () => {
       parentId: tplId,
       contentAst: [
         { type: "text", text: "Discuss with" },
-        { type: "mention", targetNodeId: personId, text: "Alice" },
+        { type: "mention", targetNodeId: personId },
       ],
     });
     await client.assignTag(tplId, personId); // any page can be a tag
@@ -559,7 +559,7 @@ describe("instantiateTemplate (real client)", () => {
       [{ type: "text", text: "Agenda" }],
       [
         { type: "text", text: "Discuss with" },
-        { type: "mention", targetNodeId: personId, text: "Alice" },
+        { type: "mention", targetNodeId: personId },
       ],
     ]);
     expect(children[1]!.id).not.toBe(discussId); // fresh ids

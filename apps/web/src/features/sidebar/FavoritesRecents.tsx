@@ -151,12 +151,14 @@ export function FavoritesRecents({
   /**
    * Row label: PLAIN TEXT — titleOfNode's chrome
    * flatten, the
-   * shared chrome-label derivation: mentions fold to their captured text,
-   * class chips to the class's current name, marks to their words; markdown
-   * link spans reduce to their label (the href never reaches a row). The
-   * label carries no interactive or styled elements, so the row is one
-   * button. Date pages keep the setting-aware display name through the same
-   * helper's date branch; empty content falls back to the untitled label.
+   * shared chrome-label derivation: mentions resolve to the target's current
+   * display name (a customLabel wins — the wire stores no captured text,
+   *), class chips to the class's current name, marks
+   * to their words; markdown link spans reduce to their label (the href never
+   * reaches a row). The label carries no interactive or styled elements, so
+   * the row is one button. Date pages keep the setting-aware display name
+   * through the same helper's date branch; empty content falls back to the
+   * untitled label.
    */
   const renderRowLabel = (node: ClientNode) => {
     // The plain-text chrome label: mentions, class
@@ -172,6 +174,7 @@ export function FavoritesRecents({
     const text = titleOfNode(fresh ?? node, {
       flatten: "chrome",
       resolveClassName: (classId) => client.getDisplayName(classId),
+      resolveMentionName: (targetId) => client.getDisplayName(targetId),
       empty: "untitled",
       isParentlessBlockClass: parentlessBlockResolverOf(client),
     });

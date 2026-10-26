@@ -115,6 +115,37 @@ describe("titleOfNode — the chrome flatten", () => {
     expect(titleOfNode(node, { flatten: "chrome" })).toBe("Reunión con");
   });
 
+  it("resolves a mention to the target's current name — a link-only block never reads Untitled", () => {
+    // The reported bug: a block whose content is ONLY a node link crumbed as
+    // "Untitled" — the excerpt used the retired captured text (empty on
+    // migrated mentions). Chrome flatten resolves the target instead.
+    const linkOnly = {
+      id: "b1",
+      isClass: false as const, isEmbedded: true as const,
+      parentId: "p1",
+      name: null,
+      contentAst: [{ type: "mention", targetNodeId: "t1" } as const],
+    };
+    expect(
+      titleOfNode(linkOnly, {
+        flatten: "chrome",
+        resolveMentionName: () => "piperacillin tazobactam",
+        empty: "untitled",
+      }),
+    ).toBe("piperacillin tazobactam");
+    // Without the resolver the pure default is honestly empty (the
+    // "Untitled" fallback belongs to the caller's label vocabulary).
+    expect(titleOfNode(linkOnly, { flatten: "chrome", empty: "untitled" })).toBe("Untitled block");
+    // A customLabel wins over the resolved name.
+    const labeled = {
+      ...linkOnly,
+      contentAst: [{ type: "mention", targetNodeId: "t1", customLabel: "the Republic" } as const],
+    };
+    expect(
+      titleOfNode(labeled, { flatten: "chrome", resolveMentionName: () => "resolved name" }),
+    ).toBe("the Republic");
+  });
+
   it("keeps the date formatting branch", () => {
     localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY/MM/DD"));
     const node = {

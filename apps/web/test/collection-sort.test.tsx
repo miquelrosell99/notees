@@ -273,7 +273,7 @@ describe("the sort button on the collection views", () => {
     // (The mention rides an update — object.create flattens content to text.)
     const directId = await client.createObject({ isEmbedded: false, name: "see " });
     await client.updateObject(directId, {
-      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId }],
     });
     // A block under another page: a normal containing-page group.
     const blockSourceId = await createTitledPage(client, "Block Source");

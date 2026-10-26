@@ -113,7 +113,7 @@ describe("ExtendedBySection", () => {
     // A page mentioning the mid class gives it a materialized backlink count.
     const pageId = await client.createObject({});
     await client.updateObject(pageId, {
-      contentAst: [{ type: "mention", targetNodeId: midId, text: "tv series" }],
+      contentAst: [{ type: "mention", targetNodeId: midId }],
     });
     expect(client.getBacklinkCount(midId)).toBeGreaterThan(0);
     render(<NodeView client={client} nodeId={parentId} onOpenNode={() => {}} />);

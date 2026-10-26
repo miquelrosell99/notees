@@ -81,7 +81,7 @@ describe("link-only block display transformation", () => {
       parentId: pageId,
       name: "",
       contentAst: [
-        { type: "mention", targetNodeId: targetId, text: "Target page", isEmbedded: true },
+        { type: "mention", targetNodeId: targetId, isEmbedded: true },
       ],
     });
 
@@ -106,7 +106,7 @@ describe("link-only block display transformation", () => {
     await client.createObject({
       parentId: pageId,
       name: "",
-      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Target page" }],
+      contentAst: [{ type: "mention", targetNodeId: targetId }],
     });
 
     const { container } = render(<NodeView client={client} nodeId={pageId} onOpenNode={() => {}} />);
@@ -127,7 +127,7 @@ describe("link-only block display transformation", () => {
       name: "",
       contentAst: [
         { type: "text", text: "see " },
-        { type: "mention", targetNodeId: targetId, text: "Target page" },
+        { type: "mention", targetNodeId: targetId },
         { type: "text", text: " for context" },
       ],
     });

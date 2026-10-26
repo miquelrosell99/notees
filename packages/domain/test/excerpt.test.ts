@@ -79,18 +79,28 @@ describe("excerptOf", () => {
     expect(excerptOf(ast).text).toBe("foobar");
   });
 
-  it("mentions, typed links and math count their text/expression", () => {
+  it("mentions resolve their label (customLabel ?? resolver), typed links and math count their text/expression", () => {
     const ast: ContentAst = [
       { type: "text", text: "see " },
-      { type: "mention", targetNodeId: "00000000-0000-0000-0000-0000000000aa", text: "Alpha" },
+      { type: "mention", targetNodeId: "00000000-0000-0000-0000-0000000000aa" },
       { type: "typed_link", verb: "supports", text: "beta" },
       { type: "math", expression: "x+y" },
     ];
-    expect(excerptOf(ast)).toEqual({
-      text: "see Alphabetax+y",
-      truncated: false,
-      cutOffset: 0,
-    });
+    // Label-less + resolver-less: prose-invisible (the no-stored-link-text ruling).
+    expect(excerptOf(ast).text).toBe("see betax+y");
+    // The resolver supplies the target's current name.
+    expect(
+      excerptOf(ast, undefined, (targetId) =>
+        targetId.endsWith("00aa") ? "Alpha" : null,
+      ).text,
+    ).toBe("see Alphabetax+y");
+    // A one-off customLabel wins over the resolver.
+    const labeled: ContentAst = [
+      { type: "mention", targetNodeId: "00000000-0000-0000-0000-0000000000aa", customLabel: "the Republic" },
+    ];
+    expect(
+      excerptOf(labeled, undefined, () => "Alpha").text,
+    ).toBe("the Republic");
   });
 
   it("class chips count their resolved label via the resolver", () => {

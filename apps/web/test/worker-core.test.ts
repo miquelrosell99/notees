@@ -73,7 +73,7 @@ describe("WorkerCore OPFS persistence", () => {
     });
     const mentionBlockId = await core.createObject({
       parentId: pageId,
-      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Persisted" }],
+      contentAst: [{ type: "mention", targetNodeId: pageId }],
     });
 
     await core.flush();

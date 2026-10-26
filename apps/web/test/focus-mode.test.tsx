@@ -95,7 +95,7 @@ async function seedChromeWorld(): Promise<{ client: WorkspaceClient; pageId: str
     parentId: source,
     contentAst: [
       { type: "text", text: "see " },
-      { type: "mention", targetNodeId: blockId, text: "Chapter one" },
+      { type: "mention", targetNodeId: blockId },
     ],
   });
   const childId = await client.createObject({ isEmbedded: false, name: "Child Page" });

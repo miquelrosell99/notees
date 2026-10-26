@@ -18,9 +18,9 @@
  *
  * Rich tokens (mention, typed_link, class_link, math, quote)
  * are prose-visible but not structurally editable: a change strictly before
- * or after them leaves them intact (a mention's captured text may go stale
- * when text is inserted next to it — display resolves the target name, so
- * this is acceptable). A change that COVERS a rich token is ambiguous (the
+ * or after them leaves them intact (a mention stores no link text — its
+ * label is the target's re-resolved name). A change that COVERS a rich token is
+ * ambiguous (the
  * diff cannot know if the user meant to edit the mention), so the covered
  * span falls back to the old flatten behavior — plain text / hard_break
  * runs built from the span's prose — while everything outside the span is
@@ -78,6 +78,16 @@ export function isChipToken(token: unknown): boolean {
     typeof token === "object" &&
     token !== null &&
     (token as Record<string, unknown>).type === "class_link"
+  );
+}
+
+/** A mention token — also atomic in splices: the wire stores no link text
+ *, so a boundary can never trim a stored string. */
+export function isMentionToken(token: unknown): boolean {
+  return (
+    typeof token === "object" &&
+    token !== null &&
+    (token as Record<string, unknown>).type === "mention"
   );
 }
 
@@ -166,7 +176,8 @@ function followingMarks(
  * `resolveClassName` keeps chip label lengths consistent with the caller's
  * prose projection (the editor threads it; omitting it makes chips
  * prose-invisible). `resolveMentionName` does the same for mention labels
- * (the editor threads it; omitting it keeps captured-text lengths).
+ * (the editor threads it; omitting it makes a label-less mention
+ * prose-invisible).
  */
 export function applyTextEdit(
   previous: readonly unknown[],
@@ -300,23 +311,25 @@ export function applyTextEdit(
 
 /**
  * The prose-bearing string field of a token (capture-splice boundary trims).
- * text / mention / typed_link carry `text`, math carries `expression`.
- * Class chips carry neither — their label is display-resolved.
+ * text / typed_link carry `text`, math carries `expression`. Mentions and
+ * class chips carry neither — a mention stores no link text at all, so both are atomic in
+ * splices (see sliceBoundaryToken).
  */
 function tokenProseField(token: unknown): { field: "text" | "expression"; value: string } | null {
   if (typeof token !== "object" || token === null) return null;
   const t = token as Record<string, unknown>;
-  if (typeof t.text === "string" && (t.type === "text" || t.type === "mention" || t.type === "typed_link"))
+  if (typeof t.text === "string" && (t.type === "text" || t.type === "typed_link"))
     return { field: "text", value: t.text };
   if (typeof t.expression === "string" && t.type === "math") return { field: "expression", value: t.expression };
   return null;
 }
 
 /** Boundary token sliced to [from, to) of its prose; null when the slice is empty.
- *  A class chip is atomic: any cover keeps the WHOLE chip (the label cannot
- *  be partially trimmed — it is re-resolved at render). */
+ *  A class chip or a mention is atomic: any cover keeps the WHOLE token (the
+ *  label cannot be partially trimmed — it is re-resolved at render, and a
+ *  mention's wire text is gone entirely). */
 function sliceBoundaryToken(token: unknown, from: number, to: number | undefined): unknown | null {
-  if (isChipToken(token)) return token;
+  if (isChipToken(token) || isMentionToken(token)) return token;
   const proseField = tokenProseField(token);
   if (proseField === null) return null; // hard_break / prose-less tokens have no partial cover
   const sliced = to === undefined ? proseField.value.slice(from) : proseField.value.slice(from, to);
@@ -329,12 +342,11 @@ function sliceBoundaryToken(token: unknown, from: number, to: number | undefined
  * (mention / class_link / typed_link insertion). Unlike `applyTextEdit` the
  * caller is authoritative — tokens land verbatim, no ambiguity flatten. Runs
  * outside the range keep their marks and identity; boundary text runs are
- * trimmed; boundary rich tokens (a mention the range cuts into) keep their
- * type with their captured text trimmed (it may go stale — display resolves).
- * A class chip the range touches is kept whole (atomic — see
+ * trimmed; boundary rich tokens that store no prose text (a mention — the
+ * wire stores no link text; a class chip) are kept whole (atomic — see
  * sliceBoundaryToken). `resolveClassName` keeps chip label lengths consistent
  * with the caller's prose projection; `resolveMentionName` does the same for
- * mention labels (the re-resolved full title, never the captured text).
+ * mention labels (the re-resolved full title).
  */
 export function spliceTokens(
   previous: readonly unknown[],

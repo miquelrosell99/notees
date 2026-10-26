@@ -93,7 +93,10 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   // Node-scoped reads (args[0] = the node/class id).
   getNode: "scope",
   getNodeRaw: "scope",
-  getDisplayName: "scope",
+  // NOT scope: the derivation resolves MENTION TARGETS' names, and
+  // a rename of T touches only T's scope — every node whose title mentions T
+  // would keep the stale name. Content-global invalidation, like search.
+  getDisplayName: "change",
   getPage: "scope",
   getChildren: "scope",
   getChildPages: "scope",

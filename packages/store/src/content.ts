@@ -1,15 +1,17 @@
 /**
  * Plaintext extraction for the FTS index (port of `derived/search.py`,
  * extended per SCHEMA.md's owed FTS spec): text runs, typed-link text,
- * mention captured text, math expressions and recursive quote children come
- * from the domain excerpt helper; asset original names are joined from
- * node_asset; text-ish property values are appended from
+ * math expressions and recursive quote children come from the domain
+ * excerpt helper; a mention contributes its customLabel or its TARGET's
+ * current display name (resolved here from the derived node row — one
+ * level, SCHEMA.md FTS spec 2026-10-26); asset original names are joined
+ * from node_asset; text-ish property values are appended from
  * property_value — a carrier block's content for node-backed text, scalar
  * strings as-is, select option labels, numbers in string form. Plaintext is
  * derived by the applier, never stored as truth.
  */
 
-import { plainTextExcerpt } from "@notees/domain";
+import { deriveDisplayName, plainTextExcerpt } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
 import { nodeRefOfValue, visiblePropertyValueRows } from "./property-values.js";
@@ -29,10 +31,30 @@ export function parseContentAst(raw: string | null | undefined): ContentAst {
  *  the connection). */
 const assetLookupStmtCache = new WeakMap<object, SqliteStatement>();
 
+/** Mention-target content lookup, prepared once per connection (same
+ *  restore-swap contract as the asset cache). */
+const mentionTargetStmtCache = new WeakMap<object, SqliteStatement>();
+
 /** Content-derived plaintext: the excerpt plus asset names + quote children. */
 function contentPlaintext(db: StoreDatabase, raw: string | null | undefined): string {
   const ast = parseContentAst(raw);
-  const parts: string[] = [plainTextExcerpt(ast)];
+  // A bare mention indexes its target's CURRENT display name (the no-stored-
+  // link-text ruling): resolved from the derived node row at index time — the
+  // target's own mentions do not cascade (one level). The FTS row is a
+  // projection: a rename heals on the target's next content write or a
+  // reindexAllSearch pass.
+  let mentionLookup = mentionTargetStmtCache.get(db);
+  if (mentionLookup === undefined) {
+    mentionLookup = db.prepare("SELECT content FROM node WHERE id = ?");
+    mentionTargetStmtCache.set(db, mentionLookup);
+  }
+  const resolveMentionName = (targetId: string): string | null => {
+    const row = mentionLookup!.get(targetId) as { content: string } | undefined;
+    if (row === undefined) return null;
+    const name = deriveDisplayName({ id: targetId, contentAst: parseContentAst(row.content) });
+    return name === "" ? null : name;
+  };
+  const parts: string[] = [plainTextExcerpt(ast, undefined, resolveMentionName)];
 
   // The asset-name lookup is prepared once per connection — the search
   // ranker calls this for every candidate row.

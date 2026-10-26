@@ -46,6 +46,7 @@ const clients: WorkspaceClient[] = [];
 
 afterEach(() => {
   while (clients.length > 0) clients.pop()!.close();
+  localStorage.clear();
   vi.restoreAllMocks();
 });
 
@@ -714,11 +715,14 @@ describe("assets hub", () => {
 });
 
 describe("pages hub (workspace roots)", () => {
-  it("lists top-level pages only — subpages ride the parent's row, collapsed by default", async () => {
+  it("lists top-level pages only — subpages ride the parent's row, collapsed at the listCollapseLevel setting", async () => {
     const client = await seedClient();
     await client.createObject({ isEmbedded: false, name: "Top Level" });
     const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
     await client.createObject({ parentId, isEmbedded: false, name: "Subpage" });
+    // Collapse-by-default rides the listCollapseLevel device setting (0 =
+    // expanded is the surface default; these tests pin the folded level).
+    localStorage.setItem("notees.settings.listCollapseLevel", "1");
 
     render(<HubView client={client} nav="pages" onOpenNode={() => {}} />);
 
@@ -747,7 +751,7 @@ describe("pages hub (workspace roots)", () => {
   });
 });
 
-describe("outline list: rows with children default collapsed", () => {
+describe("outline list: rows with children collapse at the listCollapseLevel setting", () => {
   it("a page row folds its child blocks behind the chevron; the toggle is session-local display state", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Folded" });
@@ -755,6 +759,7 @@ describe("outline list: rows with children default collapsed", () => {
       parentId: pageId,
       contentAst: [{ type: "text", text: "the hidden block" }],
     });
+    localStorage.setItem("notees.settings.listCollapseLevel", "1");
 
     const { container } = render(
       <CollectionHub
@@ -792,6 +797,7 @@ describe("outline list: rows with children default collapsed", () => {
       parentId: blockId,
       contentAst: [{ type: "text", text: "the nested block" }],
     });
+    localStorage.setItem("notees.settings.listCollapseLevel", "1");
 
     const { container } = render(
       <CollectionHub
@@ -895,7 +901,7 @@ describe("groupBy: references grouped by containing page", () => {
       const sourceId = await client.createObject({ isEmbedded: false, name });
       await client.createObject({
         parentId: sourceId,
-        contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
+        contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId }],
       });
     }
     return targetId;
@@ -946,7 +952,7 @@ describe("groupBy: references grouped by containing page", () => {
     await client.updateObject(sourceOne, { icon: "mdi-star" });
     await client.createObject({
       parentId: sourceOne,
-      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId }],
     });
     // Source Two inherits its icon through the class-extends chain (the
     // daily-page shape: no own icon, the glyph arrives via its class).
@@ -957,7 +963,7 @@ describe("groupBy: references grouped by containing page", () => {
     await client.assignClass(sourceTwo, glyphChild);
     await client.createObject({
       parentId: sourceTwo,
-      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId }],
     });
 
     render(<PageView client={client} pageId={targetId} onOpenPage={() => {}} />);
@@ -983,7 +989,7 @@ describe("groupBy: references grouped by containing page", () => {
     });
     await client.createObject({
       parentId: sourceId,
-      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId }],
     });
     render(<PageView client={client} pageId={targetId} onOpenPage={() => {}} />);
 
@@ -1019,7 +1025,7 @@ describe("groupBy: references grouped by containing page", () => {
         parentId: sourceId,
         contentAst: [
           { type: "text", text: `${text} ` },
-          { type: "mention", targetNodeId: targetId, text: "Zebra" },
+          { type: "mention", targetNodeId: targetId },
         ],
       });
     }
@@ -1045,13 +1051,13 @@ describe("groupBy: references grouped by containing page", () => {
     // (The mention rides an update — object.create flattens content to text.)
     const directId = await client.createObject({ isEmbedded: false, name: "see " });
     await client.updateObject(directId, {
-      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId }],
     });
     // Block Source mentions Zebra from a child block — a real group.
     const blockSource = await client.createObject({ isEmbedded: false, name: "Block Source" });
     await client.createObject({
       parentId: blockSource,
-      contentAst: [{ type: "text", text: "via block " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
+      contentAst: [{ type: "text", text: "via block " }, { type: "mention", targetNodeId: targetId }],
     });
     const onOpenPage = vi.fn();
     render(<PageView client={client} pageId={targetId} onOpenPage={onOpenPage} />);
@@ -1085,7 +1091,7 @@ describe("groupBy: references grouped by containing page", () => {
     for (const name of ["Page One", "Page Two"]) {
       const pageId = await client.createObject({ isEmbedded: false, name: `${name} ` });
       await client.updateObject(pageId, {
-        contentAst: [{ type: "text", text: `${name} ` }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
+        contentAst: [{ type: "text", text: `${name} ` }, { type: "mention", targetNodeId: targetId }],
       });
     }
     render(<PageView client={client} pageId={targetId} onOpenPage={() => {}} />);

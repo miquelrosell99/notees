@@ -120,8 +120,10 @@ function pad2(value: number): string {
 //            (the complete title — node links / mention chips)
 //   flatten  "raw" (default — the excerpt as authored) | "chrome" (flattened
 //            chrome: markdown link spans reduced to their label text, inline
-//            class chips resolved to the class's current name — strings,
-//            never interactive markup; breadcrumbs, sidebar rows, headers)
+//            class chips resolved to the class's current name, mentions
+//            resolved to the target's current display name (customLabel
+//            wins) — strings, never interactive markup; breadcrumbs, sidebar
+//            rows, headers)
 //   read     "live" (default — getNode, else the client's getDisplayName) |
 //            "fallback" (live → getNodeRaw → getDisplayName — the
 //            never-a-bare-UUID seam: an archived/trashed node KEEPS its name)
@@ -174,6 +176,10 @@ type TitleNodeOpts = TitleOpts & {
   /** Class-chip resolver for the "chrome" flatten (the client funnel builds
    *  it from the client automatically). */
   resolveClassName?: ((classId: string) => string | null) | undefined;
+  /** Mention-target resolver: the target's current display name, for the
+   *  excerpt's mention label (customLabel ?? resolved name — the client
+   *  funnel builds it from the client automatically). */
+  resolveMentionName?: ((targetNodeId: string) => string | null) | undefined;
   /** The parentlessRole "block" demote for the "untitled" label (the client
    *  funnel builds it from the client automatically). */
   isParentlessBlockClass?: ((classId: string) => boolean) | undefined;
@@ -199,11 +205,10 @@ function titleFromNode(node: NodeLike, opts: TitleNodeOpts): string {
       )
     : node.contentAst;
   const effectiveNode = flattenChrome ? { ...node, contentAst: strippedAst ?? [] } : node;
-  const resolveClassName = opts.resolveClassName;
   const name =
     opts.budget === "full"
-      ? fullTitleForSettings(effectiveNode, resolveClassName)
-      : nodeDisplayName(effectiveNode, resolveClassName);
+      ? fullTitleForSettings(effectiveNode, opts.resolveClassName, opts.resolveMentionName)
+      : nodeDisplayName(effectiveNode, opts.resolveClassName, opts.resolveMentionName);
   if (name !== "") return name;
   return opts.empty === "untitled"
     ? untitledLabelOf(factsOf(node), opts.isParentlessBlockClass)
@@ -223,6 +228,10 @@ export function titleOf(client: TitleClient, id: string, opts: TitleOpts = {}): 
       opts.flatten === "chrome"
         ? (classId) => client.getDisplayName(classId)
         : undefined,
+    resolveMentionName:
+      opts.flatten === "chrome"
+        ? (targetNodeId) => client.getDisplayName(targetNodeId)
+        : undefined,
     isParentlessBlockClass:
       opts.empty === "untitled" ? client.effectiveClassParentlessBlock?.bind(client) : undefined,
   };
@@ -237,9 +246,9 @@ export function titleOf(client: TitleClient, id: string, opts: TitleOpts = {}): 
 
 /**
  * The node funnel: the title for a node already in hand (no client lookup).
- * Pass `resolveClassName` for the "chrome" flatten's class chips and
- * `isParentlessBlockClass` for the parentlessRole-aware "untitled" label
- * when no client defaults exist.
+ * Pass `resolveClassName` / `resolveMentionName` for the "chrome" flatten's
+ * chips and mention labels and `isParentlessBlockClass` for the
+ * parentlessRole-aware "untitled" label when no client defaults exist.
  */
 export function titleOfNode(
   node: NodeLike,
@@ -257,6 +266,7 @@ export function titleOfNode(
 function nodeDisplayName(
   node: NodeLike,
   resolveClassName?: (classId: string) => string | null,
+  resolveMentionName?: (targetNodeId: string) => string | null,
 ): string {
   const fromId = parseDateNodeId(node.id);
   if (fromId !== null) {
@@ -266,10 +276,10 @@ function nodeDisplayName(
     if (fromId.precision === "year") return year;
     if (fromId.precision === "month") return `${year}/${month}`;
     return (
-      formatDateName(`${year}${month}${day}`) ?? deriveDisplayName(node, resolveClassName)
+      formatDateName(`${year}${month}${day}`) ?? deriveDisplayName(node, resolveClassName, resolveMentionName)
     );
   }
-  return deriveDisplayName(node, resolveClassName);
+  return deriveDisplayName(node, resolveClassName, resolveMentionName);
 }
 
 /**
@@ -281,6 +291,7 @@ function nodeDisplayName(
 function fullTitleForSettings(
   node: NodeLike,
   resolveClassName?: (classId: string) => string | null,
+  resolveMentionName?: (targetNodeId: string) => string | null,
 ): string {
   const fromId = parseDateNodeId(node.id);
   if (fromId !== null) {
@@ -289,9 +300,9 @@ function fullTitleForSettings(
     const day = pad2(fromId.day);
     if (fromId.precision === "year") return year;
     if (fromId.precision === "month") return `${year}/${month}`;
-    return formatDateName(`${year}${month}${day}`) ?? fullTitleOf(node, resolveClassName);
+    return formatDateName(`${year}${month}${day}`) ?? fullTitleOf(node, resolveClassName, resolveMentionName);
   }
-  return fullTitleOf(node, resolveClassName);
+  return fullTitleOf(node, resolveClassName, resolveMentionName);
 }
 
 /**

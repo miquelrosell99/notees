@@ -61,6 +61,7 @@ export function groupByContainingPage(
           ? titleOfNode(keyNode, {
               flatten: "chrome",
               resolveClassName: (classId) => titleOf(client, classId),
+              resolveMentionName: (targetId) => titleOf(client, targetId),
             })
           : (titleOf(client, key) ?? "Untitled"),
       // The header icon is the key node's EFFECTIVE icon — own icon, else the

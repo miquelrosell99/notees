@@ -10,7 +10,7 @@
  *   (markdown spans in text tokens) never offer Edit here (they navigate;
  *   they are authored by the slash "Add URL" command / markdown pasting).
  * - Remove link — unlink but keep the visible text (the custom label when
- *   one is set, otherwise the captured surface text).
+ *   one is set, otherwise the target's current display name).
  * - Delete link — drop the mention token from the block entirely.
  *
  * Rendered with `companion` so the contentEditable blur handler treats focus
@@ -28,6 +28,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 
 import { ContextMenu } from "../../components/ui/fleet/ContextMenu.js";
 import { LinkEditModalHost, useLinkEditModalOpener } from "../../ui/editor-popups/LinkEditModal.js";
+import { titleOf } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf, renderStateLabel } from "../../ui/renderStateLabel.js";
 
 export interface NodeLinkMenuState {
@@ -46,7 +47,7 @@ export interface NodeLinkMenuRequest extends NodeLinkMenuState {
   /** Index of the mention token inside contentAst. */
   tokenIndex: number;
   /** The link's custom label, when set. */
-  displayText?: string | undefined;
+  customLabel?: string | undefined;
 }
 
 // ── Global opener ──────────────────────────────────────────────────────────
@@ -77,7 +78,7 @@ interface NodeLinkMenuHostProps {
 function mentionTokenAt(
   client: NodeLinkMenuHostProps["client"],
   request: NodeLinkMenuRequest,
-): { targetNodeId: string; text: string; displayText?: string; isEmbedded?: boolean } | null {
+): { targetNodeId: string; customLabel?: string; isEmbedded?: boolean } | null {
   const node = client.getNode(request.blockId);
   const token = node?.contentAst[request.tokenIndex];
   if (
@@ -90,8 +91,7 @@ function mentionTokenAt(
   const t = token as Record<string, unknown>;
   return {
     targetNodeId: String(t.targetNodeId),
-    text: String(t.text),
-    ...(typeof t.displayText === "string" ? { displayText: t.displayText } : {}),
+    ...(typeof t.customLabel === "string" ? { customLabel: t.customLabel } : {}),
     ...(t.isEmbedded === true ? { isEmbedded: true } : {}),
   };
 }
@@ -165,7 +165,7 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
                     tokenIndex: request.tokenIndex,
                     insertAt: null,
                     initialNodeId: token.targetNodeId,
-                    initialLabel: token.displayText ?? "",
+                    initialLabel: token.customLabel ?? "",
                     initialEmbedded: token.isEmbedded === true,
                   });
                 }
@@ -177,21 +177,34 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
               close();
               return;
             }
+            // The prose projection must resolve mention labels exactly like
+            // the renderer (customLabel ?? the target's current full title) —
+            // without the resolver a label-less mention spans zero prose and
+            // the splice lands beside it instead of on it.
+            const resolveMentionName = (id: string) => titleOf(client, id, { budget: "full" });
             // Unlink: replace the mention with its visible text (the custom
-            // label when one is set) via the capture splice, so boundary
-            // runs trim and adjacent text merges exactly like edit mode.
-            const kept = token.displayText ?? token.text;
-            const span = proseSpans(node.contentAst).find(
+            // label when one is set, else the target's current display name)
+            // via the capture splice, so boundary runs trim and adjacent text
+            // merges exactly like edit mode.
+            const kept = token.customLabel ?? resolveMentionName(token.targetNodeId) ?? "";
+            const span = proseSpans(node.contentAst, undefined, resolveMentionName).find(
               (s) => s.tokenIndex === request.tokenIndex,
             );
             if (span === undefined) {
               close();
               return;
             }
+            if (kept === "") {
+              // A broken target with no label leaves nothing to keep — drop
+              // the mention wholesale (same outcome as Delete link).
+              rewrite(spliceTokens(node.contentAst, span.start, span.end, [], undefined, resolveMentionName));
+              close();
+              return;
+            }
             rewrite(
               spliceTokens(node.contentAst, span.start, span.end, [
                 { type: "text", text: kept },
-              ]),
+              ], undefined, resolveMentionName),
             );
           }}
           onDelete={() => {
@@ -200,14 +213,15 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
               close();
               return;
             }
-            const span = proseSpans(node.contentAst).find(
+            const resolveMentionName = (id: string) => titleOf(client, id, { budget: "full" });
+            const span = proseSpans(node.contentAst, undefined, resolveMentionName).find(
               (s) => s.tokenIndex === request.tokenIndex,
             );
             if (span === undefined) {
               close();
               return;
             }
-            rewrite(spliceTokens(node.contentAst, span.start, span.end, []));
+            rewrite(spliceTokens(node.contentAst, span.start, span.end, [], undefined, resolveMentionName));
           }}
         />
       )}

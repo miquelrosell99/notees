@@ -71,7 +71,7 @@ UUIDv7 is the only identity in the system. Titles, citekeys, filenames, paths ar
 
 Names are resolved, not stored, at every point of use:
 
-- A **mention** stores the target's id and its captured surface form. Rendering resolves the target's *current* name. Rename the target and every mention updates — because mentions never held the name.
+- A **mention** stores the target's id and nothing else — except an optional one-off **custom label** ("the Republic"). The visible text is computed: the custom label when set, otherwise the target's *current* name. Rename the target and every mention updates — because mentions never held the name, so no stored text can drift.
 - A **class chip** references the class node and renders its current name; rename the class once and every chip follows. (Inserting a chip does not assign the class — chips are render-only; a lint may suggest the assignment.)
 - **Blocks derive their display name** from their content (first text runs, one line, truncated), with an optional stored-name override.
 - Renames never propagate as writes. There is no rename cascade because there is nothing to cascade to — a name is a projection of the node, recomputed wherever it appears.

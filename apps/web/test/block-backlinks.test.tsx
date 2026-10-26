@@ -72,7 +72,7 @@ describe("block-level backlink gutter", () => {
       parentId: sourceA,
       contentAst: [
         { type: "text", text: "see " },
-        { type: "mention", targetNodeId: targetBlockId, text: "Target block" },
+        { type: "mention", targetNodeId: targetBlockId },
       ],
     });
     const sourceB = await client.createObject({ isEmbedded: false, name: "Source B" });
@@ -80,7 +80,7 @@ describe("block-level backlink gutter", () => {
       parentId: sourceB,
       contentAst: [
         { type: "text", text: "also " },
-        { type: "mention", targetNodeId: targetBlockId, text: "Target block" },
+        { type: "mention", targetNodeId: targetBlockId },
       ],
     });
     expect(client.getBacklinkCount(targetBlockId)).toBe(2);
@@ -150,7 +150,7 @@ describe("block-level backlink gutter", () => {
     const sourceA = await client.createObject({ isEmbedded: false, name: "Source A" });
     await client.createObject({
       parentId: sourceA,
-      contentAst: [{ type: "mention", targetNodeId: targetBlockId, text: "Live target" }],
+      contentAst: [{ type: "mention", targetNodeId: targetBlockId }],
     });
     await flushSync();
 
@@ -168,7 +168,7 @@ describe("block-level backlink gutter", () => {
     const sourceB = await client.createObject({ isEmbedded: false, name: "Source B" });
     await client.createObject({
       parentId: sourceB,
-      contentAst: [{ type: "mention", targetNodeId: targetBlockId, text: "Live target" }],
+      contentAst: [{ type: "mention", targetNodeId: targetBlockId }],
     });
     await flushSync();
 

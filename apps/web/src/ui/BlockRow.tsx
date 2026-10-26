@@ -765,7 +765,12 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
   // visible (span start before the cut) or hidden (start at/after it) with
   // no second flatten grammar. Prose-less blocks (an excerpt of "") and
   // one-line blocks (!truncated) are their own row: they never condense.
-  const excerpt = condensed ? excerptOf(node.contentAst, (classId) => outlinerClient.getDisplayName(classId)) : null;
+  // The mention label rides the target's current display name — the same
+  // resolver feeds excerptOf and hiddenLinksOf, so the excerpt's cutOffset and
+  // the prose spans stay one coordinate system.
+  const classLabel = (classId: string) => outlinerClient.getDisplayName(classId) ?? "";
+  const mentionLabel = (targetId: string) => outlinerClient.getDisplayName(targetId);
+  const excerpt = condensed ? excerptOf(node.contentAst, classLabel, mentionLabel) : null;
   const stretchedFull = condensed && stretched.has(node.id);
   const excerpted =
     condensed && !editing && excerpt !== null && excerpt.text !== "" && excerpt.truncated && !stretchedFull;
@@ -774,7 +779,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
   // render-only by decree).
   const hiddenLinks =
     excerpted && excerpt !== null
-      ? hiddenLinksOf(node.contentAst, excerpt.cutOffset, (classId) => outlinerClient.getDisplayName(classId) ?? "")
+      ? hiddenLinksOf(node.contentAst, excerpt.cutOffset, classLabel, mentionLabel)
       : [];
   // A mixed block (sentence + inline image) names its prose-less payload in
   // the excerpt row — nothing silently hidden.

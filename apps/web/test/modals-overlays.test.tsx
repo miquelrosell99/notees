@@ -628,7 +628,7 @@ describe("ExportPageModal", () => {
     const mentionedId = await client.createObject({ isEmbedded: false, name: "Athens" });
     await client.createObject({
       parentId: childId,
-      contentAst: [{ type: "mention", targetNodeId: mentionedId, text: "Athens" }],
+      contentAst: [{ type: "mention", targetNodeId: mentionedId }],
     });
 
     const download = stubDownload();

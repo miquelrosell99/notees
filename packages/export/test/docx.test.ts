@@ -252,7 +252,7 @@ describe("inline spans", () => {
 
   it("maps mentions to plain resolved names (no link relationships)", async () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000024", "mention", [
-      { type: "mention", targetNodeId: EMBED_ID, text: "Embedded target" },
+      { type: "mention", targetNodeId: EMBED_ID },
     ]);
     const { document } = await toDocx(node, makeCtx());
     expect(document).toContain('<w:t xml:space="preserve">Embedded target</w:t>');

@@ -182,7 +182,7 @@ describe("outline rows: containing-page breadcrumbs", () => {
     });
     await client.createObject({
       parentId: section,
-      contentAst: [{ type: "mention", targetNodeId: target, text: "Zebra" }],
+      contentAst: [{ type: "mention", targetNodeId: target }],
     });
 
     const { container } = render(<PageView client={client} pageId={target} />);

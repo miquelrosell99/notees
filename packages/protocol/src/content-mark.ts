@@ -51,10 +51,15 @@ export const mentionTokenSchema = z
   .object({
     type: z.literal("mention"),
     targetNodeId: uuid,
-    /** Captured surface text (non-authoritative; display resolves the target name). */
-    text: z.string().min(1),
-    /** One-off display override ("the Republic"). Auto-rename does not apply to overrides. */
-    displayText: z.string().min(1).max(512).optional(),
+    /**
+     * One-off custom label ("the Republic"). THE ONLY text a mention stores
+     *: the link's visible text is NEVER captured —
+     * it is computed at render time (customLabel ?? the target's current
+     * display name), so renames re-resolve and no stored text can drift.
+     * Absent = render the target's current name. Auto-rename does not apply
+     * to a custom label.
+     */
+    customLabel: z.string().min(1).max(512).optional(),
     /** Stable per-link instance id (node_link assertion key: origin, target,
      * created, click/access times — ed link analytics). */
     linkId: uuid.optional(),

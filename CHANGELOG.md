@@ -74,14 +74,19 @@ predating this file.
   date/template paths, `LinkEditModal`, `extractToPage`, `unlinkedRefs`);
   caret placement rides the RESOLVED label length via `mentionProse`. All
   readers resolve live — `mentionProse` (customLabel → resolved full title →
-  raw id), `InlineTokens`, the editable DOM, the title seam (`titleOf`/
-  `titleOfNode` gain `resolveMentionName`, built automatically for the
-  "chrome" flatten — breadcrumbs, sidebar rows, collection group headers,
-  table/sort labels now crumb a link-only block as the TARGET'S NAME, never
-  "Untitled"), the condensed layer (`excerptOf`/`hiddenLinksOf` thread the
-  same resolver so the cut stays one coordinate system), find-in-page
-  (navigable-only label matches), and the node-link context menu (Remove
-  keeps the customLabel, else the resolved name). Editor splices treat
+  raw id), `InlineTokens`, the editable DOM, `WorkspaceClientReads.
+  getDisplayName` (the raw read every surface funnels through now derives a
+  mention's TARGET-CURRENT name itself, path-guarded against cycles; the
+  worker cache class moves to change-wide so a rename invalidates every
+  derived name), the title seam (`titleOf`/`titleOfNode` gain
+  `resolveMentionName`, built automatically for the "chrome" flatten —
+  breadcrumbs, sidebar rows, collection group headers, table/sort labels now
+  crumb a link-only block as the TARGET'S NAME, never "Untitled"), the
+  condensed layer (`excerptOf`/`hiddenLinksOf` thread the same resolver so
+  the cut stays one coordinate system), find-in-page (navigable-only label
+  matches), and the node-link context menu (Remove keeps the customLabel,
+  else the resolved name; the read-mode menu threads the resolver into its
+  prose spans — the review-found zero-span splice bug). Editor splices treat
   mentions as atomic (no stored text to boundary-trim, the chip precedent).
   **Store**: the applier's promotion/stringify boundary resolves mention
   labels from the derived node rows (a promoted link-only block keeps the

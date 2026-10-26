@@ -407,7 +407,10 @@ export function App() {
           ? (() => {
               const node = client.getNode(selectedPageId);
               return node !== undefined
-                ? titleOfNode(node, { resolveClassName: (classId) => client.getDisplayName(classId) })
+                ? titleOfNode(node, {
+                    resolveClassName: (classId) => client.getDisplayName(classId),
+                    resolveMentionName: (targetId) => client.getDisplayName(targetId),
+                  })
                 : "";
             })()
           : "",

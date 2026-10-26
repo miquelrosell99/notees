@@ -89,14 +89,13 @@ async function seedMention(
   client: WorkspaceClient,
   name: string,
   targetId: string,
-  text: string,
 ): Promise<string> {
   const pageId = await client.createObject({ isEmbedded: false, name });
   await client.createObject({
     parentId: pageId,
     contentAst: [
       { type: "text", text: "see " },
-      { type: "mention", targetNodeId: targetId, text, linkId: `l-${name}` },
+      { type: "mention", targetNodeId: targetId, linkId: `l-${name}` },
     ],
   });
   return pageId;
@@ -106,8 +105,8 @@ describe("node aliases: linked-references roll-up", () => {
   it("a link to an alias appears under the main's backlinks AND the alias's own (additive)", async () => {
     const client = await seedClient();
     const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
-    const sourceAlias = await seedMention(client, "Source A", aliasId, "Cats");
-    const sourceMain = await seedMention(client, "Source B", mainId, "Cat");
+    const sourceAlias = await seedMention(client, "Source A", aliasId);
+    const sourceMain = await seedMention(client, "Source B", mainId);
 
     const mainRefs = client.getLinkedReferences(mainId);
     // Entries carry the linking BLOCK as source — the page shows up as the
@@ -131,7 +130,7 @@ describe("node aliases: linked-references roll-up", () => {
     const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
     const chainId = await client.createObject({ isEmbedded: false, name: "Felines" });
     await client.updateObject(chainId, { aliasedNodeId: aliasId });
-    const sourceChain = await seedMention(client, "Source C", chainId, "Felines");
+    const sourceChain = await seedMention(client, "Source C", chainId);
 
     const mainRefs = client.getLinkedReferences(mainId);
     expect(
@@ -146,14 +145,14 @@ describe("node aliases: linked-references roll-up", () => {
       parentId: aliasId,
       contentAst: [
         { type: "text", text: "self " },
-        { type: "mention", targetNodeId: mainId, text: "Cat", linkId: "l3" },
+        { type: "mention", targetNodeId: mainId, linkId: "l3" },
       ],
     });
     const aliasSelf = await client.createObject({
       parentId: aliasId,
       contentAst: [
         { type: "text", text: "self " },
-        { type: "mention", targetNodeId: aliasId, text: "Cats", linkId: "l4" },
+        { type: "mention", targetNodeId: aliasId, linkId: "l4" },
       ],
     });
 
@@ -169,7 +168,7 @@ describe("node aliases: linked-references roll-up", () => {
   it("a source that LINKS the alias is not an unlinked reference of the main (already linked by alias)", async () => {
     const client = await seedClient();
     const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
-    const linker = await seedMention(client, "Linker", aliasId, "Cats");
+    const linker = await seedMention(client, "Linker", aliasId);
     // A literal-text mention of the alias title (no link) IS unlinked.
     const literal = await client.createObject({ isEmbedded: false, name: "Literal" });
     await client.createObject({
@@ -203,7 +202,7 @@ describe("node aliases: links keep the alias uuid (no authoring rewrite)", () =>
   it("a mention authored to the alias keeps the alias uuid as its target; the seam resolves", async () => {
     const client = await seedClient();
     const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
-    await seedMention(client, "Source A", aliasId, "Cats");
+    await seedMention(client, "Source A", aliasId);
 
     // The derived edge index carries the ALIAS uuid as the target — the
     // link is authored as-is, never rewritten to the main page.
@@ -253,7 +252,7 @@ describe("node aliases: navigation semantics", () => {
   it("clicking a mention of the alias calls onOpenPage with the alias id; the funnel seam opens the MAIN page", async () => {
     const client = await seedClient();
     const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
-    const sourceId = await seedMention(client, "Source A", aliasId, "Cats");
+    const sourceId = await seedMention(client, "Source A", aliasId);
     await flushSync();
 
     // The App funnel contract: onOpenPage IS the resolving seam

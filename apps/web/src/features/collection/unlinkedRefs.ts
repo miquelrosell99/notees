@@ -32,7 +32,9 @@ function mentionTokensFor(run: TextTokenShape, at: number, length: number, targe
   const after = run.text!.slice(at + length);
   const marks = run.marks !== undefined && run.marks.length > 0 ? { marks: run.marks } : {};
   if (before !== "") tokens.push({ type: "text", text: before, ...marks } as ContentToken);
-  tokens.push({ type: "mention", targetNodeId: targetId, text: run.text!.slice(at, at + length) });
+  // Bare mention — the wire stores no link text; the pill renders the
+  // target's current display name.
+  tokens.push({ type: "mention", targetNodeId: targetId });
   if (after !== "") tokens.push({ type: "text", text: after, ...marks } as ContentToken);
   return tokens;
 }

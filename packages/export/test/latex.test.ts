@@ -215,7 +215,7 @@ describe("spans and marks", () => {
       name: null,
       contentAst: [
         { type: "text", text: "See " },
-        { type: "mention", targetNodeId: EMBED_ID, text: "Embedded target" },
+        { type: "mention", targetNodeId: EMBED_ID },
         { type: "text", text: " and " },
         { type: "class_link", classId: PERSON_CLASS_ID },
         { type: "text", text: " per " },
@@ -351,7 +351,7 @@ describe("blocks", () => {
     const tex = toLatex(
       page("aaaaaaaa-0000-4000-8000-000000000023", "Links", [
         { type: "embed_ref", nodeId: EMBED_ID },
-        { type: "mention", targetNodeId: EMBED_ID, text: "Embedded target" },
+        { type: "mention", targetNodeId: EMBED_ID },
       ]),
       ctx,
     );

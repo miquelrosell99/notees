@@ -855,7 +855,7 @@ describe("outliner editor", () => {
       parentId: pageId,
       contentAst: [
         { type: "text", text: "see " },
-        { type: "mention", targetNodeId: targetId, text: "Target" },
+        { type: "mention", targetNodeId: targetId },
       ],
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);

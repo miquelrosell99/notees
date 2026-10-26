@@ -118,7 +118,7 @@ async function seedFindWorld(): Promise<FindWorld> {
     parentId: pageId,
     contentAst: [
       { type: "text", text: "con" },
-      { type: "mention", targetNodeId: blockA, text: "cat" },
+      { type: "mention", targetNodeId: blockA, customLabel: "cat" },
     ],
   });
   await flushSync();
@@ -144,7 +144,7 @@ describe("findInPage core", () => {
       { type: "text", text: "  hello " },
       { type: "hard_break" },
       { type: "text", text: "world" },
-      { type: "mention", targetNodeId: "0192a000-0000-7000-8000-000000000099", text: "M" },
+      { type: "mention", targetNodeId: "0192a000-0000-7000-8000-000000000099", customLabel: "M" },
       { type: "quote", children: [{ type: "text", text: "quoted" }] },
       { type: "text", text: "tail" },
     ] as never;

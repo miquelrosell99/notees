@@ -34,7 +34,7 @@ export function isTriggerBoundary(prevChar: string | undefined): boolean {
   return !/[\p{L}\p{N}_]/u.test(prevChar);
 }
 
-/** displayText schema bound (content-mark.ts mentionTokenSchema). */
+/** customLabel schema bound (content-mark.ts mentionTokenSchema). */
 export const MENTION_LABEL_MAX = 512;
 
 /** One-line picker banner text: long labels truncate so the banner stays a line. */
@@ -88,7 +88,7 @@ export interface CaptureState {
   /**
    * Ctrl/Cmd+Shift+L over a selection: the picker searches with an EMPTY
    * query and this text — the selection itself — becomes the inserted
-   * link's custom label (displayText) on any pick.
+   * link's custom label (customLabel) on any pick.
    */
   fixedLabel?: string;
   /** Faint one-line mode banner the picker renders above its search field. */
@@ -97,12 +97,13 @@ export interface CaptureState {
   anchor?: { top: number; left: number };
 }
 
-/** A mention token as stored in the content stream (content-mark.ts). */
+/** A mention token as stored in the content stream (content-mark.ts) — no
+ *  captured link text rides the wire; the visible
+ *  label is customLabel ?? the target's current display name. */
 export interface MentionToken {
   type: "mention";
   targetNodeId: string;
-  text: string;
-  displayText?: string;
+  customLabel?: string;
   linkId?: string;
   /** Manual per-link embedding flag (default false). */
   isEmbedded?: boolean;

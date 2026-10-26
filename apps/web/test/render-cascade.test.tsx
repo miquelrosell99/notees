@@ -285,7 +285,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
       isEmbedded: true,
       contentAst: [
         { type: "text", text: "check " },
-        { type: "mention", targetNodeId: "t1", text: "Target" },
+        { type: "mention", targetNodeId: "t1" },
         { type: "asset_ref", assetId: "a1" },
       ],
     });
@@ -373,7 +373,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
       isEmbedded: true,
       contentAst: [
         { type: "text", text: "see " },
-        { type: "mention", targetNodeId: "t1", text: "Target" },
+        { type: "mention", targetNodeId: "t1" },
       ],
     });
     const { getByText, getByRole, queryByRole } = render(<Host node={richNode} />);

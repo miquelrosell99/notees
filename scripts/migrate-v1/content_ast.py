@@ -153,13 +153,13 @@ def _convert_inline(node: dict[str, Any], out: list[dict[str, Any]], inherited: 
                 token["displayText"] = label
             out.append(token)
         else:
-            # Unlabeled links must NOT fall back to the target id: the uuid
-            # would leak into excerpts/breadcrumbs as the node's display
-            # text. Resolve the v1 name when the migrator supplies a
-            # resolver; otherwise leave the captured text empty (v2 renders
-            # resolve the target's live name at display time).
-            captured = label if label else (resolve_name(target) if callable(resolve_name) else "")
-            out.append({"type": "mention", "targetNodeId": target, "text": captured})
+            # v2 stores NO captured link text:
+            # the mention renders the target's current name at display time
+            # (customLabel only when the v1 link carried an explicit label).
+            token = {"type": "mention", "targetNodeId": target}
+            if label:
+                token["customLabel"] = label
+            out.append(token)
     elif node_type == "user_mention":
         label = node.get("label")
         out.append(_text_token(f"@{label if isinstance(label, str) else ''}", inherited))

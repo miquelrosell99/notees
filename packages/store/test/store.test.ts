@@ -1916,6 +1916,15 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const parent = "0192a000-0000-7000-8000-0000000000f0";
       store.apply(createPage(parent, 1727200000000));
       const child = "0192a000-0000-7000-8000-0000000000f1";
+      // The mention target: the promotion fold resolves its CURRENT title
+      // from the store (the wire stores no captured link text).
+      store.apply(
+        env(
+          "object.create",
+          { objectId: NODE_BOOK, contentAst: [{ type: "text", text: "book" }] },
+          1727200000500,
+        ),
+      );
       // No payload isEmbedded: a parented create defaults to the inline
       // body (bit 0) and keeps rich content.
       store.apply(
@@ -1926,7 +1935,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
             parentId: parent,
             contentAst: [
               { type: "text", text: "rich " },
-              { type: "mention", targetNodeId: NODE_BOOK, text: "book" },
+              { type: "mention", targetNodeId: NODE_BOOK },
             ],
           },
           1727200001000,
@@ -1959,13 +1968,20 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(
         env(
           "object.create",
+          { objectId: NODE_BOOK, contentAst: [{ type: "text", text: "book" }] },
+          1727200000500,
+        ),
+      );
+      store.apply(
+        env(
+          "object.create",
           {
             objectId: child,
             parentId: parent,
             isEmbedded: false,
             contentAst: [
               { type: "text", text: "title " },
-              { type: "mention", targetNodeId: NODE_BOOK, text: "book" },
+              { type: "mention", targetNodeId: NODE_BOOK },
             ],
           },
           1727200001000,

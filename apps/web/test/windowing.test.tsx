@@ -310,7 +310,7 @@ describe("grouped outline sections — the references grouping", () => {
     for (let i = 0; i < BIG; i += 1) {
       await client.createObject({
         parentId: sourceId,
-        contentAst: [{ type: "mention", targetNodeId: targetId, text: "Zebra" }],
+        contentAst: [{ type: "mention", targetNodeId: targetId }],
       });
     }
     render(<PageView client={client} pageId={targetId} onOpenPage={() => {}} />);

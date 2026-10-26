@@ -10,7 +10,7 @@
  * mentions N nodes you can't see."
  */
 
-import { proseSpans, type ClassNameResolver } from "./prose.js";
+import { proseSpans, type ClassNameResolver, type MentionNameResolver } from "./prose.js";
 
 export interface HiddenLinkTarget {
   /** The mention token's target node id. */
@@ -29,9 +29,10 @@ export function hiddenLinksOf(
   ast: readonly unknown[],
   cutOffset: number,
   resolveClassName?: ClassNameResolver,
+  resolveMentionName?: MentionNameResolver,
 ): HiddenLinkTarget[] {
   if (cutOffset <= 0) return [];
-  const spans = proseSpans(ast, resolveClassName);
+  const spans = proseSpans(ast, resolveClassName, resolveMentionName);
   const hidden: HiddenLinkTarget[] = [];
   for (const span of spans) {
     if (span.start < cutOffset) continue;

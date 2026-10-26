@@ -159,7 +159,7 @@ describe("capture: @ mention", () => {
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
     expect(ast).toHaveLength(2);
     expect(ast[0]).toEqual({ type: "text", text: "see " });
-    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId, text: "Target" });
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId });
     expect(typeof (ast[1] as { linkId?: unknown }).linkId).toBe("string");
     expect((ast[1] as { linkId: string }).linkId).toMatch(UUID_RE);
     // DOM re-synced to the new prose; picker closed.
@@ -378,7 +378,6 @@ describe("capture: @ mention", () => {
     expect(ast[0]).toMatchObject({
       type: "mention",
       targetNodeId: created[0]!.id,
-      text: "zzz",
     });
     expect(editor.textContent).toBe("zzz");
   });
@@ -508,7 +507,7 @@ describe("selection link chords (Ctrl/Cmd+L)", () => {
     await act(async () => {});
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
     expect(ast[0]).toEqual({ type: "text", text: "hello " });
-    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId, text: "World" });
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId });
   });
 
   it("Ctrl+Shift+L searches with an empty query and labels the inserted link with the selection", async () => {
@@ -539,8 +538,7 @@ describe("selection link chords (Ctrl/Cmd+L)", () => {
     expect(ast[1]).toMatchObject({
       type: "mention",
       targetNodeId: targetId,
-      text: "world",
-      displayText: "world",
+      customLabel: "world",
     });
   });
 
@@ -705,9 +703,11 @@ describe("capture tokens survive editing", () => {
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
     expect(ast[0]).toEqual({ type: "text", text: "see " });
-    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId, text: "Target" });
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId });
     expect(ast[2]).toEqual({ type: "text", text: " and more" });
-    expect(proseFromAst(ast)).toBe("see Target and more");
+    expect(proseFromAst(ast, undefined, (id) => (id === targetId ? "Target" : null))).toBe(
+      "see Target and more",
+    );
   });
 });
 
@@ -757,7 +757,6 @@ describe("capture: create-from-@ (async completion)", () => {
     expect(ast[ast.length - 1]).toMatchObject({
       type: "mention",
       targetNodeId: created[0]!.id,
-      text: "Async page",
     });
     expect(editor.textContent).toContain("Async page");
   });
@@ -791,7 +790,6 @@ describe("capture: create-from-@ (async completion)", () => {
     expect(ast[0]).toMatchObject({
       type: "mention",
       targetNodeId: created[0]!.id,
-      text: "Dune",
     });
     expect(editor.textContent).toBe("Dune");
   });
@@ -1095,7 +1093,6 @@ describe("node picker over an async client (worker-shaped reads)", () => {
     expect(ast[1]).toMatchObject({
       type: "mention",
       targetNodeId: created[0]!.id,
-      text: "Fresh page",
     });
     expect(picker()).toBeNull();
   });

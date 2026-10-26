@@ -318,7 +318,7 @@ describe("cell node identity (mention a cell)", () => {
       parentId: pageId,
       contentAst: [
         { type: "text", text: "see " },
-        { type: "mention", targetNodeId: cellId, text: "quarterly figure", linkId: "l1" },
+        { type: "mention", targetNodeId: cellId, linkId: "l1" },
       ],
     });
 

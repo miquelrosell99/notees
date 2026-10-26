@@ -412,7 +412,7 @@ describe("the reference sections' filter bars", () => {
     const linkedSource = await client.createObject({ isEmbedded: false, name: "Linked Source" });
     await client.createObject({
       parentId: linkedSource,
-      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
+      contentAst: [{ type: "mention", targetNodeId: pageId }],
     });
     const plainSourceId = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     await client.createObject({

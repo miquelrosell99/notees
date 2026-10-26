@@ -6,7 +6,7 @@
  * SelectTrigger whose anchored NodeSelector dropdown (portaled below the
  * trigger) picks the target — click opens the dropdown, a pick replaces the
  * selection in place (Page = pages, Block = blocks) — and the Display Label
- * field sets an optional per-link `displayText` override (empty = resolve
+ * field sets an optional per-link `customLabel` override (empty = resolve
  * the target's name). Verb mode edits a typed_link mark: the verb field
  * live-matches the workspace's property schemas (an exact name hit saves
  * bound to the existing schema; an unknown name offers "Create property
@@ -488,7 +488,7 @@ export default LinkEditModal;
  * A request to edit a link token on a block — node links only: external links are never edited here.
  *
  * - `node` — a mention token: retarget it and/or set an optional custom
- *   label (`displayText`). `tokenIndex` identifies the token.
+ *   label (`customLabel`). `tokenIndex` identifies the token.
  * - `verb` — a typed_link mark (PG1): edit the verb (free string or
  *   schema-bound via the create-and-bind row) and the optional locator. The
  *   marked word (`text`) is untouched.
@@ -531,7 +531,7 @@ export function useLinkEditModalOpener(): LinkEditModalOpener {
  * Rewrite the mention token a modal save produced. A picked node retargets
  * the link (fresh `linkId` — the analytics join key follows the destination);
  * a null nodeId keeps the target and applies the label change only. A set
- * label becomes `displayText` (and the captured surface text); a cleared
+ * label becomes `customLabel` (the only text a mention stores); a cleared
  * label resolves the target's current display name instead.
  */
 function writeNodeLink(
@@ -553,18 +553,13 @@ function writeNodeLink(
   }
   const current = existing as {
     targetNodeId: string;
-    text: string;
-    displayText?: string;
+    customLabel?: string;
     linkId?: string;
     isEmbedded?: boolean;
   };
   const targetNodeId = nodeId ?? current.targetNodeId;
-  const text =
-    label !== null && label !== ""
-      ? label
-      : (titleOf(client, targetNodeId) ?? current.text);
-  const token: Record<string, unknown> = { type: "mention", targetNodeId, text };
-  if (label !== null && label !== "") token.displayText = label;
+  const token: Record<string, unknown> = { type: "mention", targetNodeId };
+  if (label !== null && label !== "") token.customLabel = label;
   // The manual embedding flag (default false — the key rides only when set).
   if (embedded) token.isEmbedded = true;
   if (nodeId === null) {

@@ -166,7 +166,7 @@ describe("the context column (three-column panelled layout)", () => {
     const sourceId = await client.createObject({ isEmbedded: false, name: "Ref Source" });
     await client.createObject({
       parentId: sourceId,
-      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Doc" }],
+      contentAst: [{ type: "mention", targetNodeId: pageId }],
     });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -188,7 +188,7 @@ describe("the context column (three-column panelled layout)", () => {
     const sourceId = await client.createObject({ isEmbedded: false, name: "Source" });
     await client.createObject({
       parentId: sourceId,
-      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
+      contentAst: [{ type: "mention", targetNodeId: pageId }],
     });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);

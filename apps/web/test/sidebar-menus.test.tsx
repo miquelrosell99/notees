@@ -15,6 +15,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { plainTextExcerpt } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import type { ClientNode } from "../src/core/workspace-client/index.js";
@@ -460,7 +461,17 @@ describe("sidebar row labels render as plain text", () => {
       effectiveClassIcons: () => new Map(),
       isFeatureEnabled: () => true,
       getNode: (id: string) => byId.get(id),
-      getDisplayName: () => null,
+      // The double resolves mention labels like the real client read (the
+      // row threads getDisplayName as its mention-name resolver).
+      getDisplayName: (id: string) => {
+        const flatten = (nodeId: string, seen: Set<string>): string | null => {
+          const node = byId.get(nodeId);
+          if (node === undefined || seen.has(nodeId)) return null;
+          seen.add(nodeId);
+          return plainTextExcerpt(node.contentAst, undefined, (targetId) => flatten(targetId, seen));
+        };
+        return flatten(id, new Set());
+      },
       getEffectiveProperties: () => [],
       listPropertySchemas: () => [],
       effectiveNodeColor: () => null,
@@ -474,7 +485,7 @@ describe("sidebar row labels render as plain text", () => {
       id: "rich-1",
       contentAst: [
         { type: "text", text: "Notes on " },
-        { type: "mention", targetNodeId: "target-1", text: "Target" },
+        { type: "mention", targetNodeId: "target-1" },
       ],
     });
 
@@ -490,8 +501,8 @@ describe("sidebar row labels render as plain text", () => {
 
   it("flattens a link-rich title to its words — no link UI inside the row", () => {
     const { row } = renderRichRow();
-    // The mention folded into its captured text; the label carries no
-    // interactive or styled elements at all.
+    // The mention folded into the target's resolved name; the label carries
+    // no interactive or styled elements at all.
     expect(document.body.querySelector(".nt-link")).toBeNull();
     const label = row.querySelector<HTMLElement>(".nt-side-item-label")!;
     expect(label.textContent).toBe("Notes on Target");

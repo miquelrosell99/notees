@@ -56,12 +56,14 @@ export const DISPLAY_NAME_MAX = 80;
  * deterministic date id (the year/month/day chain) formats from the id, and
  * a compact YYYYMMDD-style excerpt formats only when the node carries a
  * date class — an 8-digit title on an ordinary page stays literal.
- * `resolveClassName` includes class chips' resolved labels in the excerpt
- * (optional — the pure default drops bare chips, see plainTextExcerpt).
+ * `resolveClassName` / `resolveMentionName` include class chips' / mentions'
+ * resolved labels in the excerpt (optional — the pure default drops bare
+ * chips and label-less mentions, see plainTextExcerpt).
  */
 export function fullTitleOf(
   node: NodeLike,
   resolveClassName?: (classId: string) => string | null,
+  resolveMentionName?: (targetNodeId: string) => string | null,
 ): string {
   const fromId = parseDateNodeId(node.id);
   if (fromId !== null) return dateNodeDisplayLabel(fromId, fromId.precision);
@@ -69,7 +71,7 @@ export function fullTitleOf(
   // excerpt to their visible text (owner papercut — a web source titled
   // `[label](url)` read as raw bracket syntax in the hub's Title column).
   // Plain text passes through untouched (the conservative link grammar).
-  const excerpt = flattenMarkdownLinks(plainTextExcerpt(node.contentAst, resolveClassName)).trim();
+  const excerpt = flattenMarkdownLinks(plainTextExcerpt(node.contentAst, resolveClassName, resolveMentionName)).trim();
   if (!excerpt) return "";
   const dateFormatted = formatDateNodeName(excerpt, node.classIds);
   return dateFormatted ?? excerpt;
@@ -78,19 +80,23 @@ export function fullTitleOf(
 /**
  * Plaintext excerpt of a content token stream (display-name and fallback
  * purposes; the search package owns the full FTS extraction spec).
- * Includes: text runs, typed-link text, mention captured text, a class
- * chip's label, math expressions; recurses quotes and headings. Skips:
- * asset_ref/embed_ref/query/whiteboard (structural tokens carry no prose).
+ * Includes: text runs, typed-link text, a mention's label (its one-off
+ * `customLabel`, else the target's CURRENT display name when a resolver is
+ * passed), a class chip's label, math expressions; recurses quotes and
+ * headings. Skips: asset_ref/embed_ref/query/whiteboard (structural tokens
+ * carry no prose).
  *
- * A class chip's label is the class's CURRENT name — graph state this pure
- * helper cannot resolve on its own. Callers with client access pass
- * `resolveClassName`; a chip carrying its own one-off `displayText` wins
- * over the resolved name. Without a resolver a bare chip excerpts to ""
- * (the caller falls back to the resolved class display name).
+ * A mention's visible label and a class chip's label are live graph state —
+ * names this pure helper cannot resolve on its own. Callers with client
+ * access pass `resolveMentionName` / `resolveClassName`; a token carrying its
+ * own one-off label (`customLabel` / `displayText`) wins over the resolved
+ * name. Without resolvers a bare mention excerpts to "" (the caller falls
+ * back to the resolved target display name or its own placeholder).
  */
 export function plainTextExcerpt(
   ast: ContentAst | null | undefined,
   resolveClassName?: (classId: string) => string | null,
+  resolveMentionName?: (targetNodeId: string) => string | null,
 ): string {
   if (!ast) return "";
   const parts: string[] = [];
@@ -101,9 +107,12 @@ export function plainTextExcerpt(
         case "typed_link":
           parts.push(token.text);
           break;
-        case "mention":
-          parts.push(token.displayText ?? token.text);
+        case "mention": {
+          const label =
+            token.customLabel ?? resolveMentionName?.(token.targetNodeId) ?? null;
+          if (label !== null && label !== "") parts.push(label);
           break;
+        }
         case "class_link": {
           const label = token.displayText ?? (resolveClassName?.(token.classId) ?? null);
           if (label !== null) parts.push(label);
@@ -146,15 +155,17 @@ export function plainTextExcerpt(
  *
  * The result is capped at DISPLAY_NAME_MAX — the dense-chrome budget.
  * Node links/mention chips read fullTitleOf instead (the complete title).
- * Pass `resolveClassName` to include class chips' resolved labels in the
- * excerpt (flattened chrome: tab title, table cells); without it a bare
- * chip contributes nothing.
+ * Pass `resolveClassName` / `resolveMentionName` to include class chips' /
+ * mentions' resolved labels in the excerpt (flattened chrome: tab title,
+ * table cells); without them a bare chip and a label-less mention contribute
+ * nothing.
  */
 export function deriveDisplayName(
   node: NodeLike,
   resolveClassName?: (classId: string) => string | null,
+  resolveMentionName?: (targetNodeId: string) => string | null,
 ): string {
-  return fullTitleOf(node, resolveClassName).slice(0, DISPLAY_NAME_MAX);
+  return fullTitleOf(node, resolveClassName, resolveMentionName).slice(0, DISPLAY_NAME_MAX);
 }
 
 /**
@@ -166,9 +177,15 @@ export function deriveDisplayName(
  * survive as tokens — they are displays/source, not prose, and
  * a whiteboard/code page is a real surface (the flatten would otherwise
  * destroy it). `hr` is deliberately NOT a survivor: it carries
- * no prose.
+ * no prose. `resolveMentionName` / `resolveClassName` let store-side callers
+ * fold a mention's / chip's CURRENT label into the flattened title (the
+ * no-stored-link-text ruling — the wire carries no captured text to fold).
  */
-export function stringifyContentAst(ast: ContentAst | null | undefined): ContentAst {
+export function stringifyContentAst(
+  ast: ContentAst | null | undefined,
+  resolveClassName?: (classId: string) => string | null,
+  resolveMentionName?: (targetNodeId: string) => string | null,
+): ContentAst {
   if (!ast) return [];
   const out: ContentAst = [];
   for (const token of ast) {
@@ -177,7 +194,7 @@ export function stringifyContentAst(ast: ContentAst | null | undefined): Content
       continue;
     }
   }
-  const text = plainTextExcerpt(ast).trim();
+  const text = plainTextExcerpt(ast, resolveClassName, resolveMentionName).trim();
   if (text !== "") out.unshift({ type: "text", text });
   return out;
 }

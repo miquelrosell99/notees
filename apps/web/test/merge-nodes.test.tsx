@@ -87,7 +87,7 @@ describe("WorkspaceClient.mergeNodes", () => {
     await client.updateObject(referrer, {
       contentAst: [
         { type: "text", text: "see " },
-        { type: "mention", targetNodeId: source, text: "Source" },
+        { type: "mention", targetNodeId: source },
       ],
     });
 

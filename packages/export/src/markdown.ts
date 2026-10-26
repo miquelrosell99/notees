@@ -54,7 +54,7 @@
  *  |                |   bold `**` → italic `*` → strike `~~` →              |
  *  |                |   highlight `==` → code `` ` `` (innermost; literal)  |
  *  | hard_break     | newline (line jump)                                   |
- *  | mention        | `[[name]]` — displayText ?? ctx.nameOf(target) ?? raw id    |
+ *  | mention        | `[[name]]` — customLabel ?? ctx.nameOf(target) ?? raw id    |
  *  |                |   (broken targets render the id; SCHEMA Fork 4); when       |
  *  |                |   ctx.linkTarget resolves the target's exported file,       |
  *  |                |   `[name](<path>)` instead (multi-file/zip delivery)    |

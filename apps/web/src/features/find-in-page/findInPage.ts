@@ -6,8 +6,10 @@
  * depth-first through the workspace client (node + recursive getChildren),
  * so collapsed/hidden blocks are found exactly like rendered ones. Per block
  * the searchable text is the domain's plainTextExcerpt projection (text
- * runs, typed links, mention captured text, class-link labels, math, quotes
- * and headings recursed; structural tokens carry no prose).
+ * runs, typed links, a mention's label — its customLabel or the target's
+ * resolved display name, navigable-only,,
+ * class-link labels, math, quotes and headings recursed; structural tokens
+ * carry no prose).
  *
  * v1 documented scope:
  *  - Replace applies ONLY to a match lying fully inside ONE top-level `text`
@@ -29,10 +31,14 @@
 import type { ContentAst, ContentToken } from "@notees/protocol";
 
 /** The minimal client surface the walk needs (WorkspaceClient and the
- *  WorkerClient proxy both satisfy it structurally). */
+ *  WorkerClient proxy both satisfy it structurally). `getDisplayName`
+ *  resolves a mention target's current display name — without it a
+ *  label-less mention is search-invisible (the no-stored-link-text ruling:
+ *  the wire carries no text to match against). */
 export interface FindInPageSource {
   getNode(id: string): { contentAst: ContentAst } | undefined;
   getChildren(id: string): { id: string; contentAst: ContentAst }[];
+  getDisplayName?(id: string): string | null;
 }
 
 /** Where one composed character came from: a raw token character, or null
@@ -84,19 +90,28 @@ function pushPart(
   parts.push({ text, tokenIndex });
 }
 
-function collectParts(tokens: readonly ContentToken[], depth: number, parts: { text: string; tokenIndex: number }[]): void {
+function collectParts(
+  tokens: readonly ContentToken[],
+  depth: number,
+  parts: { text: string; tokenIndex: number }[],
+  resolveMentionName?: (targetNodeId: string) => string | null,
+): void {
   tokens.forEach((token, index) => {
     // Only TOP-LEVEL tokens are replace-addressable; nested quote/heading
-    // children carry tokenIndex -1 (navigable-only, see the v1 scope).
+    // children carry tokenIndex -1 (navigable-only, see the v1 scope). A
+    // mention's label chars join the -1 class: the wire stores no raw text
+    // behind them, so nothing can be replaced inside a label.
     const tokenIndex = depth === 0 ? index : -1;
     switch (token.type) {
       case "text":
       case "typed_link":
         pushPart(parts, token.text, tokenIndex);
         break;
-      case "mention":
-        pushPart(parts, token.displayText ?? token.text, tokenIndex);
+      case "mention": {
+        const label = token.customLabel ?? resolveMentionName?.(token.targetNodeId) ?? null;
+        if (label !== null && label !== "") pushPart(parts, label, -1);
         break;
+      }
       case "class_link":
         pushPart(parts, token.displayText ?? "", tokenIndex);
         break;
@@ -105,7 +120,7 @@ function collectParts(tokens: readonly ContentToken[], depth: number, parts: { t
         break;
       case "quote":
       case "heading":
-        collectParts(token.children, depth + 1, parts);
+        collectParts(token.children, depth + 1, parts, resolveMentionName);
         break;
       case "hard_break":
         pushPart(parts, " ", tokenIndex);
@@ -122,9 +137,13 @@ function collectParts(tokens: readonly ContentToken[], depth: number, parts: { t
  * edges trimmed) while recording per-character provenance back to the raw
  * token text.
  */
-export function buildFindInPageBlock(blockId: string, ast: ContentAst): FindInPageBlock {
+export function buildFindInPageBlock(
+  blockId: string,
+  ast: ContentAst,
+  resolveMentionName?: (targetNodeId: string) => string | null,
+): FindInPageBlock {
   const parts: { text: string; tokenIndex: number }[] = [];
-  collectParts(ast, 0, parts);
+  collectParts(ast, 0, parts, resolveMentionName);
 
   let text = "";
   const provenance: (FindInPageCharProvenance | null)[] = [];
@@ -171,7 +190,7 @@ export function collectSubtreeBlocks(source: FindInPageSource, rootId: string): 
     const node = source.getNode(id);
     if (node === undefined) return;
     if (includeSelf) {
-      const block = buildFindInPageBlock(id, node.contentAst);
+      const block = buildFindInPageBlock(id, node.contentAst, source.getDisplayName?.bind(source));
       if (block.text !== "") blocks.push(block);
     }
     for (const child of source.getChildren(id)) {

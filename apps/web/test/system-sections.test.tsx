@@ -93,7 +93,7 @@ describe("PageView system sections", () => {
     const linkedSource = await client.createObject({ isEmbedded: false, name: "Linked Source" });
     await client.createObject({
       parentId: linkedSource,
-      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
+      contentAst: [{ type: "mention", targetNodeId: pageId }],
     });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -145,7 +145,7 @@ describe("PageView system sections", () => {
     const linkedSource = await client.createObject({ isEmbedded: false, name: "Linked Source" });
     await client.createObject({
       parentId: linkedSource,
-      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
+      contentAst: [{ type: "mention", targetNodeId: pageId }],
     });
     const plainSource = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     await client.createObject({
@@ -225,7 +225,7 @@ describe("PageView system sections", () => {
 
     await client.createObject({
       parentId: sourceId,
-      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Stripped Target" }],
+      contentAst: [{ type: "mention", targetNodeId: targetId }],
     });
 
     // The count re-ran on the write notification: the expanded section
@@ -244,7 +244,7 @@ describe("PageView system sections", () => {
     const linkedPageId = await client.createObject({ isEmbedded: false, name: "Linked Source" });
     await client.createObject({
       parentId: linkedPageId,
-      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Zebra" }],
+      contentAst: [{ type: "mention", targetNodeId: targetId }],
     });
     const plainPageId = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     await client.createObject({
@@ -292,7 +292,7 @@ describe("PageView system sections", () => {
     const linkedSource = await client.createObject({ isEmbedded: false, name: "Linked Source" });
     await client.createObject({
       parentId: linkedSource,
-      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
+      contentAst: [{ type: "mention", targetNodeId: pageId }],
     });
     const plainSource = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     const literalBlock = await client.createObject({
@@ -310,7 +310,7 @@ describe("PageView system sections", () => {
 
     // The write landed: the source block now carries a mention edge.
     expect(client.getNode(literalBlock)!.contentAst).toEqual([
-      { type: "mention", targetNodeId: pageId, text: "Zebra" },
+      { type: "mention", targetNodeId: pageId },
     ]);
     // The eager counts recompute per notification: unlinked drops to 0 and
     // the hide-when-empty ruling retires the section entirely; backlinks
@@ -335,7 +335,7 @@ describe("PageView system sections", () => {
       parentId: linkedSource,
       contentAst: [
         { type: "text", text: "see " },
-        { type: "mention", targetNodeId: pageId, text: "Zebra" },
+        { type: "mention", targetNodeId: pageId },
       ],
     });
     const plainSource = await client.createObject({ isEmbedded: false, name: "Plain Source" });
@@ -522,13 +522,13 @@ describe("PageView system sections", () => {
     const sourcePageId = await client.createObject({ isEmbedded: false, name: "Source" });
     await client.createObject({
       parentId: sourcePageId,
-      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Zebra" }],
+      contentAst: [{ type: "mention", targetNodeId: targetId }],
     });
     await client.createObject({
       parentId: sourcePageId,
       contentAst: [
         { type: "text", text: "again " },
-        { type: "mention", targetNodeId: targetId, text: "Zebra" },
+        { type: "mention", targetNodeId: targetId },
       ],
     });
 
@@ -566,7 +566,7 @@ describe("PageView system sections", () => {
     // by containment; Paris lists it as a direct backlink.
     const blockId = await client.createObject({
       parentId: franceId,
-      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: parisId, text: "Paris" }],
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: parisId }],
     });
 
     render(<PageView client={client} pageId={franceId} />);
@@ -585,7 +585,7 @@ describe("PageView system sections", () => {
     await act(async () => {
       notesBlockId = await client.createObject({
         parentId: notesId,
-        contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: franceId, text: "France" }],
+        contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: franceId }],
       });
     });
 
@@ -618,7 +618,7 @@ describe("PageView system sections", () => {
     const localSourceId = await clientA.createObject({ isEmbedded: false, name: "Local Source" });
     await clientA.createObject({
       parentId: localSourceId,
-      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
+      contentAst: [{ type: "mention", targetNodeId: pageId }],
     });
     await clientA.push();
     await clientB.pull();
@@ -637,7 +637,7 @@ describe("PageView system sections", () => {
     const remotePageId = await clientB.createObject({ isEmbedded: false, name: "Remote Source" });
     await clientB.createObject({
       parentId: remotePageId,
-      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
+      contentAst: [{ type: "mention", targetNodeId: pageId }],
     });
     await act(async () => {
       await clientB.push();
@@ -779,7 +779,7 @@ describe("date pages: no Unlinked mentions", () => {
     const linkedSource = await client.createObject({ isEmbedded: false, name: "Linked Source" });
     await client.createObject({
       parentId: linkedSource,
-      contentAst: [{ type: "mention", targetNodeId: day, text: dayName }],
+      contentAst: [{ type: "mention", targetNodeId: day}],
     });
 
     const countSpy = vi.spyOn(client, "getUnlinkedReferenceCount");
