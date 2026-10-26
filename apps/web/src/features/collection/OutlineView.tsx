@@ -74,6 +74,7 @@ import { BlockRow, useStableIdArray } from "../../ui/BlockRow.js";
 import { titleOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
+import { useDeviceSetting } from "../../features/settings/deviceSettings.js";
 import { Breadcrumbs } from "../node-menu/Breadcrumbs.js";
 import { SortMenuButton, type SortMenuOption } from "../../components/ui/fleet/index.js";
 import { registerView } from "./registry.js";
@@ -260,14 +261,17 @@ function FlatRows({
     enabled: props.windowed ?? true,
     resetKey,
   });
-  // Rows WITH CHILDREN default COLLAPSED (every row in a collection list starts folded, its children
-  // behind the chevron, so the list reads one row per item); the set
-  // collects every rendered row with children, any node kind; the expansion
-  // override is session-local (the context contract). A container-passed
-  // `defaultCollapseLevel` (the linked-references system sections) narrows
-  // the default to rows at that depth and deeper — depth 1 = the list's
-  // top-level rows — and 0 disables it (nothing starts folded).
-  const collapseLevel = props.defaultCollapseLevel;
+  // Rows WITH CHILDREN start folded per the global auto-collapse setting
+  // (the Settings page's "Auto-collapse nodes at this depth in lists"
+  // device setting, `listCollapseLevel`): rows at the named depth and
+  // deeper start collapsed — depth 1 = the list's top-level rows — and 0
+  // (disabled) renders rows fully expanded. A collection that sets the
+  // `collapse` flag owns its collapse behavior (the Child pages tree; the
+  // page body never reaches this path) and keeps the pre-setting blanket
+  // default (every row with children starts folded); the expansion override
+  // is session-local (the context contract).
+  const [settingLevel] = useDeviceSetting("listCollapseLevel", 0);
+  const collapseLevel = props.collapse === true ? undefined : settingLevel;
   const defaultCollapsed = useMemo(() => {
     const set = new Set<string>();
     const walk = (tree: BlockTreeNode, depth: number): void => {
