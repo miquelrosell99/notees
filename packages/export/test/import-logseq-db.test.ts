@@ -82,6 +82,27 @@ describe("decodeKvs", () => {
     expect(entities.get(1)?.[":block/tags"]).toEqual([7, 8]);
     expect(entities.get(2)?.[":block/tags"]).toEqual(7);
   });
+
+  it("dedupes the same datom appearing in more than one kvs row (multi-index storage)", () => {
+    // The real export stores the same current datom in several index pages;
+    // collecting raw rows would double-count cardinality-many values.
+    const rows = rowsOf(
+      [
+        [
+          [1, kw("block/uuid"), uu("11111111-2222-4333-8444-555555555555"), 10],
+          [1, kw("block/tags"), 7, 10],
+          [1, kw("block/tags"), 8, 10],
+        ],
+        [
+          [1, kw("block/tags"), 7, 10],
+          [1, kw("block/title"), "Hi", 10],
+        ],
+      ],
+    );
+    const entities = decodeKvs(rows);
+    expect(entities.get(1)?.[":block/tags"]).toEqual([7, 8]);
+    expect(entities.get(1)?.[":block/title"]).toBe("Hi");
+  });
 });
 
 describe("buildLogseqDbModel", () => {
