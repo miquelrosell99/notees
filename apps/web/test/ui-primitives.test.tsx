@@ -29,6 +29,10 @@ describe("TextField", () => {
     expect(input.className).not.toContain("rounded");
     // The 2px active underline rides the shadow token (no layout shift).
     expect(input).toHaveClass("focus:border-b-primary", "focus:shadow-field-focus");
+    // The underline IS the focus indicator — the design system's global
+    // :focus-visible ring (app.css) opts out here (the
+    // ring read as a rounded box around the field).
+    expect(input).toHaveClass("focus:outline-none", "focus-visible:outline-none");
     // The label accents on focus: the wrapper is the `group` scope.
     const wrapper = input.parentElement as HTMLElement;
     expect(wrapper).toHaveClass("group");

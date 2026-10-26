@@ -76,7 +76,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
 
   const inputClasses = cn(
     "w-full bg-transparent border-b px-0 text-on-surface transition-colors duration-short ease-standard",
-    "placeholder:text-muted-foreground focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed",
+    "placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed",
     SIZE_CLASSES[size],
     underlineClasses,
     icon && "border-b-0 focus:shadow-none",
@@ -97,7 +97,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   const containerClasses = cn(
     "flex items-center w-full bg-transparent border-b transition-colors duration-short ease-standard",
     underlineClasses,
-    "focus-within:outline-none",
+    "focus-within:outline-none focus-within:focus-visible:outline-none",
     error ? "focus-within:border-b-error focus-within:shadow-field-error" : "focus-within:border-b-primary focus-within:shadow-field-focus",
     disabled && "opacity-50 cursor-not-allowed",
     containerClassName,
