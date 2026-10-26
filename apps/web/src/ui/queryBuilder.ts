@@ -1,6 +1,6 @@
 /**
  * Query builder state <-> AST — the shared condition subset the builder UI
- * (QueryBlockView's popover, the FilterBuilderModal) represents honestly:
+ * (the FilterBuilderModal) represents honestly:
  *
  *  - a flat AND root of: class / isClass / isEmbedded / content-contains /
  *    createdAfter / createdBefore conditions;

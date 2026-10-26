@@ -1,6 +1,6 @@
 /**
  * Query-token content helpers — the read/write surface ViewTabs, the Queries
- * hub, and QueryBlockView share for working with `query` content tokens on an
+ * hub, and the query node's section share for working with `query` content tokens on an
  * owner's contentAst. All writes go through the normal content update path
  * (`object.update` on the owning node's contentAst, token splice by index) —
  * the tokens ride the op log, so saved views sync like any other content

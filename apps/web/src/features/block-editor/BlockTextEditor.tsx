@@ -246,7 +246,7 @@ import { parseDate } from "../date-pickers/dateParser.js";
 import { DatePickerPopup } from "../date-pickers/DatePickerPopup.js";
 import { NodeLinkContextMenu } from "../node-menu/NodeLinkContextMenu.js";
 import { useLinkEditModalOpener } from "../../ui/editor-popups/LinkEditModal.js";
-import { requestQueryBuilderOpen } from "../../ui/QueryBlockView.js";
+import { requestQueryBuilderOpen } from "../../ui/QueryNodeSection.js";
 import { requestPropertyCreate } from "../metadata/PropertyCreateHost.js";
 import { TemplateListPopup } from "../../ui/templates/TemplateListPopup.js";
 import { useTemplateInstantiator } from "../../ui/templates/useTemplateInstantiator.js";
@@ -837,7 +837,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     if (commandId === "query") {
       // Insert a live query token at the caret, then hand the
       // token's read-mode view an open-builder request (it mounts when this
-      // editor exits — see QueryBlockView's module queue).
+      // editor exits — see QueryNodeSection's module queue).
       const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName, resolveMentionName);
       const token = { type: "query", queryAst: STARTER_QUERY_AST } as ContentAst[number];
       const next = spliceTokens(base, start, end, [token], resolveClassName, resolveMentionName);

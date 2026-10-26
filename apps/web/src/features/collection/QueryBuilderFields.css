@@ -4,7 +4,7 @@
  * + remove ✕ + the prose operator word). Token-only; values that track type
  * metrics take the adaptive form (em/rem via the spacing/radius/font tokens).
  *
- * The cards live inside both the QueryBlockView popover (.nt-query-builder)
+ * The cards live inside both the FilterBuilderModal
  * and the FilterBuilderModal — the layout is single-column and wraps on
  * narrow surfaces (the modal's md width and the popover's fixed width).
  */

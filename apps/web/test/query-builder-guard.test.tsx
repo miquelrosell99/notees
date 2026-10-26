@@ -26,6 +26,7 @@ import type { Child, QueryAst, Scope } from "@notees/query";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
+import { FilterBuilderModal } from "../src/features/collection/FilterBuilderModal.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -86,86 +87,75 @@ function tokenAstOf(client: WorkspaceClient, block: string): QueryAst {
   return token.queryAst;
 }
 
-describe("query builder read-back guard", () => {
+describe("query builder read-back guard (the hub modal)", () => {
+  /** Render the FilterBuilderModal prefilled with `ast`; collect Run outcomes. */
+  function renderModal(client: WorkspaceClient, ast: unknown): QueryAst[] {
+    const runs: QueryAst[] = [];
+    render(
+      <FilterBuilderModal
+        client={client}
+        isOpen
+        onClose={() => {}}
+        onRun={(composed) => {
+          runs.push(composed);
+        }}
+        onSaveAsView={() => {}}
+        initialAst={ast}
+      />,
+    );
+    return runs;
+  }
+
   it("an OR-rooted AST opens on a read-only summary naming the lost constructs", async () => {
     const client = await seedClient();
-    const { city, host } = await seedWorld(client);
-    await client.createObject({
-      parentId: host,
-      contentAst: queryToken(
-        makeAst(WORKSPACE(), [
-          {
-            type: "group",
-            logic: "or",
-            children: [
-              { type: "class", classId: city },
-              { type: "content", op: "contains", value: "capital" },
-            ],
-          },
-        ]),
-      ),
-    });
+    const { city } = await seedWorld(client);
+    renderModal(
+      client,
+      makeAst(WORKSPACE(), [
+        {
+          type: "group",
+          logic: "or",
+          children: [
+            { type: "class", classId: city },
+            { type: "content", op: "contains", value: "capital" },
+          ],
+        },
+      ]),
+    );
 
-    render(<PageView client={client} pageId={host} />);
-    await screen.findByText("Query");
-    fireEvent.click(screen.getByLabelText("Query settings"));
-
-    const dialog = screen.getByRole("dialog", { name: "Query builder" });
+    const dialog = await screen.findByRole("dialog", { name: "Query builder" });
     // Read-only: the guard names the construct, the summary lists what the
-    // builder CAN represent, and there is no Apply to clobber with.
+    // builder CAN represent, and the editable form stays locked.
     expect(within(dialog).getByRole("alert").textContent).toContain("an OR group");
     expect(within(dialog).getByText(/Scope: entire workspace/)).not.toBeNull();
-    expect(within(dialog).queryByRole("button", { name: "Apply" })).toBeNull();
+    expect(within(dialog).queryByLabelText("Text contains")).toBeNull();
 
-    // Cancel leaves the AST untouched.
+    // Cancel closes without an outcome.
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
-    const block = client
-      .getChildren(host)
-      .find((node) => (node.contentAst as unknown[]).some((t) => (t as { type?: string }).type === "query"))!;
-    expect(tokenAstOf(client, block.id).root.logic).toBe("and");
-    expect(
-      (tokenAstOf(client, block.id).root.children[0] as { type: string }).type,
-    ).toBe("group");
   });
 
   it("rich constructs (NOT + property + multi-sort) are all named; edit-anyway unlocks the lossy form", async () => {
     const client = await seedClient();
-    const { city, host } = await seedWorld(client);
+    const { city } = await seedWorld(client);
     const rating = await client.createPropertySchema({ name: "rating", type: "number" });
-    const block = await client.createObject({
-      parentId: host,
-      contentAst: queryToken(
-        makeAst(WORKSPACE(), [{ type: "not", child: { type: "class", classId: city } }], {
+    const runs = renderModal(
+      client,
+      makeAst(
+        WORKSPACE(),
+        [
+          { type: "not", child: { type: "class", classId: city } },
+          { type: "property", schemaId: rating, op: "gt", value: 2 },
+        ],
+        {
           sort: [
             { field: "name", dir: "asc" },
             { field: "createdAt", dir: "desc" },
           ],
-        }),
+        },
       ),
-    });
-    await client.updateObject(block, {
-      contentAst: queryToken(
-        makeAst(
-          WORKSPACE(),
-          [
-            { type: "not", child: { type: "class", classId: city } },
-            { type: "property", schemaId: rating, op: "gt", value: 2 },
-          ],
-          {
-            sort: [
-              { field: "name", dir: "asc" },
-              { field: "createdAt", dir: "desc" },
-            ],
-          },
-        ),
-      ),
-    });
+    );
 
-    render(<PageView client={client} pageId={host} />);
-    await screen.findByText("Query");
-    fireEvent.click(screen.getByLabelText("Query settings"));
-
-    const dialog = screen.getByRole("dialog", { name: "Query builder" });
+    const dialog = await screen.findByRole("dialog", { name: "Query builder" });
     const alert = within(dialog).getByRole("alert").textContent ?? "";
     expect(alert).toContain("NOT conditions");
     expect(alert).toContain("property conditions");
@@ -176,51 +166,45 @@ describe("query builder read-back guard", () => {
     expect(within(dialog).getByLabelText("Text contains")).not.toBeNull();
     expect(within(dialog).getByRole("alert").textContent).toContain("property conditions");
 
-    // Apply now (deliberately) rewrites to the flat-AND subset: the NOT and
+    // Run now (deliberately) rewrites to the flat-AND subset: the NOT and
     // property conditions drop, the first of the multi-sort survives (the
     // representable single-sort read-back — the guard named the loss).
     await act(async () => {
-      fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Run" }));
     });
-    const ast = tokenAstOf(client, block);
-    expect(ast.root).toEqual({ type: "group", logic: "and", children: [] });
-    expect(ast.sort).toEqual([{ field: "name", dir: "asc" }]);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]!.root).toEqual({ type: "group", logic: "and", children: [] });
+    expect(runs[0]!.sort).toEqual([{ field: "name", dir: "asc" }]);
   });
 
   it("representable ASTs (created window + single sort) open editable directly and round-trip", async () => {
     const client = await seedClient();
-    const { host } = await seedWorld(client);
-    const block = await client.createObject({
-      parentId: host,
-      contentAst: queryToken(
-        makeAst(WORKSPACE(), [{ type: "createdAfter", timestamp: "{today}" }], {
-          sort: [{ field: "name", dir: "desc" }],
-        }),
-      ),
-    });
+    await seedWorld(client);
+    const runs = renderModal(
+      client,
+      makeAst(WORKSPACE(), [{ type: "createdAfter", timestamp: "{today}" }], {
+        sort: [{ field: "name", dir: "desc" }],
+      }),
+    );
 
-    render(<PageView client={client} pageId={host} />);
-    await screen.findByText("Query");
-    fireEvent.click(screen.getByLabelText("Query settings"));
-
-    const dialog = screen.getByRole("dialog", { name: "Query builder" });
+    const dialog = await screen.findByRole("dialog", { name: "Query builder" });
     // No guard: directly editable, values read back.
     expect(within(dialog).queryByRole("alert")).toBeNull();
     expect(within(dialog).getByLabelText("Created after")).toHaveProperty("value", "{today}");
     expect(within(dialog).getByLabelText("Sort by")).toHaveTextContent("Name");
     expect(within(dialog).getByLabelText("Sort direction")).toHaveTextContent("Descending");
 
-    // Tweak + Apply: the created window and sort survive the round-trip.
+    // Tweak + Run: the created window and sort survive the round-trip.
     fireEvent.change(within(dialog).getByLabelText("Text contains"), {
       target: { value: "capital" },
     });
     await act(async () => {
-      fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Run" }));
     });
     // composeQueryAst emits conditions in its fixed order (contains before
     // the created window) — the round-trip preserves the conditions, not
     // their original positions.
-    expect(tokenAstOf(client, block)).toEqual(
+    expect(runs).toEqual([
       makeAst(
         WORKSPACE(),
         [
@@ -229,16 +213,22 @@ describe("query builder read-back guard", () => {
         ],
         { sort: [{ field: "name", dir: "desc" }] },
       ),
-    );
+    ]);
   });
 
   it("multi-dimension aggregations are guarded; a single-dimension aggregation opens editable", async () => {
     const client = await seedClient();
-    const { city, host } = await seedWorld(client);
-    const rich = await client.createObject({
-      parentId: host,
-      contentAst: queryToken(
-        makeAst(WORKSPACE(), [], {
+    const { city } = await seedWorld(client);
+
+    // First: two dimensions → guarded.
+    const first = render(
+      <FilterBuilderModal
+        client={client}
+        isOpen
+        onClose={() => {}}
+        onRun={() => {}}
+        onSaveAsView={() => {}}
+        initialAst={makeAst(WORKSPACE(), [], {
           aggregation: {
             dimensions: [
               { kind: "isClass" },
@@ -246,38 +236,31 @@ describe("query builder read-back guard", () => {
             ],
             measures: [{ function: "count" }],
           },
-        }),
-      ),
-    });
-    const plain = await client.createObject({
-      parentId: host,
-      contentAst: queryToken(
-        makeAst(WORKSPACE(), [], {
-          aggregation: { dimensions: [{ kind: "isClass" }], measures: [{ function: "count" }] },
-        }),
-      ),
-    });
-
-    render(<PageView client={client} pageId={host} />);
-    await screen.findAllByText("Query");
-
-    const settingsButtons = screen.getAllByLabelText("Query settings");
-    // First block: guarded (two dimensions).
-    fireEvent.click(settingsButtons[0]!);
-    let dialog = screen.getByRole("dialog", { name: "Query builder" });
+        })}
+      />,
+    );
+    let dialog = await screen.findByRole("dialog", { name: "Query builder" });
     expect(within(dialog).getByRole("alert").textContent).toContain(
       "multiple group-by dimensions",
     );
-    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    first.unmount();
 
-    // Second block: directly editable.
-    fireEvent.click(screen.getAllByLabelText("Query settings")[1]!);
-    dialog = screen.getByRole("dialog", { name: "Query builder" });
+    // Second: one dimension → directly editable.
+    render(
+      <FilterBuilderModal
+        client={client}
+        isOpen
+        onClose={() => {}}
+        onRun={() => {}}
+        onSaveAsView={() => {}}
+        initialAst={makeAst(WORKSPACE(), [], {
+          aggregation: { dimensions: [{ kind: "isClass" }], measures: [{ function: "count" }] },
+        })}
+      />,
+    );
+    dialog = await screen.findByRole("dialog", { name: "Query builder" });
     expect(within(dialog).queryByRole("alert")).toBeNull();
     expect(within(dialog).getByLabelText("Group by")).toHaveTextContent("Class bit");
-
-    void rich;
-    void plain;
   });
 });
 

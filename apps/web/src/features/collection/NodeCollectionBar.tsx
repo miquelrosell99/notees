@@ -104,6 +104,11 @@ export interface NodeCollectionBarProps {
    */
   applyTarget?: FilterApplyTarget | undefined;
   /**
+   * The panel's initial open state (the `/query` slash flow asks the fresh
+   * section to open its structured builder); the toggle owns it from there.
+   */
+  defaultPanelOpen?: boolean | undefined;
+  /**
    * "block" (default) renders the bar as its own body-top row; "inline"
    * renders it inside a toolbar row (a ViewToolbar or the hosted tab bar's
    * `trailing`) via `display: contents` — the control row joins the row's
@@ -115,8 +120,8 @@ export interface NodeCollectionBarProps {
   layout?: "block" | "inline" | undefined;
 }
 
-export function NodeCollectionBar({ client, value, onChange, config, matchCount, totalCount, viewSaver, applyTarget, layout = "block" }: NodeCollectionBarProps) {
-  const [panelOpen, setPanelOpen] = useState(false);
+export function NodeCollectionBar({ client, value, onChange, config, matchCount, totalCount, viewSaver, applyTarget, defaultPanelOpen = false, layout = "block" }: NodeCollectionBarProps) {
+  const [panelOpen, setPanelOpen] = useState(defaultPanelOpen);
   /**
    * The narrow-viewport fold: at ≤768px the permanent
    * search field gives its row space back and becomes a magnifier button

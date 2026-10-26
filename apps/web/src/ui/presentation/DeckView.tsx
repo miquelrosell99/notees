@@ -7,7 +7,7 @@
  * pure builder in deck.ts; every slide resolves its nodes from the client at
  * render time, so edits anywhere re-project mid-deck through the standard
  * notify path. Slide bodies reuse the embed read-only projection machinery
- * (InlineTokens + EmbedView + QueryBlockView + WhiteboardCanvas embedded) so
+ * (InlineTokens + EmbedView + WhiteboardCanvas embedded) so
  * decks render exactly what PageView renders; the slide chrome (title /
  * section / intro, density sizing, trailing-image pull) is token-only CSS.
  *
@@ -27,7 +27,7 @@ import { openNodeLinkMenu } from "../../features/node-menu/NodeLinkContextMenu.j
 import { EmbedBoundary, EmbedView } from "../EmbedView.js";
 import { Icon } from "../Icon.js";
 import { InlineTokens } from "../InlineTokens.js";
-import { QueryBlockView } from "../QueryBlockView.js";
+
 import { WhiteboardCanvas } from "../WhiteboardCanvas.js";
 import { AssetView } from "../AssetView.js";
 import { titleOf } from "../dateDisplay.js";
@@ -108,17 +108,6 @@ function DeckBlock({ tree }: { tree: BlockTreeNode }) {
           resolveClassColor={(id) => client.effectiveClassColor(id)}
           renderEmbed={(id, _token, index) => (
             <EmbedView nodeId={id} hostId={node.id} tokenIndex={index} />
-          )}
-          renderQuery={(token, index) => (
-            <QueryBlockView
-              client={client}
-              ownerId={node.id}
-              tokenIndex={index}
-              queryAst={(token as { queryAst?: unknown }).queryAst}
-              view={(token as { view?: unknown }).view}
-              rootId={rootId}
-              onOpenNode={openNode}
-            />
           )}
           renderWhiteboard={(_token, index) => (
             <WhiteboardCanvas client={client} hostId={node.id} tokenIndex={index} embedded />

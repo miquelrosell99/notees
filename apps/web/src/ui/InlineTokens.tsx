@@ -20,8 +20,9 @@
  * carries the large/bold typography); embed_ref renders
  * the live subtree via the
  * optional renderEmbed callback (placeholder box when absent); query renders
- * the live query block via the optional renderQuery callback (placeholder box
- * when absent); whiteboard renders the live canvas via the optional
+ * nothing in the stream — the query node's chrome rides as a sibling section
+ * below the block's content row (QueryNodeSection);
+ * whiteboard renders the live canvas via the optional
  * renderWhiteboard callback (placeholder box when absent); asset_ref renders
  * via the optional renderAsset callback (SCHEMA.md:61 — full-bleed when alone
  * in the stream; placeholder box when absent); embed_ref card views route
@@ -59,12 +60,6 @@ export interface InlineTokensProps {
    * renderer can write the token's `view` field (the embed view switcher).
    */
   renderEmbed?: ((nodeId: string, token: unknown, index: number) => ReactNode) | undefined;
-  /**
-   * Live query-block renderer for `query` tokens (QueryBlockView), injected
-   * by the row; when absent (e.g. read-only embed projections), query falls
-   * back to the placeholder box.
-   */
-  renderQuery?: ((token: unknown, index: number) => ReactNode) | undefined;
   /**
    * Live canvas renderer for `whiteboard` tokens (WhiteboardCanvas),
    * injected by the row (embedded mini-canvas) or the page view (fullscreen
@@ -196,7 +191,6 @@ function renderToken(
   resolveVerb: InlineTokensProps["resolveVerb"],
   renderEmbed: InlineTokensProps["renderEmbed"],
   renderEmbedCard: InlineTokensProps["renderEmbedCard"],
-  renderQuery: InlineTokensProps["renderQuery"],
   renderWhiteboard: InlineTokensProps["renderWhiteboard"],
   renderAsset: InlineTokensProps["renderAsset"],
   assetAlone: boolean,
@@ -446,12 +440,11 @@ function renderToken(
     }
     case "hr":
       return <hr key={key} className="nt-hr" />;
-    case "query": {
-      if (renderQuery !== undefined) {
-        return <Fragment key={key}>{renderQuery(token, key)}</Fragment>;
-      }
-      return <Placeholder key={key} label="query" />;
-    }
+    case "query":
+      // The query node's chrome rides as a sibling section BELOW the block's
+      // content row (QueryNodeSection) — the token
+      // itself renders nothing inside the stream.
+      return null;
     case "whiteboard":
       if (renderWhiteboard !== undefined) {
         return <Fragment key={key}>{renderWhiteboard(token, key)}</Fragment>;
@@ -463,7 +456,7 @@ function renderToken(
   }
 }
 
-export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, resolveIcon, resolveClassColor, resolveClassAssigned, onAssignClass, onMentionMenu }: InlineTokensProps) {
+export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderWhiteboard, renderAsset, onOpenNode, resolveColor, resolveIcon, resolveClassColor, resolveClassAssigned, onAssignClass, onMentionMenu }: InlineTokensProps) {
   // SCHEMA.md:61 — an asset_ref alone in its stream renders full-bleed; the
   // flag reaches only the (single) asset token in that stream.
   const assetAlone =
@@ -474,7 +467,7 @@ export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveVer
     (tokens[0] as { type?: unknown }).type === "asset_ref";
   return (
     <>
-      {tokens.map((token, index) => renderToken(token, index, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, resolveIcon, resolveClassColor, resolveClassAssigned, onAssignClass, onMentionMenu))}
+      {tokens.map((token, index) => renderToken(token, index, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, resolveIcon, resolveClassColor, resolveClassAssigned, onAssignClass, onMentionMenu))}
     </>
   );
 }

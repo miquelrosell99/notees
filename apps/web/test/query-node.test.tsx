@@ -1,12 +1,15 @@
 /**
- * Query block tests: the live `query` content token (QueryBlockView) over
- * PageView (jsdom) — result rendering from the @notees/query bridge, the
- * notify-driven live re-run, the count badge, the builder popover's AST
- * persistence, the list/table view toggle (persisted in the token's view
- * record), the aggregate grid for aggregated ASTs, the builder's minimal
- * aggregation section, export-on-query (markdown construction + the anchor
- * download), the invalid-AST placeholder, scope limits, the result cap,
- * render-cascade navigation, and the worker passthrough (WorkerCore.invoke).
+ * Query node tests: the `query` content token as a nodecollection surface
+ * (QueryNodeSection) over PageView (jsdom) — the
+ * token renders nothing inside the content row; below the row the block
+ * carries the NodeCollectionTabs + NodeCollectionBar chrome (the toggleable
+ * full-grammar builder with the per-tab "Apply to <tab>" commit) and the
+ * shared QueryResults body: result rendering from the @notees/query bridge,
+ * the notify-driven live re-run, the active-tab count badge, the aggregate
+ * grid for aggregated ASTs, the transient (never persisted) list/table
+ * switch, export-on-query (markdown construction + the anchor download),
+ * the invalid-AST placeholder, scope limits, the result cap, render-cascade
+ * navigation, and the worker passthrough (WorkerCore.invoke).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -19,12 +22,11 @@ import type { Aggregation, Child, QueryAst, Scope } from "@notees/query";
 
 import { InvalidQueryAstError, WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
+import { QUERY_RESULT_CAP } from "../src/ui/queryResults.js";
 import {
-  QUERY_RESULT_CAP,
   buildQueryExportMarkdown,
-  composeQueryAst,
   queryExportFileName,
-} from "../src/ui/QueryBlockView.js";
+} from "../src/ui/queryExport.js";
 import { WorkerCore } from "../src/worker/worker-core.js";
 import type { OpfsStore } from "../src/worker/opfs.js";
 
@@ -66,13 +68,35 @@ function makeAst(scope: Scope, children: Child[] = []): QueryAst {
   return { version: 1, scope, root: { type: "group", logic: "and", children } };
 }
 
-/** Drive a kit Dropdown inside the builder popover: open the trigger by
- * aria-label, pick the ported menu item by name. */
-function pickDropdownOption(dialog: HTMLElement, label: string, option: string): void {
-  fireEvent.click(within(dialog).getByLabelText(label));
-  fireEvent.click(
-    within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: option }),
+/** The query node's section below the content row. */
+function querySection(container: HTMLElement): HTMLElement {
+  const section = container.querySelector(".nt-query-node");
+  if (section === null) throw new Error("no query node section rendered");
+  return section as HTMLElement;
+}
+
+/** The active tab's total-count badge. */
+function activeTabBadge(container: HTMLElement): string {
+  return (
+    querySection(container).querySelector(".nt-node-collection-tabs__tab-count")?.textContent ??
+    ""
   );
+}
+
+/** Open the bar's structured builder panel inside the section. */
+function openBuilder(container: HTMLElement): HTMLElement {
+  const section = querySection(container);
+  fireEvent.click(within(section).getByRole("button", { name: "Structured filters" }));
+  const panel = document.querySelector(".nt-node-collection-bar__panel");
+  if (panel === null) throw new Error("no structured builder panel open");
+  return panel as HTMLElement;
+}
+
+/** The panel's add menu → pick one entry by label (the menu portals to body). */
+function addCondition(scope: HTMLElement, label: RegExp): void {
+  fireEvent.click(within(scope).getByRole("button", { name: "Add condition" }));
+  const menu = document.querySelector(".btn-panel") as HTMLElement;
+  fireEvent.click(within(menu).getByRole("menuitem", { name: label }));
 }
 
 const WORKSPACE = (): Scope => ({ type: "entire_workspace" });
@@ -94,12 +118,8 @@ async function seedWorld(client: WorkspaceClient) {
   return { city, paris, london };
 }
 
-function badge(container: HTMLElement): string {
-  return container.querySelector(".nt-query-badge")?.textContent ?? "";
-}
-
-describe("query block (live query token)", () => {
-  it("renders the result rows with names and render-state chips", async () => {
+describe("query node (nodecollection surface below the content row)", () => {
+  it("renders the results below the row; the token renders nothing inside the content row", async () => {
     const client = await seedClient();
     const { city } = await seedWorld(client);
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
@@ -110,12 +130,14 @@ describe("query block (live query token)", () => {
 
     const { container } = render(<PageView client={client} pageId={host} />);
 
-    expect(await screen.findByText("Paris")).not.toBeNull();
-    expect(screen.getByText("London")).not.toBeNull();
-    // Two member pages → badge 2; one full block row per member (the list
-    // view renders the outline row — content, no render-state chips).
-    expect(badge(container)).toBe("2");
-    const items = container.querySelectorAll(".outline-flat > li");
+    // The section chrome exists below the row: the Default tab + the results.
+    const section = querySection(container);
+    expect(within(section).getByRole("tab", { name: "Default" })).not.toBeNull();
+    expect(await within(section).findByText("Paris")).not.toBeNull();
+    expect(within(section).getByText("London")).not.toBeNull();
+    // Two member pages → the active tab's badge names 2.
+    expect(activeTabBadge(container)).toBe("2");
+    const items = section.querySelectorAll(".outline-flat > li");
     expect(items.length).toBe(2);
     const labels = [...items].map((el) => el.querySelector(".nt-block-content")?.textContent).sort();
     expect(labels).toEqual(["London", "Paris"]);
@@ -131,7 +153,8 @@ describe("query block (live query token)", () => {
     });
 
     render(<PageView client={client} pageId={host} />);
-    expect(await screen.findByText("Paris")).not.toBeNull();
+    const section = querySection(document.body as unknown as HTMLElement);
+    expect(await within(section).findByText("Paris")).not.toBeNull();
     expect(screen.queryByText("Lyon")).toBeNull();
 
     await act(async () => {
@@ -158,17 +181,17 @@ describe("query block (live query token)", () => {
 
     const { container } = render(<PageView client={client} pageId={host} />);
     await screen.findByText("Paris");
-    expect(badge(container)).toBe("2");
+    expect(activeTabBadge(container)).toBe("2");
 
     const lyon = await act(async () =>
       client.createObject({ isEmbedded: false, name: "Lyon", classIds: [city] }),
     );
-    expect(badge(container)).toBe("3");
+    await waitFor(() => expect(activeTabBadge(container)).toBe("3"));
 
     await act(async () => {
       await client.deleteObject(lyon as unknown as string);
     });
-    expect(badge(container)).toBe("2");
+    await waitFor(() => expect(activeTabBadge(container)).toBe("2"));
   });
 
   it("scope = this page limits the results to the page subtree", async () => {
@@ -201,9 +224,9 @@ describe("query block (live query token)", () => {
     // the host row nests its own children, so top-level <li> rows are
     // counted, not every nested block.
     await waitFor(() => {
-      const items = Array.from(container.querySelectorAll(".outline-flat > li")).map(
-        (el) => el.textContent ?? "",
-      );
+      const items = Array.from(
+        querySection(container).querySelectorAll(".outline-flat > li"),
+      ).map((el) => el.textContent ?? "");
       expect(items.length).toBe(4);
       expect(items.some((t) => t.includes("host body"))).toBe(true);
       expect(items.some((t) => t.includes("nested body"))).toBe(true);
@@ -225,7 +248,7 @@ describe("query block (live query token)", () => {
     const { container } = render(<PageView client={client} pageId={host} />);
     await screen.findByText("The capital city");
     // Only the block matches; the list view renders it as a full block row.
-    let items = container.querySelectorAll(".outline-flat > li");
+    let items = querySection(container).querySelectorAll(".outline-flat > li");
     expect(items.length).toBe(1);
     expect(items[0]?.textContent).toContain("The capital city");
 
@@ -242,11 +265,11 @@ describe("query block (live query token)", () => {
       });
     });
     expect(await screen.findByText("No results.")).not.toBeNull();
-    items = container.querySelectorAll(".outline-flat > li");
+    items = querySection(container).querySelectorAll(".outline-flat > li");
     expect(items.length).toBe(0);
   });
 
-  it("builder edits persist the AST through the content update path", async () => {
+  it("the builder's Apply-to-Default rewrites the token's AST through the content update path", async () => {
     const client = await seedClient();
     const { city } = await seedWorld(client);
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
@@ -258,18 +281,18 @@ describe("query block (live query token)", () => {
     const { container } = render(<PageView client={client} pageId={host} />);
     await screen.findByText("Paris");
 
-    // Open the builder, switch the class filter off + text-contains on, apply.
-    fireEvent.click(screen.getByLabelText("Query settings"));
-    const dialog = screen.getByRole("dialog", { name: "Query builder" });
-    pickDropdownOption(dialog, "Class", "Any class");
-    fireEvent.change(within(dialog).getByLabelText("Text contains"), {
+    // Open the toggleable builder, drop a content-contains condition in,
+    // commit to the DEFAULT tab (the per-tab apply).
+    const panel = openBuilder(container);
+    addCondition(panel, /^Content/);
+    fireEvent.change(within(panel).getByLabelText("Content"), {
       target: { value: "capital" },
     });
     await act(async () => {
-      fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+      fireEvent.click(within(panel).getByRole("button", { name: "Apply to Default" }));
     });
 
-    // The token's AST in the store carries the new flat-AND composition.
+    // The token's AST in the store carries the new composition.
     const token = client.getNode(block)!.contentAst[0] as unknown as {
       type: string;
       queryAst: QueryAst;
@@ -282,56 +305,11 @@ describe("query block (live query token)", () => {
     // (Paris drops out as a ROW — its name legitimately survives in the
     // row's containing-page breadcrumb trail.)
     await screen.findByText("The capital city");
-    const rows = container.querySelectorAll(".outline-flat > li");
+    const rows = querySection(container).querySelectorAll(".outline-flat > li");
     expect(rows.length).toBe(1);
     const ownContent = rows[0]!.querySelector(".nt-block-content")?.textContent ?? "";
     expect(ownContent).toContain("The capital city");
     expect(ownContent).not.toContain("Paris");
-  });
-
-  it("builder scope select writes the this-page subtree scope", async () => {
-    const client = await seedClient();
-    await seedWorld(client);
-    const host = await client.createObject({ isEmbedded: false, name: "Host" });
-    const block = await client.createObject({
-      parentId: host,
-      contentAst: queryToken(makeAst(WORKSPACE())),
-    });
-
-    const { container } = render(<PageView client={client} pageId={host} />);
-    await screen.findByText("Query");
-
-    fireEvent.click(screen.getByLabelText("Query settings"));
-    const dialog = screen.getByRole("dialog", { name: "Query builder" });
-    pickDropdownOption(dialog, "Scope", "This page");
-    await act(async () => {
-      fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
-    });
-
-    // The written AST is exactly what composeQueryAst produces for the state.
-    const token = client.getNode(block)!.contentAst[0] as unknown as { queryAst: QueryAst };
-    expect(token.queryAst).toEqual(
-      composeQueryAst(
-        {
-          scope: "page",
-          classId: null,
-          isClass: "",
-          isEmbedded: "",
-          contains: "",
-          createdAfter: "",
-          createdBefore: "",
-          sortField: "",
-          sortDir: "asc",
-        },
-        host,
-        true,
-      ),
-    );
-    expect(token.queryAst.scope).toEqual({ type: "subtree", pageId: host });
-    // Re-render: only the host subtree remains (host page + the query block).
-    const items = Array.from(container.querySelectorAll(".outline-flat > li"));
-    expect(items.length).toBe(2);
-    expect(items.some((el) => el.textContent?.includes("Paris"))).toBe(false);
   });
 
   it("aggregated AST renders the aggregate grid (count by isClass matches the seeded data)", async () => {
@@ -355,17 +333,17 @@ describe("query block (live query token)", () => {
     // view — the workspace-wide aggregate legitimately sees the write. The
     // seeded City is one of them; the group count stays 2 (the two bit
     // values).
-    const cells = Array.from(container.querySelectorAll(".nt-query-table td")).map(
+    const cells = Array.from(querySection(container).querySelectorAll(".nt-query-table td")).map(
       (td) => td.textContent,
     );
     expect(cells.slice(0, 2)).toEqual(["0", "5"]);
     expect(cells[2]).toBe("1");
     expect(Number(cells[3])).toBeGreaterThanOrEqual(1);
-    expect(badge(container)).toBe("2");
-    expect(container.querySelector(".outline-flat")).toBeNull();
+    expect(activeTabBadge(container)).toBe("2");
+    expect(querySection(container).querySelector(".outline-flat")).toBeNull();
   });
 
-  it("table mode renders a Name/Type/Created table and the toggle persists in the token view", async () => {
+  it("table mode renders a Name/Type/Created table; the switch is transient (never persisted)", async () => {
     const client = await seedClient();
     const { city } = await seedWorld(client);
     const host = await client.createObject({ isEmbedded: false, name: "Host" });
@@ -376,11 +354,11 @@ describe("query block (live query token)", () => {
 
     const { container } = render(<PageView client={client} pageId={host} />);
     await screen.findByText("Paris");
-    const queryBox = () => container.querySelector(".nt-query") as HTMLElement;
+    const section = () => querySection(container);
     expect(container.querySelector(".nt-table")).toBeNull();
-    expect(within(queryBox()).getByRole("radio", { name: "Outline" }).getAttribute("aria-checked")).toBe("true");
+    expect(within(section()).getByRole("radio", { name: "Outline" }).getAttribute("aria-checked")).toBe("true");
 
-    fireEvent.click(within(queryBox()).getByRole("radio", { name: "Table" }));
+    fireEvent.click(within(section()).getByRole("radio", { name: "Table" }));
 
     const headers = await screen.findAllByRole("columnheader");
     // Leading selection checkbox column, then Name / Class / Main / Created.
@@ -391,93 +369,21 @@ describe("query block (live query token)", () => {
     expect(names.sort()).toEqual(["London", "Paris"]);
     const created = rows[0]!.querySelector(".nt-table-created")?.textContent ?? "";
     expect(created).toMatch(/\d{4}/);
-    expect(within(queryBox()).getByRole("radio", { name: "Table" }).getAttribute("aria-checked")).toBe("true");
+    expect(within(section()).getByRole("radio", { name: "Table" }).getAttribute("aria-checked")).toBe("true");
 
-    // The mode persisted in the token's view record via the update path.
-    let token = client.getNode(block)!.contentAst[0] as unknown as {
+    // The mode is TRANSIENT surface state: the
+    // token carries no view record.
+    const token = client.getNode(block)!.contentAst[0] as unknown as {
       type: string;
-      view?: { mode?: string };
+      view?: unknown;
     };
     expect(token.type).toBe("query");
-    expect(token.view).toEqual({ mode: "table" });
+    expect(token.view).toBeUndefined();
 
-    // Toggling back restores the list and rewrites the token.
-    fireEvent.click(within(queryBox()).getByRole("radio", { name: "Outline" }));
+    // Toggling back restores the list — still nothing persisted.
+    fireEvent.click(within(section()).getByRole("radio", { name: "Outline" }));
     expect(await screen.findByText("London")).not.toBeNull();
     expect(container.querySelector(".nt-table")).toBeNull();
-    token = client.getNode(block)!.contentAst[0] as unknown as typeof token;
-    expect(token.view).toEqual({ mode: "list" });
-  });
-
-  it("builder group-by + measure writes the aggregation and the grid updates", async () => {
-    const client = await seedClient();
-    const { city } = await seedWorld(client);
-    const host = await client.createObject({ isEmbedded: false, name: "Host" });
-    const block = await client.createObject({
-      parentId: host,
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
-    });
-
-    const { container } = render(<PageView client={client} pageId={host} />);
-    await screen.findByText("Paris");
-
-    fireEvent.click(screen.getByLabelText("Query settings"));
-    const dialog = screen.getByRole("dialog", { name: "Query builder" });
-    pickDropdownOption(dialog, "Group by", "Class bit");
-    await act(async () => {
-      fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
-    });
-
-    // The written AST carries the minimal aggregation (count default measure).
-    const token = client.getNode(block)!.contentAst[0] as unknown as { queryAst: QueryAst };
-    expect(token.queryAst.aggregation).toEqual(countByRenderState);
-    // The grid replaces the member list: two pages in the non-class group.
-    expect(await screen.findByText("Count")).not.toBeNull();
-    const cells = Array.from(container.querySelectorAll(".nt-query-table td")).map(
-      (td) => td.textContent,
-    );
-    expect(cells).toEqual(["0", "2"]);
-    expect(screen.queryByText("Paris")).toBeNull();
-  });
-
-  it("builder sums a numeric bound property grouped by the property value", async () => {
-    const client = await seedClient();
-    const { city, london } = await seedWorld(client);
-    const rating = await client.createPropertySchema({ name: "rating", type: "number" });
-    await client.setClassProperty(city, rating, {});
-    await client.updatePropertySchema(rating, { defaultValue: 1 });
-    await client.setProperty(london, rating, 5);
-
-    const host = await client.createObject({ isEmbedded: false, name: "Host" });
-    const block = await client.createObject({
-      parentId: host,
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
-    });
-
-    const { container } = render(<PageView client={client} pageId={host} />);
-    await screen.findByText("Paris");
-
-    fireEvent.click(screen.getByLabelText("Query settings"));
-    const dialog = screen.getByRole("dialog", { name: "Query builder" });
-    pickDropdownOption(dialog, "Group by", "Property: rating");
-    pickDropdownOption(dialog, "Measure", "Sum of rating");
-    await act(async () => {
-      fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
-    });
-
-    const token = client.getNode(block)!.contentAst[0] as unknown as { queryAst: QueryAst };
-    expect(token.queryAst.aggregation).toEqual({
-      dimensions: [{ kind: "property", id: rating }],
-      measures: [{ function: "sum", kind: "property", id: rating }],
-    });
-
-    // Grid: one row per effective rating (Paris rides the binding default 1,
-    // London carries the authored 5); dimension cells align left, sums right.
-    expect(await screen.findByText("sum(rating)")).not.toBeNull();
-    const cells = Array.from(container.querySelectorAll(".nt-query-table td")).map(
-      (td) => td.textContent,
-    );
-    expect(cells).toEqual(["1", "1", "5", "5"]);
   });
 
   it("invalid AST renders the placeholder without crashing", async () => {
@@ -496,7 +402,7 @@ describe("query block (live query token)", () => {
     const { container } = render(<PageView client={client} pageId={host} />);
     expect(await screen.findByText("invalid query")).not.toBeNull();
     // No result list rendered for the invalid token.
-    expect(container.querySelector(".outline-flat")).toBeNull();
+    expect(querySection(container).querySelector(".outline-flat")).toBeNull();
 
     // The bridge fails loud with the typed error (unit-level contract).
     expect(() => client.runQueryAst({ nope: true })).toThrow(InvalidQueryAstError);
@@ -517,12 +423,12 @@ describe("query block (live query token)", () => {
 
     const { container } = render(<PageView client={client} pageId={host} />);
     await screen.findByText("City 0");
-    expect(container.querySelectorAll(".outline-flat > li").length).toBe(QUERY_RESULT_CAP);
-    expect(badge(container)).toBe(String(total));
+    expect(querySection(container).querySelectorAll(".outline-flat > li").length).toBe(QUERY_RESULT_CAP);
+    expect(activeTabBadge(container)).toBe(String(total));
 
     // The cap is a render window, not a result ceiling: load-more widens it.
     fireEvent.click(screen.getByRole("button", { name: /5 more/ }));
-    expect(container.querySelectorAll(".outline-flat > li").length).toBe(total);
+    expect(querySection(container).querySelectorAll(".outline-flat > li").length).toBe(total);
     expect(screen.queryByRole("button", { name: /more/ })).toBeNull();
   });
 
@@ -615,7 +521,7 @@ describe("query block (live query token)", () => {
     try {
       render(<PageView client={client} pageId={host} />);
       await screen.findByText("Paris");
-      fireEvent.click(screen.getByRole("button", { name: "Export" }));
+      fireEvent.click(screen.getByRole("button", { name: "Export results" }));
 
       expect(downloads).toEqual([`notees-export-${paris.slice(0, 8)}.md`]);
       expect(blob).not.toBeNull();

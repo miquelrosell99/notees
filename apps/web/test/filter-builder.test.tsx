@@ -61,7 +61,7 @@ let restCalls: Array<{ method: string; url: string; body?: unknown }>;
 function stubViewsFetch(): void {
   serverViews = [];
   restCalls = [];
-  const viewsPath = /\/api\/me\/nodes\/([^/]+)\/sections\/([^/]+)\/views(?:\/([^/]+)|\/order)?$/;
+  const viewsPath = /\/api\/nodes\/([^/]+)\/sections\/([^/]+)\/views(?:\/([^/]+)|\/order)?$/;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -80,7 +80,7 @@ function stubViewsFetch(): void {
         });
       }
       if (method === "POST" && match[3] === undefined) {
-        const input = body as { name: string; queryAst: unknown; viewMode?: string | null };
+        const input = body as { name: string; queryAst: unknown };
         const existing = scoped();
         if (existing.some((view) => view.name === input.name)) {
           return Response.json({ error: { code: "conflict" } }, { status: 409 });
@@ -92,7 +92,6 @@ function stubViewsFetch(): void {
           name: input.name,
           sequence: existing.reduce((max, entry) => Math.max(max, Number(entry.sequence)), -1) + 1,
           queryAst: input.queryAst,
-          viewMode: input.viewMode ?? null,
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
@@ -140,14 +139,14 @@ function classedNodesSection(): HTMLElement {
 
 /** The open structured-facet panel of the visible FilterBar. */
 function structuredPanel(): HTMLElement {
-  const panel = document.querySelector(".nt-filter-bar__panel");
+  const panel = document.querySelector(".nt-node-collection-bar__panel");
   if (panel === null) throw new Error("no structured filter panel open");
   return panel as HTMLElement;
 }
 
 /** The active hosted tab's total-count badge. */
 function activeTabBadge(scope: HTMLElement): HTMLElement {
-  const badge = scope.querySelector(".nt-section-views__tab-count");
+  const badge = scope.querySelector(".nt-node-collection-tabs__tab-count");
   if (badge === null) throw new Error("no active-tab count badge");
   return badge as HTMLElement;
 }
@@ -1061,7 +1060,7 @@ describe("the block query builder", () => {
       const create = restCalls.find((call) => call.method === "POST");
       expect(create).toBeDefined();
       expect(new URL(create!.url).pathname).toBe(
-        `/api/me/nodes/${classId}/sections/classed-nodes/views`,
+        `/api/nodes/${classId}/sections/classed-nodes/views`,
       );
       expect(create!.body).toEqual({
         name: "View 1",
