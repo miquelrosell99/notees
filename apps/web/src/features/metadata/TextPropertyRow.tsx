@@ -121,23 +121,27 @@ function carrierItemsOf(client: AnyClient, rows: EffectiveProperty[]): NodeColle
 /**
  * One carrier root row's editing context: the per-carrier outliner value the
  * standalone subtree renderer hosted (carrier-scoped positions and collapse,
- * bullet click opens the node — the row never wired a sidebar peek). The
- * collection's default row renders inside the provider, so BlockRow resolves
- * THIS context instead of the enclosing page's.
+ * bullet click opens the node — and Shift+click peeks it in the right rail,
+ * the page body's bullet gesture). The collection's
+ * default row renders inside the provider, so BlockRow resolves THIS
+ * context instead of the enclosing page's.
  */
 function CarrierRowHost({
   client,
   item,
   onOpenPage,
+  onOpenInSidebar,
   children,
 }: {
   client: AnyClient;
   item: NodeCollectionItem;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  onOpenInSidebar?: ((pageId: string) => void) | undefined;
   children: ReactNode;
 }) {
   const outliner = useOutlinerValue(client, item.node.id, {
     openNode: (id) => onOpenPage?.(id),
+    openInSidebar: (id) => onOpenInSidebar?.(id),
   });
   return <OutlinerContext.Provider value={outliner}>{children}</OutlinerContext.Provider>;
 }
@@ -150,6 +154,7 @@ export function TextPropertyRow({
   multi,
   rows,
   onOpenPage,
+  onOpenInSidebar,
   /** Hide the label/hints (the host chrome carries them — the sidebar). */
   bare = false,
   /** Read-only projection: carriers render as read-only rows, scalars as
@@ -165,6 +170,8 @@ export function TextPropertyRow({
   multi: boolean;
   rows: EffectiveProperty[];
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** The carrier bullet's Shift+click peek. */
+  onOpenInSidebar?: ((pageId: string) => void) | undefined;
   bare?: boolean;
   readOnly?: boolean | undefined;
   rowClassName?: string;
@@ -356,7 +363,7 @@ export function TextPropertyRow({
               tree
               {...(readOnly ? { readOnly: true } : { editable: true })}
               renderItem={(item, row) => (
-                <CarrierRowHost client={client} item={item} onOpenPage={onOpenPage}>
+                <CarrierRowHost client={client} item={item} onOpenPage={onOpenPage} onOpenInSidebar={onOpenInSidebar}>
                   {row}
                 </CarrierRowHost>
               )}

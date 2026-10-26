@@ -24,6 +24,7 @@ export function ScalarPropertyValue({
   nodeId,
   row,
   onOpenPage,
+  onOpenInSidebar,
   /** Read-only projection: the carrier renders read-only, scalars as text. */
   readOnly = false,
 }: {
@@ -31,6 +32,8 @@ export function ScalarPropertyValue({
   nodeId: string;
   row: EffectiveProperty;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** The carrier bullet's Shift+click peek. */
+  onOpenInSidebar?: ((pageId: string) => void) | undefined;
   readOnly?: boolean | undefined;
 }) {
   // Text properties are node-backed: the value references a carrier
@@ -66,7 +69,7 @@ export function ScalarPropertyValue({
     <>
       {carrier !== undefined ? (
         <span className="nt-property-blockcell">
-          <ReferenceSubtree client={client} rootId={carrier.id} onOpenNode={onOpenPage} readOnly={readOnly} />
+          <ReferenceSubtree client={client} rootId={carrier.id} onOpenNode={onOpenPage} onOpenInSidebar={onOpenInSidebar} readOnly={readOnly} />
         </span>
       ) : readOnly ? (
         <span className="nt-property-value nt-property-value--readonly">

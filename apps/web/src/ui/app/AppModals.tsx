@@ -28,6 +28,8 @@ export interface AppModalsProps {
   paletteOpen: boolean;
   setPaletteOpen: Dispatch<SetStateAction<boolean>>;
   openPage: (nodeId: string) => void;
+  /** The palette's Shift+Enter peek. */
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   handleNewPage: (title?: string) => Promise<void>;
   classCreateOpen: boolean;
   setClassCreateOpen: Dispatch<SetStateAction<boolean>>;
@@ -60,6 +62,7 @@ export function AppModals(props: AppModalsProps) {
     paletteOpen,
     setPaletteOpen,
     openPage,
+    onOpenInSidebar,
     handleNewPage,
     classCreateOpen,
     setClassCreateOpen,
@@ -92,6 +95,7 @@ export function AppModals(props: AppModalsProps) {
         onRequestOpen={() => setPaletteOpen(true)}
         onClose={() => setPaletteOpen(false)}
         onOpenNode={openPage}
+        onOpenInSidebar={onOpenInSidebar}
         onNewPage={(title) => void handleNewPage(title)}
         onOpenClassCreate={() => setClassCreateOpen(true)}
         onOpenAddSource={

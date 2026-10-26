@@ -68,12 +68,16 @@ export function ReferenceSubtree({
   client,
   rootId,
   onOpenNode,
+  onOpenInSidebar,
   readOnly = false,
   showGhost = false,
 }: {
   client: AnyClient;
   rootId: string;
   onOpenNode?: ((nodeId: string) => void) | undefined;
+  /** The bullet peek (Shift+click) — the same contract PageView wires;
+   *  unwired it silently no-ops. */
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   /** Read-only projection (the hover preview): clicks navigate, never edit. */
   readOnly?: boolean;
   /**
@@ -106,6 +110,7 @@ export function ReferenceSubtree({
   );
   const outliner = useOutlinerValue(client, rootId, {
     openNode: (id) => onOpenNode?.(id),
+    openInSidebar: (id) => onOpenInSidebar?.(id),
     defaultCollapsed,
   });
 

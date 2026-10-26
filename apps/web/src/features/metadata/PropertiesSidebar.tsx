@@ -38,11 +38,14 @@ export function PropertiesSidebar({
   client,
   nodeId,
   onOpenPage,
+  onOpenInSidebar,
   onOpenPageRaw = undefined,
 }: {
   client: AnyClient;
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** The carrier bullet's Shift+click peek. */
+  onOpenInSidebar?: ((pageId: string) => void) | undefined;
   /** The RAW open for the aliases row's pill (bypasses the alias redirect). */
   onOpenPageRaw?: ((pageId: string) => void) | undefined;
 }) {
@@ -178,6 +181,7 @@ export function PropertiesSidebar({
                   bindingFilter={null}
                   groupRows={entry.groupRows}
                   onOpenPage={onOpenPage}
+                  onOpenInSidebar={onOpenInSidebar}
                   bare
                 />
               </div>
@@ -193,7 +197,7 @@ export function PropertiesSidebar({
               row.boundBy !== null ? "C" : null,
             )}
             <div className="nt-props-sidebar__value">
-              <ScalarPropertyValue client={client} nodeId={nodeId} row={row} onOpenPage={onOpenPage} />
+              <ScalarPropertyValue client={client} nodeId={nodeId} row={row} onOpenPage={onOpenPage} onOpenInSidebar={onOpenInSidebar} />
             </div>
           </div>
         );

@@ -837,6 +837,7 @@ export function App() {
         paletteOpen={paletteOpen}
         setPaletteOpen={setPaletteOpen}
         openPage={openPage}
+        onOpenInSidebar={openInSidebar}
         handleNewPage={handleNewPage}
         classCreateOpen={classCreateOpen}
         setClassCreateOpen={setClassCreateOpen}
