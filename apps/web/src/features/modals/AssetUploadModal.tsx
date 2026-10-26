@@ -65,19 +65,22 @@ export function fileMatchesAccept(file: File, accept: string): boolean {
   });
 }
 
-function categoryOf(file: File): AssetCategory {
+/** Exported for the add-source dialog's PDF pick (the same selected-file row). */
+export function categoryOf(file: File): AssetCategory {
   if (file.type.startsWith("image/")) return "image";
   if (file.type.startsWith("audio/")) return "audio";
   return "document";
 }
 
-const CATEGORY_LABELS: Record<AssetCategory, string> = {
+/** Exported for the add-source dialog's PDF pick (the same selected-file row). */
+export const CATEGORY_LABELS: Record<AssetCategory, string> = {
   image: "Image",
   audio: "Audio",
   document: "Document",
 };
 
-function formatSize(bytes: number): string {
+/** Exported for the add-source dialog's PDF pick (the same selected-file row). */
+export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;

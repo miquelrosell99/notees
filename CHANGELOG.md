@@ -9,6 +9,45 @@ predating this file.
 
 ## 2026-10-26
 
+- **refactor(web): underline TextField fleet-wide + the Add source dialog
+  composition.** The owner's annotated screenshot of the
+  Add source dialog carried three items. **(1) The dialog composition** —
+  `AddSourceDialog` now composes the fleet `Modal` exactly like the other
+  first-class dialogs (QuickCreateModal, AssetUploadModal): the Cancel /
+  Resolve actions ride the Modal's `footer` slot instead of an in-content
+  button row, the size moves `sm → md` (the drop-zone surface wants the
+  roomier register the upload modal rides), and the field stack carries the
+  same section-label pattern. **(2) The field register** — the classic
+  underline-when-active TextField (transparent/no-box, hairline at rest, 2px
+  accent underline on focus via the `--shadow-field-focus/error` tokens)
+  shipped with the catalog-migration slice; this pass completes the owner's
+  description: the label now accents with the field (`group` wrapper scope +
+  `group-focus-within:text-primary`, the Material focused-label idiom) and
+  the error label takes the error token at rest as well as on focus. Pure
+  class change, prop API unchanged — every TextField consumer inherits it;
+  no consumer relied on a box look (the only className overrides in the tree
+  set width/margin, not field geometry). A render-contract pin lands in
+  `test/ui-primitives.test.tsx`. **(3) The PDF pick** — the bare native
+  file input (the browser's "Examinar" button) retires in favor of the fleet
+  `FileDropZone`, composed exactly as `AssetUploadModal` does it: pick-or-
+  drop one PDF, the selected-file row with the document icon + filename +
+  category chip + size (the `categoryOf` / `CATEGORY_LABELS` / `formatSize`
+  helpers are exported from AssetUploadModal, single source). The test pins
+  the drop-zone register (the change event fires on the zone's hidden input,
+  the visible surface is the zone button) and the footer-slot actions; the
+  two multipart flow tests retarget onto it. Docs: `docs/features/sources.md`
+  names the drop zone. **Verification:** `apps/web` typecheck clean;
+  `test/add-source.test.tsx`, `test/ui-primitives.test.tsx`,
+  `test/asset-upload-modal.test.tsx`, `test/css-token-drift.test.ts`, and
+  `test/quick-create.test.tsx` green (92 tests); the full `apps/web`
+  suite runs 2254 passed / 3 failed — the 3 are `test/view-modes.test.tsx`
+  fold-state tests verified red on the untouched base (today's
+  auto-collapse slices), as are the repo-level `apps/server`
+  migrate-authors-to-text failures and the `packages/export` dts build
+  (json-archive's 3-arg `deriveDisplayName` call vs the 2-arg domain src —
+  the in-flight customLabel session's stale-dist blind spot). None touched
+  by this slice.
+
 - **fix(web): the list auto-collapse setting actually collapses — renamed,
   collection-wide, opt-out flag (owner scope correction).** The reported
   bug: "Auto-collapse nodes at this depth in linked references (0 =

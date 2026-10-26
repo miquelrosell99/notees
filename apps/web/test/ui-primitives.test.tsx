@@ -17,6 +17,35 @@ import { Dropdown } from "../src/components/ui/fleet/Dropdown.js";
 import { EmptyState } from "../src/components/ui/fleet/EmptyState.js";
 import { Modal } from "../src/components/ui/fleet/Modal.js";
 import { NotificationToast } from "../src/components/ui/fleet/NotificationToast.js";
+import { TextField } from "../src/components/ui/fleet/TextField.js";
+
+describe("TextField", () => {
+  it("rides the underline register: transparent field, hairline at rest, accent label + 2px accent underline on focus", () => {
+    render(<TextField label="Title" placeholder="Source title" />);
+    const input = screen.getByLabelText("Title") as HTMLInputElement;
+    // No-box background + the bottom hairline (the boxed look is the
+    // fleet Input's register, never this one).
+    expect(input).toHaveClass("bg-transparent", "border-b", "border-b-outline-variant");
+    expect(input.className).not.toContain("rounded");
+    // The 2px active underline rides the shadow token (no layout shift).
+    expect(input).toHaveClass("focus:border-b-primary", "focus:shadow-field-focus");
+    // The label accents on focus: the wrapper is the `group` scope.
+    const wrapper = input.parentElement as HTMLElement;
+    expect(wrapper).toHaveClass("group");
+    const label = wrapper.querySelector("label") as HTMLElement;
+    expect(label).toHaveClass("text-on-surface-variant", "group-focus-within:text-primary");
+  });
+
+  it("the error state rides the error token for the underline, the label, and the message", () => {
+    render(<TextField label="DOI" error errorMessage="Not a DOI" />);
+    const input = screen.getByLabelText("DOI") as HTMLInputElement;
+    expect(input).toHaveClass("border-b-error", "focus:shadow-field-error");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    const wrapper = input.parentElement as HTMLElement;
+    expect(wrapper.querySelector("label")).toHaveClass("text-error");
+    expect(wrapper.querySelector('[role="alert"]')).toHaveTextContent("Not a DOI");
+  });
+});
 
 describe("Button", () => {
   it("renders text with variant and size classes", () => {

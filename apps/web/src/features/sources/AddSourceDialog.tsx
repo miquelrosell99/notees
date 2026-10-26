@@ -15,6 +15,13 @@
  * multipart, and THAT file uploads to CAS + links on the created source
  * (the caller holds the bytes — the attach is real).
  *
+ * The dialog composes the fleet Modal's footer + the fleet FileDropZone
+ * exactly as the other first-class dialogs (QuickCreateModal,
+ * AssetUploadModal): the actions ride the Modal footer slot, the PDF pick
+ * rides the drop zone with the AssetUploadModal selected-file row (the
+ * document icon + name + category chip + size). The bare native file input
+ * ("Examinar") retired with this composition pass.
+ *
  * The dialog's second step IS the QuickCreateModal (sourcePrefill), so the
  * duplicate-DOI warning, the archived-class auto-enable (un-archive + create
  * in ONE undo batch), and the auto-citekey all live in the one place.
@@ -27,9 +34,12 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { AnyClient } from "../modals/quickCreate.js";
 import { readSourceSettings } from "../modals/quickCreate.js";
 import { QuickCreateModal, type SourcePrefill } from "../modals/QuickCreateModal.js";
+import { CATEGORY_LABELS, categoryOf, formatSize } from "../modals/AssetUploadModal.js";
 import { Modal } from "../../components/ui/fleet/Modal.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { TextField } from "../../components/ui/fleet/TextField.js";
+import { FileDropZone } from "../../components/ui/fleet/FileDropZone.js";
+import { Icon } from "../../ui/Icon.js";
 import {
   ResolverRequestError,
   resolvePdfFile,
@@ -160,10 +170,30 @@ export function AddSourceDialog({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add source" size="sm">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Add source"
+      size="md"
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => void resolve()}
+            disabled={busy || (input.trim() === "" && file === null) || !resolverEnabled}
+            loading={busy}
+          >
+            Resolve
+          </Button>
+        </>
+      }
+    >
       <div className="add-source-dialog">
         <p className="add-source-dialog__hint">
-          Paste a DOI, ISBN, arXiv id or URL, a PDF link, or pick a PDF file — the
+          Paste a DOI, ISBN, arXiv id or URL, a PDF link, or drop a PDF file — the
           metadata resolves and prefills the create form.
         </p>
         <div className="add-source-dialog__field">
@@ -184,23 +214,38 @@ export function AddSourceDialog({
           />
         </div>
         <div className="add-source-dialog__field">
-          <label className="add-source-dialog__file">
-            <span className="add-source-dialog__file-label">PDF file</span>
-            <input
-              type="file"
-              accept="application/pdf,.pdf"
-              aria-label="PDF file"
-              disabled={busy}
-              onChange={(event) => {
-                const picked = event.target.files?.[0] ?? null;
-                setFile(picked);
-                setError(null);
-                // The file wins over the text input for one resolve gesture.
-                if (picked !== null) setInput("");
-              }}
-            />
-          </label>
-          {file !== null && <span className="add-source-dialog__file-name">{file.name}</span>}
+          <span className="add-source-dialog__section-label">PDF file</span>
+          <FileDropZone
+            file={file}
+            accept="application/pdf,.pdf"
+            onSelect={(picked) => {
+              setFile(picked);
+              setError(null);
+              // The file wins over the text input for one resolve gesture.
+              setInput("");
+            }}
+            onClear={() => setFile(null)}
+            placeholder="Drop a PDF here"
+            hint="or click to browse"
+            icon={<Icon path="mdi-cloud-upload-outline" size={1.6} />}
+            disabled={busy}
+          />
+          {file !== null && (
+            <div className="add-source-dialog__preview">
+              <span className="add-source-dialog__doc-icon" aria-hidden="true">
+                <Icon path="mdi-file-outline" size={1.6} />
+              </span>
+              <span className="add-source-dialog__meta">
+                <span className="add-source-dialog__name">{file.name}</span>
+                <span className="add-source-dialog__sub">
+                  <span className="add-source-dialog__chip">
+                    {CATEGORY_LABELS[categoryOf(file)]}
+                  </span>
+                  {formatSize(file.size)}
+                </span>
+              </span>
+            </div>
+          )}
         </div>
         {!resolverEnabled && (
           <p className="add-source-dialog__note" role="status">
@@ -213,19 +258,6 @@ export function AddSourceDialog({
             {error}
           </p>
         )}
-        <div className="add-source-dialog__actions">
-          <Button variant="outline" onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => void resolve()}
-            disabled={busy || (input.trim() === "" && file === null) || !resolverEnabled}
-            loading={busy}
-          >
-            Resolve
-          </Button>
-        </div>
       </div>
     </Modal>
   );
