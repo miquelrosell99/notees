@@ -9,6 +9,14 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(export): the Logseq DB model skips logseq system SUBTREES, not just
+  system roots.** Logseq's built-in help content lives in blocks parented
+  under `:logseq.class/*`/`:logseq.property/*` system pages; the root-only
+  skip left ~270 doc blocks importable as pages on the owner's Notas
+  rehearsal (now 347 system entities counted+skipped, 64 genuine root
+  landings remain). TDD: fixture gains a doc block under the system class.
+  Verified: package suite green (302).
+
 - **fix(web): collection-row breadcrumbs name the property a stored-through
   row lives in — and the text-property cell loses its noise trail.** Two
   sides of the same carrier truth. The node-backed text

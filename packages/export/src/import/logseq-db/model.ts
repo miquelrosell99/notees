@@ -180,6 +180,24 @@ export function buildLogseqDbModel(entities: Map<number, LqEntity>): LogseqDbMod
   }
   model.skipped.views = inViews.size;
 
+  // --- logseq system subtrees (built-in doc blocks under system pages) ------
+  const systemRootEids = new Set<number>();
+  for (const [eid, o] of entities) {
+    const ident = asString(o[":db/ident"]);
+    if (
+      ident &&
+      (ident.startsWith(LOGSEQ_CLASS_PREFIX) || ident.startsWith(LOGSEQ_PROP_PREFIX))
+    ) {
+      systemRootEids.add(eid);
+    }
+  }
+  const inSystem = new Set<number>();
+  for (const [eid] of entities) {
+    if (systemRootEids.has(eid)) continue;
+    if (ancestorChain(eid).some((a) => systemRootEids.has(a))) inSystem.add(eid);
+  }
+  model.skipped.system += inSystem.size;
+
   // --- nodes ---------------------------------------------------------------
   const resolvePropValue = (ident: string, raw: unknown): LqPropValue => {
     const def = propDefByIdent.get(ident);
@@ -217,7 +235,7 @@ export function buildLogseqDbModel(entities: Map<number, LqEntity>): LogseqDbMod
   for (const [eid, o] of entities) {
     const uuid = asString(o[":block/uuid"]);
     if (!uuid) continue;
-    if (journalEids.has(eid) || assetEids.has(eid) || closedValueEids.has(eid) || inViews.has(eid)) {
+    if (journalEids.has(eid) || assetEids.has(eid) || closedValueEids.has(eid) || inViews.has(eid) || inSystem.has(eid)) {
       continue;
     }
     const ident = asString(o[":db/ident"]);
