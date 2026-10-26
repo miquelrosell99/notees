@@ -72,11 +72,22 @@
   margin-inline: auto;
 }
 
-/* Narrow: the nav becomes a horizontal scroll row above the content. */
+/* Narrow: the nav becomes a horizontal scroll row above the content. The
+   page is columnar now — the children must stretch to the container width;
+   the shell's align-items: flex-start would size them to their max-content
+   (the widest settings row), overflowing the viewport sideways. */
 @media (width <= 768px) {
   .settings-page {
     flex-direction: column;
+    align-items: stretch;
     gap: var(--spacing-4);
+  }
+
+  /* The content column must fill the shell — without an explicit width the
+     columnar flex context resolves it to the section's max-content, and the
+     PageCard clips the overflow (rows lose their trailing actions). */
+  .settings-page__content {
+    width: 100%;
   }
 
   .settings-page__nav {
@@ -159,38 +170,49 @@
 }
 
 /* ==================== Sync Server Section ==================== */
-/* The known-servers selection list: one radio row per remembered address,
-   the active server flagged with a pill, a per-row trash to forget an
-   address (the active row's trash IS the disconnect flow). Rows ride the
-   state-layer hover/press register. */
+/* The known-servers selection list: one card row per remembered address —
+   radio + (current row only) the Current pill and the Disconnect button,
+   trash on every row. The current row's trash REMOVES the address (which
+   implies the sign-out); Disconnect alone un-selects and keeps the address. */
 
 .settings-server-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
   padding: var(--spacing-2) 0;
 }
 
 .settings-server-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-3);
-  padding: var(--spacing-2) var(--spacing-3);
+  padding: var(--spacing-3);
+  background: var(--md-sys-color-surface-container-low);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .settings-server-row:hover {
-  background: var(--md-sys-color-hover-overlay);
+  background: var(--md-sys-color-surface-container);
 }
 
-.settings-server-row:active {
-  background: var(--md-sys-color-pressed-overlay);
+/* The trailing chrome (flag pill, disconnect, trash) wraps as one unit on
+   narrow screens instead of clipping — the row goes two-line with the
+   actions pinned right. */
+.settings-server-row__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin-left: auto;
 }
 
 /* The radio grows to absorb the row width so long URLs truncate instead of
-   pushing the flag pill and the trash off the card. */
+   pushing the flag pill and the actions off the card. */
 .settings-server-row__radio {
   flex: 1;
   min-width: 0;
-  align-items: center;
 }
 
 .settings-server-row__radio .radio-label-wrapper {
@@ -198,13 +220,31 @@
 }
 
 .settings-server-row__radio .radio-label {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* The flag pill rides the accent: primary-container IS the accent-tinted
+   surface and follows the chosen accent. */
 .settings-server-row__flag {
   flex-shrink: 0;
+  background-color: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.settings-server-row__flag:hover {
+  border-color: var(--md-sys-color-primary);
+}
+
+/* The delete button is quiet at rest and inks danger on hover. */
+.settings-server-row__trash {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.settings-server-row__trash:hover {
+  color: var(--md-sys-color-error);
 }
 
 /* The dashed "Add server" affordance rides the list's row padding. */
@@ -215,24 +255,6 @@
 /* The add-server dialog: help text above the URL field. */
 .settings-server-modal .settings-section__description {
   margin: 0 0 var(--spacing-3) 0;
-}
-
-/* The disconnect footer: help text beside the danger button, separated from
-   the list by the shared settings hairline. */
-.settings-server-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--spacing-3);
-  padding-top: var(--spacing-3);
-  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-}
-
-.settings-server-actions .settings-section__description {
-  margin: 0;
-  flex: 1;
-  min-width: min(100%, 24ch);
 }
 
 /* ==================== About Section ==================== */

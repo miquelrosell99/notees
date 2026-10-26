@@ -233,7 +233,7 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Current")).toBeInTheDocument();
   });
 
-  it("disconnects only after the confirmation step", () => {
+  it("disconnects only after the confirmation step and keeps the address", () => {
     stubFetch({});
     const onForgetServer = vi.fn();
     renderPage({ section: "sync", onForgetServer });
@@ -242,6 +242,10 @@ describe("SettingsPage", () => {
     const dialog = screen.getByRole("dialog", { name: /disconnect from this server/i });
     fireEvent.click(within(dialog).getByRole("button", { name: /^disconnect$/i }));
     expect(onForgetServer).toHaveBeenCalledTimes(1);
+    // Disconnect un-selects — the address stays in the remembered list.
+    expect(
+      JSON.parse(localStorage.getItem("notees.settings.knownSyncServers")!),
+    ).toContain("https://notees.example.com");
   });
 
   it("lists known sync servers with the current one first and flagged", () => {
@@ -294,7 +298,7 @@ describe("SettingsPage", () => {
     ).not.toContain("https://alpha.example.com");
   });
 
-  it("treats removing the current server as the confirmed disconnect flow", () => {
+  it("treats removing the current server as the confirmed remove + sign-out", () => {
     stubFetch({});
     const onForgetServer = vi.fn();
     renderPage({ section: "sync", onForgetServer });
@@ -302,8 +306,8 @@ describe("SettingsPage", () => {
       screen.getByRole("button", { name: "Remove https://notees.example.com" }),
     );
     expect(onForgetServer).not.toHaveBeenCalled();
-    const dialog = screen.getByRole("dialog", { name: /disconnect from this server/i });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^disconnect$/i }));
+    const dialog = screen.getByRole("dialog", { name: /remove this server/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^remove$/i }));
     expect(onForgetServer).toHaveBeenCalledTimes(1);
   });
 

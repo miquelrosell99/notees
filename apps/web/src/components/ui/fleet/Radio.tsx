@@ -18,6 +18,11 @@
  * <RadioGroup value onValueChange> wrapping <Radio value> items — the
  * one app call site (the PDF export layout picker) composes this way.
  *
+ * Alignment: the container centers the dot against the label's line box
+ * (items-center). The item is h-icon-md but Radix renders it 24px tall in
+ * this app (the size-scale utility wins), so top-aligning left the 12px
+ * label ~4.5px high against the dot.
+ *
  * Legacy hook classes: `radio-container` (+ the size/disabled variants)
  * and the label hooks stay — feature CSS compounds on them.
  */
@@ -81,7 +86,7 @@ export const Radio = forwardRef<HTMLButtonElement, RadioProps>(function Radio(
   return (
     <div
       className={cn(
-        'radio-container flex items-start gap-2',
+        'radio-container flex items-center gap-2',
         `radio-container--${size}`,
         disabled && 'radio-container--disabled cursor-not-allowed opacity-50',
         className,
@@ -92,7 +97,7 @@ export const Radio = forwardRef<HTMLButtonElement, RadioProps>(function Radio(
         id={radioId}
         value={value}
         disabled={disabled}
-        className={cn('radio-input border-outline hover:border-primary', DOT_CLASSES[size])}
+        className={cn('radio-input shrink-0 border-outline hover:border-primary', DOT_CLASSES[size])}
       />
       {label && (
         <label htmlFor={radioId} className="radio-label-wrapper flex flex-col gap-micro">
