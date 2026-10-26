@@ -32,10 +32,9 @@
  *  - The base system stays always-on (F1): journals (year/month/day),
  *    assets, whiteboard, the structural + admonition classes, and the
  *    classes of the DROPPED pre-reshape features (readItLater/library/
- *    collections/people → highlight, agent, organization, …)
+ *    collections/people → highlight, collection, agent, organization, …)
  *    — never feature-managed. (`web_page` USED to live here — it now
- *    extends `source` and rides the sources toggle with the family;
- *    `collection` JOINED it the same way)
+ *    extends `source` and rides the sources toggle with the family.)
  */
 
 import type { WorkspaceFeature } from "@notees/protocol";
@@ -96,11 +95,10 @@ export const WORKSPACE_FEATURE_MAP: Record<FamilyFeature, WorkspaceFeatureSpec> 
  * Always-on system classes (F1) — never feature-managed: the base system
  * (journals year/month/day, asset, query, code, card, template, comment,
  * table, cloze, whiteboard, the admonition set) plus the classes of the
- * DROPPED pre-reshape features (highlight, agent, organization).
+ * DROPPED pre-reshape features (highlight, collection, agent, organization).
  * The five family bases (task/event/meeting/source/person), their
- * extends-children, web_page and collection (both source-family children
- * now — collection JOINED the family 2026-10-26) are NOT
- * here — they are the toggle set. (The retired `class` meta class left the
+ * extends-children, and web_page (now a source-family child) are NOT here —
+ * they are the toggle set. (The retired `class` meta class left the
  * manifest with its 2026-10-07 retirement — it is nobody's anchor anymore.)
  */
 export const ALWAYS_ON_SYSTEM_CLASSES: readonly SystemClassName[] = [
@@ -125,6 +123,7 @@ export const ALWAYS_ON_SYSTEM_CLASSES: readonly SystemClassName[] = [
   "quote",
   "agent",
   "organization",
+  "collection",
   "highlight",
 ];
 

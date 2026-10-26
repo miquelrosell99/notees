@@ -1235,14 +1235,10 @@ describe("workspace feature map", () => {
     expect(managedClassIds("tasks")).toEqual([SYSTEM_CLASS_UUIDS.task]);
   });
 
-  it("the family set cascades through extends-children (events → meeting + birthday + trip; sources → the 41-strong family incl. web_page AND collection — paper withdrawn, 30-strong 2026-10-23 roster)", async () => {
+  it("the family set cascades through extends-children (events → meeting + birthday + trip; sources → the 40-strong family incl. web_page — paper withdrawn, 30-strong 2026-10-23 roster)", async () => {
     const { familyClassNames, managedClassIds } = await import("../src/index.js");
     expect(familyClassNames("events")).toEqual(["event", "birthday", "meeting", "trip"]);
     expect(familyClassNames("meetings")).toEqual(["meeting"]);
-    // colección extends source at the SEED (the
-    // system-class mirror of the `regulación` user-class data op) — the
-    // collection rides the sources toggle with the family.
-    expect(SYSTEM_CLASS_EXTENDS.collection).toEqual(["source"]);
     expect(familyClassNames("sources")).toEqual([
       "source",
       "artwork",
@@ -1251,7 +1247,6 @@ describe("workspace feature map", () => {
       "blog_post",
       "book",
       "book_section",
-      "collection",
       "computer_program",
       "conference",
       "conference_paper",
@@ -1288,7 +1283,7 @@ describe("workspace feature map", () => {
     ]);
     expect(familyClassNames("persons")).toEqual(["person"]);
     expect(managedClassIds("events")).toHaveLength(4);
-    expect(managedClassIds("sources")).toHaveLength(41);
+    expect(managedClassIds("sources")).toHaveLength(40);
   });
 
   it("chrome gating: own feature + managed ancestors (meeting ← meetings AND events; birthday ← events only)", async () => {
@@ -1302,13 +1297,11 @@ describe("workspace feature map", () => {
     // The web page rides the sources toggle through its source ancestor.
     expect(gatingFeaturesForClass("web_page")).toEqual(["sources"]);
     expect(gatingFeaturesForClass("person")).toEqual(["persons"]);
-    // Collection joined the source family 2026-10-26 — it
-    // gates on the sources toggle like every other family child.
-    expect(gatingFeaturesForClass("collection")).toEqual(["sources"]);
     // Always-on / unmanaged classes gate on nothing.
     expect(gatingFeaturesForClass("day")).toEqual([]);
     expect(gatingFeaturesForClass("agent")).toEqual([]);
     expect(gatingFeaturesForClass("organization")).toEqual([]);
+    expect(gatingFeaturesForClass("collection")).toEqual([]);
     expect(gatingFeaturesForClass("whiteboard")).toEqual([]);
   });
 
@@ -1324,22 +1317,22 @@ describe("workspace feature map", () => {
       expect(isAlwaysOnSystemClass(name)).toBe(true);
     }
     // Journals + assets stay always-on base system; the dropped features'
-    // classes (highlight/agent/organization) are plain vocabulary now.
-    // web_page LEFT the list — it extends source and rides the sources
-    // toggle with the family; collection LEFT it the same way.
+    // classes (highlight/collection/agent/organization) are plain
+    // vocabulary now. web_page LEFT the list — it extends source and rides
+    // the sources toggle with the family.
     for (const name of [
       "year",
       "month",
       "day",
       "asset",
       "highlight",
+      "collection",
       "agent",
       "organization",
     ] as const) {
       expect(ALWAYS_ON_SYSTEM_CLASSES).toContain(name);
     }
     expect(ALWAYS_ON_SYSTEM_CLASSES).not.toContain("web_page");
-    expect(ALWAYS_ON_SYSTEM_CLASSES).not.toContain("collection");
     // whiteboard (class/token duality) stays always-on; the family bases don't.
     expect(ALWAYS_ON_SYSTEM_CLASSES).toContain("whiteboard");
     for (const name of ["task", "event", "meeting", "source", "person", "book", "birthday"] as const) {
