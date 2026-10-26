@@ -9,6 +9,37 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(web): two links in one edit session no longer lose the first — the
+  editor computes every content write from an authoritative committed-AST
+  base instead of the (stale) React prop; plus two gesture latency cuts
+  (optimistic create-row mention, eager Tab refocus).** Root cause of the
+  lost link: every capture commit and debounced flush recomputed the block's
+  content as `applyTextEdit(nodeRef.current.contentAst, draft, …)`, but the
+  prop only refreshes after the worker client's change notification drains
+  (its read cache lags the write RPC by a round-trip). A second mention
+  committed inside that window recomputed from a base that lacked the first
+  mention, flattened it to plain text, and the worker FIFO applied the
+  overwrite — "two node links, only one applied". The in-process test client
+  notifies synchronously, which is why no test ever saw it. Fix:
+  `BlockTextEditor` keeps a `committedRef` (initialized at mount, updated
+  synchronously by `commitAst`/`flush`/the mark/paste/Enter-split writes,
+  adopted from the prop only by the external-edit rehydration effect when
+  blurred + clean) and all `applyTextEdit` bases ride it. A remote edit
+  landing on the same block mid-session loses to the local session — the
+  sanctioned LWW-by-HLC outcome (the session's ops carry later clocks).
+  Latency cuts: (1) the create-row mention pick no longer waits (up to 2 s)
+  for the read cache to materialize the created node — the pick splices the
+  moment `createObject` resolves, with the created title as an optimistic
+  label fallback (`pendingCreatedName` registry, shadowed the moment the
+  graph resolves); (2) Tab/Shift+Tab issue their refocus eagerly instead of
+  in the move RPC's `.then` — the durable pending-edit intent (the earlier
+  edit-mode fix) survives the reparent remount in either message order, so
+  the gesture no longer serializes on the round-trip (failure path drops the
+  intent, since no remount would consume it). Verified by new
+  notify-deferred + read-gated regression tests (two mentions in one session
+  both survive; the create-row mention lands before the notification) — red
+  before, green after; full gate green. The pre-existing worker-shaped
+  create-row test now encodes the optimistic contract.
 - **fix(web): Tab / Shift+Tab indent-outdent no longer drops edit mode — the
   refocus request rides a durable pending-edit intent across the reparent
   remount.** Root cause: the Tab handler re-requests edit mode on the moved
