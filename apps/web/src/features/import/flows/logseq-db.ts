@@ -384,8 +384,18 @@ export async function runLogseqDbImport(
           }
           continue;
         }
-        await writePropertyValue(client, node.uuid, schema, coerced.value, multi ? i : 0);
-        wrote = true;
+        // Per-value write isolation, the pass-1-create pattern: a store
+        // throw (shape/guard) lands in the failure list and the run
+        // continues — one bad value must never abort a reconcile that has
+        // already created hundreds of nodes.
+        try {
+          await writePropertyValue(client, node.uuid, schema, coerced.value, multi ? i : 0);
+          wrote = true;
+        } catch (error) {
+          report.failures.push(
+            `"${nodeTitle(node)}", ${propTitle}: ${error instanceof Error ? error.message : String(error)} — value skipped`,
+          );
+        }
       }
       if (wrote) {
         held.add(schema.id);

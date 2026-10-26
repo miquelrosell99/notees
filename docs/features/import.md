@@ -109,7 +109,9 @@ The reconcile is by uuid, and **Notees wins**:
   resolve in a two-pass (content first, then refs); a reference missing
   from both the export and the workspace is listed, not faked.
 - The export's assets are metadata only (checksums, no file bytes) — they
-  are counted as skipped, never faked.
+  are counted as skipped, never faked. Select-option backing entities
+  (closed values) are vocabulary, not content: counted as skipped, never
+  imported as pages; select fills match by the option's label.
 
 The report lists Created / Filled / Skipped / Failed plus the unmapped
 classes and properties, the unresolved references, and every failure.

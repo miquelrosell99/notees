@@ -14,6 +14,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
+import { CommandPalette } from "../src/features/command-palette/CommandPalette.js";
+import { ImportHost } from "../src/features/import/ImportHost.js";
 import { ImportOptionsModal } from "../src/features/import/ImportOptionsModal.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -235,5 +238,38 @@ describe("ImportOptionsModal — Logseq DB source", () => {
     const created = client.getNodeRaw("50505050-0000-4000-8000-000000000050");
     expect(created).not.toBeUndefined();
     expect(created!.contentAst).toEqual([{ type: "text", text: "New Person" }]);
+  });
+});
+
+describe("command palette entry", () => {
+  it("the palette's Import… row opens the import modal through the request queue", async () => {
+    const client = await seedClient();
+    render(
+      <>
+        <CommandPalette
+          client={client}
+          open
+          onRequestOpen={() => {}}
+          onClose={() => {}}
+          onOpenNode={() => {}}
+          onNewPage={() => {}}
+          onSignOut={() => {}}
+          undoState={EMPTY_UNDO_STATE}
+          onUndo={() => {}}
+          onRedo={() => {}}
+          cacheVersion={0}
+        />
+        <ImportHost
+          client={client}
+          serverUrl={null}
+          credential=""
+          onOpenWorkspace={() => {}}
+        />
+      </>,
+    );
+    fireEvent.click(await screen.findByText("Import…"));
+    // The host answered the module-level request: the unified hub is up.
+    expect(await screen.findByRole("dialog", { name: "Import Workspace" })).not.toBeNull();
+    expect(screen.getAllByRole("radio")).toHaveLength(5);
   });
 });
