@@ -226,16 +226,16 @@
   text-overflow: ellipsis;
 }
 
-/* The flag pill rides the accent: primary-container IS the accent-tinted
-   surface and follows the chosen accent. */
+/* The flag pill rides the accent (primary-container IS the accent-tinted
+   surface and follows the chosen accent). It is a status flag, not an
+   action: no hover/press feedback, no pointer — the Pill primitive's
+   clickable affordances are switched off. */
 .settings-server-row__flag {
   flex-shrink: 0;
   background-color: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
-}
-
-.settings-server-row__flag:hover {
-  border-color: var(--md-sys-color-primary);
+  cursor: default;
+  pointer-events: none;
 }
 
 /* The delete button is quiet at rest and inks danger on hover. */
