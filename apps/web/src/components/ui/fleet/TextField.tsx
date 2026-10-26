@@ -71,8 +71,8 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     undefined;
 
   const underlineClasses = error
-    ? "border-b-error focus:border-b-error focus:shadow-field-error"
-    : "border-b-outline-variant focus:border-b-primary focus:shadow-field-focus";
+    ? "border-b-error focus:border-b-error focus:shadow-field-error focus-visible:shadow-none"
+    : "border-b-outline-variant focus:border-b-primary focus:shadow-field-focus focus-visible:shadow-none";
 
   const inputClasses = cn(
     "w-full bg-transparent border-b px-0 text-on-surface transition-colors duration-short ease-standard",
