@@ -25,6 +25,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { renderHook } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import type { QueryAst } from "@notees/query";
 
 import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client/index.js";
 import {
@@ -36,6 +37,7 @@ import {
 } from "../src/features/collection/sectionViewResolve.js";
 import type { NodeCollectionItem } from "../src/features/collection/index.js";
 import { NodeCollection } from "../src/features/collection/index.js";
+import { FACTORY_QUERY_AST } from "../src/features/collection/filterQuery.js";
 import {
   ensureSectionViewsLoaded,
   resetSectionViewsForTests,
@@ -404,6 +406,10 @@ function stubViewsClient(behavior: {
       calls.push({ method: "rename", args: [viewId, name] });
       return guard(viewRow({ id: viewId, name }));
     },
+    updateSectionViewAst: (_nodeId, _sectionKey, viewId, queryAst) => {
+      calls.push({ method: "updateAst", args: [viewId, queryAst] });
+      return guard(viewRow({ id: viewId, queryAst }));
+    },
     reorderSectionViews: (_nodeId, _sectionKey, orderedIds) => {
       calls.push({ method: "reorder", args: [orderedIds] });
       return guard(orderedIds.map((id, index) => viewRow({ id, sequence: index })));
@@ -592,7 +598,7 @@ describe("the hosted-views chrome", () => {
         viewMode="table"
         client={client}
         items={memberItemsOf(client, members)}
-        hostedViews={{ nodeId: members[0]!, sectionKey: "classed-nodes" }}
+        hostedViews={{ nodeId: members[0]!, sectionKey: "classed-nodes", createAst: () => FACTORY_QUERY_AST }}
       />,
     );
     const defaultTab = await screen.findByRole("tab", { name: "Default" });
@@ -614,7 +620,7 @@ describe("the hosted-views chrome", () => {
         viewMode="table"
         client={client}
         items={[]}
-        hostedViews={{ nodeId: cityId, sectionKey: "classed-nodes" }}
+        hostedViews={{ nodeId: cityId, sectionKey: "classed-nodes", createAst: () => FACTORY_QUERY_AST }}
         emptyText="No classed nodes yet."
       />,
     );
@@ -630,28 +636,30 @@ describe("the hosted-views chrome", () => {
     stubViewsFetch();
     const client = await seedClient();
     const { cityId, members } = await seedClassWorld(client);
-    await client.createClass("Ghost"); // no members — the refinement empties the tab
+    const ghostId = await client.createClass("Ghost"); // no members — the refinement empties the tab
+    const ghostAst: QueryAst = {
+      version: 1,
+      scope: { type: "entire_workspace" },
+      root: { type: "group", logic: "and", children: [{ type: "class", classId: ghostId }] },
+    };
     render(
       <NodeCollection
         viewMode="table"
         client={client}
         items={memberItemsOf(client, members)}
-        hostedViews={{ nodeId: cityId, sectionKey: "classed-nodes" }}
+        hostedViews={{ nodeId: cityId, sectionKey: "classed-nodes", createAst: () => ghostAst }}
         emptyText="No classed nodes yet."
       />,
     );
     await screen.findByRole("tab", { name: "Default" });
 
+    // "+" creates the tab immediately — no modal.
     fireEvent.click(screen.getByRole("button", { name: "Add custom view" }));
-    const dialog = await screen.findByRole("dialog", { name: "Query builder" });
-    pickDropdownOption(dialog, "Class", "Ghost");
-    fireEvent.change(within(dialog).getByLabelText("View name"), { target: { value: "Ghosts" } });
-    await act(async () => {
-      fireEvent.click(within(dialog).getByRole("button", { name: "Save as view" }));
-    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const ghostsTab = await screen.findByRole("tab", { name: "View 1" });
 
-    fireEvent.click(await screen.findByRole("tab", { name: "Ghosts" }));
     // The refinement emptied the tab: the honest line, not the container's default-empty text.
+    fireEvent.click(ghostsTab);
     expect(await screen.findByText("No matching rows.")).not.toBeNull();
     expect(screen.queryByText("No classed nodes yet.")).toBeNull();
     // The Default tab keeps the factory rows.
@@ -659,7 +667,7 @@ describe("the hosted-views chrome", () => {
     expect(await screen.findByText("Paris")).not.toBeNull();
   });
 
-  it("the '+' flow persists the FilterBuilderModal's composed AST verbatim and the tab refines the rows", async () => {
+  it("the '+' flow creates the tab from the host's draft AST verbatim and the tab refines the rows", async () => {
     stubViewsFetch();
     const client = await seedClient();
     const { cityId, members, plain } = await seedClassWorld(client);
@@ -668,23 +676,27 @@ describe("the hosted-views chrome", () => {
         viewMode="table"
         client={client}
         items={memberItemsOf(client, [...members, ...plain])}
-        hostedViews={{ nodeId: cityId, sectionKey: "classed-nodes" }}
+        hostedViews={{
+          nodeId: cityId,
+          sectionKey: "classed-nodes",
+          createAst: () => ({
+            version: 1,
+            scope: { type: "entire_workspace" },
+            root: { type: "group", logic: "and", children: [{ type: "class", classId: cityId }] },
+          }),
+        }}
       />,
     );
     await screen.findByRole("tab", { name: "Default" });
 
+    // "+" creates the tab immediately — no FilterBuilderModal.
     fireEvent.click(screen.getByRole("button", { name: "Add custom view" }));
-    const dialog = await screen.findByRole("dialog", { name: "Query builder" });
-    pickDropdownOption(dialog, "Class", "City");
-    fireEvent.change(within(dialog).getByLabelText("View name"), { target: { value: "Cities" } });
-    await act(async () => {
-      fireEvent.click(within(dialog).getByRole("button", { name: "Save as view" }));
-    });
+    expect(screen.queryByRole("dialog")).toBeNull();
 
-    // The POST carried the composed AST verbatim (a transient filter persisted as-is).
+    // The POST carried the draft AST verbatim under the auto label.
     const post = restCalls.find((call) => call.method === "POST");
     expect(post).not.toBeUndefined();
-    expect((post!.body as { name: string }).name).toBe("Cities");
+    expect((post!.body as { name: string }).name).toBe("View 1");
     expect((post!.body as { queryAst: unknown }).queryAst).toEqual({
       version: 1,
       scope: { type: "entire_workspace" },
@@ -692,7 +704,7 @@ describe("the hosted-views chrome", () => {
     });
 
     // The custom tab appears; selecting it refines the base set to the class members.
-    const citiesTab = await screen.findByRole("tab", { name: "Cities" });
+    const citiesTab = await screen.findByRole("tab", { name: "View 1" });
     fireEvent.click(citiesTab);
     expect(await screen.findByText("Paris")).not.toBeNull();
     expect(screen.getByText("London")).not.toBeNull();
@@ -714,19 +726,15 @@ describe("the hosted-views chrome", () => {
         viewMode="table"
         client={client}
         items={memberItemsOf(client, [...members, ...plain])}
-        hostedViews={{ nodeId: cityId, sectionKey: "classed-nodes" }}
+        hostedViews={{ nodeId: cityId, sectionKey: "classed-nodes", createAst: () => FACTORY_QUERY_AST }}
       />,
     );
     await screen.findByRole("tab", { name: "Default" });
 
+    // "+" creates the tab immediately — no modal.
     fireEvent.click(screen.getByRole("button", { name: "Add custom view" }));
-    const dialog = await screen.findByRole("dialog", { name: "Query builder" });
-    pickDropdownOption(dialog, "Class", "City");
-    fireEvent.change(within(dialog).getByLabelText("View name"), { target: { value: "Cities" } });
-    await act(async () => {
-      fireEvent.click(within(dialog).getByRole("button", { name: "Save as view" }));
-    });
-    await screen.findByRole("tab", { name: "Cities" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await screen.findByRole("tab", { name: "View 1" });
     expect(screen.getByRole("button", { name: "Reset to default" })).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Reset to default" }));
@@ -751,37 +759,32 @@ describe("the hosted-views chrome", () => {
         viewMode="table"
         client={client}
         items={memberItemsOf(client, members)}
-        hostedViews={{ nodeId: cityId, sectionKey: "classed-nodes" }}
+        hostedViews={{ nodeId: cityId, sectionKey: "classed-nodes", createAst: () => FACTORY_QUERY_AST }}
       />,
     );
     await screen.findByRole("tab", { name: "Default" });
 
-    // Create two views.
-    for (const name of ["One", "Two"]) {
+    // Create two views — each "+" creates the tab immediately (auto labels).
+    for (const name of ["View 1", "View 2"]) {
       fireEvent.click(screen.getByRole("button", { name: "Add custom view" }));
-      const dialog = await screen.findByRole("dialog", { name: "Query builder" });
-      fireEvent.change(within(dialog).getByLabelText("View name"), { target: { value: name } });
-      await act(async () => {
-        fireEvent.click(within(dialog).getByRole("button", { name: "Save as view" }));
-      });
       await screen.findByRole("tab", { name });
     }
 
     // Select the first and move it right: the PUT carries the swapped order.
-    fireEvent.click(screen.getByRole("tab", { name: "One" }));
-    fireEvent.click(screen.getByRole("button", { name: "Move One right" }));
+    fireEvent.click(screen.getByRole("tab", { name: "View 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move View 1 right" }));
     await waitFor(() => expect(restCalls.some((call) => call.method === "PUT")).toBe(true));
     await waitFor(() => {
       const tabs = screen.getAllByRole("tab").map((tab) => tab.textContent ?? "");
-      // The active tab's count badge rides its textContent ("One2") — match
+      // The active tab's count badge rides its textContent ("View 12") — match
       // the name prefixes, not the full string.
-      expect(tabs.findIndex((t) => t.startsWith("Two"))).toBeLessThan(
-        tabs.findIndex((t) => t.startsWith("One")),
+      expect(tabs.findIndex((t) => t.startsWith("View 2"))).toBeLessThan(
+        tabs.findIndex((t) => t.startsWith("View 1")),
       );
     });
 
     // Rename it.
-    fireEvent.click(screen.getByRole("button", { name: "Rename One" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rename View 1" }));
     const renameDialog = await screen.findByRole("dialog", { name: "Rename view" });
     fireEvent.change(within(renameDialog).getByLabelText("View name"), { target: { value: "Uno" } });
     await act(async () => {
@@ -798,7 +801,7 @@ describe("the hosted-views chrome", () => {
       fireEvent.click(within(deleteDialog).getByRole("button", { name: "Delete" }));
     });
     await waitFor(() => expect(screen.queryByRole("tab", { name: "Uno" })).toBeNull());
-    expect(screen.getByRole("tab", { name: "Two" })).not.toBeNull();
+    expect(screen.getByRole("tab", { name: "View 2" })).not.toBeNull();
   });
 });
 

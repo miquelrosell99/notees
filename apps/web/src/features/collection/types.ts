@@ -17,23 +17,33 @@
 import type { ReactNode, ComponentType } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
+import type { QueryAst } from "@notees/query";
+
 import type { ClientNode, EffectiveProperty, HostedSectionKey, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 export type AnyClient = WorkspaceClient | WorkerClient;
 
 /**
- * Hosted-views activation: the section a collection backs, addressed by the
- * page/class node it lives on + the section key. When present, NodeCollection
- * renders the custom-tabs chrome: the default tab first (permanent, never
- * closable), custom tabs additive in sequence order, "+" creating one via
- * the FilterBuilderModal. Custom views are per-user prefs-channel state —
- * the DEFAULT tab renders exactly the un-hosted behavior.
+ * Hosted-views activation: the surface a collection backs, addressed by the
+ * node it lives on + the section key (a system-section key, or "" for a
+ * node's main query). When present, NodeCollection renders the custom-tabs
+ * chrome: the default tab first (permanent, never closable), custom tabs
+ * additive in sequence order, "+" creating one immediately from `createAst`
+ * (no modal on create; the query builder toggles
+ * per tab in the bar and rewrites the selected tab's query). Custom views
+ * are node-scoped prefs-channel state — the DEFAULT tab renders exactly the
+ * un-hosted behavior.
  */
 export interface HostedViewsConfig {
-  /** The page/class node the section lives on. */
+  /** The page/class/query node the surface lives on. */
   nodeId: string;
-  /** The section key (the server's pinned vocabulary). */
-  sectionKey: HostedSectionKey;
+  /** The section key ("" = the node's main query). */
+  sectionKey: HostedSectionKey | "";
+  /**
+   * The AST a new tab starts from — the host's current draft, falling back
+   * to the factory AST when the draft is empty.
+   */
+  createAst: () => QueryAst;
   /**
    * The selected tab (SECTION_DEFAULT_TAB or a view id) — OPTIONAL control:
    * when both `selected` and `onSelectTab` are set, the host owns the tab

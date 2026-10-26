@@ -15,11 +15,12 @@
  * when BOTH the flag and the callback are set.
  *
  * Hosted views (the `hostedViews` prop): the collection gains the
- * custom-tabs chrome (SectionViewTabs) — the default tab renders exactly
+ * custom-tabs chrome (NodeCollectionTabs) — the default tab renders exactly
  * today's behavior (permanent, first), custom tabs refine the items/groups
  * (and the ungrouped top-level rows) with their stored query_ast
- * (sectionViewResolve), and a custom tab's
- * view_mode overrides the requested mode when the registry knows it.
+ * (sectionViewResolve), and "+" creates a tab immediately from the host's
+ * `createAst` (no modal on create; view modes are
+ * transient surface state, never tab-pinned).
  * The ACTIVE tab's displayed row count rides its name as a small badge
  * (the count moved off the filter panel's foot;
  * computed here post-refinement, so the badge names the open tab's rows).
@@ -31,7 +32,7 @@
  * in the hosted tab bar (a non-hosted collection has no tab row). The
  * view's own per-view toolbar (table columns/sort/more, cards cover/selection)
  * portals into a slot mounted BEFORE the trailing chrome — the cluster ends
- * with the FilterBar so its wrapped structured panel never moves the row.
+ * with the NodeCollectionBar so its wrapped structured panel never moves the row.
  *
  *  The focused-block view (the `parent` prop, the v1
  *  "show parents" NodeCollection prop, generalized): the collection shows
@@ -74,7 +75,7 @@ import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js"
 import { useSectionViews } from "./sectionViews.js";
 import { childQuery } from "./childQuery.js";
 import { getViewDefinition } from "./registry.js";
-import { SECTION_DEFAULT_TAB, SectionViewTabs } from "./SectionViewTabs.js";
+import { SECTION_DEFAULT_TAB, NodeCollectionTabs } from "./NodeCollectionTabs.js";
 import { useSectionViewResolution } from "./sectionViewResolve.js";
 import type { NodeCollectionProps, ViewMode } from "./types.js";
 import { ViewChromeContext } from "./viewChrome.js";
@@ -281,12 +282,13 @@ export function NodeCollection({
       }${props.className ?? ""}`.trim()}
     >
       {hosted !== null && (
-        <SectionViewTabs
+        <NodeCollectionTabs
           client={props.client}
           nodeId={hosted.nodeId}
           sectionKey={hosted.sectionKey}
           selected={selectedView !== undefined ? tab : SECTION_DEFAULT_TAB}
           onSelect={setTab}
+          createAst={hosted.createAst}
           activeCount={tabRowCount}
           trailing={
             <>

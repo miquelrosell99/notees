@@ -1,5 +1,5 @@
 .view-toolbar {
-  /* Wraps so an inline FilterBar's structured panel can take a full-width
+  /* Wraps so an inline NodeCollectionBar's structured panel can take a full-width
      line beneath the control row; also the anchor for floating toolbar
      children. */
   position: relative;

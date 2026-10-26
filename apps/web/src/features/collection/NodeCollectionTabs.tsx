@@ -1,22 +1,25 @@
 /**
- * SectionViewTabs — the hosted-views chrome (the custom-tabs tab bar riding
+ * NodeCollectionTabs — the hosted-views chrome (the custom-tabs tab bar riding
  * WITH a hosted NodeCollection):
  *
- *  - the DEFAULT tab renders the section's factory behavior — permanent,
+ *  - the DEFAULT tab renders the surface's factory behavior — permanent,
  *    first, never closable, never replaced;
  *  - custom tabs are additive, ordered by sequence, each refining the base
  *    row set with its stored query_ast (sectionViewResolve);
- *  - "+" opens the FilterBuilderModal (the one-grammar AST producer) — a
- *    transient filter persists VERBATIM as the new view's query_ast. In this
- *    host the modal's "Run" also persists (a tab IS the run target here) —
- *    with an auto label when the name field is empty;
+ *  - "+" CREATES THE TAB IMMEDIATELY: the new tab persists the host's current draft AST (the bar's
+ *    composed group, or the factory AST the host falls back to when the
+ *    draft is empty) under an auto label and is selected. The query builder
+ *    is NOT opened here — it is toggled per tab in the bar below, where its
+ *    commit rewrites the SELECTED tab's query (the default tab's host writes
+ *    its own default AST; a custom tab writes the view row via
+ *    updateSectionViewAst);
  *  - the "+" rides the TABLIST's END (the
  *    right-cluster experiment placed it with the filter/view buttons and
  *    the owner brought it back beside the tabs): the LAST item of the tab
  *    strip, the classic new-tab position. The other chrome — the reset,
- *    the host section's `trailing` (the view switcher, the FilterBar's
- *    quick search + structured toggle) — rides the bar's FAR RIGHT.
- *    Ordering contract: the FilterBar renders LAST in the cluster so its
+ *    the host section's `trailing` (the view switcher, the bar's quick
+ *    search + structured toggle) — rides the bar's FAR RIGHT.
+ *    Ordering contract: the bar renders LAST in the cluster so its
  *    structured panel wraps a full-width line BENEATH the row without
  *    moving the other controls;
  *  - the active tab carries a TOTAL COUNT badge beside its name (the resolved row count of the open tab, replacing
@@ -25,7 +28,7 @@
  *  - the active custom tab carries its management affordances: rename,
  *    reorder (move left/right), delete;
  *  - "Reset to default" (rendered only when custom views exist) deletes
- *    every custom view of the section — the default view is
+ *    every custom view of the surface — the default view is
  *    derived-not-stored, so emptying the table IS the factory state (the
  *    schema cannot express a default).
  *
@@ -40,7 +43,6 @@ import type { QueryAst } from "@notees/query";
 
 import type { HostedSectionKey, SectionView } from "@/core/workspace-client/index.js";
 
-import { FilterBuilderModal } from "./FilterBuilderModal.js";
 import {
   createSectionView,
   deleteSectionView,
@@ -51,12 +53,12 @@ import {
 import { Button, ConfirmationModal, Modal, Tabs, TextField } from "../../components/ui/fleet/index.js";
 import { Icon } from "../../ui/Icon.js";
 import type { AnyClient } from "./types.js";
-import "./SectionViewTabs.css";
+import "./NodeCollectionTabs.css";
 
 /** The permanent default tab's value (never a view id). */
 export const SECTION_DEFAULT_TAB = "default";
 
-/** The auto label for the modal's Run outcome: the first free "View N". */
+/** The auto label for a new tab: the first free "View N". */
 export function autoViewName(existing: readonly SectionView[]): string {
   const names = new Set(existing.map((view) => view.name));
   let n = 1;
@@ -64,28 +66,33 @@ export function autoViewName(existing: readonly SectionView[]): string {
   return `View ${n}`;
 }
 
-export interface SectionViewTabsProps {
+export interface NodeCollectionTabsProps {
   client: AnyClient;
   nodeId: string;
-  sectionKey: HostedSectionKey;
+  /** The hosted surface — a system-section key or "" for a node's main query. */
+  sectionKey: HostedSectionKey | "";
   /** The selected tab (SECTION_DEFAULT_TAB or a view id) — owned by the host. */
   selected: string;
   onSelect: (tab: string) => void;
+  /**
+   * The AST a new tab starts from — the host's current draft, falling back
+   * to the factory AST when the draft is empty.
+   */
+  createAst: () => QueryAst;
   /**
    * The resolved row count of the SELECTED tab — rides its tab name as a
    * small badge (null/undefined renders none).
    */
   activeCount?: number | null;
   /**
-   * The host section's chrome riding the bar's far right (the filter bar,
-   * the view switcher) — one row with the tabs.
+   * The host section's chrome riding the bar's far right (the bar's quick
+   * search + structured toggle, the view switcher) — one row with the tabs.
    */
   trailing?: ReactNode;
 }
 
-export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect, activeCount, trailing }: SectionViewTabsProps) {
+export function NodeCollectionTabs({ client, nodeId, sectionKey, selected, onSelect, createAst, activeCount, trailing }: NodeCollectionTabsProps) {
   const { views, lastWriteError } = useSectionViews(client, nodeId, sectionKey);
-  const [builderOpen, setBuilderOpen] = useState(false);
   const [renaming, setRenaming] = useState<SectionView | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
@@ -95,17 +102,13 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
   const selectedView = views.find((view) => view.id === selected);
   const selectedIndex = selectedView === undefined ? -1 : views.indexOf(selectedView);
 
-  const persist = async (ast: QueryAst, name: string): Promise<void> => {
-    const view = await createSectionView(client, nodeId, sectionKey, { name, queryAst: ast });
+  /** "+": create the tab immediately, no modal. */
+  const addTab = async (): Promise<void> => {
+    const view = await createSectionView(client, nodeId, sectionKey, {
+      name: autoViewName(views),
+      queryAst: createAst(),
+    });
     if (view !== null) onSelect(view.id);
-  };
-
-  const handleSaveAsView = (ast: QueryAst, name: string) => persist(ast, name);
-
-  // In this host "Run" also persists: the tab bar is the run target. The
-  // modal's name field is not handed to onRun, so an auto label.
-  const handleRun = (ast: QueryAst) => {
-    void persist(ast, autoViewName(views));
   };
 
   const move = async (view: SectionView, delta: -1 | 1) => {
@@ -145,14 +148,14 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
   };
 
   return (
-    <div className="nt-section-views">
-      <div className="nt-section-views__bar">
-        <Tabs className="nt-section-views__tabs" value={selected} onChange={onSelect}>
+    <div className="nt-node-collection-tabs">
+      <div className="nt-node-collection-tabs__bar">
+        <Tabs className="nt-node-collection-tabs__tabs" value={selected} onChange={onSelect}>
           <Tabs.List>
             <Tabs.Tab value={SECTION_DEFAULT_TAB}>
               Default
               {selected === SECTION_DEFAULT_TAB && activeCount != null && (
-                <span className="nt-section-views__tab-count" aria-hidden="true">
+                <span className="nt-node-collection-tabs__tab-count" aria-hidden="true">
                   {activeCount}
                 </span>
               )}
@@ -161,7 +164,7 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
               <Tabs.Tab key={view.id} value={view.id}>
                 {view.name}
                 {selected === view.id && activeCount != null && (
-                  <span className="nt-section-views__tab-count" aria-hidden="true">
+                  <span className="nt-node-collection-tabs__tab-count" aria-hidden="true">
                     {activeCount}
                   </span>
                 )}
@@ -169,10 +172,10 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
             ))}
             {/* The "+" rides the tablist's END — the last item beside the
                 tabs, not with the right-hand
-                chrome. */}
+                chrome. It creates the tab outright. */}
             <Tabs.AddButton
               aria-label="Add custom view"
-              onClick={() => setBuilderOpen(true)}
+              onClick={() => void addTab()}
             />
           </Tabs.List>
         </Tabs>
@@ -181,7 +184,7 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
         {views.length > 0 && (
           <button
             type="button"
-            className="nt-section-views__reset"
+            className="nt-node-collection-tabs__reset"
             title="Remove all custom views from this section"
             onClick={() => setConfirmReset(true)}
           >
@@ -192,8 +195,8 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
       </div>
 
       {selectedView !== undefined && (
-        <div className="nt-section-views__manage">
-          <span className="nt-section-views__manage-name">{selectedView.name}</span>
+        <div className="nt-node-collection-tabs__manage">
+          <span className="nt-node-collection-tabs__manage-name">{selectedView.name}</span>
           <Button
             variant="ghost"
             size="xs"
@@ -236,15 +239,6 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
           {lastWriteError}
         </p>
       )}
-
-      <FilterBuilderModal
-        client={client}
-        isOpen={builderOpen}
-        onClose={() => setBuilderOpen(false)}
-        scopeAnchor={{ rootId: nodeId, rootIsPage: true }}
-        onRun={handleRun}
-        onSaveAsView={handleSaveAsView}
-      />
 
       <Modal
         isOpen={renaming !== null}

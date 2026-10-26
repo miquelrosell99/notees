@@ -1,5 +1,5 @@
 /**
- * FilterBar — the transient filter layer's chrome: the control row a
+ * NodeCollectionBar — the transient filter layer's chrome: the control row a
  * `filterable` section renders with its collection — at the body top for an
  * un-hosted collection, inline in the hosted tab bar's right-hand cluster
  * (the section header is a single <button> — no interactive control nests
@@ -37,16 +37,17 @@ import {
   createSectionView,
   useSectionViews,
 } from "./sectionViews.js";
-import { autoViewName } from "./SectionViewTabs.js";
+import { autoViewName } from "./NodeCollectionTabs.js";
 import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
   isFilterInactive,
-  type FilterBarConfig,
+  type NodeCollectionBarConfig,
   type FilterQuery,
 } from "./filterQuery.js";
 import type { HostedSectionKey } from "@/core/workspace-client/index.js";
-import "./FilterBar.css";
+import type { QueryAst } from "@notees/query";
+import "./NodeCollectionBar.css";
 
 /**
  * The "Save as tab" wiring: when the host section
@@ -59,17 +60,31 @@ import "./FilterBar.css";
 export interface FilterViewSaver {
   client: AnyClient;
   nodeId: string;
-  sectionKey: HostedSectionKey;
+  sectionKey: HostedSectionKey | "";
   onSaved: (viewId: string) => void;
 }
 
-export interface FilterBarProps {
+/**
+ * The "Apply to tab" wiring: the host names the SELECTED tab and supplies the commit
+ * (default tab → the host's default AST store; a custom tab →
+ * updateSectionViewAst). The button rides the structured panel's foot while
+ * the composed draft is non-empty; a successful commit hands the query to
+ * the tab — the transient structured draft clears (the text search stays).
+ */
+export interface FilterApplyTarget {
+  /** The selected tab's label — the button names it. */
+  tabLabel: string;
+  /** Persists the draft AST as the selected tab's query. False = write failed. */
+  onApply: (ast: QueryAst) => Promise<boolean>;
+}
+
+export interface NodeCollectionBarProps {
   client: AnyClient;
   /** The section's FilterQuery (component state at the section). */
   value: FilterQuery;
   onChange: (query: FilterQuery) => void;
   /** Which facets the bar offers (default: all). */
-  config?: FilterBarConfig | undefined;
+  config?: NodeCollectionBarConfig | undefined;
   /** The filtered row count — null while the section is unresolved. */
   matchCount: number | null;
   /**
@@ -83,6 +98,12 @@ export interface FilterBarProps {
    */
   viewSaver?: FilterViewSaver | undefined;
   /**
+   * "Apply to tab" commit (optional — the query-node section sets it): the
+   * structured panel offers one click to persist the draft as the SELECTED
+   * tab's query (see FilterApplyTarget).
+   */
+  applyTarget?: FilterApplyTarget | undefined;
+  /**
    * "block" (default) renders the bar as its own body-top row; "inline"
    * renders it inside a toolbar row (a ViewToolbar or the hosted tab bar's
    * `trailing`) via `display: contents` — the control row joins the row's
@@ -94,7 +115,7 @@ export interface FilterBarProps {
   layout?: "block" | "inline" | undefined;
 }
 
-export function FilterBar({ client, value, onChange, config, matchCount, totalCount, viewSaver, layout = "block" }: FilterBarProps) {
+export function NodeCollectionBar({ client, value, onChange, config, matchCount, totalCount, viewSaver, applyTarget, layout = "block" }: NodeCollectionBarProps) {
   const [panelOpen, setPanelOpen] = useState(false);
   /**
    * The narrow-viewport fold: at ≤768px the permanent
@@ -111,12 +132,14 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
     viewSaver?.nodeId ?? "",
     viewSaver?.sectionKey ?? "linked-references",
   );
-  /** The composed draft — the save button rides only while it survives pruning. */
-  const composedGroup = viewSaver !== undefined ? filterQueryToGroup(value) : null;
+  /** The composed draft — the save/apply buttons ride only while it survives pruning. */
+  const composedGroup =
+    viewSaver !== undefined || applyTarget !== undefined ? filterQueryToGroup(value) : null;
   /** The foot-row cluster: only the caller's extras ride the builder's
-   *  bottom row now (the "Save as tab" button) — the count moved to the
-   *  hosted tab bar's active-tab badge. */
+   *  bottom row now (the "Apply to tab" / "Save as tab" buttons) — the count
+   *  moved to the hosted tab bar's active-tab badge. */
   const canSaveAsTab = viewSaver !== undefined && composedGroup !== null;
+  const canApplyToTab = applyTarget !== undefined && composedGroup !== null;
 
   const saveAsTab = async (): Promise<void> => {
     if (viewSaver === undefined || composedGroup === null) return;
@@ -132,6 +155,20 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
     setPanelOpen(false);
   };
 
+  const applyToTab = async (): Promise<void> => {
+    if (applyTarget === undefined || composedGroup === null) return;
+    const ok = await applyTarget.onApply({
+      version: 1,
+      scope: { type: "entire_workspace" },
+      root: composedGroup,
+    });
+    if (!ok) return; // the write failed — the views chrome surfaces it
+    // The tab owns the structured query now — the draft group clears; the
+    // quick-text search stays (it is a transient overlay, not the tab query).
+    onChange({ ...value, group: EMPTY_FILTER_QUERY.group });
+    setPanelOpen(false);
+  };
+
   const showText = config?.text ?? true;
   const showClass = config?.class ?? true;
   const showProperties = config?.properties ?? true;
@@ -142,11 +179,11 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
   const hasText = (value.text ?? "") !== "";
 
   return (
-    <div className={`nt-filter-bar${layout === "inline" ? " nt-filter-bar--inline" : ""}`}>
-      <div className="nt-filter-bar__row">
+    <div className={`nt-node-collection-bar${layout === "inline" ? " nt-node-collection-bar--inline" : ""}`}>
+      <div className="nt-node-collection-bar__row">
         {showText && !narrowSearch && (
           <SearchField
-            className="nt-filter-bar__search"
+            className="nt-node-collection-bar__search"
             size="sm"
             aria-label="Filter by text"
             placeholder="Filter…"
@@ -168,9 +205,9 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
             buttonProps={{ active: hasText }}
           >
             {() => (
-              <div className="nt-filter-bar__search-pop">
+              <div className="nt-node-collection-bar__search-pop">
                 <SearchField
-                  className="nt-filter-bar__search"
+                  className="nt-node-collection-bar__search"
                   aria-label="Filter by text"
                   placeholder="Filter…"
                   autoFocus
@@ -196,7 +233,7 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
           />
         )}
         {active && matchCount !== null && totalCount !== null && (
-          <span className="nt-filter-bar__count">
+          <span className="nt-node-collection-bar__count">
             {matchCount} of {totalCount}
           </span>
         )}
@@ -217,7 +254,7 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
       </div>
       {panelOpen && (
         <div
-          className="nt-filter-bar__panel"
+          className="nt-node-collection-bar__panel"
           role="group"
           aria-label="Structured filters"
         >
@@ -227,16 +264,31 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
             config={config}
             onChange={(group) => onChange({ ...value, group })}
             footExtra={
-              canSaveAsTab ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  icon="mdi mdi-tab-plus"
-                  aria-label="Save as tab"
-                  title="Save this filter as a new tab"
-                  onClick={() => void saveAsTab()}
-                />
+              canApplyToTab || canSaveAsTab ? (
+                <>
+                  {canApplyToTab && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      icon="mdi mdi-check"
+                      aria-label={`Apply to ${applyTarget!.tabLabel}`}
+                      title={`Set this filter as the ${applyTarget!.tabLabel} tab's query`}
+                      onClick={() => void applyToTab()}
+                    />
+                  )}
+                  {canSaveAsTab && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      icon="mdi mdi-tab-plus"
+                      aria-label="Save as tab"
+                      title="Save this filter as a new tab"
+                      onClick={() => void saveAsTab()}
+                    />
+                  )}
+                </>
               ) : undefined
             }
           />

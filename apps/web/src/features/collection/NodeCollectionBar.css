@@ -1,11 +1,11 @@
-/* FilterBar — the transient filter layer's body-top chrome: one control row
+/* NodeCollectionBar — the transient filter layer's body-top chrome: one control row
    (text search + the structured-facet toggle + the honest "N of M" count +
    clear) with the structured panel expanding beneath it as an in-flow,
    full-width region. The region keeps its bordered box (the frame pairs with the filter search box in the control row) — an
    in-flow box, not a floating overlay; the app only floats transient
    pickers. Token-only. */
 
-.nt-filter-bar {
+.nt-node-collection-bar {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
@@ -14,43 +14,43 @@
 }
 
 /* Inline layout: the bar renders with `display: contents` inside a wrapping
-   flex chrome row — a ViewToolbar or the hosted tab bar (SectionViewTabs'
+   flex chrome row — a ViewToolbar or the hosted tab bar (NodeCollectionTabs'
    `trailing`) — its control row joins the row's flex line (the search field
    flexes, capped so the row's actions keep the right side) while the
    structured panel takes a full-width wrapped line beneath the row. No
    overlay: the region is in the flow. */
-.nt-filter-bar--inline {
+.nt-node-collection-bar--inline {
   display: contents;
 }
 
-.nt-filter-bar--inline .nt-filter-bar__row {
+.nt-node-collection-bar--inline .nt-node-collection-bar__row {
   flex: 1 1 auto;
   max-width: 42ch;
   min-width: 12ch;
 }
 
-.nt-filter-bar--inline .nt-filter-bar__panel {
+.nt-node-collection-bar--inline .nt-node-collection-bar__panel {
   flex-basis: 100%;
 }
 
-.nt-filter-bar__row {
+.nt-node-collection-bar__row {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
 }
 
-.nt-filter-bar__search {
+.nt-node-collection-bar__search {
   flex: 1;
   min-width: 10ch;
 }
 
 /* The narrow-viewport search popup: the field rides the
    magnifier button's anchored panel — padded to the panel's width. */
-.nt-filter-bar__search-pop {
+.nt-node-collection-bar__search-pop {
   padding: var(--spacing-2);
 }
 
-.nt-filter-bar__count {
+.nt-node-collection-bar__count {
   color: var(--md-sys-color-on-surface-variant);
   white-space: nowrap;
 }
@@ -59,7 +59,7 @@
    (never an overlay), full width; the box pairs with the search box in the
    control row above it. The kit Card inside stays only on the transient
    add menu. */
-.nt-filter-bar__panel {
+.nt-node-collection-bar__panel {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);

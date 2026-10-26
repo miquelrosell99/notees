@@ -1,7 +1,7 @@
 /**
- * FilterBlockBuilder — the FilterBar's structured panel: the v1
+ * FilterBlockBuilder — the NodeCollectionBar's structured panel: the v1
  * query-builder block UI ported over the v2 query AST.
- * One feature file pair with FilterBlockBuilder.css (the SectionViewTabs
+ * One feature file pair with FilterBlockBuilder.css (the NodeCollectionTabs
  * precedent), composed from kit primitives only. The condition model
  * (families, operator options, the operator-application morphs) lives in
  * filterBlockModel.ts and the value-column pickers in
@@ -49,12 +49,12 @@
  * Groups nest as hairline-indented columns
  * with the Match ALL/ANY header toggle; the root level is not a group.
  * Every control bubbles an immutable update to the root group via onChange —
- * the parent (the FilterBar) owns the state, this module is chrome.
+ * the parent (the NodeCollectionBar) owns the state, this module is chrome.
  *
  * The probe-riding leaves (the links/dynamic-target conditions, content
  * fts) evaluate through the runQueryAst query channel, never locally
  * (sectionViewResolve.ts leafNeedsProbe); the quick-search text is NOT part
- * of this tree — the FilterBar unshifts it into the composed group at prune
+ * of this tree — the NodeCollectionBar unshifts it into the composed group at prune
  * time.
  */
 
@@ -87,7 +87,7 @@ import {
   filterKindOptionsForConfig,
   filterQueryToGroup,
   type AddMenuEntry,
-  type FilterBarConfig,
+  type NodeCollectionBarConfig,
 } from "./filterQuery.js";
 import { BlockValue, PropertySchemaPick } from "./filterBlockValueControls.js";
 import {
@@ -118,14 +118,14 @@ const LOGIC_OPTIONS: SelectionButtonOption[] = [
 
 export interface FilterBlockBuilderProps {
   client: AnyClient;
-  /** The draft root group (component state at the FilterBar). */
+  /** The draft root group (component state at the NodeCollectionBar). */
   group: Group;
   onChange: (group: Group) => void;
   /** Which condition kinds the add menu offers (default: all). */
-  config?: FilterBarConfig | undefined;
+  config?: NodeCollectionBarConfig | undefined;
   /**
    * Right-aligned content in the builder's foot row, beside the "Add
-   * condition" menu (the FilterBar rides it with the "Save as tab" button —
+   * condition" menu (the NodeCollectionBar rides it with the "Save as tab" button —
    * the count line moved to the hosted tab bar's active-tab badge).
    */
   footExtra?: ReactNode | undefined;
@@ -141,7 +141,7 @@ function AddConditionMenu({
   width,
   onAdd,
 }: {
-  config?: FilterBarConfig | undefined;
+  config?: NodeCollectionBarConfig | undefined;
   width: number;
   onAdd: (entry: AddMenuEntry) => void;
 }) {
@@ -380,7 +380,7 @@ export function FilterBlockBuilder({ client, group, onChange, config, footExtra 
 interface BlockContext {
   client: AnyClient;
   facts: BuilderFacts;
-  config?: FilterBarConfig | undefined;
+  config?: NodeCollectionBarConfig | undefined;
   datalistId: string;
 }
 

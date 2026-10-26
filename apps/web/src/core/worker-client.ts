@@ -1082,6 +1082,16 @@ export class WorkerClient {
     return (await this.call("renameSectionView", [nodeId, sectionKey, viewId, name])) as SectionView;
   }
 
+  /** PATCH a view's query AST (the per-tab builder commit). */
+  async updateSectionViewAst(
+    nodeId: string,
+    sectionKey: string,
+    viewId: string,
+    queryAst: unknown,
+  ): Promise<SectionView> {
+    return (await this.call("updateSectionViewAst", [nodeId, sectionKey, viewId, queryAst])) as SectionView;
+  }
+
   /** PUT the full ordered id list; sequences rewrite 0..n-1. */
   async reorderSectionViews(
     nodeId: string,
