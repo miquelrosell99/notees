@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): the query results gain a transient PIVOT view mode.** The model
+  ruling: the query selects the row set; every way of looking at it (list,
+  table, pivot) is a transient mode, and since group-bys are never stored,
+  neither is a pivot. `QueryPivot` groups the FULL result set client-side
+  (not the 200-row window) by two picked group-by dimensions — one on the
+  ROWS axis, one on the COLUMNS — with count / sum / average measures:
+  dimensions = class bit, structural role, class membership, or any bound
+  property (effective values, so defaults group naturally; distinct values
+  per axis cap at 20 with an "Other" overflow); measures = count, or
+  sum/avg over number properties. Mode, picks, and measure are component
+  state — reload resets to the list, nothing stored, no protocol/wire/
+  compiler change. The mode switcher rides the kit SelectionButton
+  directly (pivot is a results view, not a collection-registry mode). A
+  stored aggregation AST still renders its legacy grid (kind ===
+  "aggregate" passes the pivot by); the now-unwrapped `QueryResults`
+  wrapper deleted with it. Verified: two new specs in the query-node suite
+  (count grid across two dimensions; sum measure + transience — no view
+  record, AST untouched, list restored on switch); full gate green.
+
 - **feat(web): the toggle's checked state rides a primary thumb on a neutral
   track.** `ToggleSwitch` drops the checked-track fill (`bg-primary` flip) —
   the track keeps `surface-container-high` in both states and the thumb
