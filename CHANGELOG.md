@@ -9,6 +9,39 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(domain): colección (…0001-000000000032) extends `source` at the
+  seed — the system-class mirror of the `regulación` user-class data op.**
+  froze a system class's extends mapping as seeded
+  platform structure (`SystemExtendsLockError` rejects any deviation), so the
+  `regulación`-style op path has no system counterpart — the edge lands in
+  `SYSTEM_CLASS_EXTENDS` (`collection: ["source"]`, packages/domain
+  src/seeds.ts). Consequences, all derived from the one edge (the web_page
+  precedent): (1) `collection` LEFT `ALWAYS_ON_SYSTEM_CLASSES` (F1) — it
+  rides the sources toggle with the family now; (2) the sources family is
+  41-strong (`familyClassNames`/`managedClassIds`, `gatingFeaturesForClass
+  ("collection")` → `["sources"]`); (3) source-scoped property eligibility
+  reaches collections through the extends chain. Seed pins updated in
+  domain.test.ts (family list, gating, F1 roster). Live workspaces converge
+  by the new one-time Path A migration `scripts/migrate-collection-extends-source.mts`
+  (dry-run default; one appended `class.setExtends` per drifted workspace
+  with exactly the seeded parent set — the lock's seed/ensure re-issue path
+  applies it; protocol-validated + test-applied pre-ingest, read-back
+  verified). The web `deploySystemClass` ensure shape covers the edge on the
+  user-triggered gallery deploy but nothing calls it automatically — the
+  migration script is the convergence path, same as the roster precedent (a
+  roster-script re-run would also heal this drift; its source-family heal
+  list derives from the same map). SCHEMA.md (seed-manifest paragraph + F1
+  list) updated. Client alignment (law 10, non-blocking follow-ups the
+  owners apply): GTK `features.py` gains `collection: ("source",)` in
+  `_SYSTEM_CLASS_EXTENDS` + drops it from `ALWAYS_ON_SYSTEM_CLASSES` (its
+  applier lock authority MUST carry the new frozen set before the migration
+  envelopes sync to GTK devices); Flutter's partial `systemClassExtends` map
+  in `local_workspace_seed.dart` gains `'collection': ['source']`. The web
+  quick-create source-type picker derives from the same map, so Collection
+  appears as a source type option — a derived consequence, no web code
+  touched in this slice. Verified: `pnpm typecheck` + `pnpm test` green in
+  the slice worktree.
+
 - **fix(store): merge plans apply clean on imported graphs — standalone
   children of embedded sources relocate, positional property refs re-address
   without a bogus elementId.** Both failure classes hit the owner's live
