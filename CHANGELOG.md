@@ -9,6 +9,15 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(sync,web): console error dumps are capped at 4KB — a single unbounded
+  log line could exceed any driver's frame limit.** The sync engine's status
+  error (`[notees-sync] status=…: <stack>`) logged the raw error stack; during
+  a full-log catch-up a payload-bearing error produced a >512 MB console
+  frame that killed the playwright pipe in the verify smoke (ERR_STRING_TOO_LONG). The stack/message strings are now sliced to
+  4096 chars at every worker-path console.error (sync engine, store worker;
+  object args stay — CDP previews are already bounded). Verified: verify-min
+  passes against the post-import workspace.
+
 - **feat(web): the node-creation modal is class-driven — EVERY class picked
   from the quick-create flow opens it, with the properties form loaded
   dynamically from the class's bound properties and values staged until

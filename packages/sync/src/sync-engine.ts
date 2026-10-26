@@ -174,7 +174,7 @@ export class SyncEngine {
       // shows only the message, and the worker RPC boundary drops stacks
       // entirely (handleMessage serializes { error: message }), so without
       // this the original throw site is unrecoverable.
-      console.error(`[notees-sync] status=${status}:`, error.stack ?? error.message);
+      console.error(`[notees-sync] status=${status}:`, (error.stack ?? error.message).slice(0, 4096));
     }
     this.status = status;
     this.lastError = error;
