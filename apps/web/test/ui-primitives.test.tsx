@@ -26,7 +26,9 @@ describe("TextField", () => {
     // No-box background + the bottom hairline (the boxed look is the
     // fleet Input's register, never this one).
     expect(input).toHaveClass("bg-transparent", "border-b", "border-b-outline-variant");
-    expect(input.className).not.toContain("rounded");
+    // The straight underline: the global input radius is explicitly zeroed
+    // (otherwise the border-b's ends curve — the "rounded bar").
+    expect(input).toHaveClass("rounded-none");
     // The 2px active underline rides the shadow token (no layout shift).
     expect(input).toHaveClass("focus:border-b-primary", "focus:shadow-field-focus");
     // The underline IS the focus indicator — the design system's global
