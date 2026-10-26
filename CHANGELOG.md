@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): the settings Sync section loses the redundant chrome — no
+  current-server row, no inline connect form.** The "Current server + Connected" row duplicated the list's
+  selected radio and **Current** pill, and the "Connect to a Different
+  Server" section duplicated what an add affordance does better. Now: one
+  card with the remembered-servers radio list (unchanged), a dashed **Add
+  server** row (fleet `AddPill`) opening a dialog with a URL field and a
+  **Connect** button that rides the Button loading register (`aria-busy` +
+  delayed spinner) until the parent hands the probe result, and the danger
+  **Disconnect** button. The `syncConnected` prop retires with the status
+  text (`SettingsPage` → `AppBody`; the sidebar sync dot already carries
+  reachability). Docs: `docs/features/offline-and-sync.md` (Settings → Sync
+  rewritten). Verified: `settings-page.test.tsx` (24 specs — the two status
+  specs retire, two modal specs land: typed-URL connect with `aria-busy`
+  assertion + disabled-until-URL); `pnpm typecheck` + `pnpm test` green.
+
 - **feat(web): the settings Sync section unifies the server, the disconnect
   action, and a remembered-servers radio list.**
   The Sync Server card now carries everything in one surface: the current

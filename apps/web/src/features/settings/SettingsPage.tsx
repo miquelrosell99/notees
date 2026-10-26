@@ -17,12 +17,14 @@ import type { AccountUser } from "@/core/auth-api.js";
 
 import { Button } from "../../components/ui/fleet/Button.js";
 import { Card } from "../../components/ui/fleet/Card.js";
+import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import { BooleanToggle } from "../../components/ui/fleet/BooleanToggle.js";
 import { Pill } from "../../components/ui/fleet/Pill.js";
 import { Radio, RadioGroup } from "../../components/ui/fleet/Radio.js";
 import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
 import { TextField } from "../../components/ui/fleet/TextField.js";
 import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
+import { Modal } from "../../components/ui/fleet/Modal.js";
 import { Icon } from "../../ui/Icon.js";
 import { ApiKeysSection } from "../../ui/SettingsPanel.js";
 import {
@@ -465,14 +467,15 @@ function GeneralSection() {
 
 interface SyncSectionProps {
   serverUrl: string;
-  syncConnected: boolean;
   onForgetServer: () => void;
   onConnectServer: (url: string) => void;
 }
 
-function SyncSection({ serverUrl, syncConnected, onForgetServer, onConnectServer }: SyncSectionProps) {
-  const [syncServerDraft, setSyncServerDraft] = useState(serverUrl);
+function SyncSection({ serverUrl, onForgetServer, onConnectServer }: SyncSectionProps) {
   const [forgetConfirmOpen, setForgetConfirmOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addDraft, setAddDraft] = useState("");
+  const [addConnecting, setAddConnecting] = useState(false);
   // Device-local registry of every sync server address this device has seen.
   // The current server always leads the list and is remembered on first
   // sight, so it survives a later disconnect.
@@ -498,8 +501,16 @@ function SyncSection({ serverUrl, syncConnected, onForgetServer, onConnectServer
     setKnownServers(knownServers.filter((known) => known !== url));
   };
 
-  const rememberAndConnect = (url: string) => {
+  const closeAdd = () => {
+    if (addConnecting) return;
+    setAddOpen(false);
+  };
+
+  const connectTo = (url: string) => {
     if (!knownServers.includes(url)) setKnownServers([...knownServers, url]);
+    // The probe runs in the parent (boot screen on success or failure); the
+    // button's loading register spins until this surface unmounts.
+    setAddConnecting(true);
     onConnectServer(url);
   };
 
@@ -508,22 +519,6 @@ function SyncSection({ serverUrl, syncConnected, onForgetServer, onConnectServer
       <div className="settings-section">
         <h3 className="settings-section__title">Sync Server</h3>
         <Card>
-          <div className="settings-item">
-            <div className="settings-item__info">
-              <span className="settings-item__label">Current server</span>
-              <p className="settings-item__description">{serverUrl}</p>
-            </div>
-            <span
-              className={
-                syncConnected
-                  ? "settings-meta-value settings-meta-value--active"
-                  : "settings-meta-value"
-              }
-            >
-              {syncConnected ? "Connected" : "Unavailable"}
-            </span>
-          </div>
-
           <div className="settings-server-list">
             <RadioGroup
               name="sync-server"
@@ -558,6 +553,16 @@ function SyncSection({ serverUrl, syncConnected, onForgetServer, onConnectServer
                 </div>
               ))}
             </RadioGroup>
+            <div className="settings-server-add">
+              <AddPill
+                label="Add server"
+                onClick={() => {
+                  setAddDraft("");
+                  setAddConnecting(false);
+                  setAddOpen(true);
+                }}
+              />
+            </div>
           </div>
 
           <div className="settings-server-actions">
@@ -571,32 +576,42 @@ function SyncSection({ serverUrl, syncConnected, onForgetServer, onConnectServer
         </Card>
       </div>
 
-      <div className="settings-section">
-        <h3 className="settings-section__title">Connect to a Different Server</h3>
-        <Card>
-          <p className="settings-section__description">
-            Probe a different sync server — on success you sign in there and it joins the
-            list above.
-          </p>
-          <div className="settings-item">
-            <TextField
-              label="Server URL"
-              size="sm"
-              value={syncServerDraft}
-              onChange={(e) => setSyncServerDraft(e.target.value)}
-              placeholder="https://notees.example.com"
-            />
+      <Modal
+        isOpen={addOpen}
+        onClose={closeAdd}
+        title="Add a sync server"
+        size="sm"
+        className="settings-server-modal"
+        footer={
+          <>
+            <Button variant="outline" size="md" onClick={closeAdd} disabled={addConnecting}>
+              Cancel
+            </Button>
             <Button
               variant="primary"
               size="md"
-              disabled={syncServerDraft.trim() === ""}
-              onClick={() => rememberAndConnect(syncServerDraft.trim())}
+              loading={addConnecting}
+              disabled={addDraft.trim() === ""}
+              onClick={() => connectTo(addDraft.trim())}
             >
               Connect
             </Button>
-          </div>
-        </Card>
-      </div>
+          </>
+        }
+      >
+        <p className="settings-section__description">
+          Probe a different sync server — on success you sign in there and it joins the
+          list.
+        </p>
+        <TextField
+          label="Server URL"
+          size="sm"
+          value={addDraft}
+          onChange={(e) => setAddDraft(e.target.value)}
+          placeholder="https://notees.example.com"
+          disabled={addConnecting}
+        />
+      </Modal>
 
       <ConfirmationModal
         isOpen={forgetConfirmOpen}
@@ -879,9 +894,6 @@ export interface SettingsPageProps {
   token: string;
   user: AccountUser;
   onSignOut: () => void;
-  /** Reachability of the configured sync server, derived by the parent from
-   *  its sync status snapshot. */
-  syncConnected: boolean;
   /** Disconnect & forget: clears the stored server + credentials and signs
    *  out; the parent owns the transition back to the boot form. */
   onForgetServer: () => void;
@@ -896,7 +908,6 @@ export function SettingsPage({
   token,
   user,
   onSignOut,
-  syncConnected,
   onForgetServer,
   onConnectServer,
 }: SettingsPageProps) {
@@ -922,7 +933,6 @@ export function SettingsPage({
         {section === "sync" && (
           <SyncSection
             serverUrl={serverUrl}
-            syncConnected={syncConnected}
             onForgetServer={onForgetServer}
             onConnectServer={onConnectServer}
           />

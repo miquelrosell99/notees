@@ -275,7 +275,6 @@ export function AppBody(props: AppBodyProps) {
             token={token}
             user={user}
             onSignOut={() => void handleSignOut()}
-            syncConnected={syncStatus.status !== "error"}
             onForgetServer={() => handleForgetServer()}
             onConnectServer={(url) => handleConnectServer(url)}
           />

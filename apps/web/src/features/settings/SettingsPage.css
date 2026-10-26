@@ -207,6 +207,16 @@
   flex-shrink: 0;
 }
 
+/* The dashed "Add server" affordance rides the list's row padding. */
+.settings-server-add {
+  padding: var(--spacing-1) var(--spacing-3) 0;
+}
+
+/* The add-server dialog: help text above the URL field. */
+.settings-server-modal .settings-section__description {
+  margin: 0 0 var(--spacing-3) 0;
+}
+
 /* The disconnect footer: help text beside the danger button, separated from
    the list by the shared settings hairline. */
 .settings-server-actions {
