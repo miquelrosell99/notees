@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): the danger button register is bordered at rest.** The fleet `Button` danger variant sat on a
+  transparent border — a red text with no outline, easy to miss as the
+  destructive affordance. `border-transparent` → `border-error` in the
+  variant register (fleet-wide: the settings row Disconnect, the Account
+  log-out, and every other danger button inherit it); the
+  hover/active/error-container layers are unchanged, and the active-toggle
+  register already cited `border-error`, so rest and active now agree. The
+  danger-solid register (filled error) was already bordered — untouched.
+  Verified: `ui-primitives` / `settings-page` / `class-bindings` /
+  `css-token-drift` 64 specs green; capture of the settings sync section
+  confirms the outlined Disconnect.
+
 - **feat(query): the `name:` field matches node titles in the query DSL
 .** `name:value` is a title contains, `name:=value`
   / `name=value` exact title equality, `!=` negates, and a bare `name:` reads
