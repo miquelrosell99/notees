@@ -130,6 +130,21 @@ describe("text properties as a blocks list", () => {
     expect(children.length).toBe(1);
   });
 
+  it("carrier blocks render NO breadcrumb trail inside the property cell (the row already names its property)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
+    const carrierA = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "first line" }] });
+    const carrierB = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "second line" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrierA }, 0);
+    await client.setProperty(pageId, schemaId, { nodeId: carrierB }, 1);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    // A trail above a value block would name the very node the cell already
+    // renders on — noise, never context.
+    expect(container.querySelector(".nt-property-textcell .outline-row__breadcrumbs")).toBeNull();
+  });
+
   it("a dead carrier whose node is gone auto-unsets (the slot returns to empty)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });

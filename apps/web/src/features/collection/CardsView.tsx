@@ -314,13 +314,15 @@ export function NodeCard({
           {/* The FIRST row: the containing-page breadcrumbs — the chain walks
               the parents, so a parentless node renders nothing and the row
               collapses away on its own. Read-only on the card: navigation context, parent edits stay in the top
-              bar. */}
+              bar. Property hops ride along: a card whose
+              node is stored through a property names it in the trail. */}
           <div className="node-card__breadcrumbs">
             <Breadcrumbs
               client={client}
               nodeId={item.node.id}
               onOpenNode={openNode}
               editable={false}
+              showPropertyHops
             />
           </div>
           <div className="node-card__header">

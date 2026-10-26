@@ -124,6 +124,16 @@ function isTree(items: NodeCollectionItem[]): boolean {
  * the group header (the containing-page grouping) or the row itself (a page
  * source), so the trail shows only the in-page path above the row (the
  * pre-2026-10-21 backlinks rendering, recovered as shared outline chrome).
+ *
+ * `showPropertyHops`: the trail also NAMES the properties
+ * the walk steps through — a row node stored on the crumb above it as that
+ * node's property value (the node-backed text carrier shape: the value IS a
+ * child block of the carrier) rides a non-navigable property entry between
+ * the two ("Holder › Sobre › (row)"). The entry survives the dropped
+ * containing-page crumb: for a row stored directly in the page's property
+ * it IS the whole trail — the one place naming where the link lives (the
+ * backlinks gap this closes: property-stored sources rendered no trail at
+ * all, so the property they sat in was invisible).
  */
 function RowBreadcrumbs({
   client,
@@ -146,6 +156,7 @@ function RowBreadcrumbs({
         excludeIds={containingPageId !== undefined ? [containingPageId] : undefined}
         editable={false}
         addParent={false}
+        showPropertyHops
       />
     </div>
   );

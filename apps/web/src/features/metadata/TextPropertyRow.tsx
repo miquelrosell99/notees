@@ -5,7 +5,9 @@
  * entries per value.
  *
  * The carriers render through the shared collection dispatcher: a locked
- * outline NodeCollection (no view switcher), one root item per carrier, each
+ * outline NodeCollection (no view switcher; `showBreadcrumbs` OFF — a trail
+ * above a value block would name the very node the cell already renders
+ * on), one root item per carrier, each
  * root row hosted in its own per-carrier outliner context — the same editing
  * context the standalone subtree renderer used to host, so bullet navigation,
  * collapse, and the keyboard gestures behave exactly as they did there.
@@ -361,6 +363,7 @@ export function TextPropertyRow({
               client={client}
               items={carrierItems}
               tree
+              showBreadcrumbs={false}
               {...(readOnly ? { readOnly: true } : { editable: true })}
               renderItem={(item, row) => (
                 <CarrierRowHost client={client} item={item} onOpenPage={onOpenPage} onOpenInSidebar={onOpenInSidebar}>
