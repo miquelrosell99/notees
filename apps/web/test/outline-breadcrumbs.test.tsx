@@ -169,6 +169,61 @@ describe("outline rows: containing-page breadcrumbs", () => {
     expect(container.querySelector(".outline-row__breadcrumbs")).toBeNull();
   });
 
+  it("a row stored THROUGH a property rides the property name in its trail (the hop the parent path walks through)", async () => {
+    const client = await seedClient();
+    const holder = await client.createObject({ isEmbedded: false, name: "Holder" });
+    const schemaId = await client.createPropertySchema({ name: "Sobre", type: "text" });
+    // The node-backed text carrier shape: the value IS a child block of the
+    // carrier, registered as the property value — the parent path from the
+    // row up to the holder walks THROUGH the property.
+    const carrier = await client.createObject({
+      parentId: holder,
+      contentAst: [{ type: "text", text: "value text" }],
+    });
+    await client.setProperty(holder, schemaId, { nodeId: carrier }, 0);
+
+    const { container } = render(
+      <CollectionHub
+        client={client}
+        icon="mdi-format-list-bulleted"
+        title="Refs"
+        items={[{ node: client.getNode(carrier)! }]}
+        modes={["outline"]}
+        defaultMode="outline"
+        onOpenNode={() => {}}
+      />,
+    );
+    const crumbs = container.querySelector(".outline-row__breadcrumbs");
+    expect(crumbs).not.toBeNull();
+    expect(crumbs!.textContent).toContain("Holder");
+    expect(crumbs!.textContent).toContain("Sobre");
+    // The property entry sits BETWEEN the parent crumb and the row.
+    expect(crumbs!.textContent!.indexOf("Holder")).toBeLessThan(
+      crumbs!.textContent!.indexOf("Sobre"),
+    );
+  });
+
+  it("a backlink row stored through a property keeps the property entry when the containing-page crumb drops", async () => {
+    const client = await seedClient();
+    const target = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const owner = await client.createObject({ isEmbedded: false, name: "Source Owner" });
+    const schemaId = await client.createPropertySchema({ name: "Sobre", type: "text" });
+    // The mention lives on a carrier block stored in the owner's "Sobre"
+    // property — the containing-page crumb (Source Owner) drops, so the
+    // property name is the ONLY trail left: it names where the link lives.
+    const carrier = await client.createObject({
+      parentId: owner,
+      contentAst: [{ type: "mention", targetNodeId: target }],
+    });
+    await client.setProperty(owner, schemaId, { nodeId: carrier }, 0);
+
+    const { container } = render(<PageView client={client} pageId={target} />);
+    const crumbs = container.querySelector(".outline-row__breadcrumbs");
+    expect(crumbs).not.toBeNull();
+    expect(crumbs!.textContent).toContain("Sobre");
+    expect(crumbs!.textContent).not.toContain("Source Owner");
+  });
+
   it("backlink rows carry the trail again, minus the containing-page crumb (the group header names it)", async () => {
     const client = await seedClient();
     const target = await client.createObject({ isEmbedded: false, name: "Zebra" });

@@ -11,6 +11,18 @@
  * The trail is ancestors only — the current node never crumbs itself
  * (the page header already names the page).
  *
+ * PROPERTY HOPS (opt-in via `showPropertyHops`): a node
+ * stored as another node's property value (the node-backed text carrier
+ * shape — the value IS a child block of the carrier) is reached from its
+ * parent THROUGH the property, so the trail names it: a non-navigable
+ * property entry rides between the parent crumb and the node below it
+ * ("Holder › Sobre › (the row)"). A hop is detected per parent→child step
+ * from the incoming property edges (source = the parent, verb = the schema)
+ * and resolves the schema's name; a deleted value leaves no edge and no
+ * entry. The entry survives the dropped containing-page crumb — for a row
+ * stored directly in the page's property it IS the whole trail, the one
+ * place naming where the link lives.
+ *
  * Edit gestures (opt-in via `editable`):
  * hovering a crumb reveals a chevron and right-click opens the same menu —
  * Open / Reassign parent… / Remove parent — acting on the EDGE BELOW the
@@ -49,10 +61,14 @@ const COLLAPSE_AT = 4;
 const VISIBLE_START = 2;
 const VISIBLE_END = 2;
 
-interface Crumb {
-  node: ClientNode;
-  name: string;
-}
+/**
+ * One element of the rendered trail: a node crumb (navigable, icon + name)
+ * or a property hop (non-navigable — the node below is stored on this crumb's
+ * node THROUGH that property; `showPropertyHops` only).
+ */
+type TrailEntry =
+  | { kind: "node"; node: ClientNode; name: string }
+  | { kind: "property"; name: string };
 
 /** Per-crumb cap: long page/block names clip to "XXXX…" inside the trail. */
 const CRUMB_NAME_MAX = 28;
@@ -87,21 +103,59 @@ function crumbNameOf(client: AnyClient, node: ClientNode): string {
   );
 }
 
-function ancestryOf(client: AnyClient, nodeId: string): Crumb[] {
-  const chain: Crumb[] = [];
+/**
+ * The property schemas through which `childId` is stored on `parentId` —
+ * the incoming property edges of the child keyed to this parent (verb = the
+ * schema). Names resolve through `schemaNameById`; an unknown id renders
+ * raw, honestly. Distinct verbs, edge order.
+ */
+function propertyHopNamesOf(
+  client: AnyClient,
+  schemaNameById: Map<string, string>,
+  parentId: string,
+  childId: string,
+): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const edge of client.getBacklinks(childId)) {
+    if (edge.type !== "property" || edge.sourceId !== parentId || edge.verb === null) continue;
+    if (seen.has(edge.verb)) continue;
+    seen.add(edge.verb);
+    names.push(schemaNameById.get(edge.verb) ?? edge.verb);
+  }
+  return names;
+}
+
+function ancestryOf(client: AnyClient, nodeId: string, propertyHops: boolean): TrailEntry[] {
+  const schemaNameById = propertyHops
+    ? new Map(client.listPropertySchemas().map((schema) => [schema.id, schema.name]))
+    : new Map<string, string>();
+  // Built leaf-first (property entries, then the parent crumb, per hop) and
+  // reversed at the end — a hop's entries land between the parent crumb and
+  // the node below it.
+  const up: TrailEntry[] = [];
   const seen = new Set<string>([nodeId]);
   let current = client.getNode(nodeId);
-  while (current !== undefined && current.parentId !== null && chain.length < MAX_CHAIN) {
+  for (
+    let hops = 0;
+    current !== undefined && current.parentId !== null && hops < MAX_CHAIN;
+    hops += 1
+  ) {
     const parentId = current.parentId;
     if (seen.has(parentId)) break; // cycle guard
     seen.add(parentId);
     const parent = client.getNode(parentId);
     if (parent === undefined) break;
+    if (propertyHops) {
+      for (const name of propertyHopNamesOf(client, schemaNameById, parent.id, current.id)) {
+        up.push({ kind: "property", name });
+      }
+    }
     // Never render a raw UUID: unnamed pages/blocks get a human label.
-    chain.unshift({ node: parent, name: crumbNameOf(client, parent) });
+    up.push({ kind: "node", node: parent, name: crumbNameOf(client, parent) });
     current = parent;
   }
-  return chain;
+  return up.reverse();
 }
 
 export function Breadcrumbs({
@@ -118,6 +172,7 @@ export function Breadcrumbs({
    *  Surfaces that edit only EXISTING parents (the card's breadcrumb row) opt
    *  out — the pill is noise there. */
   addParent = true,
+  showPropertyHops = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -140,6 +195,14 @@ export function Breadcrumbs({
   editable?: boolean | undefined;
   /** False hides the "+ Add parent" pill (existing-parents-only surfaces). */
   addParent?: boolean | undefined;
+  /**
+   * Name the properties the walk steps through: when a node on the trail is
+   * stored on the crumb above it as that node's property value (the
+   * node-backed text carrier shape), a non-navigable property entry rides
+   * between the two ("Holder › Sobre › (the row)"). Default off — the page
+   * chrome trails stay pure ancestry; collection rows opt in.
+   */
+  showPropertyHops?: boolean | undefined;
 }) {
   const [popupOpen, setPopupOpen] = useState(false);
   const [leadPopupOpen, setLeadPopupOpen] = useState(false);
@@ -158,14 +221,20 @@ export function Breadcrumbs({
   } | null>(null);
 
   const currentNode = client.getNode(nodeId);
-  let items = ancestryOf(client, nodeId);
+  let items = ancestryOf(client, nodeId, showPropertyHops ?? false);
   if (stopAfterId !== undefined) {
-    const stopAt = items.findIndex((item) => item.node.id === stopAfterId);
+    // Truncate AT this node (inclusive): property entries between the stop
+    // node and the row survive — they name the hops below it.
+    const stopAt = items.findIndex(
+      (item) => item.kind === "node" && item.node.id === stopAfterId,
+    );
     if (stopAt !== -1) items = items.slice(stopAt);
   }
   if (excludeIds !== undefined && excludeIds.length > 0) {
+    // Only node crumbs drop — a dropped crumb's hop entries toward the row
+    // stay: for a row stored in the page's own property they ARE the trail.
     const drop = new Set(excludeIds);
-    items = items.filter((item) => !drop.has(item.node.id));
+    items = items.filter((item) => item.kind === "property" || !drop.has(item.node.id));
   }
   if (excludeLeaf && items.length > 0) items = items.slice(0, -1);
   // a parentless node hides itself from the trail —
@@ -252,14 +321,18 @@ export function Breadcrumbs({
    *  under the direct parent crumb. Undefined only when the current node is
    *  missing from the store — no edge to edit, so the crumb renders without
    *  the edit affordance. */
-  const childBelowOf = (item: Crumb): ClientNode | undefined => {
-    const index = items.findIndex((entry) => entry.node.id === item.node.id);
-    const next = items[index + 1];
-    if (next !== undefined) return next.node;
+  const childBelowOf = (item: { node: ClientNode }): ClientNode | undefined => {
+    const index = items.findIndex((entry) => entry.kind === "node" && entry.node.id === item.node.id);
+    // Property entries name edges, not nodes — the edge's child is the next
+    // NODE entry below (for the direct parent crumb: the current node itself).
+    for (let i = index + 1; i < items.length; i += 1) {
+      const entry = items[i];
+      if (entry !== undefined && entry.kind === "node") return entry.node;
+    }
     return currentNode;
   };
 
-  const crumb = (item: Crumb, key: string, showSeparator: boolean) => {
+  const crumb = (item: { node: ClientNode; name: string }, key: string, showSeparator: boolean) => {
     const childBelow = childBelowOf(item);
     // The date-chain parenting lock: an edge whose child is a date node has
     // no edit affordance (reassign/remove would be rejected by the store).
@@ -302,6 +375,57 @@ export function Breadcrumbs({
     );
   };
 
+  /**
+   * A property hop entry: non-navigable (a property is an attribute, not a
+   * place) — a tag glyph + the schema name, italic to read as metadata
+   * between the two node crumbs it connects.
+   */
+  const propertyCrumb = (item: { name: string }, key: string, showSeparator: boolean) => (
+    <span key={key} className="node-breadcrumb-item">
+      <span className="node-breadcrumb-property" title={`stored in the "${item.name}" property`}>
+        <Icon path="mdi-tag-outline" size={0.75} className="node-breadcrumb-property-icon" />
+        <span className="node-breadcrumb-property-name">{item.name}</span>
+      </span>
+      {showSeparator && (
+        <Icon path="mdi-chevron-right" size={0.75} className="node-breadcrumb-separator" />
+      )}
+    </span>
+  );
+
+  /** One trail entry rendered in its place — node crumbs navigate, property
+   *  hops render their tag entry. */
+  const entryView = (item: TrailEntry, key: string, showSeparator: boolean) =>
+    item.kind === "node" ? crumb(item, key, showSeparator) : propertyCrumb(item, key, showSeparator);
+
+  /** One trail entry in an overflow popup: node crumbs stay open-buttons,
+   *  property hops render as inert rows. */
+  const popupRow = (item: TrailEntry, key: string, close: () => void) =>
+    item.kind === "node" ? (
+      <button
+        key={key}
+        type="button"
+        className="node-breadcrumbs-popup-item"
+        onClick={() => {
+          close();
+          onOpenNode?.(item.node.id);
+        }}
+      >
+        {client.effectiveNodeIcon(item.node) !== null && (
+          <Icon
+            path={client.effectiveNodeIcon(item.node)!}
+            size={0.8}
+            className="node-breadcrumb-popup-icon"
+          />
+        )}
+        <span className="node-breadcrumbs-popup-name">{item.name}</span>
+      </button>
+    ) : (
+      <span key={key} className="node-breadcrumbs-popup-item node-breadcrumbs-popup-property">
+        <Icon path="mdi-tag-outline" size={0.8} className="node-breadcrumb-popup-icon" />
+        <span className="node-breadcrumbs-popup-name">{item.name}</span>
+      </span>
+    );
+
   return (
     <nav
       ref={navRef}
@@ -330,27 +454,8 @@ export function Breadcrumbs({
               />
               <div className="node-breadcrumb-popup-anchor">
                 <div className="node-breadcrumbs-popup">
-                  {items.map(
-                    (item) => (
-                      <button
-                        key={item.node.id}
-                        type="button"
-                        className="node-breadcrumbs-popup-item"
-                        onClick={() => {
-                          setLeadPopupOpen(false);
-                          onOpenNode?.(item.node.id);
-                        }}
-                      >
-                        {client.effectiveNodeIcon(item.node) !== null && (
-                          <Icon
-                            path={client.effectiveNodeIcon(item.node)!}
-                            size={0.8}
-                            className="node-breadcrumb-popup-icon"
-                          />
-                        )}
-                        <span className="node-breadcrumb-popup-name">{item.name}</span>
-                      </button>
-                    ),
+                  {items.map((item, index) =>
+                    popupRow(item, `${item.kind}:${index}`, () => setLeadPopupOpen(false)),
                   )}
                 </div>
               </div>
@@ -359,11 +464,7 @@ export function Breadcrumbs({
         </span>
       )}
       {startItems.map((item, index) =>
-        crumb(
-          item,
-          item.node.id,
-          needsCollapse || index < startItems.length - 1,
-        ),
+        entryView(item, `${item.kind}:${index}`, needsCollapse || index < startItems.length - 1),
       )}
 
       {needsCollapse && (
@@ -388,26 +489,9 @@ export function Breadcrumbs({
               />
               <div className="node-breadcrumb-popup-anchor">
                 <div className="node-breadcrumbs-popup">
-                  {hiddenItems.map((item) => (
-                    <button
-                      key={item.node.id}
-                      type="button"
-                      className="node-breadcrumbs-popup-item"
-                      onClick={() => {
-                        setPopupOpen(false);
-                        onOpenNode?.(item.node.id);
-                      }}
-                    >
-                      {client.effectiveNodeIcon(item.node) !== null && (
-                        <Icon
-                          path={client.effectiveNodeIcon(item.node)!}
-                          size={0.8}
-                          className="node-breadcrumb-popup-icon"
-                        />
-                      )}
-                      <span className="node-breadcrumb-popup-name">{item.name}</span>
-                    </button>
-                  ))}
+                  {hiddenItems.map((item, index) =>
+                    popupRow(item, `${item.kind}:${index}`, () => setPopupOpen(false)),
+                  )}
                 </div>
               </div>
             </>
@@ -417,7 +501,7 @@ export function Breadcrumbs({
 
       {needsCollapse &&
         endItems.map((item, index) =>
-          crumb(item, item.node.id, index < endItems.length - 1),
+          entryView(item, `${item.kind}:${index}`, index < endItems.length - 1),
         )}
 
       {showAddParent && (
