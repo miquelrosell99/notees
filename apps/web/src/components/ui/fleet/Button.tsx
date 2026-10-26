@@ -15,6 +15,12 @@
  * Radius: the rounded-square shape at every size (the view-mode switcher's shape-medium, superseding the
  * 2026-10-19 corner-full).
  *
+ * Borders: none. The register is a weight ladder: accent fill (primary) → neutral fills (default,
+ * outline — surface steps) → quiet (ghost) → soft-danger wash. The
+ * border property stays transparent on every variant for size parity;
+ * bordered buttons are retired (the naked-outline danger detour,
+ * 2026-10-26 morning, read broken and was reverted the same day).
+ *
  * Legacy hook classes: `btn` and `btn--icon-only` stay on the root so
  * feature CSS that compounds on them (calendar days, icon-picker items,
  * toolbar buttons) keeps matching; the base look now comes from the
@@ -84,9 +90,9 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: [
-          "bg-surface-container border-outline-variant text-on-surface-variant",
-          "hover:bg-hover-overlay hover:border-outline hover:text-on-surface",
-          "active:bg-surface-container-highest active:border-outline active:text-on-surface",
+          "bg-surface-container border-transparent text-on-surface-variant",
+          "hover:bg-hover-overlay hover:text-on-surface",
+          "active:bg-surface-container-highest active:text-on-surface",
         ].join(" "),
         primary: [
           "bg-primary border-primary text-on-primary",
@@ -94,9 +100,9 @@ const buttonVariants = cva(
           "active:bg-primary-pressed active:border-primary-pressed",
         ].join(" "),
         outline: [
-          "bg-surface-container-low border-input text-on-surface-variant",
+          "bg-surface-container-low border-transparent text-on-surface-variant",
           "hover:bg-hover-overlay hover:text-on-surface",
-          "active:bg-surface-container-high active:border-outline",
+          "active:bg-surface-container-high active:text-on-surface",
         ].join(" "),
         ghost: [
           "bg-transparent border-transparent text-on-surface-variant",
@@ -130,10 +136,10 @@ const buttonVariants = cva(
 
 /** The active-toggle state (the `active` prop) per variant. */
 const ACTIVE_CLASSES: Record<ButtonVariant, string> = {
-  default: "bg-surface-container-active border-outline-variant text-on-surface hover:bg-surface-container-active",
+  default: "bg-surface-container-active border-transparent text-on-surface hover:bg-surface-container-active",
   primary: "bg-primary-pressed border-primary-pressed text-on-primary hover:bg-primary-pressed",
-  outline: "bg-surface-container-active border-input text-on-surface hover:bg-surface-container-active",
-  ghost: "bg-surface-container-active border-outline-variant text-on-surface hover:bg-surface-container-active",
+  outline: "bg-surface-container-active border-transparent text-on-surface hover:bg-surface-container-active",
+  ghost: "bg-surface-container-active border-transparent text-on-surface hover:bg-surface-container-active",
   danger: "bg-error border-error text-on-error hover:bg-error hover:border-error",
   'danger-solid': "bg-error-pressed border-error-pressed text-on-error hover:bg-error-pressed",
 };
