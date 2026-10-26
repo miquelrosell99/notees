@@ -6,6 +6,14 @@ the skill's defaults/foundations is recorded here; an undocumented deviation
 is drift, a documented one is a decision. Newest first. Entries bind until the
 rule they override changes, the review trigger fires, or the owner re-rules.
 
+### Card default elevation stays `none`, default radius stays `md` — documented deviation from the template
+- **Rule**: the skill's Card template (`assets/templates/Card.css.template`) ships M3 level-1 elevation at rest and the `--radius-card` (20px) default radius.
+- **Decision**: the app Card keeps `elevation = 'none'` and `radius = 'md'` as defaults (elevation/radius remain opt-in per call site). The app's surfaces — the PageCard slot, settings cards, hub cards — sit directly on the background and carry their own chrome; a default shadow reads as double elevation on the paper ground.
+- **Rationale**: surfaced by the fleet audit (2026-10-26); the template default suits elevated tool cards, this app's cards are mostly chrome containers. Elevation steps (`low`/`medium`/`high`) and the `xl` radius register stay available and documented.
+- **Scope**: `apps/web/src/components/ui/fleet/Card.tsx` defaults only.
+- **Ruled**: fleet audit 2026-10-26, recorded same day.
+- **Review trigger**: the Card template's defaults change, or a new surface family wants template-default cards.
+
 ### Dialog corner register: 16px — the centered-dialog shape (supersedes the unrecorded 28px dialog rounding)
 - **Rule**: `law/spec.md` shape scale + M3 provenance — dialogs/dialog-adjacent surfaces take the extra-large family (M3: 28dp dialog container); the fleet M3 deltas appendix is where app-specific shape numbers are adjudicated, and a value the law owns ships as a token or not at all.
 - **Decision**: centered dialogs ride a new token **`--shape-dialog: 16px`** (tailwind `rounded-dialog` / `--radius-dialog`), NOT the sheet family's 28px. Every centered dialog surface switched: the fleet `Modal` primitive's dialog variant, the catalog `dialog` + `alert-dialog` primitives, and the command palette's own `.nt-modal` chrome. **Bottom sheets are out of scope by design** — the `modal--sheet` variant and its header/footer keep `--shape-sheet` (28px): a sheet is anchored to the viewport edge, where the rounding idiom is M3-standard and reads intentional, not bulbous. Card's `xl` radius register (also `rounded-sheet`) stays a Card-level choice.
