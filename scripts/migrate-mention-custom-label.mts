@@ -29,8 +29,8 @@
  *     contentAst carries a mention with a retired key (object.create/update,
  *     class.create/update — the only content-carrying op types). seq/id/HLC
  *     untouched; every surviving key untouched.
- *  2. Backup: relay.db (and the snapshot bytes being patched) to
- *     /tmp/…bak-<timestamp> before anything.
+ *  2. Backup: relay.db (and the snapshot bytes being patched) under $TMPDIR
+ *     (…bak-<timestamp>) before anything.
  *  3. IN-PLACE envelope rewrite, one transaction: the mapping above on every
  *     planned payload. Every rewritten envelope re-validates through
  *     `payloadSchemaFor(opType)` afterwards — that assertion is the point.
@@ -183,6 +183,29 @@ function planWorkspace(
   return { planned, latestSeq };
 }
 
+/** True when a snapshot's node.content rows still carry a retired mention
+ *  key (the resume marker: the envelopes may already be rewritten while the
+ *  snapshot bytes are not — a crash between the two steps must not skip the
+ *  patch on re-run). */
+function snapshotCarriesRetiredKeys(snapshotFile: string): boolean {
+  const raw = new Database(snapshotFile, { readonly: true, fileMustExist: true });
+  try {
+    const rows = raw.prepare("SELECT content FROM node").all() as Array<{ content: string }>;
+    for (const row of rows) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(row.content);
+      } catch {
+        continue;
+      }
+      if (carriesRetiredMentionKeys(parsed)) return true;
+    }
+    return false;
+  } finally {
+    raw.close();
+  }
+}
+
 // --- main ---------------------------------------------------------------------
 
 function main(): void {
@@ -243,45 +266,62 @@ function main(): void {
     // --- apply ---------------------------------------------------------------
 
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    copyFileSync(join(options.dataDir, "relay.db"), `/tmp/relay.db.bak-mention-custom-label-${stamp}`);
-    console.log(`\nbackup: /tmp/relay.db.bak-mention-custom-label-${stamp}`);
+    copyFileSync(join(options.dataDir, "relay.db"), join(tmpdir(), `relay.db.bak-mention-custom-label-${stamp}`));
+    console.log(`\nbackup: ${join(tmpdir(), `relay.db.bak-mention-custom-label-${stamp}`)}`);
 
     for (const [workspaceId, { planned }] of plans) {
-      if (planned.length === 0) continue;
+      // Resume contract: a workspace is worked when its log still carries
+      // retired keys OR its newest snapshot bytes do (a crashed run may have
+      // finished the envelope rewrite but died before the snapshot patch).
+      const snapshot = relay.latestSnapshot(workspaceId);
+      const snapshotFile =
+        snapshot !== null ? join(options.dataDir, "snapshots", `${snapshot.id}.db`) : null;
+      const snapshotNeedsPatch =
+        snapshotFile !== null &&
+        existsSync(snapshotFile) &&
+        ((planned.length > 0 &&
+          snapshot !== null &&
+          snapshot.up_to_seq >= Math.min(...planned.map((p) => p.seq))) ||
+          snapshotCarriesRetiredKeys(snapshotFile));
+      if (planned.length === 0 && !snapshotNeedsPatch) continue;
       console.log(`\nworkspace ${workspaceId}:`);
 
       // Envelope rewrite, one transaction; every rewritten payload re-validates
       // through the strict schema — that assertion is the point.
-      const rewrite = relay.db.transaction(() => {
-        for (const p of planned) {
-          const next = JSON.parse(JSON.stringify(p.payload)) as Record<string, unknown>;
-          if (!rewriteTokenLevel((next as { contentAst?: unknown[] }).contentAst ?? [])) continue;
-          const schema = payloadSchemaFor(p.opType)!;
-          const check = schema.safeParse(next);
-          if (!check.success) {
-            throw new Error(
-              `seq ${p.seq}: rewritten ${p.opType} payload no longer validates: ${check.error.message}`,
-            );
+      if (planned.length > 0) {
+        const rewrite = relay.db.transaction(() => {
+          for (const p of planned) {
+            const next = JSON.parse(JSON.stringify(p.payload)) as Record<string, unknown>;
+            if (!rewriteTokenLevel((next as { contentAst?: unknown[] }).contentAst ?? [])) continue;
+            const schema = payloadSchemaFor(p.opType)!;
+            const check = schema.safeParse(next);
+            if (!check.success) {
+              throw new Error(
+                `seq ${p.seq}: rewritten ${p.opType} payload no longer validates: ${check.error.message}`,
+              );
+            }
+            relay.db
+              .prepare("UPDATE envelope SET payload = ? WHERE seq = ? AND workspace_id = ?")
+              .run(JSON.stringify(next), p.seq, workspaceId);
           }
-          relay.db
-            .prepare("UPDATE envelope SET payload = ? WHERE seq = ? AND workspace_id = ?")
-            .run(JSON.stringify(next), p.seq, workspaceId);
-        }
-      });
-      rewrite();
-      console.log(`  rewrote ${planned.length} envelope(s) in place; no compensation envelopes (the label moved inside the same envelope).`);
+        });
+        rewrite();
+        console.log(`  rewrote ${planned.length} envelope(s) in place; no compensation envelopes (the label moved inside the same envelope).`);
+      } else {
+        console.log("  log already clean (resumed run) — envelope rewrite skipped.");
+      }
 
       // Snapshot patch: rewrite the node.content JSON with the same move, then
       // reindex every search row (a bare mention now indexes its target's
       // resolved display name — SCHEMA.md FTS spec 2026-10-26).
-      const snapshot = relay.latestSnapshot(workspaceId);
-      const firstSeq = Math.min(...planned.map((p) => p.seq));
-      if (snapshot !== null && snapshot.up_to_seq >= firstSeq) {
-        const snapshotFile = join(options.dataDir, "snapshots", `${snapshot.id}.db`);
-        if (!existsSync(snapshotFile)) throw new Error(`snapshot ${snapshot.id} has no bytes on disk`);
-        copyFileSync(snapshotFile, `/tmp/snapshot-${snapshot.id}.bak-${stamp}`);
+      let patchedSnapshot = false;
+      if (snapshotNeedsPatch) {
+        if (snapshot === null || snapshotFile === null || !existsSync(snapshotFile))
+          throw new Error("snapshot flagged for patching but has no bytes on disk");
+        copyFileSync(snapshotFile, join(tmpdir(), `snapshot-${snapshot.id}.bak-${stamp}`));
         patchSnapshot(snapshotFile);
-        console.log(`  patched snapshot ${snapshot.id} (bytes backup at /tmp/snapshot-${snapshot.id}.bak-${stamp}).`);
+        patchedSnapshot = true;
+        console.log(`  patched snapshot ${snapshot.id} (bytes backup at ${join(tmpdir(), `snapshot-${snapshot.id}.bak-${stamp}`)}).`);
       } else if (snapshot !== null) {
         console.log("  snapshot predates the first rewritten envelope — left untouched.");
       } else {
@@ -289,8 +329,11 @@ function main(): void {
       }
 
       // Epoch bump: every client wipes + resyncs from the rewritten log.
-      const epoch = relay.bumpRestoreEpoch(workspaceId);
-      console.log(`  restore_epoch bumped to ${epoch}.`);
+      // Exactly once per workspace with any change (envelopes or snapshot).
+      if (planned.length > 0 || patchedSnapshot) {
+        const epoch = relay.bumpRestoreEpoch(workspaceId);
+        console.log(`  restore_epoch bumped to ${epoch}.`);
+      }
 
       verify(relay, workspaceId);
     }
