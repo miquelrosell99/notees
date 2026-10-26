@@ -414,23 +414,30 @@ client hook surface; no WS *client* ships.
   `GET /nodes/:id/location`, `GET /server-info`.
   Workspace selection via `X-Workspace-Id` header, else a deterministic default
   workspace derived from the API key (`identity.ts`).
-- **Per-user prefs channel** (`src/routes-prefs.ts`, `src/routes-section-views.ts`,
+- **Prefs channel** (`src/routes-prefs.ts`, `src/routes-section-views.ts`,
   prefix `/api`, `requireUser` — any user principal, the operator key is not a
   user): cross-device **UI** state lives beside the account in `relay.db`,
   never the op log ("device state is never an op"). `user_prefs` carries
-  favorites/recents (`GET/PUT /me/prefs`); `section_view` carries the hosted
-  custom views — a collection-backed section's tabs (a page's
-  `linked-references` / `unlinked-mentions`, a class's `classed-nodes`):
-  `GET/POST/PATCH/PUT/DELETE /me/nodes/:nodeId/sections/:sectionKey/views[/...]`
-  with the (user, node, section, name) unique key and a dense sequence the
-  reorder endpoint rewrites. The default view is derived-not-stored (no
-  `is_default`, no default row) — emptying the table restores factory
-  behavior. `query_ast` validates against the QueryAST v1 zod schema at the
-  route; resolution (the web's `sectionViewResolve`) refines the section's
-  base row set with it — base-column predicates on the materialized rows,
-  joined metadata (property/fts/linkedTo) through one `runQueryAst`
-  membership probe per leaf, scope and aggregation ignored (a tab refines
-  rows; the AST round-trips verbatim).
+  favorites/recents (`GET/PUT /me/prefs`, per-user); `node_view` carries the
+  hosted custom views — a collection surface's tabs (a page's
+  `linked-references` / `unlinked-mentions`, a class's `classed-nodes`, a
+  query node's main query under the empty section key, the `"-"` URL
+  sentinel): `GET/POST/PATCH/PUT/DELETE /nodes/:nodeId/sections/:sectionKey/views[/...]`
+  with the (node, section, name) unique key and a dense sequence the
+  reorder endpoint rewrites. Views are NODE-scoped, not per-user (every user of the deployment shares a node's tabs,
+  applied to system sections too); the retired per-user `section_view`
+  table migrates at boot (rows copied, `user_id`/`view_mode` dropped).
+  A tab is a stored query AST only — there is deliberately no `view_mode`
+  anywhere (view modes are transient surface state). The default view is
+  derived-not-stored (no `is_default`, no default row) — emptying the table
+  restores factory behavior. `query_ast` validates against the QueryAST v1
+  zod schema at the route; the PATCH endpoint renames and/or rewrites a
+  view's query (the per-tab builder commit); resolution (the web's
+  `sectionViewResolve`) refines the surface's base row set with it —
+  base-column predicates on the materialized rows, joined metadata
+  (property/fts/linkedTo) through one `runQueryAst` membership probe per
+  leaf, scope and aggregation ignored (a tab refines rows; the AST
+  round-trips verbatim).
 - **Developer self-description** (`src/routes-meta.ts`, prefix
   `/api`, per-route auth): `GET /meta` (version, wire protocol versions, default
   workspace, setup state — auth-free), `GET /openapi.json` (the OpenAPI 3.1
@@ -596,7 +603,7 @@ cluster (and the views' own toolbars portal into a slot before it, see
 views/viewChrome.tsx), so the wrap never moves the row's other controls.
 The live count moved OFF the panel: the ACTIVE hosted tab carries a total-count
 badge beside its name (NodeCollection computes the open tab's displayed row
-count post-refinement and hands it to SectionViewTabs;, replacing the "N of M nodes match" foot line).
+count post-refinement and hands it to NodeCollectionTabs;, replacing the "N of M nodes match" foot line).
 
 **GTK / Flutter** (sibling repos `notees-gtk`, `notees-flutter`, branches `protocol-v2`). Lockstep clients: strict payload validators + local appliers mirroring `packages/store` (same OR-Set gating, same LWW rules). Current with the TS reference as of the 2026-10-01 batch (tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged `v2.0.0-m1` with CI-published releases. Any new op requires the same three-way lockstep.
 
