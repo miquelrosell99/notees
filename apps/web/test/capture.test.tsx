@@ -678,6 +678,55 @@ describe("candidateSpans (record-don't-resolve)", () => {
 });
 
 describe("capture tokens survive editing", () => {
+  it("two mentions committed back-to-back in one edit session both survive (worker stale-prop ordering)", async () => {
+    const client = await seedClient();
+    // Defer the change-notification delivery, like the worker client (whose
+    // read cache + notify lag the write RPC by a round-trip): the block's
+    // React prop stays stale after each commit, so the second mention's
+    // commit must not recompute its base from the prop.
+    const realSubscribe = client.subscribe.bind(client);
+    client.subscribe = ((listener: (change: unknown) => void) =>
+      realSubscribe((change) => {
+        setTimeout(() => listener(change), 0);
+      })) as typeof client.subscribe;
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const alphaId = await client.createObject({ isEmbedded: false, name: "Alpha" });
+    const betaId = await client.createObject({ isEmbedded: false, name: "Beta" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    // Mention A — committed to the store synchronously, but the prop lags.
+    typeWithCaret(editor, "see @");
+    typeInPicker("Alp");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    expect(client.getNode(blockId)?.contentAst[1]).toMatchObject({
+      type: "mention",
+      targetNodeId: alphaId,
+    });
+
+    // Mention B — within the staleness window. (Synchronous sequence: no
+    // awaits, so the deferred notification cannot fire between commits.)
+    typeWithCaret(editor, "see Alpha and @");
+    typeInPicker("Bet");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    const mentions = ast.filter(
+      (token) => (token as { type?: string }).type === "mention",
+    ) as Array<{ targetNodeId: string }>;
+    expect(mentions.map((m) => m.targetNodeId)).toEqual([alphaId, betaId]);
+
+    // Let the deferred notification drain inside act so nothing updates
+    // after the test tears down.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+  });
+
   it("a mention inserted via @ survives a subsequent text edit", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
@@ -759,6 +808,62 @@ describe("capture: create-from-@ (async completion)", () => {
       targetNodeId: created[0]!.id,
     });
     expect(editor.textContent).toContain("Async page");
+  });
+
+  it("the create row's mention lands as soon as the create resolves — it does not wait for the change notification (worker ordering)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
+    // Defer the change-notification delivery AND keep reads answering as of
+    // the last delivered notification, like the worker client (whose read
+    // cache lags the write RPC): the create-row pick must splice its mention
+    // on the create RPC's resolution alone. Nodes created after this point
+    // read as undefined until the (deferred) notify drains.
+    const liveGetNode = client.getNode.bind(client);
+    const materialized = new Map<string, ClientNode>();
+    for (const id of [pageId, blockId]) {
+      const node = liveGetNode(id);
+      if (node !== undefined) materialized.set(id, node);
+    }
+    let notifyArrived = false;
+    client.getNode = ((id: string) =>
+      notifyArrived ? liveGetNode(id) : materialized.get(id)) as typeof client.getNode;
+    const realSubscribe = client.subscribe.bind(client);
+    client.subscribe = ((listener: (change: unknown) => void) =>
+      realSubscribe((change) => {
+        setTimeout(() => {
+          notifyArrived = true;
+          listener(change);
+        }, 0);
+      })) as typeof client.subscribe;
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("Fresh page");
+    fireEvent.click(within(picker()!).getByText('Create "Fresh page"'));
+    // Flush the create RPC's promise chain (microtasks): the mention must be
+    // spliced BEFORE the deferred notification (a macrotask) is delivered.
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const created = client.listPages().filter((p) => deriveDisplayName(p) === "Fresh page");
+    expect(created).toHaveLength(1);
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[ast.length - 1]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+    });
+    // The optimistic pill already shows the created page's title.
+    expect(editor.textContent).toBe("Fresh page");
+
+    // Drain the deferred notification inside act before teardown.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
   });
 
   it("the class-aware modal's completion links the created source at the trigger", async () => {
@@ -1038,7 +1143,7 @@ describe("node picker over an async client (worker-shaped reads)", () => {
     await act(async () => {});
   });
 
-  it("the create row waits for the node to become readable (worker-shaped create) and inserts the mention", async () => {
+  it("the create row inserts the mention on the create's resolution (worker-shaped create), before the node is readable", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "see " }] });
@@ -1075,20 +1180,25 @@ describe("node picker over an async client (worker-shaped reads)", () => {
       fireEvent.click(within(picker()!).getByText('Create "Fresh page"'));
     });
     for (let i = 0; i < 6; i += 1) await act(async () => {});
-    // The create resolved but the node has not landed yet: no mention, no
-    // crash — the pick is waiting on the subscription.
+    // The create resolved but the node has NOT landed in the read cache yet:
+    // the optimistic pick already spliced the mention (no waiting on the
+    // subscription), with the created title as the pill's label fallback.
+    const created = client.listPages().filter((p) => deriveDisplayName(p) === "Fresh page");
+    expect(created).toHaveLength(1);
     const astBefore = client.getNode(blockId)?.contentAst as ContentAst;
-    expect(astBefore.some((token) => (token as { type?: string }).type === "mention")).toBe(false);
+    expect(astBefore[1]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+    });
+    expect(editor.textContent).toContain("Fresh page");
 
-    // The sync push arrives; the waiting pick lands the mention in the same
-    // gesture (no second invocation of the picker).
+    // The sync push materializes the node; the mention stays put (the label
+    // now resolves from the graph — same title).
     await act(async () => {
       push?.();
     });
     for (let i = 0; i < 6; i += 1) await act(async () => {});
 
-    const created = client.listPages().filter((p) => deriveDisplayName(p) === "Fresh page");
-    expect(created).toHaveLength(1);
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
     expect(ast[1]).toMatchObject({
       type: "mention",

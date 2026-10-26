@@ -79,6 +79,7 @@ import { Icon } from "../../ui/Icon.js";
 import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
 import { NodePill } from "../metadata/NodePill.js";
 import { NodeResultItem } from "./NodeResultItem.js";
+import { registerPendingCreatedName } from "./pendingCreatedName.js";
 import { useKeyboardListNav } from "./useKeyboardListNav.js";
 import { useViewportPosition } from "./useViewportPosition.js";
 import { QuickCreateModal } from "../modals/QuickCreateModal.js";
@@ -670,13 +671,54 @@ export function NodeSelector({
     });
   };
 
-  const resolveCreateResult = (result: ClientNode | string | void): void => {
+  /**
+   * An optimistic stand-in for a just-created pick, spliced the moment the
+   * create RPC resolves instead of waiting (up to 2 s) for the change
+   * notification to materialize the node in the read cache. Consumers read
+   * only `id` (verified across every NodeSelector onAdd/onChange site); the
+   * name seeds the editor's label fallback (pendingCreatedName) so the pill
+   * renders the created title immediately — the wire token itself stays
+   * bare, labels re-resolve from the graph.
+   */
+  const optimisticCreatedPick = (id: string, name: string): ClientNode =>
+    ({
+      id,
+      workspaceId: "",
+      isClass: false,
+      isEmbedded: false,
+      parentId: null,
+      classIds: [],
+      tagIds: [],
+      name,
+      contentAst: [{ type: "text", text: name }],
+      icon: null,
+      color: null,
+      coverAssetId: null,
+      bannerAssetId: null,
+      aliasedNodeId: null,
+      description: null,
+      listStyle: null,
+      parentlessRole: "page",
+      isActive: true,
+      createdAt: null,
+      updatedAt: null,
+    }) as ClientNode;
+
+  const resolveCreateResult = (result: ClientNode | string | void, createdName?: string): void => {
     if (typeof result === "string") {
-      // The worker client answers a just-created id's getNode with undefined
-      // until the create's sync push lands (the RPC resolution outruns it) —
-      // reading synchronously here dropped the pick entirely: the node was
-      // created, the panel closed, and no mention ever inserted. Wait for
-      // the node like the date-suggestion path does, then hand it to the pick.
+      // Fast path (the built-in create row): the name is the query the row
+      // answered — pick immediately on the RPC resolution; the mention pill
+      // must not wait for the change notification to materialize the node
+      // (the worker read cache lags the create by a round-trip, and the wait
+      // used to leave the user staring at plain trigger text for exactly
+      // that long).
+      if (createdName !== undefined) {
+        registerPendingCreatedName(result, createdName);
+        handleAdd(optimisticCreatedPick(result, createdName));
+        return;
+      }
+      // Name unknown at the call site (dialog-created sources): the original
+      // bounded wait for the read cache to materialize the node.
       void waitForNode(client, result).then((node) => {
         if (node !== undefined) handleAdd(node);
       });
@@ -760,7 +802,10 @@ export function NodeSelector({
     if (effectiveQuery === "" && onCreateNew === undefined) return;
     const result = effectiveCreateNew(effectiveQuery);
     const onCreated = (created: ClientNode | string | void): void => {
-      resolveCreateResult(created);
+      // The built-in create answers the query as the new node's title
+      // (title-is-content) — the string case can pick optimistically; other
+      // seams (dialog-created sources) keep the bounded materialization wait.
+      resolveCreateResult(created, typeof created === "string" ? effectiveQuery : undefined);
     };
     if (result instanceof Promise) {
       result.then(onCreated).catch(() => {});

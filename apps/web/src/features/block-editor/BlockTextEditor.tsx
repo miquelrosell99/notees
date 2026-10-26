@@ -115,8 +115,9 @@
  * - Tab          → indent under the previous sibling (object.move, appended as
  *                  its last child). The caret hands back to the same block at
  *                  the same offset — the reparent remounts the row, so the
- *                  edit session is re-requested explicitly; indenting never
- *                  leaves edit mode.
+ *                  edit session is re-requested explicitly, EAGERLY (the
+ *                  durable pending-edit intent survives the remount, no
+ *                  round-trip wait); indenting never leaves edit mode.
  * - Shift+Tab    → outdent to the grandparent, placed right after the current
  *                  parent. The `treeEditMode` device setting (Settings →
  *                  Editor, default "logical") additionally drags subsequent
@@ -242,6 +243,7 @@ import { notificationStore } from "../../components/ui/fleet/notificationStore.j
 import { FloatingToolbar } from "../../ui/editor-popups/FloatingToolbar.js";
 import { TriggerPopup, SLASH_COMMANDS, bumpSlashCommandUsage, readSlashCommandUsage } from "../../ui/editor-popups/TriggerPopup.js";
 import { NodeSelector, type NodePickContext } from "../pickers/NodeSelector.js";
+import { clearPendingCreatedName, pendingCreatedName } from "../pickers/pendingCreatedName.js";
 import { parseDate } from "../date-pickers/dateParser.js";
 import { DatePickerPopup } from "../date-pickers/DatePickerPopup.js";
 import { NodeLinkContextMenu } from "../node-menu/NodeLinkContextMenu.js";
@@ -282,6 +284,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     rootId,
     positions,
     requestFocus,
+    takePendingEdit,
+    focusRequest,
+    acknowledgeFocus,
     nextBlockId,
     previousBlockId,
     firstBlockId,
@@ -300,6 +305,16 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   const spanRef = useRef<HTMLSpanElement>(null);
   const nodeRef = useRef(node);
   nodeRef.current = node;
+  // The authoritative committed content for this edit session: every write
+  // this editor makes updates it synchronously. The React prop must NOT
+  // serve as the write base — it lags the worker by the notify cycle, and a
+  // commit recomputed from a stale prop resurrects pre-commit text and
+  // flattens just-written rich tokens (two mentions in one session used to
+  // lose the first this way). A remote edit landing on the same block mid
+  // session loses to the local session — the sanctioned LWW-by-HLC outcome,
+  // since the session's ops carry later clocks. Adopted from the prop only
+  // by the external-edit rehydration effect (blurred + clean draft).
+  const committedRef = useRef<ContentAst>(node.contentAst);
   // Class chip labels ride the editor's prose projection and the editable
   // DOM (the pill renders the label, so el.textContent === proseFromAst) —
   // the label is the class's CURRENT display name, re-resolved at every
@@ -321,7 +336,19 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   // resolver, so a label's length is consistent across all three (the
   // single coordinate system — a mismatch would splice at wrong offsets).
   const resolveMentionName = useCallback(
-    (targetId: string): string | null => titleOf(client, targetId, { budget: "full" }),
+    (targetId: string): string | null => {
+      const resolved = titleOf(client, targetId, { budget: "full" });
+      if (resolved !== null) {
+        // The node materialized (a just-created target's first resolution) —
+        // the pending fallback, if any, is dead weight.
+        clearPendingCreatedName(targetId);
+        return resolved;
+      }
+      // Just-created target the read cache has not materialized yet (the
+      // create RPC outran the change notification): the create row recorded
+      // the title it created — render that instead of the raw-id fallback.
+      return pendingCreatedName(targetId);
+    },
     [client],
   );
   // The chip atom's wavy underline tint: the class's effective color — the
@@ -441,13 +468,14 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     const el = spanRef.current;
     const draft = el?.textContent ?? draftRef.current;
     draftRef.current = draft;
-    const current = nodeRef.current.contentAst;
+    const current = committedRef.current;
     // Prose unchanged: leave rich tokens (mentions/chips/marks) untouched.
     if (draft === proseFromAst(current, resolveClassName, resolveMentionName)) return;
     // Structural apply (untouched runs keep marks/identity) + fresh
     // candidateSpans on every typed_link mark (record-don't-resolve).
     const next = withCandidateSpans(applyTextEdit(current, draft, resolveClassName, resolveMentionName));
     if (JSON.stringify(next) === JSON.stringify(current)) return;
+    committedRef.current = next;
     void client.updateObject(nodeRef.current.id, { contentAst: next });
   }, [client, resolveClassName, resolveMentionName]);
 
@@ -456,7 +484,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   /** The pill selected by click/arrow, validated against the freshest draft. */
   const currentAtom = (): EditableAtom | null => {
     if (selectedAtomKey === null) return null;
-    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+    const base = applyTextEdit(committedRef.current, draftRef.current, resolveClassName, resolveMentionName);
     return atomFromKey(editableAtoms(base, resolveClassName, resolveMentionName), selectedAtomKey);
   };
 
@@ -568,7 +596,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       setActiveMarks([]);
       return;
     }
-    setActiveMarks([...marksOnRange(nodeRef.current.contentAst, range.start, range.end, resolveClassName, resolveMentionName)]);
+    setActiveMarks([...marksOnRange(committedRef.current, range.start, range.end, resolveClassName, resolveMentionName)]);
   }, [resolveClassName, resolveMentionName]);
 
   // Toggle a mark over the current selection: remove when every covered run
@@ -581,11 +609,12 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       if (el === null) return;
       const range = selectionOffsets(el);
       if (range === null || range.start === range.end) return;
-      const current = nodeRef.current.contentAst;
+      const current = committedRef.current;
       const next = marksOnRange(current, range.start, range.end, resolveClassName, resolveMentionName).has(mark)
         ? removeMarkFromRange(current, range.start, range.end, mark, resolveClassName, resolveMentionName)
         : applyMarkToRange(current, range.start, range.end, mark, resolveClassName, resolveMentionName);
       if (JSON.stringify(next) !== JSON.stringify(current)) {
+        committedRef.current = next;
         void client.updateObject(nodeRef.current.id, { contentAst: next });
       }
       // Reflect the toggle immediately: nodeRef still holds the pre-write
@@ -622,6 +651,10 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   useEffect(() => {
     const el = spanRef.current;
     if (el === null || document.activeElement === el || dirtyRef.current) return;
+    // Not mid-draft: the prop is the freshest known content — adopt it as
+    // the committed base (a remote edit lands here; our own echo is
+    // value-equal and harmless).
+    committedRef.current = node.contentAst;
     const domSignature = `${el.textContent ?? ""}#${el.querySelectorAll("[data-atom-key]").length}`;
     if (domSignature !== editableDomSignature(node.contentAst, resolveClassName, resolveMentionName)) {
       buildEditableDom(el, node.contentAst, resolveClassName, resolveClassColor, resolveClassAssigned, resolveMentionName);
@@ -732,6 +765,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     dirtyRef.current = false;
     setSelectedAtomKey(null);
     placeCaret(el, caretAfter);
+    committedRef.current = next;
     // Returned (not fire-and-forget): callers that write MORE state keyed
     // on this content (the removal toggle's unassign — the applier refuses
     // while the content references the class) must await the local apply.
@@ -749,7 +783,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     tokens: readonly unknown[],
     caretAfter: number,
   ) => {
-    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+    const base = applyTextEdit(committedRef.current, draftRef.current, resolveClassName, resolveMentionName);
     commitAst(withCandidateSpans(spliceTokens(base, start, end, tokens, resolveClassName, resolveMentionName)), caretAfter);
   };
 
@@ -789,7 +823,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       return;
     }
     if (commandId === "quote") {
-      const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName, resolveMentionName);
+      const base = applyTextEdit(committedRef.current, draft, resolveClassName, resolveMentionName);
       const stripped = spliceTokens(base, start, end, [], resolveClassName, resolveMentionName);
       const children = stripped.filter(
         (token): token is ContentAst[number] =>
@@ -841,7 +875,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       // query system class (class = identity/membership, so every query in the
       // workspace lists through the class machinery); the token carries the
       // default tab's AST as payload.
-      const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName, resolveMentionName);
+      const base = applyTextEdit(committedRef.current, draft, resolveClassName, resolveMentionName);
       const token = { type: "query", queryAst: STARTER_QUERY_AST } as ContentAst[number];
       const next = spliceTokens(base, start, end, [token], resolveClassName, resolveMentionName);
       const tokenIndex = next.findIndex((entry) => entry === token);
@@ -951,7 +985,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       // → body "print(x)"); text outside the consumed trigger range (written
       // before the slash) rides in front.
       const bodyFromHint = remainder.split(/\s+/).slice(1).join(" ").trim();
-      const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName, resolveMentionName);
+      const base = applyTextEdit(committedRef.current, draft, resolveClassName, resolveMentionName);
       const stripped = spliceTokens(base, start, end, [], resolveClassName, resolveMentionName);
       const existing = proseFromAst(stripped, resolveClassName, resolveMentionName).trim();
       const text =
@@ -1175,7 +1209,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     // (applyTextEdit keeps unflushed typing), so the draft stays the single
     // source of truth.
     const base = spliceTokens(
-      applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName),
+      applyTextEdit(committedRef.current, draftRef.current, resolveClassName, resolveMentionName),
       state.start,
       end,
       [],
@@ -1298,7 +1332,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     verbValue: string | { propertySchemaId: string },
     locator: string,
   ) => {
-    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+    const base = applyTextEdit(committedRef.current, draftRef.current, resolveClassName, resolveMentionName);
     const covered = proseFromAst(base, resolveClassName, resolveMentionName).slice(start, end);
     if (covered === "") return;
     const metadata: Record<string, unknown> = {};
@@ -1401,7 +1435,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     if (el === null) return;
     const pill = (event.target as HTMLElement).closest?.("[data-atom-key]");
     if (pill === null || pill === undefined || !el.contains(pill)) return;
-    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+    const base = applyTextEdit(committedRef.current, draftRef.current, resolveClassName, resolveMentionName);
     const atom = atomFromKey(editableAtoms(base, resolveClassName, resolveMentionName), (pill as HTMLElement).dataset.atomKey);
     if (atom === null) return;
     event.preventDefault();
@@ -1417,7 +1451,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   const handleContextMenu = (event: MouseEvent<HTMLSpanElement>) => {
     const el = spanRef.current;
     if (el === null || linkMenu !== null) return;
-    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+    const base = applyTextEdit(committedRef.current, draftRef.current, resolveClassName, resolveMentionName);
     const atoms = editableAtoms(base, resolveClassName, resolveMentionName);
     const pill = (event.target as HTMLElement).closest?.("[data-atom-key]");
     let atom: EditableAtom | null = null;
@@ -1488,7 +1522,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   const currentLinkMenuMention = (): { menu: LinkMenuState; token: MentionToken } | null => {
     const menu = linkMenu;
     if (menu === null) return null;
-    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+    const base = applyTextEdit(committedRef.current, draftRef.current, resolveClassName, resolveMentionName);
     const token = base[menu.tokenIndex];
     if (
       typeof token !== "object" ||
@@ -1638,12 +1672,14 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     dirtyRef.current = false;
     const parentId = nodeRef.current.parentId;
     const draft = draftRef.current;
-    const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName, resolveMentionName);
+    const base = applyTextEdit(committedRef.current, draft, resolveClassName, resolveMentionName);
     // Head: keep [0, caret) and replace the selection with the first line.
     const head = spliceTokens(base, range.start, draft.length, astFromProse(lines[0]!, []), resolveClassName, resolveMentionName);
     // Tail: everything after the selection; it rides the LAST pasted line.
     const tail = spliceTokens(base, 0, range.end, [], resolveClassName, resolveMentionName);
-    void client.updateObject(currentId, { contentAst: withCandidateSpans(head) });
+    const headCommitted = withCandidateSpans(head);
+    committedRef.current = headCommitted;
+    void client.updateObject(currentId, { contentAst: headCommitted });
     const lastLine = lines[lines.length - 1]!;
     // The last line PREPENDS to the tail (spliceTokens merges adjacent text
     // runs, so "Y" + "def" stores as one "Ydef" run).
@@ -1763,7 +1799,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
         const el = spanRef.current;
         const caret = el === null ? null : caretOffset(el);
         if (el !== null && caret !== null) {
-          const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+          const base = applyTextEdit(committedRef.current, draftRef.current, resolveClassName, resolveMentionName);
           const atoms = editableAtoms(base, resolveClassName, resolveMentionName);
           if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
             const hit =
@@ -1959,7 +1995,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       const draft = draftRef.current;
       const parentId = nodeRef.current.parentId;
       const currentId = nodeRef.current.id;
-      const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName, resolveMentionName);
+      const base = applyTextEdit(committedRef.current, draft, resolveClassName, resolveMentionName);
       // A live range selection is cut first (the browser default is
       // prevented): every branch below works over the cut text and the split
       // lands at the range start.
@@ -1991,7 +2027,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
         const tail = spliceTokens(cut, 0, caret, [], resolveClassName, resolveMentionName);
         const firstChild = client.getChildren(currentId)[0]?.id;
         const nest = !singleCarrier && firstChild !== undefined;
-        void client.updateObject(currentId, { contentAst: withCandidateSpans(head) });
+        const headCommitted = withCandidateSpans(head);
+        committedRef.current = headCommitted;
+        void client.updateObject(currentId, { contentAst: headCommitted });
         void client
           .createObject({
             parentId: singleCarrier ? currentId : nest ? currentId : parentId,
@@ -2127,20 +2165,31 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       // The reparent remounts this row under a different parent — React
       // drops the component instance and its edit state with it — so the
       // caret offset is captured NOW and the edit session is re-requested
-      // on the moved block once the move lands. Indenting never leaves
-      // edit mode.
+      // on the moved block. The request fires EAGERLY (not in the move
+      // RPC's .then): the durable pending-edit intent (outliner context)
+      // survives until the remount, so the refocus no longer serializes on
+      // the round-trip and the post-move instance consumes it in either
+      // message order. Indenting never leaves edit mode.
       const el = spanRef.current;
       const caretAt = el === null ? null : caretOffset(el);
       const refocus = () => requestFocus(id, caretAt ?? "end");
+      // Move failure: no remount is coming to consume the intent — drop it
+      // (and the transient request, when still ours) so a later unrelated
+      // remount can't spring edit mode.
+      const abandonRefocus = () => {
+        takePendingEdit(id);
+        if (focusRequest?.id === id) acknowledgeFocus();
+      };
       if (!event.shiftKey) {
         // Indent: under the previous sibling (append as its last child).
         const target = position?.previousSiblingId;
         if (target === undefined || target === null) return; // page-level edge
+        refocus();
         void client
           .moveObject(id, target)
-          .then(refocus)
           .catch((error: unknown) => {
             console.warn(`[outliner] indent (${id} → ${target}) failed:`, error);
+            abandonRefocus();
           });
         return;
       }
@@ -2153,12 +2202,13 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       if (parentId === undefined || parentId === null) return; // page-level edge
       if (grandParentId === undefined || grandParentId === null) return;
       const mode = readDeviceSetting<"direct" | "logical">("treeEditMode", "logical");
+      refocus();
       if (mode === "direct") {
         void client
           .moveObject(id, grandParentId, parentId)
-          .then(refocus)
           .catch((error: unknown) => {
             console.warn(`[outliner] outdent (${id} → ${grandParentId}) failed:`, error);
+            abandonRefocus();
           });
         return;
       }
@@ -2173,10 +2223,10 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
             void client.moveObject(follower.id, id, after);
             after = follower.id;
           });
-          refocus();
         })
         .catch((error: unknown) => {
           console.warn(`[outliner] logical outdent (${id} → ${grandParentId}) failed:`, error);
+          abandonRefocus();
         });
     }
   };
