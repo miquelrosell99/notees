@@ -9,6 +9,53 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): the settings Sync section unifies the server, the disconnect
+  action, and a remembered-servers radio list.**
+  The Sync Server card now carries everything in one surface: the current
+  server with its reachability, a vertical radio list of every sync server
+  address the device remembers (`notees.settings.knownSyncServers`,
+  device-local like the rest of the remembered session — the current server
+  is remembered on first sight so it survives a later disconnect, and a
+  successful **Connect to a different server** joins the list), and the
+  danger **Disconnect** button (the old standalone Disconnect section
+  retires). The current server always leads the list and is flagged with a
+  **Current** pill; each row's trash icon forgets that address, and the
+  current server's trash IS the disconnect flow — the same confirmed
+  sign-out. Choosing another remembered server runs the same connect path
+  as the URL probe. Compose from fleet primitives only (`RadioGroup`/`Radio`,
+  `Pill`, ghost icon-only `Button`, token-only CSS in `SettingsPage.css`).
+  Docs: `docs/features/offline-and-sync.md` (Settings → Sync rewritten).
+  Verified: `settings-page.test.tsx` grows six specs (list order + flag,
+  device-local remember, radio-list connect, per-entry trash, current-row
+  trash as confirmed disconnect, typed-URL remember); `pnpm typecheck` +
+  `pnpm test` green.
+
+- **feat(web): the peek gesture extends to the page header title, the command
+  palette, and the property-carrier cells.** The
+  right-rail peek (Shift+click → sidebar card) already rode block bullets and
+  favorites/recents rows; four more surfaces join the contract. **(1) The
+  page header title** — Shift+click on the title row (a bullet-less BlockRow)
+  peeks the page instead of entering edit (`BlockRow.enterEdit`'s title
+  branch; body rows keep their selection semantics for the chord). **(2) The
+  command palette** — **Shift+Enter** on a node row (pages, classes, date
+  pages, recents, random picks, content hits) peeks instead of opening;
+  action/create rows stay Enter-only; the footer gains the hint
+  (`PaletteItem.peek`, threaded `App.openInSidebar → AppModals →
+  CommandPalette`). **(3) The favorites/recents rows** were already wired —
+  a guard spec now locks the contract. **(4) The property value cells** — a
+  carrier block's bullet (text-property cells render the carrier as a
+  blocks list) peeks too: `TextPropertyRow`'s per-carrier outliner
+  (`CarrierRowHost`) gains `openInSidebar`, threaded PropertiesTable /
+  PropertiesSidebar → GroupedPropertyRow → TextPropertyRow from PageView; the
+  metadata panel's `ScalarPropertyValue` carrier branch and the
+  `ReferenceSubtree` host gain the same pass-through. Every surface owns the
+  same OutlinerContext contract — the callback threads, nothing new on the
+  wire, no client applier impact. Docs: `pages.md` (title + rail surfaces),
+  `search.md` (the Shift+Enter chord). Verified: `bullet-peek.test.tsx`
+  grows to nine specs (four new surfaces, failing before the fix); the
+  favorites/recents guard passes unchanged; `pnpm typecheck` + `pnpm test`
+  green; live-stack probe after deploy.
+
 - **docs(design): the underline text-field ruling promoted from a Notees
   override to the fleet skill law.** The register split (underline form
   fields / boxed dense+settings / borderless cells) was recorded as a
