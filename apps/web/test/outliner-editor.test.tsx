@@ -677,6 +677,70 @@ describe("outliner editor", () => {
     expect(document.activeElement).toBe(movedEditor);
   });
 
+  it("Tab keeps edit mode when the change notification lands AFTER the move resolves (worker ordering)", async () => {
+    const client = await seedClient();
+    // Reproduce the WorkerClient production ordering: (1) the moveObject RPC
+    // promise resolves BEFORE the change notification arrives, and (2) reads
+    // stay cached (stale) until that notification drains — the worker client
+    // de-prioritizes notify-driven renders via startTransition. The in-process
+    // client applies + notifies synchronously, which is why the plain Tab test
+    // above cannot see this race: the refocus request reaches the row while
+    // the PRE-MOVE instance is still mounted and editing, that instance
+    // consumes the request (a no-op), and the later remount drops edit mode.
+    const realSubscribe = client.subscribe.bind(client);
+    let notifyArrived = false;
+    client.subscribe = ((listener: (change: unknown) => void) =>
+      realSubscribe((change) => {
+        setTimeout(() => {
+          notifyArrived = true;
+          listener(change);
+        }, 0);
+      })) as typeof client.subscribe;
+    const realGetBlockTree = client.getBlockTree.bind(client);
+    const treeCache = new Map<string, BlockTreeNode[]>();
+    client.getBlockTree = ((id: string, depth?: number) => {
+      if (notifyArrived || !treeCache.has(id)) {
+        treeCache.set(id, realGetBlockTree(id, depth));
+      }
+      return treeCache.get(id)!;
+    }) as typeof client.getBlockTree;
+    const pageId = await client.createObject({ isEmbedded: false, name: "Indent Deferred" });
+    const firstId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "one" }],
+    });
+    const secondId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "two" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const editor = clickIntoBlock(container, 1);
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Tab" });
+      // Flush the moveObject promise chain (microtasks): moveObject resolves
+      // (tick 1), then the .then(refocus) runs (tick 2) — the refocus request
+      // lands on the still-mounted pre-move row and its effect consumes it
+      // before act flushes.
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    // Now deliver the deferred change notification: the read cache refreshes
+    // and the reparent remounts the row under its new parent, dropping the
+    // pre-move instance's local state.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+
+    expect(warn.mock.calls.filter((call) => !String(call[0]).startsWith("[section-views] load failed"))).toHaveLength(0);
+    expect(client.getNode(secondId)?.parentId).toBe(firstId);
+    const moved = container.querySelector<HTMLElement>(`[data-block-id="${secondId}"]`);
+    expect(moved?.classList.contains("nt-block--editing")).toBe(true);
+    expect(document.activeElement).toBe(moved?.querySelector<HTMLElement>(".nt-block-text"));
+  });
+
   it("Shift+Tab outdents to the grandparent, placed right after the parent", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Outdent" });

@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(web): Tab / Shift+Tab indent-outdent no longer drops edit mode — the
+  refocus request rides a durable pending-edit intent across the reparent
+  remount.** Root cause: the Tab handler re-requests edit mode on the moved
+  block after `moveObject` resolves, but against the WorkerClient the write
+  RPC's promise resolves BEFORE the change notification drains (the worker
+  client de-prioritizes notify-driven renders via `startTransition`, and its
+  read cache stays stale until that drain) — so the transient `focusRequest`
+  reached the PRE-MOVE row instance while it was still mounted and editing,
+  that instance consumed it as a no-op, and the subsequent reparent remount
+  (React drops the instance and its local edit state) had nothing left to
+  restore. Edit mode was lost on every indent against the worker; the
+  in-process test client applies + notifies synchronously, which is why the
+  existing contract test could not see the race. Fix: `useOutlinerValue` now
+  keeps a durable per-block-id caret intent (`takePendingEdit`, a ref-held
+  one-shot map) written by every `requestFocus` alongside the transient state
+  nudge; `BlockRow` consumes the transient request only when not already
+  editing (an already-editing row leaves it pending — the request targets its
+  post-remount self) and claims the durable intent on mount, so both delivery
+  orderings converge on the moved block staying in edit mode at the captured
+  caret. Verified by a new regression test that reproduces the worker ordering
+  (deferred notification + stale read cache) — red before, green after;
+  `outliner-editor.test.tsx` 35/35, full gate green.
 - **feat(server): audio extension fallback on asset upload + a workspace
   asset index route.** Uploads that fail magic-byte sniffing (jpeg/png/webp/
   pdf/epub/audio) now get a second chance from the filename's extension:

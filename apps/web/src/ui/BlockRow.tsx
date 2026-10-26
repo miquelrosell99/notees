@@ -289,6 +289,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
     openInSidebar,
     focusRequest,
     acknowledgeFocus,
+    takePendingEdit,
     collapsed,
     toggleCollapse,
     stretched,
@@ -392,11 +393,36 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
 
   useEffect(() => {
     if (focusRequest === null || focusRequest.id !== node.id) return;
+    // A request that arrives while THIS instance is already editing targets
+    // the instance's POST-MOVE self: the Tab/Shift+Tab refocus resolves
+    // before the reparent remount (the worker read cache lags the write
+    // RPC), so the pre-move instance still mounted here is not the final
+    // caret destination. Leave the request pending — the durable intent
+    // rides to the fresh mount (the mount effect below). No other flow
+    // re-requests the currently-editing row, so the guard never stalls a
+    // real caret hand-off.
+    if (editing) return;
     acknowledgeFocus();
+    // The durable intent is fulfilled by this instance — clear it so a
+    // later unrelated remount can't re-enter edit mode.
+    takePendingEdit(node.id);
     if (readOnly) return;
     setCaret(focusRequest.caret);
     setEditing(true);
-  }, [focusRequest, node.id, acknowledgeFocus, readOnly]);
+  }, [focusRequest, node.id, editing, acknowledgeFocus, takePendingEdit, readOnly]);
+
+  // The durable edit intent (requestFocus's second channel): a reparent
+  // remount drops this instance's local state, so a focus request captured
+  // by the dying pre-move instance never reaches its post-move self through
+  // the transient state nudge. The intent survives in the context and is
+  // claimed here by the fresh mount.
+  useEffect(() => {
+    const pending = takePendingEdit(node.id);
+    if (pending === undefined) return;
+    if (readOnly) return;
+    setCaret(pending);
+    setEditing(true);
+  }, [node.id, readOnly, takePendingEdit]);
 
   // The edit thread (EditThread.tsx): report this row's edit state so the
   // page body's measured overlay can draw the ancestor path. The clear is

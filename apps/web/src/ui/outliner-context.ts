@@ -207,6 +207,18 @@ export interface OutlinerContextValue {
   requestFocus: (blockId: string, caret?: CaretPlacement) => void;
   acknowledgeFocus: () => void;
   /**
+   * The durable half of a focus request: the pending caret for a block id,
+   * read-and-cleared when a row MOUNTS. `requestFocus` writes both channels;
+   * the transient `focusRequest` nudges rows already mounted, while this
+   * intent survives the reparent remount that drops a row's local edit
+   * state — the Tab/Shift+Tab refocus resolves before the worker client's
+   * change notification (its read cache lags the write RPC), so the request
+   * can reach the pre-move instance while it is still mounted and editing.
+   * That instance must leave the request pending; its post-move self claims
+   * the intent on mount. Consumption is get-and-delete (one-shot).
+   */
+  takePendingEdit: (blockId: string) => CaretPlacement | undefined;
+  /**
    * Keyboard navigation in VISIBLE document order (the arrow-handoff
    * contract): the next/previous rendered block around `blockId` — folded
    * subtrees contribute no rows, so an answer is always a visible row.
@@ -401,6 +413,16 @@ export function useOutlinerValue(
   },
 ): OutlinerContextValue {
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
+  // The durable edit intent per block id — requestFocus's second channel
+  // (see the interface doc). A ref-held map (not state): the consumers are
+  // row mount effects, and a state-shaped copy would re-render every row
+  // through the context value per request.
+  const pendingEditRef = useRef<Map<string, CaretPlacement>>(new Map());
+  const takePendingEdit = useCallback((blockId: string): CaretPlacement | undefined => {
+    const caret = pendingEditRef.current.get(blockId);
+    if (caret !== undefined) pendingEditRef.current.delete(blockId);
+    return caret;
+  }, []);
   const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => loadCollapsedState(rootId));
   // Mirror for the toggle (computes the next set outside the state updater,
   // where the persistence write would be an impure side effect).
@@ -710,8 +732,16 @@ export function useOutlinerValue(
         return positionsRef.current;
       },
       focusRequest,
-      requestFocus: (blockId: string, caret: CaretPlacement = "end") =>
-        setFocusRequest({ id: blockId, caret }),
+      takePendingEdit,
+      requestFocus: (blockId: string, caret: CaretPlacement = "end") => {
+        // Durable twin of the transient state nudge: the pending intent
+        // survives the reparent remount that drops a row's local edit state
+        // (the Tab/Shift+Tab refocus — see takePendingEdit). Rows already
+        // mounted consume the transient request; a row that remounts before
+        // the request lands consumes the durable intent on mount.
+        pendingEditRef.current.set(blockId, caret);
+        setFocusRequest({ id: blockId, caret });
+      },
       acknowledgeFocus: () => setFocusRequest(null),
       nextBlockId: (blockId) => stepVisibleOrder(visibleOrderRef.current, blockId, 1),
       previousBlockId: (blockId) => stepVisibleOrder(visibleOrderRef.current, blockId, -1),
@@ -765,6 +795,7 @@ export function useOutlinerValue(
     effectiveCollapsed,
     stretchedIds,
     focusRequest,
+    takePendingEdit,
     replaceSelection,
     toggleSelected,
     clearSelection,
