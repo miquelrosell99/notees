@@ -9,6 +9,17 @@ predating this file.
 
 ## 2026-10-26
 
+- **docs(design): the text-field register split is recorded**. Three fixed field registers — the fleet `TextField` is the
+  underline variant (straight hairline via an explicit `rounded-none` zero
+  of the global input radius; the accent underline + label IS the focus
+  indicator, opting out of both global focus rings), the fleet `Input`
+  stays boxed (dense toolbars), in-row property cells stay borderless, and
+  the settings-form fields stay boxed small (an underline conversion was
+  implemented and owner-reverted). Canonical home: `.agents/design-overrides.md`
+  (the design-system override register) with the runbook note in
+  `docs/developers/ui-primitives.md`.
+
+
 - **fix(web): the aliases row renders on class nodes too.** `AliasesRow`'s render gate used `rendersWithDocumentChrome`,
   which excludes classes by construction (the ClassView branch) — so on a
   class page the header's "Add aliases" action wrote the backward alias but
