@@ -4,17 +4,16 @@ Notees is local-first: reads always answer from the device-local store and write
 
 ## An outage is not a sign-out
 
-When the remembered server does not answer on load, the app keeps the credential and opens the remembered workspace from its local copy — the sync banner reports "working locally until it recovers" and edits catch up when the server returns. Every workspace stays listed while offline: the switcher and the manager fall back to the device-local registry under an explicit offline caption — workspaces with a synced copy on the device open normally; the ones without stay visible but muted with a cloud-off marker (they need one online open to land a copy here). Server-side actions (create, rename, delete, export) wait for recovery. Only a rejected credential (an expired session or revoked key) lands back on the sign-in screen; clearing site data or **Disconnect** (Settings → Sync) is what forgets the server. The boot screen never re-routes on its own: when an address does not answer, the error explains, and a "Try … instead" button offers the same-origin guess — clicking it is the only path there.
+When the remembered server does not answer on load, the app keeps the credential and opens the remembered workspace from its local copy — the sync badge on the profile avatar reports the outage and edits catch up when the server returns. Every workspace stays listed while offline: the switcher and the manager fall back to the device-local registry under an explicit offline caption — workspaces with a synced copy on the device open normally; the ones without stay visible but muted with a cloud-off marker (they need one online open to land a copy here). Server-side actions (create, rename, delete, export) wait for recovery. Only a rejected credential (an expired session or revoked key) lands back on the sign-in screen; clearing site data or **Disconnect** (Settings → Sync) is what forgets the server. The boot screen never re-routes on its own: when an address does not answer, the error explains, and a "Try … instead" button offers the same-origin guess — clicking it is the only path there.
 
-## The backend-down ladder
+## The backend-down risk gate
 
-When the sync backend goes unreachable mid-session, the app escalates one explicit rung at a time:
+When the sync backend goes unreachable mid-session, the shell stays clean — no banner. The outage's at-a-glance signal is the sync badge on the profile avatar (red error state) and the account popup's Sync entry, and the app keeps working off the local projection of your data. The one surface that can still interrupt is the risk gate: a full-screen lock appears once local work crosses from "briefly offline" into "genuinely at risk", which the gate reads two ways (either trips it):
 
-1. **Banner** — "Backend unreachable — working locally until it recovers." Dismissible; the app keeps working off the local projection of your data.
-2. **Lock** — dismissing the banner while the backend is still down swaps to a full-screen lock, because past the grace period new edits would only pile into this browser's storage, invisible to your other devices. The lock carries the escape hatch — **Continue anyway** — beside an honest statement of what continued local work risks: the local-only backlog is lost if this site's data is cleared before sync resumes, and if the same content changes elsewhere in the meantime, the conflict resolves by last-writer-wins, not by what you meant.
-3. **Persistent banner** — escaping the lock returns to the shell under a non-dismissible banner until the backend recovers, so a degraded session can never look clean.
+- **Time** — the outage has outlasted a 10-minute grace window. Routine restarts and deploys finish well inside it; past it, edits have been piling device-local-only long enough that a wipe or a long-gap conflict becomes a real scenario.
+- **Volume** — the local backlog (pending + failed ops) has crossed 200, however young the outage: a large unsynced pile is exactly what clearing the site's data destroys.
 
-Recovery resets the ladder: the next outage starts again at the dismissible banner.
+The lock carries the escape hatch — **Continue anyway** — beside an honest statement of what continued local work risks: the local-only backlog is lost if this site's data is cleared before sync resumes, and if the same content changes elsewhere in the meantime, the conflict resolves by last-writer-wins, not by what you meant. Continuing anyway acknowledges the risk once per outage and returns to the shell (badge only) until the backend recovers — the lock never re-renders for that outage. Recovery resets the gate: the next outage is judged anew.
 
 ## The sync dot is a door, not a lamp
 
