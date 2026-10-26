@@ -32,7 +32,13 @@ describe("TextField", () => {
     // The underline IS the focus indicator — the design system's global
     // :focus-visible ring (app.css) opts out here (the
     // ring read as a rounded box around the field).
-    expect(input).toHaveClass("focus:outline-none", "focus-visible:outline-none");
+    expect(input).toHaveClass(
+      "focus:outline-none",
+      "focus-visible:outline-none",
+      // The global input:focus-visible ring (app.css — a rounded box-shadow
+      // ring) opts out too: the accent underline is the indicator.
+      "focus-visible:shadow-none",
+    );
     // The label accents on focus: the wrapper is the `group` scope.
     const wrapper = input.parentElement as HTMLElement;
     expect(wrapper).toHaveClass("group");

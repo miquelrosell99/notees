@@ -43,6 +43,7 @@ import { Icon } from "../../ui/Icon.js";
 import {
   ResolverRequestError,
   resolvePdfFile,
+  classifySourceInput,
   resolveSourceInput,
   type ResolvedSourceRecord,
 } from "./resolver.js";
@@ -130,6 +131,15 @@ export function AddSourceDialog({
     if (busy) return;
     setBusy(true);
     setError(null);
+    // The local short-circuit: no fetch when the resolver is off — the
+    // honest error + the manual path (the Add button stays enabled).
+    if (!resolverEnabled) {
+      setError(
+        "The metadata resolver is turned off. Enable it in Workspace settings → Features → Sources, or add the source manually.",
+      );
+      setBusy(false);
+      return;
+    }
     try {
       if (file !== null) {
         const record = await resolvePdfFile(serverUrl, credential, file, file.name);
@@ -148,6 +158,34 @@ export function AddSourceDialog({
       }
     } finally {
       setBusy(false);
+    }
+  };
+
+  // The manual path: a failed (or resolver-off) Add never dead-ends — the
+  // error region offers "Add manually", landing in the same citation form
+  // with a best-effort prefill from what was typed or picked.
+  const manualPrefillOf = (raw: string, picked: File | null): SourcePrefill => {
+    const base: SourcePrefill = {
+      classId: SYSTEM_CLASS_UUIDS.book,
+      title: "",
+      authorsText: "",
+      fields: {},
+      ...(picked !== null ? { pdf: { file: picked, filename: picked.name } } : {}),
+    };
+    const classified = classifySourceInput(raw);
+    if (classified === null) {
+      return { ...base, title: raw.trim() };
+    }
+    switch (classified.kind) {
+      case "doi":
+        return { ...base, doi: classified.value };
+      case "isbn":
+        return { ...base, isbn: classified.value };
+      case "arxiv":
+        return { ...base, url: `https://arxiv.org/abs/${classified.value}` };
+      case "url":
+        // The weblink convention: the URL is the title.
+        return { ...base, classId: SYSTEM_CLASS_UUIDS.web_page, title: raw.trim(), url: classified.url };
     }
   };
 
@@ -185,10 +223,10 @@ export function AddSourceDialog({
           <Button
             variant="primary"
             onClick={() => void resolve()}
-            disabled={busy || (input.trim() === "" && file === null) || !resolverEnabled}
+            disabled={busy || (input.trim() === "" && file === null)}
             loading={busy}
           >
-            Resolve
+            Add
           </Button>
         </>
       }
@@ -253,13 +291,23 @@ export function AddSourceDialog({
         {!resolverEnabled && (
           <p className="add-source-dialog__note" role="status">
             The metadata resolver is turned off in Workspace settings → Features → Sources —
-            resolving is disabled until you enable it.
+            Add still works, offering the manual form.
           </p>
         )}
         {error !== null && (
-          <p role="alert" className="add-source-dialog__error">
-            {error}
-          </p>
+          <div className="add-source-dialog__error-row">
+            <p role="alert" className="add-source-dialog__error">
+              {error}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy || (input.trim() === "" && file === null)}
+              onClick={() => setPrefilled({ prefill: manualPrefillOf(input, file) })}
+            >
+              Add manually
+            </Button>
+          </div>
         )}
       </div>
     </Modal>

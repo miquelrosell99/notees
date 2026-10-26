@@ -208,7 +208,7 @@ describe("AddSourceDialog", () => {
     // …and the actions ride the fleet Modal's footer slot.
     const footer = dialog.querySelector(".modal__footer");
     expect(footer).not.toBeNull();
-    expect(within(footer as HTMLElement).getByRole("button", { name: /^resolve$/i })).toBeTruthy();
+    expect(within(footer as HTMLElement).getByRole("button", { name: /^add$/i })).toBeTruthy();
   });
 
   it("the resolved record's own classKey picks the prefill form (the class lock retired, round 4)", async () => {
@@ -232,7 +232,7 @@ describe("AddSourceDialog", () => {
     fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
       target: { value: "10.1000/xyz" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^add$/i }));
 
     // The record resolves to a journal_article — the second step is THAT
     // form (no caller lock since round 4; the resolver knows the type).
@@ -264,7 +264,7 @@ describe("AddSourceDialog", () => {
     fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
       target: { value: "10.1000/xyz" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^add$/i }));
 
     // The identifier route: GET /api/resolve?doi=…
     await waitFor(() =>
@@ -333,7 +333,7 @@ describe("AddSourceDialog", () => {
     fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
       target: { value: "978-0-123456-78-9" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^add$/i }));
     const form = await screen.findByRole("dialog", { name: /new book/i });
     expect(within(form).getByText(/already in your library/i)).not.toBeNull();
     expect((within(form).getByLabelText("ISBN") as HTMLInputElement).value).toBe("9780123456789");
@@ -365,7 +365,7 @@ describe("AddSourceDialog", () => {
     fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
       target: { value: "https://example.test/paper.pdf" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^add$/i }));
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some((call) => String(call[0]).includes("/api/resolve/pdf?url=")),
@@ -415,7 +415,7 @@ describe("AddSourceDialog", () => {
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
     const file = new File(["%PDF-fake"], "paper.pdf", { type: "application/pdf" });
     pickPdf(dialog, file);
-    fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^add$/i }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /add source/i })).toBeNull());
 
     // The multipart resolve ran with the file's FormData.
@@ -468,7 +468,7 @@ describe("AddSourceDialog", () => {
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
     const file = new File(["%PDF-fake"], "paper.pdf", { type: "application/pdf" });
     pickPdf(dialog, file);
-    fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^add$/i }));
     const form = await screen.findByRole("dialog", { name: /new journal_article/i });
     fireEvent.click(within(form).getByRole("button", { name: /^create$/i }));
 
@@ -503,7 +503,7 @@ describe("AddSourceDialog", () => {
     fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
       target: { value: "https://example.test/no-doi.pdf" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^add$/i }));
     await screen.findByText(/carried no extractable doi/i);
     // No half-create: the workspace gained nothing.
     expect(client.getClassMembers(SYSTEM_CLASS_UUIDS.source).length).toBe(0);
@@ -537,7 +537,7 @@ describe("AddSourceDialog", () => {
     fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
       target: { value: "10.1000/xyz" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^add$/i }));
     await screen.findByText(/features → sources/i);
   });
 
@@ -569,10 +569,10 @@ describe("AddSourceDialog", () => {
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
     const field = within(dialog).getByLabelText("Identifier or link");
     fireEvent.change(field, { target: { value: "10.4040/xyz" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^add$/i }));
     await screen.findByText(/no metadata found/i);
     fireEvent.change(field, { target: { value: "10.5000/xyz" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^add$/i }));
     await screen.findByText(/crossref answered 500/i);
   });
 
@@ -593,12 +593,12 @@ describe("AddSourceDialog", () => {
     fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
       target: { value: "just some words" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^resolve$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^add$/i }));
     await screen.findByText(/not a doi, isbn, arxiv id, or url/i);
     expect(fetchMock.mock.calls.length).toBe(0);
   });
 
-  it("the client-side resolver-off setting shows the note and disables the resolve", async () => {
+  it("the client-side resolver-off setting shows the note; Add still works and offers the manual form", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     await client.setFeatureSettings("sources", { resolverEnabled: false });
@@ -613,9 +613,48 @@ describe("AddSourceDialog", () => {
     );
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
     expect(within(dialog).getByText(/resolver is turned off/i)).not.toBeNull();
-    expect(
-      (within(dialog).getByRole("button", { name: /^resolve$/i }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+    // The primary is NOT resolver-gated (only empty-gated): with something
+    // to act on, Add fails honestly and offers the manual form.
+    fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
+      target: { value: "https://example.test/some-page" },
+    });
+    const add = within(dialog).getByRole("button", { name: /^add$/i }) as HTMLButtonElement;
+    expect(add.disabled).toBe(false);
+    fireEvent.click(add);
+    expect(await within(dialog).findByRole("alert")).not.toBeNull();
+    // The manual path: same dialog's citation form, the weblink convention.
+    fireEvent.click(within(dialog).getByRole("button", { name: /add manually/i }));
+    const form = await screen.findByRole("dialog", { name: /new web_page/i });
+    expect((within(form).getByLabelText("URL") as HTMLInputElement).value).toBe(
+      "https://example.test/some-page",
+    );
+  });
+
+  it("a failed resolve offers Add manually with the DOI carried into the citation form", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    stubFetch((url) => {
+      if (url.includes("/api/resolve?doi=")) return jsonResponse(404, { error: { code: "not_found", message: "nothing for that DOI", status: 404 } });
+      return undefined;
+    });
+    render(
+      <AddSourceDialog
+        isOpen
+        client={client}
+        serverUrl="http://resolver.test"
+        credential="test-key"
+        onClose={() => {}}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: /add source/i });
+    fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
+      target: { value: "10.1000/xyz" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^add$/i }));
+    expect(await within(dialog).findByRole("alert")).not.toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: /add manually/i }));
+    const form = await screen.findByRole("dialog", { name: /new book/i });
+    expect((within(form).getByLabelText("DOI") as HTMLInputElement).value).toBe("10.1000/xyz");
   });
 });
 

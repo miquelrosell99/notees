@@ -95,3 +95,18 @@
   font-size: var(--font-size-sm);
   color: var(--md-sys-color-error);
 }
+
+/* The failure row: the honest error beside the manual
+   path — never a dead-end. */
+.add-source-dialog__error-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+}
+
+.add-source-dialog__error-row .add-source-dialog__error {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
