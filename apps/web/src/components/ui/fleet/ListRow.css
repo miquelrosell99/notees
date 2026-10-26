@@ -1,0 +1,102 @@
+/* ListRow — the fleet list item: 44px-min row, 32px leading slot,
+   primary/secondary lines, trailing affordance, full-row state layers,
+   accent marker on the active row. Token-only; extracted 2026-10-26 from
+   seven feature stylesheets (the fleet audit's TEMPLATE-GAP finding).
+   Register: the skill's ListRow template with the app's §7 primary recipe
+   (14px/600 — --font-size-base/--font-weight-semibold). */
+
+.list-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--spacing-1) var(--spacing-3);
+  border: 0;
+  border-radius: var(--radius-item);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.list-row {
+  cursor: pointer;
+}
+
+/* Hover/press register: the state-layer overlays only. */
+button.list-row:hover:not(:disabled) {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+button.list-row:active:not(:disabled) {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
+.list-row:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
+.list-row--disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+}
+
+.list-row__active-marker {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  background: var(--md-sys-color-primary);
+}
+
+.list-row__leading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--icon-size-xl);
+  height: var(--icon-size-xl);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.list-row__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* The §7 recipe: primary 14px/600. */
+.list-row__primary {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--md-sys-color-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list-row__secondary {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list-row__trailing {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-xs);
+}

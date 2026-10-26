@@ -46,12 +46,14 @@
   gap: 1px;
 }
 
+/* The row rides the fleet ListRow (the register this surface co-defined);
+   these are the surface deviations: the hub's 38px measure, the tighter
+   horizontal padding, the 4px radius — and the hover fill stays on the
+   whole row (the name button and the actions own the interactions). */
 .nt-shares-hub__row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
   min-height: var(--height-lg);
   padding: var(--spacing-1) var(--spacing-2);
+  gap: var(--spacing-2);
   border-radius: var(--shape-small);
 }
 
@@ -59,10 +61,22 @@
   background: var(--md-sys-color-hover-overlay);
 }
 
-.nt-shares-hub__icon {
-  flex-shrink: 0;
-  display: inline-flex;
-  color: var(--md-sys-color-on-surface-variant);
+/* The icon rides the natural-size leading slot (the 32px default slot is
+   the text-list convention; this hub's icons keep their own measure). */
+.nt-shares-hub__row .list-row__leading {
+  width: auto;
+  height: auto;
+}
+
+/* This hub's row carries TWO middle zones (the name + the flexible link
+   column), so the primary line rides a horizontal pair — the name keeps its
+   content basis, the meta column absorbs the free space (the row register
+   this surface co-defined). */
+.nt-shares-hub__row .list-row__primary {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
 }
 
 .nt-shares-hub__name {
@@ -71,14 +85,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  /* The §7 list-row register (the feeds' precedent): primary 14px/600 —
-     truncation contract unchanged at the heavier weight. */
-  font-size: var(--font-size-base);
-  font-weight: 600;
-  color: var(--md-sys-color-on-surface);
   border: none;
   background: none;
   padding: 0;
+  color: inherit;
+  font: inherit;
   text-align: left;
   cursor: pointer;
 }

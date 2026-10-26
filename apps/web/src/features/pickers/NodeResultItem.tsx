@@ -6,6 +6,7 @@
  * that presents a searchable list of nodes).
  */
 
+import { ListRow } from "../../components/ui/fleet/index.js";
 import { Icon } from "../../ui/Icon.js";
 import { titleOfNode } from "../../ui/dateDisplay.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
@@ -106,29 +107,30 @@ export function NodeResultItem({
           {parentPath}
         </div>
       )}
-      <div className="node-result-item__row">
-        <span className="node-result-item__icon">
-          {iconOverride ?? (icon !== null ? <Icon path={icon} size={0.7} /> : null)}
-        </span>
-        <span className="node-result-item__name" title={fullName}>
-          {lineName}
-        </span>
-        {displayClasses && displayClasses.length > 0 && (
-          <span className="node-result-item__class-pills">
-            {displayClasses.map((cls) => (
-              <span key={cls.nodeUuid} className="node-result-item__class-pill">
-                {cls.name}
+      <ListRow
+        className="node-result-item__row"
+        leading={iconOverride ?? (icon !== null ? <Icon path={icon} size={0.7} /> : <span />)}
+        primary={<span title={fullName}>{lineName}</span>}
+        trailing={
+          <>
+            {displayClasses && displayClasses.length > 0 && (
+              <span className="node-result-item__class-pills">
+                {displayClasses.map((cls) => (
+                  <span key={cls.nodeUuid} className="node-result-item__class-pill">
+                    {cls.name}
+                  </span>
+                ))}
               </span>
-            ))}
-          </span>
-        )}
-        {after}
-        {isSelected && (
-          <span className="node-result-item__check">
-            <Icon path="mdi-check" size={0.55} />
-          </span>
-        )}
-      </div>
+            )}
+            {after}
+            {isSelected && (
+              <span className="node-result-item__check">
+                <Icon path="mdi-check" size={0.55} />
+              </span>
+            )}
+          </>
+        }
+      />
     </button>
   );
 }

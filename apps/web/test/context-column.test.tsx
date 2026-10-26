@@ -203,8 +203,10 @@ describe("the context column (three-column panelled layout)", () => {
 
 describe("context-column feed type rides the §7 list-row register (CSS source)", () => {
   // jsdom applies no layout — the type register is asserted at the CSS
-  // source level (the css-token-drift pattern). The dense-register
-  // deviation retired with the 100%-alignment program: primary 14px/600 on-surface, secondary 12px muted.
+  // source level (the css-token-drift pattern). The register's home since
+  // the 2026-10-26 ListRow extraction is the fleet ListRow.css: primary
+  // 14px/600 on-surface, the muted trailing color. The sections keep only
+  // their deviations — the dense min-height and the stamp size override.
   const process_ = process as unknown as {
     getBuiltinModule(name: string): typeof import("node:fs");
   };
@@ -213,37 +215,46 @@ describe("context-column feed type rides the §7 list-row register (CSS source)"
   const readCss = (...segments: string[]) =>
     fs.readFileSync(path.join(process.cwd(), "src", ...segments), "utf8");
 
+  const listRowCss = readCss("components", "ui", "fleet", "ListRow.css");
   const activityCss = readCss("features", "page-sections", "ActivityLogSection.css");
   const versionCss = readCss("features", "page-sections", "VersionHistorySection.css");
   const commentsCss = readCss("features", "page-sections", "CommentsSection.css");
 
   it("the Activity log rows: 14px/600 primary, 12px muted stamps", () => {
-    const event = /\.activity-log__event \{[^}]*\}/.exec(activityCss);
-    expect(event).not.toBeNull();
-    expect(event![0]).toContain("font-size: var(--font-size-base)");
-    expect(event![0]).toContain("font-weight: 600");
-    const stamp = /\.activity-log__stamp \{[^}]*\}/.exec(activityCss);
+    const primary = /\.list-row__primary \{[^}]*\}/.exec(listRowCss);
+    expect(primary).not.toBeNull();
+    expect(primary![0]).toContain("font-size: var(--font-size-base)");
+    expect(primary![0]).toContain("var(--font-weight-semibold)");
+    expect(primary![0]).toContain("var(--md-sys-color-on-surface)");
+    const row = /\.activity-log__row \{[^}]*\}/.exec(activityCss);
+    expect(row).not.toBeNull();
+    expect(row![0]).toContain("min-height: var(--height-md)");
+    const stamp = /\.activity-log__row \.list-row__trailing \{[^}]*\}/.exec(activityCss);
     expect(stamp).not.toBeNull();
     expect(stamp![0]).toContain("font-size: var(--font-size-sm)");
-    expect(stamp![0]).toContain("var(--md-sys-color-on-surface-variant)");
   });
 
   it("the Version history rows: 14px/600 primary, 12px muted stamps", () => {
-    const event = /\.version-history__event \{[^}]*\}/.exec(versionCss);
-    expect(event).not.toBeNull();
-    expect(event![0]).toContain("font-size: var(--font-size-base)");
-    expect(event![0]).toContain("font-weight: 600");
-    const stamp = /\.version-history__stamp \{[^}]*\}/.exec(versionCss);
+    const primary = /\.list-row__primary \{[^}]*\}/.exec(listRowCss);
+    expect(primary).not.toBeNull();
+    expect(primary![0]).toContain("font-size: var(--font-size-base)");
+    expect(primary![0]).toContain("var(--font-weight-semibold)");
+    expect(primary![0]).toContain("var(--md-sys-color-on-surface)");
+    const row = /\.version-history__line \{[^}]*\}/.exec(versionCss);
+    expect(row).not.toBeNull();
+    expect(row![0]).toContain("min-height: var(--height-md)");
+    const stamp = /\.version-history__line \.list-row__trailing \{[^}]*\}/.exec(versionCss);
     expect(stamp).not.toBeNull();
     expect(stamp![0]).toContain("font-size: var(--font-size-sm)");
-    expect(stamp![0]).toContain("var(--md-sys-color-on-surface-variant)");
   });
 
   it("the Comments rows: 14px/600 with the single-line ellipsis contract kept", () => {
+    const primary = /\.list-row__primary \{[^}]*\}/.exec(listRowCss);
+    expect(primary).not.toBeNull();
+    expect(primary![0]).toContain("font-size: var(--font-size-base)");
+    expect(primary![0]).toContain("var(--font-weight-semibold)");
     const text = /\.nt-comments__text \{[^}]*\}/.exec(commentsCss);
     expect(text).not.toBeNull();
-    expect(text![0]).toContain("font-size: var(--font-size-base)");
-    expect(text![0]).toContain("font-weight: 600");
     expect(text![0]).toContain("text-overflow: ellipsis");
     expect(text![0]).toContain("white-space: nowrap");
   });

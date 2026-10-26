@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-10-26
 
+- **feat(web): the fleet ListRow is extracted and seven duplicated row
+  registers migrate onto it (fleet audit 2026-10-26, the TEMPLATE-GAP
+  finding).** The skill's `ListRow` template was the only fleet-owned
+  register with no app component — its recipe (44px-min row, 32px leading
+  slot, primary/secondary lines, trailing affordance, state-layer
+  hover/press, focus ring, 3px accent active marker) was copy-pasted
+  across seven feature stylesheets. The new `components/ui/fleet/ListRow`
+  ports that register with the app's §7 primary recipe (14px/600) and
+  slot composition (`leading` / `primary` / `secondary` / `trailing` /
+  `active` / `onClick` — a click handler renders a full-row button, else a
+  div), and seven surfaces migrate with visual parity preserved via
+  deviation classes where a surface genuinely differs (dense min-heights,
+  natural-size leadings, surface-specific trailing typography):
+  pickers/NodeResultItem (palette rows incl. the create/convert variants),
+  page-sections/ActivityLogSection, CommentsSection (the row was never
+  clickable — it stays a div), VersionHistorySection, trash/TrashHub,
+  classview/TaskBuckets, sharing/SharesHub. FilterBlockBuilder is the one
+  deliberate skip: its row is a wrapping multi-column control row, not a
+  list row — force-fitting would fight the component. The duplicated CSS
+  deletes from each surface stylesheet; the drift gates' register pins
+  (context-column, hover-press-register) now read the register's fleet
+  home and assert the surviving deviations; palette/search test selectors
+  follow the markup. The barrel exports ListRow; fleet index stays the
+  shell's component source. Verified: full web suite 2275/2275 (own run);
+  `tsc --noEmit` clean; capture of the Trash hub (migrated rows: leading
+  icon, 14px/600 primary, trailing stamp + actions).
+
 - **fix(web): the fleet audit's actionable findings land — a11y trio,
   hover/pressed drift batch, register hygiene (fleet audit 2026-10-26).**
   The two-agent sweep of every fleet component vs the skill templates

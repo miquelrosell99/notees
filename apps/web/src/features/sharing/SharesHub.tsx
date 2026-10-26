@@ -27,6 +27,7 @@ import { relativeTime } from "../page-sections/ActivityLogSection.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import { InlineConfirmButton } from "../../components/ui/fleet/InlineConfirmButton.js";
+import { ListRow } from "../../components/ui/fleet/index.js";
 import { Spinner } from "../../components/ui/fleet/Spinner.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import { copyToClipboard } from "../modals/clipboard.js";
@@ -121,51 +122,61 @@ export function SharesHub({
                 ? (nodeIcon(node, client.effectiveClassIcons()) ?? "mdi-file-outline")
                 : "mdi-share-variant";
             return (
-              <li key={entry.token} className="nt-shares-hub__row">
-                <span className="nt-shares-hub__icon" aria-hidden="true">
-                  <Icon path={icon} size={0.9} />
-                </span>
-                <button
-                  type="button"
-                  className="nt-shares-hub__name"
-                  title={node !== undefined ? name : `${name} (${entry.nodeId})`}
-                  onClick={() => onOpenNode(entry.nodeId)}
-                >
-                  {name}
-                </button>
-                <span className="nt-shares-hub__meta">
-                  <code className="nt-shares-hub__url">{shareUrl(serverUrl, entry)}</code>
-                  <span className="nt-shares-hub__stamp">
-                    Created {relativeTime(new Date(entry.createdAt).toISOString())}
-                    {entry.expiresAt !== null && (
-                      <> · Expires {relativeTime(new Date(entry.expiresAt).toISOString())}</>
-                    )}
+              <ListRow
+                key={entry.token}
+                className="nt-shares-hub__row"
+                leading={
+                  <span aria-hidden="true">
+                    <Icon path={icon} size={0.9} />
                   </span>
-                </span>
-                <span className="nt-shares-hub__actions">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon="mdi mdi-content-copy"
-                    onClick={() => void handleCopy(entry)}
-                  >
-                    {copiedToken === entry.token ? "Copied" : "Copy"}
-                  </Button>
-                  <Button variant="ghost" size="sm" icon="mdi mdi-open-in-app" onClick={() => onOpenNode(entry.nodeId)}>
-                    Open
-                  </Button>
-                  <InlineConfirmButton
-                    variant="danger"
-                    size="sm"
-                    title="Revoke this link"
-                    confirmTitle="Revoke now — anyone holding the link loses access immediately"
-                    cancelTitle="Keep the link"
-                    onConfirm={() => handleRevoke(entry.token)}
-                  >
-                    Revoke
-                  </InlineConfirmButton>
-                </span>
-              </li>
+                }
+                primary={
+                  <>
+                    <button
+                      type="button"
+                      className="nt-shares-hub__name"
+                      title={node !== undefined ? name : `${name} (${entry.nodeId})`}
+                      onClick={() => onOpenNode(entry.nodeId)}
+                    >
+                      {name}
+                    </button>
+                    <span className="nt-shares-hub__meta">
+                      <code className="nt-shares-hub__url">{shareUrl(serverUrl, entry)}</code>
+                      <span className="nt-shares-hub__stamp">
+                        Created {relativeTime(new Date(entry.createdAt).toISOString())}
+                        {entry.expiresAt !== null && (
+                          <> · Expires {relativeTime(new Date(entry.expiresAt).toISOString())}</>
+                        )}
+                      </span>
+                    </span>
+                  </>
+                }
+                trailing={
+                  <span className="nt-shares-hub__actions">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon="mdi mdi-content-copy"
+                      onClick={() => void handleCopy(entry)}
+                    >
+                      {copiedToken === entry.token ? "Copied" : "Copy"}
+                    </Button>
+                    <Button variant="ghost" size="sm" icon="mdi mdi-open-in-app" onClick={() => onOpenNode(entry.nodeId)}>
+                      Open
+                    </Button>
+                    <InlineConfirmButton
+                      variant="danger"
+                      size="sm"
+                      title="Revoke this link"
+                      confirmTitle="Revoke now — anyone holding the link loses access immediately"
+                      cancelTitle="Keep the link"
+                      onConfirm={() => handleRevoke(entry.token)}
+                    >
+                      Revoke
+                    </InlineConfirmButton>
+                  </span>
+                }
+              />
             );
           })}
             </ul>

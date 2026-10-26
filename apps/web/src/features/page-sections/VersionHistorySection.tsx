@@ -25,6 +25,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { OperationFeedEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Button } from "../../components/ui/fleet/Button.js";
+import { ListRow } from "../../components/ui/fleet/index.js";
 import { Spinner } from "../../components/ui/fleet/Spinner.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
@@ -178,36 +179,38 @@ export function VersionHistorySection({ client, nodeId }: VersionHistorySectionP
               const open = openSeqs.has(entry.seq);
               return (
                 <li key={entry.seq} className="version-history__row">
-                  <div className="version-history__line">
-                    {snapshot !== null ? (
-                      <button
-                        type="button"
-                        className="version-history__preview-toggle"
-                        aria-expanded={open}
-                        aria-label={`${describeHistoryEntry(entry, schemaNameOf(entry.payload.propertySchemaId))} — ${open ? "hide" : "show"} snapshot`}
-                        onClick={() => togglePreview(entry.seq)}
-                      >
-                        <Icon
-                          path="mdi-chevron-right"
-                          size={0.8}
-                          className={open ? "version-history__chevron version-history__chevron--open" : "version-history__chevron"}
-                        />
-                        <span className="version-history__event">
+                  <ListRow
+                    className="version-history__line"
+                    primary={
+                      snapshot !== null ? (
+                        <button
+                          type="button"
+                          className="version-history__preview-toggle"
+                          aria-expanded={open}
+                          aria-label={`${describeHistoryEntry(entry, schemaNameOf(entry.payload.propertySchemaId))} — ${open ? "hide" : "show"} snapshot`}
+                          onClick={() => togglePreview(entry.seq)}
+                        >
+                          <Icon
+                            path="mdi-chevron-right"
+                            size={0.8}
+                            className={open ? "version-history__chevron version-history__chevron--open" : "version-history__chevron"}
+                          />
+                          <span className="version-history__event">
+                            {describeHistoryEntry(entry, schemaNameOf(entry.payload.propertySchemaId))}
+                          </span>
+                        </button>
+                      ) : (
+                        <span className="version-history__event version-history__event--plain">
                           {describeHistoryEntry(entry, schemaNameOf(entry.payload.propertySchemaId))}
                         </span>
-                      </button>
-                    ) : (
-                      <span className="version-history__event version-history__event--plain">
-                        {describeHistoryEntry(entry, schemaNameOf(entry.payload.propertySchemaId))}
+                      )
+                    }
+                    trailing={
+                      <span title={new Date(entry.hlc.physical).toLocaleString()}>
+                        {relativeTime(entry.timestamp)}
                       </span>
-                    )}
-                    <span
-                      className="version-history__stamp"
-                      title={new Date(entry.hlc.physical).toLocaleString()}
-                    >
-                      {relativeTime(entry.timestamp)}
-                    </span>
-                  </div>
+                    }
+                  />
                   {snapshot !== null && open && (
                     <div className="version-history__snapshot">
                       <p className="version-history__snapshot-text">

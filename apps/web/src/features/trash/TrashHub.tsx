@@ -28,6 +28,7 @@ import { relativeTime } from "../page-sections/ActivityLogSection.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
+import { ListRow } from "../../components/ui/fleet/index.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import "./TrashHub.css";
 
@@ -85,40 +86,43 @@ export function TrashHub({
           {entries.map((entry) => {
             const name = titleOfNode(entry.node) || "Untitled";
             return (
-              <li key={entry.node.id} className="nt-trash-hub__row">
-                <span className="nt-trash-hub__icon" aria-hidden="true">
-                  <Icon path={nodeIcon(entry.node, client.effectiveClassIcons()) ?? "mdi-file-outline"} size={0.9} />
-                </span>
-                <span className="nt-trash-hub__name" title={name}>
-                  {name}
-                </span>
-                <span
-                  className="nt-trash-hub__stamp"
-                  title={new Date(entry.deletedAt).toLocaleString()}
-                >
-                  {relativeTime(entry.deletedAt)}
-                </span>
-                <span className="nt-trash-hub__actions">
-                  <button
-                    type="button"
-                    className="nt-trash-hub__action"
-                    onClick={() => {
-                      void client.restoreObject(entry.node.id).then(() => onOpenNode(entry.node.id));
-                    }}
-                  >
-                    <Icon path="mdi-restore" size={0.85} />
-                    Restore
-                  </button>
-                  <button
-                    type="button"
-                    className="nt-trash-hub__action nt-trash-hub__action--danger"
-                    onClick={() => setPermanentTarget(entry)}
-                  >
-                    <Icon path="mdi-delete-forever-outline" size={0.85} />
-                    Delete permanently
-                  </button>
-                </span>
-              </li>
+              <ListRow
+                key={entry.node.id}
+                className="nt-trash-hub__row"
+                leading={
+                  <span aria-hidden="true">
+                    <Icon path={nodeIcon(entry.node, client.effectiveClassIcons()) ?? "mdi-file-outline"} size={0.9} />
+                  </span>
+                }
+                primary={<span title={name}>{name}</span>}
+                trailing={
+                  <>
+                    <span title={new Date(entry.deletedAt).toLocaleString()}>
+                      {relativeTime(entry.deletedAt)}
+                    </span>
+                    <span className="nt-trash-hub__actions">
+                      <button
+                        type="button"
+                        className="nt-trash-hub__action"
+                        onClick={() => {
+                          void client.restoreObject(entry.node.id).then(() => onOpenNode(entry.node.id));
+                        }}
+                      >
+                        <Icon path="mdi-restore" size={0.85} />
+                        Restore
+                      </button>
+                      <button
+                        type="button"
+                        className="nt-trash-hub__action nt-trash-hub__action--danger"
+                        onClick={() => setPermanentTarget(entry)}
+                      >
+                        <Icon path="mdi-delete-forever-outline" size={0.85} />
+                        Delete permanently
+                      </button>
+                    </span>
+                  </>
+                }
+              />
             );
           })}
             </ul>
