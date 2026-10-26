@@ -189,6 +189,41 @@ predating this file.
   289 + web suites incl. the rewritten `query-node` suite at 15 tests, the
   retargeted guard suite, and the de-scoped REST stubs); docs pass
   (queries/views/feature-status/architecture in the same slice).
+
+- **feat(web): the Import Workspace modal — the v1 import register ported to
+  v2 plus the new Logseq DB source (owner-approved spec
+  2026-10-26).** The command palette's "Import…" row (`mdiTrayArrowDown`)
+  opens a module-level-request host (`requestImport()`, the AddSourceHost
+  idiom) rendering the unified hub: workspace-name field with the
+  client-side taken check (listWorkspaces, case-insensitive), the five
+  sources in v1 order (Notees Dump / Markdown / Markdown file / Logseq
+  folder / Logseq DB), per-source disabled logic, Enter-to-submit, a
+  progress overlay (spinner + phase label; the Logseq DB run rides the new
+  fleet `Progress` bar), and per-source report phases with collapsible
+  failure/warning lists. Source flows (`apps/web/src/features/import/`):
+  **Notees Dump** — the `.json`/zip export validates (dump.json at the zip
+  root, path traversal refused), rebuilds client-side into a derived-store
+  image (schemas/classes/nodes/values replayed as op envelopes over a fresh
+  sql.js store), and installs into a new envelope-empty workspace via
+  `PUT /snapshot/data?mode=import` (asset bytes are counted, not restored —
+  documented); **Markdown** — new workspace + the v1 plain-text page/block
+  writes through a side HTTP client, per-page failures reported; **Markdown
+  file** — the v1 `/import/markdown` grammar (frontmatter → title precedence
+  → uuid conflict modes block/return_existing → classes by uuid/name → body
+  as ONE child block → properties matched by name with typed coercion,
+  warnings never fatal); **Logseq folder** — the v1 client-side importer
+  1:1 (folder walk, pageMap + wiki-link stubs, mention/asset tokens,
+  journals under the date chain, re-runs duplicate by design); **Logseq
+  DB** — the transit-kvs decode runs in-browser, a dry-run preview is the
+  default, and the uuid reconcile is Notees-wins fill-missing-only with the
+  owner-validated property table, preserved-uuid creates, two-pass refs,
+  and views/system/assets counted as skipped. Shared write helpers +
+  bounded-concurrency scheduler in `import-writes.ts`. Verification:
+  `apps/web` vitest `import-options-modal` (8), `markdown-file-flow` (7),
+  `logseq-folder-flow` (7), `import-logseq-db-flow` (6) — 38 green across
+  the five import specs including the `import-table-modal` analog — and
+  `tsc --noEmit` clean; docs: [features/import.md](features/import.md).
+  No op types, no wire/model/seed changes — fixture gate not triggered.
 - **feat(web): the button register becomes a borderless weight ladder
  (the bordered-neutral detour retires with the
   bordered-danger one).** `default`, `outline` (and the active-toggle
