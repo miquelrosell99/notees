@@ -103,6 +103,66 @@ predating this file.
   caret. Verified by a new regression test that reproduces the worker ordering
   (deferred notification + stale read cache) — red before, green after;
   `outliner-editor.test.tsx` 35/35, full gate green.
+- **fix(scripts): the parent-order RESEQUENCING migration — `migrate-resequence-parent-order.mts` — plus the
+  repair-script dedupe/resume fixes; live Notas log repaired (60
+  resequenced + 1 stripped + 29 quarantined, gate green).** The earlier
+  slice (`migrate-repair-parent-order.mts`, landed fbe489da2) established
+  that an embedded block can only receive a block parent AT BIRTH — the
+  strip+move repair provably cannot replay for the 60 Notas offenders (the
+  treat-as-main-on-first-parenting move guard). This slice repairs ORDER
+  instead of payloads: the minimal window covering every out-of-order
+  create + its ancestor chain up to the entry roots, a stable topological
+  sort inside it, and a seq PERMUTATION strictly inside the window range —
+  outside seqs, payloads, ids, HLCs untouched, so below-window snapshot
+  split points stay exact. Offenders whose converged parent is parentless
+  get a strip-only rewrite; converged mismatches block. **Rehearsal
+  discovery — the conformance quarantine:** the tolerant hydration masked
+  29 MORE never-applicable envelopes (8 standalone-guard + 4
+  treat-as-main-guard moves, 2 demote-while-standalone-children updates,
+  13 property.set invalid-uuid/dead-ref payloads, 2 class.setExtends lock
+  breaches — all order-independent, verified identical pre/post reseq); the
+  quarantine diagnoses the post-reseq tail and DELETES them
+  (repair-log-conformance V3's precedent generalized — a thrown envelope is
+  atomic and the derived authority proves it applied nowhere). Verify =
+  strict scratch-replay with ZERO StoreError throws (the pre-ingest gate),
+  zero-offender re-scan, and a parent/embedding authority gate over every
+  offender child + quarantine-touched node against the frozen derived DB
+  (strip-only children gate parent only — their derived embedding is a
+  tolerated-skip artifact). Also in this slice, the landed repair script's
+  incident fixes: repairs dedupe by childId (the racing import left two
+  out-of-order creates for one test-workspace day node — duplicate
+  deterministic move ids made ingest save 111/113 and the run died before
+  the epoch/verify tail; first occurrence carries the move, duplicates are
+  stripped only), and a zero-repair run over a workspace carrying prior
+  repair moves RESUMES the tail stages (snapshot probe, epoch-if-zero,
+  verify) instead of short-circuiting. Rehearsed end-to-end against a /tmp
+  copy of the live relay (throw set 104 → 29 across the reseq, authority gate
+  green on the copy) before touching the live dir. **Live execution**
+  (2026-10-26, data dir the fleet stack's data dir):
+  backup `relay.db.bak-20261026-214047`; window [1021730..1034454] — 12725
+  envelopes permuted (12724 moved), 60 candidates + 1 strip-only, 29
+  quarantined, `restore_epoch` 18 → 19; the script's gate green (strict
+  replay zero throws, 61/61 children under their converged parents, 90
+  authority-touched nodes matching the frozen derived DB, zero offenders).
+  Post-start: `notees object get 67ceae53-cd61-4150-a130-9cdfb3b2114c` shows
+  `parentId 67d1a76c-fdcf-499e-a4e8-ca3f6d8923c7` with `isEmbedded: true`
+  (the birth embedding preserved — the point of resequencing); all 61
+  children's parents match the pre-stop authority capture via the live API;
+  `verify-min.mjs` VERIFY-PASS (the web client's epoch-forced resync is the
+  slow path — boot+settle 369 s, footer clean, search hit, no console
+  errors). The test workspace completed its repair through the
+  quarantine arm: 121 never-applicable envelopes deleted (110 of them the
+  incident run's dead repair moves — their day nodes were later deleted by
+  the log's own ops; 11 property.set scope/ref violations), 134
+  authority-touched nodes match, epoch 11 → 12, gate green. Verified: `pnpm
+  typecheck` + `pnpm test` green in the slice worktree; e2e at
+  `apps/server/test/migrate-resequence-parent-order.test.ts` (racing batch:
+  dry-run window print + writes-nothing; apply: payloads byte-identical,
+  strict replay converges with embedding preserved, stale in-window snapshot
+  backed up + dropped, epoch bumped, idempotent; plus the quarantine-only
+  workspace case) and the repair-script suite (+2: the duplicate-create
+  single-move incident, the crashed-run resume). No app-image changes — the
+  stack rehydrates from the repaired log.
 - **feat(server): audio extension fallback on asset upload + a workspace
   asset index route.** Uploads that fail magic-byte sniffing (jpeg/png/webp/
   pdf/epub/audio) now get a second chance from the filename's extension:
