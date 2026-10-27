@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-27
 
+- **feat(store): FTS mention resolution cascades through link-bearing titles
+  (schema v33).** Searching a node name already surfaced every node that
+  LINKS to it — except across a block→block→page chain: document-chrome
+  nodes fold mentions into plain text at create (so block→page resolved),
+  but an EMBEDDED block keeps its rich mention token, and the index-time
+  resolution stopped at one level — the outer block indexed "…de la
+  tratamiento de la" and never matched the page's name. The resolver now
+  recurses with a path guard (the `getDisplayName` seam's semantics: a
+  diamond's second mention still resolves; a true cycle folds to nothing),
+  so the node picker, the command palette, and every other `store.search`
+  surface find a node at any depth of a link chain. Existing rows heal via
+  the v32→v33 migration — the same drop-and-rebuild-the-FTS-index shape as
+  the v19 folding migration (module-match guard included), running on every
+  derived DB (relay + clients) at next open. `SCHEMA.md`'s FTS spec updated
+  (the 2026-10-26 one-level stop is superseded). Also completes the
+  anchored-pick sm-pill slice the tree carried half of: the ui-primitives
+  pin for the picker's `search-field--sm` was committed without its CSS
+  half — the `.node-selector__picker .node-selector__search-field.
+  search-field--sm { padding-left: 0 }` rule now rides NodeSelector.css
+  (the pill takes its padding from the panel margin; the field's own
+  inline padding would double-indent the placeholder). Verified: new store
+  pins (the block→block→page chain matches the page name at every level; a
+  mention cycle folds without hanging) — store 780/780, server 310/310,
+  web 2339/2339, full repo typecheck green.
+
 - **fix(web,server): flattened name surfaces resolve bare node links, and the
   page-header icon anchors to the title's first row.** A block whose content
   carries a mention renders its chip fine in the editor (the live resolver),

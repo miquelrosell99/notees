@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 32;
+export const SCHEMA_VERSION = 33;
 
 /**
  * The render-path list-reads index: composite for the
@@ -1396,6 +1396,34 @@ export function migrate(
     const classColumnsV32 = db.prepare("PRAGMA table_info(class)").all() as { name: string }[];
     if (!classColumnsV32.some((c) => c.name === "parentless_role")) {
       db.exec("ALTER TABLE class ADD COLUMN parentless_role TEXT;");
+    }
+  }
+  // v32 -> v33 (2026-10-27 — cascading mention resolution in the FTS
+  // plaintext): the index-time mention resolution now cascades through
+  // link-bearing titles (block→block→page chains resolve the page name at
+  // every level; before v33 it stopped at one level). The extraction
+  // changed, so every pre-v33 row is stale for those chains: the index is
+  // dropped and rebuilt from the derived plaintext, the same shape as the
+  // v19 folding migration — including the module-match guard (a
+  // cross-backend parked table is the repair path's job).
+  if (current < 33) {
+    const existingV33 = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'search_index'")
+      .get() as { sql: string | null } | undefined;
+    const existingSqlV33 = existingV33?.sql?.toLowerCase() ?? null;
+    const existingModuleV33: FtsModule =
+      existingSqlV33 === null ? ftsModule : existingSqlV33.includes("using fts5") ? "fts5" : "fts4";
+    if (existingV33 !== undefined && existingModuleV33 === ftsModule) {
+      try {
+        db.exec("DROP TABLE IF EXISTS search_index");
+        db.exec(SEARCH_INDEX_DDL(ftsModule));
+        reindexAllSearch(db);
+      } catch {
+        // The module named in sqlite_master is not loadable on this
+        // connection (a synthetic cross-backend restore): the
+        // queryability repair path rebuilds with the local module, and
+        // reindexNode resolves at insert — nothing to do here.
+      }
     }
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

@@ -2220,6 +2220,75 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(store.search("unrelated")).toEqual([{ nodeId: quantum }]);
     });
 
+    it("indexes a bare mention's target name, cascading through link-bearing titles", () => {
+      const store = baseStore();
+      const page = "0192a000-0000-7000-8000-0000000000d1";
+      const middle = "0192a000-0000-7000-8000-0000000000d2";
+      const leaf = "0192a000-0000-7000-8000-0000000000d3";
+      store.apply(
+        env("object.create", { objectId: page, contentAst: [{ type: "text", text: "periimplantitis" }] }, 1727200002000),
+      );
+      // The middle EMBEDDED block keeps the rich stream (its mention token is
+      // not folded text) — the chain block→block→page is the cascade case.
+      store.apply(
+        env(
+          "object.create",
+          {
+            objectId: middle,
+            parentId: page,
+            contentAst: [{ type: "text", text: "tratamiento de la " }, { type: "mention", targetNodeId: page }],
+          },
+          1727200003000,
+        ),
+      );
+      store.apply(
+        env(
+          "object.create",
+          {
+            objectId: leaf,
+            parentId: page,
+            contentAst: [{ type: "text", text: "cuidados de la " }, { type: "mention", targetNodeId: middle }],
+          },
+          1727200004000,
+        ),
+      );
+      // Every level of the chain matches the page's name — the leaf block
+      // resolves middle's title, which resolves the page's (pre-cascade the
+      // leaf row stopped at "tratamiento de la" and never matched).
+      expect(store.search("periimplantitis").map((h) => h.nodeId).sort()).toEqual(
+        [leaf, middle, page].sort(),
+      );
+    });
+
+    it("a mention cycle folds to nothing at the loop point instead of hanging", () => {
+      const store = baseStore();
+      const a = "0192a000-0000-7000-8000-0000000000d1";
+      const b = "0192a000-0000-7000-8000-0000000000d2";
+      store.apply(
+        env("object.create", { objectId: a, contentAst: [{ type: "text", text: "alpha omega" }] }, 1727200002000),
+      );
+      store.apply(
+        env(
+          "object.create",
+          { objectId: b, parentId: a, contentAst: [{ type: "mention", targetNodeId: a }] },
+          1727200003000,
+        ),
+      );
+      // Close the cycle: a now mentions b. The index resolves either side
+      // through one level and folds at the loop.
+      store.apply(
+        env(
+          "object.update",
+          {
+            objectId: a,
+            contentAst: [{ type: "text", text: "alpha omega" }, { type: "mention", targetNodeId: b }],
+          },
+          1727200004000,
+        ),
+      );
+      expect(store.search("omega").map((h) => h.nodeId).sort()).toEqual([a, b].sort());
+    });
+
     it("indexes a name-only page and reindexes on rename (name LWW)", () => {
       const store = baseStore();
       const id = "0192a000-0000-7000-8000-0000000000d1";

@@ -3,8 +3,11 @@
  * extended per SCHEMA.md's owed FTS spec): text runs, typed-link text,
  * math expressions and recursive quote children come from the domain
  * excerpt helper; a mention contributes its customLabel or its TARGET's
- * current display name (resolved here from the derived node row — one
- * level, SCHEMA.md FTS spec 2026-10-26); asset original names are joined
+ * current display name (resolved here from the derived node row —
+ * cascading through link-bearing titles with a path guard, so a
+ * block→block→page chain resolves the page name at every level and a
+ * mention cycle folds to nothing at the loop point, SCHEMA.md FTS spec
+ * 2026-10-27); asset original names are joined
  * from node_asset; text-ish property values are appended from
  * property_value — a carrier block's content for node-backed text, scalar
  * strings as-is, select option labels, numbers in string form. Plaintext is
@@ -39,19 +42,29 @@ const mentionTargetStmtCache = new WeakMap<object, SqliteStatement>();
 function contentPlaintext(db: StoreDatabase, raw: string | null | undefined): string {
   const ast = parseContentAst(raw);
   // A bare mention indexes its target's CURRENT display name (the no-stored-
-  // link-text ruling): resolved from the derived node row at index time — the
-  // target's own mentions do not cascade (one level). The FTS row is a
-  // projection: a rename heals on the target's next content write or a
-  // reindexAllSearch pass.
+  // link-text ruling): resolved from the derived node row at index time,
+  // CASCADING through link-bearing titles (block→block→page chains resolve
+  // the page name at every level) with a PATH guard — a diamond's second
+  // mention still resolves; a true cycle folds to nothing at the loop
+  // point. The FTS row is a projection: a rename heals on the target's next
+  // content write or a reindexAllSearch pass (the v33 migration rides one).
   let mentionLookup = mentionTargetStmtCache.get(db);
   if (mentionLookup === undefined) {
     mentionLookup = db.prepare("SELECT content FROM node WHERE id = ?");
     mentionTargetStmtCache.set(db, mentionLookup);
   }
+  const path = new Set<string>();
   const resolveMentionName = (targetId: string): string | null => {
+    if (path.has(targetId)) return null; // mention cycle: fold, never hang
     const row = mentionLookup!.get(targetId) as { content: string } | undefined;
     if (row === undefined) return null;
-    const name = deriveDisplayName({ id: targetId, contentAst: parseContentAst(row.content) });
+    path.add(targetId);
+    const name = deriveDisplayName(
+      { id: targetId, contentAst: parseContentAst(row.content) },
+      undefined,
+      resolveMentionName,
+    );
+    path.delete(targetId);
     return name === "" ? null : name;
   };
   const parts: string[] = [plainTextExcerpt(ast, undefined, resolveMentionName)];
