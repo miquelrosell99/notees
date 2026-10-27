@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-27
 
+- **feat(server): the operator API key signs in — account-discovery reads
+  accept it, so machines and the web client's API-key tab no longer need an
+  account email.** The account plane was user-bound (session or per-user
+  key) with no route from the operator key — the deployment owner, whose
+  data-plane access is already unrestricted, could not even ask where to
+  sync. Two routes gain a `requireUserOrOperator` guard: `GET /api/auth/me`
+  answers the operator key as a synthetic owner identity (`{id: "operator",
+  email: "operator", isAdmin: true}`) and `GET /api/workspaces` returns the
+  whole directory — every workspace row plus any id present only in the
+  relay log (imported/migrated workspaces), each tagged `role: "operator"`
+  (new `AuthStore.listAllWorkspaces`). Everything mutating stays user-bound
+  with the 401 the prefs tests already pin (profile, prefs, key minting,
+  workspace create/rename). This is what unlocks the headless post-deploy
+  smoke without the admin email: `verify-min.mjs` now treats
+  `NOTEES_ADMIN_EMAIL` as optional — set, it logs in and seeds a session
+  token as before; unset, it seeds `notees.apiKey` (the operator key) and
+  the app's resume effect validates it and auto-connects the remembered
+  workspace. OpenAPI route summaries, `docs/api.md` (new "Operator key on
+  the account plane" paragraph), and `docs/getting-started.md`'s boot
+  section (the Account | API key tabs) updated in the same pass. No
+  auth/me accepts the operator key — a deliberate ruling change, and one
+  existing test that pinned the old 401 was repointed at session-only logout.
+  Verified: `pnpm typecheck` + `pnpm test` green (all packages; server auth
+  suite 37 tests incl. 4 new operator cases).
+
 - **fix(web): the Pages hub's "New page" header button retires — one
   canonical plain-page entry point.** The hub surface's top bar no longer
   carries its own New-page button: plain-page creation already lives in the
