@@ -72,12 +72,16 @@ const TASK_PRIORITY_OPTION_IDS: Record<(typeof TASK_PRIORITY_OPTIONS)[number], s
 };
 
 /** The six schemas in authoring order (binding rows carry no order — the
- * task panel renders alphabetically by property name). */
+ * task panel renders in pin tiers, alphabetical by property name within each
+ * tier; `pinned` is a classification, never a stored order). */
 const TASK_FAMILY: Array<{
   id: string;
   name: string;
   type: "select" | "datetime";
   options?: () => Array<{ id: string; label: string; icon?: string; color?: string }>;
+  /** The binding row's tier flag (TASK_FAMILY_SEED.pinned); wiring only —
+   *  no task property pins anything yet. */
+  pinned?: boolean;
 }> = [
   {
     id: SYSTEM_PROPERTY_UUIDS.taskStatus,
@@ -180,7 +184,9 @@ export async function ensureTaskFamily(client: TaskFamilyClient): Promise<void> 
     );
     for (const spec of TASK_FAMILY) {
       if (bound.has(spec.id)) continue;
-      await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, spec.id, {});
+      await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, spec.id, {
+        ...(spec.pinned !== undefined ? { pinned: spec.pinned } : {}),
+      });
     }
   }
   // Upgrade pass: restyle the status options with the designed

@@ -240,6 +240,9 @@ export interface ClassBinding {
   numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
   /** The soft-unbind flag (false = the binding stops contributing). */
   active: boolean;
+  /** The binary tier flag (true = the property renders in the pinned
+   *  first tier of class property lists — alphabetical within each tier). */
+  pinned: boolean;
 }
 
 /**
@@ -248,9 +251,10 @@ export interface ClassBinding {
  * getRegistryBindings read. Title-is-content: the schema ROW is the naming
  * authority (renames and user edits ride it); only a missing row falls back
  * to a synthesized label at the call site. The binding carries the genuinely
- * PER-CLASS mechanic ONLY — the active soft-unbind flag (`required` retired outright, `defaultValue` moved to the
- * schema, `sequence` retired outright — class panels render alphabetically
- * by property name).
+ * PER-CLASS mechanics ONLY — the active soft-unbind flag and the pinned
+ * tier flag (`required` retired outright, `defaultValue` moved to the
+ * schema, `sequence` retired outright — class panels render in pin tiers,
+ * alphabetical by property name within each tier).
  */
 export function mapClassBindingRow(row: Record<string, unknown>): ClassBinding {
   const parsePrecision = (raw: unknown): DatePrecision | null =>
@@ -283,6 +287,7 @@ export function mapClassBindingRow(row: Record<string, unknown>): ClassBinding {
         ? null
         : (row.number_rounding as "round" | "floor" | "ceil" | "truncate"),
     active: row.binding_active === 0 ? false : true,
+    pinned: row.binding_pinned === 1,
   };
 }
 
@@ -304,13 +309,14 @@ export interface ClientValidationRules {
 
 /**
  * Editable fields of a class.property.set write (all optional — patch).
- * `active` is the only field left: the binding is a presence row + the
- * soft-unbind flag (`required` retired,
- * `defaultValue` moved to the schema, `sequence` retired: class panels
- * render alphabetically by property name).
+ * `active` is the soft-unbind flag; `pinned` the binary tier flag (pinned
+ * properties render first, alphabetical within each tier — a
+ * classification, never a stored order: `sequence` retired, class panels
+ * sort in pin tiers).
  */
 export interface SetClassPropertyInput {
   active?: boolean;
+  pinned?: boolean;
 }
 
 /** A select/multi_select option (color + icon, both optional). */

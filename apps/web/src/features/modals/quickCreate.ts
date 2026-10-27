@@ -325,6 +325,7 @@ export function stagedBindingsOf(client: AnyClient, classId: string): StagedProp
         datePrecision: null,
         dateQualified: null,
         active: true,
+        pinned: spec.pinned ?? false,
       });
     }
   }
@@ -367,6 +368,7 @@ export function stagedPrefillRowsOf(
         datePrecision: null,
         dateQualified: null,
         active: true,
+        pinned: spec?.pinned ?? false,
       },
       schema,
     });

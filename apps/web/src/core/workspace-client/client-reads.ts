@@ -330,9 +330,10 @@ export class WorkspaceClientReads {
   }
 
   /**
-   * The class's property bindings in ALPHABETICAL order (by property name —
-   * binding `sequence` retired, class panels are a
-   * pure alphabetical list). Registry rows (`class_property` joined to
+   * The class's property bindings in PIN-TIER order (pinned first, then
+   * unpinned — alphabetical by property name within each tier; a stored
+   * order stays unconfigurable, binding `sequence` retired). Registry rows
+   * (`class_property` joined to
    * `property_schema`, authored by class.property.set) win; the designed
    * system seeds (@notees/domain, keyed by the class's stored name) fill the
    * schemas the registry does not bind yet — so a seeded class keeps its
@@ -354,7 +355,8 @@ export class WorkspaceClientReads {
     const rows = this.ctx.store.database
       .prepare(
         `SELECT cp.property_schema_id,
-                cp.active AS binding_active, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
+                cp.active AS binding_active, cp.pinned AS binding_pinned,
+                ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
          LEFT JOIN property_schema ps ON ps.id = cp.property_schema_id
@@ -371,7 +373,11 @@ export class WorkspaceClientReads {
     });
     const bindings: ClassBinding[] = dedupedRows.map((row) => mapClassBindingRow(row));
     const bound = new Set(bindings.map((b) => b.propertySchemaId));
-    const byName = (a: ClassBinding, b: ClassBinding) => a.name.localeCompare(b.name);
+    // The two-tier presentation order: pinned first, alphabetical within
+    // each tier (the re-sort is authoritative — the SQL ORDER BY is a
+    // pre-dedup convenience only).
+    const byTierThenName = (a: ClassBinding, b: ClassBinding): number =>
+      (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || a.name.localeCompare(b.name);
     // Seed-spec fallback: a system class whose binding rows were never
     // authored still exposes its spec's schemas (read-synthesized — the
     // PG14 seed-spec lookup). Keyed on the RESERVED SYSTEM ID, not the
@@ -413,14 +419,16 @@ export class WorkspaceClientReads {
         datePrecision: null,
         dateQualified: null,
         active: true,
+        pinned: spec.pinned ?? false,
       });
     }
-    return bindings.sort(byName);
+    return bindings.sort(byTierThenName);
   }
 
   /**
    * The class's OWN registry rows (class_property ⋈ property_schema),
-   * ALPHABETICAL by property name (binding
+   * PIN-TIER order (pinned first, alphabetical by property name within each
+   * tier — binding
    * `sequence` retired) — no extends inheritance, no seed-spec fallback
    * synthesis. This is the honest existence read for write-path self-heals
    * (deploySystemClass's binding step): getClassBindings read-synthesizes
@@ -439,12 +447,13 @@ export class WorkspaceClientReads {
     const rows = this.ctx.store.database
       .prepare(
         `SELECT cp.property_schema_id,
-                cp.active AS binding_active, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
+                cp.active AS binding_active, cp.pinned AS binding_pinned,
+                ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
          LEFT JOIN property_schema ps ON ps.id = cp.property_schema_id
          WHERE cp.class_id = ?
-         ORDER BY ps.name, cp.property_schema_id`,
+         ORDER BY cp.pinned DESC, ps.name, cp.property_schema_id`,
       )
       .all(classId) as Array<Record<string, unknown>>;
     return rows.map((row) => mapClassBindingRow(row));

@@ -41,6 +41,7 @@ import {
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
   SYSTEM_SOURCE_CLASS_BINDINGS,
+  sourceBindingPropertyOf,
   type SystemClassName,
   type SystemPropertyName,
 } from "@notees/domain";
@@ -139,7 +140,8 @@ export async function deploySystemClass(
   }
 
   // Generic family: the manifest's specs bound to this class (binding rows
-  // carry no order — sequence retired 2026-10-21). The existence check reads
+  // carry no order — a pin is a classification, never an order;
+  // sequence retired 2026-10-21). The existence check reads
   // the REGISTRY only (getRegistryBindings):
   // getClassBindings read-synthesizes the seed-spec fallback rows, so a
   // workspace whose binding rows were never authored would LOOK bound
@@ -194,7 +196,9 @@ export async function deploySystemClass(
       // binding row on `bindTo` (the source pool's type-specific fields bind
       // on their own classes via SYSTEM_SOURCE_CLASS_BINDINGS below).
       if (bound.has(schemaId) || spec!.bind === false) continue;
-      await client.setClassProperty(classId, schemaId, {});
+      await client.setClassProperty(classId, schemaId, {
+        ...(spec!.pinned !== undefined ? { pinned: spec!.pinned } : {}),
+      });
     }
   }
 
@@ -210,7 +214,9 @@ export async function deploySystemClass(
       .getRegistryBindings(classId)
       .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[extra.property]);
     if (bound) continue;
-    await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[extra.property], {});
+    await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[extra.property], {
+      ...(extra.pinned !== undefined ? { pinned: extra.pinned } : {}),
+    });
   }
 
   // The source library's per-class rows (SYSTEM_SOURCE_CLASS_BINDINGS): the class's Zotero field list re-bound on the class itself
@@ -220,12 +226,16 @@ export async function deploySystemClass(
   // base row for this class's class-local row.
   const sourceBindings = SYSTEM_SOURCE_CLASS_BINDINGS[key];
   if (sourceBindings !== undefined) {
-    for (const property of sourceBindings) {
+    for (const ref of sourceBindings) {
+      const property = sourceBindingPropertyOf(ref);
+      const pinned = typeof ref === "string" ? undefined : ref.pinned;
       const bound = client
         .getRegistryBindings(classId)
         .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[property]);
       if (bound) continue;
-      await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[property], {});
+      await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[property], {
+        ...(pinned !== undefined ? { pinned } : {}),
+      });
     }
   }
 

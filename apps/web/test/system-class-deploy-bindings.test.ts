@@ -34,6 +34,7 @@ import {
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
   SYSTEM_SOURCE_CLASS_BINDINGS,
+  sourceBindingPropertyOf,
 } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
@@ -252,7 +253,9 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
     // source library's web_page entry (SYSTEM_SOURCE_CLASS_BINDINGS).
     const expected = [
       SYSTEM_PROPERTY_UUIDS.url,
-      ...SYSTEM_SOURCE_CLASS_BINDINGS.web_page!.map((property) => SYSTEM_PROPERTY_UUIDS[property]),
+      ...SYSTEM_SOURCE_CLASS_BINDINGS.web_page!.map(
+        (property) => SYSTEM_PROPERTY_UUIDS[sourceBindingPropertyOf(property)],
+      ),
     ].sort();
     expect(
       client.getRegistryBindings(SYSTEM_CLASS_UUIDS.web_page).map((b) => b.propertySchemaId).sort(),
@@ -309,7 +312,7 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
     // pool schemas ride the source base (inherited bindings are not own
     // rows, so they never satisfy this registry-only read).
     const expected = SYSTEM_SOURCE_CLASS_BINDINGS.book_section!.map(
-      (property) => SYSTEM_PROPERTY_UUIDS[property],
+      (property) => SYSTEM_PROPERTY_UUIDS[sourceBindingPropertyOf(property)],
     ).sort();
     const registry = client
       .getRegistryBindings(SYSTEM_CLASS_UUIDS.book_section)

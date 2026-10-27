@@ -30,6 +30,7 @@ import {
   SYSTEM_PROPERTY_UUIDS,
   SYSTEM_SOURCE_CLASS_BINDINGS,
   deriveDisplayName,
+  sourceBindingPropertyOf,
   type SystemClassName,
 } from "@notees/domain";
 import type { QueryAst } from "@notees/query";
@@ -400,8 +401,9 @@ function projectRow(
   //, the node's value for it ("" when unset; the class may
   // bind no container field at all — artwork, email, …).
   const bindings = SYSTEM_SOURCE_CLASS_BINDINGS[classKey];
+  const boundNames = bindings?.map(sourceBindingPropertyOf);
   const venueKey = VENUE_CANDIDATES.find(
-    (candidate) => bindings !== undefined && bindings.includes(candidate),
+    (candidate) => boundNames !== undefined && boundNames.includes(candidate),
   );
   const venue = venueKey !== undefined ? (textLiterals(rows, SYSTEM_PROPERTY_UUIDS[venueKey])[0] ?? "") : "";
 

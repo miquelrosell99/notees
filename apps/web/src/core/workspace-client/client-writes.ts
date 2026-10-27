@@ -399,8 +399,8 @@ export class WorkspaceClientWrites {
   /**
    * Upsert a class → property-schema binding (class.property.set). The
    * payload PATCHES the row: omitted fields keep their existing values. The
-   * binding carries the genuinely per-class mechanic ONLY — the active
-   * soft-unbind flag.
+   * binding carries the genuinely per-class mechanics ONLY — the active
+   * soft-unbind flag and the pinned tier flag.
    */
   async setClassProperty(
     classId: string,
@@ -409,6 +409,7 @@ export class WorkspaceClientWrites {
   ): Promise<void> {
     const payload: Record<string, unknown> = { classId, propertySchemaId };
     if (fields.active !== undefined) payload.active = fields.active;
+    if (fields.pinned !== undefined) payload.pinned = fields.pinned;
     this.ctx.enqueueLocal(this.ctx.buildEnvelope("class.property.set", payload, [classId]));
   }
 

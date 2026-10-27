@@ -42,17 +42,27 @@
 }
 
 /* The hover-revealed right-side affordances (no row tint, no
-   grip): the COG (definition settings) + the REMOVE × (the STANDARD fleet
-   ghost icon buttons; the classes are reveal hooks only). */
+   grip): the PIN toggle (the tier membership), the COG (definition
+   settings) + the REMOVE × (the STANDARD fleet
+   ghost icon buttons; the classes are reveal hooks only). A PINNED row
+   shows its filled pin AT REST — the tier membership reads without
+   hovering (the pin is state, not chrome). */
+.nt-propdef-pin,
 .nt-propdef-cog,
 .nt-propdef-remove {
   opacity: 0;
 }
 
+.nt-propdef-row:hover .nt-propdef-pin,
 .nt-propdef-row:hover .nt-propdef-cog,
 .nt-propdef-row:hover .nt-propdef-remove,
+.nt-propdef-pin:focus-visible,
 .nt-propdef-cog:focus-visible,
 .nt-propdef-remove:focus-visible {
+  opacity: 1;
+}
+
+.nt-propdef-pin--pinned {
   opacity: 1;
 }
 
