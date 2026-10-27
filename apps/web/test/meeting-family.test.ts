@@ -195,9 +195,16 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     const bindings = client.getClassBindings(MEETING_CLASS_ID);
     // The meeting family rides the seed-spec fallback (read-synthesized at
     // the reserved ids — the ensure's bound-check sees them and authors no
-    // duplicate rows). The list is ALPHABETICAL by property name.
+    // duplicate rows). The list renders in PIN TIERS — pinned first,
+    // alphabetical by property name within each tier (the 2026-10-27 seed
+    // pin declaration: meetingDate/location pinned, agenda unpinned).
+    const byTierThenName = (
+      a: (typeof MEETING_FAMILY)[number],
+      b: (typeof MEETING_FAMILY)[number],
+    ): number =>
+      (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || a.name.localeCompare(b.name);
     expect(bindings.map((binding) => binding.propertySchemaId)).toEqual(
-      [...MEETING_FAMILY].sort((a, b) => a.name.localeCompare(b.name)).map((spec) => spec.id),
+      [...MEETING_FAMILY].sort(byTierThenName).map((spec) => spec.id),
     );
     expect(client.getClassParents(MEETING_CLASS_ID)).toContain(EVENT_CLASS_ID);
 

@@ -756,9 +756,12 @@ export interface SystemPropertySpec {
    * the binding row's binary TIER flag (additive
    * 2026-10-27): pinned properties render FIRST in class property lists
    * (alphabetical within each tier) — a classification, never a stored
-   * order. Wiring only: NO seed pins anything yet (the field exists so a
-   * pin set can be declared here later, threading through the server seed
-   * and the web self-heal automatically).
+   * order. DECLARED 2026-10-27 (the seed pin sets slice): the source base
+   * family (authors/citekey/doi/linkedAuthors/publicationDate/url), the
+   * meeting family's meetingDate/location, and the task family's
+   * taskStatus/taskScheduled/taskDeadline (TASK_FAMILY_SEED) — everything
+   * else seeds unpinned. Live workspaces converge by
+   * scripts/migrate-seed-pins.mts.
    */
   pinned?: boolean;
   targetClassFilter?: SystemClassName[];
@@ -780,10 +783,10 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // (…0006-…0001). Live values migrate via scripts/migrate-authors-to-text.mts
   // (slice 1 task 8); the UUID …0012 is unchanged and the object filter is
   // superseded (a text schema takes no targetClassFilter).
-  authors: { type: "text", multi: true, bindTo: "source" },
+  authors: { type: "text", multi: true, bindTo: "source", pinned: true },
   isbn: { type: "text", bindTo: "source" },
-  doi: { type: "text", bindTo: "source" },
-  publicationDate: { type: "datetime", bindTo: "source" },
+  doi: { type: "text", bindTo: "source", pinned: true },
+  publicationDate: { type: "datetime", bindTo: "source", pinned: true },
   publisher: { type: "text", bindTo: "source" },
   role: {
     type: "select",
@@ -802,15 +805,17 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   highlightAsset: { type: "object", bindTo: "highlight", targetClassFilter: ["asset"] },
   givenName: { type: "text", bindTo: "person" },
   familyName: { type: "text", bindTo: "person" },
-  citekey: { type: "text", bindTo: "source", defaultValue: "" },
+  citekey: { type: "text", bindTo: "source", defaultValue: "", pinned: true },
   // url is a DEFAULT PROPERTY of the source family (a
   // source of any kind carries a link), not web_page-only — bindTo moves to
   // `source` with web_page re-bound class-locally via
   // SYSTEM_EXTRA_CLASS_BINDINGS (the birthday→eventDate shape). The SCHEMA
   // stays GLOBAL per the 2026-10-20 seed-scope audit — a url is generically
   // reusable (the binding row lands on source either way; bindings are
-  // per-class config, zero availability semantics).
-  url: { type: "url", bindTo: "source", global: true },
+  // per-class config, zero availability semantics). The source base row is
+  // PINNED (the seed pin sets slice); web_page's own extra row below stays
+  // unpinned.
+  url: { type: "url", bindTo: "source", global: true, pinned: true },
   // D1: templates are ordinary nodes of the seeded `template` class;
   // a class binds its templates by authored values on the class node itself.
   // M47 (2026-10-07): the relation hosts on NO class — global scope, no
@@ -832,9 +837,10 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // the meeting family. meetingDate
   // is the family's date binding (quick-create eligibility rides the event
   // root's eventDate too — meeting extends event); location and agenda are
-  // plain text per the section's family list.
-  meetingDate: { type: "datetime", bindTo: "meeting" },
-  location: { type: "text", bindTo: "meeting" },
+  // plain text per the section's family list. meetingDate + location are
+  // PINNED (the seed pin sets slice); agenda stays unpinned.
+  meetingDate: { type: "datetime", bindTo: "meeting", pinned: true },
+  location: { type: "text", bindTo: "meeting", pinned: true },
   agenda: { type: "text", bindTo: "meeting" },
   // Event-family reshape: the event family's minimal shape — one date binding.
   eventDate: { type: "datetime", bindTo: "event" },
@@ -857,7 +863,9 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // the …0000- block above) — every type-specific field carries `bind: false`:
   // NO class_property row on source, so a source node renders ONLY the base
   // plus its own class's SYSTEM_SOURCE_CLASS_BINDINGS rows (bindings are
-  // visibility, scope is eligibility). All plain single-value text unless
+  // visibility, scope is eligibility). The seed pin sets slice (2026-10-27)
+  // pins linkedAuthors alongside the pinned …0000- base fields; editors and
+  // every type-specific row stay unpinned. All plain single-value text unless
   // noted otherwise; accessDate is datetime (day precision is the schema
   // default). The case-type orphans have no pool slot (see the UUID block
   // comment) and already-seeded fields (isbn/doi/publicationDate/publisher/
@@ -866,7 +874,7 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // the node-typed authorship experiment returns as its own property, now
   // coexisting with the free-text `authors` (retyped the same day). The
   // withdrawn …0025 UUID stays burned, never reused.
-  linkedAuthors: { type: "object", multi: true, bindTo: "source", targetClassFilter: ["agent"] },
+  linkedAuthors: { type: "object", multi: true, bindTo: "source", targetClassFilter: ["agent"], pinned: true },
   editors: { type: "text", multi: true, bindTo: "source" },
   abstract: { type: "text", bindTo: "source", bind: false },
   accessDate: { type: "datetime", bindTo: "source", bind: false },
@@ -1115,7 +1123,9 @@ export function systemPropertyDisplayName(name: SystemPropertyName): string {
 export const SYSTEM_EXTRA_CLASS_BINDINGS: {
   property: SystemPropertyName;
   bindTo: SystemClassName;
-  /** The binding row's tier flag (see SystemPropertySpec.pinned); wiring only. */
+  /** The binding row's tier flag (see SystemPropertySpec.pinned). No extra
+   * row pins anything: the url→web_page + eventDate→birthday rows stay
+   * unpinned (only the source base's url row carries the pin). */
   pinned?: boolean;
 }[] = [
   { property: "eventDate", bindTo: "birthday" },
@@ -1181,8 +1191,10 @@ export const TASK_PRIORITY_OPTION_UUIDS = {
  * block" behavior); the rest stay in the properties panel. Binding rows
  * carry NO order: class panels render in pin tiers, alphabetical by
  * property name within each tier (`sequence` retired from the binding;
- * `pinned` is a classification, never an order — wiring only, no seed pins
- * anything yet).
+ * `pinned` is a classification, never an order). DECLARED 2026-10-27 (the
+ * seed pin sets slice): taskStatus/taskScheduled/taskDeadline seed their
+ * binding rows PINNED; taskPriority/taskClosedDate/taskRecurrence stay
+ * unpinned. Live workspaces converge by scripts/migrate-seed-pins.mts.
  *
  * the SIX SCHEMAS seed at
  * GLOBAL scope (scopeClassIds absent — Status "can be reused for other
@@ -1196,7 +1208,7 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
   type: "select" | "datetime";
   options?: ReadonlyArray<{ id: string; label: string; icon?: string; color?: string }>;
   display?: "panel" | "bullet" | "inline";
-  /** The binding row's tier flag (see SystemPropertySpec.pinned); wiring only. */
+  /** The binding row's tier flag (see SystemPropertySpec.pinned). */
   pinned?: boolean;
 }> = [
   {
@@ -1212,9 +1224,10 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
       { id: TASK_STATUS_OPTION_UUIDS.cancelled, label: "Cancelled", icon: "mdiCloseCircle", color: "red" },
     ],
     display: "bullet",
+    pinned: true,
   },
-  { property: "taskScheduled", name: "Scheduled", type: "datetime" },
-  { property: "taskDeadline", name: "Deadline", type: "datetime" },
+  { property: "taskScheduled", name: "Scheduled", type: "datetime", pinned: true },
+  { property: "taskDeadline", name: "Deadline", type: "datetime", pinned: true },
   {
     property: "taskPriority",
     name: "Priority",

@@ -261,7 +261,7 @@ describe("Class View", () => {
     expect(within(classedNodesSection).queryByText("No classed nodes.")).toBeNull();
   });
 
-  it("renders the seeded property definitions in alphabetical order", async () => {
+  it("renders the seeded property definitions in pin tiers (alphabetical within each tier)", async () => {
     const client = await seedClient();
     // The reserved system id makes the class a SYSTEM class: the seed-spec
     // fallback synthesizes the source family (read-side, id-keyed) with the
@@ -277,20 +277,29 @@ describe("Class View", () => {
     const names = [...container.querySelectorAll(".nt-propdef-name")].map(
       (el) => el.textContent,
     );
-    // PURE ALPHABETICAL by property name (binding
+    // PIN TIERS, alphabetical by property name within each tier (binding
     // sequence retired; the seeded class panel has no configurable order).
+    // The 2026-10-27 seed pin declaration pins the six base heads (authors/
+    // citekey/doi/linked authors/publication date/URL), so the pinned tier
+    // leads and the unpinned rest follows.
     // The source family panel shows ONLY the shared base: the bibliographic pool's type-specific fields are
     // `bind: false` — scoped to source but no binding row on the base — so
     // derive the expectation from the seed manifest filtering them out; the
     // test pins ORDER, not the family set.
-    const expectedNames = (
+    const baseEntries = (
       Object.entries(SYSTEM_PROPERTY_SPECS) as Array<
         [keyof typeof SYSTEM_PROPERTY_DISPLAY_NAMES, (typeof SYSTEM_PROPERTY_SPECS)[keyof typeof SYSTEM_PROPERTY_SPECS]]
       >
-    )
-      .filter(([, spec]) => spec?.bindTo === "source" && spec.bind !== false)
-      .map(([name]) => SYSTEM_PROPERTY_DISPLAY_NAMES[name])
-      .sort((a, b) => a.localeCompare(b));
+    ).filter(([, spec]) => spec?.bindTo === "source" && spec.bind !== false);
+    const byTierThenName = (
+      a: (typeof baseEntries)[number],
+      b: (typeof baseEntries)[number],
+    ): number =>
+      (b[1]?.pinned ? 1 : 0) - (a[1]?.pinned ? 1 : 0) ||
+      SYSTEM_PROPERTY_DISPLAY_NAMES[a[0]].localeCompare(SYSTEM_PROPERTY_DISPLAY_NAMES[b[0]]);
+    const expectedNames = baseEntries
+      .sort(byTierThenName)
+      .map(([name]) => SYSTEM_PROPERTY_DISPLAY_NAMES[name]);
     expect(names).toEqual(expectedNames);
 
     const rows = [...container.querySelectorAll(".nt-propdef")];

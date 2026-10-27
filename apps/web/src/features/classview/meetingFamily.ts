@@ -123,11 +123,19 @@ export const BIRTHDAY_FAMILY: ReadonlyArray<{
  * retired 2026-10-21; the array order is authoring order only). Schema names
  * ride SYSTEM_PROPERTY_DISPLAY_NAMES (normal wording), so an offline-first
  * workspace that self-heals converges name-for-name with a server-seeded
- * one (the system-names pass, 2026-10-05).
+ * one (the system-names pass, 2026-10-05). The pinned set mirrors the seed
+ * specs (2026-10-27): meetingDate/location pinned, agenda unpinned — the
+ * flag rides NEW binding rows only; the ensures stay existence-only (an
+ * existing row, pinned or not, is never re-patched).
  */
-export const MEETING_FAMILY: ReadonlyArray<{ id: string; name: string; type: "datetime" | "text" }> = [
-  { id: SYSTEM_PROPERTY_UUIDS.meetingDate, name: SYSTEM_PROPERTY_DISPLAY_NAMES.meetingDate, type: "datetime" },
-  { id: SYSTEM_PROPERTY_UUIDS.location, name: SYSTEM_PROPERTY_DISPLAY_NAMES.location, type: "text" },
+export const MEETING_FAMILY: ReadonlyArray<{
+  id: string;
+  name: string;
+  type: "datetime" | "text";
+  pinned?: boolean;
+}> = [
+  { id: SYSTEM_PROPERTY_UUIDS.meetingDate, name: SYSTEM_PROPERTY_DISPLAY_NAMES.meetingDate, type: "datetime", pinned: true },
+  { id: SYSTEM_PROPERTY_UUIDS.location, name: SYSTEM_PROPERTY_DISPLAY_NAMES.location, type: "text", pinned: true },
   { id: SYSTEM_PROPERTY_UUIDS.agenda, name: SYSTEM_PROPERTY_DISPLAY_NAMES.agenda, type: "text" },
 ];
 
@@ -170,6 +178,7 @@ async function ensureFamilySchemas(
     name: string;
     type: "datetime" | "text" | "object";
     targetClassFilter?: string[];
+    pinned?: boolean;
   }>,
 ): Promise<void> {
   const have = new Set((await surface.listPropertySchemas()).map((schema) => schema.id));
@@ -191,7 +200,11 @@ async function ensureFamilySchemas(
   );
   for (const spec of family) {
     if (bound.has(spec.id)) continue;
-    await surface.setClassProperty(classId, spec.id, {});
+    // Existence-only: the pin flag rides a NEW row only — an existing row
+    // (user-unpinned included) is never re-patched.
+    await surface.setClassProperty(classId, spec.id, {
+      ...(spec.pinned !== undefined ? { pinned: spec.pinned } : {}),
+    });
   }
 }
 
