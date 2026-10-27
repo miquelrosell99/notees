@@ -116,6 +116,7 @@ export class SyncEngine {
   private lastError: Error | null = null;
   /** HLC of the last snapshot this session uploaded; avoids re-uploading. */
   private uploadedSnapshotHlc: Hlc | null = null;
+  private snapshotQuarantineReported = false;
   /**
    * The oversize-upload report latch: the relay answers an over-cap
    * snapshot PUT with 413, and unlike transient failures that never heals by
@@ -404,6 +405,23 @@ export class SyncEngine {
   private async maybeUploadSnapshot(meta: SnapshotMeta, skip: boolean): Promise<void> {
     const upload = this.transport.uploadSnapshot?.bind(this.transport);
     if (!upload || skip) return;
+    // A store that skipped ops (a non-empty quarantine table) must not become
+    // the bootstrap source for other devices: the divergence would ride into
+    // every fresh client's restore, and ops referencing the skipped state
+    // would then fail on those clients in turn (the 2026-10-27 poisoned-
+    // snapshot lineage). The full replay converges honestly; the server-side
+    // snapshot covers restore meanwhile.
+    if (this.store.quarantinedEnvelopes().length > 0) {
+      if (!this.snapshotQuarantineReported) {
+        this.snapshotQuarantineReported = true;
+        console.error(
+          "[sync] snapshot upload skipped: the local projection carries quarantined " +
+            "envelopes — uploading would spread the divergence. Wipe the local store to " +
+            "rehydrate cleanly; the upload resumes once the quarantine table is empty.",
+        );
+      }
+      return;
+    }
     const newerThanServer = !meta.hasSnapshot || compareHlc(this.receivedHlc, meta.hlc) > 0;
     const newerThanUploaded =
       this.uploadedSnapshotHlc === null || compareHlc(this.receivedHlc, this.uploadedSnapshotHlc) > 0;
@@ -430,6 +448,7 @@ export class SyncEngine {
       await upload(bytes, this.receivedHlc);
       this.uploadedSnapshotHlc = this.receivedHlc;
       this.snapshotOversizeReported = false;
+      this.snapshotQuarantineReported = false;
     } catch (error) {
       // Best-effort: a failed upload must not fail sync. The ONE failure
       // that never heals by retrying — the relay's body cap (413 Request
@@ -468,7 +487,7 @@ export class SyncEngine {
         ? [...envelopes].sort((a, b) => (seqs[a.id] ?? 0) - (seqs[b.id] ?? 0))
         : envelopes;
 
-    const summaries = this.store.applyMany(ordered, { quarantineMoveGuards: true });
+    const summaries = this.store.applyMany(ordered, { quarantinePoisonOps: true });
     // summaries pair 1:1 with `ordered` (one entry per envelope, ignored
     // included): the structural check reads the envelope (op type + payload
     // — presentAsMain rides object.update), the affected ids read the

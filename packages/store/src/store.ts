@@ -38,7 +38,7 @@ import {
   searchSnippet,
   type SearchSnippet,
 } from "./search.js";
-import { MoveGuardError } from "./errors.js";
+import { MoveGuardError, NotFoundError } from "./errors.js";
 import {
   ALIAS_SOURCE_INDEX_DDL,
   CHILD_ORDER_CHILD_INDEX_DDL,
@@ -192,18 +192,22 @@ export class Store {
 
   /**
    * Apply envelopes in one transaction; already-applied ids are skipped.
-   * With `quarantineMoveGuards` (the REMOTE replay path used by the sync
-   * engine) an op failing the move guard is quarantined — recorded in
+   * With `quarantinePoisonOps` (the REMOTE replay path used by the sync
+   * engine) a historical poison op is quarantined — recorded in
    * `quarantined_envelope`, marked processed so the cursor advances — so one
-   * poison op in the log history (e.g. a pre-Revision-11 class-parenting
-   * move) never bricks every fresh replay. The default (local authoring,
-   * tests) stays fail-loud; validation errors always throw.
+   * poison op in the log history never bricks every fresh replay. Poison
+   * covers two classes: ops failing the move guard from an older model era
+   * (e.g. the pre-Revision-11 class-parenting move) and ops whose target node
+   * is missing from the applying store (NotFoundError — e.g. a merge batch
+   * authored against a snapshot-skipped history, 2026-10-27). The default
+   * (local authoring, tests) stays fail-loud; data-quality failures
+   * (PropertyValueShapeError et al.) always throw.
    */
   applyMany(
     inputs: unknown[],
-    options: { quarantineMoveGuards?: boolean } = {},
+    options: { quarantinePoisonOps?: boolean } = {},
   ): ChangeSummary[] {
-    const quarantineGuards = options.quarantineMoveGuards === true;
+    const quarantine = options.quarantinePoisonOps === true;
     const envelopes = inputs.map((input) => validateEnvelope(input));
     const run = this.db.transaction(() => {
       const summaries: ChangeSummary[] = [];
@@ -218,12 +222,13 @@ export class Store {
           this.advanceCursor(env.workspaceId, seq);
           summaries.push(summary);
         } catch (err) {
-          // Quarantine is for HISTORICAL GUARD violations only (ops the log
-          // carries from an older model era — e.g. the pre-Revision-11
-          // class-parenting move — which every fresh replay must survive).
-          // Validation errors (PropertyValueShapeError et al.) still throw:
-          // data-quality failures must stay loud.
-          if (!(err instanceof MoveGuardError) || !quarantineGuards) throw err;
+          // Quarantine is for HISTORICAL POISON only — ops the log carries
+          // that no derived store can faithfully apply: pre-Revision-11
+          // class-parenting moves and ops referencing a node the store never
+          // received. Data-quality failures (PropertyValueShapeError et al.)
+          // still throw: they must stay loud.
+          const poison = err instanceof MoveGuardError || err instanceof NotFoundError;
+          if (!quarantine || !poison) throw err;
           const message = err instanceof Error ? err.message : String(err);
           this.quarantineEnvelope(env, message);
           const seq = this.recordEnvelope(env.id, env.timestamp);

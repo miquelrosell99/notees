@@ -95,7 +95,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         poison,
         goodB,
       ],
-      { quarantineMoveGuards: true },
+      { quarantinePoisonOps: true },
     );
 
     // Both good ops landed; the poison is quarantined, not applied.
@@ -127,6 +127,65 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         env("object.move", { objectId: NODE_CLASS, parentId: NODE_PARENT }, 1727200000100),
       ),
     ).toThrow(/cannot have a parent/);
+    expect(store.quarantinedEnvelopes()).toHaveLength(0);
+  });
+
+  it("quarantines a remote op whose target node is missing (the 2026-10-27 poison shape)", () => {
+    const store = Store.open(makeBackend());
+    const goodA = env("object.create", { objectId: NODE_PARENT, classIds: [] }, 1727200000000);
+    // The live-log poison shape: a class.unassign + object.delete merge pair
+    // authored against a node the applying store never got (a snapshot-
+    // skipped history) — NotFoundError, not a move guard.
+    const poisonUnassign = env(
+      "class.unassign",
+      { objectId: NODE_BLOCK, classId: NODE_CLASS },
+      1727200000100,
+    );
+    const poisonDelete = env(
+      "object.delete",
+      { objectId: NODE_BLOCK, permanent: false },
+      1727200000150,
+    );
+    const goodB = env(
+      "object.create",
+      { objectId: NODE_BLOCK, classIds: [] },
+      1727200000200,
+    );
+
+    store.applyMany(
+      [
+        env("class.create", { classId: NODE_CLASS, contentAst: [{ type: "text", text: "c" }] }, 1727199999900),
+        goodA,
+        poisonUnassign,
+        poisonDelete,
+        goodB,
+      ],
+      { quarantinePoisonOps: true },
+    );
+
+    // The good ops around the poisons landed; the poisons are quarantined.
+    expect(store.getNode(NODE_BLOCK)).not.toBeUndefined();
+    const quarantined = store.quarantinedEnvelopes();
+    expect(quarantined).toHaveLength(2);
+    expect(quarantined.map((q) => q.opType).sort()).toEqual(["class.unassign", "object.delete"]);
+    expect(quarantined.every((q) => q.error.includes("does not exist"))).toBe(true);
+
+    // Re-applying the poisons is a no-op (the ids are processed).
+    const again = store.applyMany([poisonUnassign, poisonDelete]);
+    expect(again.every((s) => s.ignored)).toBe(true);
+    expect(store.quarantinedEnvelopes()).toHaveLength(2);
+  });
+
+  it("local apply() of a missing-node op still throws (fail-loud law)", () => {
+    const store = Store.open(makeBackend());
+    store.apply(
+      env("class.create", { classId: NODE_CLASS, contentAst: [{ type: "text", text: "c" }] }, 1727199999900),
+    );
+    expect(() =>
+      store.apply(
+        env("class.unassign", { objectId: NODE_BLOCK, classId: NODE_CLASS }, 1727200000100),
+      ),
+    ).toThrow(/does not exist/);
     expect(store.quarantinedEnvelopes()).toHaveLength(0);
   });
 });
