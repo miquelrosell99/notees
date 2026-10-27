@@ -118,8 +118,8 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
     // the pinned tier flag (a classification, never a stored order;
     // sequence retired 2026-10-21: effective-properties derives boundBy
     // from rows; panels sort in pin tiers; the default rides the schema).
-    // No seed pins anything yet — the field threads through for a future
-    // declared pin set.
+    // The spec's pinned flag rides verbatim — the seed pin sets slice
+    // (2026-10-27) declared the pinned roster in the domain manifests.
     const classId = SYSTEM_CLASS_UUIDS[spec.bindTo];
     envelopes.push(
       factory.make({

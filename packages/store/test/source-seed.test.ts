@@ -33,6 +33,7 @@ import {
   SYSTEM_CLASS_DISPLAY_NAMES,
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_UUIDS,
+  SYSTEM_EXTRA_CLASS_BINDINGS,
   SYSTEM_PROPERTY_DISPLAY_NAMES,
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
@@ -161,7 +162,28 @@ function sourceSeedEnvelopes(): Envelope[] {
     envelopes.push(
       env(
         "class.property.set",
-        { classId: SYSTEM_CLASS_UUIDS.source, propertySchemaId: SYSTEM_PROPERTY_UUIDS[name] },
+        {
+          classId: SYSTEM_CLASS_UUIDS.source,
+          propertySchemaId: SYSTEM_PROPERTY_UUIDS[name],
+          ...(spec!.pinned !== undefined ? { pinned: spec!.pinned } : {}),
+        },
+        step(),
+      ),
+    );
+  }
+  // The extra binding rows (SYSTEM_EXTRA_CLASS_BINDINGS) — the url→web_page
+  // row is the load-bearing one: web_page exists in this fixture, birthday
+  // does not (its eventDate row rides other tests).
+  for (const extra of SYSTEM_EXTRA_CLASS_BINDINGS) {
+    if (extra.bindTo !== "web_page") continue;
+    envelopes.push(
+      env(
+        "class.property.set",
+        {
+          classId: SYSTEM_CLASS_UUIDS[extra.bindTo],
+          propertySchemaId: SYSTEM_PROPERTY_UUIDS[extra.property],
+          ...(extra.pinned !== undefined ? { pinned: extra.pinned } : {}),
+        },
         step(),
       ),
     );
@@ -310,13 +332,60 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       }
       for (const [name, properties] of Object.entries(SYSTEM_SOURCE_CLASS_BINDINGS)) {
         const own = (byClass.get(SYSTEM_CLASS_UUIDS[name as SystemClassName]) ?? []).sort();
-        const expected = properties.map((p) => SYSTEM_PROPERTY_UUIDS[sourceBindingPropertyOf(p)]).sort();
-        expect(own).toEqual(expected);
+        const expected = properties.map((p) => SYSTEM_PROPERTY_UUIDS[sourceBindingPropertyOf(p)]);
+        // web_page carries its class-local url row on top of its Zotero list
+        // (SYSTEM_EXTRA_CLASS_BINDINGS — own-first naming; unpinned).
+        if (name === "web_page") expected.push(SYSTEM_PROPERTY_UUIDS.url);
+        expect(own).toEqual(expected.sort());
       }
       // The base's own rows ride too — the shared base only: authors/linkedAuthors/editors/doi/isbn/publicationDate/
       // publisher/citekey/url/attachments, the `bind: false` pool excluded.
       const sourceRows = byClass.get(SYSTEM_CLASS_UUIDS.source) ?? [];
       expect(sourceRows.length).toBeGreaterThan(0);
+    });
+
+    it("seed pin sets land on the right binding rows — and ONLY those (2026-10-27 declaration)", () => {
+      const store = makeStore();
+      seedStore(store);
+      const pinnedOf = (className: SystemClassName, property: SystemPropertyName): number =>
+        (
+          store.database
+            .prepare(
+              "SELECT pinned FROM class_property WHERE class_id = ? AND property_schema_id = ?",
+            )
+            .get(SYSTEM_CLASS_UUIDS[className], SYSTEM_PROPERTY_UUIDS[property]) as
+            | { pinned: number }
+            | undefined
+        )?.pinned ?? -1;
+
+      // The source base's declared pin set: authors/citekey/doi/
+      // linkedAuthors/publicationDate/url ride pinned…
+      for (const property of [
+        "authors",
+        "citekey",
+        "doi",
+        "linkedAuthors",
+        "publicationDate",
+        "url",
+      ] as SystemPropertyName[]) {
+        expect(pinnedOf("source", property), `source → ${property}`).toBe(1);
+      }
+      // …and the rest of the base family stays unpinned.
+      for (const property of ["isbn", "publisher", "editors", "attachments"] as SystemPropertyName[]) {
+        expect(pinnedOf("source", property), `source → ${property}`).toBe(0);
+      }
+      // web_page's OWN url row (the extra binding) is unpinned — only the
+      // source base row carries the pin.
+      expect(pinnedOf("web_page", "url")).toBe(0);
+      // Every type-class source binding row stays unpinned.
+      for (const [name, properties] of Object.entries(SYSTEM_SOURCE_CLASS_BINDINGS)) {
+        for (const ref of properties) {
+          expect(
+            pinnedOf(name as SystemClassName, sourceBindingPropertyOf(ref)),
+            `${name} → ${sourceBindingPropertyOf(ref)}`,
+          ).toBe(0);
+        }
+      }
     });
 
     it("bind:false pool specs seed their schemas scoped [source] but NO class_property row on source; the base family still binds", () => {

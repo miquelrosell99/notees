@@ -109,6 +109,62 @@ describe("system seeds (ported)", () => {
     }
   });
 
+  it("seed pin sets (declared 2026-10-27): the exact pinned roster, positively and negatively", async () => {
+    const { TASK_FAMILY_SEED } = await import("../src/index.js");
+    // The DECLARED pin sets — pinned properties render FIRST in class
+    // property lists (alphabetical within each tier). The declaration must
+    // not silently drift: this test is the gate, and
+    // scripts/migrate-seed-pins.mts derives its target set from these same
+    // manifests.
+    const pinnedSpecs = new Set<SystemPropertyName>([
+      // The source base family (the SPECS-loop binding rows on `source`).
+      "authors",
+      "citekey",
+      "doi",
+      "linkedAuthors",
+      "publicationDate",
+      "url",
+      // The meeting family (meetingDate/location; agenda stays unpinned).
+      "meetingDate",
+      "location",
+    ]);
+    const pinnedTaskFamily = new Set<SystemPropertyName>([
+      "taskStatus",
+      "taskScheduled",
+      "taskDeadline",
+    ]);
+    // SPECS: exactly the declared set carries pinned — every other spec
+    // (isbn/publisher/editors/attachments, eventDate/birthdayPerson, agenda,
+    // the bind:false pool, …) stays unpinned.
+    const declared = new Set([...pinnedSpecs, ...pinnedTaskFamily]);
+    for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
+      if (spec === undefined || spec.bindTo === undefined || spec.bind === false) continue;
+      expect(
+        spec.pinned === true,
+        `spec ${name} pinned drift (declared: ${declared.has(name as SystemPropertyName)})`,
+      ).toBe(declared.has(name as SystemPropertyName));
+    }
+    // TASK_FAMILY_SEED: the three task heads pinned, the rest unpinned.
+    for (const entry of TASK_FAMILY_SEED) {
+      expect(
+        entry.pinned === true,
+        `task-family ${entry.property} pinned drift`,
+      ).toBe(pinnedTaskFamily.has(entry.property));
+    }
+    // The extra rows never pin (url→web_page + eventDate→birthday stay
+    // unpinned — only the source base's url row carries the pin).
+    for (const extra of SYSTEM_EXTRA_CLASS_BINDINGS) {
+      expect(extra.pinned).toBeUndefined();
+    }
+    // The 39 type-class source bindings never pin (bare names today — a ref
+    // shape exists for the flag; the declaration keeps every row unpinned).
+    for (const refs of Object.values(SYSTEM_SOURCE_CLASS_BINDINGS)) {
+      for (const ref of refs) {
+        expect(typeof ref === "string" || ref.pinned !== true).toBe(true);
+      }
+    }
+  });
+
   it("never reuses withdrawn ids (locator …0018; linkedAuthors …0025; cover class …0042; the `class` meta class …0001)", () => {
     const allIds = [
       ...Object.values(SYSTEM_CLASS_UUIDS),
@@ -287,10 +343,14 @@ describe("system seeds (ported)", () => {
     // (…0006-…0001 — new block, the burned …0025 stays burned). Live values
     // migrate via scripts/migrate-authors-to-text.mts (task 8).
     expect(SYSTEM_PROPERTY_UUIDS.authors).toBe("00000000-0000-0000-0000-000000000012");
+    // The seed pin sets slice (2026-10-27) pins the source base family:
+    // authors (and citekey/doi/publicationDate/url, asserted in the pin-set
+    // declaration test) ride `pinned: true`.
     expect(SYSTEM_PROPERTY_SPECS.authors).toEqual({
       type: "text",
       multi: true,
       bindTo: "source",
+      pinned: true,
     });
     expect(SYSTEM_PROPERTY_UUIDS.linkedAuthors).toBe("00000000-0000-0000-0006-000000000001");
     expect(SYSTEM_PROPERTY_SPECS.linkedAuthors).toEqual({
@@ -298,6 +358,7 @@ describe("system seeds (ported)", () => {
       multi: true,
       bindTo: "source",
       targetClassFilter: ["agent"],
+      pinned: true,
     });
   });
 
@@ -323,7 +384,7 @@ describe("system seeds (ported)", () => {
     const text = { type: "text", bindTo: "source", bind: false } as const;
     type PoolRow = readonly [key: string, uuidSuffix: string, spec: object, display: string];
     const pool: readonly PoolRow[] = [
-      ["linkedAuthors", "000000000001", { type: "object", multi: true, bindTo: "source", targetClassFilter: ["agent"] }, "Linked authors"],
+      ["linkedAuthors", "000000000001", { type: "object", multi: true, bindTo: "source", targetClassFilter: ["agent"], pinned: true }, "Linked authors"],
       ["editors", "000000000002", { type: "text", multi: true, bindTo: "source" }, "Editors"],
       ["abstract", "000000000003", text, "Abstract"],
       ["accessDate", "000000000004", { type: "datetime", bindTo: "source", bind: false }, "Accessed"],
@@ -536,8 +597,10 @@ describe("system seeds (ported)", () => {
     // Amended time-of-day law (2026-10-09): the date bindings are
     // datetime-typed — a value may carry a wall-clock time beside the
     // day-node anchor; full-day (no `time`) stays the default.
-    expect(SYSTEM_PROPERTY_SPECS.meetingDate).toEqual({ type: "datetime", bindTo: "meeting" });
-    expect(SYSTEM_PROPERTY_SPECS.location).toEqual({ type: "text", bindTo: "meeting" });
+    // Seed pin sets slice (2026-10-27): meetingDate/location pin, agenda stays
+    // unpinned (the full declared roster is gated by the pin-set test).
+    expect(SYSTEM_PROPERTY_SPECS.meetingDate).toEqual({ type: "datetime", bindTo: "meeting", pinned: true });
+    expect(SYSTEM_PROPERTY_SPECS.location).toEqual({ type: "text", bindTo: "meeting", pinned: true });
     expect(SYSTEM_PROPERTY_SPECS.agenda).toEqual({ type: "text", bindTo: "meeting" });
     expect(SYSTEM_PROPERTY_SPECS.eventDate).toEqual({ type: "datetime", bindTo: "event" });
   });

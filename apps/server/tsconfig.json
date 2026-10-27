@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "esModuleInterop": true,
-    "types": ["node"]
+    "types": ["node"],
+    // The migration-script suites import scripts/*.mts verbatim (the
+    // migrate-seed-pins plan functions; noEmit-only flag — the app build
+    // never emits through this config, the apps/web precedent).
+    "allowImportingTsExtensions": true
   },
   "include": ["src", "test"]
 }
