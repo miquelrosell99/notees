@@ -141,6 +141,38 @@ describe("SearchPage results", () => {
     expect(opened).toEqual([alpha]);
   });
 
+  it("a block row renders a bare mention's resolved target name (nested through a link-bearing title)", async () => {
+    const client = await seedClient();
+    const target = await client.createObject({
+      isEmbedded: false,
+      contentAst: [{ type: "text", text: "periimplantitis" }],
+    });
+    const middle = await client.createObject({
+      isEmbedded: false,
+      contentAst: [{ type: "text", text: "tratamiento de la " }, { type: "mention", targetNodeId: target }],
+    });
+    const notes = await client.createObject({
+      isEmbedded: false,
+      contentAst: [{ type: "text", text: "Notes" }],
+    });
+    await client.createObject({
+      isEmbedded: true,
+      parentId: notes,
+      contentAst: [
+        { type: "text", text: "intervenciones no quirurgicas de la " },
+        { type: "mention", targetNodeId: middle },
+      ],
+    });
+    renderSearchPage(client);
+    typeQuery("intervenciones");
+    expect(
+      await screen.findByText(
+        "intervenciones no quirurgicas de la tratamiento de la periimplantitis",
+        { selector: ".node-result-item__row .list-row__primary > span" },
+      ),
+    ).not.toBeNull();
+  });
+
   it("a query with no results renders the honest empty state", async () => {
     const { client } = await seedSearchWorld();
     renderSearchPage(client);

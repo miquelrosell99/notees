@@ -23,8 +23,13 @@ import type { AnyClient } from "./shared.js";
  * id directly). Seeded from node.classIds it is the node's class closure;
  * seeded from a single class id it is the class-context closure — both
  * eligibility walks below and the scope-remedy derivation share it.
+ * The client parameter is the structural minimum (getClassParents alone) so
+ * narrowed picker clients (NodeSelectorClient) call it without widening.
  */
-export function classClosureFrom(client: AnyClient, classIds: readonly string[]): Set<string> {
+export function classClosureFrom(
+  client: { getClassParents(classId: string): string[] },
+  classIds: readonly string[],
+): Set<string> {
   const closure = new Set<string>(classIds);
   const queue = [...classIds];
   while (queue.length > 0) {

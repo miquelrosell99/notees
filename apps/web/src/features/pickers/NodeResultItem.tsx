@@ -20,9 +20,14 @@ export interface NodeResultItemProps {
    * from THAT row — the pooled listings (listPages and friends) are
    * structure-classed cached reads, so a pooled node's own contentAst can
    * lag a rename. Pseudo-rows (`{ name }` only) render unchanged.
+   * `getDisplayName`, when present, powers the chrome flatten: bare mentions
+   * and class chips resolve their target's CURRENT name (the wire stores no
+   * link text — without it a mention contributes nothing to the flattened
+   * label).
    */
   client?: {
     getNode(id: string): ClientNode | undefined;
+    getDisplayName?(id: string): string | null;
   };
   /** Pre-computed ancestor breadcrumb string, e.g. "Root / Parent" */
   parentPath?: string;
@@ -52,13 +57,23 @@ export interface NodeResultItemProps {
  */
 function rowTitles(
   node: ClientNode | { name: string },
-  client: { getNode(id: string): ClientNode | undefined } | undefined,
+  client: { getNode(id: string): ClientNode | undefined; getDisplayName?(id: string): string | null } | undefined,
 ): { lineName: string; fullName: string } {
   if (!("id" in node)) return { lineName: node.name, fullName: node.name };
   const titleNode = client?.getNode(node.id) ?? node;
+  // The chrome flatten (the dense-row idiom — markdown spans reduced to
+  // their label, chips and mentions resolved to their CURRENT names): a
+  // bare mention stores no text of its own, so without the resolvers its
+  // label reads as a hole in the row ("…de la ?").
+  const resolve = client?.getDisplayName?.bind(client);
+  const chrome = {
+    flatten: "chrome",
+    resolveClassName: resolve,
+    resolveMentionName: resolve,
+  } as const;
   return {
-    lineName: titleOfNode(titleNode) || node.id,
-    fullName: titleOfNode(titleNode, { budget: "full" }) || node.id,
+    lineName: titleOfNode(titleNode, chrome) || node.id,
+    fullName: titleOfNode(titleNode, { ...chrome, budget: "full" }) || node.id,
   };
 }
 

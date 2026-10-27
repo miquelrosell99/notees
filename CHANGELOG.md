@@ -9,6 +9,47 @@ predating this file.
 
 ## 2026-10-27
 
+- **fix(web,server): flattened name surfaces resolve bare node links, and the
+  page-header icon anchors to the title's first row.** A block whose content
+  carries a mention renders its chip fine in the editor (the live resolver),
+  but every FLATTENED label derived the excerpt without mention resolvers —
+  the wire stores no link text, so the mention contributed nothing and the
+  label read "...de la ?". The shared picker row (`NodeResultItem` — search
+  results, every `NodeSelector` picker, the condensed-links popup) now rides
+  the "chrome" flatten with `getDisplayName` resolvers (line + tooltip); the
+  SearchPage crumbs/class pills/class filter and the CondensedLinksPopup
+  containing-page label take the same chrome flatten through the `titleOf`
+  client funnel. The machine API matches: `nodeToApi`'s name threads a
+  store-backed mention resolver (recursive, path-guarded — the web client's
+  `getDisplayName` seam mirrored), so `/api/objects*` and `/api/search` names
+  resolve a bare mention to the target's current title, nested through
+  link-bearing titles. Header icon: `.page-header__title-row` centered the
+  icon against the whole title block, so a wrapped title dragged it to the
+  block's middle — the row is `align-items: flex-start` now and
+  `.page-icon-btn` compensates with a negative margin computed from the
+  headline-medium line box (the token decomposes into
+  `--font-size-headline-medium` / `--line-height-headline-medium` so the math
+  consumes the same source); one title row reads exactly as the old
+  centering, extra rows no longer move the icon. Visual-verification runbook:
+  agent probes default to playwright-mcp (`mcp__playwright__*`, registered in
+  `~/.kimi-code/mcp.json`), new self-launching probes must use
+  `scripts/screenshots/probe-lib.mjs`, and `reap-orphan-chrome.mjs` (cron,
+  15-min cadence) reaps leaked probe browsers older than 30 min.
+  Verified: new regression pins (server: the API name for direct + nested
+  mentions across `/api/objects/:id` and `/api/search`; web: the search row
+  renders "…de la <resolved name>" for a link to a link-bearing title) —
+  server objects 27/27, web search-page 13/13 + picker suites 37/37;
+  geometry of the icon anchor A/B'd in a fixture screenshot before landing.
+  Also fixed two red-at-HEAD stragglers from earlier slices: the
+  `NodeSelector.tsx:978` tsc error (the extends-aware picker filter's
+  `classClosureFrom(client, …)` against the over-wide `AnyClient` — the
+  parameter now takes the structural minimum, `getClassParents` alone) and
+  the `app-smoke` outage test still asserting the retired backend-down banner
+  (8cddbebac replaced it with badge-only degradation + the risk-gated
+  `BackendDownLock` — the test now pins the badge's `Sync: error` state and
+  the lock's absence inside the grace window; App.tsx's stale banner comment
+  updated).
+
 - **feat(sync): snapshot uploads have a pre-flight body guard — a projection
   at or over the limit is skipped, not transferred (completed and shipped in
   the 2026-10-27 web redeploy).** A fresh device full-catch-ups the whole log
