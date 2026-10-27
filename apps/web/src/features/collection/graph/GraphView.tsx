@@ -4,7 +4,7 @@
  * force-directed in a worker (or on a fixed radial layout), drawn by the
  * PixiJS renderer with a Canvas 2D label overlay and a minimap.
  *
- * Owner rulings baked in: blocks NEVER render as nodes (they surface only as
+ * Rules baked in: blocks NEVER render as nodes (they surface only as
  * edge evidence); the journal chain is in the topology but filtered off by
  * default (per-level: year/month/day); the semantic (co-occurrence) and
  * temporal (same-day) families render weighted, sparsified, and toggleable
