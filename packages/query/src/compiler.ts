@@ -127,10 +127,16 @@ function titleSql(alias: string): string {
   );
 }
 
-const SORT_COLUMNS: Record<SortSpec["field"], { column: string; nullable: boolean }> = {
+const SORT_COLUMNS: Record<
+  SortSpec["field"],
+  { column: string; nullable: boolean; nocase?: boolean }
+> = {
   // Title-is-content: the title is the node's content text (the name column
-  // is retired). NULL/empty titles fall to the id tiebreak the runner appends.
-  name: { column: titleSql("n"), nullable: true },
+  // is retired). NULL/empty titles fall to the id tiebreak the runner
+  // appends. The name sort folds case (NOCASE): "a" sorts before "B", the
+  // case-insensitive A–Z the client-side comparators (localeCompare
+  // sensitivity "base") already ride.
+  name: { column: titleSql("n"), nullable: true, nocase: true },
   createdAt: { column: "n.created_at", nullable: true },
   isClass: { column: "n.is_class", nullable: false },
   isEmbedded: { column: "n.is_embedded", nullable: false },
@@ -1283,12 +1289,13 @@ class Compiler {
   private orderSql(sort: SortSpec[] | undefined): string {
     const terms: string[] = [];
     for (const spec of sort ?? []) {
-      const { column, nullable } = SORT_COLUMNS[spec.field];
+      const { column, nullable, nocase } = SORT_COLUMNS[spec.field];
       const dir = spec.dir === "desc" ? "DESC" : "ASC";
+      const ordered = nocase === true ? `${column} COLLATE NOCASE ${dir}` : `${column} ${dir}`;
       // NULLs last on nullable columns (SQLite 3.30+ NULLS LAST would work,
       // but IS NULL is portable across both FTS4/FTS5-era sql.js builds).
-      if (nullable) terms.push(`${column} IS NULL`, `${column} ${dir}`);
-      else terms.push(`${column} ${dir}`);
+      if (nullable) terms.push(`${column} IS NULL`, ordered);
+      else terms.push(ordered);
     }
     terms.push("n.id ASC");
     return terms.join(", ");

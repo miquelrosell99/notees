@@ -450,8 +450,9 @@ describe("compile: SQL shape", () => {
       ]),
     );
     // Title-is-content: name sorts by the node's content text (the retired
-    // name column is always null).
+    // name column is always null), case-folded (NOCASE — "a" before "B").
     expect(sql).toContain("ASC, n.created_at IS NULL, n.created_at DESC, n.id ASC");
+    expect(sql).toContain("COLLATE NOCASE ASC");
     expect(sql).toContain("json_each(n.content)");
     const byClass = compile(ast(pages, [], [{ field: "isClass", dir: "desc" }]));
     expect(byClass.sql).toContain("ORDER BY n.is_class DESC, n.id ASC");
@@ -1179,6 +1180,25 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       expect(asc.ids).toEqual([FRANCE, LONE, PARIS]);
       const desc = runQuery(store, ast(pages, [], [{ field: "name", dir: "desc" }]));
       expect(desc.ids).toEqual([PARIS, LONE, FRANCE]);
+    });
+
+    it("folds case: lowercase sorts among uppercase (\"a\" before \"B\")", () => {
+      const store = worldStore();
+      const t = (i: number) => T0 + 60 * STEP + i * STEP;
+      const text = (s: string) => [{ type: "text", text: s }];
+      const LOWER_A = "0192a000-0000-7000-8000-000000000501";
+      const UPPER_B = "0192a000-0000-7000-8000-000000000502";
+      const LOWER_C = "0192a000-0000-7000-8000-000000000503";
+      store.applyMany([
+        env("object.create", { objectId: LOWER_A, contentAst: text("antioxidante") }, t(0)),
+        env("object.create", { objectId: UPPER_B, contentAst: text("Beta") }, t(1)),
+        env("object.create", { objectId: LOWER_C, contentAst: text("charlie") }, t(2)),
+      ]);
+      // Case-insensitive A–Z: a < B < c < France < Lone Page < Paris. A
+      // binary collation would hoist every uppercase title first (Beta,
+      // France, …, antioxidante) — the regression this guards.
+      const asc = runQuery(store, ast(pages, [], [{ field: "name", dir: "asc" }]));
+      expect(asc.ids).toEqual([LOWER_A, UPPER_B, LOWER_C, FRANCE, LONE, PARIS]);
     });
   });
 
