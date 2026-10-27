@@ -236,7 +236,7 @@ interface ApiObject {
   hlc: { physical: number; logical: number };
 }
 
-function nodeToApi(row: NodeRow): ApiObject {
+function nodeToApi(row: NodeRow, resolveMentionName?: (targetNodeId: string) => string | null): ApiObject {
   return {
     id: row.id,
     workspaceId: row.workspace_id,
@@ -248,6 +248,9 @@ function nodeToApi(row: NodeRow): ApiObject {
     // retired name column is always null). The API is the machine surface —
     // the full title, no DISPLAY_NAME_MAX budget (the dense-chrome cap is a
     // UI concern; web/GTK/Flutter apply it where they render chrome).
+    // A bare mention resolves its TARGET's current title (the no-stored-link-
+    // text ruling — the wire carries no captured link text); the caller
+    // threads a store-backed resolver so the machine name reads complete.
     name:
       fullTitleOf({
         id: row.id,
@@ -255,7 +258,7 @@ function nodeToApi(row: NodeRow): ApiObject {
         isEmbedded: row.is_embedded,
         contentAst: JSON.parse(row.content) as NonNullable<Parameters<typeof fullTitleOf>[0]["contentAst"]>,
         classIds: JSON.parse(row.class_ids) as string[],
-      }) || null,
+      }, undefined, resolveMentionName) || null,
     icon: row.icon,
     color: row.color,
     coverAssetId: row.cover_asset_id,
@@ -268,6 +271,36 @@ function nodeToApi(row: NodeRow): ApiObject {
     updatedBy: row.updated_by,
     hlc: { physical: row.hlc_physical, logical: row.hlc_logical },
   };
+}
+
+/**
+ * The store-backed mention resolver for the machine API (the web client's
+ * `WorkspaceClientReads.getDisplayName` seam mirrored server-side): a bare
+ * mention's label is its target's CURRENT title, derived from the derived
+ * node rows — recursive with a path guard so a mention cycle folds to
+ * nothing at the loop point instead of hanging. Passed to `nodeToApi` (and
+ * anywhere a flattened name leaves this process).
+ */
+function mentionNameResolverOf(store: Store): (targetNodeId: string) => string | null {
+  const stmt = store.database.prepare("SELECT id, content, class_ids FROM node WHERE id = ?");
+  const resolve = (id: string, path: Set<string>): string | null => {
+    if (path.has(id)) return null;
+    const row = stmt.get(id) as { id: string; content: string | null; class_ids: string | null } | undefined;
+    if (row === undefined) return null;
+    path.add(id);
+    const name = fullTitleOf(
+      {
+        id: row.id,
+        contentAst: row.content === null ? [] : (JSON.parse(row.content) as NonNullable<Parameters<typeof fullTitleOf>[0]["contentAst"]>),
+        classIds: row.class_ids === null ? [] : (JSON.parse(row.class_ids) as string[]),
+      },
+      undefined,
+      (targetId) => resolve(targetId, path),
+    );
+    path.delete(id);
+    return name === "" ? null : name;
+  };
+  return (id) => resolve(id, new Set());
 }
 
 function requireNode(store: Store, id: string): NodeRow {
@@ -375,7 +408,7 @@ function classNameFromNode(nodeContent: string | null, nodeClassIds: string | nu
  * exported frontmatter carries properties.
  */
 export function fullObject(store: Store, row: NodeRow) {
-  const base = nodeToApi(row);
+  const base = nodeToApi(row, mentionNameResolverOf(store));
   const classes = base.classIds
     .map((classId) => {
       const classRow = store.database
@@ -514,7 +547,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       .all(...params, limit + 1) as unknown as NodeRow[];
     const page = rows.slice(0, limit);
     const nextCursor = rows.length > limit ? (page[page.length - 1]?.id ?? null) : null;
-    return { objects: page.map((row) => nodeToApi(row)), nextCursor };
+    return { objects: page.map((row) => nodeToApi(row, mentionNameResolverOf(store))), nextCursor };
   });
 
   app.post("/objects", async (request, reply) => {
@@ -1079,7 +1112,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
           (row.is_embedded === 1) === isEmbedded,
       )
       .map((row) => {
-        const api = nodeToApi(row);
+        const api = nodeToApi(row, mentionNameResolverOf(store));
         return {
           id: api.id,
           isClass: api.isClass,
@@ -1138,7 +1171,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     for (const hit of store.search(name, 100)) {
       const row = store.getNode(hit.nodeId);
       if (row === undefined || row.is_active !== 1) continue;
-      const api = nodeToApi(row);
+      const api = nodeToApi(row, mentionNameResolverOf(store));
       const aliases = store.scalarPropertyValues(hit.nodeId, SYSTEM_PROPERTY_UUIDS.alias);
       const matchesName = (api.name ?? "").toLowerCase() === wanted;
       const matchesAlias = aliases.some((alias) => alias.toLowerCase() === wanted);
@@ -1148,7 +1181,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
         // cycle-safe with a depth cap (the web client's navigation seam
         // resolves with the same walker).
         const resolvedId = store.resolveAlias(hit.nodeId);
-        const resolved = nodeToApi(store.getNode(resolvedId)!);
+        const resolved = nodeToApi(store.getNode(resolvedId)!, mentionNameResolverOf(store));
         return {
           name: resolved.name,
           id: resolved.id,

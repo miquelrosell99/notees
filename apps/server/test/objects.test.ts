@@ -201,6 +201,52 @@ describe("objects API", () => {
     expect(res.json().results.map((r: { id: string }) => r.id)).toContain(id);
   });
 
+  it("the API name resolves a bare mention's target title (nested through a link-bearing title)", async () => {
+    server = await makeTestServer();
+    const target = (
+      await api("POST", "/api/objects", {
+        payload: { isEmbedded: false, contentAst: [{ type: "text", text: "periimplantitis" }] },
+      })
+    ).json();
+    const middle = (
+      await api("POST", "/api/objects", {
+        payload: {
+          isEmbedded: false,
+          contentAst: [{ type: "text", text: "tratamiento de la " }, { type: "mention", targetNodeId: target.id }],
+        },
+      })
+    ).json();
+    // The nested case: a block linking a node whose own title carries a link.
+    const block = (
+      await api("POST", "/api/objects", {
+        payload: {
+          isEmbedded: true,
+          contentAst: [
+            { type: "text", text: "intervenciones no quirurgicas de la " },
+            { type: "mention", targetNodeId: middle.id },
+          ],
+        },
+      })
+    ).json();
+    const direct = (
+      await api("POST", "/api/objects", {
+        payload: {
+          isEmbedded: true,
+          contentAst: [{ type: "text", text: "cuidados de la " }, { type: "mention", targetNodeId: target.id }],
+        },
+      })
+    ).json();
+
+    const one = await api("GET", `/api/objects/${block.id}`);
+    expect(one.json().object.name).toBe("intervenciones no quirurgicas de la tratamiento de la periimplantitis");
+    const two = await api("GET", `/api/objects/${direct.id}`);
+    expect(two.json().object.name).toBe("cuidados de la periimplantitis");
+    // The ranked search stream carries the same resolved name.
+    const res = await api("GET", "/api/search?q=intervenciones");
+    const hit = res.json().results.find((r: { id: string }) => r.id === block.id);
+    expect(hit?.name).toBe("intervenciones no quirurgicas de la tratamiento de la periimplantitis");
+  });
+
   it("search paginates with a cursor until nextCursor comes back null", async () => {
     server = await makeTestServer();
     for (let i = 0; i < 5; i++) {
