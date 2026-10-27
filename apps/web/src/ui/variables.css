@@ -277,7 +277,12 @@
 
   /* Headline — Instrument Sans for section/page titles */
   --font-headline-large: 600 2rem/1.25 var(--font-family-display);
-  --font-headline-medium: 600 1.75rem/1.3 var(--font-family-display);
+  /* The medium headline's parts ride separate tokens because layout math
+     (the page-header icon's first-line anchor, app.css) consumes the line
+     box directly — a font-shorthand token cannot be decomposed at use. */
+  --font-size-headline-medium: 1.75rem;
+  --line-height-headline-medium: 1.3;
+  --font-headline-medium: 600 var(--font-size-headline-medium)/var(--line-height-headline-medium) var(--font-family-display);
   --font-headline-small: 600 1.5rem/1.35 var(--font-family-display);
 
   /* Title — sans for card titles, modal headers, section labels (UI chrome) */

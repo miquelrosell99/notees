@@ -807,7 +807,10 @@ select:focus-visible {
 
 .page-header__title-row {
   display: flex;
-  align-items: center;
+  /* flex-start, NOT center: the icon anchors to the FIRST title row (see
+     .page-icon-btn) — centering would drag it down the middle of a wrapped
+     title block. */
+  align-items: flex-start;
   gap: var(--spacing-3);
 }
 
@@ -833,6 +836,12 @@ select:focus-visible {
   padding: 0;
   flex-shrink: 0;
   color: var(--md-sys-color-on-surface-variant);
+  /* Anchor the 56px tap-target box on the title's FIRST line: the negative
+     margin lifts the box so the glyph centers on the headline-medium line
+     box (the token parts, variables.css) rather than on the flex line —
+     with one title row this reads exactly as the old row-centering; extra
+     rows no longer pull the icon down the block's middle. */
+  margin-top: calc((var(--font-size-headline-medium) * var(--line-height-headline-medium) - var(--height-2xl)) / 2);
 }
 
 .page-icon-large {

@@ -50,7 +50,7 @@ function containingPageLabel(client: AnyClient, targetId: string): string | null
     guard += 1;
   }
   if (current === undefined || current.id === targetId) return null;
-  return titleOf(client, current.id) ?? null;
+  return titleOf(client, current.id, { flatten: "chrome" }) ?? null;
 }
 
 export function CondensedLinksPopup({

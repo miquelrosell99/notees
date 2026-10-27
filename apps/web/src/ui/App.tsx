@@ -21,8 +21,10 @@
  * against the server first: 401/403 clears it and lands on the sign-in
  * screen, but a server that does not answer keeps the credential and opens
  * the remembered workspace from its local copy — the boot is local-first,
- * the sync-status banner reports "working locally until it recovers", and
- * the realtime reconnect catches up when the server returns. The workspace
+ * the avatar sync badge carries the outage state (badge only — the old
+ * banner was retired, BackendDownLock's risk gate is the one interrupting
+ * surface), and the realtime reconnect catches up when the server returns.
+ * The workspace
  * switcher and manager fall back the same way: the device-local registry
  * (workspace-registry.ts — the last server list + which workspaces hold a
  * copy here) lists every locally-copied workspace while the server can't

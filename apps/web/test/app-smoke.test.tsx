@@ -371,11 +371,13 @@ describe("session resume", () => {
     expect(localStorage.getItem("notees.workspaceId")).toBe("ws1");
     // …the server form never appears…
     expect(screen.queryByRole("textbox", { name: /server url/i })).toBeNull();
-    // …and the degraded banner reports working locally until recovery (the
-    // status poll lands a tick after the shell).
+    // …the avatar sync badge carries the outage state (the retired banner's
+    // replacement — badge only until the risk gate trips), and the
+    // backend-down lock stays out of the way inside the grace window.
     await waitFor(() =>
-      expect(screen.getByText(/working locally until it recovers/i)).toBeInTheDocument(),
+      expect(screen.getByText("Sync: error")).toBeInTheDocument(),
     );
+    expect(screen.queryByText("Backend is unreachable")).toBeNull();
   });
 
   it("an unreachable server with no remembered workspace keeps the credential on the server form", async () => {
