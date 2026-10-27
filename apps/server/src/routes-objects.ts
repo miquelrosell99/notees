@@ -23,6 +23,7 @@ import {
   propertySchemaUpdatePayload,
   propertySetPayload,
   propertyUnsetPayload,
+  tagUnassignPayload,
 } from "@notees/protocol";
 import { deriveDisplayName, fullTitleOf, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { parseQueryAst, runAggregate, runQuery } from "@notees/query";
@@ -219,6 +220,9 @@ interface ApiObject {
   isEmbedded: boolean;
   parentId: string | null;
   classIds: string[];
+  /** Tag membership (SCHEMA.md "Tags"): page ids assigned as tags to this
+   * node — the derived OR-Set projection (recomputeTagIds, sorted by id). */
+  tagIds: string[];
   name: string | null;
   icon: string | null;
   color: string | null;
@@ -244,6 +248,7 @@ function nodeToApi(row: NodeRow, resolveMentionName?: (targetNodeId: string) => 
     isEmbedded: row.is_embedded === 1,
     parentId: row.parent_id,
     classIds: JSON.parse(row.class_ids) as string[],
+    tagIds: JSON.parse(row.tag_ids) as string[],
     // Title-is-content: the API name derives from the node's content (the
     // retired name column is always null). The API is the machine surface —
     // the full title, no DISPLAY_NAME_MAX budget (the dense-chrome cap is a
@@ -403,12 +408,13 @@ function classNameFromNode(nodeContent: string | null, nodeClassIds: string | nu
 
 /**
  * The full object projection behind GET /objects/:id (and the children
- * read): base row + resolved classes + authored property rows. The
- * workspace-zip export (routes-auth) builds its ExportNodes from this so
- * exported frontmatter carries properties.
+ * read): base row + resolved classes + resolved tags + authored property
+ * rows. The workspace-zip export (routes-auth) builds its ExportNodes from
+ * this so exported frontmatter carries properties.
  */
 export function fullObject(store: Store, row: NodeRow) {
-  const base = nodeToApi(row, mentionNameResolverOf(store));
+  const resolveMentionName = mentionNameResolverOf(store);
+  const base = nodeToApi(row, resolveMentionName);
   const classes = base.classIds
     .map((classId) => {
       const classRow = store.database
@@ -422,6 +428,32 @@ export function fullObject(store: Store, row: NodeRow) {
         | undefined;
       if (classRow === undefined) return null;
       return { id: classRow.id, name: classNameFromNode(classRow.nodeContent, classRow.nodeClassIds, classRow.name), icon: classRow.icon, color: classRow.color };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+  // Resolved tags (SCHEMA.md "Tags": tags ARE pages, never classes — the
+  // name derives from the tag NODE's content like the API name, not the
+  // class registry join). Missing/inactive tag pages drop out silently,
+  // mirroring the classes filter above.
+  const tags = base.tagIds
+    .map((tagId) => {
+      const tagRow = store.database
+        .prepare("SELECT id, content, class_ids, color FROM node WHERE id = ? AND is_active = 1")
+        .get(tagId) as
+        | { id: string; content: string | null; class_ids: string | null; color: string | null }
+        | undefined;
+      if (tagRow === undefined) return null;
+      const name = fullTitleOf(
+        {
+          id: tagRow.id,
+          isClass: 0,
+          isEmbedded: 0,
+          contentAst: JSON.parse(tagRow.content ?? "[]") as NonNullable<Parameters<typeof fullTitleOf>[0]["contentAst"]>,
+          classIds: JSON.parse(tagRow.class_ids ?? "[]") as string[],
+        },
+        undefined,
+        resolveMentionName,
+      );
+      return { id: tagRow.id, name: name || null, color: tagRow.color };
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
   // Authored rows ride the visible-set derivation (tombstoned elements
@@ -453,7 +485,7 @@ export function fullObject(store: Store, row: NodeRow) {
       ...(property.metadata !== null ? { metadata: JSON.parse(property.metadata) as unknown } : {}),
     }));
   const contentAst = JSON.parse(row.content) as unknown;
-  return { ...base, contentAst, classes, properties };
+  return { ...base, contentAst, classes, tags, properties };
 }
 
 export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): void {
@@ -737,6 +769,65 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     await ctx.submit({
       workspaceId,
       opType: "class.unassign",
+      payload: checked.data as Record<string, unknown>,
+      affectedNodeIds: [id],
+      client: "api",
+    });
+    return { object: fullObject(store, requireNode(store, id)) };
+  });
+
+  /**
+   * Tag membership assign (SCHEMA.md "Tags"): the add rides the re-issued
+   * `object.create` carrier (the OR-Set add-wins seed — applyObjectCreate's
+   * alreadyExists branch upserts tag_member_set without touching the tree).
+   * Idempotent by construction. Tags ARE pages: the tag node must exist and
+   * be active (404 otherwise) and must not be a class node — the web tag
+   * picker's page scope excludes classes (listPages filters is_class = 0),
+   * mirrored here fail-loud.
+   */
+  app.put("/objects/:id/tags/:tagId", async (request) => {
+    const { id, tagId } = request.params as { id: string; tagId: string };
+    const checked = objectCreatePayload.safeParse({ objectId: id, tagIds: [tagId] });
+    if (!checked.success) {
+      throw new AppError(422, "validation_failed", checked.error.issues[0]?.message ?? "invalid assign payload");
+    }
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    requireNode(store, id);
+    const tagRow = requireNode(store, tagId);
+    if (tagRow.is_class === 1) {
+      throw new AppError(422, "validation_failed", "a class node is not a tag (tags are pages)");
+    }
+    await ctx.submit({
+      workspaceId,
+      opType: "object.create",
+      payload: checked.data as Record<string, unknown>,
+      affectedNodeIds: [id],
+      client: "api",
+    });
+    return { object: fullObject(store, requireNode(store, id)) };
+  });
+
+  /**
+   * Tag membership remove: the OR-Set tombstone (tag.unassign). Removing a
+   * tag the node does not carry is a no-op tombstone — idempotent, so scripts
+   * can "ensure absent". The tag node must exist and be active (404).
+   */
+  app.delete("/objects/:id/tags/:tagId", async (request) => {
+    const { id, tagId } = request.params as { id: string; tagId: string };
+    const checked = tagUnassignPayload.safeParse({ objectId: id, tagId });
+    if (!checked.success) {
+      throw new AppError(422, "validation_failed", checked.error.issues[0]?.message ?? "invalid unassign payload");
+    }
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    requireNode(store, id);
+    requireNode(store, tagId);
+    await ctx.submit({
+      workspaceId,
+      opType: "tag.unassign",
       payload: checked.data as Record<string, unknown>,
       affectedNodeIds: [id],
       client: "api",

@@ -42,7 +42,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the forty-three required fixtures", () => {
+  it("has exactly the forty-four required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
@@ -84,6 +84,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "property-set-lww.json",
       "property-validation-rules.json",
       "property-value-elements.json",
+      "tag-membership.json",
       "trash-empty.json",
       "typed-link-mark-deleted.json",
       "typed-link-mark.json",
@@ -480,6 +481,46 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     // newer HLC), so a replay restores the derived default end to end.
     expect(reassign!.opType).toBe("object.create");
     expect(reassign!.payload).toMatchObject({ objectId: nodeId, classIds: [taskId] });
+    // Applicable in sequence: every HLC strictly follows the previous one.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("tag-membership fixture: the seed, the re-issued create assign carrier, the unassign tombstone, the add-wins resurrection", () => {
+    const fixture = fixtures.find((f) => f.name === "tag-membership.json")!;
+    const tagA = "0192a000-0000-7000-8000-000000000701";
+    const tagB = "0192a000-0000-7000-8000-000000000702";
+    const nodeId = "0192a000-0000-7000-8000-000000000703";
+    const creates = fixture.envelopes.filter((env) => env.opType === "object.create");
+    // Two parentless tag pages first, then the content node seeded with tagIds [A].
+    expect(creates.map((env) => (env.payload as { objectId: string }).objectId)).toEqual([
+      tagA,
+      tagB,
+      nodeId,
+      nodeId,
+      nodeId,
+    ]);
+    expect(creates[2]!.payload).toMatchObject({ objectId: nodeId, tagIds: [tagA] });
+    // The assign carrier is a RE-ISSUED object.create on the existing id (no new
+    // op type): no content, no tree keys — just the id + the tagIds OR-Set seed.
+    expect(creates[3]!.payload).toEqual({ objectId: nodeId, tagIds: [tagB] });
+    // The remove is the tag.unassign envelope, exactly {objectId, tagId}…
+    const unassign = fixture.envelopes.find((env) => env.opType === "tag.unassign")!;
+    expect(unassign.payload).toEqual({ objectId: nodeId, tagId: tagA });
+    // …and the final re-issued create re-adds A with a NEWER hlc than the
+    // tombstone (the add-wins resurrection — the tag add's '>' actor tiebreak,
+    // the deliberate asymmetry vs classIds' '>=').
+    expect(creates[4]!.payload).toEqual({ objectId: nodeId, tagIds: [tagA] });
+    expect(
+      compareHlc(
+        unassign.hlc as { physical: number; logical: number },
+        creates[4]!.hlc as { physical: number; logical: number },
+      ),
+    ).toBeLessThan(0);
+    // Strict schema: the unassign payload is the bare pair — an extra key is rejected.
+    expect(
+      payloadSchemaFor("tag.unassign")!.safeParse({ objectId: nodeId, tagId: tagA, idx: 0 }).success,
+    ).toBe(false);
     // Applicable in sequence: every HLC strictly follows the previous one.
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);

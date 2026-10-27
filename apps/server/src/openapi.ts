@@ -569,7 +569,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["validation_failed", "not_found", "conflict"],
   }],
   ["get", "/api/objects/:id", {
-    summary: "Fetch one object (contentAst, classes, properties, wire node fields)",
+    summary: "Fetch one object (contentAst, classes, tags, properties, wire node fields)",
     description:
       "The object projection carries the wire node fields alongside the base shape: `coverAssetId` / `bannerAssetId` (the asset nodes behind the page cover/banner chrome) and `aliasedNodeId` (the main page a node alias points at) — null = unset (SCHEMA.md \"Node structure\"). The same projection backs the list and children reads.",
     tags: ["Objects"],
@@ -649,6 +649,24 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     summary: "Remove the class membership (idempotent tombstone)",
     tags: ["Objects"],
     params: { classId: "class uuid" },
+    requiredScope: "objects.write",
+    idempotency: true,
+    errors: ["validation_failed", "not_found"],
+  }],
+  ["put", "/api/objects/:id/tags/:tagId", {
+    summary: "Assign a tag (idempotent OR-Set add via the object.create re-issue; tags are pages)",
+    description:
+      "The tag add rides the re-issued object.create carrier (tagIds OR-Set seed — the applier's alreadyExists branch upserts tag_member_set without touching the tree). Idempotent by construction. The tag node must exist and be active (404 otherwise); a class node is rejected (422) — tags are pages, mirroring the web tag picker's page scope (listPages filters is_class = 0).",
+    tags: ["Objects"],
+    params: { tagId: "tag page uuid (a page node's id — tags are pages)" },
+    requiredScope: "objects.write",
+    idempotency: true,
+    errors: ["validation_failed", "not_found"],
+  }],
+  ["delete", "/api/objects/:id/tags/:tagId", {
+    summary: "Remove a tag (idempotent tag.unassign tombstone; removing a non-carried tag is a no-op)",
+    tags: ["Objects"],
+    params: { tagId: "tag page uuid" },
     requiredScope: "objects.write",
     idempotency: true,
     errors: ["validation_failed", "not_found"],
