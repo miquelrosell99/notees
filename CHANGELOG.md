@@ -40,6 +40,31 @@ predating this file.
   is deliberately not recorded. Verified: markdown sanity — every relative
   link in the touched pages resolves to an existing file; no code changed.
 
+- **feat(web): the side-panel + top-bar toggle are one linked component
+  (`useSidePanel` / `SidePanelToggle`, fleet) — the journal's navigator
+  toggle moves to the bar's far right, riding the panel's own side.** The
+  Journal hub's top-bar toggle LEAD the bar, left of the title, while the
+  panel it drives renders in the body's RIGHT column — the drift the owner
+  caught in review. The fleet gains `SidePanel.tsx`: the host declares the
+  panel's side once and the component derives the rest — `useSidePanel`
+  returns the toggle (the SAME-side SurfaceTopBar slot: `leading` for a
+  left panel, `trailing` for a right) and the `<aside>` (null while
+  closed); `SidePanelToggle` is the toggle alone for hosts whose panels
+  ride another container (SourcesHub's panes live in MainContentFrame's
+  leftPanel/rightPanel slots). The chrome contract is centralized: ghost
+  sm, the dock icon reads the side (mdi-dock-left/right), aria-pressed
+  reports the panel's EFFECTIVE visibility, Show/Hide {label} wording —
+  with one escape hatch (`labelOpen`) for SourcesHub's detail toggle,
+  whose labels report the stored PREF while the pressed chrome reports
+  pref AND selection (the shipped contract the sources tests pin). Migrated
+  now: JournalsView (full pair, side "right") and SourcesHub (both toggles,
+  facets left / details right); the app TopBar and the nodeview chrome are
+  deliberate non-migrations (their sidebars render outside the surface and
+  their labels follow their own register). Verified: new side-panel suite
+  (side→slot mapping, dock icon, pressed/label semantics, panel-null-when-
+  closed), the rewritten frame-body-inset journal pins (trailing cluster +
+  the linked collapse round-trip) — web 2346/2346, typecheck green.
+
 - **feat(store): FTS mention resolution cascades through link-bearing titles
   (schema v33).** Searching a node name already surfaced every node that
   LINKS to it — except across a block→block→page chain: document-chrome

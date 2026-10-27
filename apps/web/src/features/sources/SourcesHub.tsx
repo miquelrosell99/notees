@@ -2,10 +2,11 @@
  * SourcesHub — the Sources hub behind the sidebar's Sources entry: the
  * Zotero-parity library surface. The shell composes the shared
  * MainContentFrame: the fleet SurfaceTopBar names the surface AND carries the
- * hub chrome: the panel toggles ride
- * the bar split by panel side: the facets (left-panel) toggle rides
+ * hub chrome: the panel toggles are the fleet SidePanelToggle (the linked
+ * unit — the side is declared once and the button reads it), split by
+ * panel side: the facets (left-panel) toggle rides
  * the LEADING cluster, before the title; the detail (right-panel) toggle
- * rides the new additive `trailing` cluster — after the actions cluster,
+ * rides the `trailing` cluster — after the actions cluster,
  * last in the bar — while the live filtered count renders as a fleet
  * Badge next to the title (the `titleExtra` slot; the retired "N sources"
  * text), and the actions cluster carries the search box alone (the
@@ -38,7 +39,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AnyClient } from "../../ui/app/clients.js";
 import { MainContentFrame } from "../../ui/MainContentFrame.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
-import { Badge, Button } from "../../components/ui/fleet/index.js";
+import { Badge, SidePanelToggle } from "../../components/ui/fleet/index.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
 import type { NodeCollectionItem } from "../collection/index.js";
 import { SourcesFacets } from "./SourcesFacets.js";
@@ -177,11 +178,14 @@ export function SourcesHub({
     });
   }, [client, displayRows]);
 
-  const facetsToggleLabel = facetsPanelOpen ? "Hide facets panel" : "Show facets panel";
-  const detailToggleLabel = detailPanelOpen ? "Hide details panel" : "Show details panel";
-  // The right pane renders ONLY with a selection (
-  // the toggle AND the selection): the pressed/active chrome reports the
-  // EFFECTIVE visibility, not the bare pref.
+  // The toggle chrome (labels, pressed state, dock icon) rides the shared
+  // SidePanelToggle — the side is declared once per panel and the button
+  // reads it. The right pane renders ONLY with a selection (the toggle AND
+  // the selection): the pressed/active chrome reports the EFFECTIVE
+  // visibility, not the bare pref. The panes themselves ride MainContentFrame's
+  // leftPanel/rightPanel slots (the frame owns the aside landmarks), so the
+  // toggle-only export is the link here; the panels render from the same
+  // `facetsPanelOpen` / `detailVisible` values below.
   const detailVisible = detailPanelOpen && selectedId !== null;
 
   return (
@@ -191,16 +195,11 @@ export function SourcesHub({
           <SurfaceTopBar
             className="sources-hub__topbar"
             leading={
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                icon="mdi-dock-left"
-                aria-label={facetsToggleLabel}
-                aria-pressed={facetsPanelOpen}
-                title={facetsToggleLabel}
-                active={facetsPanelOpen}
-                onClick={() => setFacetsPanelOpen(!facetsPanelOpen)}
+              <SidePanelToggle
+                side="left"
+                open={facetsPanelOpen}
+                onToggle={() => setFacetsPanelOpen(!facetsPanelOpen)}
+                label="facets panel"
               />
             }
             icon="mdi-bookshelf"
@@ -218,16 +217,12 @@ export function SourcesHub({
               ) : undefined
             }
             trailing={
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                icon="mdi-dock-right"
-                aria-label={detailToggleLabel}
-                aria-pressed={detailVisible}
-                title={detailToggleLabel}
-                active={detailVisible}
-                onClick={() => setDetailPanelOpen(!detailPanelOpen)}
+              <SidePanelToggle
+                side="right"
+                open={detailVisible}
+                labelOpen={detailPanelOpen}
+                onToggle={() => setDetailPanelOpen(!detailPanelOpen)}
+                label="details panel"
               />
             }
           />
