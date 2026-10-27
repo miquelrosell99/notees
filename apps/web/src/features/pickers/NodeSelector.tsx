@@ -87,6 +87,7 @@ import { QuickCreateModal } from "../modals/QuickCreateModal.js";
 import { classifySourceInput } from "../sources/resolver.js";
 import { requestAddSource } from "../sources/AddSourceHost.js";
 import { enableArchivedSystemClass } from "../classview/systemClassDeploy.js";
+import { classClosureFrom } from "../metadata/schemaEligibility.js";
 import type { QuickCreateClient } from "../modals/quickCreate.js";
 import { collectSelfAndAncestors } from "../modals/quickCreate.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
@@ -959,6 +960,33 @@ export function NodeSelector({
     return () => clearTimeout(timer);
   }, [searchQuery, isAsyncSearch]);
 
+  // The filter's subclass closure (the extends-aware BOTH-directions
+  // membership test): a search hit matches when the node's OWN class is the
+  // filter class OR any of its transitive subclasses — exactly the browse
+  // path's getClassMembers semantics (persona under an Agent filter hits).
+  // Built once per filter set by scanning the class list: a class belongs
+  // when its ancestor closure (the schemaEligibility walk) reaches a filter
+  // id. The retired direct-membership test dropped subclass members the
+  // moment the owner typed a name — the third instance of this bug class.
+  const effectiveClassClosure = useMemo(() => {
+    if (effectiveClassIds.length === 0) return null;
+    const filter = new Set(effectiveClassIds);
+    const closure = new Set(effectiveClassIds);
+    for (const cls of client.listClasses()) {
+      if (closure.has(cls.id)) continue;
+      let reachesFilter = false;
+      for (const id of classClosureFrom(client, [cls.id])) {
+        if (filter.has(id)) {
+          reachesFilter = true;
+          break;
+        }
+      }
+      if (reachesFilter) closure.add(cls.id);
+    }
+    return closure;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the closure is a pure function of the filter set and the class graph (dataVersion rides the landing notify like the search memo).
+  }, [client, effectiveClassIds, dataVersion]);
+
   // Search results through the client. Classes are matched by name over the
   // class list (name filtering is the better picker behavior for short
   // queries); object/block hits go through the ranked FTS index — the
@@ -989,8 +1017,8 @@ export function NodeSelector({
         return false;
       if (!matchesInlineFilters(node)) return false;
       if (!matchesScopeTab(node)) return false;
-      if (effectiveClassIds.length > 0) {
-        if (!node.classIds.some((id) => effectiveClassIds.includes(id))) return false;
+      if (effectiveClassClosure !== null) {
+        if (!node.classIds.some((id) => effectiveClassClosure.has(id))) return false;
       }
       return true;
     });
