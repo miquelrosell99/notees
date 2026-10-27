@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-27
 
+- **fix(web): the Pages hub's "New page" header button retires — one
+  canonical plain-page entry point.** The hub surface's top bar no longer
+  carries its own New-page button: plain-page creation already lives in the
+  top bar's **New** flow (the class picker's "No class" pick), the command
+  palette's **New page** command, and **Ctrl/Cmd+N**, and a per-surface
+  duplicate only added a second, divergent write path (a bare
+  `createObject` bypassing the New flow's routing). Hub header buttons stay
+  only where the hub owns a contextual create — Classes (the class-creation
+  modal), Whiteboards (the whiteboard-classed write), Tasks (the
+  template-aware flow), Assets (the upload modal); Pages and Inbox render
+  none. `HubView`'s header-action ternary loses the `nav === "pages"` arm
+  (the hub-create-buttons test's Pages case becomes a no-creation-button
+  assertion alongside Inbox's); `docs/features/pages.md`'s page-list line
+  names the real entry points. Verified: `pnpm typecheck` + `pnpm test`
+  green (201 files / 2346 tests, incl. the reworked hub-create-buttons
+  suite).
+
 - **docs(features): the sources page grows the property set + the CLI
   bibliography imports; a new assets page; queries.md verified current.**
   `docs/features/sources.md` gains the bibliographic property set (text
