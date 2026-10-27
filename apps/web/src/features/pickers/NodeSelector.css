@@ -65,6 +65,14 @@
   margin: var(--spacing-2);
 }
 
+/* The sm pill rides the picker row grid, not the roomier md padding: the
+   anchored picker already gives the field its panel margin, so the sm
+   variant's own inline padding would double-indent the placeholder
+   relative to the result-row labels (the ui-primitives pin). */
+.node-selector__picker .node-selector__search-field.search-field--sm {
+  padding-left: 0;
+}
+
 .node-selector--readonly {
   opacity: var(--opacity-70);
 }
