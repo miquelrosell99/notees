@@ -82,6 +82,12 @@ describe("bound-but-empty rows — the virtual property shows", () => {
     const hint = container.querySelector(`[data-property-schema-id="${schemaId}"] .nt-property-hint`);
     expect(hint).not.toBeNull();
     expect(hint!.textContent).toBe("C");
+    // The header icon rides left of the label — the type fallback (no icon stored).
+    const icon = container.querySelector(
+      `[data-property-schema-id="${schemaId}"] .nt-property-name__icon use`,
+    );
+    expect(icon).not.toBeNull();
+    expect(icon!.getAttribute("href")).toBe("/mdi-sprite.svg#mdi-format-text");
     const row = client.getEffectiveProperties(pageId).find((r) => r.propertySchemaId === schemaId);
     expect(row).toMatchObject({ source: "bound", value: null, boundBy: classId });
   });

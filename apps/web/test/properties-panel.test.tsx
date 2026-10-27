@@ -286,6 +286,45 @@ describe("the from-class badge (C)", () => {
   });
 });
 
+describe("property header icons", () => {
+  it("a property without a stored icon renders the type fallback to the left of the header", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "abstract", type: "text" });
+    const classId = await client.createClass("Book");
+    await client.setClassProperty(classId, schemaId, {});
+    const pageId = await client.createObject({ isEmbedded: false, name: "Biocompatibility" });
+    await client.assignClass(pageId, classId);
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
+    const sidebar = container.querySelector(".nt-props-sidebar")!;
+    const icon = sidebar.querySelector(
+      `[data-property-schema-id="${schemaId}"] .nt-property-name__icon use`,
+    );
+    expect(icon).not.toBeNull();
+    expect(icon!.getAttribute("href")).toBe("/mdi-sprite.svg#mdi-format-text");
+  });
+
+  it("a stored schema icon replaces the type fallback", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "abstract", type: "text" });
+    await client.updatePropertySchema(schemaId, { icon: "mdi-star" });
+    const classId = await client.createClass("Book");
+    await client.setClassProperty(classId, schemaId, {});
+    const pageId = await client.createObject({ isEmbedded: false, name: "Biocompatibility" });
+    await client.assignClass(pageId, classId);
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
+    const sidebar = container.querySelector(".nt-props-sidebar")!;
+    const icon = sidebar.querySelector(
+      `[data-property-schema-id="${schemaId}"] .nt-property-name__icon use`,
+    );
+    expect(icon).not.toBeNull();
+    expect(icon!.getAttribute("href")).toBe("/mdi-sprite.svg#mdi-star");
+  });
+});
+
 describe("carrier blocks vs the child block list", () => {
   it("getBlockTree excludes blocks referenced as property values (no duplicate)", async () => {
     const client = await seedClient();

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Icon } from "../../ui/Icon.js";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
@@ -37,6 +38,8 @@ export function AssetPropertyRow({
   /** The host knows the property is class-supplied even when rows carry no boundBy
    *  (the empty assigned/bound reduction) — the from-class badge rides this. */
   classBound = false,
+  /** The property-header icon (effectivePropertyIcon). */
+  icon,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -48,6 +51,7 @@ export function AssetPropertyRow({
   readOnly?: boolean | undefined;
   rowClassName?: string;
   classBound?: boolean;
+  icon: string;
 }) {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -96,7 +100,7 @@ export function AssetPropertyRow({
     >
       {!bare && (
         <>
-          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}><Icon path={icon} size={0.8} className="nt-property-name__icon" />{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
         </>
       )}
       <div className="nt-property-assets">

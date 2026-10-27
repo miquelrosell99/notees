@@ -220,6 +220,26 @@ span.pill__text {
   margin-left: var(--spacing-2);
 }
 
+/* The property-header icon rides left of the label (the name row in the
+   sidebar, the label span in the table) — breathing room only; size and
+   color inherit the Icon component + the name cell's tone. */
+.nt-property-name__icon {
+  margin-inline-end: var(--spacing-1);
+  flex-shrink: 0;
+}
+
+/* The unchecked boolean box on the panel card: the catalog border-outline
+   is tuned against the app surface, one tone darker than the sidebar card
+   (--md-sys-color-sidebar-card) — on the card the false state vanished.
+   Pin the unchecked border to on-surface-variant (and keep the fleet hover
+   contract) so false reads at a glance in both panels. */
+.nt-property-boolean .checkbox-input {
+  border-color: color-mix(in oklab, var(--md-sys-color-on-surface-variant) 70%, transparent);
+}
+.nt-property-boolean .checkbox-input:hover:not(:disabled) {
+  border-color: var(--md-sys-color-primary);
+}
+
 .nt-property-default .nt-property-value {
   color: var(--md-sys-color-on-surface-variant);
 }

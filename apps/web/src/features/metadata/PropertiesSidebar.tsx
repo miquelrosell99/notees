@@ -12,6 +12,7 @@ import { PropertyHistoryModal } from "./PropertyHistoryModal.js";
 import { AliasedNodeRow } from "./AliasedNodeRow.js";
 import type { AnyClient } from "./shared.js";
 import { propertiesCountOf, propertyGroupsOf } from "./propertyGroups.js";
+import { effectivePropertyIcon } from "./propertyIcon.js";
 import { AliasesRow } from "./AliasesRow.js";
 import { GroupedPropertyRow } from "./GroupedPropertyRow.js";
 import { ScalarPropertyValue } from "./ScalarPropertyValue.js";
@@ -116,7 +117,7 @@ export function PropertiesSidebar({
     ];
   };
 
-  const nameRow = (propertySchemaId: string, label: string, hint: string | null) => (
+  const nameRow = (propertySchemaId: string, label: string, hint: string | null, icon: string) => (
     <button
       type="button"
       className="nt-props-sidebar__name nt-property-name"
@@ -128,6 +129,7 @@ export function PropertiesSidebar({
         setMenu({ schemaId: propertySchemaId, x: event.clientX, y: event.clientY });
       }}
     >
+      <Icon path={icon} size={0.8} className="nt-property-name__icon" />
       {label}
       {hint !== null && (
         <span className="nt-property-hint" title={hint === "C" ? "From a class" : undefined}>
@@ -165,7 +167,7 @@ export function PropertiesSidebar({
           const label = schema?.name ?? entry.propertySchemaId;
           return (
             <div className="nt-props-sidebar__prop" key={entry.propertySchemaId}>
-              {nameRow(entry.propertySchemaId, label, entry.boundBy !== null ? "C" : null)}
+              {nameRow(entry.propertySchemaId, label, entry.boundBy !== null ? "C" : null, effectivePropertyIcon(schema))}
               <div className="nt-props-sidebar__value">
                 <GroupedPropertyRow
                   client={client}
@@ -178,6 +180,7 @@ export function PropertiesSidebar({
                   bindingFilter={null}
                   groupRows={entry.groupRows}
                   classBound={entry.boundBy !== null}
+                  icon={effectivePropertyIcon(schema)}
                   onOpenPage={onOpenPage}
                   onOpenInSidebar={onOpenInSidebar}
                   bare
@@ -193,6 +196,7 @@ export function PropertiesSidebar({
               row.propertySchemaId,
               labelOf(row),
               row.boundBy !== null ? "C" : null,
+              effectivePropertyIcon(row.schema),
             )}
             <div className="nt-props-sidebar__value">
               <ScalarPropertyValue client={client} nodeId={nodeId} row={row} onOpenPage={onOpenPage} onOpenInSidebar={onOpenInSidebar} />
@@ -209,6 +213,12 @@ export function PropertiesSidebar({
             // class binds it — an INACTIVE (soft-unbound) row carries no
             // flag: the class no longer supplies the property.
             binding.active !== false ? "C" : null,
+            effectivePropertyIcon({
+              icon:
+                client.listPropertySchemas().find((s) => s.id === binding.propertySchemaId)?.icon ??
+                null,
+              type: binding.type,
+            }),
           )}
           <div className="nt-props-sidebar__value">
             <GroupedPropertyRow
@@ -222,6 +232,12 @@ export function PropertiesSidebar({
               bindingFilter={binding.targetClassFilter}
               groupRows={[]}
               classBound={binding.active !== false}
+              icon={effectivePropertyIcon({
+                icon:
+                  client.listPropertySchemas().find((s) => s.id === binding.propertySchemaId)?.icon ??
+                  null,
+                type: binding.type,
+              })}
               onOpenPage={onOpenPage}
               bare
             />
