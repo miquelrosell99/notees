@@ -43,6 +43,17 @@ const DEFAULT_CATCH_UP_LIMIT = 1000;
 const ZERO_HLC: Hlc = { physical: 0, logical: 0 };
 
 /**
+ * The default pre-flight snapshot-upload limit, below the relay's route-local
+ * body cap (apps/server routes-relay.ts, 512 MiB). Not a mirror of it: the
+ * cap exists to protect every observer of browser traffic, not just the
+ * relay. A snapshot PUT's body rides CDP as a single Network frame (the
+ * verify smoke drives the browser over a pipe), and V8 caps strings at
+ * ~512 Mi chars — a ~510 MiB body already produced a 545 MB frame that
+ * killed the smoke with ERR_STRING_TOO_LONG. Keep a wide margin.
+ */
+export const SNAPSHOT_UPLOAD_BODY_LIMIT = 256 * 1024 * 1024;
+
+/**
  * True when an upload failure is the relay's request-body cap (413) — the
  * one error that retrying can never heal. Accepts the typed
  * TransportError and any foreign error carrying a numeric `status`, so a
@@ -67,6 +78,12 @@ export interface SyncEngineOptions {
   batchSize?: number;
   /** Catch-up page size. */
   catchUpLimit?: number;
+  /**
+   * Pre-flight snapshot-upload body limit (bytes): at or above this the
+   * upload is skipped rather than transferred, mirroring the relay's own
+   * body cap. Defaults to SNAPSHOT_UPLOAD_BODY_LIMIT (256 MiB — the tooling-safe margin, not the relay's 512 MiB cap).
+   */
+  snapshotUploadLimit?: number;
   callbacks?: SyncEngineCallbacks;
 }
 
@@ -84,6 +101,11 @@ export class SyncEngine {
   private readonly now: () => number;
   private readonly batchSize: number;
   private readonly catchUpLimit: number;
+  /**
+   * Pre-flight snapshot-upload body limit (bytes): at or above this the
+   * upload is skipped rather than transferred, mirroring the relay's own
+   * body cap. Mirrors the SyncEngineOptions field.
+   */
   private readonly snapshotUploadLimit: number;
   private callbacks: SyncEngineCallbacks;
 
@@ -120,6 +142,7 @@ export class SyncEngine {
     this.now = options.now ?? (() => Date.now());
     this.batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
     this.catchUpLimit = options.catchUpLimit ?? DEFAULT_CATCH_UP_LIMIT;
+    this.snapshotUploadLimit = options.snapshotUploadLimit ?? SNAPSHOT_UPLOAD_BODY_LIMIT;
     this.callbacks = options.callbacks ?? {};
     this.meta = new SyncMeta(store, `sync:${this.workspaceId}:state`);
     const persisted = this.meta.load();
@@ -387,19 +410,18 @@ export class SyncEngine {
     if (!newerThanServer || !newerThanUploaded) return;
     try {
       const bytes = this.store.snapshot();
-      // Pre-flight guard mirroring the relay's route-local body cap
-      // (apps/server SNAPSHOT_PUT_BODY_LIMIT, 512 MiB): skip the upload
-      // rather than transfer a body the relay will reject with 413. The
-      // server-side snapshot keeps covering restore either way. Oversized
-      // projections also break tooling that observes browser traffic — a
-      // single request body can exceed a driver's frame limit.
-      if (bytes.byteLength >= 512 * 1024 * 1024) {
+      // Pre-flight guard mirroring the relay's route-local body cap: skip
+      // the upload rather than transfer a body the relay would reject with
+      // 413. The server-side snapshot keeps covering restore either way.
+      // Oversized projections also break tooling that observes browser
+      // traffic — a single request body can exceed a driver's frame limit.
+      if (bytes.byteLength >= this.snapshotUploadLimit) {
         if (!this.snapshotOversizeReported) {
           this.snapshotOversizeReported = true;
           const message =
             `snapshot upload skipped: the local projection (${Math.round(bytes.byteLength / 1048576)} MiB) ` +
-            "meets the relay's body cap (512 MiB) — uploading would be rejected. " +
-            "A server-side snapshot covers restore; the client upload stays skipped this session.";
+            "meets the relay's body cap — uploading would be rejected. A server-side snapshot covers " +
+            "restore; the client upload stays skipped this session.";
           console.error(`[sync] ${message}`);
           this.callbacks.onError?.(new Error(message));
         }

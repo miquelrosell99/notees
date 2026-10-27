@@ -497,6 +497,59 @@ describe("remote poison quarantine", () => {
   });
 });
 
+describe("snapshot upload — the pre-flight size guard", () => {
+  it("skips the upload at the body cap without calling the transport, reports once, and re-arms after an under-limit success", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    const errors: Error[] = [];
+    const store = new Store();
+    const transport = new MemoryTransport(relay);
+    let uploadCalls = 0;
+    const realUpload = transport.uploadSnapshot.bind(transport);
+    transport.uploadSnapshot = async (bytes, hlc) => {
+      uploadCalls++;
+      await realUpload(bytes, hlc);
+    };
+    const engine = new SyncEngine(store, transport, new Clock(DEVICE_A), {
+      workspaceId: WS,
+      now: () => nowMs,
+      snapshotUploadLimit: 1, // any non-empty snapshot trips the guard
+      callbacks: { onError: (e) => errors.push(e) },
+    });
+
+    for (const envelope of baseEnvelopes(DEVICE_A)) engine.enqueue(envelope);
+    await engine.syncOnce();
+    expect(uploadCalls).toBe(0);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.message).toMatch(/snapshot upload skipped/);
+
+    // A further sync cycle does not re-report (and still does not upload).
+    engine.enqueue(
+      makeEnvelope(DEVICE_A, T0 + 9000, "object.update", {
+        objectId: NODE,
+        contentAst: [{ type: "text", text: "another edit" }],
+      }),
+    );
+    await engine.syncOnce();
+    expect(uploadCalls).toBe(0);
+    expect(errors).toHaveLength(1);
+
+    // The projection comes back under the cap: the upload proceeds and the
+    // latch re-arms.
+    (engine as unknown as { snapshotUploadLimit: number }).snapshotUploadLimit = 512 * 1024 * 1024;
+    engine.enqueue(
+      makeEnvelope(DEVICE_A, T0 + 9010, "object.update", {
+        objectId: NODE,
+        contentAst: [{ type: "text", text: "caught up" }],
+      }),
+    );
+    await engine.syncOnce();
+    expect(uploadCalls).toBeGreaterThan(0);
+    expect(relay.getSnapshotMeta().hasSnapshot).toBe(true);
+    expect(errors).toHaveLength(1);
+  });
+});
+
 describe("snapshot upload — the 413 honesty", () => {
   it("surfaces an over-cap upload once per session, retries silently, and re-arms after a success", async () => {
     const relay = new MemoryRelay();
