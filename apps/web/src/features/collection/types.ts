@@ -73,10 +73,13 @@ export interface SortSpec {
  *
  * - `dates-first` (list): date pages first, newest → oldest, then the other
  *   pages A–Z; within a page group / sibling level the position order
- *   stands. The default for the Backlinks and Unlinked mentions sections.
- * - `alphabetical`: by display name A–Z (the child-pages, Extended-by and
- *   classed-nodes default).
- * - `position`: the container's natural order (the list default).
+ *   stands. The default for the Backlinks and Unlinked mentions sections
+ *   and the shell hubs (Pages, Classes, Whiteboards, Inbox).
+ * - `alphabetical`: by display name A–Z, case-insensitive ("a" sorts
+ *   before "B") (the child-pages, Extended-by and classed-nodes default).
+ * - `position`: the container's natural order — the un-picked state a view
+ *   starts in when the container names no other default; never a sort-menu
+ *   entry.
  * - `edit-date` (cards): by `updatedAt`, most recently edited first (the
  *   cards default; the table's equivalent is its Edited column's desc
  *   default).
@@ -405,14 +408,15 @@ export interface NodeCollectionProps {
   onRowClick?: ((nodeId: string) => void) | undefined;
   /**
    * List/cards: the sort mode the view starts in (session state after; the
-   * view owns the sort button). The list view supports `dates-first` /
-   * `alphabetical` / `position` (default `position`); the cards view
-   * supports `edit-date` / `alphabetical` (default `edit-date`). A mode the
-   * view does not support falls back to its default. Like `defaultSort` the
-   * default is LIVE — it re-seeds while the user has chosen none (the
-   * ranked quick search passes `position` while it ranks the pool). The
-   * table view ignores this prop — it sorts per column (`defaultSort`).
-   * Never an op.
+   * view owns the sort button). The list view sorts `dates-first` /
+   * `alphabetical` and treats `position` as the un-picked state (the
+   * container's natural order — the view default when this prop is absent);
+   * the cards view supports `edit-date` / `alphabetical` (default
+   * `edit-date`). A mode the view does not support falls back to its
+   * default. Like `defaultSort` the default is LIVE — it re-seeds while the
+   * user has chosen none (the ranked quick search passes `position` while
+   * it ranks the pool). The table view ignores this prop — it sorts per
+   * column (`defaultSort`). Never an op.
    */
   defaultSortMode?: SortMode | undefined;
   /**

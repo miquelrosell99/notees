@@ -259,11 +259,13 @@ describe("the sort button on the collection views", () => {
       el.getAttribute("data-group-id"),
     );
     expect(groupIds).toEqual([newer.day, older.day, alphaId]);
-    // The sort button rides the toolbar with the dates-first vocabulary.
+    // The sort button rides the toolbar with the two named modes — the
+    // container's natural order ("Default order") is not a menu entry.
     const sortButton = screen.getByRole("button", { name: "Sort" });
     fireEvent.click(sortButton);
     expect(screen.getByText("Dates first")).not.toBeNull();
-    expect(screen.getByText("Default order")).not.toBeNull();
+    expect(screen.getByText("Name A–Z")).not.toBeNull();
+    expect(screen.queryByText("Default order")).toBeNull();
   });
 
   it("groupByContainingPage splits page sources into standalone — never a self-named group", async () => {

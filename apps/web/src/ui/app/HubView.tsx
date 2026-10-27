@@ -314,6 +314,7 @@ export function HubView({
         items={items.map((node) => ({ node }))}
         modes={["outline"]}
         defaultMode="outline"
+        defaultSortMode="dates-first"
         persistKey={`hub.${nav}`}
         emptyTitle="Nothing here yet."
         headerActions={headerAction}

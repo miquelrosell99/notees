@@ -682,7 +682,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
           display,
         });
       }
-      selectDisplayGroups.sort((a, b) => a.label.localeCompare(b.label));
+      selectDisplayGroups.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" }));
     }
     for (const group of selectDisplayGroups) {
       if (group.display === "bullet") bulletDisplayGroups.push(group);

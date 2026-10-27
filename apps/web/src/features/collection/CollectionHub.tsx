@@ -4,7 +4,9 @@
  * pinned above a NodeCollection of the hub's nodes. View mode persists per
  * hub device-locally when `persistKey` is given (never an op); without a
  * key it stays session-local. The pages/classes hubs ride the outline
- * mode; tasks defaults to table; assets to cards with a cover-top cover
+ * mode, opening on the Dates first sort (the hub passes `defaultSortMode`;
+ * unset = the container's row order). Tasks defaults to table; assets to
+ * cards with a cover-top cover
  * fallback. The outline (list) mode renders the full
  * block-row surface — inline-editable when `editable` is set (the tasks
  * hub), read-only-inert otherwise (the content click does nothing; the
@@ -20,7 +22,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { useViewModePreference } from "../../ui/viewPrefs.js";
 import { NodeCollection, ViewToolbar } from "./index.js";
-import type { NodeCollectionItem, SortSpec, TableColumn, ViewMode } from "./index.js";
+import type { NodeCollectionItem, SortMode, SortSpec, TableColumn, ViewMode } from "./index.js";
 import type { AnyClient, CoverLayout } from "./types.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
 import "./CollectionHub.css";
@@ -40,6 +42,13 @@ export interface CollectionHubProps {
    */
   persistKey?: string | undefined;
   tableColumns?: TableColumn[] | undefined;
+  /**
+   * List mode's sort default (the mode the sort button opens on — Dates
+   * first for the shell hubs); unset = the container's row order (position).
+   * The table/cards modes ignore it (the table sorts per column, the cards
+   * per its own vocabulary).
+   */
+  defaultSortMode?: SortMode | undefined;
   /**
    * Cards: the cover layout this hub's cards fall back to when the device
    * has no persisted cover choice yet (the Assets hub passes "cover-top").
@@ -83,6 +92,7 @@ export function CollectionHub({
   defaultMode,
   persistKey,
   tableColumns,
+  defaultSortMode,
   defaultCoverLayout,
   tableEditable = false,
   defaultSort,
@@ -126,6 +136,7 @@ export function CollectionHub({
             propertiesOf={(id) => client.getEffectiveProperties(id)}
             tableEditable={tableEditable}
             {...(defaultSort !== undefined ? { defaultSort } : {})}
+            {...(defaultSortMode !== undefined ? { defaultSortMode } : {})}
             groupByProperty={groupByProperty}
             emptyTitle={emptyTitle}
             editable={editable}
