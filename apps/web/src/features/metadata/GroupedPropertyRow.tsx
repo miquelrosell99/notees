@@ -36,6 +36,9 @@ export function GroupedPropertyRow({
    *  filters to empty (the assigned/bound-empty reduction) — the from-class
    *  flag rides this when the rows themselves carry no boundBy. */
   classBound = false,
+  /** The property-header icon (effectivePropertyIcon — the stored schema
+   *  icon or the type fallback). */
+  icon,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -52,6 +55,7 @@ export function GroupedPropertyRow({
   bare?: boolean;
   readOnly?: boolean | undefined;
   classBound?: boolean;
+  icon: string;
 }) {
   // R4 honest rendering: a grouped schema with an ineligible authored row
   // renders dimmed (the whole group — the schema excludes this node).
@@ -66,6 +70,7 @@ export function GroupedPropertyRow({
         propertySchemaId={propertySchemaId}
         label={label}
         classBound={classBound}
+        icon={icon}
         multi={multi}
         schema={schema}
         rows={groupRows}
@@ -86,6 +91,7 @@ export function GroupedPropertyRow({
         propertySchemaId={propertySchemaId}
         label={label}
         classBound={classBound}
+        icon={icon}
         multi={type === "multi_select" ? true : multi}
         options={options}
         rows={groupRows}
@@ -103,6 +109,7 @@ export function GroupedPropertyRow({
         propertySchemaId={propertySchemaId}
         label={label}
         classBound={classBound}
+        icon={icon}
         rows={groupRows}
         bare={bare}
         readOnly={readOnly}
@@ -118,6 +125,7 @@ export function GroupedPropertyRow({
         propertySchemaId={propertySchemaId}
         label={label}
         classBound={classBound}
+        icon={icon}
         multi={multi}
         rows={groupRows}
         onOpenPage={onOpenPage}
@@ -136,6 +144,7 @@ export function GroupedPropertyRow({
         propertySchemaId={propertySchemaId}
         label={label}
         classBound={classBound}
+        icon={icon}
         multi={multi}
         rows={groupRows}
         bare={bare}
@@ -151,6 +160,7 @@ export function GroupedPropertyRow({
       propertySchemaId={propertySchemaId}
       label={label}
       classBound={classBound}
+      icon={icon}
       multi={multi}
       bindingFilter={bindingFilter}
       rows={groupRows}

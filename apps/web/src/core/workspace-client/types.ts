@@ -483,6 +483,10 @@ export interface EffectiveProperty {
     name: string;
     type: string;
     multi: boolean;
+    /** The schema's stored icon (null = none) — the property-header icon
+     *  falls back to a type-derived one when unset
+     *  (`effectivePropertyIcon`). */
+    icon?: string | null;
     datePrecision: DatePrecision | null;
     dateQualified: boolean | null;
     numberPad?: number | null;

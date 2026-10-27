@@ -59,6 +59,8 @@ export function DatetimePropertyRow({
   /** The host knows the property is class-supplied even when rows carry no boundBy
    *  (the empty assigned/bound reduction) — the from-class badge rides this. */
   classBound = false,
+  /** The property-header icon (effectivePropertyIcon). */
+  icon,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -72,6 +74,7 @@ export function DatetimePropertyRow({
   readOnly?: boolean | undefined;
   rowClassName?: string;
   classBound?: boolean;
+  icon: string;
 }) {
   const [pickerFor, setPickerFor] = useState<number | "new" | null>(null);
   const anchorRef = useRef<HTMLElement | null>(null);
@@ -195,7 +198,7 @@ export function DatetimePropertyRow({
           >
             {!bare && (
               <>
-                <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
+                <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}><Icon path={icon} size={0.8} className="nt-property-name__icon" />{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
               </>
             )}
           </li>
@@ -211,7 +214,7 @@ export function DatetimePropertyRow({
         >
           {!bare && (
             <>
-              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
+              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}><Icon path={icon} size={0.8} className="nt-property-name__icon" />{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
             </>
           )}
           <span className="nt-property-chips node-metadata-pills">
@@ -232,7 +235,7 @@ export function DatetimePropertyRow({
       >
         {!bare && (
           <>
-            <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
+            <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}><Icon path={icon} size={0.8} className="nt-property-name__icon" />{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
           </>
         )}
         <PropertySelectCell
@@ -303,7 +306,7 @@ export function DatetimePropertyRow({
     >
       {!bare && (
         <>
-          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}><Icon path={icon} size={0.8} className="nt-property-name__icon" />{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
         </>
       )}
       <span className="nt-property-chips node-metadata-pills">

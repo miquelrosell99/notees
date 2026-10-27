@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-10-27
 
+- **fix(web): unchecked boolean property checkboxes are visible on the
+  panel card again.** The catalog checkbox border rides `border-outline`,
+  tuned against the app surface — one tone darker than the sidebar card
+  fill (`--md-sys-color-sidebar-card`), so the FALSE state blended into the
+  card (reported on a `libro` page's Consumido/Consumiendo rows). The
+  metadata panels now pin the unchecked border to on-surface-variant (70%)
+  and keep the fleet hover contract (`border-primary`). Both panels (the
+  properties sidebar and the in-flow metadata table) ride the same
+  `.nt-property-boolean` hook. Verified: visual + full gate green.
+
+- **feat(web): property headers carry an icon — the stored schema icon, or
+  a type-derived fallback (read-time, nothing stored).** Every property
+  name row in the properties sidebar and the metadata table renders an icon
+  left of the label: `schema.icon` when set, otherwise
+  `effectivePropertyIcon`'s per-type table (text → format-text, url →
+  link-variant, email, image, number, select, multi_select, boolean,
+  datetime → calendar-clock, object → target, asset → paperclip; schema-less
+  rows and unknown types → tag-outline — all sprite-verified against
+  `public/mdi-sprite.svg`). A new required `icon` prop threads through
+  `GroupedPropertyRow` into the six per-type row components (same host→
+  dispatcher→row pattern as the from-class flag); the web
+  `EffectiveProperty` schema type gains the `icon` field the store read
+  already carried at runtime. Verified: new `property-icon.test.ts` unit
+  suite (stored-wins, per-type map, fallbacks) + sidebar/table integration
+  cases (type fallback renders, stored icon replaces it); `pnpm typecheck` +
+  `pnpm test` green.
+
 - **fix(web,query): collection sorting — no "Default order" menu entry, the
   shell hubs open on Dates first, and every A–Z sort folds case.** Three
   reported confusions, one slice. (1) The list view's sort panel offered

@@ -5,6 +5,7 @@ import { type DatePrecision, isReadonlyProperty } from "@notees/domain";
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { ContextMenu } from "../../components/ui/fleet/ContextMenu.js";
+import { Icon } from "../../ui/Icon.js";
 import { AliasedNodeRow } from "./AliasedNodeRow.js";
 import { PropertyView } from "./PropertyView.js";
 import { PropertyHistoryModal } from "./PropertyHistoryModal.js";
@@ -12,6 +13,7 @@ import type { AnyClient } from "./shared.js";
 import { AddPropertyRow } from "./AddPropertyRow.js";
 import { ScopeRemedyButton } from "./ScopeRemedyButton.js";
 import { propertyGroupsOf } from "./propertyGroups.js";
+import { effectivePropertyIcon } from "./propertyIcon.js";
 import { GroupedPropertyRow } from "./GroupedPropertyRow.js";
 import { ScalarPropertyValue } from "./ScalarPropertyValue.js";
 import { PropertySettingsModal } from "./PropertySettingsModal.js";
@@ -123,6 +125,7 @@ export function PropertiesTable({
     bindingFilter: string[] | null,
     groupRows: EffectiveProperty[],
     classBound: boolean,
+    icon: string,
   ) => {
     // R4 honest rendering, the grouped arm: a grouped schema with an
     // ineligible authored row dims the whole group — and carries the guided
@@ -143,6 +146,7 @@ export function PropertiesTable({
           bindingFilter={bindingFilter}
           groupRows={groupRows}
           classBound={classBound}
+          icon={icon}
           onOpenPage={onOpenPage}
           onOpenInSidebar={onOpenInSidebar}
           readOnly={readOnly}
@@ -190,6 +194,7 @@ export function PropertiesTable({
                 null,
                 entry.groupRows,
                 entry.boundBy !== null,
+                effectivePropertyIcon(schema),
               );
             }
             const row = entry.row;
@@ -206,6 +211,7 @@ export function PropertiesTable({
                   : {})}
               >
                 <span className="section-label nt-property-name" data-property-schema-id={row.propertySchemaId}>
+                  <Icon path={effectivePropertyIcon(row.schema)} size={0.8} className="nt-property-name__icon" />
                   {label}
                   {row.boundBy !== null && <span className="nt-property-hint" title="From a class">C</span>}
                 </span>
@@ -240,6 +246,10 @@ export function PropertiesTable({
               // An INACTIVE (soft-unbound) binding carries no flag: the
               // class no longer supplies the property.
               binding.active !== false,
+              effectivePropertyIcon({
+                icon: client.listPropertySchemas().find((s) => s.id === binding.propertySchemaId)?.icon ?? null,
+                type: binding.type,
+              }),
             ),
           )}
       </ul>
