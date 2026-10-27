@@ -278,9 +278,11 @@ export function HubView({
           ? pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length === 0)
           : pages.filter((page) => !sectionIds.has(page.id));
   // The shared hub's header creation button: each mode's idiom — Classes
-  // opens the class-creation modal; Pages writes one main page (the palette's
-  // New-page write); Whiteboards reuses the "New" flow's write with the
-  // whiteboard system class picked. The created node opens.
+  // opens the class-creation modal; Whiteboards reuses the "New" flow's write
+  // with the whiteboard system class picked. The created node opens. Pages
+  // (and Inbox) carry none: plain-page creation is the top bar's "New" flow
+  // (the "No class" pick), the palette's New-page command, and Ctrl/Cmd+N —
+  // one canonical entry point, not a per-surface duplicate.
   const headerAction =
     nav === "classes" ? (
       <Button
@@ -290,22 +292,6 @@ export function HubView({
         onClick={() => setClassCreateOpen(true)}
       >
         New class
-      </Button>
-    ) : nav === "pages" ? (
-      <Button
-        size="sm"
-        variant="ghost"
-        icon="mdiNotePlusOutline"
-        onClick={() => {
-          void client
-            .createObject({ isEmbedded: false, name: "Untitled" })
-            .then((id) => onOpenNode(id))
-            .catch((error: unknown) => {
-              console.warn("[new-node] creation failed:", error);
-            });
-        }}
-      >
-        New page
       </Button>
     ) : nav === "whiteboards" ? (
       <Button

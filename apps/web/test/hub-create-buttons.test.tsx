@@ -2,11 +2,12 @@
  * Hub header creation buttons — the shared collection hub's header carries
  * a creation affordance per mode:
  *
- *  - Pages hub: **New page** writes one main page (the command palette's
- *    New-page write) and opens it;
  *  - Whiteboards hub: **New whiteboard** writes a whiteboard-classed page
  *    (the sidebar New flow's write with the whiteboard system class picked)
  *    and opens it — the created node lists in the hub's members;
+ *  - Pages offers no creation button: plain-page creation is the top bar's
+ *    "New" flow (the "No class" pick), the palette's New-page command, and
+ *    Ctrl/Cmd+N;
  *  - Inbox (a filtered view of the unclassed) offers no creation button.
  */
 
@@ -131,18 +132,11 @@ describe("the Tasks hub's New task flow", () => {
 });
 
 describe("hub header creation buttons", () => {
-  it("the Pages hub's New page writes a main page and opens it", async () => {
+  it("the Pages hub offers no creation button (the top bar's New flow owns plain-page creation)", async () => {
     const client = await seedClient();
-    const opened: string[] = [];
-    render(<HubView client={client} nav="pages" onOpenNode={(id) => opened.push(id)} />);
-    fireEvent.click(await screen.findByRole("button", { name: /new page/i }));
-    await waitFor(() => expect(opened).toHaveLength(1));
-    const page = client.getNode(opened[0]!);
-    expect(page).not.toBeUndefined();
-    expect(page!.isClass).toBe(false);
-    expect(page!.isEmbedded).toBe(false);
-    expect(page!.parentId).toBeNull();
-    await flushSync();
+    render(<HubView client={client} nav="pages" onOpenNode={() => {}} />);
+    await screen.findByText("Nothing here yet.");
+    expect(screen.queryByRole("button", { name: /new /i })).toBeNull();
   });
 
   it("the Whiteboards hub's New whiteboard writes a whiteboard-classed page and opens it", async () => {
