@@ -41,7 +41,13 @@ summary here.
    at the repo root for recent related work and check `.plans/` for an
    in-flight proposal folder. After shipping, add a `CHANGELOG.md` entry (what
    shipped, verification) in the same pass. A change without its record is not
-   done.
+   done. Two record boundaries (2026-10-27): the changelog is **app changes
+   only** — never operations on a personal workspace or its specifics (names,
+   ids, sizes, per-workspace counts, personal node samples); data work is
+   reported to the owner, not recorded. And state rules and facts **directly**
+   — no "(ruling …)"-style attributions anywhere in `CHANGELOG.md` or
+   `AGENTS.md`: a single-owner repo needs no attribution, and the date rides
+   the entry's heading / git blame.
 4. **Docs are part of the change.** Same-pass updates to `docs/`,
    `packages/protocol/SCHEMA.md`, AGENTS.md / `.agents/`, and the
    `docs/developers/` runbooks for anything behavior/model/wire/UX changes.
