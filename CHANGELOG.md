@@ -9,6 +9,39 @@ predating this file.
 
 ## 2026-10-27
 
+- **fix(web): nested sections keep their own chevron state, and reference
+  rows lose the bound-verb pill.** Two owner reports from the linked-
+  references rows (2026-10-27). (1) A row's collapsed "Properties N" section
+  showed the DOWN chevron in BOTH states: the expanded-rotation selector was
+  a bare descendant match (`.node-view-section.expanded …`), so every
+  NESTED section's chevron rotated under any expanded ancestor — the
+  reference rows' Properties panels live inside the expanded Backlinks
+  section (the live probe caught the collapsed row carrying the rotated
+  chevron against the deployed stack). The rotation and the header hover
+  wash are now child-scoped to the section's own header row, and a CSS
+  regression spec pins the scoped selectors (the view-modes fs-read
+  precedent) plus the nested-mount render contract. (2) A reference row
+  whose edge arrives THROUGH a property rendered the schema's name as a
+  free-floating pill to the RIGHT of the classes — a uniform label on every
+  row (67 identical pills in the reported list) crowding the identity
+  chrome. The `.nt-ref-verb` badge is retired from the trailing seam (page
+  section AND block-level gutter — one component); the property context is
+  one expand away in the row's own Properties table, and the breadcrumb
+  trail already names stored-through hops directly.
+  - **Files**: `apps/web/src/features/page-sections/NodeViewSection.css`
+    (child-scoped rotation + hover), `…/SystemSections.tsx` (the badge, its
+    schema-name memo, and the verb guard retired; ReferenceList doc
+    rewritten), `…/SystemSections.css` (the `.nt-ref-verb` rule removed),
+    `apps/web/test/verb-backlinks.test.tsx` (the badge assertions become
+    no-badge assertions; the edge-projection contract is untouched),
+    `apps/web/test/node-view-section-chevron.test.tsx` (new — the CSS
+    regression spec + nested mount).
+  - **Docs**: `docs/features/links.md` (the bound-verbs entry and the
+    trailing-seam sentence state the retirement).
+  - **Verification**: `node-view-section-chevron` + `verb-backlinks` suites
+    green; live probe against the rebuilt stack shows the collapsed row
+    chevron unrotated and no verb badge at the row end.
+
 - **fix(web): the page hubs strip per-row properties and tags chrome — the
   list answers "which pages", not "what metadata".** Following the
   subpage-scoping slice, the Pages/Whiteboards/Inbox hubs now render rows

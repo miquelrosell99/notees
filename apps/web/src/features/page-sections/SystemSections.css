@@ -126,21 +126,3 @@
   background: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-on-surface);
 }
-
-/* Bound-verb backlink badge: the schema name the reference arrived
-   through — a quiet pill riding the reference row's trailing seam. */
-.nt-ref-verb {
-  display: inline-block;
-  margin-top: 2px;
-  padding: 1px var(--spacing-2);
-  border-radius: var(--radius-full);
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
-  font-size: var(--font-size-xs);
-  line-height: 1.4;
-  vertical-align: middle;
-  max-width: 40%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
