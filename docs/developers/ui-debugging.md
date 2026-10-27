@@ -4,6 +4,39 @@ How to SEE what the web client actually renders when a test can't tell you —
 a color looks wrong, a control is mis-sized, a PDF layout reads badly. Two
 toolchains, both already in the repo; this page is the map.
 
+## The authenticated boot (read this first)
+
+Agents must NEVER loop at the Connect screen again. Any fresh browser profile
+boots the app to Connect (no stored server/credential), and the only correct
+path past it is the **resume contract**, not clicking through:
+
+1. `POST /api/auth/login` (admin email + password — fleet hosts:
+   `/etc/periphery/stacks/notees/config/notees/.admin_password`) → session
+   token. Never type into the sign-in form from automation — repeated bad
+   passwords trip a per-email rate limit (429, 15-minute lockout).
+2. `addInitScript` seeds `notees.serverUrl` / `notees.sessionToken` /
+   `notees.workspaceId` BEFORE `page.goto` — the resume effect validates the
+   token and auto-connects; no Connect click exists in this flow.
+3. Poll the DOM for the app shell (sidebar chrome + grown body text), never
+   a fixed sleep: a fresh profile full-catch-ups the whole relay log before
+   content — minutes on a big workspace.
+
+**`scripts/screenshots/ui-session.mjs` does all three** and asserts the
+workspace rendered — it throws with the exact recovery hints instead of
+leaving a session parked at Connect:
+
+```js
+import { bootApp } from "./ui-session.mjs";   // from scripts/screenshots/
+const { page, browser } = await bootApp();     // env-driven, headless
+```
+
+Rules: never "Work offline" for diagnosis (an empty local workspace tells you
+nothing); never diagnose against a dev server on a random port with a stale
+stored URL; the manual fallback without the admin password is the
+bootstrap's API-key tab with the operator key; the test workspace
+the test workspace is the default sandbox. New probes import `bootApp` rather
+than re-deriving the bootstrap.
+
 ## Two paths
 
 **The capture suite — `scripts/screenshots/run.sh`.** Boots THROWAWAY
