@@ -49,7 +49,7 @@ predating this file.
 - **fix(sync): snapshot upload pre-flight body cap — skip at the limit
   instead of transferring a body the relay rejects.** The relay caps the
   snapshot PUT at 512 MiB (route-local limit); a projection at/over that
-  (the owner's workspace reached ~518 MB after the bulk imports) uploaded
+  (a workspace projection can reach and exceed that after bulk imports) uploaded
   the whole body before the 413 — wasting bandwidth and, worse, the
   500 MB-plus request frame breaks any tooling that observes browser
   traffic (the verify smoke's driver died with ERR_STRING_TOO_LONG on
@@ -272,11 +272,11 @@ predating this file.
   (deferred notification + stale read cache) — red before, green after;
   `outliner-editor.test.tsx` 35/35, full gate green.
 - **fix(scripts): the parent-order RESEQUENCING migration — `migrate-resequence-parent-order.mts` — plus the
-  repair-script dedupe/resume fixes; live Notas log repaired (60
+  repair-script dedupe/resume fixes; one live log repaired (60
   resequenced + 1 stripped + 29 quarantined, gate green).** The earlier
   slice (`migrate-repair-parent-order.mts`, landed fbe489da2) established
   that an embedded block can only receive a block parent AT BIRTH — the
-  strip+move repair provably cannot replay for the 60 Notas offenders (the
+  strip+move repair provably cannot replay for 60 of the 61 live offenders (the
   treat-as-main-on-first-parenting move guard). This slice repairs ORDER
   instead of payloads: the minimal window covering every out-of-order
   create + its ancestor chain up to the entry roots, a stable topological
@@ -452,9 +452,9 @@ predating this file.
 
 - **fix(store): merge plans apply clean on imported graphs — standalone
   children of embedded sources relocate, positional property refs re-address
-  without a bogus elementId.** Both failure classes hit the owner's live
-  merge of Logseq-imported person/org duplicates into their twins (14/14
-  merges died mid-plan at op submit; dry-run passed because it never applies):
+  without a bogus elementId.** Both failure classes were hit by a real
+  merge workload (14/14 merges died mid-plan at op submit; dry-run passed
+  because it never applies):
   (1) `object.move: node … is standalone (is_embedded = 0); it can only move
   under a parent that renders with document chrome` — the planner moved a
   standalone child (attached PDFs/studies) of an embedded source block under
@@ -477,9 +477,8 @@ predating this file.
 - **fix(export): the Logseq DB model skips logseq system SUBTREES, not just
   system roots.** Logseq's built-in help content lives in blocks parented
   under `:logseq.class/*`/`:logseq.property/*` system pages; the root-only
-  skip left ~270 doc blocks importable as pages on the owner's Notas
-  rehearsal (now 347 system entities counted+skipped, 64 genuine root
-  landings remain). TDD: fixture gains a doc block under the system class.
+  skip left ~270 doc blocks importable as pages on a real-export rehearsal
+  (now 347 system entities counted+skipped, 64 genuine root landings remain). TDD: fixture gains a doc block under the system class.
   Verified: package suite green (302).
 
 - **fix(web): collection-row breadcrumbs name the property a stored-through
@@ -509,14 +508,14 @@ predating this file.
 - **fix(export): the Logseq DB decoder dedupes datoms repeated across index
   pages.** The kvs store keeps the same current datom in several index pages;
   the decoder collected raw rows, so cardinality-many property values arrived
-  duplicated (2,177 phantom extra values on the owner's Notas rehearsal —
+  duplicated (2,177 phantom extra values on a real-export rehearsal —
   single-value schemas visibly double-written). Decode now dedupes per
   attribute by normalized value. TDD: fixture repeats a datom across two
   rows. Verified: package suite green (302).
 
 - **fix(export): the Logseq DB model skip-classification — system entities
-  with uuids, and the real closed-value attr.** Two classification fixes from
-  the drift-rehearsal of the owner's Notas export: Logseq's built-in classes
+  with uuids, and the real closed-value attr.** Two classification fixes from a real-export
+  rehearsal: Logseq's built-in classes
   carry uuids (`00000002-…`), so the `:logseq.class/*` skip never fired and
   ~150 built-ins were importable as pages; and select closed values carry
   `:block/closed-value-property` (not the `:logseq.property/` namespaced
