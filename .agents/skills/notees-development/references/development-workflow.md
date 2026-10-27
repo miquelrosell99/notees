@@ -91,6 +91,14 @@ deleted when the verification is done — the test workspace absorbs the mess;
 the live workspace never does. Canonical: `docs/developers/development.md` (Parallel
 sessions).
 
+**Visual verification (the default):** drive the live app through
+playwright-mcp (the `playwright` MCP server, `mcp__playwright__*` tools) —
+one long-lived headless browser, snapshots for structure, screenshots for
+visual claims. NEW self-launching probe scripts must use
+`scripts/screenshots/probe-lib.mjs` (`launchProbeBrowser`, guaranteed
+teardown); `reap-orphan-chrome.mjs` (cron, every 15 min) reaps leaks older
+than 30 min. Canonical: `docs/developers/development.md` (Visual verification).
+
 **Live UI measurement:** `scripts/screenshots/measure-probe.mjs` (run from
 that folder) signs in — `NOTEES_ADMIN_PASSWORD` or an automatic temporary
 session minted into the relay DB — opens the test workspace, and dumps the
