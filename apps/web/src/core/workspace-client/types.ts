@@ -467,8 +467,11 @@ export interface CreatePropertySchemaInput {
  * One effective (schema, idx) row of a node (SCHEMA.md "Class properties"):
  * authored values and derived class-binding defaults, aggregated across all
  * the node's classes (first-class-applied-wins). `boundBy` names the class
- * supplying the binding metadata, or null when no current class binds the
- * schema (an authored value that outlived its bindings).
+ * supplying the property (the winning binder for defaults, bound-empty and
+ * assigned rows; the currently-binding class for authored rows), or null
+ * when no current class binds the schema — an authored value that outlived
+ * its bindings, or a purely node-added assignment. The panel's "C" flag
+ * rides this field: set = the class definition supplies the property.
  */
 export interface EffectiveProperty {
   propertySchemaId: string;

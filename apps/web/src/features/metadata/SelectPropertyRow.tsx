@@ -23,6 +23,9 @@ export function SelectPropertyRow({
   readOnly = false,
   /** Extra li class (the R4 ineligible rendering — " nt-property-ineligible"). */
   rowClassName = "",
+  /** The host knows the property is class-supplied even when rows carry no boundBy
+   *  (the empty assigned/bound reduction) — the from-class badge rides this. */
+  classBound = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -34,10 +37,11 @@ export function SelectPropertyRow({
   bare?: boolean;
   readOnly?: boolean | undefined;
   rowClassName?: string;
+  classBound?: boolean;
 }) {
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
-  const classSourced = rows.some((row) => row.boundBy !== null);
+  const classSourced = rows.some((row) => row.boundBy !== null) || classBound;
 
   const valuesOf = (row: EffectiveProperty): string[] =>
     Array.isArray(row.value)

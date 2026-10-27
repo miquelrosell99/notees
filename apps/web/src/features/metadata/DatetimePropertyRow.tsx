@@ -56,6 +56,9 @@ export function DatetimePropertyRow({
   readOnly = false,
   /** Extra li class (the R4 ineligible rendering — " nt-property-ineligible"). */
   rowClassName = "",
+  /** The host knows the property is class-supplied even when rows carry no boundBy
+   *  (the empty assigned/bound reduction) — the from-class badge rides this. */
+  classBound = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -68,6 +71,7 @@ export function DatetimePropertyRow({
   bare?: boolean;
   readOnly?: boolean | undefined;
   rowClassName?: string;
+  classBound?: boolean;
 }) {
   const [pickerFor, setPickerFor] = useState<number | "new" | null>(null);
   const anchorRef = useRef<HTMLElement | null>(null);
@@ -139,7 +143,7 @@ export function DatetimePropertyRow({
   };
 
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
-  const classSourced = rows.some((row) => row.boundBy !== null);
+  const classSourced = rows.some((row) => row.boundBy !== null) || classBound;
 
   /** The popup (shared by the single-value and multi branches). */
   const picker = pickerFor !== null && (

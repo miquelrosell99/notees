@@ -122,6 +122,7 @@ export function PropertiesTable({
     schema: { datePrecision?: DatePrecision | null } | null,
     bindingFilter: string[] | null,
     groupRows: EffectiveProperty[],
+    classBound: boolean,
   ) => {
     // R4 honest rendering, the grouped arm: a grouped schema with an
     // ineligible authored row dims the whole group — and carries the guided
@@ -141,6 +142,7 @@ export function PropertiesTable({
           schema={schema}
           bindingFilter={bindingFilter}
           groupRows={groupRows}
+          classBound={classBound}
           onOpenPage={onOpenPage}
           onOpenInSidebar={onOpenInSidebar}
           readOnly={readOnly}
@@ -187,6 +189,7 @@ export function PropertiesTable({
                 schema,
                 null,
                 entry.groupRows,
+                entry.boundBy !== null,
               );
             }
             const row = entry.row;
@@ -234,6 +237,9 @@ export function PropertiesTable({
               { datePrecision: binding.datePrecision },
               binding.targetClassFilter,
               [],
+              // An INACTIVE (soft-unbound) binding carries no flag: the
+              // class no longer supplies the property.
+              binding.active !== false,
             ),
           )}
       </ul>
