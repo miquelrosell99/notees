@@ -139,6 +139,22 @@ describe("hub header creation buttons", () => {
     expect(screen.queryByRole("button", { name: /new /i })).toBeNull();
   });
 
+  it("the Pages hub expands a shown page's subpages, never its inline body blocks", async () => {
+    const client = await seedClient();
+    const parent = await client.createObject({ isEmbedded: false, name: "Parent page" });
+    await client.createObject({ parentId: parent, isEmbedded: false, name: "Child page" });
+    await client.createObject({
+      parentId: parent,
+      contentAst: [{ type: "text", text: "Inline body block" }],
+    });
+    render(<HubView client={client} nav="pages" onOpenNode={() => {}} />);
+    expect((await screen.findAllByText("Parent page")).length).toBeGreaterThan(0);
+    // The subpage rides the parent's nested tree…
+    expect((await screen.findAllByText("Child page")).length).toBeGreaterThan(0);
+    // …and the inline body block stays out of the hub surface.
+    expect(screen.queryByText("Inline body block")).toBeNull();
+  });
+
   it("the Whiteboards hub's New whiteboard writes a whiteboard-classed page and opens it", async () => {
     const client = await seedClient();
     const opened: string[] = [];

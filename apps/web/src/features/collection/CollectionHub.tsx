@@ -70,6 +70,12 @@ export interface CollectionHubProps {
    * click does nothing and the bullet opens the node.
    */
   editable?: boolean | undefined;
+  /**
+   * List mode scopes its recursive children to the main-children zone
+   * (subpages only — the getChildPages read): page listings (the shell
+   * hubs) expand their subpage tree and never a page's inline body blocks.
+   */
+  pagesOnly?: boolean | undefined;
   emptyTitle?: string | undefined;
   /** Right-aligned header extras (#14's "New class" button et al.). */
   headerActions?: ReactNode;
@@ -98,6 +104,7 @@ export function CollectionHub({
   defaultSort,
   groupByProperty,
   editable = false,
+  pagesOnly = false,
   emptyTitle,
   headerActions,
   prepend,
@@ -140,6 +147,7 @@ export function CollectionHub({
             groupByProperty={groupByProperty}
             emptyTitle={emptyTitle}
             editable={editable}
+            {...(pagesOnly ? { pagesOnly: true } : {})}
             onNodeClick={onOpenNode}
             onNodeShiftClick={onOpenInSidebar}
           />

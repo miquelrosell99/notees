@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-27
 
+- **fix(web): the Pages/Whiteboards/Inbox hubs expand a page's subpage tree,
+  never its inline body blocks.** The list view's flat path rendered every
+  page row with ALL its live children (the `getChildren` read) — so the
+  Pages hub leaked a page's body blocks into the surface alongside its
+  subpages. The `pagesOnly` collection flag (previously a caller-less tree
+  remnant whose predicate was inverted — it kept blocks and dropped pages)
+  is now live end to end: `CollectionHub` forwards it, the shell hubs set it
+  (all the page listings; the Classes hub keeps the default), and the flat
+  path's recursive child read switches to the canonical main-children read
+  (`getChildPages` — non-class, non-embedded, active) in both the fold-walk
+  and the row render, so a shown page expands its subpages and nothing
+  else. The tree path's `filterPages` predicate is corrected to the same
+  semantics. Verified: new hub test (a parent page with a subpage and an
+  inline block — the subpage renders, the block does not) proven non-vacuous
+  (fails with the wiring off); hub suite 6/6; `tsc` green; full suite green
+  (web 202 files / 2358 tests, server 314, all package suites).
+  `docs/features/pages.md`'s page-list entry states the scoping.
+
 - **fix(web): unchecked boolean property checkboxes are visible on the
   panel card again.** The catalog checkbox border rides `border-outline`,
   tuned against the app surface — one tone darker than the sidebar card
