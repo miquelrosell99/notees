@@ -20,6 +20,7 @@ Documentation for people — using the app, and developing or operating it. One 
 - **[Outliner](features/outliner.md)** — the editor contract: gestures, slash commands, collapse, multi-select, drag reorder, the condensed layer.
 - **[Links, mentions, and references](features/links.md)** — mention pills, class chips, typed-link marks, embeds, aliases, backlinks and unlinked mentions.
 - **[Properties](features/properties.md)** — the Properties panel, value cells and their contracts, inline property buttons.
+- **[Assets](features/assets.md)** — files as content-addressed nodes: the attachments row, covers and banners, inline asset tokens, the CLI surface.
 - **[Templates](features/templates.md)** — class-bound reusable bodies, the gallery, variables.
 - **[Tables](features/tables.md)** — cells are nodes; the grid is a view.
 - **[Whiteboards](features/whiteboards.md)** — the spatial canvas; cards are blocks.
@@ -40,7 +41,7 @@ Documentation for people — using the app, and developing or operating it. One 
 
 **Output**
 
-- **[Sources](features/sources.md)** — the source library: 39 Zotero-faithful type-classes, the resolver-backed add flow, citekeys, .bib/CSL-JSON export.
+- **[Sources](features/sources.md)** — the source library: 39 Zotero-faithful type-classes, the resolver-backed add flow, citekeys, .bib/CSL-JSON export, CLI bibliography imports.
 - **[Exporting](features/exporting.md)** — Markdown/HTML/Word/LaTeX/PDF/JSON archive, table CSV/xlsx and import, workspace zips.
 - **[Importing](features/import.md)** — the Import Workspace modal: Notees dumps, Markdown files/workspaces, Logseq folders, and the Logseq DB reconcile.
 - **[Sharing](features/sharing.md)** — read-only public links, the Shares hub.

@@ -621,8 +621,13 @@ confirmation),
 `backlinks <id>`,
 `export markdown --ids … | --linked-to <id> | --class <id|title> [--depth N|fixpoint] [--output-dir | --stdout]`
 (bundle engine in `src/markdown-export.ts` — children fetched position-aware via
-`GET /objects/:id/children`), `export bibtex`, `import bibtex <file>` (find-or-create
-person authors, upsert sources by citekey), `asset add|get`, `ops [opType]` (the op
+`GET /objects/:id/children`), `export bibtex`, `import bibtex|csl-json|zotero-rdf <file>`
+(citekey upsert with title adoption, Notees-wins fills, re-run idempotent; the
+bibliographic imports never create person nodes and never write Linked authors —
+creators ride the text Authors/Editors properties), `import logseq-db <file.sqlite>`
+(the uuid-preserving drift reconcile, dry-run default), `asset add|attach|list|get`
+(`add` takes files and/or directories, recursively; `attach` links an existing asset,
+idempotent), `ops [opType]` (the op
 catalog behind the shell's `submitOp`), `sync status`, `doctor`, `auth login|logout|status`
 (stored per-profile CLI API keys), and `shell` (scripted Node REPL over the object API;
 piped stdin runs as a script). Global flags: `--json` (stable machine

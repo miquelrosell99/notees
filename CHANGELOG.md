@@ -9,6 +9,37 @@ predating this file.
 
 ## 2026-10-27
 
+- **docs(features): the sources page grows the property set + the CLI
+  bibliography imports; a new assets page; queries.md verified current.**
+  `docs/features/sources.md` gains the bibliographic property set (text
+  scalars for flexibility; the typed exceptions — Linked authors as the
+  manual curated relational form, Publication date/Accessed on the date
+  chain, Attachments as asset refs, Cover/Banner as wire node fields) and
+  the CLI bibliography imports (`notees import bibtex|csl-json|zotero-rdf`,
+  `notees import logseq-db`) — citekey upsert with title adoption,
+  Notees-wins fills, re-run idempotency, `--dry-run`/`--no-create`, and the
+  import ruling stated plainly: bibliographic imports never create
+  person/organization nodes and never write Linked authors; creators land
+  on the text Authors/Editors properties. New `docs/features/assets.md`:
+  what an asset is (content-addressed bytes + index + an ordinary
+  asset-classed node), the three attachment surfaces (the Attachments
+  property row, cover/banner node fields, inline `asset_ref` tokens),
+  upload acceptance (content sniffing first, the aac/m4a/ogg/flac
+  audio-extension fallback when sniffing is inconclusive), the CLI surface
+  (`asset add` over files and/or directories recursively, `asset attach`
+  idempotent, `asset list`, `asset get`), and the known server-side gap —
+  an attach to a dangling node id stores unattached bytes (clients
+  pre-validate; a server guard is pending). `docs/features/queries.md`
+  reviewed against the register and left as written: the Queries hub left
+  the nav for the account popup and was then removed entirely — the query
+  class page is the registry. Index entries in `docs/README.md`; the CLI
+  catalog line in `docs/developers/architecture.md` refreshed to the
+  shipped import ruling and the full `asset` subcommand set.
+  `docs/feature-status.md` tracks Today vs Designed labels only, so the
+  planned contacts-management note has no settled model to label there and
+  is deliberately not recorded. Verified: markdown sanity — every relative
+  link in the touched pages resolves to an existing file; no code changed.
+
 - **feat(store): FTS mention resolution cascades through link-bearing titles
   (schema v33).** Searching a node name already surfaced every node that
   LINKS to it — except across a block→block→page chain: document-chrome

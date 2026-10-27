@@ -1,6 +1,6 @@
 # Sources
 
-The source library: one `source` class family covering the Zotero item-type roster, a resolver that turns an identifier (or a PDF) into a prefilled source, citekeys generated from your pattern, and bibliography export (.bib / CSL-JSON) over any selection. A source is an ordinary node — in the graph, queryable, backlinkable; its files are `attachments` ([properties.md](properties.md)'s dedicated asset row) and its notes are ordinary child blocks ([pages.md](pages.md)). The family toggle and the class machinery underneath are [classes.md](classes.md)'s; the export dialog's other formats are [exporting.md](exporting.md)'s.
+The source library: one `source` class family covering the Zotero item-type roster, a resolver that turns an identifier (or a PDF) into a prefilled source, citekeys generated from your pattern, bibliography export (.bib / CSL-JSON) over any selection, and CLI imports (BibTeX / CSL-JSON / Zotero RDF) that reconcile an external bibliography into the library. A source is an ordinary node — in the graph, queryable, backlinkable; its files are `attachments` ([properties.md](properties.md)'s dedicated asset row) and its notes are ordinary child blocks ([pages.md](pages.md)). The family toggle and the class machinery underneath are [classes.md](classes.md)'s; the export dialog's other formats are [exporting.md](exporting.md)'s.
 
 ## The source family: 39 type-classes
 
@@ -15,6 +15,17 @@ The honest edges: a PDF with no DOI says so and creates nothing; the resolver-of
 ## Authors: plain text, and the people graph
 
 Authorship is deliberately dual-track, and the two tracks never write each other. **`authors`** is plain text — one name per value, in BibTeX "Family, Given" form (the create form splits a pasted `;`- or newline-separated list, a comma lives safely inside one name). It is the citation and export source of truth, and creating a source never spawns person nodes. **`linkedAuthors`** is the people-graph view: node-typed links to `person`/`organization` agents, drawn as chips with backlinks, carrying zero availability semantics — you link the authors you care about, whenever you care, by hand. Authorship reads use `authors` first and derive names from the `linkedAuthors` targets only when the text track is empty (read-time only, never written back).
+
+## The bibliographic property set
+
+The family binds one shared base set on `source` — `Authors` and `Editors` (free text, one name per value, "Family, Given"), `Citekey`, `DOI`, `ISBN`, `Publisher`, `URL`, `Publication date`, and `Attachments` — and every type-class binds its own Zotero field list from the 85-schema pool (Volume / Issue / Pages / ISSN / Abstract / Edition / Accessed / Book title / Publication title / …, one schema per Zotero field, each scoped to the source family and bound per class). Nearly every field is a **plain text scalar on purpose**: a field holds what the source says, with no validation fights — flexibility over formality. Four exceptions are typed, because their values are graph citizens:
+
+- **`Linked authors`** — object-typed links to `person`/`organization` agent nodes (the target filter is implicit in the type), the manual curated relational form above. Nothing machine-writes it: not the resolver, not the add-source dialog, not the bibliography imports.
+- **`Publication date` and `Accessed`** — datetime values on the date chain: the value references the chain's year (or day) node, a date is a node, so both properties sort, query, and group like every other date.
+- **`Attachments`** — asset-typed values pointing at asset nodes (the type is the filter), rendered as the dedicated file row with **Upload** and **Link** ([assets.md](assets.md) covers the asset side).
+- **Cover / Banner images** — not properties at all: wire node fields (`coverAssetId` / `bannerAssetId`) referencing asset nodes, exactly like any page's cover ([pages.md](pages.md#page-chrome--what-sticks-and-where)); the CLI's `notees cover set` composes the whole invariant in one gesture.
+
+Property panels render the set alphabetically by name, extends-aware (a journal article shows its own volume/issue/pages beside the family base's, never a sibling type's field) — the class machinery is [classes.md](classes.md)'s and [properties.md](properties.md)'s.
 
 ## The Sources hub
 
@@ -40,6 +51,17 @@ Every settings change is one write to the feature row, so the keys never clobber
 ## Export: .bib and CSL-JSON
 
 The export dialog registers **BibTeX (.bib)** and **CSL JSON** beside the other formats. Both are one document over the whole selection — every source-classed node becomes one entry, batch included, deduplicated by node id; body blocks are content, never entries. Entries project through the same dual-track read everywhere ([exporting.md](exporting.md)): `authors` first, `linkedAuthors`-derived names when empty, the type's venue fields through its Zotero bindings. The LaTeX export's bibliography reads the same contract.
+
+## Importing a bibliography (the CLI)
+
+The CLI reconciles an external bibliography into the library — the export's counterpart. Three formats share one pipeline, `notees import bibtex|csl-json|zotero-rdf <file>`: a `.bib` file, a CSL-JSON array, or a Zotero RDF export all parse to the same item shape and ride the same semantics ([cli.md](../cli.md); the in-app Import Workspace modal — Notees dumps, Markdown, Logseq — is [import.md](import.md)'s, a different surface).
+
+- **Matching — citekey upsert.** The Citekey property match is authoritative: an entry whose citekey already lives on a source *updates* that source, never duplicates it. A node titled exactly `citekey` or `@citekey` with no Citekey property is **adopted**, not duplicated — renamed to the spec title (title-is-content), the Citekey set, and the spec's source class assigned when the node's class closure isn't eligible to carry it; several same-titled nodes adopt the first and count the rest as ambiguous.
+- **Fills — Notees wins.** A matched (or freshly created) source is filled only with the properties it does not already hold; values you set by hand are never clobbered. The zotero-rdf importer fills the full field set beyond the shared CSL fields (abstract, volume/issue/pages, ISSN, language, short title, extra, identifiers, the container title — Book title for a book section, Publication title otherwise); Zotero tags and file attachments in the export are skipped and counted, never guessed into classes or assets.
+- **Idempotency.** A second run of the same file plans and writes nothing — the imports are re-runnable by construction. `--dry-run` prints the whole plan (schemas ensured, per-entry action and fills) and writes nothing; `--no-create` is match-only mode (update and adopt, never create).
+- **The import ruling.** Bibliographic imports **never create person/organization nodes and never write Linked authors**. Creators are bibliographic metadata: they land on the text `Authors`/`Editors` properties only — "Last, First", order preserved — and `Linked authors` stays manual-only, the relational people-graph track you curate by hand. The export's dual-track read is the mirror: it reads the text track first and derives from Linked authors only when the text is empty, so a hand-curated link still shapes exports.
+
+`notees import logseq-db <file.sqlite>` is the CLI counterpart of the in-app Logseq DB reconcile: it decodes the transit-encoded sqlite client-side, runs **dry-run by default** (`--write`/`--yes` applies), and reconciles by uuid — missing nodes are created with their preserved Logseq uuids, matched nodes are never renamed, property values fill only empty slots (Notees wins; a `newer-wins` title strategy is available), and property names map through an explicit validated table. It is a whole-graph drift reconcile, not an author-strings importer: node references move only where the Logseq graph itself carries them. A re-run reconciles instead of duplicating.
 
 ## The resolver's privacy note
 
