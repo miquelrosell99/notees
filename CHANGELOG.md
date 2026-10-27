@@ -9,6 +9,56 @@ predating this file.
 
 ## 2026-10-27
 
+- **fix(web,query): collection sorting — no "Default order" menu entry, the
+  shell hubs open on Dates first, and every A–Z sort folds case.** Three
+  reported confusions, one slice. (1) The list view's sort panel offered
+  Dates first / Name A–Z / Default order, with the Pages hub (which names no
+  sort default) opening on the last — an unsorted container order the user
+  couldn't map to any entry. "Default order" is retired as a user-selectable
+  option: `position` is the un-picked state (the container's default mode
+  applies), never a menu row, and `CollectionHub` gains a `defaultSortMode`
+  pass-through so the Pages / Classes / Whiteboards / Inbox hubs name theirs
+  — all four open **Dates first** (date pages lead, then A–Z), so the sort
+  panel shows the effective order checked. (2) Alphabetical ordering was
+  case-sensitive in the SQL path: the query compiler's name sort rode SQLite
+  BINARY collation (every uppercase title before any lowercase), and the
+  Sources-hub sort, the filter's class browse, the calendar day chips, the
+  template pickers, the class view's property definitions, and the block
+  row's property-widget groups used a bare `localeCompare` (same default).
+  The compiler's name sort now emits `COLLATE NOCASE` and every client-side
+  comparator rides `localeCompare(…, { numeric: true, sensitivity: "base" })`
+  — "a" sorts before "B" everywhere (the outline/table/cards comparators
+  already did). Query package gains a both-adapters case-folding sort test;
+  `docs/features/views.md`'s sort-button paragraph records the vocabulary
+  and the case rule.
+
+- **fix(store,sync): poison-history quarantine covers missing-node ops, and a
+  quarantined store can no longer upload snapshots — the broken-op incident
+  closes.** A merge batch in the live log (server-planned duplicate merge,
+  `class.unassign` + `object.delete` over two trashed nodes) failed on every
+  client that booted from one poisoned snapshot with
+  `class.unassign: node … does not exist`: `applyMany`'s remote path
+  quarantined only `MoveGuardError`, so the `NotFoundError` rolled back its
+  whole batch, stuck the cursor, and `status=error` repeated on every
+  catch-up retry. `applyMany`'s remote option is renamed
+  `quarantinePoisonOps` (from `quarantineMoveGuards`) and now quarantines
+  both poison classes — move-guard violations AND ops whose target node the
+  applying store never received — recorded, surfaced, cursor advancing;
+  local authoring stays fail-loud and data-quality failures
+  (`PropertyValueShapeError`) still throw. `SyncEngine.maybeUploadSnapshot`
+  gains the second guard: a store with a non-empty quarantine table skips
+  the snapshot upload (one loud report per session) — a diverged projection
+  must not become other devices' bootstrap source, which is exactly how the
+  poisoned snapshot that started the lineage was minted. Store quarantine
+  suite 8/8 (two new cases: remote quarantine of a missing-node
+  unassign/delete pair with re-apply idempotency; local fail-loud); sync
+  suite 28/28; `pnpm test` green repo-wide; `tsc` green for every package
+  except `apps/web`, whose working tree carries a concurrent slice's
+  in-flight edit (`PropertiesSidebar`) — unrelated to this change. The log
+  itself needed no rewrite: the server's derived projection had converged on
+  every envelope, and the live repair replaces the poisoned client-uploaded
+  snapshot with a healthy one rebuilt from that converged projection.
+
 - **fix(web): the "C" from-class badge now means one thing everywhere — the
   class definition supplies the property.** Before, the badge answered "does
   this row carry a value with a binding", so empty grouped-type rows (text,
