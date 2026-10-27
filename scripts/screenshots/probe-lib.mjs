@@ -17,7 +17,8 @@ export async function launchProbeBrowser() {
     headless: true,
     args: ["--disable-dev-shm-usage"],
   });
-  const pid = browser.process()?.pid;
+  const proc = typeof browser.process === "function" ? browser.process() : undefined;
+  const pid = proc?.pid;
   const hardKill = () => {
     if (pid !== undefined) {
       try {
