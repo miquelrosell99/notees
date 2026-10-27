@@ -4,8 +4,10 @@
  * create-and-bind gesture) projects into the edge index with verb =
  * propertySchemaId and target = the referenced node — so the TARGET's
  * linked references (the page section AND the block-level backlink gutter)
- * list it. The surfaces render the verb's SCHEMA NAME (never the raw id)
- * and the row opens the source like any other reference. Typed-link marks
+ * list it, the row opening the source like any other reference. The row
+ * end stays identity chrome — the verb-badge naming the schema the edge
+ * arrived through is retired (the property context lives in the row's own
+ * Properties table). Typed-link marks
  * themselves stay targetless (the deferred-resolution ruling) — this
  * slice wires the designed targeted path (property values), not a
  * resolution heuristic. Harness: in-process WorkspaceClient + jsdom.
@@ -94,7 +96,7 @@ describe("bound-verb backlinks", () => {
     expect(mixed.find((e) => e.containingPageId === source)?.verb).toBe(schemaId);
   });
 
-  it("the linked-references surface renders the schema NAME badge and opens the source on click", async () => {
+  it("the linked-references row carries no verb badge and opens the source like any reference", async () => {
     const client = await seedClient();
     const schemaId = await boundVerbSchema(client, "supports");
     const target = await client.createObject({ isEmbedded: false, name: "Target" });
@@ -110,21 +112,20 @@ describe("bound-verb backlinks", () => {
         onOpenPage={onOpenPage}
       />,
     );
-    const badge = screen.getByText("supports");
-    expect(badge.getAttribute("title")).toBe("via supports");
-    expect(badge.classList.contains("nt-ref-verb")).toBe(true);
+    // The row end is identity chrome: the bound-verb badge that named the
+    // property schema the edge arrived through is retired — the property
+    // context lives in the row's own Properties table.
+    expect(document.querySelector(".nt-ref-verb")).toBeNull();
 
     // The source IS its containing page (the property value lives on the
     // page itself), so stands: no self-named
-    // one-row group — the page source rides the top-level flat outline,
-    // its row carrying the verb badge.
+    // one-row group — the page source rides the top-level flat outline.
     expect(document.querySelector(".outline-group")).toBeNull();
     const row = document.querySelector("ul.outline-flat > li")!;
     expect(row.textContent).toContain("Source");
-    expect(row.contains(badge)).toBe(true);
   });
 
-  it("the block-level backlink gutter renders the verb badge for a block target", async () => {
+  it("the block-level backlink gutter lists the property source with no verb badge", async () => {
     const client = await seedClient();
     const schemaId = await boundVerbSchema(client, "cites");
     const hostPage = await client.createObject({ isEmbedded: false, name: "Host" });
@@ -140,10 +141,10 @@ describe("bound-verb backlinks", () => {
     await flushSync();
     fireEvent.click(screen.getByRole("button", { name: "1 linked reference" }));
     const panel = document.querySelector(".nt-block-backlink-refs") as HTMLElement;
-    await waitFor(() => expect(within(panel).getByText("cites")).not.toBeNull());
-    expect((within(panel).getByText("cites") as HTMLElement).classList.contains("nt-ref-verb")).toBe(
-      true,
-    );
+    await waitFor(() => expect(within(panel).getByText("Paper")).not.toBeNull());
+    // No verb badge on the gutter row either — the seam is retired
+    // everywhere the reference list renders.
+    expect(panel.querySelector(".nt-ref-verb")).toBeNull();
   });
 
   it("unlinked references never carry a verb badge", async () => {

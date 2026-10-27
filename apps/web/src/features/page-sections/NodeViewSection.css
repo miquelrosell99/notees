@@ -41,9 +41,11 @@
   border-radius: var(--shape-small);
 }
 
-/* The hover effect lives on the collapse ARROW, not the whole header
-. */
-.node-view-section__header:hover .node-view-section__toggle {
+/* The hover effect lives on the collapse ARROW, not the whole header.
+   The child combinator scopes it to THIS header's toggle — a nested
+   section's header is a descendant, and the bare descendant selector
+   highlighted every nested toggle on the outer header's hover. */
+.node-view-section__header:hover > .node-view-section__toggle {
   background: var(--md-sys-color-hover-overlay);
   border-radius: var(--shape-small);
 }
@@ -67,7 +69,12 @@
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.node-view-section.expanded .node-view-section__chevron {
+/* The rotation is scoped to the section's OWN header chevron (child
+   combinator on the header row): the bare descendant form matched every
+   NESTED section's chevron too — a collapsed per-row Properties panel
+   inside an expanded section (the linked-references rows are the live
+   case) rendered rotated in both states. */
+.node-view-section.expanded > .node-view-section__header-row .node-view-section__chevron {
   transform: rotate(90deg);
 }
 

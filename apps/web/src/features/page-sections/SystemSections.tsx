@@ -125,9 +125,10 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
  * an inline editable subtree per row) is retired; the grouping by
  * containing page, the ungrouped-page-sources-first ruling, the hosted tabs, the sort button, and the transient filter
  * layer are the shared machinery already. What a row still owns rides the
- * shared trailing-action seam: the bound-verb badge (bound-property
- * backlinks name the schema the edge arrived through, never the raw id)
- * and, on the unlinked section only, the Promote/Ignore pair.
+ * shared trailing-action seam: on the unlinked section only, the
+ * Promote/Ignore pair (the bound-verb badge that named the property schema
+ * a backlink arrived through is retired — the row end is identity chrome
+ * and the property context lives in the row's own Properties table).
  *
  * `unlinkedPageId` enables the promote/ignore action pair on every row (the
  * unlinked section only): Promote converts the literal match into a mention;
@@ -185,18 +186,13 @@ export function ReferenceList({
     [client, unlinkedPageId],
   );
   /**
-   * bound-verb backlinks: a linked-reference edge whose verb is a
-   * bound propertySchemaId renders the schema's NAME (never the raw id) —
-   * the surfaces the backlink arrived through ("supports", "cites"). Free
-   * verbs never produce targeted edges (typed-link marks are targetless per
-   * the deferred resolution ruling), so the badge only ever names a
-   * schema; an unknown id renders raw, honestly.
+   * What a row still owns rides the shared trailing-action seam: on the
+   * unlinked section only, the Promote/Ignore pair. (The bound-verb badge
+   * that used to name the property schema a backlink arrived through is
+   * retired — the row end is identity chrome, the property context lives
+   * in the row's own Properties table, and a uniform label on every row
+   * read as noise.)
    */
-  const schemaNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const schema of client.listPropertySchemas()) map.set(schema.id, schema.name);
-    return map;
-  }, [client]);
   const items: NodeCollectionItem[] = entries.map((entry) => ({
     // The reference reads are scope-classed (op-lag slice 3): a source
     // edited without touching this page leaves its pooled snapshot stale —
@@ -228,38 +224,28 @@ export function ReferenceList({
       {...(trailing !== undefined ? { tabBarTrailing: trailing } : {})}
       {...(emptyText !== undefined ? { emptyText } : {})}
       trailingAction={(item) => {
-        const verb = typeof item.meta?.verb === "string" ? item.meta.verb : null;
-        if (verb === null && unlinkedPageId === undefined) return null;
+        if (unlinkedPageId === undefined) return null;
         return (
-          <>
-            {verb !== null && (
-              <span className="nt-ref-verb" title={`via ${schemaNameById.get(verb) ?? verb}`}>
-                {schemaNameById.get(verb) ?? verb}
-              </span>
-            )}
-            {unlinkedPageId !== undefined && (
-              <span className="nt-ref-actions">
-                <button
-                  type="button"
-                  className="nt-ref-action"
-                  aria-label={`Promote ${displayNameOf(item.node, parentlessBlockResolverOf(client))} to a link`}
-                  title="Promote to link"
-                  onClick={() => promote(item.node)}
-                >
-                  <Icon path="mdi-link-plus" size={0.8} />
-                </button>
-                <button
-                  type="button"
-                  className="nt-ref-action"
-                  aria-label={`Ignore ${displayNameOf(item.node, parentlessBlockResolverOf(client))}`}
-                  title="Ignore (this device)"
-                  onClick={() => writeIgnoredUnlinkedRef(unlinkedPageId, item.node.id, true)}
-                >
-                  <Icon path="mdi-eye-off-outline" size={0.8} />
-                </button>
-              </span>
-            )}
-          </>
+          <span className="nt-ref-actions">
+            <button
+              type="button"
+              className="nt-ref-action"
+              aria-label={`Promote ${displayNameOf(item.node, parentlessBlockResolverOf(client))} to a link`}
+              title="Promote to link"
+              onClick={() => promote(item.node)}
+            >
+              <Icon path="mdi-link-plus" size={0.8} />
+            </button>
+            <button
+              type="button"
+              className="nt-ref-action"
+              aria-label={`Ignore ${displayNameOf(item.node, parentlessBlockResolverOf(client))}`}
+              title="Ignore (this device)"
+              onClick={() => writeIgnoredUnlinkedRef(unlinkedPageId, item.node.id, true)}
+            >
+              <Icon path="mdi-eye-off-outline" size={0.8} />
+            </button>
+          </span>
         );
       }}
     />
