@@ -26,3 +26,7 @@ scripts/migrated-verify/*
 # Playwright
 apps/web/test-results/
 apps/web/playwright-report/
+
+# Playwright MCP snapshot/screenshot output (agent probes)
+.playwright-mcp/
+scripts/screenshots/out/

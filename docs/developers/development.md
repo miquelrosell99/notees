@@ -346,6 +346,31 @@ Convergence is asserted by comparing serialized database dumps, not row samples 
 same standard everywhere. When adding sync behavior, extend the two-device MemoryRelay test,
 not a mocked-transport unit test.
 
+### Visual verification (browser probes)
+
+For "does the surface actually render like this" checks, drive the app through
+**playwright-mcp** (registered as the `playwright` MCP server in
+`~/.kimi-code/mcp.json` — the `mcp__playwright__*` tools). One long-lived
+headless browser, accessibility-tree snapshots for structure checks, and
+`browser_take_screenshot` for true visual verification — no per-probe browser
+launches to leak. Probe rules:
+
+- The test workspace only (§2 law): seed `notees.workspaceId` with the test
+  uuid via an init-script (`notees.serverUrl` / `notees.sessionToken` /
+  `notees.theme` alongside — the `testws-boot-probe.mjs` pattern); never click
+  through the picker into the personal default. Create probe data through the
+  API, delete it when the run is done.
+- Prefer snapshots over screenshots for structure ("is X rendered"), and
+  reserve screenshots for visual claims (alignment, rhythm, theme) — read the
+  PNG back before asserting.
+
+Legacy self-launching probes (`scripts/screenshots/*-probe.mjs`) still exist;
+any NEW one must launch through `scripts/screenshots/probe-lib.mjs`
+(`launchProbeBrowser` — guaranteed teardown), and the
+`reap-orphan-chrome.mjs` cron (every 15 min, kills Playwright-cache chromium
+processes older than 30 min) is the backstop for sessions that die without
+cleanup. `.playwright-mcp/` output dirs are gitignored.
+
 Run the whole gate exactly as CI would: `pnpm install && pnpm typecheck && pnpm test`
 from the repo root.
 
