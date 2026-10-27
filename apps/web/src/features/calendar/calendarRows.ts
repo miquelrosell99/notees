@@ -506,7 +506,8 @@ export function timeGridSplitForDays(
   const displayKey = (node: ClientNode): string =>
     titleOf(client, node.id) ?? node.id;
   const byName = (a: ClientNode, b: ClientNode): number =>
-    displayKey(a).localeCompare(displayKey(b)) || a.id.localeCompare(b.id);
+    displayKey(a).localeCompare(displayKey(b), undefined, { numeric: true, sensitivity: "base" }) ||
+    a.id.localeCompare(b.id);
 
   days.forEach((iso, dayIndex) => {
     const split = splits[dayIndex]!;

@@ -172,7 +172,8 @@ function bindingAttributionOf(client: AnyClient, classId: string): {
   }
   // PURE ALPHABETICAL by property name (binding
   // sequence retired; both groups are display-only lists).
-  const byName = (a: ClassBinding, b: ClassBinding) => a.name.localeCompare(b.name);
+  const byName = (a: ClassBinding, b: ClassBinding) =>
+    a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
   direct.sort(byName);
   inherited.sort((a, b) => byName(a.binding, b.binding));
   return { direct, inherited };

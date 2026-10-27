@@ -216,7 +216,7 @@ export function listClassOptions(classes: ClientNode[], narrowText: string): Fil
   return classes
     .map((cls) => ({ cls, name: titleOfNode(cls) }))
     .filter((entry) => entry.name !== "" && (fold === "" || folded(entry.name).includes(fold)))
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }))
     .slice(0, MAX_CLASS_BROWSE)
     .map((entry) => ({
       id: `memberOf:${entry.cls.id}`,

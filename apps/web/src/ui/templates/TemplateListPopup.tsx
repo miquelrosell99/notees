@@ -89,7 +89,10 @@ export function TemplateListPopup({
       .sort((a, b) => {
         const nameA = titleOfNode(a) ?? a.id;
         const nameB = titleOfNode(b) ?? b.id;
-        return nameA.localeCompare(nameB) || a.id.localeCompare(b.id);
+        return (
+          nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: "base" }) ||
+          a.id.localeCompare(b.id)
+        );
       });
   }, [client, version, familyReady]);
 

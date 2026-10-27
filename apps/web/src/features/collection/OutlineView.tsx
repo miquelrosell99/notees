@@ -37,8 +37,10 @@
  *
  * SORT: the read-only projections carry the sort button
  * (the table's mdi-sort control, generalized) — a small panel offering
- * Dates first (date pages newest → oldest, then the rest A–Z), Name A–Z,
- * and Default order (the container's natural order). The mode orders pages:
+ * Dates first (date pages newest → oldest, then the rest A–Z) and
+ * Name A–Z; the container's natural order is the un-picked state (the
+ * container names its default via `defaultSortMode`), never a menu
+ * entry. The mode orders pages:
  * a grouped rendering sorts its GROUPS (rows inside a group keep their
  * position order) and its UNGROUPED top-level rows (the page sources — a
  * flat list sorts its items), a tree sorts EVERY sibling level, a flat list
@@ -86,11 +88,16 @@ import type { BlockTreeNode } from "@/core/workspace-client/index.js";
 import type { CollectionGroup, NodeCollectionItem, NodeCollectionProps, SortMode } from "./types.js";
 import "./OutlineView.css";
 
-/** The list view's sort vocabulary (the sort-button panel options). */
+/**
+ * The list view's sort vocabulary (the sort-button panel options). The
+ * container's natural order (`position`) is NOT offered: it is the
+ * un-picked state (the container's default mode applies), not a user
+ * choice — a picked sort yields back to it only when the container's
+ * live default changes (the ranked-search ruling).
+ */
 const OUTLINE_SORT_OPTIONS: SortMenuOption[] = [
   { value: "dates-first", label: "Dates first", hint: "Newest → oldest, then A–Z" },
   { value: "alphabetical", label: "Name A–Z" },
-  { value: "position", label: "Default order" },
 ];
 
 /** The modes the list view sorts by — `edit-date` is the cards view's. */

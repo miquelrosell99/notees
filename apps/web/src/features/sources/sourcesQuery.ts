@@ -474,7 +474,7 @@ function sortRows(rows: SourceRow[], sort: SourcesSort | null): SourceRow[] {
     const emptyB = bv === "";
     if (emptyA !== emptyB) return emptyA ? 1 : -1;
     if (emptyA && emptyB) return 0;
-    return av.localeCompare(bv) * sign;
+    return av.localeCompare(bv, undefined, { numeric: true, sensitivity: "base" }) * sign;
   });
 }
 
