@@ -94,8 +94,8 @@ export const OP_CATALOG: OpCatalogEntry[] = [
   },
   {
     opType: "class.property.set",
-    description: "Upsert a class→property-schema binding (active only — the soft-unbind flag; omitted fields keep).",
-    example: { classId: "<uuid>", propertySchemaId: "<schema-uuid>", active: true },
+    description: "Upsert a class→property-schema binding (active + pinned flags only; omitted fields keep).",
+    example: { classId: "<uuid>", propertySchemaId: "<schema-uuid>", active: true, pinned: true },
     affected: "classId",
   },
   {

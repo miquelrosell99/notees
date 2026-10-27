@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 33;
+export const SCHEMA_VERSION = 34;
 
 /**
  * The render-path list-reads index: composite for the
@@ -325,10 +325,14 @@ CREATE INDEX IF NOT EXISTS idx_property_schema_workspace
 -- scripts/migrate-drop-binding-required.mts.
 -- 'active' (PC4): the soft-unbind flag — an inactive row stops contributing
 -- to the effective read; authored values survive.
+-- 'pinned' (additive 2026-10-27, store v34): the binary tier flag — a pinned
+-- row's property renders in the FIRST tier of class property lists
+-- (alphabetical within each tier; a stored/configurable order stays retired).
 CREATE TABLE IF NOT EXISTS class_property (
     class_id TEXT NOT NULL,
     property_schema_id TEXT NOT NULL,
     active INTEGER NOT NULL DEFAULT 1,
+    pinned INTEGER NOT NULL DEFAULT 0,
     hlc_physical INTEGER NOT NULL DEFAULT 0,
     hlc_logical INTEGER NOT NULL DEFAULT 0,
     actor_id TEXT,
@@ -1424,6 +1428,20 @@ export function migrate(
         // queryability repair path rebuilds with the local module, and
         // reindexNode resolves at insert — nothing to do here.
       }
+    }
+  }
+  // v33 -> v34 (2026-10-27 — the binding row's `pinned` tier flag,
+  // SCHEMA.md "Class properties"): `class_property` gains `pinned`
+  // (0 = the unpinned default). Purely additive — a guarded ALTER,
+  // a no-op for fresh v34 creates; existing rows converge by default (0),
+  // no log rewrite and no epoch bump (the flag rides future
+  // class.property.set envelopes, the v5 `active` precedent).
+  {
+    const classPropertyColumnsV34 = db.prepare("PRAGMA table_info(class_property)").all() as {
+      name: string;
+    }[];
+    if (!classPropertyColumnsV34.some((c) => c.name === "pinned")) {
+      db.exec("ALTER TABLE class_property ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;");
     }
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

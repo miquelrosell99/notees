@@ -305,4 +305,53 @@ describe("Class View class properties editor", () => {
       within(screen.getByRole("dialog")).getByRole("heading", { name: "Property settings" }),
     ).not.toBeNull();
   });
+
+  it("pins a binding via the row's pin toggle: class.property.set {pinned} re-tiers the list", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "Task");
+    const alpha = await client.createPropertySchema({ name: "alpha", type: "text" });
+    const zeta = await client.createPropertySchema({ name: "zeta", type: "text" });
+    await client.setClassProperty(classId, alpha, {});
+    await client.setClassProperty(classId, zeta, {});
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    await expandDefinitions();
+
+    // Pure alphabetical before the pin.
+    expect(client.getRegistryBindings(classId).map((b) => b.name)).toEqual(["alpha", "zeta"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Pin zeta" }));
+    await flushWrites();
+
+    const bindings = client.getRegistryBindings(classId);
+    expect(bindings.map((b) => b.name)).toEqual(["zeta", "alpha"]);
+    expect(bindings[0]).toMatchObject({ name: "zeta", pinned: true });
+    expect(bindings[1]).toMatchObject({ name: "alpha", pinned: false });
+    // The toggle now reads Unpin (and carries aria-pressed).
+    const unpin = screen.getByRole("button", { name: "Unpin zeta" });
+    expect(unpin.getAttribute("aria-pressed")).toBe("true");
+
+    // Unpin restores the pure alphabetical order.
+    fireEvent.click(unpin);
+    await flushWrites();
+    expect(client.getRegistryBindings(classId).map((b) => b.name)).toEqual(["alpha", "zeta"]);
+  });
+
+  it("getClassBindings renders the same two-tier order as the member's effective properties", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "Tiered");
+    const alpha = await client.createPropertySchema({ name: "alpha", type: "text" });
+    const zeta = await client.createPropertySchema({ name: "zeta", type: "text" });
+    await client.setClassProperty(classId, alpha, {});
+    await client.setClassProperty(classId, zeta, { pinned: true });
+    const memberId = await client.createObject({ name: "member", classIds: [classId] });
+
+    const bindingNames = client.getClassBindings(classId).map((b) => b.name);
+    const effectiveNames = client
+      .getEffectiveProperties(memberId)
+      .map((row) => row.schema?.name ?? row.propertySchemaId);
+    // One two-tier order everywhere: pinned first, alphabetical within each
+    // tier (the class page list and the member panel derive it identically).
+    expect(bindingNames).toEqual(["zeta", "alpha"]);
+    expect(effectiveNames).toEqual(["zeta", "alpha"]);
+  });
 });

@@ -892,11 +892,13 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
   });
 
   /**
-   * class.property.set: the binding upsert (the active soft-unbind patch —
+   * class.property.set: the binding upsert (the active soft-unbind + pinned
+   * tier-flag patch —
    * omitted fields keep their values; the
-   * binding carries ONLY the per-class soft-unbind flag; `required` retired
+   * binding carries ONLY the per-class mechanics; `required` retired
    * outright, `defaultValue` moved to the property schema, `sequence`
-   * retired outright — class panels render alphabetically by property name —
+   * retired outright — class panels render in pin tiers, alphabetical by
+   * property name within each tier —
    * so the strict payload rejects all three keys).
    */
   app.post("/classes/:id/properties", async (request) => {
@@ -924,11 +926,11 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     });
     const row = store.database
       .prepare(
-        `SELECT property_schema_id, active
+        `SELECT property_schema_id, active, pinned
          FROM class_property WHERE class_id = ? AND property_schema_id = ?`,
       )
       .get(id, propertySchemaId) as
-      | { property_schema_id: string; active: number }
+      | { property_schema_id: string; active: number; pinned: number }
       | undefined;
     return {
       classId: id,
@@ -939,6 +941,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
           : {
               propertySchemaId: row.property_schema_id,
               active: row.active === 1,
+              pinned: row.pinned === 1,
             },
     };
   });

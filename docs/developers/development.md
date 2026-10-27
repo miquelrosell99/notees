@@ -172,7 +172,8 @@ The single most important process rule:
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
 groups). The exact file set is the contract — the gate test below asserts it
-verbatim (40 files after the 2026-10-23 external_ref batch added
+verbatim (43 files after the 2026-10-27 pinned-binding batch added
+`class-property-pinned.json`; the 2026-10-23 external_ref batch added
 `external-ref.json`; the 2026-10-20 property-scope batch added
 `property-schema-scope.json` + `property-schema-update-fields.json`, the
 validationRules value enforcement added `property-validation-rules.json`, and the

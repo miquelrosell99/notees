@@ -20,6 +20,7 @@ import {
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
   SYSTEM_SOURCE_CLASS_BINDINGS,
+  sourceBindingPropertyOf,
   type SystemClassName,
   type SystemPropertyName,
 } from "@notees/domain";
@@ -113,9 +114,12 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
     // type-specific fields render bound only via their own class's
     // SYSTEM_SOURCE_CLASS_BINDINGS rows; the source base keeps its rows.
     // The binding is a configuration ROW (class.property.*) carrying the
-    // genuinely per-class mechanic ONLY — the active soft-unbind flag
-    // (sequence retired 2026-10-21: effective-properties derives boundBy
-    // from rows; panels sort alphabetically; the default rides the schema).
+    // genuinely per-class mechanics ONLY — the active soft-unbind flag and
+    // the pinned tier flag (a classification, never a stored order;
+    // sequence retired 2026-10-21: effective-properties derives boundBy
+    // from rows; panels sort in pin tiers; the default rides the schema).
+    // No seed pins anything yet — the field threads through for a future
+    // declared pin set.
     const classId = SYSTEM_CLASS_UUIDS[spec.bindTo];
     envelopes.push(
       factory.make({
@@ -124,6 +128,7 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
         payload: {
           classId,
           propertySchemaId,
+          ...(spec.pinned !== undefined ? { pinned: spec.pinned } : {}),
         },
         affectedNodeIds: [classId],
         client: "seed",
@@ -145,6 +150,7 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
         payload: {
           classId,
           propertySchemaId: SYSTEM_PROPERTY_UUIDS[extra.property],
+          ...(extra.pinned !== undefined ? { pinned: extra.pinned } : {}),
         },
         affectedNodeIds: [classId],
         client: "seed",
@@ -160,7 +166,9 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
   // either way.
   for (const [name, properties] of Object.entries(SYSTEM_SOURCE_CLASS_BINDINGS)) {
     const classId = SYSTEM_CLASS_UUIDS[name as SystemClassName];
-    for (const property of properties) {
+    for (const ref of properties) {
+      const property = sourceBindingPropertyOf(ref);
+      const pinned = typeof ref === "string" ? undefined : ref.pinned;
       envelopes.push(
         factory.make({
           workspaceId,
@@ -168,6 +176,7 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
           payload: {
             classId,
             propertySchemaId: SYSTEM_PROPERTY_UUIDS[property],
+            ...(pinned !== undefined ? { pinned } : {}),
           },
           affectedNodeIds: [classId],
           client: "seed",

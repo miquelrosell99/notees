@@ -111,6 +111,43 @@ predating this file.
   typecheck` + `pnpm test` green; new store case (realized row names the
   binder) and web cases (empty grouped row flagged in sidebar and table,
   inactive binding unflagged, node-added unbound property unflagged).
+- **feat(protocol,store,web,server): pinned class-property bindings — the
+  class property lists render in two pin tiers (pinned first, alphabetical
+  by property name within each tier; a stored/configurable ORDER stays
+  retired, `sequence` never returns).** `class.property.set` gains the
+  optional `pinned` boolean — patch semantics identical to `active`
+  (omitted keeps the stored flag; the flag rides the binding row LWW by
+  envelope HLC). The derived `class_property` table gains `pinned`
+  (store schema v33 → v34, a guarded ALTER with default 0 — the v5 `active`
+  precedent; no log migration, existing rows converge by default). The
+  effective-properties read re-tiers its final sort (pinned tier first,
+  alphabetical within each tier, the (idx, elementId) tiebreak unchanged,
+  unbound authored rows still last); the web `getClassBindings` /
+  `getRegistryBindings` reads + the Class View property-definitions list
+  (a per-row hover pin toggle, a filled pin at rest on pinned rows) sort
+  identically; the server bind endpoint echoes `pinned` in the binding
+  response; the bind endpoint's OpenAPI summary documents both flags. The
+  domain seed manifests (`SystemPropertySpec.pinned`, the extra-bindings +
+  source-bindings entries, `TASK_FAMILY_SEED`) thread the field so a future
+  declared pin set lands through the server seed + the web self-heal —
+  NO seed pins anything yet, and the pickers/add-property/quick-create
+  surfaces stay pure alphabetical. New canonical fixture
+  `class-property-pinned.json` (bind pinned=true, the interleaved-phone-pin
+  LWW race, the true→false flip, an active-only patch keeping the stored
+  flag, the unset deleting the row outright; the exact-fixture-list gate
+  42→43). LOCKSTEP-PENDING: the payload key ships inert until the
+  GTK/Flutter releases parse it (the `active` precedent) — fixture
+  vendoring follows their release cycle. SCHEMA.md's normative bindings
+  bullet, the root AGENTS.md invariant, docs/features/classes.md's property
+  definitions list, and docs/developers/migrations.md (the store-only
+  additive note) updated in the same pass. Verified: `pnpm typecheck`
+  green; `pnpm test` green across every package — 9 new test cases
+  (5 store pinned-semantics cases, each on both adapters, 1 protocol
+  fixture assertion, 2 web class-binding cases, 1 server bind-echo
+  case; the fixture-count gate 42→43). One pre-existing, unrelated
+  failure remains at HEAD: `relay-snapshot.test.ts` "PUT accepts a body
+  past the global 128 MiB cap" fails identically on a clean HEAD
+  checkout (reported, not this slice's).
 
 - **feat(server): the operator API key signs in — account-discovery reads
   accept it, so machines and the web client's API-key tab no longer need an

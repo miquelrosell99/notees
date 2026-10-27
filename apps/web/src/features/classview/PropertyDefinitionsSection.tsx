@@ -4,9 +4,10 @@
  * editor is GONE — the default moved to the property schema (one global
  * default per property, the Logseq shape) and `required` retired outright;
  * retired `sequence` too, so a binding is a
- * presence row + the soft-unbind flag ONLY. The class page is now JUST the
- * list of assigned properties, rendered PURE ALPHABETICALLY by property
- * name — display-only ordering, nothing to sort).
+ * presence row + the soft-unbind flag + the pinned tier flag ONLY. The
+ * class page is now JUST the list of assigned properties, rendered in two
+ * PIN TIERS — pinned first, alphabetical by property name within each tier
+ * (a classification, never a stored order)).
  *
  * Section level: two groups — "Class properties" (the class's DIRECT
  * bindings) and "Inherited" (read-only rows attributed to the NEAREST
@@ -19,12 +20,16 @@
  * ellipsis) are IDENTITY DISPLAY ONLY — the name is NOT a button. NOTHING
  * else in the body — no chevron, no expansion, no inline fields, no drag.
  * Inactive bindings dim the name (the only disabled cue). Hover reveals
- * exactly TWO right-side affordances (no row tint, no
- * name-hover glow, no grip): the COG (definition settings — opens the S2
+ * exactly THREE right-side affordances (no row tint, no
+ * name-hover glow, no grip): the PIN toggle (pin/unpin the property —
+ * writes class.property.set {pinned} so the property joins/leaves the
+ * pinned first tier), the COG (definition settings — opens the S2
  * base-definition modal, PropertyEditModal, where the default editor lives
  * now, at the schema level; present even for system property schemas) and
  * the REMOVE × (the section-level danger confirm; hidden for system
- * property schemas — non-removable means absent). Explicit affordance over
+ * property schemas — non-removable means absent). A pinned row shows a
+ * filled pin at rest (the tier membership reads without hovering);
+ * everything else stays hover-revealed. Explicit affordance over
  * whole-row click: a text-looking row must not pretend to be clickable,
  * and the same action on BOTH the row and a button is redundant.
  *
@@ -43,7 +48,8 @@
  * its designed bindings); everything else inherited, attributed to the
  * nearest ancestor binding it (BFS over getClassParents, the
  * schemaEligibility closure pattern). getClassBindings already returns
- * the alphabetical order both groups render.
+ * the two-tier order both groups render (pinned first, alphabetical
+ * within each tier).
  */
 
 import { useRef, useState } from "react";
@@ -170,23 +176,28 @@ function bindingAttributionOf(client: AnyClient, classId: string): {
       else inherited.push({ binding, sourceClassId: level });
     }
   }
-  // PURE ALPHABETICAL by property name (binding
-  // sequence retired; both groups are display-only lists).
-  const byName = (a: ClassBinding, b: ClassBinding) =>
+  // Two PIN TIERS, alphabetical by property name within each (binding
+  // sequence retired; a pin is a classification, never an order;
+  // both groups are display-only lists).
+  const byTierThenName = (a: ClassBinding, b: ClassBinding): number =>
+    (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) ||
     a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
-  direct.sort(byName);
-  inherited.sort((a, b) => byName(a.binding, b.binding));
+  direct.sort(byTierThenName);
+  inherited.sort((a, b) => byTierThenName(a.binding, b.binding));
   return { direct, inherited };
 }
 
 function BindingRow({
   binding,
   schema,
+  onTogglePinned,
   onOpenDefinition,
   onRemoveRequest,
 }: {
   binding: ClassBinding;
   schema: ClientPropertySchema | undefined;
+  /** Pin/unpin — writes class.property.set {pinned} (the tier toggle). */
+  onTogglePinned: () => void;
   /** The row's single action — opens the S2 base-definition modal. */
   onOpenDefinition: () => void;
   /** "Remove from class" — the section-level danger confirm. */
@@ -203,7 +214,9 @@ function BindingRow({
       {/* The row body is IDENTITY DISPLAY ONLY (the
           name is not a button — a text-looking row must not pretend to be
           clickable; the explicit COG below is the affordance). The row's
-          TWO hover surfaces (no row tint, no grip): the COG
+          THREE hover surfaces (no row tint, no grip): the PIN toggle
+          (pin/unpin — the tier membership, a filled pin shows at rest on
+          pinned rows), the COG
           (definition settings — the S2 base-definition modal, where the
           default editor lives now at the schema level) and the REMOVE ×
           (the section-level danger confirm; hidden for system property
@@ -215,6 +228,18 @@ function BindingRow({
           </span>
           <span className="nt-propdef-name">{name}</span>
         </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={binding.pinned ? "mdi-pin" : "mdi-pin-outline"}
+          className={`nt-propdef-pin${binding.pinned ? " nt-propdef-pin--pinned" : ""}`}
+          aria-label={binding.pinned ? `Unpin ${name}` : `Pin ${name}`}
+          aria-pressed={binding.pinned}
+          onClick={(event) => {
+            event.stopPropagation();
+            onTogglePinned();
+          }}
+        />
         <Button
           variant="ghost"
           size="sm"
@@ -285,11 +310,17 @@ export function PropertyDefinitionsSection({
   const optionCount = candidates.length + (canCreate ? 1 : 0);
 
   const addBinding = async (schemaId: string) => {
-    // A binding is a presence row + the soft-unbind flag — no order to
-    // allocate (class panels render alphabetically).
+    // A binding is a presence row + the soft-unbind flag + the pinned tier
+    // flag — no order to allocate (class panels render in pin tiers,
+    // alphabetical within each).
     await client.setClassProperty(classId, schemaId, {});
     setPickerOpen(false);
     setQuery("");
+  };
+
+  /** Pin/unpin — the tier toggle (a classification, never a stored order). */
+  const togglePinned = (binding: ClassBinding) => {
+    void client.setClassProperty(classId, binding.propertySchemaId, { pinned: !binding.pinned });
   };
 
   /** The "Create …" row opens the S1 modal pre-filled (no instant bind). */
@@ -343,6 +374,7 @@ export function PropertyDefinitionsSection({
                 schema={client
                   .listPropertySchemas()
                   .find((s) => s.id === binding.propertySchemaId)}
+                onTogglePinned={() => togglePinned(binding)}
                 onOpenDefinition={() => setEditFor(binding.propertySchemaId)}
                 onRemoveRequest={() => setRemoveFor(binding)}
               />

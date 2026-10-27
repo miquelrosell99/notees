@@ -63,6 +63,7 @@ import Database from "better-sqlite3";
 import {
   SYSTEM_SOURCE_CLASS_BINDINGS,
   ZOTERO_ITEM_TYPE_TO_CLASS,
+  sourceBindingPropertyOf,
   type SystemClassName,
   type ZoteroItemType,
 } from "@notees/domain";
@@ -260,7 +261,8 @@ function buildRecord(input: {
   publisher?: string | undefined;
 }): SourceMetadataRecord {
   const fields: Record<string, string> = {};
-  for (const key of SYSTEM_SOURCE_CLASS_BINDINGS[input.classKey] ?? []) {
+  for (const ref of SYSTEM_SOURCE_CLASS_BINDINGS[input.classKey] ?? []) {
+    const key = sourceBindingPropertyOf(ref);
     const value = input.candidates[key];
     if (value !== undefined && value.length > 0) fields[key] = value;
   }
