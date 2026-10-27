@@ -7,6 +7,30 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-27
+
+- **feat(sync): snapshot uploads have a pre-flight body guard — a projection
+  at or over the limit is skipped, not transferred (completed and shipped in
+  the 2026-10-27 web redeploy).** A fresh device full-catch-ups the whole log
+  and then uploads its locally-built snapshot; on the live workspace that PUT
+  carries a ~170 MB sqlite body, which the relay answers with 413 only after
+  the transfer. The engine now snapshots, compares `byteLength` against
+  `SyncEngineOptions.snapshotUploadLimit` (default `SNAPSHOT_UPLOAD_BODY_LIMIT`,
+  256 MiB), and skips + reports once per session when at or over it — a
+  server-side snapshot covers restore either way. The default sits well below
+  the relay's 512 MiB route cap on purpose: the limit protects every observer
+  of browser traffic, not just the relay — the same upload rides CDP as one
+  JSON-escaped `Network.requestWillBeSent` frame, and V8's ~512 Mi-char string
+  cap turned a ~170 MB body into a 545 MB frame that killed the verify smoke's
+  driver pipe with `ERR_STRING_TOO_LONG` (root-caused with a frame-size probe
+  on the vendored playwright transport; the machine-local transport now skips
+  framing-preserving oversized frames instead of dying). Also completes the
+  slice's missing `snapshotUploadLimit` field declaration (the constructor
+  assignment and pre-flight guard were already written; tsc was red).
+  Verified: sync package 28/28 + typecheck green, full repo typecheck green,
+  the web image rebuilt and the stack re-created, `verify-min.mjs` →
+  VERIFY-PASS on the live workspace.
+
 ## 2026-10-26
 
 - **fix(sync): snapshot upload pre-flight body cap — skip at the limit
