@@ -6,6 +6,13 @@
 // below self-locates (env → fleet stack dir → repo root). It verifies the
 // migrated workspace, so the search term and workspace default to that
 // dataset; point the env vars elsewhere to smoke another deployment.
+//
+// Sign-in: with NOTEES_ADMIN_EMAIL set the script logs in through the account
+// flow and seeds a session token. Without it the script signs in with the
+// operator API key instead (the web client's API-key tab path — GET
+// /api/workspaces + /api/auth/me accept the operator key) and seeds
+// notees.apiKey; the app's resume effect validates the key and auto-connects
+// the remembered workspace either way.
 import { chromium } from "playwright";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -35,8 +42,7 @@ const PASSWORD = process.env.NOTEES_ADMIN_PASSWORD
     join(stackDir, "config/notees/.admin_password"),
     join(repoRoot, "config/notees/.admin_password"),
   ], "admin password");
-const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL;
-if (!ADMIN_EMAIL) throw new Error("NOTEES_ADMIN_EMAIL is required (the admin login email)");
+const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL ?? null;
 const OUT_DIR = process.env.NOTEES_VERIFY_OUT ?? join(stackDir, "scripts/migrated-verify");
 
 const api = async (path) => {
@@ -67,21 +73,30 @@ context.on("workercreated", (w) => {
 });
 
 const t0 = Date.now();
-// New account-based flow: obtain a session token via the login API and seed
-// it — the app's resume effect validates it, then auto-connects the
-// remembered workspace (no Connect click needed).
-const loginRes = await fetch(API + "/api/auth/login", {
-  method: "POST",
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify({ email: ADMIN_EMAIL, password: PASSWORD }),
-});
-if (!loginRes.ok) throw new Error(`login: ${loginRes.status}`);
-const { token: SESSION } = await loginRes.json();
-await page.addInitScript(([url, token, ws]) => {
+// Account flow when the admin email is known; otherwise the operator-key
+// sign-in (the seeded credential is what the resume effect validates, then
+// auto-connects the remembered workspace — no Connect click needed).
+let credentialKey;
+let credentialValue;
+if (ADMIN_EMAIL !== null) {
+  const loginRes = await fetch(API + "/api/auth/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: ADMIN_EMAIL, password: PASSWORD }),
+  });
+  if (!loginRes.ok) throw new Error(`login: ${loginRes.status}`);
+  credentialKey = "notees.sessionToken";
+  credentialValue = (await loginRes.json()).token;
+} else {
+  console.log("NOTEES_ADMIN_EMAIL unset — signing in with the operator API key");
+  credentialKey = "notees.apiKey";
+  credentialValue = KEY;
+}
+await page.addInitScript(([url, key, value, ws]) => {
   localStorage.setItem("notees.serverUrl", url);
-  localStorage.setItem("notees.sessionToken", token);
+  localStorage.setItem(key, value);
   localStorage.setItem("notees.workspaceId", ws);
-}, [API, SESSION, WS]);
+}, [API, credentialKey, credentialValue, WS]);
 
 await page.goto(WEB, { waitUntil: "commit", timeout: 120_000 });
 // The resume effect connects automatically; the app shell (sidebar) is the

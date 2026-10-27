@@ -290,6 +290,37 @@ export function requireUser(
   return resolved.principal as Extract<Principal, { kind: "user" }>;
 }
 
+/**
+ * The account-DISCOVERY guard: the identity read and the workspace list the
+ * web client's API-key sign-in (and machine clients) need to find where to
+ * sync. Accepts any user principal (session or per-user key) OR the operator
+ * key — the operator is the deployment owner and its data-plane access is
+ * already unrestricted, so hiding the workspace directory from it buys
+ * nothing. Everything mutating (profile, prefs, key minting, workspace
+ * create/rename) stays user-bound via requireUser/requireAccount.
+ */
+export function requireUserOrOperator(
+  ctx: ServerContext,
+  request: FastifyRequest,
+): ResolvedRequest {
+  const resolved = resolvePrincipal(ctx, request);
+  if (resolved === null) {
+    throw new AppError(401, "unauthenticated", "a valid session or API key is required");
+  }
+  return resolved;
+}
+
+/** The operator key's synthetic identity (GET /auth/me) — the web client's API-key tab renders it like any account. */
+export const OPERATOR_IDENTITY = {
+  id: "operator",
+  email: "operator",
+  displayName: "Operator",
+  name: null,
+  surnames: null,
+  avatarUrl: null,
+  isAdmin: true,
+} as const;
+
 /** Maps a WorkspaceManager image refusal onto the error envelope; rethrows anything else. */
 export function rethrowImageError(error: unknown): never {
   if (error instanceof WorkspaceImageError) {
@@ -464,7 +495,11 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
   });
 
   app.get("/auth/me", async (request) => {
-    const principal = requireUser(ctx, request);
+    const resolved = requireUserOrOperator(ctx, request);
+    // The operator key answers as its synthetic owner identity — it is not a
+    // row in the accounts table.
+    if (resolved.principal.kind === "apikey") return { ...OPERATOR_IDENTITY };
+    const principal = resolved.principal as Extract<Principal, { kind: "user" }>;
     const user = ctx.auth.findUserById(principal.userId);
     if (user === null) throw new AppError(401, "unauthenticated", "account no longer exists");
     return {
@@ -507,7 +542,19 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
   });
 
   app.get("/workspaces", async (request) => {
-    const principal = requireUser(ctx, request);
+    const resolved = requireUserOrOperator(ctx, request);
+    // The operator key sees the whole directory (role "operator"): the
+    // workspace table plus any id present only in the relay log — imported
+    // and migrated workspaces included.
+    if (resolved.principal.kind === "apikey") {
+      return {
+        workspaces: ctx.auth.listAllWorkspaces((workspaceId) => ({
+          envelopeCount: ctx.relay.stats(workspaceId).envelopeCount,
+          latestSeq: ctx.relay.latestSeq(workspaceId),
+        })),
+      };
+    }
+    const principal = resolved.principal as Extract<Principal, { kind: "user" }>;
     return {
       workspaces: ctx.auth.listWorkspacesForUser(principal.userId, (workspaceId) => ({
         envelopeCount: ctx.relay.stats(workspaceId).envelopeCount,

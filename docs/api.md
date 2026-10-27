@@ -46,6 +46,8 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call 
 
 **Scoped API keys (server side).** `POST /api/api-keys` accepts an optional `scopes` list (e.g. `["objects.read"]` for a read-only agent); keys without scopes — and the operator key and sessions — stay unrestricted. Scope checks are per-route (the OpenAPI `x-required-scope` extension is the enforcement table): an out-of-scope call gets 403 `scope_denied`, and scoped keys are rejected on the whole relay surface. The reserved `admin` scope gained its first enforcement with the plugin registry: `/api/plugins*` accepts the operator key or an administrator account, and a scoped key additionally needs `admin`. The in-app Read/Write/Admin checkboxes are separate web work.
 
+**Operator key on the account plane.** Account routes are user-bound (session or per-user key), with one deliberate carve-out: the account-**discovery** reads `GET /api/auth/me` and `GET /api/workspaces` also accept the operator key — the deployment owner, whose data-plane access is already unrestricted, needs the workspace directory to point machines (and the web client's API-key sign-in tab) at where to sync. `GET /api/auth/me` answers as a synthetic owner identity (`{id: "operator", email: "operator", isAdmin: true}`) and `GET /api/workspaces` returns the whole directory — every workspace row plus any id present only in the relay log (imported/migrated workspaces), each tagged `role: "operator"`. Everything mutating stays user-bound: profile, prefs, key minting, and workspace create/rename still reject the operator key with 401.
+
 One curl, end to end:
 
 ```bash
