@@ -305,6 +305,11 @@ export function HubView({
         New whiteboard
       </Button>
     ) : undefined;
+  // The page listings (Pages, Whiteboards, Inbox) scope their recursive
+  // outline children to the main-children zone — a shown page expands its
+  // subpage tree, never its inline body blocks. The Classes hub keeps the
+  // default (it lists class nodes, not pages).
+  const pagesOnly = nav !== "classes";
   return (
     <>
       <CollectionHub
@@ -318,6 +323,7 @@ export function HubView({
         persistKey={`hub.${nav}`}
         emptyTitle="Nothing here yet."
         headerActions={headerAction}
+        {...(pagesOnly ? { pagesOnly: true } : {})}
         onOpenNode={onOpenNode}
         onOpenInSidebar={onOpenInSidebar}
       />

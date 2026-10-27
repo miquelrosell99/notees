@@ -109,11 +109,16 @@ const TREE_DEPTH_CAP = 64;
 /** The empty id list (the focused-block branch's no-parent case). */
 const EMPTY_IDS: string[] = [];
 
-/** Filter a tree to main children (the pagesOnly flag), recursion-limited. */
+/**
+ * Filter a tree to main children (the pagesOnly flag), recursion-limited:
+ * the getChildPages read's predicate — non-class, non-embedded, active —
+ * so a page listing expands its subpage tree and never its inline body
+ * blocks.
+ */
 function filterPages(items: NodeCollectionItem[], remaining = TREE_DEPTH_CAP): NodeCollectionItem[] {
   if (remaining <= 0) return [];
   return items
-    .filter((item) => !item.node.isClass && item.node.isEmbedded)
+    .filter((item) => !item.node.isClass && !item.node.isEmbedded && item.node.isActive)
     .map((item) => ({ ...item, children: filterPages(item.children ?? [], remaining - 1) }));
 }
 
@@ -231,15 +236,20 @@ function toBlockTree(item: NodeCollectionItem): BlockTreeNode {
  * The flat list's row tree: the item's own children when the container
  * supplied them, otherwise the client's live children (recursive,
  * depth-capped) — the list view shows children without the container
- * pre-resolving them.
+ * pre-resolving them. With `pagesOnly` the child read is the main-children
+ * zone (getChildPages — subpages only, never inline body blocks), so page
+ * listings (the shell hubs) expand their subpage tree and nothing else.
  */
-function flatTreeOf(client: NodeCollectionProps["client"], item: NodeCollectionItem, remaining = TREE_DEPTH_CAP): BlockTreeNode {
+function flatTreeOf(client: NodeCollectionProps["client"], item: NodeCollectionItem, remaining = TREE_DEPTH_CAP, pagesOnly = false): BlockTreeNode {
   if (remaining <= 0) return { node: item.node, children: [] };
   const children: NodeCollectionItem[] =
-    item.children ?? client.getChildren(item.node.id).map((node) => ({ node }));
+    item.children ??
+    (pagesOnly
+      ? client.getChildPages(item.node.id).map((node) => ({ node }))
+      : client.getChildren(item.node.id).map((node) => ({ node })));
   return {
     node: item.node,
-    children: children.map((child) => flatTreeOf(client, child, remaining - 1)),
+    children: children.map((child) => flatTreeOf(client, child, remaining - 1, pagesOnly)),
   };
 }
 
@@ -290,6 +300,9 @@ function FlatRows({
   // is session-local (the context contract).
   const [settingLevel] = useDeviceSetting("listCollapseLevel", 0);
   const collapseLevel = props.collapse === true ? undefined : settingLevel;
+  // The pagesOnly scoping rides BOTH tree reads (the fold-walk and the row
+  // render) — one flag, one child vocabulary.
+  const pagesOnly = props.pagesOnly ?? false;
   const defaultCollapsed = useMemo(() => {
     const set = new Set<string>();
     const walk = (tree: BlockTreeNode, depth: number): void => {
@@ -299,9 +312,9 @@ function FlatRows({
       if (foldsByDefault) set.add(tree.node.id);
       for (const child of tree.children) walk(child, depth + 1);
     };
-    for (const item of visible) walk(flatTreeOf(client, item), 1);
+    for (const item of visible) walk(flatTreeOf(client, item, TREE_DEPTH_CAP, pagesOnly), 1);
     return set;
-  }, [client, visible, collapseLevel]);
+  }, [client, visible, collapseLevel, pagesOnly]);
   const outliner = useOutlinerValue(client, visible[0]?.node.id ?? "", {
     openNode: (id) => (onNodeClick ?? outer?.openNode ?? (() => {}))(id),
     openInSidebar: (id) => (onNodeShiftClick ?? outer?.openInSidebar ?? (() => {}))(id),
@@ -320,7 +333,7 @@ function FlatRows({
             const row: ReactNode = (
               <span className="outline-row">
                 <BlockRow
-                  tree={flatTreeOf(client, item)}
+                  tree={flatTreeOf(client, item, TREE_DEPTH_CAP, pagesOnly)}
                   client={client}
                   resolveName={resolveName}
                   readOnly={readOnly}
