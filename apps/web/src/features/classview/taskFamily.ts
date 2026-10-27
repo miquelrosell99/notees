@@ -73,14 +73,15 @@ const TASK_PRIORITY_OPTION_IDS: Record<(typeof TASK_PRIORITY_OPTIONS)[number], s
 
 /** The six schemas in authoring order (binding rows carry no order — the
  * task panel renders in pin tiers, alphabetical by property name within each
- * tier; `pinned` is a classification, never a stored order). */
+ * tier; `pinned` is a classification, never a stored order). The pinned set
+ * mirrors TASK_FAMILY_SEED (2026-10-27): Status/Scheduled/Deadline pinned,
+ * Priority/Closed/Recurrence unpinned. */
 const TASK_FAMILY: Array<{
   id: string;
   name: string;
   type: "select" | "datetime";
   options?: () => Array<{ id: string; label: string; icon?: string; color?: string }>;
-  /** The binding row's tier flag (TASK_FAMILY_SEED.pinned); wiring only —
-   *  no task property pins anything yet. */
+  /** The binding row's tier flag (TASK_FAMILY_SEED.pinned). */
   pinned?: boolean;
 }> = [
   {
@@ -94,16 +95,19 @@ const TASK_FAMILY: Array<{
         icon: option.icon,
         color: option.color,
       })),
+    pinned: true,
   },
   {
     id: SYSTEM_PROPERTY_UUIDS.taskScheduled,
     name: "Scheduled",
     type: "datetime",
+    pinned: true,
   },
   {
     id: SYSTEM_PROPERTY_UUIDS.taskDeadline,
     name: "Deadline",
     type: "datetime",
+    pinned: true,
   },
   {
     id: SYSTEM_PROPERTY_UUIDS.taskPriority,

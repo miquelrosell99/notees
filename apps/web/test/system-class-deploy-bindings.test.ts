@@ -115,15 +115,16 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
     const client = await seedClient();
     await shapePreRulingMeetingWorkspace(client);
 
-    // The fallback read makes the family LOOK configured (ALPHABETICAL by
-    // property name — binding sequence retired)…
+    // The fallback read makes the family LOOK configured — in PIN TIERS
+    // (pinned first, alphabetical within each tier; the 2026-10-27 seed pin
+    // declaration pins meetingDate/location, agenda stays unpinned)…
     const displayIds = client
       .getClassBindings(MEETING_CLASS_ID)
       .map((binding) => binding.propertySchemaId);
     expect(displayIds).toEqual([
-      SYSTEM_PROPERTY_UUIDS.agenda,
       SYSTEM_PROPERTY_UUIDS.location,
       SYSTEM_PROPERTY_UUIDS.meetingDate,
+      SYSTEM_PROPERTY_UUIDS.agenda,
     ]);
     // …while the registry-only read sees nothing (the effective-properties
     // derivation agrees — an authored value on a member is unbound).
@@ -143,13 +144,14 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
     await deploySystemClass(client, "meeting");
     await flushSync();
 
-    // The registry rows materialize — own rows for the whole family,
-    // ALPHABETICAL by property name: Agenda, Location, Meeting date.
+    // The registry rows materialize — own rows for the whole family, in PIN
+    // TIERS (pinned first, alphabetical within each tier — the deploy threads
+    // the spec pins): Location, Meeting date, then Agenda.
     const registry = client.getRegistryBindings(MEETING_CLASS_ID);
     expect(registry.map((binding) => binding.propertySchemaId)).toEqual([
-      SYSTEM_PROPERTY_UUIDS.agenda,
       SYSTEM_PROPERTY_UUIDS.location,
       SYSTEM_PROPERTY_UUIDS.meetingDate,
+      SYSTEM_PROPERTY_UUIDS.agenda,
     ]);
     // The event parent was deployed first: its eventDate row exists too.
     expect(client.getRegistryBindings(EVENT_CLASS_ID).map((b) => b.propertySchemaId)).toEqual([

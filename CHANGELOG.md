@@ -39,6 +39,48 @@ predating this file.
   (fails with the wiring off); hub suite 6/6; `tsc` green; full suite green
   (web 202 files / 2358 tests, server 314, all package suites).
   `docs/features/pages.md`'s page-list entry states the scoping.
+- **feat(domain,server,web): declare the seed pin sets + the live-workspace
+  convergence script.** The pinned-binding machinery (08544be6e) threaded
+  `pinned` through every seed manifest with nothing declared; this slice
+  declares the pin sets and converges live workspaces. Declared (wider head
+  sets): the `source` base family — authors, citekey, doi, linkedAuthors,
+  publicationDate, url — the meeting family's meetingDate + location, and
+  the task family's taskStatus/taskScheduled/taskDeadline. Deliberately
+  UNPINNED: isbn, publisher, editors, attachments, agenda, eventDate/
+  birthday, taskPriority/taskClosedDate/taskRecurrence, the url→web_page
+  extra row, and every one of the 39 SYSTEM_SOURCE_CLASS_BINDINGS type-class
+  rows (only the `source` base pins). Where each pin landed: the spec layer
+  (`SystemPropertySpec.pinned` — the server seed's SPECS loop + the web
+  deploySystemClass ensure emit it), the task family (`TASK_FAMILY_SEED[].
+  pinned`, mirrored in the web TASK_FAMILY constant), and nothing else — the
+  web self-heal ensures stay EXISTENCE-ONLY (a pinned-patch ensure would
+  fight future user unpinning; the meetingFamily ensure now threads the flag
+  on NEW rows only, the taskFamily precedent). Live workspaces:
+  `scripts/migrate-seed-pins.mts` (Path A append — fresh
+  `class.property.set {pinned: true}` envelopes at the log tail via
+  `RelayStorage.ingest`, NO epoch bump; the target set is derived from the
+  same domain manifests, an already-pinned row is never re-planned, a
+  missing row is skipped for the ensures, idempotent second run, dry-run
+  default; snapshots built before the append embed pin-less rows but every
+  hydration path catches up the tail on top). **Seed-change client check
+  (law 10) ran, verdict recorded**: no sibling hardcodes a binding field
+  list that breaks — BUT the pins ride an additive optional key on a strict
+  payload, and as of this commit NONE of the siblings accepts it (GTK
+  `ClassPropertySetPayload` is extra="forbid" without the field; Flutter's
+  `classPropertySet` builder carries `active` only; the CLI's vendored
+  notees predates the machinery, strict zod) — so the migration's `--apply`
+  is LOCKSTEP-GATED on the GTK/Flutter ports + the CLI vendor bump (the
+  migrations.md strict-payload additive law; sibling repos NOT edited in
+  this slice). Docs same pass: SCHEMA.md bindings bullet, the AGENTS.md
+  property-scope invariant, classes.md's property-definitions paragraph,
+  migrations.md's catalog. Verified: new domain test pins the declared sets
+  positively + negatively (drift gate); the store source-seed suite replays
+  the pinned seed envelopes and asserts the flags land on exactly the right
+  rows (web_page's url + every type-class row unpinned); new
+  `apps/server/test/migrate-seed-pins.test.ts` e2e (dry-run writes nothing,
+  plan functions in-process, --apply lands the flags, second run plans
+  nothing); `pnpm typecheck` + `pnpm test` green (web + server suites run
+  explicitly).
 
 - **fix(web): unchecked boolean property checkboxes are visible on the
   panel card again.** The catalog checkbox border rides `border-outline`,
