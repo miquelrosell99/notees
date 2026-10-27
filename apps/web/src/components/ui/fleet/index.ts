@@ -165,3 +165,7 @@ export { useDelayedVisible } from './useDelayedVisible.js';
 
 export { SurfaceTopBar } from './SurfaceTopBar.js';
 export type { SurfaceTopBarProps } from './SurfaceTopBar.js';
+
+
+export { SidePanelToggle, useSidePanel } from './SidePanel.js';
+export type { SidePanelConfig, SidePanelSlots, SidePanelToggleProps } from './SidePanel.js';

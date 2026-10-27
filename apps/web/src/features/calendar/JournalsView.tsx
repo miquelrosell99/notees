@@ -32,6 +32,7 @@ import { todayIsoLocal } from "./calendarViewUtils.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
+import { useSidePanel } from "../../components/ui/fleet/SidePanel.js";
 import "./JournalsView.css";
 
 /** Entries mounted around today before the sentinels take over. */
@@ -255,34 +256,55 @@ export function JournalsView({
     onOpenPage(day);
   };
 
+  /**
+   * The navigator panel + its top-bar toggle as ONE component-level unit
+   * (useSidePanel): the side is declared once — "right", the body's panel
+   * column — and the toggle lands in the bar's far-right trailing slot on
+   * the same side, so the two can never drift apart (the regression this
+   * replaces: the toggle led the bar, left of the title, while the panel
+   * rendered in the right column).
+   */
+  const navigatorPanel = useSidePanel({
+    side: "right",
+    open: !panelCollapsed,
+    onToggle: () => setPanelCollapsed(!panelCollapsed),
+    label: "navigator panel",
+    className: "journals-panel",
+    children: (
+      <>
+        <MonthCalendar
+          selectedDate={panelIso}
+          onSelectDate={navigateToDay}
+          firstDayOfWeek={firstDayOfWeek}
+          hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
+          onSelectMonth={(year, month) => {
+            void client.ensureDateChain(`${year}-${String(month).padStart(2, "0")}-01`).then(({ month: monthId }) => onOpenPage(monthId));
+          }}
+          onSelectYear={(year) => {
+            void client
+              .ensureDateChain(`${year}-01-01`)
+              .then(({ year: yearId }) => onOpenPage(yearId));
+          }}
+        />
+        <EventsPanel client={client} selectedIso={panelIso} onOpenPage={onOpenPage} />
+      </>
+    ),
+  });
+
   return (
     <div className="journals-view">
       {/* The hub chrome rides the shared SurfaceTopBar:
           pinned above the feed, full card width, so the feed's scrollbar
-          stays at the card border. The navigator-panel toggle leads the
-          bar, left of the title; the lone ACTION is Today — a jump that
-          materializes today's page when missing (a
+          stays at the card border. The navigator-panel toggle TRAILS the
+          bar at the far right (useSidePanel links it to the right-column
+          panel — one side declared once); the lone ACTION is Today — a
+          jump that materializes today's page when missing (a
           pure scroll-to landed on the nearest past day). Discrete
           day-steppers stay retired: day-jumping rides the calendar popup,
           the sidebar Today row, and each entry's Open-page button. */}
       <SurfaceTopBar
         icon="mdi-notebook-outline"
         title="Journal"
-        leading={
-          /* The navigator panel's device-local collapse (the calendar
-             view's old toggle register) — since the
-             round-2 convention it LEADS the bar, left of the title (the general hub convention). */
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="mdi-view-agenda-outline"
-            aria-label={panelCollapsed ? "Show navigator panel" : "Hide navigator panel"}
-            aria-pressed={!panelCollapsed}
-            title={panelCollapsed ? "Show navigator panel" : "Hide navigator panel"}
-            active={!panelCollapsed}
-            onClick={() => setPanelCollapsed(!panelCollapsed)}
-          />
-        }
         actions={
           <>
             {pages.length > 0 && (
@@ -301,6 +323,7 @@ export function JournalsView({
             )}
           </>
         }
+        trailing={navigatorPanel.toggle}
       />
       {pages.length === 0 ? (
         /* The sentence-as-title follows the CalendarView EmptyState
@@ -329,25 +352,9 @@ export function JournalsView({
             <div ref={bottomSentinelRef} className="journals-sentinel" aria-hidden="true" />
           )}
         </div>
-        {!panelCollapsed && !focusMode && (
-        <aside className="journals-panel" aria-label="Journal navigator">
-          <MonthCalendar
-            selectedDate={panelIso}
-            onSelectDate={navigateToDay}
-            firstDayOfWeek={firstDayOfWeek}
-            hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
-            onSelectMonth={(year, month) => {
-              void client.ensureDateChain(`${year}-${String(month).padStart(2, "0")}-01`).then(({ month: monthId }) => onOpenPage(monthId));
-            }}
-            onSelectYear={(year) => {
-              void client
-                .ensureDateChain(`${year}-01-01`)
-                .then(({ year: yearId }) => onOpenPage(yearId));
-            }}
-          />
-          <EventsPanel client={client} selectedIso={panelIso} onOpenPage={onOpenPage} />
-        </aside>
-        )}
+        {/* Focus mode hides every side panel; the linked useSidePanel unit
+            owns the collapsed state itself (open = !panelCollapsed). */}
+        {!focusMode && navigatorPanel.panel}
         </div>
       )}
     </div>

@@ -27,8 +27,12 @@
  * SPLIT by panel side: the LEFT-panel toggle rides `leading` (left of the
  * title), the RIGHT-panel toggle rides `trailing` (the owner's annotated
  * call: "the right panel toggle button should be at the far right of the
- * surface top bar"); a hub whose only toggle drives the left panel (the
- * Journal hub) keeps it in `leading` and passes no `trailing`.
+ * surface top bar"). The toggle + panel are LINKED at the component level
+ * (`useSidePanel` / `SidePanelToggle`, fleet SidePanel.js): the host
+ * declares the side once and renders the returned toggle in the SAME-side
+ * slot — the Journal hub's navigator toggle rides `trailing` (its panel is
+ * the body's right column), and hosts whose panels ride another container
+ * (SourcesHub's MainContentFrame slots) use `SidePanelToggle` alone.
  */
 
 import type { ReactNode } from 'react';

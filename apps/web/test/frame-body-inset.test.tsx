@@ -16,11 +16,14 @@
  *   (the media-query block must not reset the body padding).
  *
  * - The toggle split: the LEFT-panel toggle leads the bar (left of the
- *   title, the standing hub convention); the RIGHT-panel toggle rides the
- *   SurfaceTopBar's new additive `trailing` slot — the FAR RIGHT END of
- *   the bar, after the actions cluster. Journal's single (left-panel)
- *   toggle stays in the leading cluster; a bar without a right-panel
- *   toggle renders NO trailing cluster (additive slot, no layout shift).
+ *   title); the RIGHT-panel toggle rides the SurfaceTopBar's `trailing`
+ *   slot — the FAR RIGHT END of the bar, after the actions cluster. The
+ *   toggle + panel are LINKED at the component level (useSidePanel /
+ *   SidePanelToggle, fleet): the side is declared once and the toggle's
+ *   slot, dock icon, and pressed state derive from it — the Journal hub's
+ *   navigator toggle rides trailing because its panel is the body's right
+ *   column (the drift this replaces: the toggle led the bar while the
+ *   panel rendered on the right).
  *
  * The CSS assertions read the stylesheets as text (the css-token-drift
  * gate's idiom — jsdom does not compute stylesheet rules), pinning the
@@ -31,9 +34,10 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { dayNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
@@ -69,6 +73,19 @@ async function seedClient(): Promise<WorkspaceClient> {
   clients.push(client);
   await client.bootstrapWorkspace(WS);
   return client;
+}
+
+/** One existing day page — the journal feed (and its panel column) renders only when a day page exists. */
+async function createDayPage(client: WorkspaceClient): Promise<void> {
+  const now = new Date();
+  const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  await client.createObject({
+    id: dayNodeId(iso),
+    isEmbedded: false,
+    parentId: null,
+    name: iso.replace(/-/g, ""),
+    classIds: [SYSTEM_CLASS_UUIDS.day],
+  });
 }
 
 function readCss(rel: string): string {
@@ -232,17 +249,38 @@ describe("the toggle split", () => {
     ).toBe(true);
   });
 
-  it("Journal's single (left-panel) toggle stays in the leading cluster, left of the title", async () => {
+  it("Journal's navigator toggle rides the TRAILING cluster — the panel is the right column (useSidePanel links the two)", async () => {
     const client = await seedClient();
+    await createDayPage(client);
     const { container } = render(
       <JournalsView client={client} onOpenPage={() => {}} />,
     );
     const heading = screen.getByRole("heading", { name: "Journal" });
     const toggle = screen.getByRole("button", { name: "Hide navigator panel" });
+    // The toggle sits in the far-right cluster, AFTER the title (the linked
+    // useSidePanel unit places it on the panel's own side).
     expect(
-      toggle.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
+      toggle.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_PRECEDING,
     ).toBeTruthy();
-    // No right-panel toggle → no trailing cluster (nothing rides the far end).
-    expect(container.querySelector(".surface-topbar__trailing")).toBeNull();
+    const trailing = container.querySelector(".surface-topbar__trailing");
+    expect(trailing).not.toBeNull();
+    expect(trailing!.contains(toggle)).toBe(true);
+    // The dock icon renders the side (the sprite-sheet use href, no inline path).
+    expect(toggle.querySelector(".nt-icon use")?.getAttribute("href")).toContain("dock-right");
+    // The panel it drives renders in the body (right column register).
+    expect(container.querySelector(".journals-panel")).not.toBeNull();
+  });
+
+  it("collapsing from the toggle drops the panel and flips the label (the linked unit)", async () => {
+    const client = await seedClient();
+    await createDayPage(client);
+    const { container } = render(
+      <JournalsView client={client} onOpenPage={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Hide navigator panel" }));
+    expect(container.querySelector(".journals-panel")).toBeNull();
+    expect(screen.getByRole("button", { name: "Show navigator panel" })).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Show navigator panel" }));
+    expect(container.querySelector(".journals-panel")).not.toBeNull();
   });
 });
