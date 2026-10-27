@@ -172,7 +172,8 @@ The single most important process rule:
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
 groups). The exact file set is the contract — the gate test below asserts it
-verbatim (43 files after the 2026-10-27 pinned-binding batch added
+verbatim (44 files after the 2026-10-27 tag-API batch added
+`tag-membership.json`; 43 after the 2026-10-27 pinned-binding batch added
 `class-property-pinned.json`; the 2026-10-23 external_ref batch added
 `external-ref.json`; the 2026-10-20 property-scope batch added
 `property-schema-scope.json` + `property-schema-update-fields.json`, the
@@ -200,6 +201,7 @@ scenarios:
 | `property-schema-update-fields.json` | the update payload's new fields: icon/scopeClassIds/targetClassFilter/multi/validationRules set + cleared (the keep/clear contract) |
 | `property-validation-rules.json` | validationRules value enforcement: number min/max (boundaries + normalized numeric strings), text/url pattern accepts, min-only/max-only, a multi element batch with one bad element, rule-free + schema-less writes unchecked — and a reject tail (out-of-range, pattern misses, un compilable pattern) that must throw on apply |
 | `trash-empty.json` | the `trash.empty` bulk op: apply-time permanent delete of every trashed root, a restore-before-empty survives |
+| `tag-membership.json` | tag membership (SCHEMA.md "Tags"): the `object.create` `tagIds` OR-Set seed, the re-issued create on an existing id as the assign carrier (tree untouched), the `tag.unassign` tombstone, and the add-wins resurrection by a newer add (the `>` actor-tiebreak asymmetry vs classIds) |
 | `external-ref.json` | the `external_ref.*` plugin-mapping family (owner requirement 2026-10-23): set/move/delete LWW per ref, the racing-set winner, a stale set dropped by the delete's tombstone after reorder, and the hard-delete purge of the node's rows |
 
 The gate is enforced by `packages/protocol/test/protocol.test.ts`:

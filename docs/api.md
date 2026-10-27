@@ -10,11 +10,13 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call 
 |---|---|
 | `GET /api/objects?isClass=&isEmbedded=&class=&q=&limit=&cursor=` | List objects (paginated, filterable; `isEmbedded=true` selects the embedded body rows — blocks — `isEmbedded=false` the standalone rows — pages) |
 | `POST /api/objects` | Create an object; body `{"name": …, "parentId": …, "isEmbedded": …, "classIds": [...], "contentAst": [...]}` (`isClass: true` declares a class — a root) — returns the full object |
-| `GET /api/objects/:id` | Fetch one object, including `contentAst`, `classes`, `properties` (each property entry carries its stable `elementId` — the multi-value element identity) |
+| `GET /api/objects/:id` | Fetch one object, including `contentAst`, `classes`, `tags`, `properties` (each property entry carries its stable `elementId` — the multi-value element identity). `classes`/`tags` resolve to `{id, name, icon?, color}` entries; every object shape (list, children, search-adjacent reads) also carries the raw `classIds`/`tagIds` arrays |
 | `GET /api/objects/:id/children` | Direct children in child-position order (both render zones; active only) |
 | `PATCH /api/objects/:id` | Update `name`, `isEmbedded`, `contentAst`, `icon`, `color`; optional `baseRevision: {physical, logical}` — the object's `hlc` as last seen — 409s when stale (the only route with a natural per-node revision; see `x-revision-checks`) |
 | `PUT /api/objects/:id/classes/:classId` | Assign the object to a class (idempotent OR-Set add; class nodes are rejected — identity is the `is_class` bit) |
 | `DELETE /api/objects/:id/classes/:classId` | Remove the class membership (idempotent tombstone; authored property values survive) |
+| `PUT /api/objects/:id/tags/:tagId` | Assign a tag (idempotent OR-Set add; tags are pages — the tag node must exist and be active, and a class node is rejected with 422, mirroring the web tag picker's page scope) |
+| `DELETE /api/objects/:id/tags/:tagId` | Remove the tag (idempotent `tag.unassign` tombstone; removing a tag the node does not carry is a clean no-op) |
 | `DELETE /api/objects/:id` | Trash (subtree); `?permanent=true&confirm=<id>` hard-deletes |
 | `POST /api/objects/:id/merge` | Merge the object into another: body `{targetId}` — children move, class/tag bindings + authored properties + cover/banner/description remap (target wins populated fields), incoming mentions/property references/aliases/collection memberships retarget, the source trashes; `?dryRun=true` returns `{dryRun, summary}` without writing. Guards (class/collection/trashed source, target in the source subtree) fail 422 before anything reaches the log |
 | `GET /api/objects/:id/backlinks` | Edges pointing at the node (mentions, typed links, property refs) |

@@ -9,6 +9,29 @@ predating this file.
 
 ## 2026-10-27
 
+- **feat(protocol,store,server): tags get their fixture gate and a first-class
+  HTTP surface.** Tags shipped 2026-10-01 without a canonical fixture and
+  with the server projection dropping them; both gaps close here.
+  `tag-membership.json` pins the membership lifecycle end to end (gate count
+  43 → 44): the `object.create` `tagIds` OR-Set seed, the re-issued
+  `object.create` on an existing id as the assign carrier (tree untouched —
+  the applier's alreadyExists branch upserts `tag_member_set` only), the
+  `tag.unassign` tombstone, and the add-wins resurrection by a newer add
+  (the deliberate `>` actor-tiebreak asymmetry vs classIds' `>=`). The store
+  suite replays the fixture on both adapters and asserts each intermediate
+  `tag_ids` state. The object API now projects `tagIds` on every
+  `nodeToApi` surface (get/list/children) and resolves `tags`
+  (`{id, name, color}` — the tag page's derived title and own color, read
+  from the node row, not the class registry; missing/inactive tag pages
+  filter out silently like `classes`) on the full projection; two routes
+  mirror the classes pair — `PUT /api/objects/:id/tags/:tagId` (the
+  re-issued-create assign, idempotent; the tag must exist and be a page —
+  class nodes rejected, mirroring the web tag picker's `listPages` scope)
+  and `DELETE /api/objects/:id/tags/:tagId` (the `tag.unassign` tombstone;
+  removing a non-carried tag is a clean no-op). Both are in the OpenAPI
+  document. Verified: new server tags suite (projection, idempotent
+  assign/remove, accumulation sorted by id, 404s, the class-node guard);
+  protocol gate + store replay green; full suite green.
 - **fix(web): nested sections keep their own chevron state, and reference
   rows lose the bound-verb pill.** Two owner reports from the linked-
   references rows (2026-10-27). (1) A row's collapsed "Properties N" section

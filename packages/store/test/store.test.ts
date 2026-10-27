@@ -1346,6 +1346,30 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ]);
     });
 
+    it("tag-membership fixture: seed, assign carrier accumulates, unassign tombstones, newer add resurrects", () => {
+      const store = makeStore();
+      const fixture = loadFixture("tag-membership.json");
+      const TAG_A = "0192a000-0000-7000-8000-000000000701";
+      const TAG_B = "0192a000-0000-7000-8000-000000000702";
+      const ITEM = "0192a000-0000-7000-8000-000000000703";
+      const tagIds = () => JSON.parse(store.getNode(ITEM)?.tag_ids ?? "[]") as string[];
+
+      // Tag pages + the seeded create: only A.
+      store.applyMany(fixture.slice(0, 3));
+      expect(tagIds()).toEqual([TAG_A]);
+      // The re-issued create assign carrier accumulates B (recomputeTagIds
+      // sorts by tag_id); the tree is untouched (parentless, is_embedded 0).
+      store.apply(fixture[3]!);
+      expect(tagIds()).toEqual([TAG_A, TAG_B]);
+      expect(store.getNode(ITEM)).toMatchObject({ parent_id: null, is_embedded: 0 });
+      // The unassign tombstones A.
+      store.apply(fixture[4]!);
+      expect(tagIds()).toEqual([TAG_B]);
+      // The newer re-issued create resurrects A (add-wins, the '>' tiebreak).
+      store.apply(fixture[5]!);
+      expect(tagIds()).toEqual([TAG_A, TAG_B]);
+    });
+
     it("class.unassign is an add-wins OR-Set remove: a stale remove loses to a newer add", () => {
       const store = makeStore();
       makeSchema(store, EFFORT, "effort", 1727200011000);
