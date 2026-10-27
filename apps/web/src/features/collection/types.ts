@@ -241,6 +241,18 @@ export interface NodeCollectionProps {
    */
   hideBacklinkCount?: boolean | undefined;
   /**
+   * List/tree rows hide the properties chrome (the value-display icon
+   * buttons and the collapsed "Properties N" section) — per-row property
+   * metadata is noise on listing surfaces (the shell hubs' page listings).
+   */
+  hideProperties?: boolean | undefined;
+  /**
+   * List/tree rows hide the tags row — listing surfaces scoped to identity
+   * chrome only (the shell hubs' page listings) render classes but not
+   * tags.
+   */
+  hideTags?: boolean | undefined;
+  /**
    * This collection OWNS its collapse behavior — the global "Auto-collapse
    * nodes at this depth in lists" device setting does not apply and the
    * pre-setting collection default stands (every row with children starts

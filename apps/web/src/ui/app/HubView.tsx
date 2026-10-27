@@ -307,9 +307,12 @@ export function HubView({
     ) : undefined;
   // The page listings (Pages, Whiteboards, Inbox) scope their recursive
   // outline children to the main-children zone — a shown page expands its
-  // subpage tree, never its inline body blocks. The Classes hub keeps the
-  // default (it lists class nodes, not pages).
+  // subpage tree, never its inline body blocks — and strip the per-row
+  // properties/tags chrome so the list answers "which pages", not "what
+  // metadata" (the class pills stay: identity, not metadata). The Classes
+  // hub keeps the default (it lists class nodes, not pages).
   const pagesOnly = nav !== "classes";
+  const cleanRows = nav !== "classes";
   return (
     <>
       <CollectionHub
@@ -324,6 +327,7 @@ export function HubView({
         emptyTitle="Nothing here yet."
         headerActions={headerAction}
         {...(pagesOnly ? { pagesOnly: true } : {})}
+        {...(cleanRows ? { hideProperties: true, hideTags: true } : {})}
         onOpenNode={onOpenNode}
         onOpenInSidebar={onOpenInSidebar}
       />

@@ -155,6 +155,28 @@ describe("hub header creation buttons", () => {
     expect(screen.queryByText("Inline body block")).toBeNull();
   });
 
+  it("the Pages hub strips per-row properties and tags chrome — identity pills stay", async () => {
+    const client = await seedClient();
+    const classId = await client.createClass("project");
+    const pageId = await client.createObject({
+      isEmbedded: false,
+      name: "Chrome page",
+      classIds: [classId],
+    });
+    const schemaId = await client.createPropertySchema({ name: "Rating", type: "number" });
+    await client.setProperty(pageId, schemaId, 5, 0);
+    const tagId = await client.createObject({ isEmbedded: false, name: "review-later" });
+    await client.assignTag(pageId, tagId);
+    const { container } = render(<HubView client={client} nav="pages" onOpenNode={() => {}} />);
+    await screen.findByText("Chrome page");
+    // Neither the collapsed "Properties N" section…
+    expect(container.querySelector(".nt-properties-panel")).toBeNull();
+    // …nor the tags row rides the hub rows.
+    expect(container.querySelector(".nt-block-tags")).toBeNull();
+    // Identity chrome stays: the class pill renders.
+    expect((await screen.findAllByText("project")).length).toBeGreaterThan(0);
+  });
+
   it("the Whiteboards hub's New whiteboard writes a whiteboard-classed page and opens it", async () => {
     const client = await seedClient();
     const opened: string[] = [];

@@ -231,6 +231,21 @@ interface BlockRowProps {
    */
   hideBacklinks?: boolean | undefined;
   /**
+   * Hide the properties chrome: the value-display icon buttons (bullet /
+   * inline display positions) and the collapsed "Properties N" section.
+   * Set by list projections where per-row property metadata is noise (the
+   * shell hubs' page listings). Threaded down the recursion by the view
+   * that sets it.
+   */
+  hideProperties?: boolean | undefined;
+  /**
+   * Hide the tags row (the dedicated row below the block, only rendered
+   * when tags are set). Set by list projections scoping rows to identity
+   * chrome only (the shell hubs' page listings). Threaded down the
+   * recursion by the view that sets it.
+   */
+  hideTags?: boolean | undefined;
+  /**
    * A trailing affordance rendered as the LAST CHILD of this row's children
    * container (the child indent level — never a sibling of the row): the
    * focused block view's "+ Add block" ghost (GhostRow over this node).
@@ -248,7 +263,7 @@ interface BlockRowProps {
   autoEdit?: boolean | undefined;
 }
 
-export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, proseMode = false, tableRow = false, variant = "block", hideBacklinks = false, condensed = false, trailingGhost = undefined, autoEdit = false }: BlockRowProps) {
+export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, proseMode = false, tableRow = false, variant = "block", hideBacklinks = false, hideProperties = false, hideTags = false, condensed = false, trailingGhost = undefined, autoEdit = false }: BlockRowProps) {
 
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
@@ -549,6 +564,8 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
               condensed={condensed}
               suppressWidgets={suppressWidgets}
               hideBacklinks={hideBacklinks}
+              hideProperties={hideProperties}
+              hideTags={hideTags}
             />
           ))}
         </SortableContext>
@@ -926,7 +943,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
             (the contentEditable DOM must stay untouched). In read-only
             projections the icons render but open nothing. Focus mode (#12)
             hides both groups — properties are exactly what it suppresses. */}
-        {!focusMode && bulletDisplayGroups.length > 0 && (
+        {!focusMode && !hideProperties && bulletDisplayGroups.length > 0 && (
           <span className="nt-block-bullet-props">
             {bulletDisplayGroups.map((group) => (
               <PropertyIconButton
@@ -944,7 +961,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
             ))}
           </span>
         )}
-        {!focusMode && inlineDisplayGroups.length > 0 && (
+        {!focusMode && !hideProperties && inlineDisplayGroups.length > 0 && (
           <span className="nt-block-inline-props">
             {inlineDisplayGroups.map((group) => (
               <PropertyIconButton
@@ -1144,7 +1161,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
           rides the `#` trigger). Read-only projections render the same row
           with static pills (edit/read alignment). Focus mode (#12) hides
           them with the rest of the block metadata. */}
-      {!focusMode && node.tagIds.length > 0 && (
+      {!focusMode && !hideTags && node.tagIds.length > 0 && (
         <div className="nt-block-tags">
           <TagsRow client={client} nodeId={node.id} tagIds={node.tagIds} onOpenPage={openNode} readOnly={readOnly} />
         </div>
@@ -1155,7 +1172,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
         the block row (bullet/inline) are omitted — the button above
         already surfaces the value. Focus mode (#12) hides the whole
         section. */}
-      {!focusMode && (
+      {!focusMode && !hideProperties && (
         <PropertiesSection
           client={client}
           nodeId={node.id}
@@ -1394,6 +1411,8 @@ function areBlockRowPropsEqual(prev: BlockRowProps, next: BlockRowProps): boolea
     prev.tableRow === next.tableRow &&
     prev.variant === next.variant &&
     prev.hideBacklinks === next.hideBacklinks &&
+    prev.hideProperties === next.hideProperties &&
+    prev.hideTags === next.hideTags &&
     prev.autoEdit === next.autoEdit &&
     prev.trailingGhost === next.trailingGhost &&
     sameTreeNode(prev.tree, next.tree)
