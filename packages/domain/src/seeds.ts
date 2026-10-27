@@ -752,6 +752,15 @@ export interface SystemPropertySpec {
    * ruled local to `source` + extensions.
    */
   global?: boolean;
+  /**
+   * the binding row's binary TIER flag (additive
+   * 2026-10-27): pinned properties render FIRST in class property lists
+   * (alphabetical within each tier) — a classification, never a stored
+   * order. Wiring only: NO seed pins anything yet (the field exists so a
+   * pin set can be declared here later, threading through the server seed
+   * and the web self-heal automatically).
+   */
+  pinned?: boolean;
   targetClassFilter?: SystemClassName[];
   defaultValue?: string;
   options?: { id: string; label: string }[];
@@ -1103,7 +1112,12 @@ export function systemPropertyDisplayName(name: SystemPropertyName): string {
  * live workspaces by the system-names migration,
  * scripts/migrate-system-names.mts.)
  */
-export const SYSTEM_EXTRA_CLASS_BINDINGS: { property: SystemPropertyName; bindTo: SystemClassName }[] = [
+export const SYSTEM_EXTRA_CLASS_BINDINGS: {
+  property: SystemPropertyName;
+  bindTo: SystemClassName;
+  /** The binding row's tier flag (see SystemPropertySpec.pinned); wiring only. */
+  pinned?: boolean;
+}[] = [
   { property: "eventDate", bindTo: "birthday" },
   { property: "url", bindTo: "web_page" },
 ];
@@ -1165,8 +1179,10 @@ export const TASK_PRIORITY_OPTION_UUIDS = {
  * SCHEMA entry — the Status schema defaults to "bullet" (its value rides
  * the block bullet as an icon button, the Logseq-DB "beginning of the
  * block" behavior); the rest stay in the properties panel. Binding rows
- * carry NO order: class panels render alphabetically by property name
- * (`sequence` retired from the binding).
+ * carry NO order: class panels render in pin tiers, alphabetical by
+ * property name within each tier (`sequence` retired from the binding;
+ * `pinned` is a classification, never an order — wiring only, no seed pins
+ * anything yet).
  *
  * the SIX SCHEMAS seed at
  * GLOBAL scope (scopeClassIds absent — Status "can be reused for other
@@ -1180,6 +1196,8 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
   type: "select" | "datetime";
   options?: ReadonlyArray<{ id: string; label: string; icon?: string; color?: string }>;
   display?: "panel" | "bullet" | "inline";
+  /** The binding row's tier flag (see SystemPropertySpec.pinned); wiring only. */
+  pinned?: boolean;
 }> = [
   {
     property: "taskStatus",

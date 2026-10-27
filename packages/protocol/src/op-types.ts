@@ -328,19 +328,29 @@ export const classSetExtendsPayload = z
  * time), so panel order no longer exists to configure. The strict schema
  * rejects the key outright; live logs rewrite in place via
  * scripts/migrate-drop-binding-sequence.mts (a plain in-place strip — no
- * compensation, alphabetical order is pure derivation).
+ * compensation, alphabetical order is pure derivation). `pinned` (additive
+ * 2026-10-27) joins WITHOUT reviving order: a binary tier classification
+ * (pinned properties render first, alphabetical within each tier) — a
+ * stored/configurable ORDER stays retired.
  *
  * `active` (PC4, LOCKSTEP-PENDING): the soft-unbind flag — an
  * inactive binding row stops contributing to the effective-properties read
  * while AUTHORED property values
  * always survive (the row is kept, never deleted). Omitted = keep the stored
  * flag.
+ *
+ * `pinned` (additive 2026-10-27, LOCKSTEP-PENDING): the binary
+ * tier flag — a pinned binding's property renders in the FIRST tier of
+ * class property lists (alphabetical within the tier, then the unpinned
+ * tier, also alphabetical). Omitted = keep the stored flag (patch
+ * semantics identical to `active`; row LWW by envelope HLC).
  */
 export const classPropertySetPayload = z
   .object({
     classId: uuid,
     propertySchemaId: uuid,
     active: z.boolean().optional(),
+    pinned: z.boolean().optional(),
   })
   .strict();
 

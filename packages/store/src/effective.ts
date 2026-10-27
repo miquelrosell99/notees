@@ -191,6 +191,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
   //    first-class-applied-wins over own bindings.
   interface BindingRow {
     property_schema_id: string;
+    pinned: number;
   }
   interface BindingCandidate {
     distance: number;
@@ -223,7 +224,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     return reach;
   };
   const bindingStmt = db.prepare(
-    `SELECT property_schema_id
+    `SELECT property_schema_id, pinned
      FROM class_property WHERE class_id = ? AND active = 1`,
   );
   const candidatesBySchema = new Map<string, BindingCandidate[]>();
@@ -482,19 +483,27 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     });
   }
 
-  // 6. Deterministic presentation order: PURE ALPHABETICAL by property
-  //    name (binding `sequence` retired; class
-  //    panels have no configurable order), UNBOUND AUTHORED rows last
-  //    (assigned-empty rows join the main block — the declaration is the
-  //    node's own, not an orphan), (idx, element id) as the tiebreak (PG5:
-  //    concurrent adds may share an idx — the element id orders them
+  // 6. Deterministic presentation order: pinned-tier FIRST (a binding row's
+  //    `pinned` flag — a binary classification, never a stored order:
+  //    alphabetical by property name within EACH tier), UNBOUND AUTHORED
+  //    rows last (assigned-empty rows join the main block — the declaration
+  //    is the node's own, not an orphan), (idx, element id) as the tiebreak
+  //    (PG5: concurrent adds may share an idx — the element id orders them
   //    identically on every replica).
   const nameOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
   const unboundAuthoredLast = (row: EffectiveProperty): boolean =>
     row.boundBy === null && row.source === "authored";
+  /** The winning ACTIVE binding's tier flag per schema (absent = unpinned). */
+  const pinnedBySchema = new Map<string, boolean>();
+  for (const [schemaId, winner] of winnerBySchema) {
+    pinnedBySchema.set(schemaId, winner.binding.pinned === 1);
+  }
+  const pinnedOf = (row: EffectiveProperty): boolean => pinnedBySchema.get(row.propertySchemaId) ?? false;
   return [...rows.values()].sort((a, b) => {
     const boundDelta = (unboundAuthoredLast(a) ? 1 : 0) - (unboundAuthoredLast(b) ? 1 : 0);
     if (boundDelta !== 0) return boundDelta;
+    const pinnedDelta = (pinnedOf(a) ? 1 : 0) - (pinnedOf(b) ? 1 : 0);
+    if (pinnedDelta !== 0) return -pinnedDelta;
     const nameDelta = nameOf(a).localeCompare(nameOf(b));
     if (nameDelta !== 0) return nameDelta;
     const idxDelta = a.idx - b.idx;

@@ -458,6 +458,106 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
+  describe("class_property.pinned (additive 2026-10-27 — the binary tier flag)", () => {
+    /** Seed the class-tier fixture: PAGE classed CLASS_A, three bindings
+     *  (member + tags pinned, plain unpinned) and an authored value on the
+     *  UNBOUND title schema. */
+    function tieredStore(): Store {
+      const store = seededStore();
+      let ts = 1727200026000;
+      store.apply(env("object.create", { objectId: PAGE, classIds: [CLASS_A] }, (ts += 100)));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_QUALIFIED, pinned: true }, (ts += 100)));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_MULTI_TEXT, pinned: true }, (ts += 100)));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_PLAIN }, (ts += 100)));
+      store.apply(env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA_SINGLE_TEXT, value: "authored" }, (ts += 100)));
+      return store;
+    }
+
+    const names = (store: Store): string[] =>
+      store.getEffectiveProperties(PAGE).map((row) => row.schema?.name ?? row.propertySchemaId);
+
+    const pinnedRow = (store: Store, schemaId: string): { pinned: number } | undefined =>
+      store.database
+        .prepare("SELECT pinned FROM class_property WHERE class_id = ? AND property_schema_id = ?")
+        .get(CLASS_A, schemaId) as { pinned: number } | undefined;
+
+    it("pinned bindings render in the FIRST tier (alphabetical within each tier); unbound authored rows still sort last", () => {
+      const store = tieredStore();
+      // Pinned tier (alphabetical): member, tags — then the unpinned bound
+      // row (plain) — then the unbound authored row (title) last.
+      expect(names(store)).toEqual(["member", "tags", "plain", "title"]);
+      expect(pinnedRow(store, SCHEMA_QUALIFIED)).toEqual({ pinned: 1 });
+      expect(pinnedRow(store, SCHEMA_MULTI_TEXT)).toEqual({ pinned: 1 });
+      expect(pinnedRow(store, SCHEMA_PLAIN)).toEqual({ pinned: 0 });
+      store.close();
+    });
+
+    it("the pinned flag patches like active: omitted keeps the stored flag; a flip re-tiers the read", () => {
+      const store = tieredStore();
+      let ts = 1727200028000;
+      // Flip member back to the unpinned tier.
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_QUALIFIED, pinned: false }, (ts += 100)));
+      expect(pinnedRow(store, SCHEMA_QUALIFIED)).toEqual({ pinned: 0 });
+      expect(names(store)).toEqual(["tags", "member", "plain", "title"]);
+      // An active-only patch keeps the stored pinned flag (patch semantics
+      // identical to `active`); a fieldless patch likewise.
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_QUALIFIED, active: true }, (ts += 100)));
+      expect(pinnedRow(store, SCHEMA_QUALIFIED)).toEqual({ pinned: 0 });
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_QUALIFIED }, (ts += 100)));
+      expect(pinnedRow(store, SCHEMA_QUALIFIED)).toEqual({ pinned: 0 });
+      expect(names(store)).toEqual(["tags", "member", "plain", "title"]);
+      store.close();
+    });
+
+    it("the pinned flag rides the row LWW (the fixture's interleaved-phone race)", () => {
+      const store = seededStore();
+      let ts = 1727200029000;
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, pinned: true }, (ts += 100)));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, pinned: true }, (ts += 50), 0, ACTOR_B));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, pinned: false }, (ts += 50)));
+      expect(pinnedRow(store, SCHEMA_SINGLE_TEXT)).toEqual({ pinned: 0 });
+      // A stale re-pin is dropped by the row LWW.
+      const stale = store.apply(
+        env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, pinned: true }, ts - 25),
+      );
+      expect(stale.ignored).toBe(true);
+      expect(pinnedRow(store, SCHEMA_SINGLE_TEXT)).toEqual({ pinned: 0 });
+      store.close();
+    });
+
+    it("concurrent pinned flips at the same HLC converge under EITHER delivery order", () => {
+      const results: string[] = [];
+      for (const order of ["pin-first", "unpin-first"] as const) {
+        const store = seededStore();
+        let ts = 1727200029500;
+        store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT }, (ts += 100)));
+        const pin = env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, pinned: true }, 1727200030000, 0, ACTOR_A);
+        const unpin = env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, pinned: false }, 1727200030000, 0, ACTOR_B);
+        store.applyMany(order === "pin-first" ? [pin, unpin] : [unpin, pin]);
+        results.push(JSON.stringify(dumpDb(store)));
+      }
+      expect(results[1]).toEqual(results[0]);
+      // The unpin (bigger actor id) won the tie.
+      const store = seededStore();
+      let ts = 1727200029500;
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT }, (ts += 100)));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, pinned: true }, 1727200030000, 0, ACTOR_A));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, pinned: false }, 1727200030000, 0, ACTOR_B));
+      expect(pinnedRow(store, SCHEMA_SINGLE_TEXT)).toEqual({ pinned: 0 });
+      store.close();
+    });
+
+    it("class.property.unset deletes the pinned row outright (pinning state never gates removal)", () => {
+      const store = tieredStore();
+      let ts = 1727200031000;
+      store.apply(env("class.property.unset", { classId: CLASS_A, propertySchemaId: SCHEMA_QUALIFIED }, (ts += 100)));
+      expect(pinnedRow(store, SCHEMA_QUALIFIED)).toBeUndefined();
+      // The remaining order re-derives: the pinned tier loses member.
+      expect(names(store)).toEqual(["tags", "plain", "title"]);
+      store.close();
+    });
+  });
+
   describe("schema-level render contracts (display/hideWhenEmpty) + option icon", () => {
     const SCHEMA_SELECT = "0192a000-0000-7000-8000-0000000000a6";
 

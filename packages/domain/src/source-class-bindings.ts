@@ -37,8 +37,22 @@
 
 import type { SystemClassName, SystemPropertyName } from "./seeds.js";
 
+/**
+ * One source-class binding entry: a bare property name (every entry today),
+ * or a ref carrying the binding row's tier flag — `pinned` (additive
+ * 2026-10-27, see `SystemPropertySpec.pinned`: pinned properties render
+ * first, alphabetical within each tier). Wiring only: no entry pins
+ * anything yet.
+ */
+export type SystemSourceBindingRef = SystemPropertyName | { property: SystemPropertyName; pinned?: boolean };
+
+/** The bound property name of one binding entry (bare name or ref). */
+export function sourceBindingPropertyOf(ref: SystemSourceBindingRef): SystemPropertyName {
+  return typeof ref === "string" ? ref : ref.property;
+}
+
 export const SYSTEM_SOURCE_CLASS_BINDINGS: Partial<
-  Record<SystemClassName, readonly SystemPropertyName[]>
+  Record<SystemClassName, readonly SystemSourceBindingRef[]>
 > = {
   audio_recording: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "label", "language", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "volume"],
   artwork: ["abstract", "accessDate", "archive", "archiveLocation", "artworkMedium", "artworkSize", "callNumber", "eventPlace", "extra", "language", "rights", "shortTitle"],

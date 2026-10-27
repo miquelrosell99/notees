@@ -771,7 +771,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["not_found"],
   }],
   ["post", "/api/classes/:id/properties", {
-    summary: "Bind a property schema to a class (class.property.set: the active soft-unbind patch — the binding's only per-class mechanic; `required`/`defaultValue`/`sequence` retired)",
+    summary: "Bind a property schema to a class (class.property.set: the active soft-unbind + pinned tier-flag patch — the binding's per-class mechanics; `required`/`defaultValue`/`sequence` retired)",
     tags: ["Classes", "Properties"],
     requestBody: { type: "object", additionalProperties: true, description: "the class.property.set patch fields + propertySchemaId (protocol-pinned)" },
     requiredScope: "objects.write",

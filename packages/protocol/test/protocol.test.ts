@@ -42,7 +42,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the forty-two required fixtures", () => {
+  it("has exactly the forty-three required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
@@ -54,6 +54,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "class-parentless-role.json",
       "class-property-active.json",
       "class-property-defaults.json",
+      "class-property-pinned.json",
       "class-unassign.json",
       "code-block.json",
       "embed-ref-view.json",
@@ -916,6 +917,42 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       label: "A",
       icon: "mdiCircle",
       color: "yellow",
+    });
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("class-property-pinned fixture: the interleaved phone pin loses the row LWW race; the unset deletes regardless", () => {
+    const fixture = fixtures.find((f) => f.name === "class-property-pinned.json")!;
+    const sets = fixture.envelopes.filter((env) => env.opType === "class.property.set");
+    // Bind → pin → interleaved pin (lower HLC, race loser) → unpin (newer,
+    // winner) → active-only patch (pinned kept) → pin back.
+    expect(sets.map((env) => (env.payload as { pinned?: boolean }).pinned)).toEqual([
+      true,
+      true,
+      false,
+      undefined,
+      true,
+    ]);
+    const phonePin = sets[1]!.hlc as { physical: number; logical: number };
+    const unpin = sets[2]!.hlc as { physical: number; logical: number };
+    expect(compareHlc(phonePin, unpin)).toBeLessThan(0);
+    // The active-only patch (pinned omitted) keeps the stored flag — the
+    // patch semantics identical to `active`.
+    expect((sets[3]!.payload as { active?: boolean }).active).toBe(true);
+    // Strict schema: a non-boolean pinned is rejected outright.
+    expect(
+      payloadSchemaFor("class.property.set")!.safeParse({
+        classId: "0192a000-0000-7000-8000-000000000f0c",
+        propertySchemaId: "0192a000-0000-7000-8000-000000000f0b",
+        pinned: "yes",
+      }).success,
+    ).toBe(false);
+    // The unset ignores pinning state: exactly {classId, propertySchemaId}.
+    const unset = fixture.envelopes.find((env) => env.opType === "class.property.unset")!;
+    expect(unset.payload).toEqual({
+      classId: "0192a000-0000-7000-8000-000000000f0c",
+      propertySchemaId: "0192a000-0000-7000-8000-000000000f0b",
     });
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);

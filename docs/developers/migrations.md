@@ -58,6 +58,15 @@ The asymmetry that trips people: **option-record keys strip, payload keys
 reject.** Icon-carrying options sync through an old client; a `display` on
 `class.property.set` breaks it. Pick the migration moment accordingly.
 
+**A purely additive store column rides no log migration at all.** When the
+derived schema alone gains a column with a convergent default, the change ships
+as a `SCHEMA_VERSION` bump + a guarded ALTER in `packages/store/src/schema.ts`
+— no script, no backup, no epoch bump, no snapshot patch: existing rows
+converge by the default and the new wire key rides future envelopes (the
+strict-payload additive row of the table above — the §2 lockstep gate still
+applies to pre-batch clients). Store v34's `class_property.pinned` (2026-10-27,
+default 0) is the shape — the v5 `active` precedent.
+
 ## 1. The two migration kinds
 
 ### A. Append-only convergence (no log edit)

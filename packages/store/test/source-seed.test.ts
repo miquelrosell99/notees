@@ -37,6 +37,7 @@ import {
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
   SYSTEM_SOURCE_CLASS_BINDINGS,
+  sourceBindingPropertyOf,
   type SystemClassName,
   type SystemPropertyName,
 } from "@notees/domain";
@@ -167,13 +168,13 @@ function sourceSeedEnvelopes(): Envelope[] {
   }
   // Per-class binding rows (SYSTEM_SOURCE_CLASS_BINDINGS).
   for (const [name, properties] of Object.entries(SYSTEM_SOURCE_CLASS_BINDINGS)) {
-    for (const property of properties) {
+    for (const ref of properties) {
       envelopes.push(
         env(
           "class.property.set",
           {
             classId: SYSTEM_CLASS_UUIDS[name as SystemClassName],
-            propertySchemaId: SYSTEM_PROPERTY_UUIDS[property],
+            propertySchemaId: SYSTEM_PROPERTY_UUIDS[sourceBindingPropertyOf(ref)],
           },
           step(),
         ),
@@ -309,7 +310,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       }
       for (const [name, properties] of Object.entries(SYSTEM_SOURCE_CLASS_BINDINGS)) {
         const own = (byClass.get(SYSTEM_CLASS_UUIDS[name as SystemClassName]) ?? []).sort();
-        const expected = properties.map((p) => SYSTEM_PROPERTY_UUIDS[p]).sort();
+        const expected = properties.map((p) => SYSTEM_PROPERTY_UUIDS[sourceBindingPropertyOf(p)]).sort();
         expect(own).toEqual(expected);
       }
       // The base's own rows ride too — the shared base only: authors/linkedAuthors/editors/doi/isbn/publicationDate/

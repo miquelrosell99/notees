@@ -66,6 +66,7 @@ import {
   SYSTEM_PROPERTY_UUIDS,
   SYSTEM_SOURCE_CLASS_BINDINGS,
   ZOTERO_ITEM_TYPE_TO_CLASS,
+  sourceBindingPropertyOf,
   type SystemPropertyName,
 } from "@notees/domain";
 
@@ -633,7 +634,8 @@ export function nodeToCsl(
   // node carries (the binding list is the locality authority).
   const bindings = SYSTEM_SOURCE_CLASS_BINDINGS[className];
   if (bindings !== undefined) {
-    for (const candidate of bindings) {
+    for (const ref of bindings) {
+      const candidate = sourceBindingPropertyOf(ref);
       for (const slot of Object.keys(CSL_SLOT_CANDIDATES) as CslSlot[]) {
         if (item[slot] !== undefined) continue;
         if (!CSL_SLOT_CANDIDATES[slot].includes(candidate)) continue;

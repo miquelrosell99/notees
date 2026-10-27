@@ -1882,8 +1882,10 @@ function applyClassSetExtends(db: StoreDatabase, env: Envelope): ChangeSummary {
 // --- class.property.* ---------------------------------------------------------
 //
 // Binding rows on `class_property` (SCHEMA.md "Class properties"): the
-// genuinely per-class mechanics ONLY — today just `active`, the soft-unbind
-// flag: the render contracts
+// genuinely per-class mechanics ONLY — today `active`, the soft-unbind
+// flag, and `pinned`, the binary tier flag (pinned properties render
+// first, alphabetical within each tier — a classification, never a stored
+// order): the render contracts
 // (readonly/hideWhenEmpty/display) moved to the property schema
 //, `required`/`defaultValue` left the binding
 // entirely (2026-10-20 — `required` retired outright, `defaultValue` moved
@@ -1934,17 +1936,19 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
   }
 
   const active = p.active === undefined ? null : p.active ? 1 : 0;
+  const pinned = p.pinned === undefined ? null : p.pinned ? 1 : 0;
 
   if (!existing) {
     db.prepare(
       `INSERT INTO class_property
-         (class_id, property_schema_id, active,
+         (class_id, property_schema_id, active, pinned,
           hlc_physical, hlc_logical, actor_id)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       p.classId,
       p.propertySchemaId,
       active ?? 1,
+      pinned ?? 0,
       env.hlc.physical,
       env.hlc.logical,
       env.actorId,
@@ -1955,10 +1959,12 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
     db.prepare(
       `UPDATE class_property SET
          active = COALESCE(?, active),
+         pinned = COALESCE(?, pinned),
          hlc_physical = ?, hlc_logical = ?, actor_id = ?
        WHERE class_id = ? AND property_schema_id = ?`,
     ).run(
       active,
+      pinned,
       env.hlc.physical,
       env.hlc.logical,
       env.actorId,
@@ -3010,10 +3016,10 @@ function ensureTaskFamilyRows(db: StoreDatabase, env: Envelope): void {
     );
     db.prepare(
       `INSERT OR IGNORE INTO class_property
-         (class_id, property_schema_id,
+         (class_id, property_schema_id, pinned,
           hlc_physical, hlc_logical, actor_id)
-       VALUES (?, ?, 0, 0, NULL)`,
-    ).run(classId, schemaId);
+       VALUES (?, ?, ?, 0, 0, NULL)`,
+    ).run(classId, schemaId, entry.pinned === true ? 1 : 0);
   }
   reindexNode(db, classId);
 }
