@@ -33,6 +33,19 @@ predating this file.
 
 ## 2026-10-26
 
+- **fix(web): the object-property picker's class filter is extends-aware in
+  SEARCH, and the anchored picker's search pill gets its side padding
+  back.** (1) The NodeSelector search hit-test filtered by DIRECT class
+  membership (`node.classIds.includes(filter)`), so a Linked authors picker
+  scoped to Agent dropped persona/organización nodes the moment the owner
+  typed a name — the browse path was extends-aware, the search path was
+  not (the third instance of this bug class). The membership test now walks
+  the filter's extends-closure (the schemaEligibility walk), memoized per
+  filter set. TDD: picker-search-extends spec, RED-verified. (2) The
+  anchored picker zeroed the sm SearchField's inline padding (a 2026-10-22
+  rail-alignment ruling) — the lens and clear button sat flush on the pill
+  border; the override is removed and the sm register's spacing-2 applies.
+
 - **fix(sync): snapshot upload pre-flight body cap — skip at the limit
   instead of transferring a body the relay rejects.** The relay caps the
   snapshot PUT at 512 MiB (route-local limit); a projection at/over that
