@@ -67,6 +67,40 @@ describe("bound-but-empty rows — the virtual property shows", () => {
     expect(row).toMatchObject({ source: "bound", value: null, boundBy: classId });
   });
 
+  it("an empty class-bound GROUPED property (text) renders the label with the from-class hint too", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Abstract", type: "text" });
+    const classId = await client.createClass("Source");
+    await client.setClassProperty(classId, schemaId, {});
+    await client.assignClass(pageId, classId);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+    // The grouped row's groupRows filter to authored/default only — the
+    // empty bound row reduces away, so the hint rides the host's classBound.
+    const hint = container.querySelector(`[data-property-schema-id="${schemaId}"] .nt-property-hint`);
+    expect(hint).not.toBeNull();
+    expect(hint!.textContent).toBe("C");
+    const row = client.getEffectiveProperties(pageId).find((r) => r.propertySchemaId === schemaId);
+    expect(row).toMatchObject({ source: "bound", value: null, boundBy: classId });
+  });
+
+  it("an INACTIVE (soft-unbound) binding carries no from-class hint", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Abstract", type: "text" });
+    const classId = await client.createClass("Source");
+    await client.setClassProperty(classId, schemaId, {});
+    await client.assignClass(pageId, classId);
+    await client.setClassProperty(classId, schemaId, { active: false });
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+    const hint = container.querySelector(`[data-property-schema-id="${schemaId}"] .nt-property-hint`);
+    expect(hint).toBeNull();
+  });
+
   it("typing into the cell authors the value — the bound row shadows into authored", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });

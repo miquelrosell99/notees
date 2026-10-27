@@ -58,9 +58,6 @@ export function PropertiesSidebar({
   const [menu, setMenu] = useState<{ schemaId: string; x: number; y: number } | null>(null);
   const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
 
-  const hintOf = (rows: EffectiveProperty[]): string | null =>
-    rows.some((row) => row.boundBy !== null) ? "C" : null;
-
   // The name row's right-click menu rides the same actions as the table's
   // label (Open property / Value history / Empty / Remove).
   const rowsOf = rendered.flatMap((entry) =>
@@ -168,7 +165,7 @@ export function PropertiesSidebar({
           const label = schema?.name ?? entry.propertySchemaId;
           return (
             <div className="nt-props-sidebar__prop" key={entry.propertySchemaId}>
-              {nameRow(entry.propertySchemaId, label, hintOf(entry.groupRows))}
+              {nameRow(entry.propertySchemaId, label, entry.boundBy !== null ? "C" : null)}
               <div className="nt-props-sidebar__value">
                 <GroupedPropertyRow
                   client={client}
@@ -180,6 +177,7 @@ export function PropertiesSidebar({
                   schema={schema}
                   bindingFilter={null}
                   groupRows={entry.groupRows}
+                  classBound={entry.boundBy !== null}
                   onOpenPage={onOpenPage}
                   onOpenInSidebar={onOpenInSidebar}
                   bare
@@ -204,7 +202,14 @@ export function PropertiesSidebar({
       })}
       {emptyObjectBindings.map((binding) => (
         <div className="nt-props-sidebar__prop" key={`empty-${binding.propertySchemaId}`}>
-          {nameRow(binding.propertySchemaId, binding.name, null)}
+          {nameRow(
+            binding.propertySchemaId,
+            binding.name,
+            // A grouped binding with no effective rows renders only when a
+            // class binds it — an INACTIVE (soft-unbound) row carries no
+            // flag: the class no longer supplies the property.
+            binding.active !== false ? "C" : null,
+          )}
           <div className="nt-props-sidebar__value">
             <GroupedPropertyRow
               client={client}
@@ -216,6 +221,7 @@ export function PropertiesSidebar({
               schema={{ datePrecision: binding.datePrecision }}
               bindingFilter={binding.targetClassFilter}
               groupRows={[]}
+              classBound={binding.active !== false}
               onOpenPage={onOpenPage}
               bare
             />

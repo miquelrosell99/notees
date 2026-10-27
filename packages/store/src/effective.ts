@@ -75,11 +75,11 @@ export interface EffectivePropertySchema {
  * One effective (schema, idx) row for a node. `source` tags authored vs
  * derived vs empty declarations (assigned = the node's own pin, bound =
  * the class's virtual contribution); `boundBy` is the class supplying the
- * binding metadata — the winning class for a default or a bound-empty row,
- * the currently-binding class for an authored row, or null when no current
- * class binds the schema (an authored value whose binding went away stays
- * visible, marked unbound; an assigned row is unbound by construction —
- * the declaration is the node's own).
+ * binding metadata — the winning class for a default, a bound-empty row, or
+ * an assigned row on a bound schema, the currently-binding class for an
+ * authored row, or null when no current class binds the schema (an authored
+ * value whose binding went away stays visible, marked unbound; an assigned
+ * row on an unbound schema is a purely node-added property).
  */
 export interface EffectiveProperty {
   propertySchemaId: string;
@@ -437,7 +437,11 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       value: null,
       metadata: null,
       source: "assigned",
-      boundBy: null,
+      // The class still supplies the property — the pin is the node's own,
+      // but boundBy names the winning binder so the panel's "from a class"
+      // flag covers assigned rows on bound schemas (null only when no
+      // class binds the schema: a purely node-added property).
+      boundBy: winnerBySchema.get(schemaId)?.classId ?? null,
       hideWhenEmpty: schema.hideWhenEmpty,
       display: schema.display,
       eligible: eligibleOf(schemaId, schema),

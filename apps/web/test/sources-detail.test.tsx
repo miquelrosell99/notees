@@ -151,9 +151,13 @@ function detailPane(): HTMLElement {
 
 /** The metadata section's row labels (the properties list's name spans). */
 function metadataLabels(pane: HTMLElement): string[] {
-  return Array.from(pane.querySelectorAll(".nt-properties-list .nt-property-name")).map(
-    (el) => (el.textContent ?? "").trim(),
-  );
+  return Array.from(pane.querySelectorAll(".nt-properties-list .nt-property-name")).map((el) => {
+    // The from-class hint rides inside the name span — strip it, the label
+    // is the text proper.
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll(".nt-property-hint").forEach((hint) => hint.remove());
+    return (clone.textContent ?? "").trim();
+  });
 }
 
 async function rowsReady(): Promise<void> {

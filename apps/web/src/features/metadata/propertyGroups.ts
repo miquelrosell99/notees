@@ -70,24 +70,34 @@ export function propertyGroupsOf(
     }
     if (renderedGroups.has(row.propertySchemaId)) return null;
     renderedGroups.add(row.propertySchemaId);
+    // An ASSIGNED-EMPTY or BOUND-but-empty row reduces to the
+    // bound-but-empty shape: the grouped row's add/set affordance authors
+    // the first value (the store shadows the synthetic row the moment a
+    // value or default exists, so an empty row never coexists with
+    // authored carriers).
+    const groupRows = rows.filter(
+      (r) =>
+        r.propertySchemaId === row.propertySchemaId &&
+        (r.source === "authored" || r.source === "default"),
+    );
+    // The from-class flag: ANY effective row of this schema may carry
+    // boundBy while groupRows filters to authored/default only — an
+    // empty assigned/bound row reduces to empty groupRows and would
+    // otherwise lose the badge even though the class supplies it.
+    const schemaRows = [row, ...groupRows];
+    const boundBy = schemaRows.some((r) => r.boundBy !== null)
+      ? schemaRows.find((r) => r.boundBy !== null)!.boundBy
+      : null;
     return {
       kind: "grouped" as const,
       propertySchemaId: row.propertySchemaId,
       type,
       // The originating row's schema — the entry carries it even when
-      // groupRows filters to empty (the assigned/bound-empty reduction
-      // below), so the label/name rides the entry, not the rows.
+      // groupRows filters to empty, so the label/name rides the entry,
+      // not the rows.
       schema: row.schema ?? null,
-      // An ASSIGNED-EMPTY or BOUND-but-empty row reduces to the
-      // bound-but-empty shape: the grouped row's add/set affordance authors
-      // the first value (the store shadows the synthetic row the moment a
-      // value or default exists, so an empty row never coexists with
-      // authored carriers).
-      groupRows: rows.filter(
-        (r) =>
-          r.propertySchemaId === row.propertySchemaId &&
-          (r.source === "authored" || r.source === "default"),
-      ),
+      boundBy,
+      groupRows,
     };
   });
 

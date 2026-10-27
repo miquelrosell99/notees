@@ -513,9 +513,11 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     it("unrealize (property.unassign) drops the pin — the bound row still renders (the class still supplies it)", () => {
       const store = classedStore();
       store.apply(env("property.assign", { objectId: OTHER_PAGE, propertySchemaId: SCHEMA_URL }, 1727200001000));
-      // Realized first: the node's own declaration wins the slot.
+      // Realized first: the node's own declaration wins the slot — and the
+      // class still supplies the property, so boundBy names the binder (the
+      // panel's from-class flag covers realized rows on bound schemas).
       let rows = store.getEffectiveProperties(OTHER_PAGE).filter((r) => r.propertySchemaId === SCHEMA_URL);
-      expect(rows[0]).toMatchObject({ source: "assigned", boundBy: null });
+      expect(rows[0]).toMatchObject({ source: "assigned", boundBy: GENRE });
       // Unrealize — the binding carries the row now.
       store.apply(env("property.unassign", { objectId: OTHER_PAGE, propertySchemaId: SCHEMA_URL }, 1727200001100));
       expect(assignmentRow(store, OTHER_PAGE, SCHEMA_URL)).toBeUndefined();

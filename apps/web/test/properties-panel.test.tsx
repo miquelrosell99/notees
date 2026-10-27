@@ -227,6 +227,65 @@ describe("Properties panel (effective values)", () => {
   });
 });
 
+describe("the from-class badge (C)", () => {
+  it("an EMPTY class-bound grouped property carries the badge — the class supplies the row even with no value", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "abstract", type: "text" });
+    const classId = await client.createClass("Book");
+    await client.setClassProperty(classId, schemaId, {});
+    const pageId = await client.createObject({ isEmbedded: false, name: "Biocompatibility" });
+    await client.assignClass(pageId, classId);
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
+    const sidebar = container.querySelector(".nt-props-sidebar")!;
+    const nameRow = sidebar.querySelector(`[data-property-schema-id="${schemaId}"]`)!;
+    expect(nameRow.textContent).toContain("abstract");
+    expect(nameRow.textContent).toContain("C");
+    // The read model: a bound-but-empty row, boundBy naming the class.
+    expect(client.getEffectiveProperties(pageId)).toEqual([
+      expect.objectContaining({ propertySchemaId: schemaId, value: null, source: "bound", boundBy: classId }),
+    ]);
+  });
+
+  it("a realized (assigned) property on a bound schema keeps the badge — the class still supplies it", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "abstract", type: "text" });
+    const classId = await client.createClass("Book");
+    await client.setClassProperty(classId, schemaId, {});
+    const pageId = await client.createObject({ isEmbedded: false, name: "Biocompatibility" });
+    await client.assignClass(pageId, classId);
+    await client.assignProperty(pageId, schemaId);
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
+    const sidebar = container.querySelector(".nt-props-sidebar")!;
+    const nameRow = sidebar.querySelector(`[data-property-schema-id="${schemaId}"]`)!;
+    expect(nameRow.textContent).toContain("C");
+    // The pin is the node's own; boundBy still names the binder.
+    expect(client.getEffectiveProperties(pageId)).toEqual([
+      expect.objectContaining({ propertySchemaId: schemaId, value: null, source: "assigned", boundBy: classId }),
+    ]);
+  });
+
+  it("a node-added property on an UNBOUND schema carries no badge", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "notes", type: "text" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Plain" });
+    await client.assignProperty(pageId, schemaId);
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
+    const sidebar = container.querySelector(".nt-props-sidebar")!;
+    const nameRow = sidebar.querySelector(`[data-property-schema-id="${schemaId}"]`)!;
+    expect(nameRow.textContent).toContain("notes");
+    expect(nameRow.textContent).not.toContain("C");
+    expect(client.getEffectiveProperties(pageId)).toEqual([
+      expect.objectContaining({ propertySchemaId: schemaId, value: null, source: "assigned", boundBy: null }),
+    ]);
+  });
+});
+
 describe("carrier blocks vs the child block list", () => {
   it("getBlockTree excludes blocks referenced as property values (no duplicate)", async () => {
     const client = await seedClient();

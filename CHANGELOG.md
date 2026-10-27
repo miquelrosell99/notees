@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-27
 
+- **fix(web): the "C" from-class badge now means one thing everywhere — the
+  class definition supplies the property.** Before, the badge answered "does
+  this row carry a value with a binding", so empty grouped-type rows (text,
+  datetime, asset, object, boolean, select-with-options) lost the flag even
+  though the class was the only reason they rendered — a `libro` page showed
+  C on Authors/Citekey but not on the 30 empty Zotero fields beside them.
+  Now the flag rides the effective read's `boundBy` on every render arm —
+  the sidebar's grouped name rows, the `emptyObjectBindings` add-affordance
+  rows (both sidebar and table), and the table's grouped rows (a new
+  `classBound` prop threaded through `GroupedPropertyRow` into the six
+  per-type row components, whose `groupRows` filter drops the empty
+  assigned/bound row the badge used to come from; text rows gain the badge
+  they never rendered). An INACTIVE (soft-unbound) binding carries no flag.
+  Store read-model ruling in the same pass: an ASSIGNED row on a BOUND
+  schema now names the winning binder in `boundBy` (was hard null) — the pin
+  is the node's own, but the class still supplies the property, so a
+  realized row keeps the C; null now means strictly "no class binds this
+  schema" (an unbound authored leftover or a purely node-added assignment).
+  `packages/store/src/effective.ts` + its `EffectiveProperty` doc, the web
+  `EffectiveProperty` type doc, `packages/protocol/SCHEMA.md` ("Read
+  surfaces" states the badge rule), and `docs/features/properties.md` (the
+  from-class hint paragraph) updated in the same pass. Verified: `pnpm
+  typecheck` + `pnpm test` green; new store case (realized row names the
+  binder) and web cases (empty grouped row flagged in sidebar and table,
+  inactive binding unflagged, node-added unbound property unflagged).
+
 - **feat(server): the operator API key signs in — account-discovery reads
   accept it, so machines and the web client's API-key tab no longer need an
   account email.** The account plane was user-bound (session or per-user

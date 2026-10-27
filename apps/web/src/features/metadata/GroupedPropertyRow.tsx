@@ -32,6 +32,10 @@ export function GroupedPropertyRow({
   bare = false,
   /** Read-only projection: the value renders statically, no mutation UI. */
   readOnly = false,
+  /** The host knows the property is class-supplied even when groupRows
+   *  filters to empty (the assigned/bound-empty reduction) — the from-class
+   *  flag rides this when the rows themselves carry no boundBy. */
+  classBound = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -47,6 +51,7 @@ export function GroupedPropertyRow({
   onOpenInSidebar?: ((pageId: string) => void) | undefined;
   bare?: boolean;
   readOnly?: boolean | undefined;
+  classBound?: boolean;
 }) {
   // R4 honest rendering: a grouped schema with an ineligible authored row
   // renders dimmed (the whole group — the schema excludes this node).
@@ -60,6 +65,7 @@ export function GroupedPropertyRow({
         nodeId={nodeId}
         propertySchemaId={propertySchemaId}
         label={label}
+        classBound={classBound}
         multi={multi}
         schema={schema}
         rows={groupRows}
@@ -79,6 +85,7 @@ export function GroupedPropertyRow({
         nodeId={nodeId}
         propertySchemaId={propertySchemaId}
         label={label}
+        classBound={classBound}
         multi={type === "multi_select" ? true : multi}
         options={options}
         rows={groupRows}
@@ -95,6 +102,7 @@ export function GroupedPropertyRow({
         nodeId={nodeId}
         propertySchemaId={propertySchemaId}
         label={label}
+        classBound={classBound}
         rows={groupRows}
         bare={bare}
         readOnly={readOnly}
@@ -109,6 +117,7 @@ export function GroupedPropertyRow({
         nodeId={nodeId}
         propertySchemaId={propertySchemaId}
         label={label}
+        classBound={classBound}
         multi={multi}
         rows={groupRows}
         onOpenPage={onOpenPage}
@@ -126,6 +135,7 @@ export function GroupedPropertyRow({
         nodeId={nodeId}
         propertySchemaId={propertySchemaId}
         label={label}
+        classBound={classBound}
         multi={multi}
         rows={groupRows}
         bare={bare}
@@ -140,6 +150,7 @@ export function GroupedPropertyRow({
       nodeId={nodeId}
       propertySchemaId={propertySchemaId}
       label={label}
+      classBound={classBound}
       multi={multi}
       bindingFilter={bindingFilter}
       rows={groupRows}
