@@ -337,7 +337,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     tags: ["Account"],
   }],
   ["get", "/api/auth/me", {
-    summary: "The authenticated account",
+    summary: "The authenticated account (the operator key answers as a synthetic owner identity)",
     tags: ["Account"],
   }],
   ["patch", "/api/auth/me", {
@@ -458,7 +458,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["not_found"],
   }],
   ["get", "/api/workspaces", {
-    summary: "The account's workspaces (membership view, with envelope stats)",
+    summary: "The account's workspaces (membership view, with envelope stats; the operator key sees the whole directory)",
     tags: ["Workspaces"],
   }],
   ["post", "/api/workspaces", {

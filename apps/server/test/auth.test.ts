@@ -83,6 +83,75 @@ describe("setup gate", () => {
   });
 });
 
+describe("operator API key on the account-discovery routes", () => {
+  it("GET /auth/me answers as the synthetic operator identity", async () => {
+    server = await makeTestServer();
+    await setupAdmin();
+    const me = await server.app.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { "x-api-key": server.apiKey },
+    });
+    expect(me.statusCode).toBe(200);
+    expect(me.json()).toMatchObject({
+      id: "operator",
+      email: "operator",
+      isAdmin: true,
+    });
+  });
+
+  it("GET /workspaces lists the whole directory, including relay-log-only workspaces", async () => {
+    server = await makeTestServer();
+    await setupAdmin();
+    // A workspace with envelopes but no workspace row (the migrated/imported
+    // shape) — the operator directory must surface it too.
+    const orphanId = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
+    const batch = await ingest(server, [
+      testEnvelope({ workspaceId: orphanId, opType: "object.create", payload: pagePayload("orphan") }),
+    ]);
+    expect(batch.statusCode).toBe(200);
+
+    const list = await server.app.inject({
+      method: "GET",
+      url: "/api/workspaces",
+      headers: { "x-api-key": server.apiKey },
+    });
+    expect(list.statusCode).toBe(200);
+    const workspaces = list.json().workspaces as Array<{ id: string; role: string }>;
+    const ids = workspaces.map((ws) => ws.id);
+    expect(ids).toContain(server.ctx.defaultWorkspace);
+    expect(ids).toContain(orphanId);
+    expect(workspaces.find((ws) => ws.id === orphanId)!.role).toBe("operator");
+  });
+
+  it("anonymous callers still get 401 on both discovery routes", async () => {
+    server = await makeTestServer();
+    await setupAdmin();
+    const me = await server.app.inject({ method: "GET", url: "/api/auth/me" });
+    expect(me.statusCode).toBe(401);
+    const list = await server.app.inject({ method: "GET", url: "/api/workspaces" });
+    expect(list.statusCode).toBe(401);
+  });
+
+  it("mutating account routes still reject the operator key (prefs stay user-bound)", async () => {
+    server = await makeTestServer();
+    await setupAdmin();
+    const prefs = await server.app.inject({
+      method: "GET",
+      url: "/api/me/prefs",
+      headers: { "x-api-key": server.apiKey },
+    });
+    expect(prefs.statusCode).toBe(401);
+    const profile = await server.app.inject({
+      method: "PATCH",
+      url: "/api/auth/me",
+      headers: { "x-api-key": server.apiKey },
+      payload: { displayName: "nope" },
+    });
+    expect(profile.statusCode).toBe(401);
+  });
+});
+
 describe("env-gated signup", () => {
   async function signupUser(email = "user@example.com", password = "user-password-1") {
     return server!.app.inject({
@@ -229,15 +298,15 @@ describe("login and sessions", () => {
     expect(me.statusCode).toBe(401);
   });
 
-  it("account routes reject the operator API key", async () => {
+  it("session-bound account routes still reject the operator API key (logout is session-only)", async () => {
     server = await makeTestServer();
     await setupAdmin();
-    const me = await server.app.inject({
-      method: "GET",
-      url: "/api/auth/me",
+    const out = await server.app.inject({
+      method: "POST",
+      url: "/api/auth/logout",
       headers: server.authHeaders,
     });
-    expect(me.statusCode).toBe(401);
+    expect(out.statusCode).toBe(401);
   });
 });
 

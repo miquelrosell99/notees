@@ -613,6 +613,30 @@ export class AuthStorage {
     return rows.map((row) => ({ ...row, createdAt: row.created_at, ...stats(row.id) }));
   }
 
+  /**
+   * The operator's workspace directory: every workspace row plus any id that
+   * exists only in the relay log (imported/migrated workspaces with no row
+   * yet), each tagged role "operator".
+   */
+  listAllWorkspaces(
+    stats: (workspaceId: string) => { envelopeCount: number; latestSeq: number },
+  ): WorkspaceListEntry[] {
+    const rows = this.db
+      .prepare(`SELECT id, name, created_at FROM workspace ORDER BY created_at ASC`)
+      .all() as Array<{ id: string; name: string | null; created_at: number }>;
+    const known = new Set(rows.map((row) => row.id));
+    for (const id of this.listAllWorkspaceIds()) {
+      if (!known.has(id)) rows.push({ id, name: null, created_at: 0 });
+    }
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      role: "operator",
+      createdAt: row.created_at,
+      ...stats(row.id),
+    }));
+  }
+
   /** Every workspace id present in the relay log (migration helper). */
   listAllWorkspaceIds(): string[] {
     const rows = this.db
