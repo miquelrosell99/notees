@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-27
 
+- **fix(web): the page hubs strip per-row properties and tags chrome — the
+  list answers "which pages", not "what metadata".** Following the
+  subpage-scoping slice, the Pages/Whiteboards/Inbox hubs now render rows
+  with identity chrome only: the class pills stay, while the value-display
+  property icon buttons, the collapsed "Properties N" section, and the tags
+  row render nothing (`BlockRow` gains `hideProperties` / `hideTags`, the
+  `hideBacklinks` precedent — gated, threaded down the row recursion, and
+  folded into the memo comparison). The Classes hub keeps the full chrome.
+  Verified: new hub test (a classed page with a property value and a tag —
+  neither the properties panel nor the tags row renders, the class pill
+  does) proven non-vacuous (fails with the wiring off); hub suite 7/7.
+  `docs/features/pages.md`'s page-list entry states the scoping.
+
 - **fix(web): the Pages/Whiteboards/Inbox hubs expand a page's subpage tree,
   never its inline body blocks.** The list view's flat path rendered every
   page row with ALL its live children (the `getChildren` read) — so the

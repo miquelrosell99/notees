@@ -202,7 +202,7 @@ function TreeRows({ items, props, resetKey }: { items: NodeCollectionItem[]; pro
     <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
       {rows.map((item) => {
         const row = (
-          <BlockRow key={item.node.id} tree={toBlockTree(item)} client={client} resolveName={resolveName} readOnly={readOnly} hideBacklinks={props.hideBacklinkCount} condensed={props.condensed} />
+          <BlockRow key={item.node.id} tree={toBlockTree(item)} client={client} resolveName={resolveName} readOnly={readOnly} hideBacklinks={props.hideBacklinkCount} hideProperties={props.hideProperties} hideTags={props.hideTags} condensed={props.condensed} />
         );
         // Opted-out trees (the page body, Child pages, Extended by) keep the
         // bare row — no wrapper, their DOM/CSS is untouched. Breadcrumb-on
@@ -340,6 +340,8 @@ function FlatRows({
                   readOnlyInert={readOnly}
                   suppressWidgets
                   hideBacklinks={props.hideBacklinkCount}
+                  hideProperties={props.hideProperties}
+                  hideTags={props.hideTags}
                 />
                 {trailingAction?.(item)}
               </span>

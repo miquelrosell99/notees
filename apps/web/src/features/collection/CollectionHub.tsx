@@ -76,6 +76,14 @@ export interface CollectionHubProps {
    * hubs) expand their subpage tree and never a page's inline body blocks.
    */
   pagesOnly?: boolean | undefined;
+  /**
+   * List mode hides the per-row properties chrome (value-display icon
+   * buttons + the collapsed "Properties N" section): listing surfaces
+   * answer "which nodes", not "what metadata".
+   */
+  hideProperties?: boolean | undefined;
+  /** List mode hides the per-row tags row (identity chrome only). */
+  hideTags?: boolean | undefined;
   emptyTitle?: string | undefined;
   /** Right-aligned header extras (#14's "New class" button et al.). */
   headerActions?: ReactNode;
@@ -105,6 +113,8 @@ export function CollectionHub({
   groupByProperty,
   editable = false,
   pagesOnly = false,
+  hideProperties = false,
+  hideTags = false,
   emptyTitle,
   headerActions,
   prepend,
@@ -148,6 +158,8 @@ export function CollectionHub({
             emptyTitle={emptyTitle}
             editable={editable}
             {...(pagesOnly ? { pagesOnly: true } : {})}
+        {...(hideProperties ? { hideProperties: true } : {})}
+        {...(hideTags ? { hideTags: true } : {})}
             onNodeClick={onOpenNode}
             onNodeShiftClick={onOpenInSidebar}
           />
