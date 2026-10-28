@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 
-import { CollapsibleSearchField } from "../src/components/ui/fleet/CollapsibleSearchField.js";
+import { CollapsibleSearchField } from "../src/components/ui/kit/CollapsibleSearchField.js";
 
 describe("CollapsibleSearchField", () => {
   it("renders collapsed as the magnifier toggle — no input until expanded", () => {
