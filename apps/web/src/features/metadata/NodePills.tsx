@@ -18,8 +18,10 @@
  * `sortable` is false (extends order is deterministic); drops commit through
  * `actions.reorder` (user-defined order, display-only LWW).
  * `overflow` (the block column) renders only the FIRST pill plus a "+N"
- * toggle chip (the fleet Chip — it holds its active fill while the panel is
- * open); clicking it opens a popup with the FULL assigned list as class
+ * ghost toggle (the fleet Button, the top-bar toggle register — rounded
+ * square like the pills, holding its active fill while the panel is open,
+ * `aria-pressed` honest); clicking it opens a popup with the FULL assigned
+ * list as class
  * pills — the same pill element as the inline cluster (effective color,
  * hover-reveal ×, click to open, right-click menu), draggable by the pill
  * itself (no grip). The popup is the full management surface: it lists
@@ -58,7 +60,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 import { titleOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
-import { Chip } from "../../components/ui/fleet/Chip.js";
+import { Button } from "../../components/ui/fleet/Button.js";
 import { ColorPickerRow } from "../pickers/ColorPickerRow.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { NodeContextMenu } from "../node-menu/NodeContextMenu.js";
@@ -442,9 +444,12 @@ export function NodePills({
         ),
       )}
       {extraCount > 0 && (
-        <Chip
+        <Button
+          variant="ghost"
+          size="xs"
           active={overflowOpen}
-          ariaLabel={`Show ${extraCount} more class${extraCount > 1 ? "es" : ""}`}
+          aria-pressed={overflowOpen}
+          aria-label={`Show ${extraCount} more class${extraCount > 1 ? "es" : ""}`}
           onClick={(event) => {
             const rect = event.currentTarget.getBoundingClientRect();
             setOverflowPos({ top: rect.bottom + 4, left: rect.left });
@@ -452,7 +457,7 @@ export function NodePills({
           }}
         >
           +{extraCount}
-        </Chip>
+        </Button>
       )}
       {!addAtStart && addPill}
     </div>
