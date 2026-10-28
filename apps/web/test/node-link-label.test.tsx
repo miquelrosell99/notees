@@ -144,3 +144,41 @@ describe("InlineTokens node-link rich label", () => {
     expect(container.querySelector("span.nt-chip")!.textContent).toBe("flat title");
   });
 });
+
+/**
+ * The chip label's underline ownership spec (jsdom has no layout — the rule
+ * text is the spec): the chip's own dashed line names the WHOLE label one
+ * link; a second-level underline underneath it only doubles the line. The
+ * nested elements keep their icons and names, and the hyperlink keeps its
+ * color, but every nested underline is chip-scoped off.
+ */
+
+const process_ = globalThis.process as unknown as {
+  getBuiltinModule(name: string): { readFileSync(path: unknown, enc: string): string };
+  cwd(): string;
+};
+const path = process_.getBuiltinModule("node:path") as unknown as {
+  join(...parts: string[]): string;
+};
+const css = process_.getBuiltinModule("node:fs").readFileSync(
+  path.join(process_.cwd(), "src", "ui", "app.css"),
+  "utf8",
+);
+
+describe("app.css chip label underline scoping", () => {
+  it("strips the nested mention underline inside a chip", () => {
+    const scoped = /\.nt-link \.nt-link--inert \{[^}]*\}/.exec(css);
+    expect(scoped).not.toBeNull();
+    expect(scoped![0]).toContain("border-bottom: none");
+  });
+
+  it("strips the nested class-link, typed-link, and hyperlink underlines inside a chip", () => {
+    const scoped = /\.nt-link \.nt-class-link,\s*\.nt-link \.nt-typed-link,\s*\.nt-link \.nt-hyperlink--inert \{[^}]*\}/.exec(
+      css,
+    );
+    expect(scoped).not.toBeNull();
+    expect(scoped![0]).toContain("text-decoration: none");
+    // The hyperlink keeps its color — only the line goes.
+    expect(scoped![0]).not.toContain("color:");
+  });
+});

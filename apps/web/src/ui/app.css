@@ -3427,12 +3427,22 @@ mark {
   border-bottom-color: var(--md-sys-color-primary);
 }
 
-/* Inert link elements (inside a node-link chip's rich label): they keep the
-   link look — dashed mention underline, wavy class underline, hyperlink
-   color — but carry no own click; the whole chip opens the target. */
+/* Inert link elements (inside a node-link chip's rich label): they carry no
+   own click — the whole chip opens the target. They also carry no own
+   underline: the chip's own line names the WHOLE label one link, and a
+   nested underline only doubles the line. The mention icon and the
+   hyperlink color stay (the signal without the noise). */
 .nt-link--inert,
 .nt-hyperlink--inert {
   cursor: inherit;
+}
+.nt-link .nt-link--inert {
+  border-bottom: none;
+}
+.nt-link .nt-class-link,
+.nt-link .nt-typed-link,
+.nt-link .nt-hyperlink--inert {
+  text-decoration: none;
 }
 
 /* Icon base class: every <Icon> svg/glyph carries it (the component no
