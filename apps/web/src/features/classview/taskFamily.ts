@@ -10,6 +10,10 @@
  * ensureTaskFamily authors the six property schemas at their reserved ids
  * (the propertySchema.create upsert is a no-op when the row exists) plus the
  * task-class bindings when missing, and is a complete no-op once present.
+ * The task→project membership relation rides the same ensure (the SEVENTH
+ * authored schema): a global-scope object-typed multi schema whose only
+ * task-local piece is the binding row (the url→source precedent) —
+ * task subclasses inherit the binding through extends-aware resolution.
  * Safe under both WorkspaceClient and WorkerClient — it composes only the
  * shared write surface (createPropertySchema / setClassProperty /
  * updatePropertySchema) and sync reads (listPropertySchemas /
@@ -71,18 +75,26 @@ const TASK_PRIORITY_OPTION_IDS: Record<(typeof TASK_PRIORITY_OPTIONS)[number], s
   Urgent: TASK_PRIORITY_OPTION_UUIDS.urgent,
 };
 
-/** The six schemas in authoring order (binding rows carry no order — the
- * task panel renders in pin tiers, alphabetical by property name within each
- * tier; `pinned` is a classification, never a stored order). The pinned set
- * mirrors TASK_FAMILY_SEED (2026-10-27): Status/Scheduled/Deadline pinned,
- * Priority/Closed/Recurrence unpinned. */
+/** The seven schemas in authoring order (six family + the project
+ * relation; binding rows carry no order — the task panel renders in pin
+ * tiers, alphabetical by property name within each tier; `pinned` is a
+ * classification, never a stored order). The pinned set mirrors
+ * TASK_FAMILY_SEED (2026-10-27): Status/Scheduled/Deadline pinned,
+ * Priority/Closed/Recurrence + project unpinned (no declared pin set carries
+ * the new binding). */
 const TASK_FAMILY: Array<{
   id: string;
   name: string;
-  type: "select" | "datetime";
+  type: "select" | "datetime" | "object";
   options?: () => Array<{ id: string; label: string; icon?: string; color?: string }>;
   /** The binding row's tier flag (TASK_FAMILY_SEED.pinned). */
   pinned?: boolean;
+  /** Multi cardinality (the `project` relation; absent = single-value). */
+  multi?: boolean;
+  /** Node-typed target filter as seed class names (resolved to ids below). */
+  targetClassFilter?: Array<keyof typeof SYSTEM_CLASS_UUIDS>;
+  /** The schema-level hide-when-empty contract (the `project` relation). */
+  hideWhenEmpty?: boolean;
 }> = [
   {
     id: SYSTEM_PROPERTY_UUIDS.taskStatus,
@@ -129,6 +141,21 @@ const TASK_FAMILY: Array<{
     type: "select",
     options: () => [],
   },
+  {
+    // The task→project membership relation (the SYSTEM_PROPERTY_SPECS
+    // manifest entry): object-typed {nodeId} refs, multi, filter
+    // ["project"], global scope, hideWhenEmpty — a task with no project
+    // shows no empty row. Only the BINDING ROW is task-local; any node may
+    // carry the schema (meetings, sources, …). The propertySchema.create
+    // upsert is a no-op when the row exists, so a converged workspace is
+    // untouched.
+    id: SYSTEM_PROPERTY_UUIDS.project,
+    name: "Project",
+    type: "object",
+    multi: true,
+    targetClassFilter: ["project"],
+    hideWhenEmpty: true,
+  },
 ];
 
 /** True when every task schema is present and bound to the task class. */
@@ -144,8 +171,9 @@ export function taskFamilyPresent(
 }
 
 /**
- * Author the six task property schemas + task-class bindings when missing;
- * a no-op when present (idempotent — safe to call on every open). Also runs
+ * Author the seven task property schemas (six family + project) + task-class
+ * bindings when missing; a no-op when present (idempotent — safe to call on
+ * every open). Also runs
  * the status-restyle upgrade on every call (itself a no-op once the
  * stored options carry the designed icons/colors).
  *
@@ -178,8 +206,14 @@ export async function ensureTaskFamily(client: TaskFamilyClient): Promise<void> 
           // Global scope (// Status "can be reused for other nodes", and the ruling covers
           // the whole family): absent scopeClassIds = any node may carry
           // it. The task-class bindings below are untouched (per-class
-          // config, zero availability semantics).
+          // config, zero availability semantics). The `project` relation
+          // rides the same global scope (its spec is explicitly global).
+          ...(spec.multi !== undefined ? { multi: spec.multi } : {}),
           ...(options !== undefined ? { options } : {}),
+          ...(spec.targetClassFilter !== undefined
+            ? { targetClassFilter: spec.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
+            : {}),
+          ...(spec.hideWhenEmpty !== undefined ? { hideWhenEmpty: spec.hideWhenEmpty } : {}),
         });
       }
     }

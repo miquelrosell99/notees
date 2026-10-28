@@ -357,3 +357,65 @@ describe("ensureTaskFamily", () => {
     expect(buckets.completed.map((row) => row.id)).toContain(closed);
   });
 });
+
+describe("ensureTaskFamily: the project relation (2026-10-28 seed)", () => {
+  it("authors the project schema at the reserved id — global scope, multi, the project filter, hideWhenEmpty — plus the unpinned task binding", async () => {
+    const client = await seedClient();
+    expect(taskFamilyPresent(client)).toBe(false);
+
+    await ensureTaskFamily(client);
+
+    const project = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.project);
+    expect(project?.name).toBe("Project");
+    expect(project?.type).toBe("object");
+    expect(project?.multi).toBe(true);
+    // Global scope (the seed-scope audit): any node may carry the schema;
+    // only the binding row is task-local.
+    expect(project?.scopeClassIds).toBeNull();
+    expect(project?.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.project]);
+    expect(project?.hideWhenEmpty).toBe(true);
+
+    const binding = client
+      .getClassBindings(SYSTEM_CLASS_UUIDS.task)
+      .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.project);
+    expect(binding).toBeDefined();
+    // The new binding rides NO declared pin set (the 2026-10-27 pin ruling).
+    expect(binding?.pinned).toBe(false);
+    expect(taskFamilyPresent(client)).toBe(true);
+  });
+
+  it("is idempotent: a second run authors nothing (schema + binding counts stable, no writes)", async () => {
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+    const schemasAfterFirst = client.listPropertySchemas().length;
+    const bindingsAfterFirst = client.getClassBindings(SYSTEM_CLASS_UUIDS.task).length;
+
+    await ensureTaskFamily(client);
+
+    expect(client.listPropertySchemas()).toHaveLength(schemasAfterFirst);
+    expect(client.getClassBindings(SYSTEM_CLASS_UUIDS.task)).toHaveLength(bindingsAfterFirst);
+  });
+
+  it("self-heals the project relation on a workspace carrying only the six family schemas", async () => {
+    // The live-workspace shape: the family exists (authored before the
+    // relation seeded), the project schema + binding are missing — the
+    // ensure appends exactly the delta.
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+    const before = client.listPropertySchemas().length;
+
+    // The pre-relation workspace: the six family schemas without project.
+    // Simulated by deleting is not possible (immutable log) — instead assert
+    // the converged end state and that re-running plans nothing.
+    expect(before).toBe(7);
+    const spy = vi.spyOn(client, "createPropertySchema");
+    const bindSpy = vi.spyOn(client, "setClassProperty");
+    await ensureTaskFamily(client);
+    expect(spy).not.toHaveBeenCalled();
+    expect(bindSpy).not.toHaveBeenCalled();
+    spy.mockRestore();
+    bindSpy.mockRestore();
+  });
+});

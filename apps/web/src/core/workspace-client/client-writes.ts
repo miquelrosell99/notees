@@ -443,6 +443,7 @@ export class WorkspaceClientWrites {
     if (input.datePrecision !== undefined) payload.datePrecision = input.datePrecision;
     if (input.dateQualified !== undefined) payload.dateQualified = input.dateQualified;
     if (input.defaultValue !== undefined) payload.defaultValue = input.defaultValue;
+    if (input.hideWhenEmpty !== undefined) payload.hideWhenEmpty = input.hideWhenEmpty;
     this.ctx.enqueueLocal(this.ctx.buildEnvelope("propertySchema.create", payload, []));
     return id;
   }
