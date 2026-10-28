@@ -216,6 +216,18 @@ export interface NodeCollectionProps {
    */
   tree?: boolean | undefined;
   /**
+   * nestUnderParents: the collection's item set is FLAT but structurally
+   * nested — the views derive the parent/child structure from the item set
+   * at render time (via `nestItems`): the outline nests children under
+   * their in-set parent, flat views order rows parent-before-child. An
+   * item whose parent is NOT in the set stays top-level. Unset = every
+   * item renders as its own row regardless of parentage (the
+   * backlinks/references ruling: each linked block rides its own row
+   * there, never shown under its parent). The Pages hub is the first
+   * consumer — its query is all page nodes, root or not.
+   */
+  nestUnderParents?: boolean | undefined;
+  /**
    * Editable surface — the outline (list) mode's rows edit inline (content,
    * property icon buttons) with recursive children; the tree mode renders
    * the live BlockRow editor surface. Off (default) renders the same rows

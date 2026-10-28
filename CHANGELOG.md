@@ -9,6 +9,46 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): the Pages hub queries all page nodes — subpages are first-class
+  items; nesting is display-time.** The Pages hub's underlying read was
+  workspace ROOT pages, so a subpage surfaced only inside its parent's
+  outline row. The hub now rides `listPages` (every document-chrome page
+  node, root or not) minus the section pages, and passes the new
+  `nestUnderParents` collection flag. Ruling: child pages are first-class
+  items in table/cards/pivot/graph/gantt/calendar; the outline alone renders
+  the parent/child structure, derived from the item set at render time by
+  `nestItems` — a child whose parent is not in the set (a page nested under
+  a journal day page, whose parent the hub excludes) stays a top-level row:
+  the hub's query is "all page nodes" — visible, not nested, not lost. The
+  table with no column sort picked flattens the sorted tree depth-first —
+  parents before children, siblings per the surface's sort mode (ancestry
+  beats the plain sort); a picked column sort overrides exactly as before.
+  Cards re-sort by their own documented vocabulary and stay visually flat —
+  cards are untouched. `nestUnderParents` is a general opt-in NodeCollection
+  mechanism: any collection whose flat set may contain both parents and
+  children can set it; collections whose items must each display
+  independently — the Backlinks and Unlinked-mentions sections above all —
+  never do, and a new spec pins that boundary (prop unset = every item is
+  its own row regardless of parentage). The hub count and the mode
+  availability gating read the full set (counts never window, per the
+  windowing ruling). The section filter now reads the all-pages list too, so
+  the journal's parented month/day chain nodes stay section pages (a
+  roots-only read excluded just the year). The Whiteboards/Inbox/Classes
+  hubs keep their roots-based sets untouched.
+  - **Files**: `apps/web/src/features/collection/nestItems.ts` (new — the
+    pure, cycle-guarded display-time nesting helper),
+    `apps/web/src/features/collection/types.ts` (`NodeCollectionProps.
+    nestUnderParents`), `apps/web/src/features/collection/CollectionHub.tsx`
+    (passthrough), `apps/web/src/features/collection/OutlineView.tsx` (flat
+    path nests + sorts every sibling level via `sortTreeByMode`),
+    `apps/web/src/features/collection/TableView.tsx` (unset-order
+    depth-first flatten of the sorted tree),
+    `apps/web/src/ui/app/HubView.tsx` (the pages source + the flag),
+    `apps/web/test/nest-items.test.ts` (new — the helper's unit specs),
+    `apps/web/test/view-modes.test.tsx` (the rewritten all-pages specs + the
+    opt-in boundary pin), `docs/features/views.md` (the ruling). Verified:
+    full gate — typecheck clean + whole suite (213 files / 2461 tests).
+
 - **feat(web): the Pages hub carries the standard view switcher — outline,
   table and cards inline.** The Pages hub (workspace root pages) previously
   offered outline alone plus the immersive secondaries; it now rides the full

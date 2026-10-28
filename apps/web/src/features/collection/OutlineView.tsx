@@ -44,7 +44,11 @@
  * a grouped rendering sorts its GROUPS (rows inside a group keep their
  * position order) and its UNGROUPED top-level rows (the page sources — a
  * flat list sorts its items), a tree sorts EVERY sibling level, a flat list
- * sorts its items; the window re-narrows on every resort. Editable surfaces
+ * sorts its items; the window re-narrows on every resort. A flat set the
+ * container flagged `nestUnderParents` is nested first (the Pages hub —
+ * its item set is all page nodes) and then sorts EVERY sibling level of
+ * the derived tree, the top-level array riding the flat path with children
+ * attached. Editable surfaces
  * (the outliner, the task list) hide the button — there the drag order IS
  * the order. Hosted collections portal the toolbar into the tab bar's
  * right-hand cluster (the table/cards precedent); un-hosted it rides the
@@ -84,6 +88,7 @@ import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
 import { useViewChromeTarget } from "./viewChrome.js";
 import { compareGroupsByMode, compareItemsByMode, sortTreeByMode } from "./collectionSort.js";
+import { nestItems } from "./nestItems.js";
 import type { BlockTreeNode } from "@/core/workspace-client/index.js";
 import type { CollectionGroup, NodeCollectionItem, NodeCollectionProps, SortMode } from "./types.js";
 import "./OutlineView.css";
@@ -399,10 +404,22 @@ export function OutlineView(props: NodeCollectionProps) {
   const chromeTarget = useViewChromeTarget();
   const sortedItems = useMemo(() => {
     const resolveClassName = (classId: string) => client.getDisplayName(classId);
+    if (tree === true || isTree(items)) {
+      return sortMode === "position" ? items : sortTreeByMode(items, sortMode, resolveClassName);
+    }
+    // nestUnderParents: the flat set is structurally nested — nest it, then
+    // sort EVERY sibling level (the tree sorter); the top-level array rides
+    // the flat path, children attached ride the row's own children branch
+    // (flatTreeOf's item.children ?? getChildPages — the in-set children
+    // never re-read the store).
+    if (props.nestUnderParents === true) {
+      const nested = nestItems(items);
+      if (sortMode === "position") return nested;
+      return sortTreeByMode(nested, sortMode, resolveClassName);
+    }
     if (sortMode === "position") return items;
-    if (tree === true || isTree(items)) return sortTreeByMode(items, sortMode, resolveClassName);
     return [...items].sort(compareItemsByMode(sortMode, resolveClassName));
-  }, [items, tree, sortMode, client]);
+  }, [items, tree, sortMode, client, props.nestUnderParents]);
   const sortedGroups = useMemo(() => {
     if (groups === undefined || sortMode === "position") return groups;
     return [...groups].sort(compareGroupsByMode(sortMode));
@@ -460,7 +477,7 @@ export function OutlineView(props: NodeCollectionProps) {
   );
   const chrome = chromeTarget !== null && toolbar !== null ? createPortal(toolbar, chromeTarget) : toolbar;
 
-  if (tree === true || isTree(items)) {
+  if (tree === true || (isTree(items) && props.nestUnderParents !== true)) {
     let tree = sortedItems;
     if (pagesOnly) tree = filterPages(tree);
     if (maxDepth !== undefined) tree = capDepth(tree, maxDepth);
