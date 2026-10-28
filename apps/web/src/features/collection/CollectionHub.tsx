@@ -99,6 +99,11 @@ export interface CollectionHubProps {
   /** Right-aligned header extras (#14's "New class" button et al.). */
   headerActions?: ReactNode;
   /**
+   * Per-row trailing action (e.g. the Cards hub's Review button) — the
+   * NodeCollection trailingAction seam, forwarded verbatim.
+   */
+  trailingAction?: ((item: NodeCollectionItem) => ReactNode) | undefined;
+  /**
    * Content rendered inside the scrolling body ABOVE the collection (the
    * tasks hub's bucketed surface rides this); the whole
    * block scrolls with the collection at the card border.
@@ -129,6 +134,7 @@ export function CollectionHub({
   hideTags = false,
   emptyTitle,
   headerActions,
+  trailingAction,
   prepend,
   onOpenNode,
   onOpenInSidebar,
@@ -174,6 +180,7 @@ export function CollectionHub({
             groupByProperty={groupByProperty}
             emptyTitle={emptyTitle}
             editable={editable}
+            {...(trailingAction !== undefined ? { trailingAction } : {})}
             {...(pagesOnly ? { pagesOnly: true } : {})}
         {...(nestUnderParents ? { nestUnderParents: true } : {})}
         {...(hideProperties ? { hideProperties: true } : {})}

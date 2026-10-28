@@ -35,6 +35,7 @@ const NAV_PATHS: Record<string, NavKey> = {
   classes: "classes",
   whiteboards: "whiteboards",
   tasks: "tasks",
+  cards: "cards",
   sources: "sources",
   assets: "assets",
   graph: "graph",
@@ -48,13 +49,22 @@ export function navFromPath(pathname: string): NavKey | null {
   if (NAV_PATHS[key] !== undefined) return NAV_PATHS[key];
   // The calendar owns its subroutes (`/calendar/<zoom>/<day>` — the zoom and
   // the day ride the calendarRoute seam, not the hub key): any /calendar/*
-  // path still boots the calendar hub.
-  if ((key.split("/")[0] ?? "") === "calendar") return "calendar";
+  // path still boots the calendar hub. The cards hub owns /cards the same
+  // way: the review session rides /cards/review (the review surface's seam),
+  // and any /cards/* path still boots the cards hub.
+  const first = key.split("/")[0] ?? "";
+  if (first === "calendar") return "calendar";
+  if (first === "cards") return "cards";
   return null;
 }
 
 export function pathForNav(nav: NavKey): string {
   return `/${nav}`;
+}
+
+/** The cards review-session route (Task 10 renders the surface). */
+export function pathForCardsReview(): string {
+  return "/cards/review";
 }
 
 /**

@@ -307,6 +307,13 @@ export function AppBody(props: AppBodyProps) {
             onQueryChange={onSourcesQueryChange}
             onOpenNode={openPage}
           />
+        ) : activeNav === "cards" ? (
+          /* The Cards hub (memorization cards): the card-family collection
+             with the due/fresh/later buckets, the transient query-builder
+             subset, and the Review actions that hand a session off to
+             /cards/review. Owns /cards + the tab title through the nav
+             register (law 9). */
+          <HubView client={client} nav="cards" onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
         ) : activeNav === "trash" ? (
           /* The Trash hub: browse / restore / permanently delete trashed
              subtrees (the data path always existed — this is the v1
