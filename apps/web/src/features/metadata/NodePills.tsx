@@ -18,17 +18,20 @@
  * `sortable` is false (extends order is deterministic); drops commit through
  * `actions.reorder` (user-defined order, display-only LWW).
  * `overflow` (the block column) renders only the FIRST pill plus a "+N"
- * button; clicking it opens a popup with the FULL assigned list as class
+ * toggle chip (the fleet Chip — it holds its active fill while the panel is
+ * open); clicking it opens a popup with the FULL assigned list as class
  * pills — the same pill element as the inline cluster (effective color,
  * hover-reveal ×, click to open, right-click menu), draggable by the pill
  * itself (no grip). The popup is the full management surface: it lists
  * every assigned class in order, INCLUDING the first pill (visible inline)
  * and any class whose pill the derived view hides (a class_link token in
  * the content already marks it inline — membership is untouched, and the
- * ×/drag gestures work there the same). The block
- * column also passes `addAtStart`: the "+" picker rides LEFT of the pills
- * there — the right-pinned row-end group grows leftward on hover-reveal, so
- * the pills never shift.
+ * ×/drag gestures work there the same). A trailing add-class entry (the
+ * dashed AddPill) opens the same class picker, anchored at itself; a footer
+ * names the two rules — drag to reorder, the first class rides the block
+ * row. The block column also passes `addAtStart`: the "+" picker rides
+ * LEFT of the pills there — the right-pinned row-end group grows leftward
+ * on hover-reveal, so the pills never shift.
  */
 
 import { useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
@@ -55,6 +58,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 import { titleOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../components/ui/fleet/AddPill.js";
+import { Chip } from "../../components/ui/fleet/Chip.js";
 import { ColorPickerRow } from "../pickers/ColorPickerRow.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { NodeContextMenu } from "../node-menu/NodeContextMenu.js";
@@ -324,16 +328,19 @@ export function NodePills({
     resolve: (id: string | undefined) => void;
   } | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
-  const overflowButtonRef = useRef<HTMLButtonElement | null>(null);
   const overflowPopupRef = useRef<HTMLDivElement>(null);
   const colorMenuRef = useRef<HTMLDivElement>(null);
 
   // Dismissal: Escape closes the two portaled popups; the backdrop
   // divs keep owning outside-click (pointer-down on them lands outside the
-  // popup refs, so the hook agrees).
+  // popup refs, so the hook agrees). The overflow popup hosts the class
+  // picker (the popup's add-class entry opens it), and the picker is
+  // portaled outside the popup's DOM — respectFleetPopups treats presses
+  // inside the picker as inside the host so the host survives the gesture.
   usePopupDismissal({
     popupRef: overflowPopupRef,
     isOpen: overflowOpen,
+    respectFleetPopups: true,
     onClose: () => setOverflowOpen(false),
   });
   usePopupDismissal({
@@ -435,11 +442,9 @@ export function NodePills({
         ),
       )}
       {extraCount > 0 && (
-        <button
-          type="button"
-          ref={overflowButtonRef}
-          className="pill pill--add node-pills__overflow"
-          aria-label={`Show ${extraCount} more class${extraCount > 1 ? "es" : ""}`}
+        <Chip
+          active={overflowOpen}
+          ariaLabel={`Show ${extraCount} more class${extraCount > 1 ? "es" : ""}`}
           onClick={(event) => {
             const rect = event.currentTarget.getBoundingClientRect();
             setOverflowPos({ top: rect.bottom + 4, left: rect.left });
@@ -447,7 +452,7 @@ export function NodePills({
           }}
         >
           +{extraCount}
-        </button>
+        </Chip>
       )}
       {!addAtStart && addPill}
     </div>
@@ -498,6 +503,26 @@ export function NodePills({
                   </div>
                 </SortableContext>
               </DndContext>
+              {!readOnly && (
+                <div className="node-pills-popup__add">
+                  <AddPill
+                    label={addLabel}
+                    aria-expanded={pickerOpen}
+                    onClick={(element) => {
+                      // The picker anchors at this entry; the popup stays
+                      // open underneath (respectFleetPopups keeps the
+                      // picker's presses from dismissing it), so the new
+                      // class lands in the list above.
+                      addButtonRef.current = element;
+                      setPickerOpen(true);
+                    }}
+                  />
+                </div>
+              )}
+              <div className="node-pills-popup__footer">
+                The first class rides the block row
+                {sortable && !readOnly ? " · drag pills to reorder" : ""}
+              </div>
             </div>,
             document.body,
           )}

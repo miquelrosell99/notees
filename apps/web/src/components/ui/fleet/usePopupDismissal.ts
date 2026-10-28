@@ -55,6 +55,15 @@ export interface UsePopupDismissalOptions {
    * of dismissing). Escape originating on an anchor still closes.
    */
   anchorRefs?: RefObject<HTMLElement | null>[] | undefined;
+  /**
+   * Popups that host a second portaled fleet popup (a picker opened from
+   * inside this one): events originating inside ANY open fleet popup
+   * (`[data-fleet-popup]` — the seam's stamp, set by every surface riding
+   * this hook) count as inside THIS surface too, for both the pointer and
+   * the Escape check. Without it, pressing inside the hosted picker would
+   * dismiss the host underneath the press.
+   */
+  respectFleetPopups?: boolean | undefined;
   /** Whether the popup is currently open. */
   isOpen: boolean;
   /** Close callback. */
@@ -69,6 +78,7 @@ export function usePopupDismissal(options: UsePopupDismissalOptions): void {
   const {
     popupRef,
     anchorRefs,
+    respectFleetPopups = false,
     isOpen,
     onClose,
     closeOnEscape = true,
@@ -90,16 +100,24 @@ export function usePopupDismissal(options: UsePopupDismissalOptions): void {
       target instanceof Node &&
       (anchorsRef.current?.some((ref) => ref.current?.contains(target) ?? false) ?? false);
 
+    // respectFleetPopups: the hosted fleet popup is portaled outside this
+    // surface's DOM, so the contains() checks can't see it — the stamp is
+    // the seam (see FLEET_POPUP_ATTR's doc).
+    const isInsideFleetPopup = (target: EventTarget | null): boolean =>
+      respectFleetPopups &&
+      target instanceof Element &&
+      target.closest(`[${FLEET_POPUP_ATTR}]`) !== null;
+
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== "Escape") return;
       // Escape that originated inside the popup is owned by the popup's own
       // children (see the file doc); from anywhere else it dismisses.
-      if (isInsidePopup(event.target)) return;
+      if (isInsidePopup(event.target) || isInsideFleetPopup(event.target)) return;
       onCloseRef.current();
     };
 
     const handlePointerDown = (event: PointerEvent): void => {
-      if (isInsidePopup(event.target) || isOnAnchor(event.target)) return;
+      if (isInsidePopup(event.target) || isOnAnchor(event.target) || isInsideFleetPopup(event.target)) return;
       onCloseRef.current();
     };
 
@@ -109,7 +127,7 @@ export function usePopupDismissal(options: UsePopupDismissalOptions): void {
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("pointerdown", handlePointerDown);
     };
-  }, [isOpen, closeOnEscape, closeOnOutsidePress, popupRef]);
+  }, [isOpen, closeOnEscape, closeOnOutsidePress, popupRef, respectFleetPopups]);
 
   // Overlay-system contract: mark the popup root and keep it reachable while
   // open. The aria-hidden lift counters the modal's background-hiding pass,

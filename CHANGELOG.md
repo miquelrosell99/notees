@@ -24,13 +24,23 @@ predating this file.
   pattern the inline cluster already rides).
   - **Files**: `apps/web/src/features/metadata/NodePills.tsx` (PopupRow
     retired — the popup reuses SortablePill/PillShell over the full
-    `classIds`; module doc rewritten), `…/NodePills.css` (the row/grip/icon/
-    name rules retired; the list becomes a pill stack; the popup's 180px
-    `min-width` retired too — the panel shrink-wraps its pills, the widest
-    one setting the width, no dead space on the right), `apps/web/test/
-    node-pills-popup.test.tsx` (new — full-list pill contract, hover-reveal
-    ×, no grip, the inline-marked class present), `docs/features/classes.md`
-    (the popup's full-list exception to the never-two-references ruling).
+    `classIds`; module doc rewritten; the "+N" trigger is the fleet Chip
+    toggle holding its active fill while the panel is open; a trailing
+    AddPill entry opens the class picker anchored at itself with the popup
+    staying open underneath; a help footer names the drag-to-reorder and
+    first-class-rides-the-block-row rules), `…/NodePills.css` (the
+    row/grip/icon/name rules retired; the list becomes a pill stack; the
+    popup's 180px `min-width` retired too — the panel shrink-wraps its
+    pills, the widest one setting the width, no dead space on the right;
+    the add-entry hairline + footer caption), `apps/web/src/components/ui/
+    fleet/usePopupDismissal.ts` (the `respectFleetPopups` option — presses
+    inside a hosted fleet popup count as inside the host, so a popup opened
+    from within a popup doesn't dismiss the host under the press), `apps/
+    web/test/node-pills-popup.test.tsx` (new — full-list pill contract,
+    hover-reveal ×, no grip, the inline-marked class present, the chip's
+    pressed state, the add entry opening the picker with the host
+    surviving), `docs/features/classes.md` (the popup's full-list exception
+    to the never-two-references ruling).
 
 - **fix(web): the Color › submenu rides the kit picker's five-column grid.**
   The context-menu color flyout laid its swatches out as a wrapping flex
