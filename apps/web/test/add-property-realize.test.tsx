@@ -134,7 +134,7 @@ describe("the Realize entries (virtual → realized)", () => {
   it("a valued property is realized too — it drops out of the picker (no no-op re-add)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
-    const schemaId = await client.createPropertySchema({ name: "URL", type: "url" });
+    const schemaId = await client.createPropertySchema({ name: "URL", type: "text" });
     await client.setProperty(pageId, schemaId, "https://x.org", 0);
 
     const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);

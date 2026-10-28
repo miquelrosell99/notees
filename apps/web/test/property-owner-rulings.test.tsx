@@ -180,12 +180,12 @@ describe("PG16: select option colors", () => {
 
 describe("PG3: conversion via blessed delete+recreate", () => {
   it("convertValueForType maps same shapes and lists the rest", () => {
-    expect(convertValueForType("abc", "text", "url", null)).toEqual({ ok: true, value: "abc" });
+    expect(convertValueForType("abc", "text", "email", null)).toEqual({ ok: true, value: "abc" });
     expect(convertValueForType(42, "number", "text", null)).toEqual({ ok: true, value: "42" });
     expect(convertValueForType("1757427533728", "text", "number", null)).toEqual({ ok: true, value: 1757427533728 });
     expect(convertValueForType({ nodeId: "n1" }, "object", "datetime", null)).toEqual({ ok: true, value: { nodeId: "n1" } });
     expect(convertValueForType({ nodeId: "n1" }, "object", "text", null).ok).toBe(false);
-    expect(convertValueForType(true, "boolean", "url", null).ok).toBe(false);
+    expect(convertValueForType(true, "boolean", "email", null).ok).toBe(false);
     expect(convertValueForType("opt-1", "select", "select", [{ id: "opt-1", label: "One" }])).toEqual({ ok: true, value: "opt-1" });
     expect(convertValueForType("opt-9", "select", "select", [{ id: "opt-1", label: "One" }]).ok).toBe(false);
   });

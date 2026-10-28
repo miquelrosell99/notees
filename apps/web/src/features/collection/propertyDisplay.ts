@@ -150,15 +150,15 @@ export function propertyDisplayText(client: AnyClient, prop: EffectiveProperty |
 }
 
 /**
- * The external navigation target of a url/email value: url
- * values pass through (http(s), protocol-relative, or any scheme the author
- * wrote — a `tel:` value rides the same href), email values become
- * `mailto:`. Null when the value is not a non-empty string — nothing to
- * link.
+ * The external navigation target of an email value: email
+ * values become `mailto:`. The retired `url` property type kept no
+ * click-to-open affordance — a legacy url value renders as plain text and a
+ * bare http(s) URL inside it linkifies through the markdownLinks grammar
+ * (the only link affordance). Null when the value is not a non-empty string —
+ * nothing to link.
  */
 export function propertyLinkHref(type: string | undefined, value: unknown): string | null {
   if (typeof value !== "string" || value.trim() === "") return null;
-  if (type === "url") return value.trim();
   if (type === "email") return `mailto:${value.trim()}`;
   return null;
 }

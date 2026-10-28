@@ -18,9 +18,14 @@
  *  - single-value: Enter nests a CHILD block under the carrier — the value
  *    is one block whose children are its lines.
  *
- * Values that don't resolve to a carrier block (legacy scalar strings) keep
- * the minimal text input fallback; editing a dead-carrier cell re-authors a
- * fresh carrier, empty-blur unsets the dead value. A bound-but-empty row
+ * Values that don't resolve to a carrier block keep two fallback
+ * cells: a DEAD reference (a uuid that no longer resolves) renders EMPTY and
+ * re-authors a fresh carrier through the minimal text input; a legacy
+ * SCALAR STRING (the retired `url` type's shape, pre-carrier text values)
+ * renders inline as plain text — bare URLs linkify through the
+ * markdownLinks grammar — and the first edit mints a carrier block carrying
+ * the string, wiring the value to it and opening the block editor (the
+ * established create-carrier pattern, no new op). A bound-but-empty row
  * renders the full-width "Type something" placeholder input so the empty
  * value cell still reads as a field; typing authors the first carrier.
  *
@@ -58,6 +63,7 @@ import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 import { NodeCollection, type NodeCollectionItem } from "../collection/index.js";
 import type { AnyClient } from "../collection/types.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { InlineTokens } from "../../ui/InlineTokens.js";
 import { AddPill } from "../../components/ui/kit/AddPill.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { CarrierEnterContext, type CarrierInfo } from "../../ui/textCarrier.js";
@@ -220,7 +226,24 @@ export function TextPropertyRow({
   })();
 
   const rootRef = useRef<HTMLLIElement | null>(null);
-  /** Fallback cells (dead/scalar) by `${schema}:${idx}` — the pass skips a
+  /**
+   * The carrier a scalar-string edit just minted: once it mounts in the
+   * locked collection its content is clicked to open the block editor (the
+   * TextCell autoEdit precedent — the collection rows take no autoEdit prop,
+   * so the DOM click is the opener). Cleared after the click; the effect
+   * retries on later renders while the carrier has not mounted yet.
+   */
+  const [freshCarrierId, setFreshCarrierId] = useState<string | null>(null);
+  useEffect(() => {
+    if (freshCarrierId === null) return;
+    const content = rootRef.current?.querySelector<HTMLElement>(
+      `[data-block-id="${freshCarrierId}"] .nt-block-content`,
+    );
+    if (content === null || content === undefined) return;
+    setFreshCarrierId(null);
+    content.click();
+  });
+  /** Fallback cells (dead) by `${schema}:${idx}` — the pass skips a
    *  cell while IT holds the caret (its writes commit on blur). */
   const fallbackInputsRef = useRef(new Map<string, HTMLInputElement>());
   const registerFallbackInput = (key: string) => (el: HTMLInputElement | null) => {
@@ -329,6 +352,27 @@ export function TextPropertyRow({
     }
   };
 
+  /**
+   * Mint-on-edit for a legacy scalar string: the established create-carrier
+   * pattern (object.create + property.set with the {nodeId} ref — the Add
+   * pill and the dead-cell re-author ride the same two ops), the string
+   * becoming the carrier's content; the fresh-carrier effect then opens the
+   * block editor on it.
+   */
+  const mintCarrierFor = async (text: string, idx: number): Promise<void> => {
+    setAddError(null);
+    try {
+      const carrierId = await client.createObject({
+        parentId: nodeId,
+        contentAst: [{ type: "text", text }],
+      });
+      await client.setProperty(nodeId, propertySchemaId, { nodeId: carrierId }, idx);
+      setFreshCarrierId(carrierId);
+    } catch (error) {
+      setAddError(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   return (
     <li
       ref={setRowRef}
@@ -422,51 +466,73 @@ export function TextPropertyRow({
                 />
               );
             }
-            // Dead carrier (uuid value that no longer resolves): display
-            // EMPTY, re-author a fresh carrier on edit, unset on empty blur.
-            // Scalar values: the minimal text editor, writing the string.
+            // Legacy scalar string (a plain-string value that is not a
+            // carrier ref — the retired `url` type's shape, pre-carrier text
+            // values): renders inline as plain text, linkified per the
+            // markdownLinks grammar; the first edit mints a carrier block
+            // carrying the string and opens the block editor on it. A DEAD
+            // carrier (a uuid that no longer resolves) keeps the recovery
+            // input: display EMPTY, re-author a fresh carrier on edit, unset
+            // on empty blur.
             const dead = state.kind === "dead";
-            const editableText = typeof row.value === "string" && !dead ? row.value : "";
+            if (!dead) {
+              const scalarText = typeof row.value === "string" ? row.value : "";
+              const scalarTokens = [{ type: "text", text: scalarText }];
+              if (readOnly) {
+                return (
+                  <span
+                    key={`${propertySchemaId}:${row.idx}`}
+                    className="nt-property-value nt-property-value--readonly"
+                  >
+                    {scalarText === "" ? null : <InlineTokens tokens={scalarTokens} />}
+                  </span>
+                );
+              }
+              return (
+                <button
+                  key={`${propertySchemaId}:${row.idx}`}
+                  type="button"
+                  className="nt-property-value nt-property-scalar"
+                  aria-label={`Edit property ${label}`}
+                  onClick={() => void mintCarrierFor(scalarText, row.idx)}
+                >
+                  <InlineTokens tokens={scalarTokens} />
+                </button>
+              );
+            }
             if (readOnly) {
               return (
                 <span
                   key={`${propertySchemaId}:${row.idx}`}
                   className="nt-property-value nt-property-value--readonly"
-                >
-                  {editableText}
-                </span>
+                />
               );
             }
             return (
               <input
-                key={`${propertySchemaId}:${row.idx}:${editableText}`}
+                key={`${propertySchemaId}:${row.idx}`}
                 ref={registerFallbackInput(`${propertySchemaId}:${row.idx}`)}
                 type="text"
                 className="nt-property-value"
-                defaultValue={editableText}
+                defaultValue=""
                 aria-label={`Property ${label}`}
                 onBlur={(event) => {
                   const text = event.target.value;
-                  if (dead && text.trim() === "") {
+                  if (text.trim() === "") {
                     void client.unsetProperty(nodeId, propertySchemaId, row.idx);
                     return;
                   }
-                  if (text === editableText) return;
                   void (async () => {
-                    if (dead) {
-                      const carrierId = await client.createObject({
-                        parentId: nodeId,
-                        contentAst: [{ type: "text", text }],
-                      });
-                      await client.setProperty(
-                        nodeId,
-                        propertySchemaId,
-                        { nodeId: carrierId },
-                        row.idx,
-                      );
-                      return;
-                    }
-                    await client.setProperty(nodeId, propertySchemaId, text, row.idx);
+                    const carrierId = await client.createObject({
+                      parentId: nodeId,
+                      contentAst: [{ type: "text", text }],
+                    });
+                    await client.setProperty(
+                      nodeId,
+                      propertySchemaId,
+                      { nodeId: carrierId },
+                      row.idx,
+                    );
                   })();
                 }}
               />

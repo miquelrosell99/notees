@@ -274,7 +274,7 @@ CREATE TABLE IF NOT EXISTS property_schema (
     scope_class_ids TEXT,
     -- Value validation rules, JSON {min?, max?, pattern?};
     -- NULL = none. min/max apply to number schemas, pattern to
-    -- text/url/email (apply-time enforcement against the stored type).
+    -- text/email (apply-time enforcement against the stored type).
     validation_rules TEXT,
     options TEXT NOT NULL DEFAULT '[]',
     target_class_filter TEXT,

@@ -668,7 +668,7 @@ describe("web_page extends source — inherited bindings + own-first resolution"
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.url,
       name: "URL",
-      type: "url",
+      type: "text",
       // Global (no scopeClassIds): this scenario sharpens the seeded reality
       // by binding url on BOTH classes — under the scope law a web_page-scoped url would make source's row dead config
       // (R5 rejects it), and the own-first resolution rule under test is
@@ -723,5 +723,40 @@ describe("web_page extends source — inherited bindings + own-first resolution"
       source: "authored",
       boundBy: weblinkId,
     });
+  });
+});
+
+describe("the retired url property type — legacy bare-string values", () => {
+  it("a plain-string value on a text schema renders inline; the first edit mints the carrier and opens the editor", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "URL", type: "text" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    // The legacy url-type shape: a plain string value (pre-carrier).
+    await client.setProperty(pageId, schemaId, "https://example.org/paper", 0);
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
+    await flushWrites();
+
+    // Inline plain text, no click-to-open chip (the bare URL linkifies
+    // through the markdownLinks grammar inside the cell).
+    const cell = screen.getByRole("button", { name: "Edit property URL" });
+    expect(cell.textContent).toContain("https://example.org/paper");
+    expect(screen.queryByRole("link", { name: "Open URL" })).toBeNull();
+
+    // First edit: mints the carrier block carrying the string, wires the
+    // value to it, and opens the block editor on the new block.
+    fireEvent.click(cell);
+    await flushWrites();
+    await flushWrites();
+    const rows = client.getEffectiveProperties(pageId).filter((r) => r.propertySchemaId === schemaId);
+    expect(rows).toHaveLength(1);
+    const ref = rows[0]!.value as { nodeId: string };
+    expect(ref).toMatchObject({ nodeId: expect.any(String) });
+    const carrier = client.getNode(ref.nodeId)!;
+    expect(carrier.contentAst).toEqual([{ type: "text", text: "https://example.org/paper" }]);
+    // The carrier mounted as the editable block row and the editor opened.
+    await flushWrites();
+    expect(container.querySelector(".nt-block--editing")).not.toBeNull();
   });
 });

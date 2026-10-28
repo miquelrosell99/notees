@@ -89,7 +89,6 @@ type AnyClient = WorkspaceClient | WorkerClient;
 const TYPE_GLYPHS: Record<string, string> = {
   text: "mdi-format-letter-case",
   number: "mdi-pound",
-  url: "mdi-link-variant",
   email: "mdi-email-outline",
   datetime: "mdi-calendar",
   select: "mdi-form-select",

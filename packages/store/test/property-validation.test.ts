@@ -3,7 +3,7 @@
  *
  *  - PG6 apply-time fail-loud validation, extending the one-shape
  *    validator: scalar typing
- *    (number/boolean/url/email/select/multi_select), the multi cardinality
+ *    (number/boolean/text/email/select/multi_select), the multi cardinality
  *    ceiling, datePrecision ceilings, targetClassFilter membership, and
  *    node-typed target existence — asserted on BOTH store adapters.
  *    Evidence-scoped deviations (live-owner-data verified 2026-10-04):
@@ -146,7 +146,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       [SCHEMA_TEXT_MULTI, { name: "aliases", type: "text", multi: true }],
       [SCHEMA_NUMBER, { name: "count", type: "number" }],
       [SCHEMA_BOOLEAN, { name: "done", type: "boolean" }],
-      [SCHEMA_URL, { name: "link", type: "url" }],
+      [SCHEMA_URL, { name: "link", type: "text" }],
       [SCHEMA_SELECT, { name: "state", type: "select", options: [{ id: "opt-1", label: "One" }] }],
       [SCHEMA_MULTI_SELECT, { name: "tags", type: "multi_select" }],
       [SCHEMA_IMAGE, { name: "cover", type: "image" }],
@@ -181,6 +181,25 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
   }
 
   describe("PG6: scalar typing", () => {
+    it("the retired `url` property type is rejected outright on propertySchema.create", () => {
+      const store = makeStore();
+      expect(() =>
+        store.apply(
+          env(
+            "propertySchema.create",
+            { propertySchemaId: "0192a000-0000-7000-8000-0000000000c7", name: "link", type: "url" },
+            1727200000100,
+          ),
+        ),
+      ).toThrow(/invalid propertySchema\.create payload/);
+      // The row never lands.
+      expect(
+        store.database
+          .prepare("SELECT COUNT(*) AS n FROM property_schema")
+          .get() as { n: number },
+      ).toEqual({ n: 0 });
+    });
+
     it("number accepts finite numbers and normalizes legacy numeric strings; other strings fail loud", () => {
       const store = seededStore();
       store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_NUMBER, value: 42 }, 1727200005000));
@@ -195,7 +214,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       }
     });
 
-    it("boolean/url/email/select accept their scalar and reject other shapes", () => {
+    it("boolean/text/email/select accept their scalar and reject other shapes", () => {
       const store = seededStore();
       store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_BOOLEAN, value: true }, 1727200005000));
       store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_URL, value: "https://x.test" }, 1727200005100));
@@ -432,7 +451,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(valueRow(store, SCHEMA_TEXT)?.value).toBe("null");
     });
 
-    it("pattern applies to url scalars (and would to email — same branch)", () => {
+    it("pattern applies to text scalars (and would to email — same branch)", () => {
       const { store, step } = ruleStore();
       store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_URL, value: "https://x.test" }, step()));
       expect(() =>
@@ -509,7 +528,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // Below min / above max on Rating.
       expect(() => store.apply(REJECTS[0]!)).toThrow(/below the schema's validationRules min 1/);
       expect(() => store.apply(REJECTS[1]!)).toThrow(/above the schema's validationRules max 5/);
-      // Pattern rejects on text + url.
+      // Pattern rejects on two text schemas (Slug + Homepage).
       expect(() => store.apply(REJECTS[2]!)).toThrow(/does not match the schema's validationRules pattern/);
       expect(() => store.apply(REJECTS[3]!)).toThrow(/does not match the schema's validationRules pattern/);
       // One bad multi element: the op rejects, the good element survives.

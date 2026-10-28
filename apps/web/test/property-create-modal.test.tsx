@@ -216,7 +216,7 @@ describe("S1 in class context — the create binds (+ the optional schema defaul
     // The text default (the default type) is present…
     expect(screen.getByLabelText("Default value")).not.toBeNull();
     // …and disappears for every non-capable type, node-typed included.
-    for (const label of ["URL", "Email", "Date", "Multi-select", "Object", "Image", "Asset"]) {
+    for (const label of ["Email", "Date", "Multi-select", "Object", "Image", "Asset"]) {
       fireEvent.click(screen.getByRole("radio", { name: new RegExp(`^${label}`) }));
       expect(screen.queryByLabelText("Default value")).toBeNull();
     }

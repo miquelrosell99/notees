@@ -102,9 +102,12 @@ describe("BlockRow metadata section", () => {
     expect(header.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(header);
     expect(section!.textContent).toContain("status");
-    // Scalar values render in a text input (defaultValue, not textContent).
-    const input = section!.querySelector("input") as HTMLInputElement | null;
-    expect(input?.value).toBe("done");
+    // A legacy bare-string value renders inline as plain text (mint-on-edit:
+    // the first click converts the string to a carrier block) — no boxed
+    // input.
+    const scalar = section!.querySelector(".nt-property-scalar");
+    expect(scalar?.textContent).toContain("done");
+    expect(section!.querySelector("input")).toBeNull();
   });
 
   it("shows the metadata section when the block has a tag", async () => {

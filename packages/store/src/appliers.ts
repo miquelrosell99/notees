@@ -2056,7 +2056,7 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
  * R2 applicability: the update payload is a patch
  * carrying no type, so validationRules applicability is enforced HERE against
  * the schema's STORED type — min/max only on `number` schemas, pattern only
- * on `text`/`url`/`email`. (min <= max is a parse-time rule.) Fail loud —
+ * on `text`/`email`. (min <= max is a parse-time rule.) Fail loud —
  * the rules would be provably inert or wrong-typed.
  */
 function assertValidationRulesApplicable(
@@ -2073,9 +2073,9 @@ function assertValidationRulesApplicable(
     }
   }
   if (rules.pattern !== undefined) {
-    if (schemaType !== "text" && schemaType !== "url" && schemaType !== "email") {
+    if (schemaType !== "text" && schemaType !== "email") {
       throw new PropertyValueShapeError(
-        `${opType}: validationRules pattern applies to text/url/email schemas only — schema type is ${schemaType}`,
+        `${opType}: validationRules pattern applies to text/email schemas only — schema type is ${schemaType}`,
         opType,
       );
     }
@@ -2257,7 +2257,7 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
   // tagged eligible=false — enforcement is never retroactive. A schema
   // carrying validationRules validates the value before the write too (R2
   // value enforcement — min/max on numbers, pattern full-string on
-  // text/url/email scalars, each multi element at its own add).
+  // text/email scalars, each multi element at its own add).
   const schema = propertySchemaRowOf(db, p.propertySchemaId);
   if (schema !== null) {
     const scope = scopeClassIdsOfRow(schema);

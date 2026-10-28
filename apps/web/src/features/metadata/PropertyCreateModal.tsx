@@ -54,7 +54,6 @@ export const PROPERTY_TYPE_OPTIONS: PropertyTypeOption[] = [
   { type: "number", label: "Number", description: "A number, with optional formatting", supportsMulti: false },
   { type: "boolean", label: "Checkbox", description: "True/false value", supportsMulti: false },
   { type: "datetime", label: "Date", description: "Link to a day, month, or year node", supportsMulti: false },
-  { type: "url", label: "URL", description: "Web link", supportsMulti: false },
   { type: "email", label: "Email", description: "Email address", supportsMulti: false },
   { type: "select", label: "Select", description: "Choose one option", supportsMulti: true },
   { type: "multi_select", label: "Multi-select", description: "Choose several options", supportsMulti: true },

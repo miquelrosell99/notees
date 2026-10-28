@@ -141,7 +141,7 @@ describe("S2 PropertySettingsModal — the base-definition writes", () => {
 
   it("validationRules: the pattern must compile before the write lands", async () => {
     const client = await seedClient();
-    const schemaId = await client.createPropertySchema({ name: "Site", type: "url" });
+    const schemaId = await client.createPropertySchema({ name: "Site", type: "text" });
     const { sync } = renderModal(client, schemaId);
     const pattern = screen.getByLabelText("Validation pattern");
     fireEvent.change(pattern, { target: { value: "([broken" } });

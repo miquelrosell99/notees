@@ -200,7 +200,7 @@ describe("web_page→source extension heal (existing workspaces)", () => {
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.url,
       name: "URL",
-      type: "url",
+      type: "text",
       scopeClassIds: [SYSTEM_CLASS_UUIDS.web_page],
     });
     await client.setClassProperty(SYSTEM_CLASS_UUIDS.web_page, SYSTEM_PROPERTY_UUIDS.url, {});

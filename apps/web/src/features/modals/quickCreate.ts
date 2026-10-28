@@ -257,7 +257,6 @@ export interface StagedPropertyBinding {
 export function isStagedType(type: string, options: ClientPropertyOption[] | null): boolean {
   if (
     type === "text" ||
-    type === "url" ||
     type === "email" ||
     type === "number" ||
     type === "boolean" ||

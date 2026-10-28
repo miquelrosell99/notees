@@ -248,8 +248,9 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
       .listPropertySchemas()
       .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.url);
     // a url is generically
-    // reusable — global scope (NULL scopeClassIds), NOT local to web_page…
-    expect(url).toMatchObject({ name: "URL", type: "url", scopeClassIds: null });
+    // reusable — global scope (NULL scopeClassIds), NOT local to web_page;
+    // the retired `url` property type retyped the seed schema to text…
+    expect(url).toMatchObject({ name: "URL", type: "text", scopeClassIds: null });
     // …while the binding rows land on the web_page class (bindings are
     // per-class config, zero availability semantics): the url row plus the
     // source library's web_page entry (SYSTEM_SOURCE_CLASS_BINDINGS).

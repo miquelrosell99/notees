@@ -723,7 +723,6 @@ export interface SystemPropertySpec {
     | "number"
     | "boolean"
     | "datetime"
-    | "url"
     | "email"
     | "select"
     | "multi_select"
@@ -814,8 +813,11 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // reusable (the binding row lands on source either way; bindings are
   // per-class config, zero availability semantics). The source base row is
   // PINNED (the seed pin sets slice); web_page's own extra row below stays
-  // unpinned.
-  url: { type: "url", bindTo: "source", global: true, pinned: true },
+  // unpinned. RETYPED 2026-10-28: the dedicated `url` property type is retired
+  // — the spec seeds `type: "text"` (uuid unchanged); legacy url values are
+  // plain strings, legal text values, and live logs converge by
+  // scripts/migrate-url-type-to-text.mts.
+  url: { type: "text", bindTo: "source", global: true, pinned: true },
   // D1: templates are ordinary nodes of the seeded `template` class;
   // a class binds its templates by authored values on the class node itself.
   // M47 (2026-10-07): the relation hosts on NO class — global scope, no

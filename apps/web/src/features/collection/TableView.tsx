@@ -411,7 +411,10 @@ function carrierRefOf(value: unknown): string | null {
  * bordered inline input flattened rich text to edit it. An empty (or
  * broken-ref) cell renders the muted schema-name placeholder (the NodeCell
  * precedent): one click creates the carrier, links it at the property's
- * idx, and lands straight in the editor (BlockRow autoEdit). With a
+ * idx, and lands straight in the editor (BlockRow autoEdit). A legacy
+ * plain-string value (the retired `url` type's shape) renders inline as
+ * plain text instead — one click mints the carrier carrying the string and
+ * lands in the editor (mint-on-edit, no bulk value rewrite). With a
  * carrier assigned, the pinned Open button rides the cell too: the value click owns
  * editing, the button owns navigation (click opens the carrier, shift+click
  * peeks it in the sidebar); the empty placeholder carries no button.
@@ -443,6 +446,17 @@ function TextCell({
   const prop = row.properties.find((p) => p.propertySchemaId === schemaId);
   const ref = carrierRefOf(prop?.value);
   const carrier = ref !== null ? client.getNode(ref) : undefined;
+  /**
+   * A legacy plain-string value (the retired `url` type's shape — a text
+   * schema whose value never became a carrier ref): renders inline as plain
+   * text; the click mints the carrier carrying the string and lands in the
+   * editor (the Empty-cell precedent, content prefilled — the value is never
+   * silently replaced by an empty carrier).
+   */
+  const legacyScalar =
+    typeof prop?.value === "string" && prop.value.trim() !== "" && !UUID_LIKE.test(prop.value)
+      ? prop.value
+      : null;
   /** The carrier created by the placeholder click — it mounts in edit mode. */
   const [freshId, setFreshId] = useState<string | null>(null);
   const wrapRef = useRef<HTMLSpanElement | null>(null);
@@ -467,6 +481,31 @@ function TextCell({
   });
 
   if (carrier === undefined) {
+    if (legacyScalar !== null) {
+      // The legacy bare-string value renders inline; one click converts it
+      // to the carrier-block convention (the string becomes the carrier's
+      // content) and lands in the editor — the same mint-on-edit contract
+      // the metadata row's scalar cell rides.
+      return (
+        <button
+          type="button"
+          className="nt-table-text-empty"
+          aria-label={`Edit ${schemaName}`}
+          onClick={() => {
+            void (async () => {
+              const created = await client.createObject({
+                parentId: row.item.node.id,
+                contentAst: [{ type: "text", text: legacyScalar }],
+              });
+              await client.setProperty(row.item.node.id, schemaId, { nodeId: created }, prop?.idx ?? 0);
+              setFreshId(created);
+            })();
+          }}
+        >
+          {legacyScalar}
+        </button>
+      );
+    }
     // The empty state says "Empty"; the click
     // creates-and-edits, so the accessible name names the action.
     return (
@@ -1154,10 +1193,12 @@ function PropertyCell({ row, column, props, peek }: { row: TableRow; column: Tab
     );
   }
 
-  if (editable && (schema?.type === "text" || schema?.type === "url" || schema?.type === "email") && schema?.multi !== true) {
+  if (editable && (schema?.type === "text" || schema?.type === "email") && schema?.multi !== true) {
     if (schema?.type === "text") {
       return <TextCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} peek={peek} />;
     }
+    // Email (the url type is retired — a text schema rides the TextCell
+    // carrier-block contract above, never the boxed input).
     return (
       <InlineInput
         value={propertyDisplayText(client, prop)}
@@ -1196,8 +1237,9 @@ function PropertyCell({ row, column, props, peek }: { row: TableRow; column: Tab
     return <AssetCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} />;
   }
 
-  // Url/email values render as links (mailto: for email; a url
-  // value keeps whatever scheme the author wrote, tel: included).
+  // Email values render as mailto: links (the url
+  // property type is retired — text values ride the TextCell/plain-text
+  // contract above, never a click-to-open href).
   const href = propertyLinkHref(schema?.type, prop?.value);
   if (href !== null) {
     return (

@@ -211,8 +211,9 @@ describe("SourcesDetail — the type-aware detail editor", () => {
     expect(labels).toContain("Citekey");
     // The binding fix, pinned: docketNumber is NOT a journal-article field.
     expect(labels.some((label) => label.startsWith("Docket"))).toBe(false);
-    // The valued row reads back (the text cell renders an input).
-    expect(within(detailPane()).getByDisplayValue("42")).not.toBeNull();
+    // The valued row reads back (a legacy bare-string text value renders
+    // inline as plain text — the first click mints a carrier block).
+    expect(within(detailPane()).getByText("42")).not.toBeNull();
   });
 
   it("the field set follows the picked type: a web page shows no journal-only fields", async () => {
