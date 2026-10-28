@@ -20,9 +20,12 @@
  * itself carries link elements (mentions, class links, hyperlinks) renders
  * THOSE elements inside the chip via the resolveLabelTokens resolver —
  * the chip stays one link to its target, so the nested elements render
- * inert (the link look, no own click — the `inert` mode), one recursion
- * level deep (labelDepth caps the nesting, so link cycles terminate;
- * titles without link elements keep the flat string label); quote and heading recurse (heading
+ * inert: the icons and resolved names ride inside the label but carry no
+ * underline of their own (the chip's own line names the whole label; a
+ * nested underline only doubles it — the app.css chip-scoped rules) and no
+ * own click or hover (the `inert` mode), one recursion level deep
+ * (labelDepth caps the nesting, so link cycles terminate; titles without
+ * link elements keep the flat string label); quote and heading recurse (heading
  * carries the large/bold typography); embed_ref renders
  * the live subtree via the
  * optional renderEmbed callback (placeholder box when absent); query renders
@@ -80,12 +83,12 @@ export interface InlineTokensProps {
   labelDepth?: number | undefined;
   /**
    * Inert link mode: link tokens (mentions, class links, markdown
-   * hyperlinks) render with the link look but no own click target — the
-   * nested render inside a node-link chip's rich label, where interactive
-   * content inside the chip's button would be invalid and the whole chip
-   * owns the gesture. The nested elements carry no own hover either — the
-   * chip's own button raises the preview for its target across the whole
-   * label.
+   * hyperlinks) render without the link chrome — no click target, no
+   * underline (the chip's own line names the whole label; the app.css
+   * chip-scoped rules strip the nested underlines, leaving icons, names,
+   * and the hyperlink color) — the nested render inside a node-link chip's
+   * rich label, where interactive content inside the chip's button would be
+   * invalid and the whole chip owns the click and the hover.
    */
   inert?: boolean | undefined;
   /**
