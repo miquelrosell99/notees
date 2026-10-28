@@ -19,7 +19,7 @@
  *
  * The quick search COLLAPSES on wide viewports: a ghost magnifier button
  * expands the field in flow (caret lands in the input), the pill's × folds it
- * back — the kit CollapsibleSearchField (../../components/ui/fleet/CollapsibleSearchField.js).
+ * back — the kit CollapsibleSearchField (../../components/ui/kit/CollapsibleSearchField.js).
  * At narrow widths (≤768px) the fold becomes a magnifier button whose POPUP
  * carries the field (see `narrowSearch` below) — on a phone the anchored
  * overlay keeps the chrome row its seats. In a wrapping chrome row (the

@@ -22,7 +22,7 @@
 import { useState, type ReactNode } from "react";
 
 import { Icon } from "../../ui/Icon.js";
-import { Badge } from "../../components/ui/fleet/Badge.js";
+import { Badge } from "../../components/ui/kit/Badge.js";
 import "./NodeViewSection.css";
 
 /** The header's trailing icon-only action (the section-scoped create). */
