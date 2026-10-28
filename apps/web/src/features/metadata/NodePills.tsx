@@ -18,7 +18,14 @@
  * `sortable` is false (extends order is deterministic); drops commit through
  * `actions.reorder` (user-defined order, display-only LWW).
  * `overflow` (the block column) renders only the FIRST pill plus a "+N"
- * button; clicking it opens a popup with the full sortable list. The block
+ * button; clicking it opens a popup with the FULL assigned list as class
+ * pills — the same pill element as the inline cluster (effective color,
+ * hover-reveal ×, click to open, right-click menu), draggable by the pill
+ * itself (no grip). The popup is the full management surface: it lists
+ * every assigned class in order, INCLUDING the first pill (visible inline)
+ * and any class whose pill the derived view hides (a class_link token in
+ * the content already marks it inline — membership is untouched, and the
+ * ×/drag gestures work there the same). The block
  * column also passes `addAtStart`: the "+" picker rides LEFT of the pills
  * there — the right-pinned row-end group grows leftward on hover-reveal, so
  * the pills never shift.
@@ -252,77 +259,6 @@ function SortablePill(props: Parameters<typeof PillShell>[0]) {
   );
 }
 
-/** One row of the overflow popup (optional grip handle + icon + name + ×). */
-function PopupRow({
-  classId,
-  nodeId,
-  client,
-  sortable,
-  onRemove,
-  removeLabel,
-  /** Read-only projection: no grip, no × — icon + name only. */
-  readOnly = false,
-}: {
-  classId: string;
-  nodeId: string;
-  client: AnyClient;
-  sortable: boolean;
-  onRemove: (classId: string) => void;
-  removeLabel: (label: string) => string;
-  readOnly?: boolean | undefined;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: classId,
-    disabled: !sortable,
-  });
-  // Same never-a-bare-UUID contract as PillShell.
-  const label = titleOf(client, classId, { read: "fallback", empty: "untitled" }) ?? "Deleted class";
-  // Effective icon: the class glyph (display-time default when none is set).
-  const icon = client.effectiveClassIcon(classId);
-  const nonRemovable = isClassNonRemovable(classId);
-  return (
-    <li
-      ref={setNodeRef}
-      className={`node-pills-popup__row${isDragging ? " node-pills-popup__row--dragging" : ""}`}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-    >
-      {!readOnly && sortable && (
-        <button
-          type="button"
-          className="node-pills-popup__grip"
-          aria-label={`Reorder ${label}`}
-          {...attributes}
-          {...listeners}
-        >
-          <Icon path="mdi-drag-vertical" size={0.7} />
-        </button>
-      )}
-      <Icon path={icon} size={0.7} className="node-pills-popup__icon" />
-      <span className="node-pills-popup__name">{label}</span>
-      {readOnly ? null : nonRemovable ? (
-        <button
-          type="button"
-          className="pill__right-button pill__right-button--locked"
-          aria-label={`${label} can't be removed`}
-          title={classRemovalRefusal(classId) ?? undefined}
-          onClick={() => refuseClassRemoval(classId)}
-        >
-          <Icon path="mdi-lock-outline" size={0.6} />
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="pill__right-button"
-          aria-label={removeLabel(label)}
-          onClick={() => onRemove(classId)}
-        >
-          <Icon path="mdi-close" size={0.6} />
-        </button>
-      )}
-    </li>
-  );
-}
-
 export function NodePills({
   client,
   nodeId,
@@ -550,21 +486,16 @@ export function NodePills({
               onMouseDown={(e) => e.stopPropagation()}
             >
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                <SortableContext items={displayClassIds} strategy={verticalListSortingStrategy}>
-                  <ul className="node-pills-popup__list">
-                    {displayClassIds.map((classId) => (
-                      <PopupRow
-                        key={classId}
-                        classId={classId}
-                        nodeId={nodeId}
-                        client={client}
-                        sortable={sortable}
-                        onRemove={onRemove}
-                        removeLabel={labelForRemove}
-                        readOnly={readOnly}
-                      />
-                    ))}
-                  </ul>
+                <SortableContext items={classIds} strategy={verticalListSortingStrategy}>
+                  <div className="node-pills-popup__list">
+                    {classIds.map((classId) =>
+                      sortable && !readOnly ? (
+                        <SortablePill key={classId} classId={classId} {...pillProps} />
+                      ) : (
+                        <PillShell key={classId} classId={classId} {...pillProps} />
+                      ),
+                    )}
+                  </div>
                 </SortableContext>
               </DndContext>
             </div>,
