@@ -125,7 +125,7 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
   code: "mdiCodeTags",
   asset: "mdiPaperclip",
   whiteboard: "mdiDraw",
-  card: "mdiCardOutline",
+  card: "mdiCardsPlayingOutline",
   task: "mdiCheckboxMarkedCircleOutline",
   template: "mdiFileDocumentOutline",
   comment: "mdiCommentOutline",
@@ -215,7 +215,7 @@ export const SYSTEM_CLASS_DISPLAY_NAMES: Record<SystemClassName, string> = {
   code: "Code",
   asset: "Asset",
   whiteboard: "Whiteboard",
-  card: "Card",
+  card: "Memorization card",
   task: "Task",
   template: "Template",
   comment: "Comment",
@@ -303,7 +303,7 @@ export const SYSTEM_CLASS_DESCRIPTIONS: Record<SystemClassName, string> = {
   code: "A code page with syntax-highlighted blocks.",
   asset: "An uploaded file, content-addressed.",
   whiteboard: "A freeform spatial canvas of cards and shapes.",
-  card: "A compact summary card for an entity.",
+  card: "A memorization card for spaced-repetition recall: the node's content is the prompt, its embedded children are the answer.",
   task: "Checkable work items with status and priority.",
   template: "A reusable page skeleton for instantiation.",
   comment: "A discussion thread anchored to a node.",
@@ -581,6 +581,19 @@ export const SYSTEM_PROPERTY_UUIDS = {
   // genuinely-free slot in the workflow-properties block (…001–…011 used;
   // no withdrawal markers in this block).
   project: "00000000-0000-0000-0003-000000000012",
+  // The card family (memorization cards slice): the six SRS schedule schemas,
+  // class-bound to `card`, at the …0004- property block (…0003- is the
+  // task/meeting/event family). The select-OPTION ids (assetRole …0001–…0007,
+  // task status/priority …0008–…0011) ride the same namespace — options are
+  // nested schema data, never property-schema ids, so the spaces never meet.
+  // The literals mirror CARD_PROPERTY_UUIDS below; the seeds-cards test pins
+  // them equal.
+  cardDue: "00000000-0000-0000-0004-000000000001",
+  cardReps: "00000000-0000-0000-0004-000000000002",
+  cardInterval: "00000000-0000-0000-0004-000000000003",
+  cardEase: "00000000-0000-0000-0004-000000000004",
+  cardDifficulty: "00000000-0000-0000-0004-000000000005",
+  cardStability: "00000000-0000-0000-0004-000000000006",
   // Bibliographic property pool (source-library slice 1
   // task 4): ONE reusable schema per Zotero field, every entry seeded at the
   // family base (`bindTo: "source"` — the schema's scope; RULING 2026-10-24:
@@ -898,6 +911,19 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
     targetClassFilter: ["project"],
     hideWhenEmpty: true,
   },
+  // The card family (memorization cards slice): the six SRS schedule schemas,
+  // class-bound to `card` at the …0004- block (see the UUID map comment). All
+  // scalar (datetime/number), all seed UNPINNED — the 2026-10-27 pinned roster
+  // is frozen (source family, meetingDate/location, the task heads) and no card
+  // field joins it. Live schedule state lives in these property values
+  // (ordinary LWW property ops); CARD_FAMILY_SEED is the task-family-shaped
+  // ensure manifest the web self-heal consumes.
+  cardDue: { type: "datetime", bindTo: "card" },
+  cardReps: { type: "number", bindTo: "card" },
+  cardInterval: { type: "number", bindTo: "card" },
+  cardEase: { type: "number", bindTo: "card" },
+  cardDifficulty: { type: "number", bindTo: "card" },
+  cardStability: { type: "number", bindTo: "card" },
   // Bibliographic property pool (source-library slice 1
   // task 4): ONE reusable schema per Zotero field, every entry scoped to the
   // family base (`bindTo: "source"` — the scope makes every family member
@@ -1055,6 +1081,14 @@ export const SYSTEM_PROPERTY_DISPLAY_NAMES: Record<SystemPropertyName, string> =
   eventDate: "Event date",
   birthdayPerson: "Birthday person",
   project: "Project",
+  // The card family — the names mirror CARD_FAMILY_SEED verbatim (the
+  // completeness pin below requires one entry per SYSTEM_PROPERTY_UUIDS key).
+  cardDue: "Card due",
+  cardReps: "Card reps",
+  cardInterval: "Card interval",
+  cardEase: "Card ease",
+  cardDifficulty: "Card difficulty",
+  cardStability: "Card stability",
   // Bibliographic property pool (source-library slice 1 task 4) — sentence
   // case, conventional acronyms (ISSN); the full pin lives in the pool test.
   linkedAuthors: "Linked authors",
@@ -1288,6 +1322,44 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
   // Migrated workspaces carry recurrence as a plain select (no engine
   // executes it); authored optionless until the recurrence spec lands.
   { property: "taskRecurrence", name: "Recurrence", type: "select", options: [] },
+];
+
+/**
+ * The card family's reserved schema UUIDs — the …0004- property block
+ * (…0003- is the task/meeting/event family). Assigned in CARD_FAMILY_SEED
+ * order; the literals mirror the SYSTEM_PROPERTY_UUIDS entries above (the
+ * seeds-cards test pins them equal). Later slices consume these verbatim
+ * (the web ensureCardFamily self-heal seeds schemas at these ids).
+ */
+export const CARD_PROPERTY_UUIDS = {
+  cardDue:        "00000000-0000-0000-0004-000000000001",
+  cardReps:       "00000000-0000-0000-0004-000000000002",
+  cardInterval:   "00000000-0000-0000-0004-000000000003",
+  cardEase:       "00000000-0000-0000-0004-000000000004",
+  cardDifficulty: "00000000-0000-0000-0004-000000000005",
+  cardStability:  "00000000-0000-0000-0004-000000000006",
+} as const;
+
+/**
+ * The memorization card family ensure manifest (the TASK_FAMILY_SEED
+ * precedent): six scalar SRS schedule schemas, class-bound to `card`, all
+ * UNPINNED (the 2026-10-27 pinned roster is frozen). cardDue is the
+ * datetime-typed due date (day precision); the five numbers carry the SM-2
+ * ease factor and the FSRS difficulty/stability alongside reps/interval.
+ * Live schedule state lives in these property values — ordinary LWW
+ * property ops; the review history op is additive on top.
+ */
+export const CARD_FAMILY_SEED: ReadonlyArray<{
+  property: keyof typeof CARD_PROPERTY_UUIDS;
+  name: string;
+  type: "datetime" | "number";
+}> = [
+  { property: "cardDue",        name: "Card due",        type: "datetime" },
+  { property: "cardReps",       name: "Card reps",       type: "number" },
+  { property: "cardInterval",   name: "Card interval",   type: "number" },
+  { property: "cardEase",       name: "Card ease",       type: "number" },
+  { property: "cardDifficulty", name: "Card difficulty", type: "number" },
+  { property: "cardStability",  name: "Card stability",  type: "number" },
 ];
 
 /**
