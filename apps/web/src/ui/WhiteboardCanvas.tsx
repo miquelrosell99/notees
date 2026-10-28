@@ -91,10 +91,10 @@ import { parentlessBlockResolverOf } from "./renderStateLabel.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { openNodeLinkMenu } from "../features/node-menu/NodeLinkContextMenu.js";
 import { SAVE_DEBOUNCE_MS } from "../features/block-editor/index.js";
-import { Button } from "../components/ui/fleet/Button.js";
-import { ColorButton } from "../components/ui/fleet/ColorButton.js";
-import { SelectionButton } from "../components/ui/fleet/SelectionButton.js";
-import { PRESET_COLOR_ENTRIES, cssColorFor } from "../components/ui/fleet/colorPresets.js";
+import { Button } from "../components/ui/kit/Button.js";
+import { ColorButton } from "../components/ui/kit/ColorButton.js";
+import { SelectionButton } from "../components/ui/kit/SelectionButton.js";
+import { PRESET_COLOR_ENTRIES, cssColorFor } from "../components/ui/kit/colorPresets.js";
 import {
   layoutFromContentAst,
   parseWhiteboardLayout,
@@ -122,7 +122,7 @@ import {
 } from "./whiteboard/geometry.js";
 import { TOOL_SHAPE_KIND, WHITEBOARD_TOOLS, toolDef, type WhiteboardTool } from "./whiteboard/tools.js";
 import { WhiteboardMinimap } from "./whiteboard/Minimap.js";
-import { ContextMenu } from "../components/ui/fleet/ContextMenu.js";
+import { ContextMenu } from "../components/ui/kit/ContextMenu.js";
 
 // Re-exported so the typed schema lives at the component surface too (the
 // layout module is the pure, React-free half of the component).

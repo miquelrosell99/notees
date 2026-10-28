@@ -53,8 +53,8 @@ import { titleOf } from "../dateDisplay.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../renderStateLabel.js";
 import { NodeSelector } from "../../features/pickers/NodeSelector.js";
 import { requestPropertyCreate } from "../../features/metadata/PropertyCreateHost.js";
-import { Button, Checkbox, Modal, SelectTrigger, SelectionButton } from "../../components/ui/fleet/index.js";
-import { notificationStore } from "../../components/ui/fleet/notificationStore.js";
+import { Button, Checkbox, Modal, SelectTrigger, SelectionButton } from "../../components/ui/kit/index.js";
+import { notificationStore } from "../../components/ui/kit/notificationStore.js";
 import "./LinkEditModal.css";
 
 export type LinkMode = "node" | "block" | "verb";

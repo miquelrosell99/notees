@@ -9,15 +9,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 
-import { Badge } from "../src/components/ui/fleet/Badge.js";
-import { Button } from "../src/components/ui/fleet/Button.js";
-import { ConfirmationModal } from "../src/components/ui/fleet/ConfirmationModal.js";
-import { ContextMenu } from "../src/components/ui/fleet/ContextMenu.js";
-import { Dropdown } from "../src/components/ui/fleet/Dropdown.js";
-import { EmptyState } from "../src/components/ui/fleet/EmptyState.js";
-import { Modal } from "../src/components/ui/fleet/Modal.js";
-import { NotificationToast } from "../src/components/ui/fleet/NotificationToast.js";
-import { TextField } from "../src/components/ui/fleet/TextField.js";
+import { Badge } from "../src/components/ui/kit/Badge.js";
+import { Button } from "../src/components/ui/kit/Button.js";
+import { ConfirmationModal } from "../src/components/ui/kit/ConfirmationModal.js";
+import { ContextMenu } from "../src/components/ui/kit/ContextMenu.js";
+import { Dropdown } from "../src/components/ui/kit/Dropdown.js";
+import { EmptyState } from "../src/components/ui/kit/EmptyState.js";
+import { Modal } from "../src/components/ui/kit/Modal.js";
+import { NotificationToast } from "../src/components/ui/kit/NotificationToast.js";
+import { TextField } from "../src/components/ui/kit/TextField.js";
 
 describe("TextField", () => {
   it("rides the underline register: transparent field, hairline at rest, accent label + 2px accent underline on focus", () => {
@@ -110,7 +110,7 @@ describe("SearchField", () => {
   it("the sm variant rides the picker row grid, not the roomier md padding", () => {
     const process_ = process as unknown as { getBuiltinModule(name: "node:fs"): typeof import("node:fs") };
     const css = process_.getBuiltinModule("node:fs").readFileSync(
-      `${process.cwd()}/src/components/ui/fleet/SearchField.css`,
+      `${process.cwd()}/src/components/ui/kit/SearchField.css`,
       "utf8",
     );
     const sm = /\.search-field\.search-field--sm \{[^}]*\}/.exec(css);

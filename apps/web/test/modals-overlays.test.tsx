@@ -21,9 +21,9 @@ import { DuplicatePageModal } from "../src/features/modals/DuplicatePageModal.js
 import { CreatePageWithUuidModal } from "../src/features/modals/CreatePageWithUuidModal.js";
 import { QuickAddModal } from "../src/features/modals/QuickAddModal.js";
 import { WorkspaceNameModal } from "../src/features/workspaces/WorkspaceNameModal.js";
-import { LoadingSkeleton, Skeleton } from "../src/components/ui/fleet/LoadingSkeleton.js";
-import { NotificationToaster } from "../src/components/ui/fleet/NotificationToaster.js";
-import { notificationStore } from "../src/components/ui/fleet/notificationStore.js";
+import { LoadingSkeleton, Skeleton } from "../src/components/ui/kit/LoadingSkeleton.js";
+import { NotificationToaster } from "../src/components/ui/kit/NotificationToaster.js";
+import { notificationStore } from "../src/components/ui/kit/notificationStore.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

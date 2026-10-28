@@ -8,8 +8,8 @@
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
-import { ContextMenu } from "../../components/ui/fleet/ContextMenu.js";
-import { notificationStore } from "../../components/ui/fleet/notificationStore.js";
+import { ContextMenu } from "../../components/ui/kit/ContextMenu.js";
+import { notificationStore } from "../../components/ui/kit/notificationStore.js";
 import { copyToClipboard } from "../modals/clipboard.js";
 import { nodeLinkUrl } from "../../ui/nodeLink.js";
 import { renderStateLabel } from "../../ui/renderStateLabel.js";

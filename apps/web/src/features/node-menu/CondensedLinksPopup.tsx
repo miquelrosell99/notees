@@ -21,7 +21,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import { titleOf } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { NodeResultItem } from "../pickers/NodeResultItem.js";
-import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
+import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
 import type { HiddenLinkTarget } from "@/editor/condensed.js";
 import "./CondensedLinksPopup.css";
 

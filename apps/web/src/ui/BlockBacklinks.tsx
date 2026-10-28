@@ -20,8 +20,8 @@
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Badge } from "../components/ui/fleet/Badge.js";
-import { Card } from "../components/ui/fleet/Card.js";
+import { Badge } from "../components/ui/kit/Badge.js";
+import { Card } from "../components/ui/kit/Card.js";
 import { BacklinksSection } from "../features/page-sections/SystemSections.js";
 import { useOutliner } from "./outliner-context.js";
 

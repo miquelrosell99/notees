@@ -3,7 +3,7 @@ import { Icon } from "../../ui/Icon.js";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
-import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
+import { Checkbox } from "../../components/ui/kit/Checkbox.js";
 import type { AnyClient } from "./shared.js";
 
 /**

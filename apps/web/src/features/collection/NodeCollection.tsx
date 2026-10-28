@@ -68,7 +68,7 @@
 
 import { Suspense, useContext, useEffect, useRef, useState } from "react";
 
-import { EmptyState, ErrorBoundary, Spinner } from "../../components/ui/fleet/index.js";
+import { EmptyState, ErrorBoundary, Spinner } from "../../components/ui/kit/index.js";
 import { GhostCard, GhostRow, realizeGhost } from "../../ui/GhostRow.js";
 import { EditThreadContext, EditThreadOverlay, EditThreadProvider } from "../../ui/EditThread.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";

@@ -24,7 +24,7 @@ import { useViewModePreference } from "../../ui/viewPrefs.js";
 import { NodeCollection, ViewToolbar } from "./index.js";
 import type { NodeCollectionItem, SortMode, SortSpec, TableColumn, ViewMode } from "./index.js";
 import type { AnyClient, CoverLayout } from "./types.js";
-import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
+import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
 import "./CollectionHub.css";
 
 export interface CollectionHubProps {

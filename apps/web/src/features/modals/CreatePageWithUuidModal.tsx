@@ -5,9 +5,9 @@
  * a page or a block. For blocks, a parent page is required.
  */
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Modal } from "../../components/ui/fleet/Modal.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { ToggleSwitch } from "../../components/ui/kit/ToggleSwitch.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import { titleOf } from "../../ui/dateDisplay.js";

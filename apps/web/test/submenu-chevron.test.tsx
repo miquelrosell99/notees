@@ -11,7 +11,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 
-import { ContextMenu, type ContextMenuItem } from "../src/components/ui/fleet/ContextMenu.js";
+import { ContextMenu, type ContextMenuItem } from "../src/components/ui/kit/ContextMenu.js";
 
 /** hover-capability stub: "(hover: hover)" matches when `hover` is true. */
 function stubHover(hover: boolean) {
@@ -148,7 +148,7 @@ describe("chevron visibility", () => {
     const readCss = (segments: string[]) =>
       fs.readFileSync(path.join(process.cwd(), ...segments), "utf8");
 
-    const menuCss = readCss(["src", "components", "ui", "fleet", "ContextMenu.css"]);
+    const menuCss = readCss(["src", "components", "ui", "kit", "ContextMenu.css"]);
     const arrowBlock = menuCss.split(".context-menu-arrow {")[1]!.split("}")[0]!;
     expect(arrowBlock).toContain("var(--md-sys-color-on-surface-variant)");
     expect(arrowBlock).not.toContain("--md-sys-color-outline");
@@ -188,7 +188,7 @@ describe("chevron visibility", () => {
     // The mapping rides the Tailwind config + Card wrapper classes since
     // the shadcn-catalog migration (Card.css retired 2026-10-19).
     const cardSrc = fs.readFileSync(
-      path.join(process.cwd(), "src", "components", "ui", "fleet", "Card.tsx"),
+      path.join(process.cwd(), "src", "components", "ui", "kit", "Card.tsx"),
       "utf8",
     );
     expect(cardSrc).toContain('medium: "shadow-level2"');

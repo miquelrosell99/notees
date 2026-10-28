@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { foldSearchText } from "@notees/store";
 
-import { AddPill } from "../../components/ui/fleet/AddPill.js";
+import { AddPill } from "../../components/ui/kit/AddPill.js";
 import { PropertyCreateModal } from "./PropertyCreateModal.js";
 import { ScopeRemedyButton } from "./ScopeRemedyButton.js";
 import { eligibleSchemasForNode, realizeCandidatesOf } from "./schemaEligibility.js";

@@ -215,7 +215,7 @@ describe("context-column feed type rides the §7 list-row register (CSS source)"
   const readCss = (...segments: string[]) =>
     fs.readFileSync(path.join(process.cwd(), "src", ...segments), "utf8");
 
-  const listRowCss = readCss("components", "ui", "fleet", "ListRow.css");
+  const listRowCss = readCss("components", "ui", "kit", "ListRow.css");
   const activityCss = readCss("features", "page-sections", "ActivityLogSection.css");
   const versionCss = readCss("features", "page-sections", "VersionHistorySection.css");
   const commentsCss = readCss("features", "page-sections", "CommentsSection.css");

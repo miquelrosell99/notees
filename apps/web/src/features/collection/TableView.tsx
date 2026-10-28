@@ -114,7 +114,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState, type Poi
 import { isRangeDatetimeValue, isReadonlyProperty, isValidTimeOfDay, parseDateNodeId, plainTextExcerpt, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
-import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu, AddPill } from "../../components/ui/fleet/index.js";
+import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu, AddPill } from "../../components/ui/kit/index.js";
 import { Icon } from "../../ui/Icon.js";
 import { BlockRow } from "../../ui/BlockRow.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
@@ -122,7 +122,7 @@ import { NodePill } from "../metadata/NodePills.js";
 import { isAssetClass, resolveTargetClassIds } from "../metadata/shared.js";
 import { AnnotationsSection } from "../../ui/AnnotationsSection.js";
 import { AssetUploadModal } from "../modals/AssetUploadModal.js";
-import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
+import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
 import {
   DatePickerPopup,
   type DatetimePickerSlot,

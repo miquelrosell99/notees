@@ -39,10 +39,10 @@ import {
 
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import { titleOf } from "../../ui/dateDisplay.js";
-import { BooleanToggle } from "../../components/ui/fleet/BooleanToggle.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
-import { TextField } from "../../components/ui/fleet/TextField.js";
+import { BooleanToggle } from "../../components/ui/kit/BooleanToggle.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { Checkbox } from "../../components/ui/kit/Checkbox.js";
+import { TextField } from "../../components/ui/kit/TextField.js";
 
 import {
   CITEKEY_SAMPLE_ENTRY,

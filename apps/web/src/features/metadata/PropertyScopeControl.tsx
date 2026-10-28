@@ -10,7 +10,7 @@
  * null = global).
  */
 
-import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
+import { ToggleSwitch } from "../../components/ui/kit/ToggleSwitch.js";
 import { ClassMultiPickField, PropertyField } from "./ClassMultiPickField.js";
 import type { AnyClient } from "./shared.js";
 

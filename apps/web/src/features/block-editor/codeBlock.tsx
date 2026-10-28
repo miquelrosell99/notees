@@ -16,7 +16,7 @@ import type { ContentAst } from "@notees/protocol";
 
 import { SAVE_DEBOUNCE_MS } from "./BlockTextEditor.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
-import { CodeTextarea } from "../../components/ui/fleet/CodeTextarea.js";
+import { CodeTextarea } from "../../components/ui/kit/CodeTextarea.js";
 
 /**
  * True when the block IS one code_block token (the `/code` product): the

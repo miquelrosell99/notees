@@ -239,7 +239,7 @@ import { titleOf } from "../../ui/dateDisplay.js";
 import { CarrierEnterContext, registerCarrierValue } from "../../ui/textCarrier.js";
 import { copyToClipboard } from "../modals/clipboard.js";
 import { readDeviceSetting } from "../settings/deviceSettings.js";
-import { notificationStore } from "../../components/ui/fleet/notificationStore.js";
+import { notificationStore } from "../../components/ui/kit/notificationStore.js";
 import { FloatingToolbar } from "../../ui/editor-popups/FloatingToolbar.js";
 import { TriggerPopup, SLASH_COMMANDS, bumpSlashCommandUsage, readSlashCommandUsage } from "../../ui/editor-popups/TriggerPopup.js";
 import { NodeSelector, type NodePickContext } from "../pickers/NodeSelector.js";

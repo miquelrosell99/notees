@@ -37,10 +37,10 @@ import type { AnyClient } from "../modals/quickCreate.js";
 import { readSourceSettings } from "../modals/quickCreate.js";
 import { QuickCreateModal, type QuickCreatePrefill } from "../modals/QuickCreateModal.js";
 import { CATEGORY_LABELS, categoryOf, formatSize } from "../modals/AssetUploadModal.js";
-import { Modal } from "../../components/ui/fleet/Modal.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { TextField } from "../../components/ui/fleet/TextField.js";
-import { FileDropZone } from "../../components/ui/fleet/FileDropZone.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { TextField } from "../../components/ui/kit/TextField.js";
+import { FileDropZone } from "../../components/ui/kit/FileDropZone.js";
 import { Icon } from "../../ui/Icon.js";
 import {
   ResolverRequestError,

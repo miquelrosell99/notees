@@ -26,6 +26,19 @@ predating this file.
     technique + comment), `apps/web/test/node-link-label.test.tsx` (the
     technique spec).
 
+- **refactor(web): `components/ui/fleet/` becomes `components/ui/kit/` — the
+  in-app components stop wearing the design system's name.** "Fleet" names
+  the cross-app RosellRamos design system (correct in the skill and
+  templates); inside the app the canonical components are the app's own kit,
+  so the folder and all 168 import paths ride the neutral name. Owner ruling
+  2026-10-28, same pass as the catalog retirement below. What did NOT rename:
+  the `data-fleet-popup` stamp (a shared code identifier on the popup-
+  dismissal seam — renaming it is identifier churn with zero user value) and
+  prose mentions of "the fleet" meaning the design-system family.
+  - **Files**: `apps/web/src/components/ui/fleet/` → `…/kit/` (95 files),
+    168 reference files across `apps/web/`, `AGENTS.md` (the UI-primitives
+    law), `docs/developers/ui-primitives.md`, `.agents/design-overrides.md`.
+
 - **feat(web): the block backlink card sheds its noise — count-only gutter
   badge, filled surface, no in-card hairline, and a toggle-less section
   header.** Owner review of the just-shipped block-backlinks card (2026-10-28,
@@ -69,10 +82,10 @@ predating this file.
   degrade gracefully there until then.
   - **Files**: `packages/protocol/src/colors.ts` (+ SCHEMA.md's token list),
     `apps/web/src/ui/variables.css` (the per-scheme preset values),
-    `apps/web/src/components/ui/fleet/colorPresets.ts` (hex map + entry +
+    `apps/web/src/components/ui/kit/colorPresets.ts` (hex map + entry +
     the pill-foreground ruling), `ColorButton.{tsx,css}` (4-col grid, the
     none cell), `apps/web/src/features/pickers/ColorPickerRow.css` (the bare
-    grid), `apps/web/src/components/ui/fleet/ContextMenu.{tsx,css}` (the
+    grid), `apps/web/src/components/ui/kit/ContextMenu.{tsx,css}` (the
     custom-flyout min-width ruling), tests: `color-presets`, `pickers`,
     `context-menu-color`, `whiteboard-toolset`.
 - **feat(web): the block-level backlink gutter expands the standard Backlinks
@@ -4901,7 +4914,7 @@ predating this file.
   still rides onClose; the flyout is a no-Portal DOM child of the card, so
   entering it never fires the leave). The enter-only BETWEEN-items seam is
   unchanged.
-  - **Files**: `apps/web/src/components/ui/fleet/ContextMenu.css` (+ the
+  - **Files**: `apps/web/src/components/ui/kit/ContextMenu.css` (+ the
     `onMouseLeave` in `ContextMenu.tsx`), `components/ui/fleet/Dropdown.css`,
     `components/ui/fleet/NotificationToast.css`,
     `ui/editor-popups/FloatingToolbar.css`, `ui/editor-popups/TriggerPopup.css`,

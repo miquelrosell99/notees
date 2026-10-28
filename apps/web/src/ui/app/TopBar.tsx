@@ -18,8 +18,8 @@ import type { ReactNode, RefObject } from "react";
 import type { UndoUiState } from "@/core/undo-journal.js";
 
 import { Icon } from "../Icon.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { HoverRevealButton } from "../../components/ui/fleet/HoverRevealButton.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { HoverRevealButton } from "../../components/ui/kit/HoverRevealButton.js";
 import "./TopBar.css";
 
 export function TopBar({

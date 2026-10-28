@@ -10,7 +10,7 @@
 
 import { applyAppearance, resolveTheme, useDeviceSetting, writeDeviceSetting, type ThemePreference } from "../features/settings/deviceSettings.js";
 
-import { Button } from "../components/ui/fleet/Button.js";
+import { Button } from "../components/ui/kit/Button.js";
 
 export function ThemeToggle() {
   const [theme] = useDeviceSetting<ThemePreference>("theme", "system");

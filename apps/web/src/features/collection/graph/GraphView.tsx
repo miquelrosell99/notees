@@ -58,8 +58,8 @@ import {
   SelectionButton,
   Slider,
   TextField,
-} from "../../../components/ui/fleet/index.js";
-import { resolveCssColor } from "../../../components/ui/fleet/colorPresets.js";
+} from "../../../components/ui/kit/index.js";
+import { resolveCssColor } from "../../../components/ui/kit/colorPresets.js";
 import { NodeSelector } from "../../pickers/NodeSelector.js";
 import { NodeViewSection } from "../../page-sections/NodeViewSection.js";
 import { FilterBlockBuilder } from "../FilterBlockBuilder.js";

@@ -43,8 +43,8 @@ import { createPortal } from "react-dom";
 
 import type { Mark } from "@notees/protocol";
 
-import { Button } from "../../components/ui/fleet/Button.js";
-import { FloatingToolbar as FloatingToolbarPanel } from "../../components/ui/fleet/FloatingToolbar.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { FloatingToolbar as FloatingToolbarPanel } from "../../components/ui/kit/FloatingToolbar.js";
 import { clampOverlayLeft, flipOverlayTop, rangeAnchorRect } from "./overlay-position.js";
 
 const MARKS: { mark: Mark; label: string; icon: string }[] = [

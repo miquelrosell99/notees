@@ -45,9 +45,9 @@ import type {
 } from "@/core/workspace-client/index.js";
 
 import { titleOf } from "../../ui/dateDisplay.js";
-import { Modal } from "../../components/ui/fleet/Modal.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { Checkbox } from "../../components/ui/kit/Checkbox.js";
 import "./PropertyConvertModal.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

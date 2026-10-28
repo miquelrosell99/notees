@@ -9,7 +9,7 @@
 
 import type { ClientPropertySchema } from "@/core/workspace-client/index.js";
 
-import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
+import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
 import type { AnyClient } from "./shared.js";
 
 export function PropertyDeleteModal({

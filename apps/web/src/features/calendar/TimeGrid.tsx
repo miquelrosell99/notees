@@ -34,9 +34,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS, dayNodeId } from "@notees/domain";
 
-import { Button } from "../../components/ui/fleet/Button.js";
-import { Input } from "../../components/ui/fleet/Input.js";
-import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { Input } from "../../components/ui/kit/Input.js";
+import { cssColorFor } from "../../components/ui/kit/colorPresets.js";
 import { titleOf, titleOfNode } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";

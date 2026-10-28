@@ -11,7 +11,7 @@ import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
 import { titleOf, datetimeValueText } from "../../ui/dateDisplay.js";
-import { AddPill } from "../../components/ui/fleet/AddPill.js";
+import { AddPill } from "../../components/ui/kit/AddPill.js";
 import {
   DatePickerPopup,
   type DatetimeCommitValue,

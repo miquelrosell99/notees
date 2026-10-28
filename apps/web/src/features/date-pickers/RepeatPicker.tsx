@@ -15,7 +15,7 @@
 import { parseRecurrenceRule, formatRecurrenceRule } from "@notees/domain";
 
 import { Icon } from "../../ui/Icon.js";
-import { Dropdown, type DropdownOption } from "../../components/ui/fleet/Dropdown.js";
+import { Dropdown, type DropdownOption } from "../../components/ui/kit/Dropdown.js";
 import { repeatLabelOf } from "../calendar/calendarViewUtils.js";
 import "./RepeatPicker.css";
 

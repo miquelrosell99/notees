@@ -31,8 +31,8 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Button } from "../../components/ui/fleet/Button.js";
-import { ListRow } from "../../components/ui/fleet/index.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { ListRow } from "../../components/ui/kit/index.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { titleOf } from "../../ui/dateDisplay.js";

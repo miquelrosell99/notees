@@ -37,10 +37,10 @@ import { BannerCard, CoverCard } from "../features/page-sections/PageBanner.js";
 import { PageFooter } from "../features/page-sections/PageFooter.js";
 import { BlockRow } from "./BlockRow.js";
 import { Icon } from "./Icon.js";
-import { AddPill } from "../components/ui/fleet/AddPill.js";
-import { Button } from "../components/ui/fleet/Button.js";
-import { SurfaceTopBar } from "../components/ui/fleet/SurfaceTopBar.js";
-import { TextField } from "../components/ui/fleet/TextField.js";
+import { AddPill } from "../components/ui/kit/AddPill.js";
+import { Button } from "../components/ui/kit/Button.js";
+import { SurfaceTopBar } from "../components/ui/kit/SurfaceTopBar.js";
+import { TextField } from "../components/ui/kit/TextField.js";
 import { titleOf, titleOfNode } from "./dateDisplay.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;

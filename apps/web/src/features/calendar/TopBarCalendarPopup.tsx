@@ -16,13 +16,13 @@
 
 import { useRef, type CSSProperties, type RefObject } from "react";
 
-import { Button } from "../../components/ui/fleet/Button.js";
-import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { SelectionButton } from "../../components/ui/kit/SelectionButton.js";
 import {
   useClickOutside,
   useOverlaySurface,
   useViewportFlip,
-} from "../../components/ui/fleet/overlay-hooks.js";
+} from "../../components/ui/kit/overlay-hooks.js";
 import { CalendarDayGrid, MONTHS_SHORT } from "./dayGrid.js";
 import { useCalendarMode } from "./useCalendarMode.js";
 import "./TopBarCalendarPopup.css";

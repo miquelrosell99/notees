@@ -19,7 +19,7 @@ import {
   type ApiKeyEntry,
 } from "@/core/auth-api.js";
 
-import { Modal } from "../components/ui/fleet/Modal.js";
+import { Modal } from "../components/ui/kit/Modal.js";
 
 export function ApiKeysSection({ serverUrl, token }: { serverUrl: string; token: string }) {
   const [keys, setKeys] = useState<ApiKeyEntry[]>([]);

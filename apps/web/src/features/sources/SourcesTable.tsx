@@ -31,7 +31,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { AnyClient } from "../../ui/app/clients.js";
 import { Icon } from "../../ui/Icon.js";
 import { titleOf } from "../../ui/dateDisplay.js";
-import { Badge, EmptyState, Spinner } from "../../components/ui/fleet/index.js";
+import { Badge, EmptyState, Spinner } from "../../components/ui/kit/index.js";
 import { NodeCollection } from "../collection/index.js";
 import type { NodeCollectionItem, SortSpec, TableColumn } from "../collection/index.js";
 import type { SourcesQueryState, SourcesSortField, SourceRow } from "./sourcesQuery.js";

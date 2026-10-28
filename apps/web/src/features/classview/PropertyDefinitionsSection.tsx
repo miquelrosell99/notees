@@ -71,11 +71,11 @@ import type {
 
 import { titleOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
-import { AddPill } from "../../components/ui/fleet/AddPill.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
-import { SearchField } from "../../components/ui/fleet/SearchField.js";
-import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
+import { AddPill } from "../../components/ui/kit/AddPill.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
+import { SearchField } from "../../components/ui/kit/SearchField.js";
+import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
 import { PropertyEditModal } from "../metadata/PropertySettingsModal.js";
 import { PropertyView } from "../metadata/PropertyView.js";
 import { requestPropertyCreate } from "../metadata/PropertyCreateHost.js";

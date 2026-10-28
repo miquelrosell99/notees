@@ -25,11 +25,11 @@ import type { TrashedEntry, WorkspaceClient } from "@/core/workspace-client/inde
 import { Icon } from "../../ui/Icon.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 import { relativeTime } from "../page-sections/ActivityLogSection.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
-import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
-import { ListRow } from "../../components/ui/fleet/index.js";
-import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
+import { EmptyState } from "../../components/ui/kit/EmptyState.js";
+import { ListRow } from "../../components/ui/kit/index.js";
+import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
 import "./TrashHub.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

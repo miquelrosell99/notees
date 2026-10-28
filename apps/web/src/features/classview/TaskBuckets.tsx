@@ -23,9 +23,9 @@ import { partitionTasksIntoBuckets, todayIsoLocal, type TaskBuckets as Buckets }
 import { setTaskDone, taskRowsOf, taskStatusLabel } from "../calendar/calendarRows.js";
 import { ensureTaskFamily } from "./taskFamily.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
-import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
-import { ListRow } from "../../components/ui/fleet/index.js";
-import { Pill } from "../../components/ui/fleet/Pill.js";
+import { Checkbox } from "../../components/ui/kit/Checkbox.js";
+import { ListRow } from "../../components/ui/kit/index.js";
+import { Pill } from "../../components/ui/kit/Pill.js";
 import "./TaskBuckets.css";
 
 const BUCKET_ORDER: Array<{

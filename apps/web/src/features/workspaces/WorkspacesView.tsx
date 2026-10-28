@@ -18,12 +18,12 @@ import {
 } from "@/core/auth-api.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { Card } from "../../components/ui/fleet/Card.js";
-import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
-import { ContextMenu } from "../../components/ui/fleet/ContextMenu.js";
-import { DataStateView } from "../../components/ui/fleet/DataStateView.js";
-import { Pill } from "../../components/ui/fleet/Pill.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { Card } from "../../components/ui/kit/Card.js";
+import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
+import { ContextMenu } from "../../components/ui/kit/ContextMenu.js";
+import { DataStateView } from "../../components/ui/kit/DataStateView.js";
+import { Pill } from "../../components/ui/kit/Pill.js";
 import { downloadBlob } from "../modals/download.js";
 import { WorkspaceExportModal } from "./WorkspaceExportModal.js";
 import { WorkspaceNameModal } from "./WorkspaceNameModal.js";

@@ -45,9 +45,9 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 import { titleOfNode } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { Icon } from "../../ui/Icon.js";
-import { AddPill } from "../../components/ui/fleet/AddPill.js";
-import { ContextMenu, type ContextMenuItem } from "../../components/ui/fleet/ContextMenu.js";
-import { HoverRevealButton } from "../../components/ui/fleet/HoverRevealButton.js";
+import { AddPill } from "../../components/ui/kit/AddPill.js";
+import { ContextMenu, type ContextMenuItem } from "../../components/ui/kit/ContextMenu.js";
+import { HoverRevealButton } from "../../components/ui/kit/HoverRevealButton.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import "./Breadcrumbs.css";
 

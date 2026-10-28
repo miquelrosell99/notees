@@ -90,10 +90,10 @@ import { enableArchivedSystemClass } from "../classview/systemClassDeploy.js";
 import { classClosureFrom } from "../metadata/schemaEligibility.js";
 import type { QuickCreateClient } from "../modals/quickCreate.js";
 import { collectSelfAndAncestors } from "../modals/quickCreate.js";
-import { Tabs } from "../../components/ui/fleet/Tabs.js";
-import { FilterChips } from "../../components/ui/fleet/FilterChips.js";
-import { FilterMenu } from "../../components/ui/fleet/FilterMenu.js";
-import { SearchField } from "../../components/ui/fleet/SearchField.js";
+import { Tabs } from "../../components/ui/kit/Tabs.js";
+import { FilterChips } from "../../components/ui/kit/FilterChips.js";
+import { FilterMenu } from "../../components/ui/kit/FilterMenu.js";
+import { SearchField } from "../../components/ui/kit/SearchField.js";
 import {
   filterChipIcon,
   filterChipLabel,
@@ -102,9 +102,9 @@ import {
   listFilterOptions,
 } from "../search-filters/filterModel.js";
 import type { FilterOption, SearchFilter } from "../search-filters/filterModel.js";
-import { Spinner } from "../../components/ui/fleet/Spinner.js";
-import { useDelayedVisible } from "../../components/ui/fleet/useDelayedVisible.js";
-import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
+import { Spinner } from "../../components/ui/kit/Spinner.js";
+import { useDelayedVisible } from "../../components/ui/kit/useDelayedVisible.js";
+import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
 import "./NodeSelector.css";
 
 /**

@@ -24,13 +24,13 @@ import { SYSTEM_CLASS_ICONS, type SystemClassName } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Modal } from "../../components/ui/fleet/Modal.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { TextField } from "../../components/ui/fleet/TextField.js";
-import { SearchField } from "../../components/ui/fleet/SearchField.js";
-import { ColorButton } from "../../components/ui/fleet/ColorButton.js";
-import { Tabs } from "../../components/ui/fleet/Tabs.js";
-import { GridMenu } from "../../components/ui/fleet/GridMenu.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { TextField } from "../../components/ui/kit/TextField.js";
+import { SearchField } from "../../components/ui/kit/SearchField.js";
+import { ColorButton } from "../../components/ui/kit/ColorButton.js";
+import { Tabs } from "../../components/ui/kit/Tabs.js";
+import { GridMenu } from "../../components/ui/kit/GridMenu.js";
 import { IconPickerPopup } from "../icon-picker/IconPickerPopup.js";
 import {
   deploySystemClass,

@@ -43,9 +43,9 @@ import {
   recurringRowsOf,
   spannedRowsOf,
 } from "./calendarRows.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
-import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
+import { SelectionButton } from "../../components/ui/kit/SelectionButton.js";
 import { TimeGrid } from "./TimeGrid.js";
 import { AgendaView } from "./AgendaView.js";
 import { CalendarGrid, periodOf, shiftMonth } from "./CalendarGrid.js";

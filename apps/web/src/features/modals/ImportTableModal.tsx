@@ -24,9 +24,9 @@
 import { useMemo, useState } from "react";
 import { parseCsvTable, parseXlsxTable, type TableMatrix } from "@notees/export";
 
-import { Modal } from "../../components/ui/fleet/Modal.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { FileDropZone } from "../../components/ui/fleet/FileDropZone.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { FileDropZone } from "../../components/ui/kit/FileDropZone.js";
 import { titleOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../collection/types.js";
 import type { ClientPropertySchema } from "@/core/workspace-client/index.js";

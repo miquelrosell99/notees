@@ -36,7 +36,7 @@ import { ArchivedHub } from "../../features/archived/ArchivedHub.js";
 import { SharesHub } from "../../features/sharing/SharesHub.js";
 import { NodeCardFrame } from "../../features/collection/NodeCardFrame.js";
 import { todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
-import { Button } from "../../components/ui/fleet/Button.js";
+import { Button } from "../../components/ui/kit/Button.js";
 import { HubView } from "./HubView.js";
 import { DayStepper } from "../../features/calendar/DayPageHeader.js";
 

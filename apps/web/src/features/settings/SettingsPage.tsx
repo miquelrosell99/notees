@@ -15,16 +15,16 @@ import { useEffect, useState } from "react";
 
 import type { AccountUser } from "@/core/auth-api.js";
 
-import { Button } from "../../components/ui/fleet/Button.js";
-import { Card } from "../../components/ui/fleet/Card.js";
-import { AddPill } from "../../components/ui/fleet/AddPill.js";
-import { BooleanToggle } from "../../components/ui/fleet/BooleanToggle.js";
-import { Pill } from "../../components/ui/fleet/Pill.js";
-import { Radio, RadioGroup } from "../../components/ui/fleet/Radio.js";
-import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
-import { TextField } from "../../components/ui/fleet/TextField.js";
-import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
-import { Modal } from "../../components/ui/fleet/Modal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { Card } from "../../components/ui/kit/Card.js";
+import { AddPill } from "../../components/ui/kit/AddPill.js";
+import { BooleanToggle } from "../../components/ui/kit/BooleanToggle.js";
+import { Pill } from "../../components/ui/kit/Pill.js";
+import { Radio, RadioGroup } from "../../components/ui/kit/Radio.js";
+import { SelectionButton } from "../../components/ui/kit/SelectionButton.js";
+import { TextField } from "../../components/ui/kit/TextField.js";
+import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
 import { Icon } from "../../ui/Icon.js";
 import { ApiKeysSection } from "../../ui/SettingsPanel.js";
 import {

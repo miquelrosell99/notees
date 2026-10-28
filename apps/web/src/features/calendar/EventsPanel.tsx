@@ -23,7 +23,7 @@ import {
   spannedRowsOf,
 } from "./calendarRows.js";
 import { weekDaysOfIso } from "./calendarViewUtils.js";
-import { Button } from "../../components/ui/fleet/Button.js";
+import { Button } from "../../components/ui/kit/Button.js";
 import "./EventsPanel.css";
 
 /** The panel's zoom levels: the scope of days. */

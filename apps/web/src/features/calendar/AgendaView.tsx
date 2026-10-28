@@ -25,8 +25,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { titleOf, titleOfNode } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
-import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
-import { Button } from "../../components/ui/fleet/Button.js";
+import { cssColorFor } from "../../components/ui/kit/colorPresets.js";
+import { Button } from "../../components/ui/kit/Button.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import {
   agendaTimeLabelOf,

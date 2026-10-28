@@ -6,7 +6,7 @@ import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
-import { ContextMenu } from "../../components/ui/fleet/ContextMenu.js";
+import { ContextMenu } from "../../components/ui/kit/ContextMenu.js";
 import { PropertyView } from "./PropertyView.js";
 import { PropertyHistoryModal } from "./PropertyHistoryModal.js";
 import { AliasedNodeRow } from "./AliasedNodeRow.js";

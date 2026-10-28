@@ -7,9 +7,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Icon } from "../../ui/Icon.js";
 
-import { Modal } from "../../components/ui/fleet/Modal.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { TextField } from "../../components/ui/fleet/TextField.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { TextField } from "../../components/ui/kit/TextField.js";
 import "./WorkspaceNameModal.css";
 
 interface WorkspaceNameModalProps {

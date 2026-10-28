@@ -4,7 +4,7 @@ import { type DatePrecision, isReadonlyProperty } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
-import { ContextMenu } from "../../components/ui/fleet/ContextMenu.js";
+import { ContextMenu } from "../../components/ui/kit/ContextMenu.js";
 import { Icon } from "../../ui/Icon.js";
 import { AliasedNodeRow } from "./AliasedNodeRow.js";
 import { PropertyView } from "./PropertyView.js";

@@ -9,11 +9,11 @@ import type {
 
 import { Icon } from "../../ui/Icon.js";
 import { IconPickerPopup } from "../icon-picker/IconPickerPopup.js";
-import { Modal } from "../../components/ui/fleet/Modal.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
-import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
-import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { ToggleSwitch } from "../../components/ui/kit/ToggleSwitch.js";
+import { SelectionButton } from "../../components/ui/kit/SelectionButton.js";
+import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
 import { PropertyConvertModal } from "./PropertyConvertModal.js";
 import { PropertyDeleteModal } from "./PropertyDeleteModal.js";
 import { DefaultValueEditor } from "./DefaultValueEditor.js";

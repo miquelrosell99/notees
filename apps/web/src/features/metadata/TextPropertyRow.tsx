@@ -58,7 +58,7 @@ import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 import { NodeCollection, type NodeCollectionItem } from "../collection/index.js";
 import type { AnyClient } from "../collection/types.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
-import { AddPill } from "../../components/ui/fleet/AddPill.js";
+import { AddPill } from "../../components/ui/kit/AddPill.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { CarrierEnterContext, type CarrierInfo } from "../../ui/textCarrier.js";
 import { DragSourcesContext } from "../../ui/block-dnd.js";

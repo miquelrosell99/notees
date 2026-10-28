@@ -28,7 +28,7 @@ import {
   BackendDownLock,
   OUTAGE_GRACE_MS,
   RISK_BACKLOG_OPS,
-} from "../src/components/ui/fleet/BackendDownLock.js";
+} from "../src/components/ui/kit/BackendDownLock.js";
 import type { SyncStatusSnapshot } from "../src/core/workspace-client/index.js";
 
 function snapshot(pending: number, failed = 0): SyncStatusSnapshot {

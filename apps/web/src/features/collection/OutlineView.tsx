@@ -78,7 +78,7 @@ import { Icon } from "../../ui/Icon.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { useDeviceSetting } from "../../features/settings/deviceSettings.js";
 import { Breadcrumbs } from "../node-menu/Breadcrumbs.js";
-import { SortMenuButton, type SortMenuOption } from "../../components/ui/fleet/index.js";
+import { SortMenuButton, type SortMenuOption } from "../../components/ui/kit/index.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";

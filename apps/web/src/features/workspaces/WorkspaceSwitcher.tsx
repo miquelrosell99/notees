@@ -5,7 +5,7 @@ import { localWorkspaceCopies, rememberedWorkspaceList } from "@/core/workspace-
 
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import { Icon } from "../../ui/Icon.js";
-import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
+import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
 import { WorkspaceSettingsModal } from "./WorkspaceSettingsModal.js";
 import { requestAddSource } from "../sources/AddSourceHost.js";
 import "./WorkspaceSwitcher.css";

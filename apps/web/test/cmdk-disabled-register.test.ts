@@ -22,7 +22,7 @@ const process_ = process as unknown as { getBuiltinModule(name: string): typeof 
 const fs = process_.getBuiltinModule("node:fs");
 const path = process_.getBuiltinModule("node:path") as unknown as typeof import("node:path");
 
-const FLEET_DIR = path.join(process.cwd(), "src", "components", "ui", "fleet");
+const FLEET_DIR = path.join(process.cwd(), "src", "components", "ui", "kit");
 // The cmdk surfaces only: Radix primitives (dropdown-menu/select/…) render
 // data-disabled strictly when the state fires (presence-based by design) —
 // the bare utility form is correct there. cmdk 1.x is the hazard: it

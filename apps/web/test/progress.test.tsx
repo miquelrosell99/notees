@@ -14,7 +14,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import { Progress } from "../src/components/ui/fleet/Progress.js";
+import { Progress } from "../src/components/ui/kit/Progress.js";
 
 describe("Progress", () => {
   it("renders a progressbar role with the correct aria values", () => {

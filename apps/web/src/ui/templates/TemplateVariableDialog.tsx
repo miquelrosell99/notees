@@ -12,9 +12,9 @@ import { titleOfNode } from "../dateDisplay.js";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
-import { Button } from "../../components/ui/fleet/Button.js";
-import { Modal } from "../../components/ui/fleet/Modal.js";
-import { TextField } from "../../components/ui/fleet/TextField.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { TextField } from "../../components/ui/kit/TextField.js";
 import "./TemplateVariableDialog.css";
 
 export interface TemplateVariableDialogProps {

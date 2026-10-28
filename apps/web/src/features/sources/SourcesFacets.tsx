@@ -19,9 +19,9 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { AnyClient } from "../../ui/app/clients.js";
 import { Icon } from "../../ui/Icon.js";
-import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { Chip } from "../../components/ui/fleet/Chip.js";
+import { EmptyState } from "../../components/ui/kit/EmptyState.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { Chip } from "../../components/ui/kit/Chip.js";
 
 import { facetCounts, type SourcesQueryState } from "./sourcesQuery.js";
 

@@ -32,7 +32,7 @@ import { useEffect, useState } from "react";
 import { parseQueryAst, type QueryAst } from "@notees/query";
 
 import { NodeCollectionTabs, SECTION_DEFAULT_TAB } from "../features/collection/index.js";
-import { SelectionButton } from "../components/ui/fleet/SelectionButton.js";
+import { SelectionButton } from "../components/ui/kit/SelectionButton.js";
 import { NodeCollectionBar } from "../features/collection/NodeCollectionBar.js";
 import {
   updateSectionViewAst,
@@ -45,7 +45,7 @@ import {
   type FilterQuery,
 } from "../features/collection/filterQuery.js";
 import type { AnyClient } from "../features/collection/index.js";
-import { Button } from "../components/ui/fleet/Button.js";
+import { Button } from "../components/ui/kit/Button.js";
 import { QueryResultsBody, isUnspecifiedQueryAst, type QueryViewMode } from "./queryResults.js";
 import { useQueryRun } from "./queryRun.js";
 import { appendQueryToken, updateQueryTokenAst } from "./queryTokens.js";

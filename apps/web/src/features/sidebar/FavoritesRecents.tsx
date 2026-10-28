@@ -42,7 +42,7 @@ import { nodeIcon } from "../../ui/iconFor.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { useNodePrefs, toggleNodeFavorite, reorderNodeFavorites, removeSyncedRecent } from "../settings/nodePrefs.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "../node-menu/SidebarItemMenu.js";
-import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
+import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
 import { readStoredJson, removeRecent, STORAGE_KEYS } from "./recentPages.js";
 
 export type AnyClient = WorkspaceClient | WorkerClient;

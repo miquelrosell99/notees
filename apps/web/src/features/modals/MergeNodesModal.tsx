@@ -9,9 +9,9 @@
  * already applied + synced by the client; the host navigates to the target.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Modal } from "../../components/ui/fleet/Modal.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
 import { NodeIcon } from "./NodeIcon.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";

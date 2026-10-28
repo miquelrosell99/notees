@@ -71,7 +71,7 @@ import { rendersAsInlineBlock, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { titleOfNode, titleOf } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
-import { resolveCssColor } from "../../components/ui/fleet/colorPresets.js";
+import { resolveCssColor } from "../../components/ui/kit/colorPresets.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 
 import { getExportFormat as getWebExportFormat } from "./registerExportFormats.js";

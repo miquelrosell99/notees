@@ -8,7 +8,7 @@
 
 import { useMemo } from "react";
 
-import { SelectionButton, type SelectionButtonOption } from "../../components/ui/fleet/index.js";
+import { SelectionButton, type SelectionButtonOption } from "../../components/ui/kit/index.js";
 import { getViewModeOptions } from "./registry.js";
 import type { ViewMode } from "./types.js";
 

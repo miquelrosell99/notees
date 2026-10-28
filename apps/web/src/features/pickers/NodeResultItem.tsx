@@ -6,7 +6,7 @@
  * that presents a searchable list of nodes).
  */
 
-import { ListRow } from "../../components/ui/fleet/index.js";
+import { ListRow } from "../../components/ui/kit/index.js";
 import { Icon } from "../../ui/Icon.js";
 import { titleOfNode } from "../../ui/dateDisplay.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";

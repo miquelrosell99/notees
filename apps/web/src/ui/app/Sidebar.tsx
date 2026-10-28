@@ -37,10 +37,10 @@ import { Icon } from "../Icon.js";
 
 import { FavoritesRecents, sidebarSection } from "../../features/sidebar/FavoritesRecents.js";
 import type { AnyClient } from "../../features/sidebar/FavoritesRecents.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { Separator } from "../../components/ui/fleet/Separator.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { Separator } from "../../components/ui/kit/Separator.js";
 import { useDeviceSetting } from "../../features/settings/deviceSettings.js";
-import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
+import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
 import "./Sidebar.css";
 
 export type { AnyClient };
