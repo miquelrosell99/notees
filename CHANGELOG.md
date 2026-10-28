@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-28
 
+- **fix(web): a button is never taller than it is wide — the fleet Button
+  gains the at-least-a-square width floor.** The "+N" classes trigger (a
+  short "+1" label on the 26px-tall `xs` box) rendered as a tall sliver,
+  taller than it was wide. The catalog now pins the visible box's floor to
+  the size's own height token (`min-width: var(--height-button-<size>)` per
+  size, keyed off the size utility classes and doubled in specificity so the
+  floor sits above the `min-width: 0` anti-bloat reset): short labels render
+  as squares, long labels may grow wider, never narrower. Every fleet Button
+  inherits the ruling.
+  - **Files**: `apps/web/src/components/ui/fleet/Button.css` (the four
+    per-size floor rules + the ruling comment), `apps/web/test/button-square.test.ts`
+    (new — the CSS spec pins each size's floor to its height token).
+
 - **fix(web): the block row's "+N" classes popup becomes the full pill
   surface.** Three owner reports from the overflow popup (2026-10-28). (1)
   Its rows were bare icon+name lines with a permanent drag-handle grip and an

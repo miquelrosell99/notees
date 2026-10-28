@@ -29,3 +29,26 @@
   min-width: 0;
   min-height: 0;
 }
+
+/* The at-least-a-square ruling: a button's visible box is never taller than
+   it is wide — the width floor rides the SAME height token as the size, so
+   a short label ("+1") renders as a square and a long label may grow wider,
+   never narrower. The selector keys off the size utility classes (they mark
+   the size on every rendered button) and doubles the .btn specificity so the
+   floor sits above the min-width: 0 reset — the reset still wins for the
+   touch-floor case, the ruling's floor wins for the visible box. */
+.btn.btn.h-button-xs {
+  min-width: var(--height-button-xs);
+}
+
+.btn.btn.h-button-sm {
+  min-width: var(--height-button-sm);
+}
+
+.btn.btn.h-button-md {
+  min-width: var(--height-button-md);
+}
+
+.btn.btn.h-button-lg {
+  min-width: var(--height-button-lg);
+}
