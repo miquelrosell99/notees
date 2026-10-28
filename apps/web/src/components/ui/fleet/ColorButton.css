@@ -129,9 +129,25 @@
 
 .color-btn-picker__grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--spacing-micro);
   margin-bottom: var(--spacing-2);
+}
+
+/* The no-color grid cell: the diagonal strike the ColorPickerRow "no
+   color" swatch carries — an empty swatch with the line through it. */
+.color-btn-picker__none .color-btn__fill {
+  background: var(--md-sys-color-surface-container);
+}
+.color-btn-picker__none::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 130%;
+  height: var(--border-width-medium);
+  background: var(--md-sys-color-outline);
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 

@@ -160,7 +160,7 @@ const REGISTERED_MD_SYS_EXTENSIONS = new Set([
   "callout-tip", "callout-tip-bg", "callout-warning", "callout-warning-bg",
   "preset-red", "preset-orange", "preset-yellow", "preset-green",
   "preset-teal", "preset-sky", "preset-blue", "preset-purple",
-  "preset-pink", "preset-gray", "swatch-monochrome", "node-default-rgb",
+  "preset-pink", "preset-gray", "preset-mono", "swatch-monochrome", "node-default-rgb",
   "query-accent", "surface-container-active",
   "presentation-stage", "on-presentation-stage", "on-presentation-stage-muted",
   // Surface alias (named for ONE surface) — its citations are governed by

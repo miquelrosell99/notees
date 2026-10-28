@@ -180,7 +180,7 @@ describe("metadata pickers (ported popups)", () => {
 
     const swatchGroup = screen.getByRole("group", { name: "Color options" });
     const swatches = swatchGroup.querySelectorAll(".context-menu-color-swatch");
-    expect(swatches.length).toBe(11); // no-color + 10 preset colors
+    expect(swatches.length).toBe(12); // no-color + 11 preset colors (incl. mono)
     fireEvent.click(swatches[1]!); // red
     await flushWrites();
     expect(client.getNode(classId)?.color).toBe("red");
@@ -458,7 +458,7 @@ describe("icon picker color section", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Icon color" }));
     const picker = screen.getByRole("dialog", { name: "Color picker" });
-    fireEvent.click(within(picker).getByRole("button", { name: "Remove color" }));
+    fireEvent.click(within(picker).getByRole("button", { name: "No color" }));
     expect(colors).toEqual([null]);
   });
 

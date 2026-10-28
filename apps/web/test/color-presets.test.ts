@@ -35,11 +35,14 @@ describe("colorPresets", () => {
     for (const token of COLOR_PRESET_TOKENS) {
       const match = new RegExp(`--md-sys-color-preset-${token}:\\s*(#[0-9a-fA-F]{6})`).exec(variablesCss);
       expect(match, `variables.css lacks --md-sys-color-preset-${token}`).not.toBeNull();
+      // The first (light-scheme) definition is the JS representative; mono
+      // additionally flips in the dark block, hence the dedupe below.
       expect(PRESET_HEX[token]).toBe(match![1]!.toLowerCase());
     }
-    // No stray preset vars in CSS that the TS map doesn't know.
-    const cssVars = [...variablesCss.matchAll(/--md-sys-color-preset-([a-z]+):/g)].map((m) => m[1]);
-    expect(cssVars.sort()).toEqual([...COLOR_PRESET_TOKENS].sort());
+    // No stray preset vars in CSS that the TS map doesn't know (deduped:
+    // mono is defined in both scheme blocks).
+    const cssVars = [...new Set([...variablesCss.matchAll(/--md-sys-color-preset-([a-z]+):/g)].map((m) => m[1]))];
+    expect([...cssVars].sort()).toEqual([...COLOR_PRESET_TOKENS].sort());
   });
 
   it("entries cover every token in hue order + gray, labels human-readable", () => {
@@ -83,6 +86,11 @@ describe("colorPresets", () => {
     const dark = coloredPillStyle("#102030")!;
     expect(dark.background).toBe("#102030");
     expect(dark.color).toBe("var(--md-sys-color-white)");
+    // Mono flips with the scheme — the foreground rides the surface color
+    // (always the swatch's inverse) instead of luminance math on one hex.
+    const mono = coloredPillStyle("mono")!;
+    expect(mono.background).toBe("var(--md-sys-color-preset-mono)");
+    expect(mono.color).toBe("var(--md-sys-color-surface)");
     // Absence is undefined (callers spread unconditionally).
     expect(coloredPillStyle(null)).toBeUndefined();
     expect(coloredPillStyle(undefined)).toBeUndefined();

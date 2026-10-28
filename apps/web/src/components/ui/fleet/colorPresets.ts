@@ -25,7 +25,10 @@
 
 import { COLOR_PRESET_TOKENS, type ColorToken } from "@notees/protocol";
 
-/** token → concrete hex. MUST mirror variables.css `--md-sys-color-preset-*`. */
+/** token → concrete hex. MUST mirror variables.css `--md-sys-color-preset-*`.
+ *  `mono` is the theme-adaptive black/white: the JS map carries the LIGHT
+ *  scheme's value (contrast/canvas math is scheme-blind); the CSS var flips
+ *  per scheme, and `coloredPillStyle` special-cases the foreground. */
 export const PRESET_HEX: Record<ColorToken, string> = {
   red: "#e34d45",
   orange: "#ed822b",
@@ -37,6 +40,7 @@ export const PRESET_HEX: Record<ColorToken, string> = {
   purple: "#9662da",
   pink: "#de4996",
   gray: "#8c857d",
+  mono: "#000000",
 };
 
 export const PRESET_COLOR_TOKENS: readonly ColorToken[] = COLOR_PRESET_TOKENS;
@@ -59,6 +63,7 @@ export const PRESET_COLOR_ENTRIES: ColorEntry[] = [
   { value: "purple", label: "Purple" },
   { value: "pink", label: "Pink" },
   { value: "gray", label: "Gray" },
+  { value: "mono", label: "Black/white" },
 ] as const;
 
 const LEGACY_VAR_PATTERN = /^var\(--md-sys-color-preset-([a-z]+)\)$/;
@@ -106,6 +111,12 @@ export function coloredPillStyle(
   stored: string | null | undefined,
 ): { background: string; color: string } | undefined {
   if (stored === null || stored === undefined || stored === "") return undefined;
+  // Mono flips with the scheme, so luminance math against either concrete
+  // hex can pick the wrong foreground — the pill's text rides the surface
+  // color, which is always the swatch's inverse.
+  if (canonicalColor(stored) === "mono") {
+    return { background: cssColorFor(stored), color: "var(--md-sys-color-surface)" };
+  }
   const resolved = resolveCssColor(stored);
   const match = /^#([0-9a-f]{6})$/i.exec(resolved);
   const foreground =
