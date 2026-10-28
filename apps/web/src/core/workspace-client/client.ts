@@ -24,7 +24,7 @@
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
 import { HttpTransport, OfflineTransport } from "@notees/sync";
-import type { Envelope } from "@notees/protocol";
+import type { Envelope, OpPayload } from "@notees/protocol";
 import { Store, type GraphOptions } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
 import type { WorkspaceFeature } from "@notees/protocol";
@@ -670,6 +670,11 @@ export class WorkspaceClient {
 
   emptyProperty(objectId: string, propertySchemaId: string) {
     return this.writes.emptyProperty(objectId, propertySchemaId);
+  }
+
+  /** Append the card.review audit-history op (never journaled — see the writes domain). */
+  recordCardReview(payload: OpPayload<"card.review">) {
+    return this.writes.recordCardReview(payload);
   }
 
   promotePropertyCarrier(objectId: string, propertySchemaId: string, idx = 0) {

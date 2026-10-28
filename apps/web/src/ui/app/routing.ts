@@ -68,6 +68,15 @@ export function pathForCardsReview(): string {
 }
 
 /**
+ * The cards hub's subroute flag: true ONLY on the review surface's own
+ * path. The review session rides /cards/review (law 9 — a view surface
+ * owns its URL AND its tab title); any other /cards/* path is the hub.
+ */
+export function cardsReviewFromPath(pathname: string): boolean {
+  return pathname.replace(/\/$/, "") === pathForCardsReview();
+}
+
+/**
  * The calendar's zoom ladder: the view's type lives here, beside the path mapping, so
  * the parse/build helpers and the tab-title register share one definition.
  */
@@ -206,6 +215,8 @@ export function popStateNavHandler(opts: {
   setSearch?: ((open: boolean) => void) | undefined;
   /** The calendar's parsed route (null off the surface); omitted = no-op. */
   setCalendarRoute?: ((route: CalendarRoute | null) => void) | undefined;
+  /** The cards-review subroute flag (law 9); omitted = no-op. */
+  setCardsReview?: ((open: boolean) => void) | undefined;
   /** The Sources hub's parsed query state (law 9 — the hub owns its URL);
    *  parsed on /sources landings, reset to the default everywhere else;
    *  omitted = no-op. */
@@ -218,6 +229,9 @@ export function popStateNavHandler(opts: {
     opts.onNavigated?.(path + window.location.search);
     opts.setSettingsSection(settingsSectionFromPath(path));
     opts.setCalendarRoute?.(calendarRouteFromPath(path));
+    // The cards-review subroute flag (law 9 — the surface owns its URL and
+    // its tab title; the calendar-route precedent).
+    opts.setCardsReview?.(cardsReviewFromPath(path));
     // The sources grammar is the /surface's own — parse it ONLY on
     // /sources (another surface's ?q= is its own param, never ours);
     // landing anywhere else leaves the query at the default (law 9
@@ -314,6 +328,8 @@ export function tabTitle(opts: {
    * the surface is mounted; null/absent cedes to the hub register.
    */
   calendarTitle?: string | null;
+  /** The cards-review subroute is showing (law 9 — "Review - Notees"). */
+  cardsReview?: boolean | undefined;
 }): string {
   if (opts.settingsSection !== null) {
     const label =
@@ -325,6 +341,7 @@ export function tabTitle(opts: {
     return opts.nodeName !== "" ? `${opts.nodeName} - Notees` : "Notees";
   }
   if (opts.searchOpen) return "Search - Notees";
+  if (opts.cardsReview === true) return "Review - Notees";
   if (opts.activeNav === "calendar" && opts.calendarTitle) return opts.calendarTitle;
   const entry = NAV_ENTRIES.find((item) => item.key === opts.activeNav);
   return entry !== undefined ? `${entry.label} - Notees` : "Notees";

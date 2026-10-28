@@ -41,3 +41,35 @@ covers the due + fresh sets; the header's Review covers the current
 filtered list; a row's action covers that card. A deep link to
 `/cards/review` with no stored session falls back to all due cards — the
 review surface's own contract.
+
+## The review session
+
+`/cards/review` is the study flow. The session consumes the stored hand-off
+(and clears it — a later deep link must not resurrect a stale session);
+with no session it covers every card-classed member. `buildReviewQueue`
+orders the cards: due first (due-date ascending — overdue ahead of
+due-today), then not-yet-due cards day-ascending (a Review-now over a
+filtered list may carry them; early review is allowed, never preferred),
+then fresh cards in input order.
+
+Each card renders front-first: the card node's own content, read-only.
+**Reveal** flips to the back — the same content plus the card's embedded
+children in the condensed prose layer — and the four-grade bar appears
+(Again/Hard/Good/Easy, keys 1–4). A front-only card (no embedded children)
+renders an explicit "No answer on this card" empty state and still grades.
+
+Grading computes the next SRS state with the session's algorithm (read
+once at session start from the `cards.algorithm` preference) and writes it
+into the six schedule property values — `Card due`, `Card reps`, `Card
+interval`, and the active algorithm's `Card ease` (SM-2) or `Card
+difficulty`/`Card stability` (FSRS); the inactive algorithm's fields stay
+stale (the mid-deck switch contract). The `card.review` op records the full
+state transition as audit history — grouped under one session id — and is
+**never undoable**: undoing a grade reverts the property writes through
+the per-tab undo journal, the history row stays. The session ends with a
+summary (cards reviewed, lapses — an Again on a card with reps) and a
+back-to-cards action; the exit is a real history push, so the in-app back
+arrow returns to the hub.
+
+The surface owns its URL and tab title (law 9): `/cards/review` deep-links
+straight into a session and the tab reads "Review - Notees".

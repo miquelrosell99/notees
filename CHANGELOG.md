@@ -9,6 +9,57 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): card review session — reveal + four-grade flow over due
+  queues (memorization cards slice).** `/cards/review` ships: the Cards
+  hub's Review hand-off (`notees.cards.session`) is consumed on mount
+  (cleared after read — a later deep link falls back honestly), the deep
+  link with no/corrupt session covers every card-classed member, and
+  `buildReviewQueue` orders the session: due first (due-date ascending,
+  overdue ahead of due-today), then not-yet-due day-ascending (a Review-now
+  hand-off may carry Later members — early review allowed, never
+  preferred), then fresh in input order. Each card renders front-first
+  (the card node's own content, read-only through `ProseView`); Reveal
+  flips to the back — the embedded children in the condensed prose layer —
+  with a front-only card rendering an explicit "No answer on this card"
+  empty state that still grades. Grading computes the next SRS state with
+  the session's algorithm (read once at mount from the `cards.algorithm`
+  pref) and writes the six card-family property values through the
+  taskCycle composition (one write per touched value, addressed at the
+  row's existing idx; the inactive algorithm's fields stay stale per the
+  mid-deck switch contract); the `card.review` envelope then appends
+  through the client's single op seam as audit history grouped under one
+  session id — never journaled (`invertEnvelope` has no case for it), so
+  undoing a grade reverts the property writes through the per-tab undo
+  journal while the history row stays. The session closes with a summary
+  (cards reviewed, lapses) and a back-to-cards exit that rides a real
+  `pushNav` (the in-app back stack keeps the hub as the back-target — the
+  Task 9 synthetic-popstate concern). New client surface `recordCardReview`
+  (WorkspaceClient + WorkerClient RPC). Law 9: `cardsReviewFromPath` owns
+  the subroute, App/AppBody branch on it inside the cards surface, and the
+  tab title reads "Review - Notees". Docs: `docs/features/cards.md` (the
+  review-session section) + the feature-status row. Verified: new
+  `review-queue.test.ts` (4 tests — the due/future/fresh ordering pins) +
+  `review-session.test.tsx` (6 tests — front-without-back, reveal + grade
+  bar, the Good write path against `nextCardState` + exactly one
+  `card.review` envelope with grade/algorithm/shared sessionId, the
+  front-only empty state, undo reverting the property writes with the
+  history row surviving, the exit callback) + the extended
+  `cards-routing.test.ts` law-9 title pins, full gate green (typecheck +
+  test).
+  - **Files**: `apps/web/src/features/cards/ReviewSession.tsx` + `.css`
+    (new), `apps/web/src/features/cards/reviewQueue.ts` (new),
+    `apps/web/src/core/workspace-client/client-writes.ts` +
+    `client.ts` (`recordCardReview`), `apps/web/src/core/worker-client.ts`
+    + `apps/web/src/worker/worker-core.ts` (the RPC mirror),
+    `apps/web/src/core/undo-journal.ts` (the never-journaled ruling in the
+    inversion matrix doc), `apps/web/src/ui/app/routing.ts`
+    (`cardsReviewFromPath`, the tabTitle review branch, the popstate seam),
+    `apps/web/src/ui/App.tsx` + `apps/web/src/ui/app/AppBody.tsx` (the
+    subroute state/branch + the exit/reset funnels),
+    `apps/web/test/review-queue.test.ts` + `review-session.test.tsx`
+    (new), `apps/web/test/cards-routing.test.ts` +
+    `sources-appbody.test.tsx` (the new AppBody props).
+
 - **feat(web): Cards hub — nav entry, due/fresh/later buckets,
   query-builder subsets, review actions (memorization cards slice).** The
   `/cards` hub ships (the Tasks-hub structure verbatim): every node classed

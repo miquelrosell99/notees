@@ -99,6 +99,10 @@
  *  - external_ref.set      → delete when the ref was unmapped, else the same
  *    op restoring the captured prior carrier (a move undoes to the old node).
  *  - external_ref.delete   → the same op restoring the captured prior carrier.
+ *  - card.review           → NEVER journaled: the op is audit history only
+ *    (memorization cards) — a review cannot be un-happened. Undoing a grade
+ *    reverts the six card-family property writes through the journal; the
+ *    history row stays (the default arm below: no case, no journal entry).
  *
  * Text coalescing: contiguous contentAst-only updates of one node inside a
  * short window merge into ONE entry, so typing-undo is paragraph-grained

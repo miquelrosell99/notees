@@ -10,6 +10,7 @@
 
 import { uuidv7 } from "uuidv7";
 import { planMerge, type MergePlanSummary } from "@notees/store";
+import type { OpPayload } from "@notees/protocol";
 
 import { UUID_LIKE } from "./types.js";
 import type {
@@ -553,6 +554,21 @@ export class WorkspaceClientWrites {
     this.ctx.enqueueLocal(
       this.ctx.buildEnvelope("property.empty", { objectId, propertySchemaId }, [objectId]),
     );
+  }
+
+  /**
+   * Record one graded card review (card.review — the SRS audit-history op):
+   * the full state transition (stateBefore/stateAfter) rides the envelope
+   * so every replica derives the same scheduling outcome without a local
+   * algorithm. The op is HISTORY-ONLY — the six card-family property values
+   * remain the schedule's sole authority — and it is deliberately NEVER
+   * undoable: `invertEnvelope` has no case for it, so the single enqueue
+   * seam journals nothing (a review cannot be un-happened; undoing a grade
+   * reverts the property writes through the journal, the history row stays).
+   */
+  recordCardReview(payload: OpPayload<"card.review">): Promise<void> {
+    this.ctx.enqueueLocal(this.ctx.buildEnvelope("card.review", payload, [payload.cardId]));
+    return Promise.resolve();
   }
 
   /**

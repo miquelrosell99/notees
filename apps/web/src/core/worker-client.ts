@@ -15,7 +15,7 @@
 
 import { startTransition } from "react";
 
-import type { WorkspaceFeature } from "@notees/protocol";
+import type { OpPayload, WorkspaceFeature } from "@notees/protocol";
 import type { GraphOptions, GraphTopology } from "@notees/store";
 import type {
   ArchivedEntry,
@@ -895,6 +895,11 @@ export class WorkerClient {
   /** Clear every authored value of one property, keeping the assignment (property.empty). */
   async emptyProperty(objectId: string, propertySchemaId: string): Promise<void> {
     await this.call("emptyProperty", [objectId, propertySchemaId]);
+  }
+
+  /** Append the card.review audit-history op (never journaled — the writes domain's contract). */
+  async recordCardReview(payload: OpPayload<"card.review">): Promise<void> {
+    await this.call("recordCardReview", [payload]);
   }
 
   /** Ensure the year/month/day chain for a date; returns the three node ids. */
