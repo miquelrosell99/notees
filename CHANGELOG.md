@@ -9,6 +9,55 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): the gantt view mode — items as bars on a shared time axis.**
+  A new registered collection view (`gantt`, label "Gantt", icon
+  `mdi-chart-gantt`, **secondary tier**): items draw as bars positioned by a
+  picked **start date property** (a kit Dropdown over the collection's
+  date-typed bound properties), ranged by an optional **end date property**
+  (a second Dropdown — "—" = a point-in-time bar — when ≥2 date properties
+  exist), with an **Unscheduled lane** for items carrying no start date.
+  (1) The pure model (`gantt/ganttModel.ts`, the TDD core): input rows are
+  the minimal `{id, name, color, start, end}` mapped at the view boundary —
+  the view resolves the picked properties' effective values through the
+  unified datetime shape (`{nodeId}` refs, v1 bare uuids, ranges — every
+  slot through the deterministic date-chain id, no client lookups in the
+  model); output is start-ordered bars, the alphabetical lane, and the
+  visible window **[min(start)−1mo, max(end)+1mo)** with one axis tick per
+  month. (2) The chart: plain divs (no chart library) — one row per item
+  (sticky name cell + bar track), month gridlines as a repeating hairline
+  gradient, the **today line** painted as a second layered gradient at the
+  same position on every track (one continuous line — a single absolute
+  element could not align across the sticky name column), horizontal scroll
+  on overflow, counts reading the full set (the shared pagination ruling —
+  the gantt never windows rows away). Bar color: the node's own color, else
+  primary. (3) Read-only navigation: a bar (or name) click opens the node,
+  shift+click peeks in the sidebar (the table's ruling). The property picks
+  are view-local transient state, like the pivot's dimensions — nothing
+  stored. (4) **Availability**: `availability: (ctx) => ctx.datePropertyCount
+  >= 1` — a collection without a valued date property gets no dead option;
+  the hosts' `useAvailableViewModes` seam feeds the switcher and the
+  persisted-mode sanitize, and the mode joins `VIEW_MODES` (the choice
+  sticks device-locally per surface). (5) **Hosts**: every surface pivot and
+  graph reached — all hubs, the classed-nodes section, the Created section,
+  the page child-blocks triad — plus the query results' registry switcher
+  (gated on the FULL result set per the counts ruling; a worn mode whose
+  results change underneath renders its honest lane, like any empty view).
+  YAGNI held: no drag-to-reschedule, no dependencies/arrows.
+  - **Files**: `apps/web/src/features/collection/gantt/ganttModel.ts` (NEW —
+    the pure model), `gantt/GanttView.{tsx,css}` (NEW — the registry view),
+    `types.ts` (`ViewMode` + `gantt`), `index.ts` (barrel registration),
+    `ui/viewPrefs.ts` (`VIEW_MODES`), `ui/app/HubView.tsx` +
+    `classview/lassedNodesSection.tsx` + `page-sections/CreatedSection.tsx` +
+    `ui/PageView.tsx` (the mode lists), `ui/QueryNodeSection.tsx` +
+    `ui/queryResults.tsx` (the query switcher's gated modes + the gantt
+    mapping). Tests: `test/gantt-view.test.tsx` (NEW, 14 specs: the value
+    resolution, lanes/window/ticks model units, the rendered chart, the bar
+    navigation, the switcher gating + persistence, the end picker),
+    `test/query-node.test.tsx` (the query-results gating + render). Verified:
+    web typecheck; web suite 211 files / 2436 tests green.
+  - **Docs**: `docs/features/views.md` (gantt joins the registered mode set;
+    the date gate named).
+
 - **feat(web): the graph is a scoped collection view mode — availability-gated
   on links.** (1) The graph (registered `graph`, secondary tier) works as a
   collection view mode: hosted by a NodeCollection, the map's universe is the
