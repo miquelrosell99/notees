@@ -28,7 +28,7 @@ Never re-tag a release; same-day correction = next patch tag.
 
 Full catalog and drift classes: `docs/developers/ui-primitives.md`.
 
-1. All chrome composes from `apps/web/src/ui/components/ui/` — one element
+1. All chrome composes from `apps/web/src/components/ui/kit/` — one element
    per file, co-located CSS, barrel-exported. No ad-hoc styled controls in
    feature code.
 2. Token-only CSS from `src/ui/variables.css` — no hex/rgba literals.
@@ -65,6 +65,29 @@ PageCard slot checks `selectedPageId` first — openers must clear what they
 replace, or the click silently does nothing) and the stale title (a view
 that clears the selection must still update the title — the effect branches
 on the view, not only the node).
+
+## Chrome-row layout contracts
+
+Canonical: `docs/developers/ui-primitives.md` ("Chrome-row layout
+contracts"). Hard-won rulings from shipped layout bugs — check them before
+restructuring any chrome row:
+
+1. **A chrome row's right side is ONE cluster.** Every right-hand control
+   (ported view chrome, filter toolbar, switchers) shares a single
+   right-justified container (`NodeCollectionTopBar`'s cluster) — sibling
+   flex items with a grown, justify-end row between them read as broken
+   (split controls, dead space in the middle of the row).
+2. **The button IS the badge.** Never nest a `Badge` pill inside a `Button`
+   — the two boxes double and overlap. A count toggle passes the number as
+   the Button's own label (ghost + `active`; transparent at rest).
+3. **In-card sections retire page-stack chrome.** Inside a container card the
+   section's stack hairline, header clearance, and title-alignment content
+   indent (`spacing-7`) retire — the card boundary and padding own the
+   separation. Page-stack spacing is for the page stack, not cards.
+4. **Hover-gated chrome always pairs `:hover` with `:focus-within`.** A
+   hover-only affordance strands keyboard users (the "+" add-tab precedent).
+5. **The ghost `active` prop is visual only** — pass `aria-pressed`
+   explicitly (the top-bar sidebar toggles are the reference register).
 
 ## Anti-hallucination register
 

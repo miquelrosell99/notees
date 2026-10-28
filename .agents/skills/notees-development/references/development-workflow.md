@@ -209,6 +209,30 @@ add tiebreak is **strictly greater** (deliberate asymmetry). Deletion:
 tombstone-wins, subtree trashes. Replay is idempotent. Conflicts are
 detection-only (`detectConflicts`, 4 kinds) — reported, never blocking.
 
+## Visual verification against the running stack
+
+jsdom has no layout — a chrome/CSS change is not verified by the suite
+alone. When a visual bug needs a real browser, probe the **deployed stack**
+against the **test workspace** (law: never the owner's live workspace):
+
+- Boot pattern (copy from any `scripts/screenshots/*-probe.mjs`): login via
+  `POST /api/auth/login` on `:8377` (credentials self-locate from
+  `/etc/periphery/stacks/notees/config/notees/.admin_password`), then seed
+  `localStorage` in an init script: `notees.serverUrl`, `notees.sessionToken`,
+  `notees.workspaceId` (the fixed test-workspace seed — probes read it from
+  the existing scripts), `notees.theme`.
+- **Routing is path-based**: open a node at `${WEB}/${nodeId}`
+  (`http://localhost:8378/<id>`). There is no hash route — `pushState` +
+  synthetic `popstate` silently renders nothing (diagnosed 2026-10-28); goto
+  the path and let the app's own router boot it.
+- Seed scenario data through the object API (`POST /api/objects` with
+  `contentAst` mentions/classes per `docs/api.md`), screenshot the surface,
+  dump `getBoundingClientRect` boxes for the disputed chrome, and **delete
+  the probe objects in a `finally`** — probe data is created in the test
+  workspace and removed when done.
+- Home for the scripts: `scripts/screenshots/` (the `.playwright-mcp/`
+  browser tool works too, but scripts are reproducible and diffable).
+
 ## Testing strategy
 
 Convergence is asserted by **full database dumps, not row samples** (the
