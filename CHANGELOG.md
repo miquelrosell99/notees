@@ -67,10 +67,12 @@ predating this file.
   target's own title token stream through InlineTokens when it qualifies
   (inline-scale tokens + at least one link element; anything else keeps the
   flat string). The chip stays ONE link to its target: the nested elements
-  render inert — the established link looks (dashed mention underline, wavy
-  class underline, hyperlink color) on spans, no nested buttons/anchors, no
-  own click, no own hover — the chip's button owns the click AND the hover
-  preview for its target across the whole label. Nesting caps at one level
+  render inert — the icons and resolved names ride inside the label but no
+  nested underline doubles the chip's own line (the app.css chip-scoped
+  rules; the hyperlink keeps its color, line only), and no nested
+  buttons/anchors, own click, or own hover — the chip's button owns the
+  click AND the hover preview for its target across the whole label.
+  Nesting caps at one level
   (labelDepth), so link cycles terminate; a customLabel still wins; the
   resolver is wired only in the editor row, leaving picker/search
   projections on the flat string.
