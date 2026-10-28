@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-28
 
+- **fix(web): node color edits reach every node, and the kit swatch button
+  behaves like a button.** Four UI bugs on the color surfaces: (1) the icon
+  picker's color swatch vanished when no color was set — `cssColorFor("")`
+  yields a transparent fill, so only a border remained; `ColorButton` now
+  renders a visible no-color placeholder (bordered swatch with the diagonal
+  strike the picker row uses). (2) The swatch rendered 48px tall against
+  the header's 32px buttons — the base class clamped the visible box to
+  `--button-min-height`; the visible box now rides the Button icon-only
+  register and the 48dp floor lives on the invisible `::after` overlay, the
+  fleet Button contract. (3) A node color required an icon: the only color
+  edit lived in the icon picker, unreachable without the icon affordance —
+  the node context menu gains a **Color ›** submenu (the `ColorPickerRow`
+  swatch flyout, the kit's custom `submenu` form) writing `object.update
+  color` for any node, blocks and pages alike. (4) The block column's "+N"
+  extra-classes popup rendered unstyled (no background, no card) — the CSS
+  still named `class-pills-popup*` while the component emitted
+  `node-pills-popup*`; the CSS follows the component. Also: the collapse
+  chevron rode ~2px below the bullet and text — it now takes the same
+  optical `-2px` correction the bullet has always carried.
+  - **Files**: `apps/web/src/components/ui/fleet/ColorButton.{tsx,css}`,
+    `apps/web/src/features/node-menu/NodeContextMenu.tsx` (the Color ›
+    submenu), `apps/web/src/features/pickers/ColorPickerRow.{tsx,css}` (the
+    bare flyout modifier), `apps/web/src/features/metadata/NodePills.css`
+    (the popup class-name repair), `apps/web/src/ui/app.css` (the chevron
+    optical alignment), `apps/web/test/context-menu-color.test.tsx` +
+    `apps/web/test/pickers.test.tsx` (the set/clear/selected flyout tests,
+    the empty-swatch placeholder tests).
+
 - **fix(web): a node-link chip renders the link elements inside its target's
   title.** A mention whose target title itself carried link elements (a
   nested mention, an inline class link, a markdown hyperlink) flattened the

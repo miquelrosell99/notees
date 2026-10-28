@@ -4,7 +4,9 @@
  * link — the Copy › submenu), favorite, convert an inline block to a page
  * (the Convert to page › submenu: keep under the parent vs extract to root,
  * children staying or following), move a main child back to the content,
- * export (document-chrome nodes), the page banner upload (Add/Change
+ * the per-block list style (List style ›), the node color swatches
+ * (Color › — the color edit without an icon requirement), export
+ * (document-chrome nodes), the page banner upload (Add/Change
  * banner), remove pill (class/tag on an owner), delete.
  * Favorites toggle localStorage directly and broadcast so the sidebar
  * refreshes.
@@ -39,6 +41,7 @@ import { nodeLinkUrl } from "../../ui/nodeLink.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { copyToClipboard } from "../modals/clipboard.js";import { notificationStore } from "../../components/ui/fleet/notificationStore.js";
 import { clipboardMarkdown } from "../export/exportSubtree.js";
+import { ColorPickerRow } from "../pickers/ColorPickerRow.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
 import { headingAstOf, headingConversionOf, plainTextAstOf } from "../block-editor/headingConvert.js";
 import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
@@ -56,6 +59,8 @@ interface MenuClient extends CloneReadSurface, CloneWriteSurface {
   deleteObject(id: string, opts?: { permanent?: boolean }): Promise<void>;
   /** The render-bit toggle behind "Move to content" / keep-under-parent. */
   updateObject(id: string, fields: { isEmbedded?: boolean }): Promise<void>;
+  /** The node color — the "Color ›" submenu (null clears). */
+  updateObject(id: string, fields: { color?: string | null }): Promise<void>;
   /** Per-block list style — the "List style ›" submenu (null = bullet). */
   updateObject(id: string, fields: { listStyle?: ListStyle | null }): Promise<void>;
   /** Content rewrites — the heading conversion rides this (headingConvert). */
@@ -385,6 +390,27 @@ export function NodeContextMenu({
       ],
     });
   }
+  // Color: the node color swatch row as a flyout — an ordinary
+  // object.update per pick (null clears). This is the color edit that does
+  // not require an icon: the page-header picker anchors at the icon (or
+  // the "Add icon" pill, which retires once the action row fills), so
+  // right-click reached no color affordance at all before this submenu.
+  // Available on every node — blocks and pages, classed or not.
+  items.push({
+    id: "color",
+    label: "Color",
+    icon: "mdi-palette-outline",
+    submenu: (
+      <ColorPickerRow
+        currentColor={node.color ?? null}
+        className="context-menu-color-row--bare"
+        onColorChange={(color) => {
+          void client.updateObject(node.id, { color });
+          onClose();
+        }}
+      />
+    ),
+  });
   // Convert to page: ONE bucket for "make this block a
   // page", the variants self-describing plain clicks (no modifier keys, no
   // modal — the gesture is reversible, the choice is two clicks). KEEP UNDER

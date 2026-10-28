@@ -1200,7 +1200,10 @@ select:focus-visible {
   z-index: 2;
   right: calc(100% + 1px);
   top: 50%;
-  transform: translateY(-50%);
+  /* The same optical correction the bullet rides (translateY(-2px)):
+     centered on the grip box alone, the glyph sits ~2px below the dot and
+     the text's visual center. */
+  transform: translateY(calc(-50% - 2px));
   width: 14px;
   padding: 0;
   border: none;

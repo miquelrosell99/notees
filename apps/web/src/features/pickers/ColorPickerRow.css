@@ -55,3 +55,17 @@
   background: var(--md-sys-color-error);
   transform: rotate(-45deg);
 }
+
+/* Bare hosting (the node context menu's Color › flyout): the surrounding
+   submenu card already carries the surface/border/radius, and the submenu
+   trigger row already names the section — strip all three. */
+.context-menu-color-row--bare {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: var(--spacing-1-5) var(--spacing-2);
+}
+
+.context-menu-color-row--bare .context-menu-color-label {
+  display: none;
+}
