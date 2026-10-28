@@ -282,6 +282,7 @@ function ReferenceSection({
   load,
   refreshKey,
   unlinkedPageId,
+  hideToggle = false,
   sectionKey,
   emptyText,
   defaultExpanded = false,
@@ -296,6 +297,12 @@ function ReferenceSection({
   refreshKey?: unknown;
   /** Enables the Promote/Ignore row actions (the unlinked section only). */
   unlinkedPageId?: string | undefined;
+  /**
+   * Hide the header's collapse toggle (the block backlink card's gutter
+   * toggle owns show/hide there — collapsing a surface the user can hide
+   * entirely makes no sense).
+   */
+  hideToggle?: boolean | undefined;
   /** The hosted custom views' section key (per-section saved views). */
   sectionKey: HostedViewsConfig["sectionKey"];
   emptyText: string;
@@ -340,6 +347,7 @@ function ReferenceSection({
       className="nt-section"
       expanded={expanded}
       onExpandedChange={setExpanded}
+      {...(hideToggle ? { hideToggle: true } : {})}
     >
       {rows === null ? null : (
         <ReferenceList
@@ -440,16 +448,20 @@ export function ChildPagesSection({
  * on the eager materialized count (null while 0 — the hide-when-empty
  * ruling covers every reference section); the count itself no longer
  * displays anywhere — the active tab's badge
- * names the displayed rows.
+ * names the displayed rows. The block backlink card mounts it with
+ * `hideToggle` — the gutter toggle owns show/hide there.
  */
 export function BacklinksSection({
   client,
   pageId,
   onOpenPage,
+  hideToggle = false,
 }: {
   client: AnyClient;
   pageId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** Hide the header's collapse toggle (the block backlink card's gutter toggle owns show/hide there). */
+  hideToggle?: boolean | undefined;
 }) {
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
   const backlinkCount = client.getBacklinkCount(pageId);
@@ -462,6 +474,7 @@ export function BacklinksSection({
       title="Backlinks"
       icon={<Icon path="mdi-link-variant" size={0.9} />}
       load={loadLinkedRefs}
+      {...(hideToggle ? { hideToggle: true } : {})}
       sectionKey="linked-references"
       emptyText="No backlinks."
       defaultExpanded

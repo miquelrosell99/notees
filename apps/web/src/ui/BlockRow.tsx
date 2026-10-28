@@ -1136,10 +1136,12 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
         )}
       </div>
       {/* Expanded block backlinks: the standard Backlinks system section
-          (the page section's chrome — header, hosted tabs, filter bar)
-          scoped to this block, containered in a card. Mounts only while
-          expanded, so the lazy contract holds (a collapsed gutter executes
-          nothing). Hidden in focus mode (#12) with the gutter toggle. */}
+          (the page section's chrome — header, hosted tabs, filter bar —
+          with the collapse toggle hidden, the gutter owns show/hide)
+          scoped to this block, containered in a filled card. Mounts only
+          while expanded, so the lazy contract holds (a collapsed gutter
+          executes nothing). Hidden in focus mode (#12) with the gutter
+          toggle. */}
       {backlinkCount > 0 && !focusMode && (
         <BlockBacklinkPanel nodeId={node.id} expanded={backlinksExpanded} client={client} />
       )}
