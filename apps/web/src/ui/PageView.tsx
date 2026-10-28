@@ -153,9 +153,11 @@ import { usePageMachinery } from "./usePageMachinery.js";
 import { MainContentFrame } from "./MainContentFrame.js";
 import { NodeTopbar, PageHeaderChrome } from "./PageChrome.js";
 
-/** The child-blocks triad, in switcher order. Exported for the NodeView
- *  chrome, which hosts the switcher at the card's top-right. */
-export const BLOCKS_VIEW_MODES: ViewMode[] = ["outline", "prose", "cards"];
+/** The child-blocks modes, in switcher order: the outline/prose/cards triad
+ *  plus the pivot (a page's child blocks pivot like any collection — the
+ *  class bit alone is a dimension). Exported for the NodeView chrome,
+ *  which hosts the switcher at the card's top-right. */
+export const BLOCKS_VIEW_MODES: ViewMode[] = ["outline", "prose", "cards", "pivot"];
 
 /**
  * The preview surface's body cap: the page's FIRST body level only —

@@ -38,7 +38,11 @@ The collection view modes persist like the page triad: the view mode of every hu
 
 ## The view switcher tiers
 
-The collection view switcher (the icon strip on the hosted tab bar's right) declares each mode's **tier in the view registry**, not from a space budget: **primary** modes ride the inline icon strip, **secondary** modes ride the **"…" overflow dropdown** (dropdown rows show icon + label; the toggle shows an active state while the selection lives in the dropdown). Today outline, prose, cards and table are primary; **graph is the first secondary-tier mode**. An all-secondary surface fails soft — everything renders inline — since an empty strip with a "…" would be a caller mistake, not a state to support.
+The collection view switcher (the icon strip on the hosted tab bar's right) declares each mode's **tier in the view registry**, not from a space budget: **primary** modes ride the inline icon strip, **secondary** modes ride the **"…" overflow dropdown** (dropdown rows show icon + label; the toggle shows an active state while the selection lives in the dropdown). Today outline, prose, cards and table are primary; **graph and pivot are secondary-tier modes** — the pivot is the 2D group-by grid (a Rows dimension × a Columns dimension × a measure: count, or sum/average over a number property; class bit, structural role, class membership, or any bound property as dimensions) and rides every collection surface, hubs and classed-nodes sections and a page's child blocks included. An all-secondary surface fails soft — everything renders inline — since an empty strip with a "…" would be a caller mistake, not a state to support.
+
+## View availability gating
+
+A registered mode may declare an **availability gate** in the view registry: a predicate over what the collection can feed it (today: how many date-typed bound properties carry a value, how many items carry a node link or mention). Surfaces filter their mode list through the gate **before** the switcher and the persisted-mode read, so a gated mode never renders and never rides the switcher — and a saved mode the collection can no longer feed falls back to the surface default instead of resurrecting a dead switch. The pivot declares no gate (every set can count — the class bit alone is a dimension); the gate is the seam date- or link-driven views (a timeline, a graph scoped to link-rich sets) plug into.
 
 ## The sort button
 

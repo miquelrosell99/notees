@@ -20,10 +20,12 @@
  *    the normal content update path; a custom tab → the view row via
  *    updateSectionViewAst);
  *  - the shared QueryResults body (list/table + aggregate grid, the
- *    QUERY_RESULT_CAP window) plus the transient view switcher and the
+ *    QUERY_RESULT_CAP window) plus the registry-backed view switcher and the
  *    ids-based Markdown export.
  *
- * The view switcher's mode is TRANSIENT component state. The token's `view` record (title/
+ * The view switcher's mode is TRANSIENT component state (the registry backs
+ * the switch — pivot is a registry mode now — but the selection itself is
+ * never persisted). The token's `view` record (title/
  * isDefault) belongs to the Queries hub's saved views and is not read here.
  */
 
@@ -31,8 +33,7 @@ import { useEffect, useState } from "react";
 
 import { parseQueryAst, type QueryAst } from "@notees/query";
 
-import { NodeCollectionTabs, NodeCollectionTopBar, SECTION_DEFAULT_TAB } from "../features/collection/index.js";
-import { SelectionButton } from "../components/ui/kit/SelectionButton.js";
+import { NodeCollectionTabs, NodeCollectionTopBar, SECTION_DEFAULT_TAB, ViewSwitcher } from "../features/collection/index.js";
 import { NodeCollectionToolbar } from "../features/collection/NodeCollectionToolbar.js";
 import {
   updateSectionViewAst,
@@ -44,9 +45,9 @@ import {
   filterQueryToGroup,
   type FilterQuery,
 } from "../features/collection/filterQuery.js";
-import type { AnyClient } from "../features/collection/index.js";
+import type { AnyClient, ViewMode } from "../features/collection/index.js";
 import { Button } from "../components/ui/kit/Button.js";
-import { QueryResultsBody, isUnspecifiedQueryAst, type QueryViewMode } from "./queryResults.js";
+import { QueryResultsBody, isUnspecifiedQueryAst } from "./queryResults.js";
 import { useQueryRun } from "./queryRun.js";
 import { appendQueryToken, updateQueryTokenAst } from "./queryTokens.js";
 import { buildQueryExportMarkdown, downloadTextFile, queryExportFileName } from "./queryExport.js";
@@ -102,8 +103,8 @@ export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectio
   const [tab, setTab] = useState<string>(SECTION_DEFAULT_TAB);
   const [draft, setDraft] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
   /** View modes are transient surface state —
-      the pivot's dimensions and measure are transient too (QueryPivot). */
-  const [viewMode, setViewMode] = useState<QueryViewMode>("outline");
+      the pivot's dimensions and measure are transient too (PivotGrid). */
+  const [viewMode, setViewMode] = useState<ViewMode>("outline");
 
   // The node's main query surface: the empty section key.
   const { views } = useSectionViews(client, nodeId, "");
@@ -184,21 +185,13 @@ export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectio
             activeCount={resultCount}
             trailing={
               <>
-                {/* The results' three transient modes — the kit SelectionButton
-                    directly (pivot is a query-results view, NOT a collection
-                    registry mode, so the registry-backed ViewSwitcher cannot
-                    name it). */}
-                <SelectionButton
-                  options={[
-                    { value: "outline", icon: "mdi-format-list-bulleted", label: "Outline" },
-                    { value: "table", icon: "mdi-table", label: "Table" },
-                    { value: "pivot", icon: "mdi-table-pivot", label: "Pivot" },
-                  ]}
+                {/* The results' view modes — the registry-backed ViewSwitcher
+                    (pivot is a registry mode like any other; its secondary
+                    tier rides the "…" overflow). */}
+                <ViewSwitcher
+                  modes={["outline", "table", "pivot"]}
                   value={viewMode}
-                  onChange={(value) => setViewMode(value as QueryViewMode)}
-                  size="sm"
-                  aria-label="View mode"
-                  className="view-switcher"
+                  onChange={setViewMode}
                 />
                 <Button
                   type="button"

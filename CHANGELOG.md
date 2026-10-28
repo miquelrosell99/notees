@@ -60,6 +60,60 @@ predating this file.
     `docs/features/pages.md`, the skills + `ui-primitives.md`,
     `scripts/screenshots/topbar-layout-probe.mjs` (new), tests:
     `focus-mode` (footer assertion flips).
+- **feat(web): pivot graduates to a registry view mode, and the view
+  registry gains availability gating.** (1) The pivot — previously a
+  query-results-only transient mode on a raw kit `SelectionButton` — is a
+  first-class `ViewMode`: registered as `pivot` (label "Pivot", icon
+  `mdi-table-pivot`, **secondary tier**, no availability declaration — every
+  set can count, the class bit alone is a dimension). The grouping engine
+  (dimensions: class bit / structural role / class membership / bound
+  properties with effective values; measures: count, sum/avg over number
+  properties; the 20-distinct cap with the "Other" bucket) is extracted pure
+  into `pivot/pivotModel.ts`, consumed by the shared `PivotGrid` shell; the
+  query-results `QueryPivot` is now a thin boundary over `QueryRunSummary`
+  rows (behavior identical) and `PivotView` maps `NodeCollection` items into
+  the engine's minimal `PivotRow` (id + the two render-state bits — no
+  query types leak into the collection feature). (2) Every main collection
+  surface offers the pivot: all hubs (Tasks/Assets/the outline hubs), the
+  classed-nodes section, the Created section, and the page child-blocks
+  triad (`BLOCKS_VIEW_MODES`) — and the choice persists device-locally like
+  any view mode (`VIEW_MODES`). (3) The registry gains **availability
+  gating**: `ViewRegistryEntry.availability(ctx)` over
+  `ViewAvailabilityContext` (`datePropertyCount`, `linkedItemCount` —
+  derived from the collection's own items + effective property values +
+  mentions via `computeViewAvailability`); hosts filter their modes through
+  `availableViewModes` / `useAvailableViewModes` BEFORE the switcher and the
+  persisted-mode sanitize, so a gated mode never renders, never rides the
+  switcher, and a persisted mode that gates out falls back to the surface
+  default (a dead switch never resurrects). No shipped view declares a gate
+  yet — this is the mechanism the scoped-graph/gantt/calendar stages build
+  on. (4) `QueryNodeSection`'s transient switch retires its raw
+  `SelectionButton` (and the `QueryViewMode` type) in favor of the
+  registry-backed `ViewSwitcher` (outline/table primary, pivot on the "…"
+  overflow); query results still render the pivot branch through
+  `QueryPivot` with identical behavior.
+  - **Files**: `apps/web/src/features/collection/pivot/` (NEW:
+    `pivotModel.ts`, `PivotGrid.{tsx,css}`, `PivotView.tsx`), `types.ts`
+    (`ViewMode` + `pivot`; `ViewAvailabilityContext`; the entry's
+    `availability`), `registry.ts` (`availableViewModes`), `availability.ts`
+    (NEW: `computeViewAvailability` + `useAvailableViewModes`), `index.ts`
+    (barrel: pivot registration side effect + the new exports),
+    `CollectionHub.tsx` + `classview/lassedNodesSection.tsx` +
+    `page-sections/CreatedSection.tsx` (the gating seam; pivot in the mode
+    lists), `ui/app/HubView.tsx` (pivot on every hub), `ui/PageView.tsx`
+    (`BLOCKS_VIEW_MODES`), `ui/QueryNodeSection.tsx` + `ui/queryResults.tsx`
+    (registry-backed switch; `QueryViewMode` retired), `ui/QueryPivot.tsx`
+    (thin boundary; the engine + CSS move to the pivot folder), `ui/viewPrefs.ts`
+    (`VIEW_MODES`). Tests: `test/pivot-view.test.tsx` (NEW, 13 specs:
+    registry gating units, the pivot grid over collection items, the
+    secondary-tier switcher, device-local persistence, the gated fallback +
+    armed switcher), `test/query-node.test.tsx` (the pivot rides the
+    overflow). Verified: web typecheck; web suite 209 files / 2411 tests
+    green.
+  - **Docs**: `docs/features/queries.md` (the transient-switch passage
+    corrected — the same registry backs the query results' switch),
+    `docs/features/views.md` (pivot registered secondary; the availability
+    gate).
 
 - **feat(web): the backlink card sheds its header, the gutter button IS the
   badge, and the collection chrome quietens — owner round on the
