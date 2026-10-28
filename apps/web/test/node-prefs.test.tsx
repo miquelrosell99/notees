@@ -22,11 +22,14 @@ import {
   WorkspaceClient,
   mergeFavoriteToggle,
   mergeRecentOpen,
+  type CardsAlgorithm,
 } from "../src/core/workspace-client/index.js";
 import {
   ensureNodePrefsLoaded,
+  getCardsAlgorithm,
   resetNodePrefsForTests,
   reorderNodeFavorites,
+  setCardsAlgorithm,
   toggleNodeFavorite,
   useNodePrefs,
 } from "../src/features/settings/nodePrefs.js";
@@ -101,9 +104,15 @@ describe("WorkspaceClient getPrefs/patchPrefs (HTTP layer)", () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
     stubPrefsFetch(() => ({ favorites: [PAGE_ALPHA], recents: [PAGE_BETA, PAGE_ALPHA], updatedAt: 1 }));
     const prefs = await client.getPrefs();
-    expect(prefs).toEqual({ favorites: [PAGE_ALPHA], recents: [PAGE_BETA, PAGE_ALPHA], source: "server" });
+    expect(prefs).toEqual({
+      favorites: [PAGE_ALPHA],
+      recents: [PAGE_BETA, PAGE_ALPHA],
+      cardsAlgorithm: "fsrs",
+      source: "server",
+    });
     expect(JSON.parse(localStorage.getItem("notees.favorites")!)).toEqual([PAGE_ALPHA]);
     expect(JSON.parse(localStorage.getItem("notees.recents")!)).toEqual([PAGE_BETA, PAGE_ALPHA]);
+    expect(localStorage.getItem("notees.prefs.cardsAlgorithm")).toBe("fsrs");
   });
 
   it("patchPrefs PUTs the merge patch and returns the server answer", async () => {
@@ -121,12 +130,30 @@ describe("WorkspaceClient getPrefs/patchPrefs (HTTP layer)", () => {
     expect(JSON.parse(localStorage.getItem("notees.favorites")!)).toEqual([PAGE_ALPHA]);
   });
 
+  it("patchPrefs carries cardsAlgorithm to the server and the device key", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    const calls = stubPrefsFetch(({ method, body }) => {
+      expect(method).toBe("PUT");
+      return { ...(body !== undefined ? JSON.parse(body) : {}), updatedAt: 2 };
+    });
+    const prefs = await client.patchPrefs({ cardsAlgorithm: "sm2" });
+    expect(prefs.source).toBe("server");
+    expect(prefs.cardsAlgorithm).toBe("sm2");
+    expect(JSON.parse(calls[0]!.body!)).toEqual({ cardsAlgorithm: "sm2" });
+    expect(localStorage.getItem("notees.prefs.cardsAlgorithm")).toBe("sm2");
+  });
+
   it("offline (unreachable server): reads return the cached copy, writes persist locally", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
     stubPrefsFetch(() => new Error("down"));
     localStorage.setItem("notees.favorites", JSON.stringify([PAGE_ALPHA]));
     const read = await client.getPrefs();
-    expect(read).toEqual({ favorites: [PAGE_ALPHA], recents: [], source: "local" });
+    expect(read).toEqual({
+      favorites: [PAGE_ALPHA],
+      recents: [],
+      cardsAlgorithm: "fsrs",
+      source: "local",
+    });
     const write = await client.patchPrefs({ recents: [PAGE_BETA] });
     expect(write.source).toBe("local");
     expect(write.recents).toEqual([PAGE_BETA]);
@@ -164,14 +191,22 @@ describe("prefs merge helpers", () => {
 // nodePrefs store
 // ---------------------------------------------------------------------------
 
-type FakePrefs = { favorites: string[]; recents: string[]; source: "server" | "local"; updatedAt?: number };
+type FakePrefs = {
+  favorites: string[];
+  recents: string[];
+  cardsAlgorithm: CardsAlgorithm;
+  source: "server" | "local";
+  updatedAt?: number;
+};
 
 function fakeClient(overrides: {
   getPrefs?: () => Promise<FakePrefs>;
   patchPrefs?: (patch: unknown) => Promise<FakePrefs>;
 } = {}): import("../src/features/settings/nodePrefs.js").PrefsClient {
   return {
-    getPrefs: overrides.getPrefs ?? (async () => ({ favorites: [], recents: [], source: "local" as const })),
+    getPrefs:
+      overrides.getPrefs ??
+      (async () => ({ favorites: [], recents: [], cardsAlgorithm: "fsrs", source: "local" as const })),
     patchPrefs:
       overrides.patchPrefs ??
       (async (patch: unknown) => ({ ...((patch as object) ?? {}), source: "local" as const }) as FakePrefs),
@@ -183,7 +218,12 @@ describe("nodePrefs store", () => {
     localStorage.setItem("notees.recents", JSON.stringify([PAGE_BETA]));
     const pushed: unknown[] = [];
     const client = fakeClient({
-      getPrefs: async () => ({ favorites: [PAGE_ALPHA], recents: [PAGE_ALPHA], source: "server" }),
+      getPrefs: async () => ({
+        favorites: [PAGE_ALPHA],
+        recents: [PAGE_ALPHA],
+        cardsAlgorithm: "fsrs",
+        source: "server",
+      }),
       patchPrefs: async (patch) => {
         pushed.push(patch);
         return { ...(patch as object), source: "server" } as FakePrefs;
@@ -251,6 +291,48 @@ describe("nodePrefs store", () => {
     });
     await waitFor(() => expect(warn).toHaveBeenCalled());
     expect(JSON.parse(localStorage.getItem("notees.recents")!)).toEqual([PAGE_BETA]);
+  });
+
+  it("getCardsAlgorithm defaults to fsrs and follows the shared copy", async () => {
+    await expect(getCardsAlgorithm()).resolves.toBe("fsrs");
+    setCardsAlgorithm("sm2");
+    await expect(getCardsAlgorithm()).resolves.toBe("sm2");
+  });
+
+  it("setCardsAlgorithm writes the device key, broadcasts notees:prefs, and pushes to the server", async () => {
+    const patches: unknown[] = [];
+    const client = fakeClient({
+      patchPrefs: async (patch) => {
+        patches.push(patch);
+        return { ...(patch as object), source: "server" } as FakePrefs;
+      },
+    });
+    ensureNodePrefsLoaded(client);
+    await waitFor(() => expect(localStorage.getItem("notees.prefs.cardsAlgorithm")).toBe("fsrs"));
+
+    const events: string[] = [];
+    window.addEventListener("notees:prefs", () => events.push("notees:prefs"));
+    setCardsAlgorithm("sm2");
+
+    expect(localStorage.getItem("notees.prefs.cardsAlgorithm")).toBe("sm2");
+    expect(events).toEqual(["notees:prefs"]);
+    await waitFor(() => expect(patches.length).toBeGreaterThan(0));
+    expect((patches.at(-1) as { cardsAlgorithm?: string }).cardsAlgorithm).toBe("sm2");
+    await expect(getCardsAlgorithm()).resolves.toBe("sm2");
+  });
+
+  it("setCardsAlgorithm offline keeps the device-local write and warns", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = fakeClient({
+      patchPrefs: async () => {
+        throw new Error("offline");
+      },
+    });
+    ensureNodePrefsLoaded(client);
+    setCardsAlgorithm("sm2");
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(localStorage.getItem("notees.prefs.cardsAlgorithm")).toBe("sm2");
+    await expect(getCardsAlgorithm()).resolves.toBe("sm2");
   });
 });
 

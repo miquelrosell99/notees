@@ -4,8 +4,9 @@
  * favorites/recents are UI preferences, so they live
  * in the sync server's per-user prefs store, NOT the operation log ("device
  * state is never an op" stands). This module holds the device-local cache
- * (`notees.favorites` / `notees.recents`) the client reads/writes as the
- * honest offline fallback, plus the pure list-merge helpers the UI shares.
+ * (`notees.favorites` / `notees.recents` lists, `notees.prefs.*` scalars)
+ * the client reads/writes as the honest offline fallback, plus the pure
+ * list-merge helpers the UI shares.
  * The WorkspaceClient's getPrefs/patchPrefs speak REST over these.
  */
 
@@ -24,7 +25,15 @@ export interface UserPrefs {
   favorites: string[];
   /** Most-recent-first node ids. */
   recents: string[];
+  /** The memorization-cards scheduler ("sm2" | "fsrs", default "fsrs"). */
+  cardsAlgorithm: CardsAlgorithm;
 }
+
+/** The spaced-repetition scheduler for the memorization-cards surface. */
+export type CardsAlgorithm = "sm2" | "fsrs";
+
+/** The algorithm when the prefs store never carried one. */
+export const DEFAULT_CARDS_ALGORITHM: CardsAlgorithm = "fsrs";
 
 /** "server" — the prefs store answered; "local" — the device cache did. */
 export type UserPrefsSource = "server" | "local";
@@ -33,6 +42,7 @@ export type UserPrefsSource = "server" | "local";
 export interface PrefsPatch {
   favorites?: string[];
   recents?: string[];
+  cardsAlgorithm?: CardsAlgorithm;
 }
 
 /** The server's recents cap (favorites cap 500 — a UI never gets near it). */
@@ -40,6 +50,9 @@ export const MAX_SYNCED_RECENTS = 50;
 
 /** Device-local cache keys — shared with the sidebar/palette legacy readers. */
 const PREFS_LOCAL_KEYS = { favorites: "notees.favorites", recents: "notees.recents" } as const;
+
+/** Device-local scalar keys — the prefs channel's non-list values. */
+const PREFS_SCALAR_KEYS = { cardsAlgorithm: "notees.prefs.cardsAlgorithm" } as const;
 
 /**
  * Memory backing for realms without localStorage (the store worker): the
@@ -79,12 +92,43 @@ export function writeDevicePrefList(key: keyof typeof PREFS_LOCAL_KEYS, list: st
   }
 }
 
+/** Read one device-local prefs scalar; a missing/garbled key is the default. */
+export function readDevicePrefScalar(key: keyof typeof PREFS_SCALAR_KEYS): CardsAlgorithm {
+  if (typeof localStorage !== "undefined") {
+    try {
+      const raw = localStorage.getItem(PREFS_SCALAR_KEYS[key]);
+      return raw === "sm2" || raw === "fsrs" ? raw : DEFAULT_CARDS_ALGORITHM;
+    } catch {
+      // Fall through to the default.
+    }
+  }
+  return DEFAULT_CARDS_ALGORITHM;
+}
+
+/** Write one device-local prefs scalar (localStorage; memory needs none). */
+export function writeDevicePrefScalar(
+  key: keyof typeof PREFS_SCALAR_KEYS,
+  value: CardsAlgorithm,
+): void {
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(PREFS_SCALAR_KEYS[key], value);
+    }
+  } catch {
+    // Storage unavailable; the server push below is the durable write.
+  }
+}
+
 /** Server body → UserPrefs; a malformed answer is a loud error, never half-read. */
 export function normalizeUserPrefs(body: unknown): UserPrefs {
-  const value = body as { favorites?: unknown; recents?: unknown };
+  const value = body as { favorites?: unknown; recents?: unknown; cardsAlgorithm?: unknown };
   const asIds = (input: unknown): string[] =>
     Array.isArray(input) ? input.filter((entry): entry is string => typeof entry === "string") : [];
-  return { favorites: asIds(value?.favorites), recents: asIds(value?.recents) };
+  return {
+    favorites: asIds(value?.favorites),
+    recents: asIds(value?.recents),
+    cardsAlgorithm: value?.cardsAlgorithm === "sm2" ? "sm2" : "fsrs",
+  };
 }
 
 /** Star toggle: add/remove an id, preserving the existing order. */

@@ -49,11 +49,15 @@ export type {
 } from "./types.js";
 export { fetchAssetBlob, postAssetUpload, readBlobAsDataUrl } from "./asset-transport.js";
 export {
+  DEFAULT_CARDS_ALGORITHM,
   MAX_SYNCED_RECENTS,
   mergeFavoriteToggle,
   mergeRecentOpen,
   readDevicePrefList,
+  readDevicePrefScalar,
   writeDevicePrefList,
+  writeDevicePrefScalar,
+  type CardsAlgorithm,
   type PrefsPatch,
   type UserPrefs,
   type UserPrefsSource,
