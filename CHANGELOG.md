@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): `ensureCardFamily` self-heal for the card-family property
+  schemas (memorization cards slice).** The six SRS schedule schemas
+  (`CARD_FAMILY_SEED` / `CARD_PROPERTY_UUIDS`, the …0004- property block)
+  existed as domain constants + applier-side seed-ensure only — nothing
+  authored them, so a workspace missing them could never carry schedule
+  state. The web ensure, on the `ensureTaskFamily` precedent: a read gate
+  (`cardFamilyPresent` — every schema present AND bound to the card class)
+  plus an idempotent authoring pass that creates the missing schemas at
+  their reserved ids with GLOBAL scope (no `scopeClassIds`, exactly like
+  the task family) and lands the per-class bindings with empty fields (the
+  whole family seeds unpinned — the 2026-10-27 pinned roster is frozen).
+  All six schemas are scalar (one datetime, five numbers), so there is no
+  select-option restyle pass. Unlike `ensureTaskFamily`, the card class
+  NODE is never self-healed: `card` is an always-on system class owned by
+  the server seed/deploy paths — when the node is genuinely absent the
+  schemas still self-heal but the binding pass is skipped rather than
+  fabricating a class (the rows would attach to nothing and re-author on
+  every open). The composed client surface (`CardFamilyClient`) picks
+  `listPropertySchemas` / `getClassBindings` / `getNodeRaw` /
+  `createPropertySchema` / `setClassProperty` — RPC-mirrored, safe under
+  both `WorkspaceClient` and `WorkerClient`; Task 9 calls the ensure on
+  Cards-hub entry. Verified: new `card-family.test.ts` (6 tests against a
+  stub client — seed-id authoring, global scope, idempotency, gap-fill,
+  the absent-class-node skip, the both-sides read gate), full gate green
+  (typecheck + test).
+  - **Files**: `apps/web/src/features/classview/cardFamily.ts` (new),
+    `apps/web/test/card-family.test.ts` (new).
+
 - **docs(changelog): the card.review lockstep converged — GTK `506959d`,
   Flutter `c6f720e`.** Both client legs shipped on their
   memorization-cards-lockstep branches with `card-review.json`
