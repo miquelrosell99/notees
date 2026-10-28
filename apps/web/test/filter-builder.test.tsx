@@ -139,7 +139,7 @@ function classedNodesSection(): HTMLElement {
 
 /** The open structured-facet panel of the visible FilterBar. */
 function structuredPanel(): HTMLElement {
-  const panel = document.querySelector(".nt-node-collection-bar__panel");
+  const panel = document.querySelector(".nt-node-collection-toolbar__panel");
   if (panel === null) throw new Error("no structured filter panel open");
   return panel as HTMLElement;
 }

@@ -15,7 +15,7 @@
 }
 
 .nt-node-collection-tabs__bar {
-  /* Wraps: an inline NodeCollectionBar's structured panel takes a full-width line
+  /* Wraps: an inline NodeCollectionToolbar's structured panel takes a full-width line
      beneath the row when open. */
   display: flex;
   flex-wrap: wrap;
@@ -43,13 +43,10 @@
   gap: var(--spacing-1);
 }
 
+/* The active-tab count: the fleet Badge (neutral pill) owns the look — the
+   wrapper span keeps only the aria-hidden hook. */
 .nt-node-collection-tabs__tab-count {
-  font: var(--font-label-small);
-  line-height: 1;
-  color: var(--md-sys-color-on-surface-variant);
-  background: var(--md-sys-color-surface-container-high);
-  border-radius: var(--shape-medium);
-  padding: 0.25em 0.6em;
+  display: inline-flex;
   flex-shrink: 0;
 }
 

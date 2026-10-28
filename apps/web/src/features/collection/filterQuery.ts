@@ -1,7 +1,7 @@
 /**
  * filterQuery — the transient filter layer's data.
  *
- * A filterable section renders a NodeCollectionBar whose state is a FilterQuery: the
+ * A filterable section renders a NodeCollectionToolbar whose state is a FilterQuery: the
  * quick-search text plus a DRAFT query-AST root group the structured panel's
  * block builder edits (`Group` from @notees/query, the one normative
  * grammar — the builder is the v1 query-builder block UI ported over the
@@ -80,13 +80,13 @@ export function isFilterInactive(query: FilterQuery): boolean {
 
 /**
  * The per-section facet configuration — `SectionSpec.filterable` and the
- * NodeCollectionBar's `config`. Every facet defaults on; `filterable: true` is the
+ * NodeCollectionToolbar's `config`. Every facet defaults on; `filterable: true` is the
  * full set, absent/false renders no bar at all. The facets gate the quick
  * text field and which condition KINDS the builder's add menu offers; the
  * other kinds (type/placement/content/wire fields/groups) are always
  * offered.
  */
-export interface NodeCollectionBarConfig {
+export interface NodeCollectionToolbarConfig {
   text?: boolean | undefined;
   class?: boolean | undefined;
   properties?: boolean | undefined;
@@ -277,7 +277,7 @@ export const FILTER_KIND_OPTIONS: readonly FilterKindOption[] = [
 ];
 
 /** The add-menu entries a config offers — the gated kinds plus the groups. */
-export function filterKindOptionsForConfig(config?: NodeCollectionBarConfig): readonly FilterKindOption[] {
+export function filterKindOptionsForConfig(config?: NodeCollectionToolbarConfig): readonly FilterKindOption[] {
   const showClass = config?.class ?? true;
   const showProperties = config?.properties ?? true;
   const showDateRange = config?.dateRange ?? true;

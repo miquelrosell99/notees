@@ -38,6 +38,7 @@
 import type { ReactNode } from 'react';
 
 import { Icon } from '../../../ui/Icon.js';
+import { Badge } from './Badge.js';
 import './SurfaceTopBar.css';
 
 export interface SurfaceTopBarProps {
@@ -105,7 +106,7 @@ export function SurfaceTopBar({
         )
       )}
       {titleExtra !== undefined && <div className="surface-topbar__title-extra">{titleExtra}</div>}
-      {lead === undefined && count !== undefined && <span className="surface-topbar__count">{count}</span>}
+      {lead === undefined && count !== undefined && <Badge className="surface-topbar__count" size="sm">{count}</Badge>}
       {lead === undefined && context !== undefined && <div className="surface-topbar__context">{context}</div>}
       <span className="surface-topbar__spacer" aria-hidden="true" />
       {actions !== undefined && <div className="surface-topbar__actions">{actions}</div>}

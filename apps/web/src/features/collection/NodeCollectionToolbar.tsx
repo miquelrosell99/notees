@@ -1,14 +1,14 @@
 /**
- * NodeCollectionBar — the transient filter layer's chrome: the control row a
+ * NodeCollectionToolbar — the transient filter layer's chrome: the control row a
  * `filterable` section renders with its collection — at the body top for an
  * un-hosted collection, inline in the hosted tab bar's right-hand cluster
  * (the section header is a single <button> — no interactive control nests
- * inside it). Composed from kit primitives only: SearchField for the quick
- * text facet, the structured panel is the v1 query-builder block UI ported
- * over the query AST (./FilterBlockBuilder.js — condition rows, nested
+ * inside it). Composed from kit primitives only: CollapsibleSearchField for
+ * the quick text facet, the structured panel is the v1 query-builder block UI
+ * ported over the query AST (./FilterBlockBuilder.js — condition rows, nested
  * Match ALL/ANY groups, NOT wrappers, the add menu).
  *
- * The bar is CONTROLLED: the FilterQuery is component state at the section
+ * The toolbar is CONTROLLED: the FilterQuery is component state at the section
  * (one instance per section view/tab, lost on reload — nothing persisted),
  * the hook applies its composed group post-resolution/pre-windowing, and
  * the eager count stays unfiltered — while the query is active the bar names
@@ -17,11 +17,15 @@
  * badge; the panel's foot row now carries only
  * the caller's extras (the "Save as tab" escape).
  *
- * The quick search is a PERMANENT field on wide viewports; at narrow widths
- * (≤768px) it folds into a magnifier button whose popup carries the field
- * (see `narrowSearch` below). In a wrapping chrome row (the hosted tab bar's
- * `trailing`) the bar renders LAST in the cluster so its structured panel
- * wraps a full-width line beneath the row WITHOUT moving the other controls.
+ * The quick search COLLAPSES on wide viewports: a ghost magnifier button
+ * expands the field in flow (caret lands in the input), the pill's × folds it
+ * back — the kit CollapsibleSearchField (../../components/ui/fleet/CollapsibleSearchField.js).
+ * At narrow widths (≤768px) the fold becomes a magnifier button whose POPUP
+ * carries the field (see `narrowSearch` below) — on a phone the anchored
+ * overlay keeps the chrome row its seats. In a wrapping chrome row (the
+ * hosted tab bar's `trailing`) the toolbar renders LAST in the cluster so its
+ * structured panel wraps a full-width line beneath the row WITHOUT moving
+ * the other controls.
  */
 
 import { useState } from "react";
@@ -29,8 +33,10 @@ import { useState } from "react";
 import type { AnyClient } from "./index.js";
 
 import { useMediaQuery } from "../../ui/useMediaQuery.js";
+import { Badge } from "../../components/ui/kit/Badge.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { ButtonWithPanel } from "../../components/ui/kit/ButtonWithPanel.js";
+import { CollapsibleSearchField } from "../../components/ui/kit/CollapsibleSearchField.js";
 import { SearchField } from "../../components/ui/kit/SearchField.js";
 import { FilterBlockBuilder } from "./FilterBlockBuilder.js";
 import {
@@ -42,12 +48,12 @@ import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
   isFilterInactive,
-  type NodeCollectionBarConfig,
+  type NodeCollectionToolbarConfig,
   type FilterQuery,
 } from "./filterQuery.js";
 import type { HostedSectionKey } from "@/core/workspace-client/index.js";
 import type { QueryAst } from "@notees/query";
-import "./NodeCollectionBar.css";
+import "./NodeCollectionToolbar.css";
 
 /**
  * The "Save as tab" wiring: when the host section
@@ -78,13 +84,13 @@ export interface FilterApplyTarget {
   onApply: (ast: QueryAst) => Promise<boolean>;
 }
 
-export interface NodeCollectionBarProps {
+export interface NodeCollectionToolbarProps {
   client: AnyClient;
   /** The section's FilterQuery (component state at the section). */
   value: FilterQuery;
   onChange: (query: FilterQuery) => void;
   /** Which facets the bar offers (default: all). */
-  config?: NodeCollectionBarConfig | undefined;
+  config?: NodeCollectionToolbarConfig | undefined;
   /** The filtered row count — null while the section is unresolved. */
   matchCount: number | null;
   /**
@@ -120,7 +126,7 @@ export interface NodeCollectionBarProps {
   layout?: "block" | "inline" | undefined;
 }
 
-export function NodeCollectionBar({ client, value, onChange, config, matchCount, totalCount, viewSaver, applyTarget, defaultPanelOpen = false, layout = "block" }: NodeCollectionBarProps) {
+export function NodeCollectionToolbar({ client, value, onChange, config, matchCount, totalCount, viewSaver, applyTarget, defaultPanelOpen = false, layout = "block" }: NodeCollectionToolbarProps) {
   const [panelOpen, setPanelOpen] = useState(defaultPanelOpen);
   /**
    * The narrow-viewport fold: at ≤768px the permanent
@@ -184,16 +190,16 @@ export function NodeCollectionBar({ client, value, onChange, config, matchCount,
   const hasText = (value.text ?? "") !== "";
 
   return (
-    <div className={`nt-node-collection-bar${layout === "inline" ? " nt-node-collection-bar--inline" : ""}`}>
-      <div className="nt-node-collection-bar__row">
+    <div className={`nt-node-collection-toolbar${layout === "inline" ? " nt-node-collection-toolbar--inline" : ""}`}>
+      <div className="nt-node-collection-toolbar__row">
         {showText && !narrowSearch && (
-          <SearchField
-            className="nt-node-collection-bar__search"
+          <CollapsibleSearchField
+            className="nt-node-collection-toolbar__search"
             size="sm"
             aria-label="Filter by text"
             placeholder="Filter…"
             value={value.text ?? ""}
-            onChange={(event) => onChange({ ...value, text: event.target.value })}
+            onChange={(text) => onChange({ ...value, text })}
             onClear={() => onChange({ ...value, text: "" })}
           />
         )}
@@ -210,9 +216,9 @@ export function NodeCollectionBar({ client, value, onChange, config, matchCount,
             buttonProps={{ active: hasText }}
           >
             {() => (
-              <div className="nt-node-collection-bar__search-pop">
+              <div className="nt-node-collection-toolbar__search-pop">
                 <SearchField
-                  className="nt-node-collection-bar__search"
+                  className="nt-node-collection-toolbar__search"
                   aria-label="Filter by text"
                   placeholder="Filter…"
                   autoFocus
@@ -238,9 +244,9 @@ export function NodeCollectionBar({ client, value, onChange, config, matchCount,
           />
         )}
         {active && matchCount !== null && totalCount !== null && (
-          <span className="nt-node-collection-bar__count">
+          <Badge className="nt-node-collection-toolbar__count" size="xs">
             {matchCount} of {totalCount}
-          </span>
+          </Badge>
         )}
         {active && (
           <Button
@@ -259,7 +265,7 @@ export function NodeCollectionBar({ client, value, onChange, config, matchCount,
       </div>
       {panelOpen && (
         <div
-          className="nt-node-collection-bar__panel"
+          className="nt-node-collection-toolbar__panel"
           role="group"
           aria-label="Structured filters"
         >

@@ -22,6 +22,7 @@
 import { useState, type ReactNode } from "react";
 
 import { Icon } from "../../ui/Icon.js";
+import { Badge } from "../../components/ui/fleet/Badge.js";
 import "./NodeViewSection.css";
 
 /** The header's trailing icon-only action (the section-scoped create). */
@@ -88,7 +89,7 @@ export function NodeViewSection({
     <span className="node-view-section__title-area">
       {icon && <span className="node-view-section__icon">{icon}</span>}
       <span className="node-view-section__title">{title}</span>
-      {count !== undefined && <span className="node-view-section__count">{count}</span>}
+      {count !== undefined && <Badge className="node-view-section__count" size="sm">{count}</Badge>}
     </span>
   );
 

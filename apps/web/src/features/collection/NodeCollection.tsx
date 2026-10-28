@@ -27,12 +27,12 @@
  * A collection WITHOUT hosted tabs has no tab row — its section host names
  * the count in the section-header badge instead (the count is named exactly once per section, on the tab when
  * tabs exist, on the header when they don't).
- * `tabBarTrailing` rides the tab bar's far right — the
+ * `toolbarContent` rides the top bar's right — the
  * host section's filter/view chrome joins the tabs' row; it renders ONLY
  * in the hosted tab bar (a non-hosted collection has no tab row). The
  * view's own per-view toolbar (table columns/sort/more, cards cover/selection)
- * portals into a slot mounted BEFORE the trailing chrome — the cluster ends
- * with the NodeCollectionBar so its wrapped structured panel never moves the row.
+ * portals into a slot mounted BEFORE the toolbar cluster — the cluster ends
+ * with the NodeCollectionToolbar so its wrapped structured panel never moves the row.
  *
  *  The focused-block view (the `parent` prop, the v1
  *  "show parents" NodeCollection prop, generalized): the collection shows
@@ -76,6 +76,7 @@ import { useSectionViews } from "./sectionViews.js";
 import { childQuery } from "./childQuery.js";
 import { getViewDefinition } from "./registry.js";
 import { SECTION_DEFAULT_TAB, NodeCollectionTabs } from "./NodeCollectionTabs.js";
+import { NodeCollectionTopBar } from "./NodeCollectionTopBar.js";
 import { useSectionViewResolution } from "./sectionViewResolve.js";
 import type { NodeCollectionProps, ViewMode } from "./types.js";
 import { ViewChromeContext } from "./viewChrome.js";
@@ -83,7 +84,7 @@ import { ViewChromeContext } from "./viewChrome.js";
 export function NodeCollection({
   viewMode,
   hostedViews,
-  tabBarTrailing,
+  toolbarContent,
   ...props
 }: NodeCollectionProps & { viewMode: ViewMode }) {
   const entry = getViewDefinition(viewMode);
@@ -282,18 +283,22 @@ export function NodeCollection({
       }${props.className ?? ""}`.trim()}
     >
       {hosted !== null && (
-        <NodeCollectionTabs
-          client={props.client}
-          nodeId={hosted.nodeId}
-          sectionKey={hosted.sectionKey}
-          selected={selectedView !== undefined ? tab : SECTION_DEFAULT_TAB}
-          onSelect={setTab}
-          createAst={hosted.createAst}
-          activeCount={tabRowCount}
-          trailing={
+        <NodeCollectionTopBar
+          tabs={
+            <NodeCollectionTabs
+              client={props.client}
+              nodeId={hosted.nodeId}
+              sectionKey={hosted.sectionKey}
+              selected={selectedView !== undefined ? tab : SECTION_DEFAULT_TAB}
+              onSelect={setTab}
+              createAst={hosted.createAst}
+              activeCount={tabRowCount}
+            />
+          }
+          toolbar={
             <>
               <span className="node-collection__view-chrome" ref={setChromeSlot} />
-              {tabBarTrailing}
+              {toolbarContent}
             </>
           }
         />

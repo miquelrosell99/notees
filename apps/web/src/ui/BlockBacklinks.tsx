@@ -21,14 +21,20 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Badge } from "../components/ui/kit/Badge.js";
+import { Button } from "../components/ui/kit/Button.js";
 import { Card } from "../components/ui/kit/Card.js";
 import { BacklinksSection } from "../features/page-sections/SystemSections.js";
 import { useOutliner } from "./outliner-context.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
-/** The right-gutter toggle: the materialized backlink count alone (the
- *  chain icon retired — two elements of chrome for one number read noisy). */
+/**
+ * The right-gutter toggle: the materialized backlink count alone (the
+ * chain icon retired — two elements of chrome for one number read noisy).
+ * The STANDARD toggle-button approach (the top bar's sidebar toggles):
+ * a ghost button — transparent, no border — whose `active` state fills
+ * surface-container-active while the panel is open.
+ */
 export function BlockBacklinkToggle({
   count,
   expanded,
@@ -40,19 +46,21 @@ export function BlockBacklinkToggle({
 }) {
   const label = `${count} linked reference${count === 1 ? "" : "s"}`;
   return (
-    <button
+    <Button
       type="button"
-      className={`nt-block-backlink-toggle${expanded ? " nt-block-backlink-toggle--expanded" : ""}`}
+      variant="ghost"
+      size="xs"
       aria-label={label}
-      aria-expanded={expanded}
+      aria-pressed={expanded}
       title={label}
+      active={expanded}
       onClick={(event) => {
         event.stopPropagation();
         onToggle();
       }}
     >
       <Badge size="xs">{count}</Badge>
-    </button>
+    </Button>
   );
 }
 

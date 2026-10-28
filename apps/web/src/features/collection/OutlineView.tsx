@@ -78,7 +78,7 @@ import { Icon } from "../../ui/Icon.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { useDeviceSetting } from "../../features/settings/deviceSettings.js";
 import { Breadcrumbs } from "../node-menu/Breadcrumbs.js";
-import { SortMenuButton, type SortMenuOption } from "../../components/ui/kit/index.js";
+import { SortMenuButton, Badge, type SortMenuOption } from "../../components/ui/kit/index.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
@@ -543,7 +543,7 @@ function GroupedFlat({ props, groups, sortKey }: { props: NodeCollectionProps; g
                     <Icon path={group.icon} size={0.9} className="outline-group__icon" />
                   )}
                   <span className="outline-group__name">{group.label}</span>
-                  <span className="outline-group__count">{group.items.length}</span>
+                  <Badge className="outline-group__count" size="xs">{group.items.length}</Badge>
                 </button>
               ) : (
                 <span className="outline-group__label">
@@ -551,7 +551,7 @@ function GroupedFlat({ props, groups, sortKey }: { props: NodeCollectionProps; g
                     <Icon path={group.icon} size={0.9} className="outline-group__icon" />
                   )}
                   <span className="outline-group__name">{group.label}</span>
-                  <span className="outline-group__count">{group.items.length}</span>
+                  <Badge className="outline-group__count" size="xs">{group.items.length}</Badge>
                 </span>
               )}
             </div>

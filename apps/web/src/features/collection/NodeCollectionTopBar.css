@@ -1,0 +1,20 @@
+/* NodeCollectionTopBar — the hosted collection's top chrome: ONE wrapping
+   flex line hosting the tabs strip (left, absorbing the free width) and the
+   toolbar cluster (right). The toolbar rides with display: contents so its
+   control row joins this line and its structured panel wraps a full-width
+   line beneath. Token-only. */
+
+.nt-node-collection-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+
+/* The tabs strip absorbs the free width (its own bar scrolls/wraps its
+   overflow); flex-start keeps the toolbar row top-aligned with the tab row
+   even while the strip carries its second (manage) row beneath it. */
+.nt-node-collection-topbar__tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+}

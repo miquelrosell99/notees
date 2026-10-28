@@ -18,6 +18,7 @@ export type { UseWindowedOptions, WindowedState } from "./useWindowed.js";
 export { ShowMoreButton } from "./ShowMoreButton.js";
 export { NodeCollection } from "./NodeCollection.js";
 export { SECTION_DEFAULT_TAB, NodeCollectionTabs, autoViewName } from "./NodeCollectionTabs.js";
+export { NodeCollectionTopBar } from "./NodeCollectionTopBar.js";
 export { planSectionView, applySectionView, resolveSectionViewProbed, useSectionViewResolution } from "./sectionViewResolve.js";
 export { ViewSwitcher } from "./ViewSwitcher.js";
 export { ViewToolbar } from "./ViewToolbar.js";

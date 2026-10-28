@@ -11,9 +11,9 @@
  * for now); the skin lands as the single render target for the
  * SectionSpec stacks.
  *
- * The transient filter layer: `filterable` renders the NodeCollectionBar — at the
+ * The transient filter layer: `filterable` renders the NodeCollectionToolbar — at the
  * body top for an UN-hosted collection; as the hosted tab bar's far-right
- * `tabBarTrailing` (inline, the collapsible quick search) when the collection props carry `hostedViews` — and applies
+ * `toolbarContent` (inline, the collapsible quick search) when the collection props carry `hostedViews` — and applies
  * its FilterQuery through the hook — post-resolution, pre-windowing. The
  * count rides the hosted tab bar's active-tab badge (displayed rows), never
  * a section-header number; the gate below stays
@@ -28,13 +28,13 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { AnyClient, NodeCollectionItem, NodeCollectionProps, ViewMode } from "./index.js";
 import { NodeCollection } from "./index.js";
 
-import { NodeCollectionBar } from "./NodeCollectionBar.js";
+import { NodeCollectionToolbar } from "./NodeCollectionToolbar.js";
 import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
   isFilterInactive,
   quickTextOf,
-  type NodeCollectionBarConfig,
+  type NodeCollectionToolbarConfig,
   type FilterQuery,
 } from "./filterQuery.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
@@ -61,16 +61,16 @@ export interface CollectionSectionProps {
   /** The view the collection renders in. */
   viewMode: ViewMode;
   /**
-   * The transient filter layer (default OFF): true renders the NodeCollectionBar
-   * with its full facet set, a NodeCollectionBarConfig names the offered facets,
+   * The transient filter layer (default OFF): true renders the NodeCollectionToolbar
+   * with its full facet set, a NodeCollectionToolbarConfig names the offered facets,
    * absent/false renders no bar.
    */
-  filterable?: boolean | NodeCollectionBarConfig | undefined;
+  filterable?: boolean | NodeCollectionToolbarConfig | undefined;
   /** Exactly one resolution strategy (see useSectionData). */
   read?: ((ctx: SectionCtx) => NodeCollectionItem[]) | undefined;
   query?: ((ctx: SectionCtx) => Promise<NodeCollectionItem[]>) | undefined;
   /** Optional chrome (a ViewToolbar) riding the body top, above the collection. */
-  toolbar?: ReactNode | undefined;
+  toolbarContent?: ReactNode | undefined;
   /** Extra NodeCollection props (groups / renderItem / readOnly / onNodeClick / …). */
   collection?: Omit<NodeCollectionProps, "client" | "items" | "viewMode"> | undefined;
   /** Hide the whole section when the count gate reads 0 (the section never vanishes behind an unresolved count). */
@@ -88,7 +88,7 @@ export function CollectionSection({
   filterable = false,
   read,
   query,
-  toolbar,
+  toolbarContent,
   collection,
   hideWhenEmpty = false,
 }: CollectionSectionProps) {
@@ -131,7 +131,7 @@ export function CollectionSection({
       onExpandedChange={setExpanded}
     >
       {filterable !== false && !hosted && (
-        <NodeCollectionBar
+        <NodeCollectionToolbar
           client={client}
           value={filterQuery}
           onChange={setFilterQuery}
@@ -140,8 +140,8 @@ export function CollectionSection({
           totalCount={count ?? total}
         />
       )}
-      {toolbar !== undefined && (
-        <div className="nt-collection-section__toolbar">{toolbar}</div>
+      {toolbarContent !== undefined && (
+        <div className="nt-collection-section__toolbar">{toolbarContent}</div>
       )}
       {rows === null ? null : (
         <NodeCollection
@@ -151,12 +151,12 @@ export function CollectionSection({
           {...collection}
           {...(filterable !== false && hosted
             ? {
-                // The NodeCollectionBar renders LAST in the cluster: its wrapped structured panel lands beneath
+                // The NodeCollectionToolbar renders LAST in the cluster: its wrapped structured panel lands beneath
                 // the row without moving the other trailing chrome.
-                tabBarTrailing: (
+                toolbarContent: (
                   <>
-                    {collection?.tabBarTrailing}
-                    <NodeCollectionBar
+                    {collection?.toolbarContent}
+                    <NodeCollectionToolbar
                       client={client}
                       layout="inline"
                       value={filterQuery}

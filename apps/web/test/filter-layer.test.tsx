@@ -7,12 +7,14 @@
  * section), the query is one instance per section view (the two reference
  * sections never share), and the three filterable sections — Backlinks,
  * Unlinked mentions, classed nodes — render the shared FilterBar's chrome
- * while a non-filterable section (Child pages) renders none. Since the bar rides the hosted tab bar's FAR RIGHT (the
- * NodeCollection's `tabBarTrailing` — one row with the tabs, every button
- * right): the quick search is a PERMANENT field on that row (the magnifier
- * fold shipped and was reverted the same day — permanent reads better), the
+ * while a non-filterable section (Child pages) renders none. Since the bar rides the hosted top bar's FAR RIGHT (the
+ * NodeCollection's `toolbarContent`, composed by NodeCollectionTopBar — one
+ * row with the tabs, every button
+ * right): the quick search COLLAPSES by default (the kit CollapsibleSearchField
+ * — a ghost magnifier button expands the field in flow, the pill's × folds it
+ * back), the
  * structured builder opens in a wrapped full-width panel beneath the row
- * (the FilterBar renders last in the cluster, so the wrap never moves the
+ * (the toolbar renders last in the cluster, so the wrap never moves the
  * other controls), and each section owns its query instance — a filter on
  * Backlinks never leaks into Unlinked mentions. The quick search itself is
  * the RANKED search since the global search's priority
@@ -103,9 +105,18 @@ function section(headerName: RegExp): HTMLElement {
 
 /** The open structured-facet panel of a visible FilterBar. */
 function structuredPanel(): HTMLElement {
-  const panel = document.querySelector(".nt-node-collection-bar__panel");
+  const panel = document.querySelector(".nt-node-collection-toolbar__panel");
   if (panel === null) throw new Error("no structured filter panel open");
   return panel as HTMLElement;
+}
+
+/** The quick search COLLAPSES by default (the magnifier toggle) — expand it
+ * before typing into it, and hand back the field. */
+function openQuickSearch(scope: HTMLElement): HTMLElement {
+  if (within(scope).queryByLabelText("Filter by text") === null) {
+    fireEvent.click(within(scope).getByRole("button", { name: "Search rows" }));
+  }
+  return within(scope).getByLabelText("Filter by text") as HTMLElement;
 }
 
 describe("the classed-nodes filter bar", () => {
@@ -138,7 +149,7 @@ describe("the classed-nodes filter bar", () => {
     // filtered could never show Row 119; post-resolution/pre-windowing
     // ranking shows it, and a partial-tier row (Row 000) ranks out of the
     // first window entirely.
-    fireEvent.change(within(section).getByLabelText("Filter by text"), {
+    fireEvent.change(openQuickSearch(section), {
       target: { value: "Row 1" },
     });
     expect(tableRowCount()).toBe(100);
@@ -166,7 +177,7 @@ describe("the classed-nodes filter bar", () => {
 
     render(<NodeView client={client} onOpenNode={() => {}} nodeId={classId} />);
     const section = classedNodesSection();
-    fireEvent.change(within(section).getByLabelText("Filter by text"), {
+    fireEvent.change(openQuickSearch(section), {
       target: { value: "alpha beta" },
     });
 
@@ -192,7 +203,7 @@ describe("the classed-nodes filter bar", () => {
 
     render(<NodeView client={client} onOpenNode={() => {}} nodeId={classId} />);
     const section = classedNodesSection();
-    fireEvent.change(within(section).getByLabelText("Filter by text"), {
+    fireEvent.change(openQuickSearch(section), {
       target: { value: "gmi dental" },
     });
 
@@ -214,7 +225,7 @@ describe("the classed-nodes filter bar", () => {
     const section = classedNodesSection();
     expect(tableRowCount()).toBe(100);
 
-    fireEvent.change(within(section).getByLabelText("Filter by text"), {
+    fireEvent.change(openQuickSearch(section), {
       target: { value: "zzz" },
     });
 
@@ -336,17 +347,19 @@ describe("the classed-nodes filter bar", () => {
 
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     const section = classedNodesSection();
-    const bar = section.querySelector(".nt-node-collection-tabs__bar") as HTMLElement;
+    // The toolbar rides the top bar (NodeCollectionTopBar) — the wrapping
+    // line that hosts both the tabs strip and the toolbar cluster.
+    const bar = section.querySelector(".nt-node-collection-topbar") as HTMLElement;
 
     // "+" is the LAST item of the tablist.
     const add = within(bar).getByRole("button", { name: "Add custom view" });
     expect(add.closest('[role="tablist"]')).not.toBeNull();
 
     // Ordering contract: the view switcher (and the table's own toolbar)
-    // render BEFORE the FilterBar's permanent search field, so the wrapped
+    // render BEFORE the FilterBar's search pill, so the wrapped
     // structured panel can never push them off the row. (SelectionButton
     // doesn't forward a className — the stable selector is its own.)
-    const search = within(bar).getByLabelText("Filter by text");
+    const search = openQuickSearch(bar);
     const precedes = (el: Element | null): boolean =>
       el !== null && (search.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING) !== 0;
     expect(precedes(bar.querySelector(".selection-button"))).toBe(true);
@@ -428,20 +441,23 @@ describe("the reference sections' filter bars", () => {
     await client.createObject({ isEmbedded: false, name: "Kid", parentId: pageId });
 
     render(<PageView client={client} pageId={pageId} />);
-    // Backlinks is expanded by default: its chrome (the permanent quick
-    // search + the structured-filters toggle) rides the hosted tab bar's
-    // far right.
+    // Backlinks is expanded by default: its chrome (the collapsible quick
+    // search's magnifier toggle + the structured-filters toggle) rides the
+    // hosted top bar's right.
     const backlinks = section(/Backlinks/);
-    expect(within(backlinks).getByLabelText("Filter by text")).not.toBeNull();
+    expect(within(backlinks).queryByLabelText("Filter by text")).toBeNull();
+    expect(within(backlinks).getByRole("button", { name: "Search rows" })).not.toBeNull();
     expect(within(backlinks).getByRole("button", { name: "Structured filters" })).not.toBeNull();
     // …the Child pages section (not filterable) carries none.
     const childSection = section(/Child pages/);
     expect(within(childSection).queryByLabelText("Filter by text")).toBeNull();
+    expect(within(childSection).queryByRole("button", { name: "Search rows" })).toBeNull();
 
     // The Unlinked mentions section starts collapsed — no chrome until the
     // first expand (a collapsed section renders no body).
     const unlinked = expandUnlinkedMentions();
-    expect(within(unlinked).getByLabelText("Filter by text")).not.toBeNull();
+    expect(within(unlinked).queryByLabelText("Filter by text")).toBeNull();
+    expect(within(unlinked).getByRole("button", { name: "Search rows" })).not.toBeNull();
     expect(within(unlinked).getByRole("button", { name: "Structured filters" })).not.toBeNull();
     expect(within(unlinked).getAllByText("Plain Source")).not.toHaveLength(0);
   });
@@ -454,7 +470,7 @@ describe("the reference sections' filter bars", () => {
     const backlinks = section(/Backlinks/);
 
     // Empty the Backlinks section through its own chrome.
-    fireEvent.change(within(backlinks).getByLabelText("Filter by text"), {
+    fireEvent.change(openQuickSearch(backlinks), {
       target: { value: "zzz" },
     });
     expect(within(backlinks).getByText("0 of 1")).not.toBeNull();
@@ -465,7 +481,7 @@ describe("the reference sections' filter bars", () => {
     // The Unlinked section owns a DIFFERENT instance: its field reads the
     // untouched query — the rows are live.
     const unlinked = expandUnlinkedMentions();
-    expect((within(unlinked).getByLabelText("Filter by text") as HTMLInputElement).value).toBe("");
+    expect((openQuickSearch(unlinked) as HTMLInputElement).value).toBe("");
     expect(within(unlinked).queryByText(/of 1/)).toBeNull();
     expect(within(unlinked).getAllByText("Plain Source")).not.toHaveLength(0);
   });
@@ -479,7 +495,7 @@ describe("the reference sections' filter bars", () => {
     const unlinked = expandUnlinkedMentions();
     expect(unlinkedSpy).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(within(unlinked).getByLabelText("Filter by text"), {
+    fireEvent.change(openQuickSearch(unlinked), {
       target: { value: "zzz" },
     });
     expect(within(unlinked).getByText("0 of 1")).not.toBeNull();
@@ -521,7 +537,7 @@ describe("the reference sections' filter bars", () => {
     // …expand the other section: its builder slot is a DIFFERENT instance —
     // the Backlinks draft survives on its own.
     const unlinked = expandUnlinkedMentions();
-    expect(unlinked.querySelector(".nt-node-collection-bar__panel")).toBeNull();
+    expect(unlinked.querySelector(".nt-node-collection-toolbar__panel")).toBeNull();
     expect(structuredPanel().textContent).toContain("Class");
   });
 });
