@@ -161,11 +161,11 @@ const path = process_.getBuiltinModule("node:path") as unknown as {
   join(...parts: string[]): string;
 };
 const css = process_.getBuiltinModule("node:fs").readFileSync(
-  path.join(process_.cwd(), "src", "ui", "app.css"),
+  path.join(process_.cwd(), "src", "ui", "NodeLinks.css"),
   "utf8",
 );
 
-describe("app.css chip label underline scoping", () => {
+describe("chip label underline scoping (ui/NodeLinks.css)", () => {
   it("strips the nested mention underline inside a chip", () => {
     const scoped = /\.nt-link \.nt-link--inert \{[^}]*\}/.exec(css);
     expect(scoped).not.toBeNull();
