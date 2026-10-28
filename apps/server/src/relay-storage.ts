@@ -295,6 +295,14 @@ export class RelayStorage {
     ).n;
   }
 
+  /** Every workspace id the relay log carries (the --all migrations' target set). */
+  listWorkspaceIds(): string[] {
+    const rows = this.db
+      .prepare("SELECT DISTINCT workspace_id FROM envelope ORDER BY workspace_id")
+      .all() as Array<{ workspace_id: string }>;
+    return rows.map((row) => row.workspace_id);
+  }
+
   /** Highest HLC observed in the workspace log. */
   maxHlc(workspaceId: string): Hlc {
     const row = this.db

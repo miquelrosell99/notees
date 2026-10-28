@@ -467,6 +467,9 @@ export interface CreatePropertySchemaInput {
   /** The GLOBAL default (one default per
    *  property; PC2-typed at apply against the create payload's type). */
   defaultValue?: unknown;
+  /** The schema-level hide-when-empty render contract (the seeded
+   *  `project` relation is the first carrier; absent = null at the row). */
+  hideWhenEmpty?: boolean;
 }
 
 /**

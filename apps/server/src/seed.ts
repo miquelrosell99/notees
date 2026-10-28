@@ -104,6 +104,9 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
           ...(spec.targetClassFilter !== undefined
             ? { targetClassFilter: spec.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
             : {}),
+          // The schema-level hide-when-empty render contract (additive
+          // 2026-10-28, the `project` seed — the first seed to carry it).
+          ...(spec.hideWhenEmpty !== undefined ? { hideWhenEmpty: spec.hideWhenEmpty } : {}),
         },
         client: "seed",
       }),

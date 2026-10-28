@@ -20,4 +20,8 @@ A task appears on a day when its **Scheduled** property points at that day; Done
 
 The built-in task **Status** is a selection property whose options are circles: gray Backlog, yellow Pending, orange Doing, blue Reviewing, green Done, red Cancelled. It can pin onto the block itself as an inline button (Next to bullet / Before content), rides every task row in list views as the clickable circle, and its option icons and colors are edited in the property settings — [properties.md](properties.md#inline-property-buttons) has the inline-button ruling.
 
+## The Project property
+
+The built-in task **Project** property (2026-10-28) is a multi-value node reference filtered to the `project` class: a task may span several projects and a project's backlinks list its tasks. The property is the relation — a task keeps no parent/place semantics, and nesting a task under a project page stays legal and reachable by subtree queries; use the property when the membership is the meaning, nesting when the outline position is. An unvalued task shows no empty Project row (the schema is hide-when-empty), and the binding is unpinned, so Project renders after the pinned Status/Scheduled/Deadline tier in the task properties panel.
+
 Beyond the menu, **Ctrl/Cmd+Enter** on a block toggles its task state: a plain block becomes a task set to **Pending**, an open task jumps straight to **Done**, and a **Done** (or Cancelled) task clears back to a plain block ([outliner.md](outliner.md#slash-commands)).

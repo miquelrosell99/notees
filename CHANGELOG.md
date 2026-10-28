@@ -21,6 +21,73 @@ predating this file.
     `apps/web/test/view-modes.test.tsx` (the subtask spec — table
     membership, outline nesting, no top-level subtask row). Verified: web
     typecheck + full suite (213 files / 2463 tests).
+- **feat(domain,server,web): the `project` property seed — the task→project
+  membership relation.** A new seeded system property schema `project`
+  (…0003-000000000012, "Project"): object-typed `{nodeId}` refs, MULTI (a
+  task may span several projects; a project collects many tasks),
+  `targetClassFilter: ["project"]` (PG6 extends-aware apply-time validation,
+  the `linkedAuthors` precedent), GLOBAL scope per the 2026-10-20 seed-scope
+  audit (the schema is generically reusable — meetings, sources, any node may
+  participate in a project) with the class-local BINDING ROW on `task` the
+  only task-specific piece (the `url`→source precedent; task subclasses
+  inherit the binding through extends-aware resolution — no per-subclass
+  rows). `hideWhenEmpty: true` — a task with no project shows no empty row
+  (the first seed to carry the schema-level contract; the spec gains an
+  optional `hideWhenEmpty` field threaded through the server seed payload
+  and the web client's `createPropertySchema`). The binding seeds UNPINNED —
+  it lands in no declared pin set. Rationale: tasks are portable workspace
+  citizens — project membership is a relation, not placement; nesting a task
+  under a project stays legal and reachable by subtree queries. Zero wire
+  cost, no lockstep: plain seed configuration — no new op type, no payload
+  key, no fixture gate.
+  - **Convergence, all three paths (the url-binding precedent):** new
+    workspaces receive both rows from the server seed
+    (`apps/server/src/seed.ts`); live workspaces self-heal through
+    `ensureTaskFamily` (the seventh authored schema,
+    `apps/web/src/features/classview/taskFamily.ts` — it rides every tasks
+    surface open, and `CreatePropertySchemaInput` gains `hideWhenEmpty`);
+    live workspaces also converge by the one-time Path A
+    `scripts/migrate-project-property-seed.mts` (dry-run first — a missing
+    schema plans `propertySchema.create` + `class.property.set`, a drifted
+    local scope clears first in the same ingest (R5 dead-config), attribute
+    drift is reported never touched, INSERT-or-ignore throughout; not run
+    against any live workspace — plan shape tested only).
+  - **Edge projection:** values derive `type 'property'` edges like every
+    node-typed property (the `linkedAuthors` precedent — no new machinery) —
+    the project's backlinks list its tasks, and class:task +
+    property-condition queries answer "this project's tasks" through the
+    generic compiler.
+  - **Seed-law-10 follow-up (recorded, non-blocking):** the GTK
+    (`src/notees_gtk/core/protocol/features.py` `_TASK_PROPERTY_UUIDS`) and
+    Flutter (`lib/core/constants/system.dart` task UUID block) seed
+    manifests carry the …0003- block through …006 — the `project` constant
+    (…0003-000000000012) joins them by the established plain-seed
+    convergence follow-up (the weblink-extends precedent); the CLI rides its
+    pinned `vendor/notees` submodule. Manifests checked this slice; repos
+    untouched.
+  - **Files**: `packages/domain/src/seeds.ts` (UUID + spec + display name +
+    the `hideWhenEmpty` spec field), `apps/server/src/seed.ts` (payload
+    threading), `apps/web/src/features/classview/taskFamily.ts` (the seventh
+    authored schema), `apps/web/src/core/workspace-client/types.ts` +
+    `client-writes.ts` (`hideWhenEmpty` on create),
+    `scripts/migrate-project-property-seed.mts` (new),
+    `packages/domain/test/domain.test.ts` (spec/registry/uniqueness pins +
+    the seed-scope-audit flipped set), `packages/store/test/project-seed.test.ts`
+    (new — materialization, effective read + hideWhenEmpty, subclass
+    inheritance, PG6 rejection + extends-aware acceptance, multi OR-Set
+    add/remove + exact-HLC add-wins, edge/backlink projection, idempotent
+    re-apply; both adapters), `apps/server/test/seed.test.ts` (new — seed
+    envelope shapes + replay + idempotency),
+    `apps/server/test/migrate-project-property-seed.test.ts` (new — plan
+    shape on three drift fixtures, dry-run writes nothing, apply converges,
+    second run plans nothing), `apps/web/test/task-family.test.ts` (the
+    relation's author/idempotency specs),
+    `packages/protocol/SCHEMA.md` (system-seed-manifest addendum),
+    `docs/features/tasks.md` (the Project property paragraph),
+    `docs/developers/migrations.md` (the Path A table row). Verified: full
+    gate — typecheck clean + whole suite green; 26 new tests (domain +1,
+    store +16 across both adapters, server +6, web +3 — 213 web files /
+    2466 tests, store 816, server 329, domain 138).
 
 - **feat(web): the Pages hub queries all page nodes — subpages are first-class
   items; nesting is display-time.** The Pages hub's underlying read was
