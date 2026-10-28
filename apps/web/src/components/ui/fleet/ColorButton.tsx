@@ -24,7 +24,6 @@
  */
 import { forwardRef, useState, useRef, useLayoutEffect, type ButtonHTMLAttributes, type ChangeEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Button } from './Button.js';
 import { TextField } from './TextField.js';
 import { observeResizes, useFocusTrap } from './overlay-hooks.js';
 import { usePopupDismissal } from './usePopupDismissal.js';
@@ -298,6 +297,23 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
           }}
         >
           <div className="color-btn-picker__grid">
+            {showNoneOption && (
+              // The no-color entry rides IN the grid (the first cell): the
+              // strike idiom, selected when nothing is set — with the
+              // eleven presets it completes a tidy 4×3.
+              <ColorSwatch
+                color=""
+                size="xs"
+                active={color.trim() === ""}
+                className="color-btn-picker__none"
+                title="No color"
+                aria-label="No color"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleColorSelect(null);
+                }}
+              />
+            )}
             {palette.map(({ value, label }) => (
               <ColorSwatch
                 key={value}
@@ -341,18 +357,6 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
                 if (isHexValid) handleHexApply();
               }}
             />
-            {showNoneOption && (
-              <Button aria-label="Remove color"
-                variant="ghost"
-                size="sm"
-                icon={"mdi mdi-trash-can-outline"}
-                title="Remove color"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleColorSelect(null);
-                }}
-              />
-            )}
           </div>
         </div>,
         document.body

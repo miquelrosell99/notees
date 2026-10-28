@@ -91,7 +91,7 @@ describe("Color › context-menu control", () => {
     const bare = /\.context-menu-color-row--bare \.context-menu-color-swatches \{[^}]*\}/.exec(css);
     expect(bare).not.toBeNull();
     expect(bare![0]).toContain("display: grid");
-    expect(bare![0]).toContain("repeat(5, 1fr)");
+    expect(bare![0]).toContain("repeat(4, 1fr)");
   });
 
   it("marks the current color's swatch as selected", async () => {

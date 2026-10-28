@@ -163,6 +163,10 @@
   --md-sys-color-preset-purple: #9662da;
   --md-sys-color-preset-pink: #de4996;
   --md-sys-color-preset-gray: #8c857d;
+  /* Mono — the theme-adaptive black/white: ink on paper by day, paper white
+     on the night ground by night. The dark override lives in the dark block;
+     the light value is the JS-side representative (contrast math, canvas). */
+  --md-sys-color-preset-mono: #000000;
 
   /* ==================== Graph View (light defaults) ==================== */
   --graph-node-default: #737373;
@@ -868,6 +872,9 @@
   --md-sys-color-presentation-stage: #000;
   --md-sys-color-on-presentation-stage: #e8e6e1;
   --md-sys-color-on-presentation-stage-muted: #a8a29e;
+
+  /* Mono flips on the night ground (see the light block's preset table). */
+  --md-sys-color-preset-mono: #ffffff;
 }
 
 /* ==================== Accent presets (the Material You seed) ==================== */

@@ -185,6 +185,14 @@ button.context-menu-item:hover:not(.disabled) {
   animation: panelFadeIn var(--motion-duration-long) var(--motion-easing-standard);
 }
 
+/* Custom-content flyouts (the submenu form — the whiteboard's row, the
+   color swatch grid) size to their content; the min-width floor above is
+   the TEXT-submenu register, and dead space beside a swatch grid reads as
+   a bug. */
+.card.context-menu-submenu-flyout--custom {
+  min-width: 0;
+}
+
 /* Custom content row — renders arbitrary React content inline in the menu */
 .context-menu-content-row {
   padding: var(--spacing-1) var(--spacing-3);

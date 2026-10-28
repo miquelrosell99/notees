@@ -24,7 +24,9 @@
 
 import { z } from "zod";
 
-/** The ten preset tokens, hue order (red → pink) then gray. */
+/** The eleven preset tokens, hue order (red → pink), then gray, then mono
+ *  (the theme-adaptive black/white — concrete value flips per scheme in the
+ *  clients' themed preset tables). */
 export const COLOR_PRESET_TOKENS = [
   "red",
   "orange",
@@ -36,6 +38,7 @@ export const COLOR_PRESET_TOKENS = [
   "purple",
   "pink",
   "gray",
+  "mono",
 ] as const;
 
 export type ColorToken = (typeof COLOR_PRESET_TOKENS)[number];

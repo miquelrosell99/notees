@@ -241,7 +241,7 @@ A select/multi_select option record is `{ id, label }` plus an **optional `color
 
 A node/class `color` (on `object.update` / `class.create` / `class.update` — `object.create` carries no appearance fields) is ONE string field with a strict grammar:
 
-- a **preset token**: exactly one of `red, orange, yellow, green, teal, sky, blue, purple, pink, gray` (the token SET is normative; display order is a client concern — web: hue order then gray);
+- a **preset token**: exactly one of `red, orange, yellow, green, teal, sky, blue, purple, pink, gray, mono` (the token SET is normative; display order is a client concern — web: hue order then gray then mono). `mono` is the theme-adaptive black/white — clients whose preset tables are themed flip it per scheme (web: `#000` on the light scheme, `#fff` on the dark); clients without themed tables pin one concrete value;
 - or a custom hex **`#RRGGBB`** (exactly 6 hex digits);
 - or **`null` to clear** — `object.update` gains the clear with this grammar (the UI's "No color" was a protocol no-op until now); `class.update` documented "null clears" from the start and the schema now accepts what the catalog documented.
 

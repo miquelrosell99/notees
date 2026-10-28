@@ -536,7 +536,7 @@ describe("whiteboard formatting surfaces", () => {
     expect(storedLayout(client, host).shapes[0]!.color).toBe("red");
 
     fireEvent.click(screen.getByRole("button", { name: "Selection color" }));
-    fireEvent.click(screen.getByRole("button", { name: "Remove color" }));
+    fireEvent.click(screen.getByRole("button", { name: "No color" }));
     await flush();
     expect(storedLayout(client, host).shapes[0]!.color).toBeUndefined();
   });

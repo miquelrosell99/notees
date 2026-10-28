@@ -352,7 +352,10 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
           {isOpen && (
             <ContextMenuPrimitive.SubContent
               forceMount
-              className="context-menu-submenu-flyout card"
+              className={cn(
+                'context-menu-submenu-flyout card',
+                item.submenu !== undefined && 'context-menu-submenu-flyout--custom',
+              )}
               sideOffset={0}
               collisionPadding={VIEWPORT_PADDING}
               onEscapeKeyDown={(event) => event.preventDefault()}

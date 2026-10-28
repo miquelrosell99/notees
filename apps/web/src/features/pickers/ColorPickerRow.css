@@ -71,10 +71,10 @@
 }
 
 /* The flyout hosting (the node context menu's Color › submenu) rides the
-   kit picker's grid register (color-btn-picker__grid: five columns) — a
-   wrapping flex row raggedly breaks at the flyout's edge, the grid keeps
-   the ten presets in two tidy rows with the no-color strike first. */
+   kit picker's grid register (color-btn-picker__grid: four columns) — a
+   wrapping flex row raggedly breaks at the flyout's edge; the grid keeps
+   the eleven presets + the no-color strike in a tidy 4×3. */
 .context-menu-color-row--bare .context-menu-color-swatches {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
 }
