@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(store): `card.review` applier + the `card_review` derived history
+  table (memorization cards slice).** The temporary no-op dispatch seam
+  becomes the real applier: `applyCardReview` validates membership-only,
+  fail loud (unknown `cardId` → `NotFoundError`; a node not classed by the
+  system card class → `MoveGuardError`), then appends one row to the new
+  `card_review` table per envelope. The projection is HISTORY-ONLY —
+  append-only rows with envelope causality, NO LWW gate, NO superseded
+  path, and the op never writes property values (the seeded card-family
+  property schemas stay the schedule surface; the op is the review
+  journal). Store schema v34 → v35, purely additive (the canonical CREATE
+  TABLE IF NOT EXISTS exec heals old databases; the migrate ladder gains
+  the documented no-op delta). Read seam: `store.listCardReviews(cardId)`
+  returns the HLC-ordered journal with JSON-parsed state snapshots (the
+  current SRS state is the latest row's `stateAfter`). The store's
+  all-fixtures replay now lands `card-review.json`'s two reviews as
+  derived rows on both adapters. SCHEMA.md's normative section records the
+  projection. Verified: new `card-review.test.ts` (9 tests, both adapters
+  + the v34→v35 migration arm), full gate green (build + typecheck +
+  test).
+  - **Files**: `packages/store/src/appliers.ts` (the real applier replaces
+    the placeholder; dispatch unchanged), `packages/store/src/schema.ts`
+    (`SCHEMA_VERSION` 35, `CARD_REVIEW_DDL`, the migrate delta),
+    `packages/store/src/store.ts` (`listCardReviews` + the `CardReview`
+    type), `packages/store/test/card-review.test.ts` (new),
+    `packages/protocol/SCHEMA.md` (the normative section's projection
+    bullet).
+
 - **feat(protocol): the `card.review` op — the SRS review record on the wire
   (memorization cards slice).** New strict payload schema `card.review`:
   `cardId`, `grade` (again/hard/good/easy), `algorithm` (sm2/fsrs), the full
