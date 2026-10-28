@@ -88,6 +88,14 @@
   padding: var(--spacing-1) 0 var(--spacing-2);
 }
 
+/* Inside the card the section loses its stack chrome: no top hairline (the
+   card boundary is the separator) and no header clearance under it (the
+   card padding owns the breathing room). */
+.nt-block-backlink-card .node-view-section {
+  border-top: none;
+  padding-top: 0;
+}
+
 /* Block tags / properties: dedicated rows under the block row, aligned with
    the content column (past the 18px bullet grip + the row gap). */
 .nt-block-tags,

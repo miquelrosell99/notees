@@ -9,7 +9,12 @@
  * section-scoped create affordance: add a comment, a child page, a class
  * member) rendered as a sibling, never nested in the toggle. Supports
  * controlled and uncontrolled expansion (controlled is used by Section,
- * which must observe expands to run its lazy query). The header carries an
+ * which must observe expands to run its lazy query). `hideToggle` renders
+ * the header as INERT chrome (no chevron, not a button) for hosts that own
+ * show/hide themselves — the block backlink card's gutter toggle (hiding a
+ * collapse affordance on a surface the user can dismiss entirely); the
+ * empty toggle slot stays so the title and content keep their alignment.
+ * The header carries an
  * OPTIONAL count badge — the count's home on sections WITHOUT hosted tabs
  * (* one count semantics everywhere: displayed nodes, named exactly once).
  */
@@ -44,6 +49,14 @@ export interface NodeViewSectionProps {
   /** Controlled expansion state (with onExpandedChange). */
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
+  /**
+   * Hide the collapse toggle: the header renders as inert chrome (no
+   * chevron, not a button) and the section keeps its current expansion
+   * state — for hosts that own show/hide themselves (the block backlink
+   * card's gutter toggle: collapsing a surface the user can hide entirely
+   * makes no sense).
+   */
+  hideToggle?: boolean | undefined;
   children: ReactNode;
   className?: string;
 }
@@ -56,6 +69,7 @@ export function NodeViewSection({
   defaultExpanded = true,
   expanded,
   onExpandedChange,
+  hideToggle = false,
   children,
   className = "",
 }: NodeViewSectionProps) {
@@ -70,26 +84,39 @@ export function NodeViewSection({
     }
   };
 
+  const titleArea = (
+    <span className="node-view-section__title-area">
+      {icon && <span className="node-view-section__icon">{icon}</span>}
+      <span className="node-view-section__title">{title}</span>
+      {count !== undefined && <span className="node-view-section__count">{count}</span>}
+    </span>
+  );
+
   return (
     <section
       className={`node-view-section ${isExpanded ? "expanded" : "collapsed"} ${className}`.trim()}
     >
       <div className="node-view-section__header-row">
-        <button
-          type="button"
-          className="node-view-section__header"
-          aria-expanded={isExpanded}
-          onClick={toggle}
-        >
-          <span className="node-view-section__toggle" aria-hidden="true">
-            <Icon path="mdi-chevron-right" size={0.9} className="node-view-section__chevron" />
-          </span>
-          <span className="node-view-section__title-area">
-            {icon && <span className="node-view-section__icon">{icon}</span>}
-            <span className="node-view-section__title">{title}</span>
-            {count !== undefined && <span className="node-view-section__count">{count}</span>}
-          </span>
-        </button>
+        {hideToggle ? (
+          /* Inert header: the empty toggle slot keeps the title (and the
+             spacing-7 content indent) aligned with the collapsible form. */
+          <div className="node-view-section__header node-view-section__header--static">
+            <span className="node-view-section__toggle" aria-hidden="true" />
+            {titleArea}
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="node-view-section__header"
+            aria-expanded={isExpanded}
+            onClick={toggle}
+          >
+            <span className="node-view-section__toggle" aria-hidden="true">
+              <Icon path="mdi-chevron-right" size={0.9} className="node-view-section__chevron" />
+            </span>
+            {titleArea}
+          </button>
+        )}
         {action !== undefined && (
           <button
             type="button"

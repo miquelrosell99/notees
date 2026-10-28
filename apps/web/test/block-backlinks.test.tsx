@@ -4,11 +4,12 @@
  * node_stats count (renders unconditionally, exempt from the lazy-loading
  * contract); toggling expands the STANDARD Backlinks system section (the
  * page section's chrome — header, hosted tabs, filter bar) scoped to the
- * block, containered in a card beneath the row. The section mounts only
+ * block, containered in a card beneath the row — with the section's collapse
+ * toggle HIDDEN (the gutter owns show/hide) and the gutter badge carrying
+ * the count alone. The section mounts only
  * while expanded, so a collapsed gutter executes nothing; mounted, the
- * section's own lazy contract holds (no query while its header is
- * collapsed, a re-derive per invalidating notification while expanded).
- * jsdom over the in-process WorkspaceClient.
+ * section's own lazy contract holds (a re-derive per invalidating
+ * notification while expanded). jsdom over the in-process WorkspaceClient.
  *
  * The laziness assertions scope the query spy to the BLOCK's id: the
  * page-level backlinks strip loads the PAGE's references
@@ -127,12 +128,13 @@ describe("block-level backlink gutter", () => {
     panel = document.querySelector(".nt-block-backlink-refs") as HTMLElement;
     expect(within(panel).getByText("see")).not.toBeNull();
 
-    // Collapsing the SECTION HEADER inside the panel serves the cache — a
-    // collapse/expand of the section itself re-runs nothing (no write has
-    // landed).
-    fireEvent.click(within(panel).getByRole("button", { name: "Backlinks" }));
-    fireEvent.click(within(panel).getByRole("button", { name: "Backlinks" }));
-    expect(within(panel).getByText("see")).not.toBeNull();
+    // The section header inside the panel carries NO collapse toggle — the
+    // gutter owns show/hide (collapsing a surface the user can hide entirely
+    // makes no sense), so the header renders as inert chrome, not a button.
+    // (The header-toggle cache contract itself is the page-level section's,
+    // spec'd in system-sections.)
+    expect(within(panel).queryByRole("button", { name: "Backlinks" })).toBeNull();
+    expect(within(panel).getByText("Backlinks")).not.toBeNull();
     expect(blockQueries()).toBe(2);
   });
 
