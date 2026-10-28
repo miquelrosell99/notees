@@ -16,6 +16,7 @@
 import { startTransition } from "react";
 
 import type { OpPayload, WorkspaceFeature } from "@notees/protocol";
+import type { CardSrsState, SrsAlgorithm } from "@notees/domain";
 import type { GraphOptions, GraphTopology } from "@notees/store";
 import type {
   ArchivedEntry,
@@ -900,6 +901,15 @@ export class WorkerClient {
   /** Append the card.review audit-history op (never journaled — the writes domain's contract). */
   async recordCardReview(payload: OpPayload<"card.review">): Promise<void> {
     await this.call("recordCardReview", [payload]);
+  }
+
+  /** The grade gesture: the next SRS state written as ONE undo-journal batch (worker-safe single RPC). */
+  async reviewCard(input: {
+    cardId: string;
+    stateAfter: CardSrsState;
+    algorithm: SrsAlgorithm;
+  }): Promise<void> {
+    await this.call("reviewCard", [input]);
   }
 
   /** Ensure the year/month/day chain for a date; returns the three node ids. */

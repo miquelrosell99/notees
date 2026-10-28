@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { buildReviewQueue } from "../src/features/cards/reviewQueue.js";
 
 describe("buildReviewQueue", () => {
-  it("orders due (overdue first, then due-date asc) ahead of fresh", () => {
+  it("orders due (overdue first, then due-date asc) ahead of fresh, excluding future-due", () => {
     const q = buildReviewQueue(
       [
         { id: "fresh1", due: null },
@@ -20,7 +20,9 @@ describe("buildReviewQueue", () => {
       ],
       "2026-10-28",
     );
-    expect(q).toEqual(["overdue", "dueToday", "dueTomorrow", "fresh1"]);
+    // The queue is due + new ONLY: the future-due card never enters it.
+    expect(q).toEqual(["overdue", "dueToday", "fresh1"]);
+    expect(q).not.toContain("dueTomorrow");
   });
 
   it("keeps fresh cards in input order (there is no day to sort by)", () => {
@@ -47,8 +49,14 @@ describe("buildReviewQueue", () => {
     expect(q).toEqual(["earlier", "due1", "due2"]);
   });
 
-  it("places a future-due card after the due arm, before fresh (early review allowed, never preferred)", () => {
-    const q = buildReviewQueue([{ id: "later", due: "2026-10-29" }], "2026-10-28");
-    expect(q).toEqual(["later"]);
+  it("excludes a future-due card from the queue entirely (not reviewable yet)", () => {
+    const q = buildReviewQueue(
+      [
+        { id: "later", due: "2026-10-29" },
+        { id: "fresh", due: null },
+      ],
+      "2026-10-28",
+    );
+    expect(q).toEqual(["fresh"]);
   });
 });
