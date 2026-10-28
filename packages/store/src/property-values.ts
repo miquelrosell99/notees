@@ -60,7 +60,7 @@
  *  - validationRules (R2 value enforcement): a schema
  *    carrying stored rules validates every property.set value BEFORE the
  *    write — min/max bound numbers (after the legacy numeric-string
- *    normalization), pattern full-string-tests text/url/email scalars, each
+ *    normalization), pattern full-string-tests text/email scalars, each
  *    multi element at its own add. A non-compilable stored pattern fails
  *    loud (never an applier crash).
  */
@@ -187,7 +187,6 @@ export function isValidDefaultForType(type: string, value: unknown): boolean {
   if (value === null) return true;
   switch (type) {
     case "text":
-    case "url":
     case "email":
     case "image":
     case "select":
@@ -266,7 +265,6 @@ function assertScalarShapeForType(type: string, value: unknown, opType: string):
     case "boolean":
       if (typeof value === "boolean") return value;
       break;
-    case "url":
     case "email":
     case "select":
       if (typeof value === "string") return value;
@@ -374,7 +372,7 @@ function assertRefTargetForSchema(
  * enforcement, SCHEMA.md "Class properties"): min/max
  * bound a number schema's value (the legacy numeric string already
  * normalized to a finite number upstream), pattern full-string-tests a
- * text/url/email schema's SCALAR strings (a text carrier ref {nodeId} is not
+ * text/email schema's SCALAR strings (a text carrier ref {nodeId} is not
  * a string and rides unchecked — the shape family owns refs). A multi batch
  * is a property.set per element (PG5), so every element is validated at its
  * own write and one bad element rejects its op while the surviving elements
@@ -406,7 +404,7 @@ function assertValidationRulesForValue(
     }
     return;
   }
-  if (schema.type === "text" || schema.type === "url" || schema.type === "email") {
+  if (schema.type === "text" || schema.type === "email") {
     if (rules.pattern === undefined || typeof typed !== "string") return;
     let re: RegExp;
     try {

@@ -455,7 +455,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
   //     EMPTY row — the VIRTUAL property shows as coming from the class
   //     (boundBy names the binder) until realized (property.assign) or
   //     valued. Scalar types included: the panel's bound-empty pass used
-  //     to cover grouped types only, leaving url/email/number bindings
+  //     to cover grouped types only, leaving email/number bindings
   //     invisible — the effective read is the single authority for what a
   //     node carries. Same gates as the assigned row: schema deleted →
   //     nothing renders; hideWhenEmpty stays hidden; an ineligible node

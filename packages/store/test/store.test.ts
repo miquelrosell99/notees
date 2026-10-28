@@ -5096,11 +5096,11 @@ describe.each(adapters)("$name: property-schema scope + update fields", ({ makeB
     const store = Store.open(makeBackend());
     const text = "0192a000-0000-7000-8000-000000000b10";
     const num = "0192a000-0000-7000-8000-000000000b11";
-    const url = "0192a000-0000-7000-8000-000000000b12";
+    const email = "0192a000-0000-7000-8000-000000000b12";
     store.applyMany([
       env("propertySchema.create", { propertySchemaId: text, name: "t", type: "text" }, 1727200001000),
       env("propertySchema.create", { propertySchemaId: num, name: "n", type: "number" }, 1727200001100),
-      env("propertySchema.create", { propertySchemaId: url, name: "u", type: "url" }, 1727200001200),
+      env("propertySchema.create", { propertySchemaId: email, name: "e", type: "email" }, 1727200001200),
     ]);
     // min/max on a text schema: fail loud.
     expect(() =>
@@ -5112,11 +5112,11 @@ describe.each(adapters)("$name: property-schema scope + update fields", ({ makeB
     // pattern on a number schema: fail loud.
     expect(() =>
       store.apply(env("propertySchema.update", { propertySchemaId: num, validationRules: { pattern: "^a" } }, 1727200002200)),
-    ).toThrow(/pattern applies to text\/url\/email schemas only/);
-    // Legal arms: min/max on number, pattern on text and url.
+    ).toThrow(/pattern applies to text\/email schemas only/);
+    // Legal arms: min/max on number, pattern on text and email.
     store.apply(env("propertySchema.update", { propertySchemaId: num, validationRules: { min: 0, max: 10 } }, 1727200002300));
     store.apply(env("propertySchema.update", { propertySchemaId: text, validationRules: { pattern: "^#" } }, 1727200002400));
-    store.apply(env("propertySchema.update", { propertySchemaId: url, validationRules: { pattern: "^https://" } }, 1727200002500));
+    store.apply(env("propertySchema.update", { propertySchemaId: email, validationRules: { pattern: "^https://" } }, 1727200002500));
     // min > max fails at the payload gate.
     expect(() =>
       store.apply(env("propertySchema.update", { propertySchemaId: num, validationRules: { min: 5, max: 1 } }, 1727200002600)),
@@ -5127,7 +5127,7 @@ describe.each(adapters)("$name: property-schema scope + update fields", ({ makeB
       }).validation_rules;
     expect(JSON.parse(rulesOf(num)!)).toEqual({ min: 0, max: 10 });
     expect(JSON.parse(rulesOf(text)!)).toEqual({ pattern: "^#" });
-    expect(JSON.parse(rulesOf(url)!)).toEqual({ pattern: "^https://" });
+    expect(JSON.parse(rulesOf(email)!)).toEqual({ pattern: "^https://" });
     // Null clears.
     store.apply(env("propertySchema.update", { propertySchemaId: num, validationRules: null }, 1727200002700));
     expect(rulesOf(num)).toBeNull();

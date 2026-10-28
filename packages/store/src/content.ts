@@ -102,7 +102,6 @@ function contentPlaintext(db: StoreDatabase, raw: string | null | undefined): st
 /** Schema types whose values contribute searchable text. */
 const SEARCH_INDEXED_VALUE_TYPES = new Set([
   "text",
-  "url",
   "email",
   "select",
   "multi_select",
@@ -151,7 +150,7 @@ function propertyValuesPlaintext(db: StoreDatabase, nodeId: string): string {
       } else if (typeof parsed === "string" && parsed.length > 0) {
         parts.push(parsed);
       }
-    } else if (row.type === "url" || row.type === "email") {
+    } else if (row.type === "email") {
       if (typeof parsed === "string" && parsed.length > 0) parts.push(parsed);
     } else if (row.type === "number") {
       if (typeof parsed === "number" && Number.isFinite(parsed)) parts.push(String(parsed));

@@ -405,7 +405,15 @@ export const propertySchemaCreatePayload = z
        * anchored to the year/month/day node chain — see SCHEMA.md "Datetime".
        */
       "datetime",
-      "url",
+      /**
+       * RETIRED 2026-10-28: the dedicated `url` property type is gone — the
+       * seeded `url` property (…0000-000000000024) survives by name/uuid as a
+       * `text`-typed schema and legacy url values render inline as plain text
+       * (bare URLs linkify through the markdownLinks grammar, the only
+       * affordance). Strict schemas reject the retired value outright; live
+       * logs rewrite in place via scripts/migrate-url-type-to-text.mts
+       * (Path A). `email` is untouched.
+       */
       "email",
       "select",
       "multi_select",
@@ -511,7 +519,7 @@ export const validationRulesSchema = z
     /** Number schemas only: the inclusive lower/upper bounds. */
     min: z.number().optional(),
     max: z.number().optional(),
-    /** text/url/email schemas only: an authored regex. */
+    /** text/email schemas only: an authored regex. */
     pattern: z.string().optional(),
   })
   .strict()

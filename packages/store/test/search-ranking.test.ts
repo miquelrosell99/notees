@@ -387,7 +387,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(
         env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "status", type: "select", options: [{ id: "opt-1", label: "Backlog" }] }, 1727200000100),
       );
-      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_URL, name: "link", type: "url" }, 1727200000100));
+      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_URL, name: "link", type: "text" }, 1727200000100));
       store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_NUMBER, name: "year", type: "number" }, 1727200000100));
       store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_DATE, name: "when", type: "datetime" }, 1727200000100));
       return store;
@@ -408,7 +408,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(hits).toContain(CARRIER); // the carrier is a node in its own right
     });
 
-    it("select labels, urls and numbers are searchable; date refs are not", () => {
+    it("select labels, scalar link strings and numbers are searchable; date refs are not", () => {
       const store = seededStore();
       store.apply(
         env("property.set", { objectId: "0192a000-0000-7000-8000-0000000000f0", propertySchemaId: SCHEMA_SELECT, value: "opt-1" }, 1727200002000),

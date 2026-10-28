@@ -86,8 +86,11 @@ describe("system seeds (ported)", () => {
     const { TASK_FAMILY_SEED } = await import("../src/index.js");
     // The url spec is bound (the source binding row lands —
     // url is a default source-family property, not web_page-only) but
-    // explicitly global — a url is generically reusable.
-    expect(SYSTEM_PROPERTY_SPECS.url).toMatchObject({ bindTo: "source", global: true });
+    // explicitly global — a url is generically reusable. The dedicated `url`
+    // property type is RETIRED (2026-10-28): the spec seeds `type: "text"`
+    // (the uuid …0000-000000000024 unchanged; live logs converge by
+    // scripts/migrate-url-type-to-text.mts).
+    expect(SYSTEM_PROPERTY_SPECS.url).toMatchObject({ type: "text", bindTo: "source", global: true });
     // web_page keeps its class-local url row through the extra-bindings
     // manifest (own-first resolution keeps naming web_page).
     expect(SYSTEM_EXTRA_CLASS_BINDINGS).toContainEqual({ property: "url", bindTo: "web_page" });

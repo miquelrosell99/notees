@@ -37,6 +37,12 @@
  *    idempotency (no envelope carries a retired key → nothing to rewrite),
  *    no schema_meta marker row — a per-script invocation behind the
  *    GTK/Flutter lockstep gate. Excluded.
+ *  - migrate-url-type-to-text.mts — the url property-type retirement (the
+ *    seeded url property retypes url→text): self-detecting plan-nothing
+ *    idempotency (no propertySchema.create carries the retired type → nothing
+ *    to rewrite), no schema_meta marker row — a per-script invocation behind
+ *    the GTK/Flutter lockstep gate (the migrate-unified-datetime precedent).
+ *    Excluded.
  *  - every other migrate-*.mts — no schema_meta marker row (their idempotency
  *    is plan-nothing: "nothing to rewrite"); the orchestrator cannot classify
  *    them pending vs applied, so a batch run could not order them. Both the

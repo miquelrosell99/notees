@@ -96,7 +96,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     const store = makeStore();
     store.apply(env("object.create", { objectId: PAGE, contentAst: [{ type: "text", text: "Owner" }] }, 1727200000000));
     store.apply(
-      env("propertySchema.create", { propertySchemaId: SCHEMA_URL, name: "URL", type: "url" }, 1727200000100),
+      env("propertySchema.create", { propertySchemaId: SCHEMA_URL, name: "URL", type: "text" }, 1727200000100),
     );
     store.apply(
       env(
@@ -119,7 +119,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     store.apply(
       env(
         "propertySchema.create",
-        { propertySchemaId: SCHEMA_LINKS, name: "Links", type: "url", multi: true },
+        { propertySchemaId: SCHEMA_LINKS, name: "Links", type: "text", multi: true },
         1727200000100,
       ),
     );
