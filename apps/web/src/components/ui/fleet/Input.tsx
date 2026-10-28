@@ -7,20 +7,43 @@
  * (app.css --shadow-focus-ring) carries focus; hover lifts the border a
  * step, disabled halves the opacity.
  *
- * Thin fleet wrapper over the normalized catalog input
- * (src/components/ui/input.tsx): the fleet register (the boxed surface,
- * the sm/md row heights, the error border) is re-expressed on top; the
- * catalog's fixed height and placeholder give way to the fleet's
- * min-height + padding scale and placeholder opacity.
+ * Self-contained fleet input: the native-input composition (absorbed from
+ * the retired src/components/ui/input.tsx layer — the normalized shadcn
+ * input, private CatalogInput below) now lives here; the fleet register
+ * (the boxed surface, the sm/md row heights, the error border) is
+ * re-expressed on top; the catalog's fixed height and placeholder give way
+ * to the fleet's min-height + padding scale and placeholder opacity.
  *
  * Legacy hook classes: `input` / `input--${size}` / `input--error` stay
  * on the root so feature CSS that compounds on them keeps matching.
  */
 
-import { forwardRef, type InputHTMLAttributes } from 'react';
+import { forwardRef, type InputHTMLAttributes, type ComponentProps } from 'react';
 
-import { Input as CatalogInput } from '@/components/ui/input.js';
 import { cn } from './cn.js';
+
+/**
+ * The catalog-input composition (absorbed from the retired
+ * src/components/ui/input.tsx layer): the normalized shadcn input — the
+ * theme-key utilities only, the focus ring from --ring, fleet radii.
+ * Private to this file.
+ */
+const CatalogInput = forwardRef<HTMLInputElement, ComponentProps<'input'>>(
+  ({ className, type, ...props }, ref) => {
+    return (
+      <input
+        type={type}
+        className={cn(
+          "flex h-button-md w-full rounded-input border border-input bg-transparent px-3 text-base text-on-surface transition-colors duration-short ease-standard placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed",
+          className,
+        )}
+        ref={ref}
+        {...props}
+      />
+    );
+  },
+);
+CatalogInput.displayName = 'Input';
 
 export type InputSize = 'sm' | 'md';
 

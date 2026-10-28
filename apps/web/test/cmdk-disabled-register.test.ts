@@ -22,18 +22,20 @@ const process_ = process as unknown as { getBuiltinModule(name: string): typeof 
 const fs = process_.getBuiltinModule("node:fs");
 const path = process_.getBuiltinModule("node:path") as unknown as typeof import("node:path");
 
-const CATALOG_DIR = path.join(process.cwd(), "src", "components", "ui");
+const FLEET_DIR = path.join(process.cwd(), "src", "components", "ui", "fleet");
 // The cmdk surfaces only: Radix primitives (dropdown-menu/select/…) render
 // data-disabled strictly when the state fires (presence-based by design) —
 // the bare utility form is correct there. cmdk 1.x is the hazard: it
-// renders data-disabled="false" on EVERY item.
-const CMDK_FILES = ["command.tsx"];
+// renders data-disabled="false" on EVERY item. The cmdk command
+// composition was absorbed into the fleet Dropdown when the catalog layer
+// retired — the Dropdown file is the only cmdk surface.
+const CMDK_FILES = ["Dropdown.tsx"];
 
 describe("the cmdk disabled-attribute register", () => {
-  it("command.tsx pins data-disabled to the true value — no presence form", () => {
+  it("the fleet Dropdown pins data-disabled to the true value — no presence form", () => {
     const offenders: string[] = [];
     for (const name of CMDK_FILES) {
-      const file = path.join(CATALOG_DIR, name);
+      const file = path.join(FLEET_DIR, name);
       const source = fs.readFileSync(file, "utf8");
       // `data-[disabled]` NOT followed by `=value` is the presence form.
       // `data-[disabled="true"]:` pins the value and is the sanctioned

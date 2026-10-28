@@ -5,10 +5,12 @@
  * tinted background, left-side icon). Does NOT include dropdown/results —
  * that's the caller's job. Used by SearchBox and NodeSelector.
  *
- * Thin fleet wrapper over the normalized catalog input
- * (src/components/ui/input.tsx): the filled-pill container, the left
- * icon, the clear affordance, the optional visible label, and the
- * borderless variant are the app's and live here. The pill rides an
+ * Self-contained fleet search field: the native-input composition
+ * (absorbed from the retired src/components/ui/input.tsx layer — the
+ * normalized shadcn input, private CatalogInput below) now lives here;
+ * the filled-pill container, the left icon, the clear affordance, the
+ * optional visible label, and the borderless variant are the app's and
+ * live here. The pill rides an
  * explicit 3-column anatomy — leading icon lane | input | trailing clear
  * lane (the grid + the input's stripped padding live in the co-located
  * CSS; the catalog input's own px-3 would indent the text a second time
@@ -22,12 +24,34 @@
  * `search-field__input/icon/clear/label`, and `search-field-wrapper`
  * stay — tests and feature CSS compound on them.
  */
-import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type ComponentProps } from 'react';
 
-import { Input as CatalogInput } from '@/components/ui/input.js';
 import { Icon } from '../../../ui/Icon.js';
 import { cn } from './cn.js';
 import './SearchField.css';
+
+/**
+ * The catalog-input composition (absorbed from the retired
+ * src/components/ui/input.tsx layer): the normalized shadcn input — the
+ * theme-key utilities only, the focus ring from --ring, fleet radii.
+ * Private to this file.
+ */
+const CatalogInput = forwardRef<HTMLInputElement, ComponentProps<'input'>>(
+  ({ className, type, ...props }, ref) => {
+    return (
+      <input
+        type={type}
+        className={cn(
+          "flex h-button-md w-full rounded-input border border-input bg-transparent px-3 text-base text-on-surface transition-colors duration-short ease-standard placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed",
+          className,
+        )}
+        ref={ref}
+        {...props}
+      />
+    );
+  },
+);
+CatalogInput.displayName = 'Input';
 
 export interface SearchFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   /** Icon rendered on the left (defaults to a search icon) */

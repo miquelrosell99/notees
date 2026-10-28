@@ -5,21 +5,43 @@
  * (EDN, JSON, YAML, etc.). Provides error and valid visual states.
  * Supports forwarded refs for external focus management.
  *
- * Thin fleet wrapper over the normalized catalog textarea
- * (src/components/ui/textarea.tsx): the code register (mono family, the
- * xs pitch on the 1.6 line, the boxed surface, pre whitespace, the
- * error/valid borders) is re-expressed on top; the catalog's ring gives
- * way to the fleet register (the global app.css focus ring + the error
- * ring thin shadow).
+ * Self-contained fleet code textarea: the native-textarea composition
+ * (absorbed from the retired src/components/ui/textarea.tsx layer — the
+ * normalized shadcn textarea, private CatalogTextarea below) now lives
+ * here; the code register (mono family, the xs pitch on the 1.6 line, the
+ * boxed surface, pre whitespace, the error/valid borders) is re-expressed
+ * on top; the catalog's ring gives way to the fleet register (the global
+ * app.css focus ring + the error ring thin shadow).
  *
  * Legacy hook classes: `code-textarea` (+ `code-textarea--error` /
  * `code-textarea--valid`) and `code-textarea-label` stay — feature CSS
  * compounds on them.
  */
-import { useRef, useEffect, forwardRef, type KeyboardEvent, type RefObject } from 'react';
+import { useRef, useEffect, forwardRef, type KeyboardEvent, type RefObject, type ComponentProps } from 'react';
 
-import { Textarea as CatalogTextarea } from '@/components/ui/textarea.js';
 import { cn } from './cn.js';
+
+/**
+ * The catalog-textarea composition (absorbed from the retired
+ * src/components/ui/textarea.tsx layer): the normalized shadcn textarea
+ * — the theme-key utilities only, the focus ring from --ring, fleet
+ * radii. Private to this file.
+ */
+const CatalogTextarea = forwardRef<HTMLTextAreaElement, ComponentProps<'textarea'>>(
+  ({ className, ...props }, ref) => {
+    return (
+      <textarea
+        className={cn(
+          "flex min-h-button-lg w-full rounded-input border border-input bg-transparent px-3 py-2 text-base text-on-surface transition-colors duration-short ease-standard placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed",
+          className,
+        )}
+        ref={ref}
+        {...props}
+      />
+    );
+  },
+);
+CatalogTextarea.displayName = 'Textarea';
 
 interface CodeTextareaProps {
   value: string;

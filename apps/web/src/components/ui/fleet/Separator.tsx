@@ -4,19 +4,52 @@
  * A visual separator that can be horizontal or vertical.
  * Used to divide sections in menus, toolbars, and other UI elements.
  *
- * Thin fleet wrapper over the normalized catalog separator
- * (src/components/ui/separator.tsx — Radix underneath): the fleet
- * thickness (size sm/md/lg) and spacing registers are the app's and live
- * here as classes; every value resolves to a token through the Tailwind
- * config (1px rides the structural h-px/w-px, md = --border-width-thick,
- * lg = --border-width-extra-thick, margins ride the spacing scale).
+ * Self-contained fleet separator: the Radix separator composition
+ * (absorbed from the retired src/components/ui/separator.tsx layer — the
+ * Root with the orientation/decorative handling, private CatalogSeparator
+ * below) now lives here; the fleet thickness (size sm/md/lg) and spacing
+ * registers are the app's and live here as classes; every value resolves
+ * to a token through the Tailwind config (1px rides the structural
+ * h-px/w-px, md = --border-width-thick, lg = --border-width-extra-thick,
+ * margins ride the spacing scale).
  *
  * Legacy hook classes: `separator` and the orientation/size/spacing
  * variants stay on the root so feature CSS that compounds on them keeps
  * matching.
  */
-import { Separator as CatalogSeparator } from '@/components/ui/separator.js';
+import { forwardRef, type ElementRef, type ComponentPropsWithoutRef } from 'react';
+import * as SeparatorPrimitive from '@radix-ui/react-separator';
+
 import { cn } from './cn.js';
+
+/**
+ * The catalog-separator composition (absorbed from the retired
+ * src/components/ui/separator.tsx layer): Radix Root with the
+ * orientation/decorative defaults, the normalized token register.
+ * Private to this file.
+ */
+const CatalogSeparator = forwardRef<
+  ElementRef<typeof SeparatorPrimitive.Root>,
+  ComponentPropsWithoutRef<typeof SeparatorPrimitive.Root>
+>(
+  (
+    { className, orientation = "horizontal", decorative = true, ...props },
+    ref,
+  ) => (
+    <SeparatorPrimitive.Root
+      ref={ref}
+      decorative={decorative}
+      orientation={orientation}
+      className={cn(
+        "shrink-0 bg-border",
+        orientation === "horizontal" ? "h-px w-full" : "h-full w-px",
+        className,
+      )}
+      {...props}
+    />
+  ),
+);
+CatalogSeparator.displayName = 'Separator';
 
 export type SeparatorOrientation = 'horizontal' | 'vertical';
 export type SeparatorSize = 'sm' | 'md' | 'lg';

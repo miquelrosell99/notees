@@ -6,22 +6,37 @@
  *   <Skeleton shape="heading" width="3-4" />
  *   <Skeleton shape="circle" className="skeleton-row__avatar" />
  *
- * Thin fleet wrapper over the normalized catalog skeleton
- * (src/components/ui/skeleton.tsx): the fleet register is the loading
- * SHIMMER sweep (the catalog's pulse is swapped back for the fleet's
- * 200% gradient sweep on the skeleton tokens) and the shape/width row
- * model is the app's and lives here; every value resolves to a token
- * through the Tailwind config (the global `shimmer` keyframe lives in
- * variables.css).
+ * Self-contained fleet skeleton: the plain-div pulse composition
+ * (absorbed from the retired src/components/ui/skeleton.tsx layer —
+ * private CatalogSkeleton below) now lives here; the fleet register is
+ * the loading SHIMMER sweep (the catalog's pulse is swapped back for the
+ * fleet's 200% gradient sweep on the skeleton tokens) and the
+ * shape/width row model is the app's and lives here; every value resolves
+ * to a token through the Tailwind config (the global `shimmer` keyframe
+ * lives in variables.css).
  *
  * Legacy hook classes: `skeleton` / `skeleton--${shape}` /
  * `skeleton--${width}` and the group/row hooks stay on their elements —
  * tests and feature CSS compound on them.
  */
-import type { CSSProperties } from 'react';
+import type { CSSProperties, HTMLAttributes } from 'react';
 
-import { Skeleton as CatalogSkeleton } from '@/components/ui/skeleton.js';
 import { cn } from './cn.js';
+
+/**
+ * The catalog-skeleton composition (absorbed from the retired
+ * src/components/ui/skeleton.tsx layer): the pulse placeholder div on the
+ * normalized token register. Private to this file — the fleet Skeleton
+ * swaps the pulse for the shimmer sweep through the class merge.
+ */
+function CatalogSkeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn("animate-pulse rounded-item bg-surface-container-high", className)}
+      {...props}
+    />
+  );
+}
 
 export type SkeletonShape = 'text' | 'heading' | 'circle' | 'rect' | 'card';
 export type SkeletonWidth = 'full' | '3-4' | '2-3' | 'half' | '1-3' | '1-4';

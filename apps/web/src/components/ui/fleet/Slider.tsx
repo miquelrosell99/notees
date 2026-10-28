@@ -14,10 +14,12 @@
  *   formatValue={(v) => `${Math.round(v * 100)}%`}
  * />
  *
- * Thin fleet wrapper over the normalized catalog slider
- * (src/components/ui/slider.tsx — Radix underneath): the header row
- * (label + tabular value), the wheel-to-change contract, and the
- * disabled register are the app's and live here.
+ * Self-contained fleet slider: the Radix slider composition (absorbed
+ * from the retired src/components/ui/slider.tsx layer — the Root/Track/
+ * Range/Thumb assembly with the size register, private CatalogSlider
+ * below) now lives here; the header row (label + tabular value), the
+ * wheel-to-change contract, and the disabled register are the app's and
+ * live here.
  *
  * INTERACTION CONTRACT (bridge checklist #9 — documented override): the
  * pre-catalog primitive was a NATIVE <input type=range>; the catalog root
@@ -30,10 +32,72 @@
  * Legacy hook classes: `slider` / `slider--${size}` / `slider--disabled`
  * and the header hooks stay — feature CSS compounds on them.
  */
-import { useCallback, useId, type InputHTMLAttributes, type WheelEvent, type CSSProperties } from 'react';
+import { useCallback, useId, forwardRef, type InputHTMLAttributes, type WheelEvent, type CSSProperties, type ElementRef, type ComponentPropsWithoutRef } from 'react';
+import * as SliderPrimitive from '@radix-ui/react-slider';
+import { cva, type VariantProps } from 'class-variance-authority';
 
-import { Slider as CatalogSlider } from '@/components/ui/slider.js';
 import { cn } from './cn.js';
+
+/**
+ * The catalog-slider composition (absorbed from the retired
+ * src/components/ui/slider.tsx layer): the Radix Root/Track/Range/Thumb
+ * assembly on the normalized token register — a 4px track on
+ * outline-variant with the primary fill, a token-sized thumb (the
+ * icon-xs canvas, the surface ring, the 1.15 hover grow) and the fleet
+ * focus ring. The md size is the default; sm rides the
+ * --slider-thumb-size-sm thumb and the --spacing-tiny track (the graph
+ * settings register). Private to this file.
+ */
+const sliderVariants = cva("relative flex w-full touch-none select-none items-center", {
+  variants: {
+    size: {
+      sm: "",
+      md: "",
+    },
+  },
+  defaultVariants: { size: "md" },
+});
+
+const TRACK_CLASSES: Record<"sm" | "md", string> = {
+  sm: "h-tiny",
+  md: "h-shape-sm",
+};
+
+const THUMB_CLASSES: Record<"sm" | "md", string> = {
+  sm: "h-slider-thumb-sm w-slider-thumb-sm",
+  md: "h-icon-xs w-icon-xs",
+};
+
+const CatalogSlider = forwardRef<
+  ElementRef<typeof SliderPrimitive.Root>,
+  ComponentPropsWithoutRef<typeof SliderPrimitive.Root> &
+    VariantProps<typeof sliderVariants> & { "aria-label"?: string | undefined }
+>(({ className, size = "md", "aria-label": ariaLabel, ...props }, ref) => (
+  <SliderPrimitive.Root
+    ref={ref}
+    className={cn(sliderVariants({ size }), className)}
+    {...props}
+  >
+    <SliderPrimitive.Track
+      className={cn(
+        "relative w-full grow overflow-hidden rounded-full bg-outline-variant",
+        TRACK_CLASSES[size ?? "md"],
+      )}
+    >
+      <SliderPrimitive.Range className="absolute h-full bg-primary" />
+    </SliderPrimitive.Track>
+    <SliderPrimitive.Thumb
+      aria-label={ariaLabel}
+      className={cn(
+        "block rounded-full border-thick border-solid border-surface bg-primary transition-[transform,background-color] duration-short ease-standard",
+        "hover:scale-thumb-grow focus-visible:outline-none focus-visible:outline-offset-micro focus-visible:ring-2 focus-visible:ring-ring",
+        "disabled:pointer-events-none disabled:opacity-40",
+        THUMB_CLASSES[size ?? "md"],
+      )}
+    />
+  </SliderPrimitive.Root>
+));
+CatalogSlider.displayName = SliderPrimitive.Root.displayName;
 
 export type SliderSize = 'sm' | 'md';
 
