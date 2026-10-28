@@ -34,7 +34,6 @@ import { ClassesRow, TagsRow } from "../features/metadata/index.js";
 import { AliasNodePicker } from "../features/metadata/AliasNodePicker.js";
 import { IconPickerPopup } from "../features/icon-picker/IconPickerPopup.js";
 import { BannerCard, CoverCard } from "../features/page-sections/PageBanner.js";
-import { PageFooter } from "../features/page-sections/PageFooter.js";
 import { BlockRow } from "./BlockRow.js";
 import { Icon } from "./Icon.js";
 import { AddPill } from "../components/ui/kit/AddPill.js";
@@ -496,31 +495,4 @@ export function PageHeaderChrome({
     </div>
     </>
   );
-}
-
-/**
- * PageFooterChrome — the word-count + Created/Updated day-page stamps
- * (PageFooter). Where it rides depends on the layout:
- * the panelled main layout hosts it as the CONTEXT column's bottom
- * section (the card-bottom bar retired); compact layouts keep it at the
- * card bottom. Null for embedded renders and focus mode: the chrome steps
- * aside, the body stays.
- */
-export function PageFooterChrome({
-  client,
-  page,
-  tree,
-  onOpenNode,
-  embedded,
-  focusMode,
-}: {
-  client: AnyClient;
-  page: ClientNode;
-  tree: BlockTreeNode[];
-  onOpenNode: ((nodeId: string) => void) | undefined;
-  embedded: boolean;
-  focusMode: boolean;
-}) {
-  if (embedded || focusMode) return null;
-  return <PageFooter client={client} page={page} tree={tree} onOpenNode={onOpenNode} />;
 }

@@ -83,6 +83,15 @@
   padding-left: 0;
 }
 
+/* The tab row's hit floor (--button-min-height, the mobile tap target)
+   stands 16px taller than the ghost buttons beside it, and its internal
+   air above the label reads as excess top padding in the tight card — the
+   card is desktop-dense chrome, so the tab rides the same 32px height as
+   the controls it shares the row with. */
+.nt-block-backlink-card .tabs__tab {
+  min-height: var(--height-md);
+}
+
 /* Block tags / properties: dedicated rows under the block row, aligned with
    the content column (past the 18px bullet grip + the row gap). */
 .nt-block-tags,

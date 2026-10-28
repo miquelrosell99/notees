@@ -395,56 +395,6 @@ describe("L3 TOC derivation (sidebarToc — heading tokens only)", () => {
   });
 });
 
-// --- L4: page footer ---------------------------------------------------------------
-
-describe("L4 page footer", () => {
-  it("counts words over the title + block tree and links Created/Updated to day pages", async () => {
-    const client = await seedClient();
-    const pageId = await client.createObject({ isEmbedded: false, name: "Footer Doc" });
-    await client.createObject({
-      parentId: pageId,
-      contentAst: [{ type: "text", text: "one two three" }],
-    });
-    const nested = await client.createObject({
-      parentId: pageId,
-      contentAst: [{ type: "text", text: "four" }],
-    });
-    await client.createObject({
-      parentId: nested,
-      contentAst: [{ type: "text", text: "five six" }],
-    });
-
-    const onOpenPage = vi.fn();
-    render(<PageView client={client} pageId={pageId} onOpenPage={onOpenPage} />);
-
-    // "Footer Doc" (2) + 3 + 1 + 2 = 8 words.
-    expect(screen.getByText("8 words")).not.toBeNull();
-
-    const created = screen.getByRole("button", { name: /^Created / });
-    const updated = screen.getByRole("button", { name: /^Updated / });
-    expect(created.textContent).toMatch(/Created .+/);
-    expect(updated.textContent).toMatch(/Updated .+/);
-
-    fireEvent.click(created);
-    await flushWrites();
-    expect(onOpenPage).toHaveBeenCalledTimes(1);
-    const opened = onOpenPage.mock.calls[0]![0] as string;
-    // The opened node is the local-midnight day page of the created stamp.
-    expect(client.getNode(opened)!.classIds).toContain(SYSTEM_CLASS_UUIDS.day);
-  });
-
-  it("skips the footer in embedded feed entries", async () => {
-    const client = await seedClient();
-    const pageId = await client.createObject({ isEmbedded: false, name: "Feed Entry" });
-    await client.createObject({
-      parentId: pageId,
-      contentAst: [{ type: "text", text: "body words" }],
-    });
-    const { container } = render(<PageView client={client} pageId={pageId} embedded />);
-    expect(container.querySelector(".nt-page-footer")).toBeNull();
-  });
-});
-
 // --- L4: breadcrumb edit gestures --------------------------------------------------
 
 describe("L4 breadcrumb edit gestures", () => {

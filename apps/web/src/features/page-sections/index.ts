@@ -6,6 +6,5 @@ export * from "./HistoryMenuPopup.js";
 export * from "./NodeViewSection.js";
 export * from "./PageBanner.js";
 export * from "./PageCard.js";
-export * from "./PageFooter.js";
 export * from "./SystemSections.js";
 export * from "./VersionHistorySection.js";

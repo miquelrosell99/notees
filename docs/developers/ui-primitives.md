@@ -76,6 +76,35 @@ the pointer and the law.
    gate (`css-token-drift.test.ts`) enforces the font-size slice of this
    rule.
 
+## Chrome-row layout contracts
+
+Rulings from shipped layout bugs (2026-10-28 block-backlinks round) — check
+them before restructuring any chrome row:
+
+1. **A chrome row's right side is ONE cluster.** Every right-hand control —
+   the ported view chrome (`node-collection__view-chrome`), the filter
+   toolbar (`NodeCollectionToolbar`), switchers — shares a single
+   right-justified container (`NodeCollectionTopBar`, tabs left / cluster
+   right). Sibling flex items with a grown `justify-end` row between them
+   read as broken: controls split across the row with dead space in the
+   middle (the sort button left, the search/filter icons right).
+2. **The button IS the badge.** Never nest a `Badge` pill inside a `Button`
+   — the two boxes double and overlap (owner screenshot). A count toggle
+   passes the number as the Button's own label: ghost, transparent at rest,
+   the `active` fill the only background (the block backlink gutter toggle
+   is the precedent).
+3. **In-card sections retire page-stack chrome.** Inside a container card
+   the section's stack hairline, header clearance, and title-alignment
+   content indent (`spacing-7`) retire — the card boundary and padding own
+   the separation and the insets read like the card's own padding
+   (`hideHeader` renders the content alone; the hosted default tab names the
+   section). Page-stack spacing is for the page stack, not cards.
+4. **Hover-gated chrome always pairs `:hover` with `:focus-within`.** A
+   hover-only affordance strands keyboard users (the "+" add-tab precedent:
+   `opacity: 0` at rest, both pseudo-states reveal).
+5. **The ghost `active` prop is visual only** — pass `aria-pressed`
+   explicitly (the top-bar sidebar toggles are the reference register).
+
 ## Catalog
 
 Inputs & buttons: `Button`, `Pill`/`AddPill`, `Chip` (the single-toggle
