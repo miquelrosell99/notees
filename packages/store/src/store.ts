@@ -20,7 +20,7 @@
  * clock, so replayed logs converge to byte-identical databases.
  */
 
-import type { Envelope, WorkspaceFeature } from "@notees/protocol";
+import type { Envelope, OpPayload, WorkspaceFeature } from "@notees/protocol";
 import { isFamilyFeature, managedClassIds } from "@notees/domain";
 
 import { applyEnvelope, validateEnvelope, type ChangeSummary } from "./appliers.js";
@@ -97,6 +97,18 @@ export interface NodeRow {
 
 export interface SearchHit {
   nodeId: string;
+}
+
+/** One memorization-card review history row (SCHEMA.md "Memorization
+ * cards"): the derived projection of a `card.review` envelope. The state
+ * snapshots parse back to `cardSrsStateSchema`. */
+export interface CardReview {
+  sessionId: string;
+  grade: OpPayload<"card.review">["grade"];
+  algorithm: OpPayload<"card.review">["algorithm"];
+  stateBefore: OpPayload<"card.review">["stateBefore"];
+  stateAfter: OpPayload<"card.review">["stateAfter"];
+  reviewedAt: string;
 }
 
 export class Store {
@@ -655,6 +667,38 @@ export class Store {
    */
   getEffectiveProperties(nodeId: string): EffectiveProperty[] {
     return getEffectiveProperties(this.db, nodeId);
+  }
+
+  /**
+   * Review history of a memorization card (SCHEMA.md "Memorization cards"):
+   * every `card.review` row for the node in HLC order. The table is
+   * append-only history — no LWW collapse — so a card reviewed n times lists
+   * n rows, and the card's current SRS state is the LATEST row's stateAfter.
+   * Empty for a card never reviewed (or an unknown id).
+   */
+  listCardReviews(cardId: string): CardReview[] {
+    const rows = this.db
+      .prepare(
+        `SELECT session_id, grade, algorithm, state_before, state_after, reviewed_at
+         FROM card_review WHERE card_id = ?
+         ORDER BY hlc_physical, hlc_logical`,
+      )
+      .all(cardId) as Array<{
+      session_id: string;
+      grade: string;
+      algorithm: string;
+      state_before: string;
+      state_after: string;
+      reviewed_at: string;
+    }>;
+    return rows.map((row) => ({
+      sessionId: row.session_id,
+      grade: row.grade as CardReview["grade"],
+      algorithm: row.algorithm as CardReview["algorithm"],
+      stateBefore: JSON.parse(row.state_before) as CardReview["stateBefore"],
+      stateAfter: JSON.parse(row.state_after) as CardReview["stateAfter"],
+      reviewedAt: row.reviewed_at,
+    }));
   }
 
   /**

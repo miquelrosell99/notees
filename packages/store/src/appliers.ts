@@ -3186,16 +3186,51 @@ function applyExternalRefDelete(db: StoreDatabase, env: Envelope): ChangeSummary
 
 // --- dispatch ------------------------------------------------------------------------
 
-// TEMPORARY (memorization-cards slice): the exhaustive dispatch map must stay
-// total, so card.review lands here as an acknowledged no-op until the derived
-// card_srs projection ships (the store slice immediately following this one).
-// The op already validates on the wire and replays deterministically (every
-// replica drops it equally); nothing reads SRS state yet, so no read lies.
-// The real applier replaces this body — the payload shape it consumes is
-// `OpPayload<"card.review">` (due/reps/interval/ease/difficulty/stability).
-function applyCardReviewPlaceholder(_db: StoreDatabase, env: Envelope): ChangeSummary {
+// --- card.review ---------------------------------------------------------------------
+//
+// Memorization-card review history (SCHEMA.md "Memorization cards"): one
+// append-only derived row per graded review. HISTORY-ONLY — no LWW gate, no
+// superseded path, and the op never writes property values (the seeded
+// card-family property schemas stay the current schedule surface; the op is
+// the review journal, the card_review rows its derived read). Validation is
+// membership-only: the target must resolve to a node row carrying the card
+// system class (fail loud otherwise — the write-time-impossible law).
+
+function applyCardReview(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "card.review";
   const p = env.payload as OpPayload<"card.review">;
-  return summary("card.review", [p.cardId]);
+
+  const node = getNodeRow(db, p.cardId);
+  if (!node) {
+    throw new NotFoundError(`${opType}: card ${p.cardId} does not exist`, opType);
+  }
+  const member = db
+    .prepare(
+      "SELECT 1 FROM class_member_set WHERE node_id = ? AND class_id = ? AND present = 1 LIMIT 1",
+    )
+    .get(p.cardId, SYSTEM_CLASS_UUIDS.card);
+  if (member === undefined) {
+    throw new MoveGuardError(`${opType}: ${p.cardId} is not classed memorization card`, opType);
+  }
+
+  db.prepare(
+    `INSERT INTO card_review
+       (card_id, session_id, grade, algorithm, state_before, state_after,
+        reviewed_at, hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    p.cardId,
+    p.sessionId,
+    p.grade,
+    p.algorithm,
+    JSON.stringify(p.stateBefore),
+    JSON.stringify(p.stateAfter),
+    p.reviewedAt,
+    env.hlc.physical,
+    env.hlc.logical,
+    env.actorId,
+  );
+  return summary(opType, [p.cardId], false);
 }
 
 const APPLIERS: Record<
@@ -3231,7 +3266,7 @@ const APPLIERS: Record<
   "workspace.feature.set": applyWorkspaceFeatureSet,
   "external_ref.set": applyExternalRefSet,
   "external_ref.delete": applyExternalRefDelete,
-  "card.review": applyCardReviewPlaceholder,
+  "card.review": applyCardReview,
 };
 
 /**

@@ -28,7 +28,29 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 34;
+export const SCHEMA_VERSION = 35;
+
+/**
+ * The v35 memorization-card review history (SCHEMA.md "Memorization cards"):
+ * one append-only row per `card.review` envelope — HISTORY-ONLY, no LWW
+ * gate, no superseded path; the (card_id, hlc) index is the per-card read
+ * seam (store.listCardReviews).
+ */
+export const CARD_REVIEW_DDL = `
+CREATE TABLE IF NOT EXISTS card_review (
+    card_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    grade TEXT NOT NULL,
+    algorithm TEXT NOT NULL,
+    state_before TEXT NOT NULL,
+    state_after TEXT NOT NULL,
+    reviewed_at TEXT NOT NULL,
+    hlc_physical INTEGER NOT NULL,
+    hlc_logical INTEGER NOT NULL,
+    actor_id TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_card_review_card ON card_review(card_id, hlc_physical, hlc_logical);
+`;
 
 /**
  * The render-path list-reads index: composite for the
@@ -621,6 +643,10 @@ CREATE TABLE IF NOT EXISTS external_ref_tombstone (
     actor_id TEXT,
     PRIMARY KEY (workspace_id, ref)
 );
+
+-- Memorization-card review history (store v35 — SCHEMA.md "Memorization
+-- cards"): one append-only row per card.review envelope.
+${CARD_REVIEW_DDL}
 `;
 
 const SCHEMA_SQL_FTS4 = SCHEMA_SQL.replace(
@@ -1443,5 +1469,17 @@ export function migrate(
     if (!classPropertyColumnsV34.some((c) => c.name === "pinned")) {
       db.exec("ALTER TABLE class_property ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;");
     }
+  }
+  // v34 -> v35 (2026-10-28 — the memorization-card review history,
+  // SCHEMA.md "Memorization cards"): `card_review` lands as the derived
+  // read seam over the card.review op (append-only history — no LWW, no
+  // superseded path). Purely additive: the canonical CREATE TABLE IF NOT
+  // EXISTS exec above already created the table for every pre-v35 database
+  // (the workspace_feature precedent); fresh v35 creates carry it in the
+  // canonical DDL. Nothing to rebuild, no row backfill (an old database
+  // simply has no review rows until the log's card.review envelopes replay).
+  if (current < 35) {
+    // Additive — CARD_REVIEW_DDL was re-executed by the canonical schema
+    // exec at the top of migrate(); the delta is documented here.
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}
