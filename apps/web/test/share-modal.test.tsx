@@ -193,6 +193,7 @@ describe("NodeContextMenu Share… item", () => {
 
   const client = {
     unassignClass: async () => {},
+    assignClass: async () => {},
     deleteObject: async () => {},
     updateObject: async () => {},
     getNode: () => undefined,

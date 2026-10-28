@@ -1,7 +1,8 @@
 /**
  * NodeContextMenu — right-click menu for node surfaces (page headers, block
  * bullets/rows, class/tag pills). Actions: open, copy (markdown / node id /
- * link — the Copy › submenu), favorite, convert an inline block to a page
+ * link — the Copy › submenu), favorite, make a block or page a memorization
+ * card (the card class-assign, makeCard), convert an inline block to a page
  * (the Convert to page › submenu: keep under the parent vs extract to root,
  * children staying or following), move a main child back to the content,
  * the per-block list style (List style ›), the node color swatches
@@ -29,7 +30,7 @@
 
 import { useState } from "react";
 
-import { parseDateNodeId, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
+import { parseDateNodeId, rendersAsInlineBlock, rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { ContentAst, ListStyle } from "@notees/protocol";
 
 import { cloneSubtree, type CloneReadSurface, type CloneWriteSurface } from "@/core/clone.js";
@@ -43,6 +44,7 @@ import { copyToClipboard } from "../modals/clipboard.js";import { notificationSt
 import { clipboardMarkdown } from "../export/exportSubtree.js";
 import { ColorPickerRow } from "../pickers/ColorPickerRow.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
+import { makeCard } from "../cards/makeCard.js";
 import { headingAstOf, headingConversionOf, plainTextAstOf } from "../block-editor/headingConvert.js";
 import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
 import { ContextMenu, type ContextMenuItem } from "../../components/ui/kit/ContextMenu.js";
@@ -56,6 +58,8 @@ import { ContextMenu, type ContextMenuItem } from "../../components/ui/kit/Conte
  */
 interface MenuClient extends CloneReadSurface, CloneWriteSurface {
   unassignClass(id: string, classId: string): Promise<void>;
+  /** Class membership add — "Make memorization card" composes it (makeCard). */
+  assignClass(id: string, classId: string): Promise<void>;
   deleteObject(id: string, opts?: { permanent?: boolean }): Promise<void>;
   /** The render-bit toggle behind "Move to content" / keep-under-parent. */
   updateObject(id: string, fields: { isEmbedded?: boolean }): Promise<void>;
@@ -325,6 +329,32 @@ export function NodeContextMenu({
       label: favorite ? "Remove from favorites" : "Add to favorites",
       icon: favorite ? "mdi-star" : "mdi-star-outline",
       onClick: () => toggleFavorite(node.id),
+    });
+  }
+  // Make memorization card: class-assigns the card system class through
+  // makeCard (the canonical assignClass path, assign-if-absent). Blocks
+  // and pages alike — the Cards hub lists every card-classed node. Gated
+  // to non-class nodes (a class never becomes a card), off date-chain
+  // nodes (their class set is precision-locked — the write would fail
+  // loud at the applier), and hidden once the node already is a card.
+  if (
+    !node.isClass &&
+    parseDateNodeId(node.id) === null &&
+    !node.classIds.includes(SYSTEM_CLASS_UUIDS.card)
+  ) {
+    items.push({
+      id: "make-memorization-card",
+      label: "Make memorization card",
+      icon: "mdi-cards-playing-outline",
+      onClick: () => {
+        void makeCard(client, node.id).then(
+          () => notificationStore.success("Made a memorization card", name),
+          (error: unknown) => {
+            console.warn(`[context-menu] make-memorization-card (${node.id}) failed:`, error);
+            notificationStore.error("Couldn't make a memorization card", name);
+          },
+        );
+      },
     });
   }
   // Zone flip (Revision 12), demote direction only: a parented standalone

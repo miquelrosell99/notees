@@ -5,6 +5,19 @@ hub (`/cards`, the sidebar's Cards row) becomes its home — the SRS schedule
 properties, the due/fresh/later buckets, and the Review actions that hand a
 session off to the review surface at `/cards/review`.
 
+## Making a card
+
+A card is any node classed `card` — classing is the whole creation act, and
+every block and page can become one. Two entry points:
+
+- **"Make memorization card"** in the node's right-click menu (blocks and
+  pages alike) — class-assigns the card class in place. The node's content
+  becomes the card's front, its embedded children the answer. The action
+  hides once the node already is a card, and never appears on class nodes
+  or date-chain nodes (their class set is locked).
+- **New** in the Cards hub's header — a fresh empty `card`-classed node,
+  opened for editing.
+
 ## The hub
 
 `/cards` lists every node classed `card` (pages and blocks alike — the
