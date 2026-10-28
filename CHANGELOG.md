@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): the Pages hub carries the standard view switcher — outline,
+  table and cards inline.** The Pages hub (workspace root pages) previously
+  offered outline alone plus the immersive secondaries; it now rides the full
+  primary set — outline, table and cards on the inline strip, pivot/graph/
+  gantt/calendar on the "…" overflow, each gated on what the pages actually
+  carry (a link-less, date-less workspace offers only the pivot there — a
+  dead map is never a menu entry). The Inbox and Classes hubs keep the lean
+  outline-first set. The pages-only row chrome (no per-row properties/tags)
+  and the Dates-first default apply to the new lenses unchanged.
+  - **Files**: `apps/web/src/ui/app/HubView.tsx` (the pages mode list),
+    `apps/web/test/view-modes.test.tsx` (the switcher spec — strip radios,
+    mode switching, honest gating, the mention-armed graph, the lean Inbox/
+    Classes pinning). Verified: web typecheck + full suite (212 files /
+    2451 tests).
+
 - **fix(web): the tab indicator measures the text run only where Range rects
   exist.** The active-tab underline's text-run measurement called
   `Range.getBoundingClientRect()` unguarded; jsdom implements no Range
