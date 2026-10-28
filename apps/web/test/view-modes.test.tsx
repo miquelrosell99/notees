@@ -715,6 +715,61 @@ describe("assets hub", () => {
 });
 
 describe("pages hub (workspace roots)", () => {
+  it("carries the standard switcher — outline, table and cards inline, the immersive modes gated on what the pages carry", async () => {
+    const client = await seedClient();
+    await client.createObject({ isEmbedded: false, name: "Hub Page" });
+
+    render(<HubView client={client} nav="pages" onOpenNode={() => {}} />);
+
+    // The three primary lenses ride the inline strip…
+    expect(screen.getByRole("radio", { name: "Outline" })).not.toBeNull();
+    expect(screen.getByRole("radio", { name: "Table" })).not.toBeNull();
+    expect(screen.getByRole("radio", { name: "Cards" })).not.toBeNull();
+    // …and both switch the surface…
+    fireEvent.click(screen.getByRole("radio", { name: "Table" }));
+    expect(screen.getByRole("table")).not.toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
+    expect(screen.getAllByRole("article").length).toBe(1);
+    // …while the immersive modes stay secondary-tier and availability-gated:
+    // plain pages with no links and no date properties offer only the pivot
+    // (a dead map/calendar/gantt is never a menu entry).
+    fireEvent.click(screen.getByRole("button", { name: "More options" }));
+    expect(screen.getByRole("menuitem", { name: "Pivot" })).not.toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Graph" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Gantt" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Calendar" })).toBeNull();
+  });
+
+  it("a page carrying a mention arms the graph in the overflow", async () => {
+    const client = await seedClient();
+    const target = await client.createObject({ isEmbedded: false, name: "Target" });
+    const linker = await client.createObject({ isEmbedded: false, name: "Linker " });
+    // The mention rides an update — object.create's title path resolves rich
+    // tokens to text; updateObject stores the AST as authored.
+    await client.updateObject(linker, {
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: target }],
+    });
+
+    render(<HubView client={client} nav="pages" onOpenNode={() => {}} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "More options" }));
+    expect(screen.getByRole("menuitem", { name: "Graph" })).not.toBeNull();
+  });
+
+  it("the Inbox and Classes hubs keep the lean mode set — no table/cards there", async () => {
+    const client = await seedClient();
+    await client.createObject({ isEmbedded: false, name: "Loose" });
+
+    const inbox = render(<HubView client={client} nav="inbox" onOpenNode={() => {}} />);
+    expect(screen.queryByRole("radio", { name: "Table" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "Cards" })).toBeNull();
+    inbox.unmount();
+
+    render(<HubView client={client} nav="classes" onOpenNode={() => {}} />);
+    expect(screen.queryByRole("radio", { name: "Table" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "Cards" })).toBeNull();
+  });
+
   it("lists top-level pages only — subpages ride the parent's row, collapsed at the listCollapseLevel setting", async () => {
     const client = await seedClient();
     await client.createObject({ isEmbedded: false, name: "Top Level" });

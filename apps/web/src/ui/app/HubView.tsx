@@ -320,7 +320,11 @@ export function HubView({
         icon={entry?.icon ?? "mdi-book-open-page-variant"}
         title={entry?.label ?? "Pages"}
         items={items.map((node) => ({ node }))}
-        modes={["outline", "pivot", "graph", "gantt", "calendar"]}
+        modes={
+          nav === "pages"
+            ? ["outline", "table", "cards", "pivot", "graph", "gantt", "calendar"]
+            : ["outline", "pivot", "graph", "gantt", "calendar"]
+        }
         defaultMode="outline"
         defaultSortMode="dates-first"
         persistKey={`hub.${nav}`}
