@@ -101,10 +101,14 @@ describe("system seeds (ported)", () => {
     // The task family (TASK_FAMILY_SEED, authored by the applier ensure +
     // the web self-heal) is global by ruling — the manifest seeds no scope.
     expect(TASK_FAMILY_SEED.map((entry) => entry.property)).toContain("taskStatus");
+    // `project` joins the global list (2026-10-28): the task→project
+    // membership relation is generically reusable — only the BINDING ROW on
+    // `task` is task-local (the url→source precedent).
+    expect(SYSTEM_PROPERTY_SPECS.project).toMatchObject({ bindTo: "task", global: true });
     // Every OTHER bound spec stays local (family-identity fields: the source
     // bibliographic family, the meeting identity trio, eventDate,
     // birthdayPerson, the person split, the asset/highlight fields).
-    const flipped = new Set<SystemPropertyName>(["url"]);
+    const flipped = new Set<SystemPropertyName>(["url", "project"]);
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
       if (spec === undefined || spec.bindTo === undefined) continue;
       if (flipped.has(name as SystemPropertyName)) continue;
@@ -632,6 +636,37 @@ describe("system seeds (ported)", () => {
       (binding) => binding.property === "eventDate" && binding.bindTo === "birthday",
     );
     expect(extra).toEqual([{ property: "eventDate", bindTo: "birthday" }]);
+  });
+
+  it("project property seed (2026-10-28): the task→project membership relation — global scope, task binding, multi object filter, hideWhenEmpty, unpinned", () => {
+    // The next genuinely-free slot in the workflow-properties block: …001–…006
+    // task family, …007–…009 meeting, …010 eventDate, …011 birthdayPerson —
+    // no withdrawal markers in this block (…0018/…0025 burned ids live in the
+    // …0000- block and stay burned, never reused).
+    expect(SYSTEM_PROPERTY_UUIDS.project).toBe("00000000-0000-0000-0003-000000000012");
+    // The spec: object-typed ({nodeId} refs), MULTI, filter ["project"],
+    // global scope with the class-local binding row on `task` (the
+    // url→source precedent), hideWhenEmpty, NO pin (the 2026-10-27 pin
+    // ruling declares the roster — project lands in no declared pin set).
+    expect(SYSTEM_PROPERTY_SPECS.project).toEqual({
+      type: "object",
+      multi: true,
+      bindTo: "task",
+      global: true,
+      targetClassFilter: ["project"],
+      hideWhenEmpty: true,
+    });
+    expect(SYSTEM_PROPERTY_DISPLAY_NAMES.project).toBe("Project");
+    // The filter names a real seeded system class.
+    expect(SEEDED_SYSTEM_CLASSES).toContain("project");
+    // Uniqueness against the whole seed block: no id collision anywhere in
+    // the property namespace (the burned ids stay burned — the map never
+    // reuses a slot).
+    const ids = Object.values(SYSTEM_PROPERTY_UUIDS);
+    expect(new Set(ids).size).toBe(ids.length);
+    // The withdrawn markers never reappear.
+    expect(ids).not.toContain("00000000-0000-0000-0000-000000000018");
+    expect(ids).not.toContain("00000000-0000-0000-0000-000000000025");
   });
 
   it("parentlessRole block seed pins the flagged roster verbatim", () => {

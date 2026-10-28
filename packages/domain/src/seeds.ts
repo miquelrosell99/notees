@@ -575,6 +575,12 @@ export const SYSTEM_PROPERTY_UUIDS = {
   // The birthday family's ONLY own property — the person the
   // birthday is for (the date rides eventDate; see the spec comment).
   birthdayPerson: "00000000-0000-0000-0003-000000000011",
+  // The task→project membership relation: object-typed ({nodeId} refs),
+  // MULTI, filter ["project"], GLOBAL scope with the class-local BINDING ROW
+  // on `task` (the url→source precedent; see the spec comment). The next
+  // genuinely-free slot in the workflow-properties block (…001–…011 used;
+  // no withdrawal markers in this block).
+  project: "00000000-0000-0000-0003-000000000012",
   // Bibliographic property pool (source-library slice 1
   // task 4): ONE reusable schema per Zotero field, every entry seeded at the
   // family base (`bindTo: "source"` — the schema's scope; RULING 2026-10-24:
@@ -766,6 +772,15 @@ export interface SystemPropertySpec {
   targetClassFilter?: SystemClassName[];
   defaultValue?: string;
   options?: { id: string; label: string }[];
+  /**
+   * the SCHEMA-level hide-when-empty render contract
+   * riding the seeded propertySchema.create payload (additive 2026-10-28, the
+   * `project` seed — the first seed to carry it; the url seeds never did):
+   * true = an unvalued carrier shows NO empty row (the bound-empty/assigned
+   * synthesis is suppressed for hide-when-empty schemas at the effective
+   * read). Omitted = absent (null at the row).
+   */
+  hideWhenEmpty?: boolean;
 }
 
 export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPropertySpec>> = {
@@ -856,6 +871,33 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // an ordinary event. Widening the filter to ["agent"] is a one-line seed
   // change if the owner wants org anniversaries).
   birthdayPerson: { type: "object", bindTo: "birthday", targetClassFilter: ["person"] },
+  // The task→project membership relation (the url→source binding
+  // precedent): object-typed ({nodeId} refs), MULTI — a task may span several
+  // projects and a project collects many tasks; `targetClassFilter:
+  // ["project"]` (PG6 extends-aware apply-time validation — the
+  // linkedAuthors precedent). The SCHEMA seeds at GLOBAL scope per the
+  // 2026-10-20 seed-scope audit: the relation is generically reusable —
+  // meetings, sources, any node may participate in a project — while the
+  // class-local BINDING ROW on `task` is the only task-specific piece
+  // (bindings are per-class config, zero availability semantics; task
+  // subclasses inherit the binding through extends-aware resolution — no
+  // per-subclass rows). `hideWhenEmpty: true`: a task with no project shows
+  // no empty row (the first seed to carry the schema-level contract). The
+  // binding seeds UNPINNED — the 2026-10-27 pin ruling declares the pin
+  // roster, and `project` lands in no declared pin set. Live workspaces
+  // converge by the web ensure (ensureTaskFamily) + the one-time Path A
+  // script scripts/migrate-project-property-seed.mts. Rationale: tasks are
+  // portable workspace citizens — project membership is a relation, not
+  // placement; nesting a task under a project page stays legal and reachable
+  // by subtree queries (docs/features/tasks.md).
+  project: {
+    type: "object",
+    multi: true,
+    bindTo: "task",
+    global: true,
+    targetClassFilter: ["project"],
+    hideWhenEmpty: true,
+  },
   // Bibliographic property pool (source-library slice 1
   // task 4): ONE reusable schema per Zotero field, every entry scoped to the
   // family base (`bindTo: "source"` — the scope makes every family member
@@ -1012,6 +1054,7 @@ export const SYSTEM_PROPERTY_DISPLAY_NAMES: Record<SystemPropertyName, string> =
   agenda: "Agenda",
   eventDate: "Event date",
   birthdayPerson: "Birthday person",
+  project: "Project",
   // Bibliographic property pool (source-library slice 1 task 4) — sentence
   // case, conventional acronyms (ISSN); the full pin lives in the pool test.
   linkedAuthors: "Linked authors",
