@@ -13,7 +13,7 @@
  * per host page, never an op. The query rides useSectionData.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { parseDateNodeId } from "@notees/domain";
 
@@ -23,7 +23,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 import { buildCreatedInPeriodAst } from "../calendar/calendarViewUtils.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
-import { NodeCollection, ViewToolbar } from "../collection/index.js";
+import { NodeCollection, ViewToolbar, useAvailableViewModes } from "../collection/index.js";
 import type { ViewMode } from "../collection/index.js";
 import { useViewModePreference } from "../../ui/viewPrefs.js";
 import { useSectionData } from "../collection/useSectionData.js";
@@ -31,7 +31,7 @@ import "./CreatedSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
-const CREATED_VIEW_MODES: ViewMode[] = ["cards", "outline"];
+const CREATED_VIEW_MODES: ViewMode[] = ["cards", "outline", "pivot"];
 
 export function CreatedSection({
   client,
@@ -49,11 +49,6 @@ export function CreatedSection({
   onOpenPage: ((nodeId: string) => void) | undefined;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [viewMode, setViewMode] = useViewModePreference(
-    `createdSection.${pageId}`,
-    "cards",
-    CREATED_VIEW_MODES,
-  );
 
   // The count gates hide-when-empty and no cheaper materialized count
   // exists, so the one structured query resolves from mount (active stays
@@ -83,6 +78,19 @@ export function CreatedSection({
     refreshKey: `${after}|${before}`,
   });
 
+  const createdItems = useMemo(
+    () => (rows ?? []).map((node) => ({ node })),
+    [rows],
+  );
+  // Availability gating (the hub seam): the switcher and the persisted-mode
+  // sanitize see only the modes the created set feeds.
+  const availableModes = useAvailableViewModes(client, createdItems, CREATED_VIEW_MODES);
+  const [viewMode, setViewMode] = useViewModePreference(
+    `createdSection.${pageId}`,
+    "cards",
+    availableModes,
+  );
+
   if (rows === null || rows.length === 0) return null;
   return (
     <NodeViewSection
@@ -94,12 +102,12 @@ export function CreatedSection({
       onExpandedChange={setExpanded}
     >
       <div className="nt-created-toolbar">
-        <ViewToolbar modes={CREATED_VIEW_MODES} value={viewMode} onChange={setViewMode} />
+        <ViewToolbar modes={availableModes} value={viewMode} onChange={setViewMode} />
       </div>
       <NodeCollection
         viewMode={viewMode}
         client={client}
-        items={rows.map((node) => ({ node }))}
+        items={createdItems}
         readOnly
         onNodeClick={(id) => onOpenPage?.(id)}
       />

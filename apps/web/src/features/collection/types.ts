@@ -59,8 +59,8 @@ export interface HostedViewsConfig {
   onSelectTab?: ((tab: string) => void) | undefined;
 }
 
-/** The collection view modes (graph = the workspace graph). */
-export type ViewMode = "outline" | "prose" | "cards" | "table" | "graph";
+/** The collection view modes (graph = the workspace graph; pivot = the 2D group-by grid). */
+export type ViewMode = "outline" | "prose" | "cards" | "table" | "graph" | "pivot";
 
 export type SortDirection = "asc" | "desc";
 
@@ -504,6 +504,19 @@ export interface NodeCollectionProps {
   className?: string | undefined;
 }
 
+/**
+ * The collection-fed facts a view's availability declaration reads: what
+ * the collection can feed a data-driven view. NodeCollection derives it
+ * from the resolved items + client (effective property values, content
+ * mentions); a view with no `availability` declaration is always available.
+ */
+export interface ViewAvailabilityContext {
+  /** Date-typed bound properties carrying at least one value in this collection. */
+  datePropertyCount: number;
+  /** Items carrying at least one node-typed property value or mention (link targets). */
+  linkedItemCount: number;
+}
+
 /** Registry entry: one row per view mode, introspected by toolbar/switcher. */
 export interface ViewRegistryEntry {
   id: ViewMode | string;
@@ -512,6 +525,15 @@ export interface ViewRegistryEntry {
   icon: string;
   /** Switcher tier: "primary" modes ride the inline strip (absent = primary), "secondary" modes ride the "…" dropdown. */
   tier?: "primary" | "secondary";
+  /**
+   * Availability gating: when present, the mode only rides surfaces whose
+   * collection feeds the declared facts (the pivot needs none — every set
+   * can count; date/link-driven views like a future gantt declare their
+   * arms here). A persisted/selected mode that gates out fails soft to the
+   * surface default (the viewPrefs sanitize ruling — a dead switch never
+   * resurrects).
+   */
+  availability?: ((ctx: ViewAvailabilityContext) => boolean) | undefined;
   component: ComponentType<NodeCollectionProps>;
   capabilities: ViewCapabilities;
 }

@@ -1,8 +1,8 @@
 /**
  * ClassedNodesSection — the class's instances, the class page's centerpiece
  * (the Capacities database / Tana supertag table): the editable collection
- * with one column per property binding, its mode chrome (table by default
- * per outline/cards switchable — the cards mode renders the
+ * with one column per property binding, its mode chrome (table by default,
+ * outline/cards/pivot switchable — the cards mode renders the
  * property board when a bound select property can group) riding the hosted
  * tab bar's far right. Expanded by default; rows open the member (inline
  * blocks resolve to their containing main node) and the row × unassigns the
@@ -56,14 +56,14 @@ import {
   type FilterQuery,
 } from "../collection/filterQuery.js";
 import { useSectionData, type SectionRowFilter } from "../collection/useSectionData.js";
-import { NodeCollection, ViewSwitcher } from "../collection/index.js";
+import { NodeCollection, ViewSwitcher, useAvailableViewModes } from "../collection/index.js";
 import { SECTION_DEFAULT_TAB } from "../collection/NodeCollectionTabs.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../collection/index.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
 /** The classed-nodes modes, in switcher order (table is the section default). */
-const MEMBERS_VIEW_MODES: ViewMode[] = ["outline", "cards", "table"];
+const MEMBERS_VIEW_MODES: ViewMode[] = ["outline", "cards", "table", "pivot"];
 
 /** The first bound select property with options — the cards-board grouping (single or multi). */
 function groupingBindingFor(
@@ -95,16 +95,6 @@ export function ClassedNodesSection({
   const bindings = client.getClassBindings(classId);
   const groupByProperty = groupingBindingFor(client, bindings);
   const modes: ViewMode[] = MEMBERS_VIEW_MODES;
-  /**
-   * Durable display state per class — device-local, never an
-   * op; table stays the default per the owner rule, and a persisted mode
-   * the surface no longer offers falls back to the default.
-   */
-  const [membersMode, setMembersMode] = useViewModePreference(
-    `classMembers.${classId}`,
-    "table",
-    modes,
-  );
 
   /**
    * The transient filter layer: one FilterQuery per class page (component
@@ -196,6 +186,21 @@ export function ClassedNodesSection({
   };
 
   const memberItems: NodeCollectionItem[] = (members ?? []).map((member) => ({ node: member }));
+  // Availability gating rides the same seam as the hubs: the switcher and
+  // the persisted-mode sanitize see only the modes the member set feeds
+  // (a gated mode never renders; a persisted mode that gates out falls
+  // back to the table default — a dead switch never resurrects).
+  const availableModes = useAvailableViewModes(client, memberItems, modes);
+  /**
+   * Durable display state per class — device-local, never an
+   * op; table stays the default per the owner rule, and a persisted mode
+   * the surface no longer offers falls back to the default.
+   */
+  const [membersMode, setMembersMode] = useViewModePreference(
+    `classMembers.${classId}`,
+    "table",
+    availableModes,
+  );
   const memberColumns: TableColumn[] = [
     { id: "name", kind: "name", label: "Name", sortable: true },
     ...bindings.map((binding) => ({
@@ -270,7 +275,7 @@ export function ClassedNodesSection({
           hostedViews={{ nodeId: classId, sectionKey: "classed-nodes", createAst: () => draftOrFactoryAst(memberFilter), selected: tab, onSelectTab: setTab }}
           toolbarContent={
             <>
-              <ViewSwitcher modes={modes} value={membersMode} onChange={setMembersMode} />
+              <ViewSwitcher modes={availableModes} value={membersMode} onChange={setMembersMode} />
               <NodeCollectionToolbar
                 client={client}
                 layout="inline"

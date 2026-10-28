@@ -3,7 +3,11 @@
  * SurfaceTopBar chrome (icon, title, count, view switcher, header actions)
  * pinned above a NodeCollection of the hub's nodes. View mode persists per
  * hub device-locally when `persistKey` is given (never an op); without a
- * key it stays session-local. The pages/classes hubs ride the outline
+ * key it stays session-local. The offered modes pass the registry's
+ * availability gate against what the collection can feed — a gated mode
+ * never rides the switcher and a persisted mode that gates out falls back
+ * to the default (a dead switch never resurrects). The pages/classes hubs
+ * ride the outline
  * mode, opening on the Dates first sort (the hub passes `defaultSortMode`;
  * unset = the container's row order). Tasks defaults to table; assets to
  * cards with a cover-top cover
@@ -21,7 +25,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useViewModePreference } from "../../ui/viewPrefs.js";
-import { NodeCollection, ViewToolbar } from "./index.js";
+import { NodeCollection, ViewToolbar, useAvailableViewModes } from "./index.js";
 import type { NodeCollectionItem, SortMode, SortSpec, TableColumn, ViewMode } from "./index.js";
 import type { AnyClient, CoverLayout } from "./types.js";
 import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
@@ -123,10 +127,15 @@ export function CollectionHub({
 }: CollectionHubProps) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  // Availability gating: the modes the collection can actually feed ride
+  // the switcher AND the persisted-mode sanitize — a gated mode never
+  // renders and a persisted mode that gates out falls back to the default
+  // (a dead switch never resurrects).
+  const availableModes = useAvailableViewModes(client, items, modes);
   const [mode, setMode] = useViewModePreference(
     persistKey ?? `session.${title}`,
     defaultMode,
-    modes,
+    availableModes,
   );
   return (
     <div className="nt-hub">
@@ -136,7 +145,7 @@ export function CollectionHub({
         count={items.length}
         actions={
           <>
-            {modes.length > 1 && <ViewToolbar modes={modes} value={mode} onChange={setMode} />}
+            {availableModes.length > 1 && <ViewToolbar modes={availableModes} value={mode} onChange={setMode} />}
             {headerActions}
           </>
         }

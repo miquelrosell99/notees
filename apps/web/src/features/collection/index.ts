@@ -8,9 +8,11 @@ import "./ProseView.js";
 import "./CardsView.js";
 import "./TableView.js";
 import "./graph/GraphView.js";
+import "./pivot/PivotView.js";
 
-export { registerView, unregisterView, getViewDefinition, getRegisteredViewModes, getViewModeOptions } from "./registry.js";
-export type { ViewModeOption } from "./registry.js";
+export { registerView, unregisterView, getViewDefinition, getRegisteredViewModes, getViewModeOptions, availableViewModes } from "./registry.js";
+export type { ViewAvailabilityContext, ViewModeOption } from "./registry.js";
+export { computeViewAvailability, useAvailableViewModes } from "./availability.js";
 export { groupByContainingPage } from "./grouping.js";
 export type { ContainingPageGrouping } from "./grouping.js";
 export { useWindowed, DEFAULT_WINDOW_SIZE } from "./useWindowed.js";

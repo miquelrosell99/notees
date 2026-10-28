@@ -130,6 +130,18 @@ function pickOption(label: string, option: string): void {
   );
 }
 
+/** Drive the registry-backed view switcher: primary modes are strip radios,
+ * secondary modes (pivot) ride the "…" overflow dropdown. */
+function pickViewMode(label: string): void {
+  const radio = screen.queryByRole("radio", { name: label });
+  if (radio !== null) {
+    fireEvent.click(radio);
+    return;
+  }
+  fireEvent.click(screen.getByRole("button", { name: "More options" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: label }));
+}
+
 describe("query node (nodecollection surface below the content row)", () => {
   it("renders the results below the row; the token renders nothing inside the content row", async () => {
     const client = await seedClient();
@@ -441,7 +453,7 @@ describe("query node (nodecollection surface below the content row)", () => {
 
     const { container } = render(<PageView client={client} pageId={host} />);
     await screen.findByText("Paris");
-    fireEvent.click(screen.getByRole("radio", { name: "Pivot" }));
+    pickViewMode("Pivot");
 
     // Class bit × structural role: the two member pages are non-class pages.
     pickOption("Rows", "Class bit");
@@ -470,7 +482,7 @@ describe("query node (nodecollection surface below the content row)", () => {
 
     const { container } = render(<PageView client={client} pageId={host} />);
     await screen.findByText("Paris");
-    fireEvent.click(screen.getByRole("radio", { name: "Pivot" }));
+    pickViewMode("Pivot");
     pickOption("Rows", "Property: rating");
     pickOption("Measure", "Sum of rating");
 

@@ -28,9 +28,7 @@ import {
 } from "./queryRun.js";
 import { NodeCollection } from "../features/collection/index.js";
 import type { AnyClient, ViewMode } from "../features/collection/index.js";
-import { QueryPivot, type QueryViewMode } from "./QueryPivot.js";
-
-export type { QueryViewMode };
+import { QueryPivot } from "./QueryPivot.js";
 
 /** Result list cap: a per-render window, not a hard ceiling — "Load more" widens it. */
 export const QUERY_RESULT_CAP = 200;
@@ -93,8 +91,8 @@ export interface QueryResultsBodyProps {
   run: { result: QueryRunState | null; error: string | null };
   /** Unspecified query (isUnspecifiedQueryAst): render the empty state, never the run. */
   unspecified?: boolean | undefined;
-  /** The transient view mode — list (outline), table, or the pivot grid. */
-  viewMode: QueryViewMode;
+  /** The transient view mode — list (outline), table, or the pivot grid (a registry mode). */
+  viewMode: ViewMode;
   /** Render-cascade navigation (App routes the id). */
   onOpenNode: (nodeId: string) => void;
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
@@ -128,8 +126,9 @@ export function QueryResultsBody({ client, ast, run, unspecified = false, viewMo
   if (result === null) return null;
   if (result.rows.length === 0) return <div className="nt-query-empty">No results.</div>;
   if (viewMode === "pivot" && result.kind === "query") {
-    // The pivot is a VIEW: group the full result
-    // set by the two picked dimensions — a stored-question aggregation AST
+    // The pivot is a VIEW (a registry mode — PivotView renders the same
+    // shell over collection items): group the full result set by the two
+    // picked dimensions — a stored-question aggregation AST
     // (result.kind === "aggregate") renders its own grid below, unchanged.
     return <QueryPivot client={client} rows={result.rows} />;
   }

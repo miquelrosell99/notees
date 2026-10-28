@@ -1,7 +1,7 @@
-/* QueryPivot — the query results' transient pivot view mode: the dimension
-   pickers ride a control row, the grid a sober bordered table (numeric
-   cells right-aligned, row headers sticky-label plain) in the results
-   body's register. */
+/* PivotGrid — the pivot view mode (query results + every collection
+   surface): the dimension pickers ride a control row, the grid a sober
+   bordered table (numeric cells right-aligned, row headers sticky-label
+   plain). */
 
 .nt-query-pivot {
   display: flex;
