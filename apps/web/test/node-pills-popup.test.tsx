@@ -60,19 +60,40 @@ function openPopup() {
 }
 
 describe("NodePills overflow popup — pill contract", () => {
+  it("the +N trigger is a toggle chip that holds its active state while open", async () => {
+    const { client, pageId, classIds } = await seedClassedPage(["alpha", "beta", "gamma"]);
+    render(<NodePills client={client} nodeId={pageId} classIds={classIds} overflow />);
+
+    const trigger = screen.getByRole("button", { name: "Show 2 more classes" });
+    expect(trigger.getAttribute("aria-pressed")).toBe("false");
+    expect(trigger.classList.contains("chip--on")).toBe(false);
+
+    fireEvent.click(trigger);
+    expect(trigger.getAttribute("aria-pressed")).toBe("true");
+    expect(trigger.classList.contains("chip--on")).toBe(true);
+    expect(screen.getByRole("dialog", { name: "All classes" })).toBeInTheDocument();
+
+    fireEvent.click(trigger);
+    expect(screen.queryByRole("dialog", { name: "All classes" })).toBeNull();
+    expect(trigger.getAttribute("aria-pressed")).toBe("false");
+  });
+
   it("lists every assigned class as a pill, the first one included", async () => {
     const { client, pageId, classIds } = await seedClassedPage(["alpha", "beta", "gamma"]);
     render(<NodePills client={client} nodeId={pageId} classIds={classIds} overflow />);
 
     const popup = openPopup();
     // The pill label buttons (the dnd wrapper also exposes role=button —
-    // the .pill__text buttons are the pill labels proper).
-    const labels = [...popup.querySelectorAll(".pill__text")].map((el) => el.textContent ?? "");
+    // the .pill__text buttons are the pill labels proper), scoped to the
+    // pill list so the trailing add entry doesn't join.
+    const labels = [...popup.querySelectorAll(".node-pills-popup__list .pill__text")].map(
+      (el) => el.textContent ?? "",
+    );
     // All three, in assignment order — the first pill (visible inline) rides
     // the popup too, so the popup is the full list, not just the extras.
     expect(labels).toEqual(["alpha", "beta", "gamma"]);
     // The pill look, not a menu row: the colored pill element.
-    for (const pill of popup.querySelectorAll(".pill")) {
+    for (const pill of popup.querySelectorAll(".node-pills-popup__list .pill")) {
       expect(pill.classList.contains("pill--hover-reveal-right")).toBe(true);
     }
   });
@@ -111,7 +132,45 @@ describe("NodePills overflow popup — pill contract", () => {
     // …but the popup lists ALL THREE — the full assigned list, hidden pill
     // included.
     const popup = openPopup();
-    const labels = [...popup.querySelectorAll(".pill__text")].map((el) => el.textContent ?? "");
+    const labels = [...popup.querySelectorAll(".node-pills-popup__list .pill__text")].map(
+      (el) => el.textContent ?? "",
+    );
     expect(labels).toEqual(["inline-marked", "beta", "gamma"]);
+  });
+
+  it("the trailing add entry opens the class picker without dismissing the popup", async () => {
+    const { client, pageId, classIds } = await seedClassedPage(["alpha", "beta", "gamma"]);
+    render(<NodePills client={client} nodeId={pageId} classIds={classIds} overflow />);
+
+    const popup = openPopup();
+    // The help footer names the two rules.
+    expect(popup.textContent).toContain("The first class rides the block row");
+    expect(popup.textContent).toContain("drag pills to reorder");
+
+    // The dashed add-class entry sits below the pills.
+    const addEntry = within(popup).getByRole("button", { name: "Add class" });
+    fireEvent.click(addEntry);
+
+    // The picker opens, anchored at the entry, and the HOST popup survives
+    // the press (the picker's portaled DOM is outside the host's — without
+    // respectFleetPopups the host would have dismissed under the click).
+    const picker = await screen.findByPlaceholderText("Search classes");
+    expect(picker).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "All classes" })).toBeInTheDocument();
+
+    // Typing in the picker reaches its search field while the host stays.
+    // (The result row AND its dnd wrapper both expose role=button — the
+    // assertion only needs the row to exist.)
+    fireEvent.change(picker, { target: { value: "alpha" } });
+    expect((await screen.findAllByRole("button", { name: "alpha" })).length).toBeGreaterThan(0);
+    expect(screen.getByRole("dialog", { name: "All classes" })).toBeInTheDocument();
+
+    // Escape closes the picker (its own dismissal; the press originated
+    // inside it) and the host popup is still underneath.
+    fireEvent.keyDown(picker, { key: "Escape" });
+    await vi.waitFor(() => {
+      expect(screen.queryByPlaceholderText("Search classes")).toBeNull();
+    });
+    expect(screen.getByRole("dialog", { name: "All classes" })).toBeInTheDocument();
   });
 });

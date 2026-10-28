@@ -11,10 +11,6 @@
   z-index: var(--z-sticky);
 }
 
-.node-pills__overflow {
-  font-weight: var(--font-weight-semibold);
-}
-
 .node-pills-popup {
   /* No min-width: the panel shrink-wraps its pills (the widest pill sets the
      width) — a fixed floor left dead space on the right of short pill
@@ -42,4 +38,30 @@
 
 .node-pills-popup__list .node-pills__sortable {
   display: flex;
+}
+
+/* The trailing add-class entry: the dashed AddPill stretches the panel's
+   width, separated from the pills by a hairline — one footer action, the
+   class picker anchored at itself. */
+.node-pills-popup__add {
+  align-self: stretch;
+  margin-top: var(--spacing-1);
+  padding-top: var(--spacing-1);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+.node-pills-popup__add .pill--add {
+  width: 100%;
+  justify-content: center;
+}
+
+/* The help footer: the two rules the popup teaches — the first class rides
+   the block row, drag pills to reorder. Quiet caption register. */
+.node-pills-popup__footer {
+  align-self: stretch;
+  margin-top: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2) 0;
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+  color: var(--md-sys-color-on-surface-variant);
 }
