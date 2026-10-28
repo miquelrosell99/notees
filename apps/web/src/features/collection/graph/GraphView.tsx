@@ -14,7 +14,11 @@
  * ride the same toolbar.
  *
  * `local` scopes the topology to a node's neighborhood (the right-rail card);
- * `items` scopes it to a node collection (the registry mode).
+ * `items` scopes it to a node collection (the registry mode): the item ids
+ * roll up to the graph node set (a block item maps to the page holding it),
+ * and edges with an endpoint outside the collection DROP — the scoped map
+ * draws the collection's own pages-and-classes skeleton, nothing else.
+ * Without `items` the full workspace map stands (the graph route).
  *
  * The chrome composes from the kit (the ghost-button tool idiom, the
  * icon-radio mode selector, the boolean switch, the ButtonWithPanel popovers,
@@ -82,6 +86,7 @@ import {
   applyGraphSettings,
   edgeMaskForZoom,
   graphCounts,
+  rollupGraphScope,
   type GraphSettings,
 } from "./filter.js";
 import { computeFixedLayout, type GraphLayoutMode } from "./layouts.js";
@@ -349,9 +354,16 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   const [timeLapsePos, setTimeLapsePos] = useState(0);
   const [timeLapseEdges, setTimeLapseEdges] = useState(true);
 
+  // The collection scope: the item ids roll up to the graph node set (the
+  // blocks-never-render law — a block item maps to the page holding it);
+  // absent items = the full workspace map (the graph route) or the local
+  // neighborhood (the local prop).
   const scope = useMemo(
-    () => (items !== undefined ? new Set(items.map((item) => item.node.id)) : undefined),
-    [items],
+    () =>
+      items !== undefined
+        ? rollupGraphScope(client, items.map((item) => item.node.id))
+        : undefined,
+    [client, items],
   );
 
   const anchorId = local?.anchorId;
@@ -405,16 +417,17 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   // Browser tab title for the FULL-SURFACE graph only: name the tab on
   // mount, restore the previous title on unmount. The string matches the
   // app shell's one-writer rule (App tabTitle names the graph hub
-  // identically). The embedded local-graph card (right rail) must never
-  // touch the title — the host page names the tab.
+  // identically). The embedded local-graph card (right rail) and a hosted
+  // collection scope must never touch the title — the host page names the
+  // tab.
   useEffect(() => {
-    if (local !== undefined) return;
+    if (local !== undefined || items !== undefined) return;
     const previous = document.title;
     document.title = "Graph - Notees";
     return () => {
       document.title = previous;
     };
-  }, [local]);
+  }, [local, items]);
 
   /**
    * The display-shaping settings — field-level deps so unrelated prefs
@@ -2021,6 +2034,11 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
               title="Nothing to graph yet"
               description="Add pages and blocks to see how they connect."
             />
+          ) : scope !== undefined ? (
+            <EmptyState
+              title="Nothing to map in this collection"
+              description="The scoped map draws the links among the collection's own items — none survive the scope and the visibility filters."
+            />
           ) : local !== undefined ? (
             <EmptyState
               title={`No connected nodes within ${local.depth} ${local.depth === 1 ? "level" : "levels"}`}
@@ -2175,5 +2193,8 @@ registerView({
   icon: "mdi-graph-outline",
   component: GraphView,
   tier: "secondary",
+  // Availability: a collection offers the map only when it carries links to
+  // draw — a link-less or empty collection gets no dead option.
+  availability: (ctx) => ctx.linkedItemCount >= 1,
   capabilities: {},
 });

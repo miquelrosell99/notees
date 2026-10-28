@@ -175,7 +175,7 @@ export function HubView({
     // The cards board groups by the status property; the cards mode renders
     // it when a usable select schema exists (task family is authored on demand).
     const groupByProperty = taskGroupingProperty(client, members);
-    const modes: ViewMode[] = ["outline", "cards", "table", "pivot"];
+    const modes: ViewMode[] = ["outline", "cards", "table", "pivot", "graph"];
     return (
       <div className="nt-hub-tasks">
         {/* ONE bar for the whole hub: CollectionHub's SurfaceTopBar carries
@@ -242,7 +242,7 @@ export function HubView({
           icon={entry?.icon ?? "mdi-folder-multiple-image"}
           title={entry?.label ?? "Assets"}
           items={members}
-          modes={["cards", "table", "pivot"]}
+          modes={["cards", "table", "pivot", "graph"]}
           defaultMode="cards"
           defaultCoverLayout="cover-top"
           persistKey="hub.assets"
@@ -320,7 +320,7 @@ export function HubView({
         icon={entry?.icon ?? "mdi-book-open-page-variant"}
         title={entry?.label ?? "Pages"}
         items={items.map((node) => ({ node }))}
-        modes={["outline", "pivot"]}
+        modes={["outline", "pivot", "graph"]}
         defaultMode="outline"
         defaultSortMode="dates-first"
         persistKey={`hub.${nav}`}

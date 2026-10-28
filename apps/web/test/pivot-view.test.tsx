@@ -105,10 +105,10 @@ function pickOverflowMode(label: string): void {
 
 describe("registry availability gating", () => {
   it("views without an availability declaration are always available", () => {
-    expect(availableViewModes(["outline", "pivot", "graph"], {
+    expect(availableViewModes(["outline", "prose", "pivot"], {
       datePropertyCount: 0,
       linkedItemCount: 0,
-    })).toEqual(["outline", "pivot", "graph"]);
+    })).toEqual(["outline", "prose", "pivot"]);
   });
 
   it("a gated view filters out unless its declaration's condition holds", () => {
