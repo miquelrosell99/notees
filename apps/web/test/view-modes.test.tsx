@@ -714,7 +714,7 @@ describe("assets hub", () => {
   });
 });
 
-describe("pages hub (workspace roots)", () => {
+describe("pages hub (all pages)", () => {
   it("carries the standard switcher — outline, table and cards inline, the immersive modes gated on what the pages carry", async () => {
     const client = await seedClient();
     await client.createObject({ isEmbedded: false, name: "Hub Page" });
@@ -770,7 +770,36 @@ describe("pages hub (workspace roots)", () => {
     expect(screen.queryByRole("radio", { name: "Cards" })).toBeNull();
   });
 
-  it("lists top-level pages only — subpages ride the parent's row, collapsed at the listCollapseLevel setting", async () => {
+  // Top-level membership reads each row's OWN content (the root block's
+  // content div), not the whole subtree — children nest inside the row.
+  const ownTitle = (li: Element): string =>
+    li.querySelector(
+      ":scope > .outline-row > .nt-block > .nt-block-row > .nt-block-content",
+    )?.textContent ?? "";
+
+  it("queries all page nodes — subpages are first-class rows in table and cards", async () => {
+    const client = await seedClient();
+    const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
+    const subpageId = await client.createObject({ parentId, isEmbedded: false, name: "Subpage" });
+
+    render(<HubView client={client} nav="pages" onOpenNode={() => {}} />);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Table" }));
+    const rowIds = [...document.querySelectorAll("tbody tr")].map((tr) =>
+      tr.getAttribute("data-node-id"),
+    );
+    expect(rowIds).toContain(parentId);
+    expect(rowIds).toContain(subpageId);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
+    const articles = screen.getAllByRole("article");
+    expect(articles.length).toBe(2);
+    const cardTexts = articles.map((article) => article.textContent ?? "");
+    expect(cardTexts.some((t) => t.includes("Parent"))).toBe(true);
+    expect(cardTexts.some((t) => t.includes("Subpage"))).toBe(true);
+  });
+
+  it("outline nests subpages at render time — the child rides the parent's collapsed row, the chevron reveals it", async () => {
     const client = await seedClient();
     await client.createObject({ isEmbedded: false, name: "Top Level" });
     const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
@@ -782,19 +811,13 @@ describe("pages hub (workspace roots)", () => {
     render(<HubView client={client} nav="pages" onOpenNode={() => {}} />);
 
     const hub = document.querySelector(".nt-hub") as HTMLElement;
-    // Top-level membership reads each row's OWN content (the root block's
-    // content div), not the whole subtree — children nest inside the row.
-    const ownTitle = (li: Element): string =>
-      li.querySelector(
-        ":scope > .outline-row > .nt-block > .nt-block-row > .nt-block-content",
-      )?.textContent ?? "";
     const ownTitles = [...hub.querySelectorAll(".outline-flat > li")].map(ownTitle);
     expect(ownTitles.some((t) => t.includes("Top Level"))).toBe(true);
     expect(ownTitles.some((t) => t.includes("Parent"))).toBe(true);
     // The subpage is not a top-level row…
     expect(ownTitles.some((t) => t.includes("Subpage"))).toBe(false);
-    // …and the parent's row opens COLLAPSED — pages with children default
-    // folded; the chevron reveals the subpage on demand.
+    // …and the parent's row opens COLLAPSED — nesting is display-time; the
+    // chevron reveals the subpage on demand.
     const parentRow = [...hub.querySelectorAll(".outline-flat > li")].find(
       (li) => ownTitle(li).includes("Parent"),
     ) as HTMLElement;
@@ -803,6 +826,75 @@ describe("pages hub (workspace roots)", () => {
     expect(chevron.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(chevron);
     expect(parentRow.textContent).toContain("Subpage");
+  });
+
+  it("default table order keeps children after their parent — ancestry wins over the plain sort", async () => {
+    const client = await seedClient();
+    // The subpage's name sorts FIRST alphabetically: the surface's
+    // dates-first falls back to A–Z for non-date pages, so a naive flat
+    // sort would lead with the subpage; the nesting ruling keeps a child
+    // after its parent regardless.
+    const parentId = await client.createObject({ isEmbedded: false, name: "Zoo Parent" });
+    const subpageId = await client.createObject({ parentId, isEmbedded: false, name: "Aardvark" });
+
+    render(<HubView client={client} nav="pages" onOpenNode={() => {}} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Table" }));
+
+    const rowIds = [...document.querySelectorAll("tbody tr")].map((tr) =>
+      tr.getAttribute("data-node-id"),
+    );
+    expect(rowIds.indexOf(parentId)).toBeLessThan(rowIds.indexOf(subpageId));
+  });
+
+  it("a subpage whose parent the hub excludes (a journal day page) renders as a top-level row — visible, not nested, not lost", async () => {
+    const client = await seedClient();
+    const { day } = await client.ensureDateChain("2026-05-20");
+    await client.createObject({ parentId: day, isEmbedded: false, name: "Day Notes" });
+
+    render(<HubView client={client} nav="pages" onOpenNode={() => {}} />);
+
+    const hub = document.querySelector(".nt-hub") as HTMLElement;
+    const ownTitles = [...hub.querySelectorAll(".outline-flat > li")].map(ownTitle);
+    expect(ownTitles.some((t) => t.includes("Day Notes"))).toBe(true);
+    // The journal day itself stays a hub section (the Journal), never a
+    // Pages row.
+    expect(hub.textContent).not.toContain("20260520");
+  });
+});
+
+describe("nestUnderParents opt-in boundary", () => {
+  it("a reference-style collection with a block AND its child as items renders BOTH as independent top-level rows (prop unset)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Host" });
+    const parentBlock = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "parent block" }],
+    });
+    const childBlock = await client.createObject({
+      parentId: parentBlock,
+      contentAst: [{ type: "text", text: "child block" }],
+    });
+
+    render(
+      <NodeCollection
+        viewMode="outline"
+        client={client}
+        items={[
+          { node: client.getNode(parentBlock)! },
+          { node: client.getNode(childBlock)! },
+        ]}
+        onNodeClick={() => {}}
+      />,
+    );
+
+    // Unset = every item is its own row regardless of parentage (the
+    // backlinks/references ruling): no show-under-parent, nothing dropped.
+    const topLevel = [...document.querySelectorAll(".outline-flat > li")].map(
+      (li) => li.textContent ?? "",
+    );
+    expect(topLevel.length).toBe(2);
+    expect(topLevel.some((t) => t.includes("parent block"))).toBe(true);
+    expect(topLevel.some((t) => t.includes("child block"))).toBe(true);
   });
 });
 

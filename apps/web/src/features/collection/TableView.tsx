@@ -139,6 +139,8 @@ import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
 import { useViewChromeTarget } from "./viewChrome.js";
+import { sortTreeByMode } from "./collectionSort.js";
+import { nestItems } from "./nestItems.js";
 import { createPortal } from "react-dom";
 import { isEmptyPropertyValue, propertyDisplayText, propertyLinkHref } from "./propertyDisplay.js";
 import type { ClientNode, EffectiveProperty } from "@/core/workspace-client/index.js";
@@ -1533,9 +1535,34 @@ export function TableView(props: NodeCollectionProps) {
   const allColumns = useMemo(() => [...columns, ...builtExtraColumns], [columns, builtExtraColumns]);
 
   const sorted = useMemo(() => {
-    if (sort.length === 0) return rows;
-    return [...rows].sort((rowA, rowB) => compareRows(client, sort, allColumns, rowA, rowB));
-  }, [rows, sort, client, allColumns]);
+    if (sort.length !== 0) return [...rows].sort((rowA, rowB) => compareRows(client, sort, allColumns, rowA, rowB));
+    // nestUnderParents (the Pages hub): with NO explicit column sort the row
+    // order is the display-time tree flattened depth-first — parents before
+    // children, every sibling level sorted by the surface's sort-mode
+    // default (the hub passes dates-first). A picked column sort keeps
+    // overriding exactly as for any other collection.
+    if (props.nestUnderParents === true) {
+      const resolveClassName = (classId: string) => client.getDisplayName(classId);
+      const mode = props.defaultSortMode;
+      const nested = nestItems(rows.map((row) => row.item));
+      const tree =
+        mode === "dates-first" || mode === "alphabetical"
+          ? sortTreeByMode(nested, mode, resolveClassName)
+          : nested;
+      const rowById = new Map(rows.map((row) => [row.item.node.id, row]));
+      const flat: TableRow[] = [];
+      const walk = (level: NodeCollectionItem[]): void => {
+        for (const item of level) {
+          const row = rowById.get(item.node.id);
+          if (row !== undefined) flat.push(row);
+          if (item.children !== undefined && item.children.length > 0) walk(item.children);
+        }
+      };
+      walk(tree);
+      return flat;
+    }
+    return rows;
+  }, [rows, sort, client, allColumns, props.nestUnderParents, props.defaultSortMode]);
 
   // The display window over the FULL sorted set — every sort change
   // resets it (a resort re-narrows instead of inheriting a grown window).

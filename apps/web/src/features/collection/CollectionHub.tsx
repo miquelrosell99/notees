@@ -75,6 +75,13 @@ export interface CollectionHubProps {
    */
   editable?: boolean | undefined;
   /**
+   * The collection's item set is flat but structurally nested: the views
+   * derive parent/child structure from the item set at render time (the
+   * Pages hub — its query is all page nodes). Unset = every item renders
+   * as its own row regardless of parentage (the backlinks ruling).
+   */
+  nestUnderParents?: boolean | undefined;
+  /**
    * List mode scopes its recursive children to the main-children zone
    * (subpages only — the getChildPages read): page listings (the shell
    * hubs) expand their subpage tree and never a page's inline body blocks.
@@ -117,6 +124,7 @@ export function CollectionHub({
   groupByProperty,
   editable = false,
   pagesOnly = false,
+  nestUnderParents = false,
   hideProperties = false,
   hideTags = false,
   emptyTitle,
@@ -167,6 +175,7 @@ export function CollectionHub({
             emptyTitle={emptyTitle}
             editable={editable}
             {...(pagesOnly ? { pagesOnly: true } : {})}
+        {...(nestUnderParents ? { nestUnderParents: true } : {})}
         {...(hideProperties ? { hideProperties: true } : {})}
         {...(hideTags ? { hideTags: true } : {})}
             onNodeClick={onOpenNode}

@@ -119,10 +119,15 @@ export function HubView({
   // The Assets hub's creation path IS the upload modal: the header
   // button opens it, and the uploaded asset node opens.
   const [assetUploadOpen, setAssetUploadOpen] = useState(false);
-  // Top-level pages: subpages render in their parent's Pages zone, so the
-  // workspace-level hubs list roots only; the Block role rides the
-  // parentlessRole rule — block-role parentless nodes
-  // (assets included) stay out of the pages hub.
+  // The section pages (Journal, Whiteboards, Tasks) carve the hub sections
+  // out of the pages pool. The section SET reads the all-pages list — the
+  // journal's month/day chain nodes are parented, so a roots-only read
+  // would exclude just the year; the Pages hub's all-pages query filters
+  // every section page out. The Whiteboards hub's item set stays roots-based
+  // (a subpage classed whiteboard rides its parent's Pages zone, not the
+  // Whiteboards hub). The Block role rides the parentlessRole rule —
+  // block-role parentless nodes (assets included) stay out of the pages hub.
+  const allPages = client.listPages();
   const pages = client
     .roots()
     .filter((page) => rendersWithDocumentChrome(page, undefined, parentlessBlockResolverOf(client)));
@@ -131,10 +136,21 @@ export function HubView({
     SYSTEM_CLASS_UUIDS.month,
     SYSTEM_CLASS_UUIDS.year,
   ];
-  const journalPages = pages.filter((page) => page.classIds.some((c) => dateClassIds.includes(c)));
   const whiteboardPages = pages.filter((page) => page.classIds.includes(SYSTEM_CLASS_UUIDS.whiteboard));
-  const taskPages = pages.filter((page) => page.classIds.includes(SYSTEM_CLASS_UUIDS.task));
-  const sectionIds = new Set([...journalPages, ...whiteboardPages, ...taskPages].map((p) => p.id));
+  // The section set reads the all-pages list: parented section pages (the
+  // journal's month/day chain nodes, a subpage classed whiteboard/task)
+  // belong to their section, never to the Pages/Inbox pool. The Whiteboards
+  // hub's own item set above stays roots-based by ruling.
+  const sectionIds = new Set(
+    allPages
+      .filter(
+        (page) =>
+          page.classIds.some((c) => dateClassIds.includes(c)) ||
+          page.classIds.includes(SYSTEM_CLASS_UUIDS.whiteboard) ||
+          page.classIds.includes(SYSTEM_CLASS_UUIDS.task),
+      )
+      .map((p) => p.id),
+  );
   const entry = NAV_ENTRIES.find((e) => e.key === nav);
 
   if (nav === "tasks") {
@@ -276,7 +292,13 @@ export function HubView({
         ? whiteboardPages
         : nav === "inbox"
           ? pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length === 0)
-          : pages.filter((page) => !sectionIds.has(page.id));
+          : nav === "pages"
+            ? // The Pages hub's query is ALL page nodes — root or not. Child
+              // pages are first-class items in every mode; only the outline
+              // renders the parent/child structure (nestUnderParents —
+              // display-time nesting derived from the item set).
+              client.listPages().filter((page) => !sectionIds.has(page.id))
+            : pages.filter((page) => !sectionIds.has(page.id));
   // The shared hub's header creation button: each mode's idiom — Classes
   // opens the class-creation modal; Whiteboards reuses the "New" flow's write
   // with the whiteboard system class picked. The created node opens. Pages
@@ -331,6 +353,7 @@ export function HubView({
         emptyTitle="Nothing here yet."
         headerActions={headerAction}
         {...(pagesOnly ? { pagesOnly: true } : {})}
+        {...(nav === "pages" ? { nestUnderParents: true } : {})}
         {...(cleanRows ? { hideProperties: true, hideTags: true } : {})}
         onOpenNode={onOpenNode}
         onOpenInSidebar={onOpenInSidebar}
