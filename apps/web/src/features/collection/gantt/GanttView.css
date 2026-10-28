@@ -1,0 +1,155 @@
+/* GanttView — the gantt collection view: the toolbar row (the start/end
+   date-property pickers), the shared month-ticked time axis, one row per
+   item (sticky name cell + bar track), the trailing Unscheduled lane, and
+   the today line. Bars are plain divs — token-only CSS, adaptive values. */
+
+.gantt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
+}
+
+.gantt--empty {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.gantt__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  align-items: center;
+}
+
+.gantt__scroll {
+  overflow-x: auto;
+}
+
+.gantt__chart {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+/* One row = the sticky name cell + the bar track; the lane rows reuse the
+   two-column grid so every name lines up with the axis. */
+.gantt__row {
+  display: grid;
+  grid-template-columns: minmax(14ch, max-content) 1fr;
+  gap: var(--spacing-2);
+  align-items: center;
+}
+
+.gantt__name {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+  padding: 0 var(--spacing-1);
+  border: none;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  cursor: pointer;
+}
+
+.gantt__name--static {
+  cursor: default;
+  color: var(--md-sys-color-on-surface-variant);
+  font-weight: 600;
+}
+
+/* The track carries the month gridlines as a repeating hairline gradient
+   (one period per axis tick) and — when today is in range — the today line
+   as a second layered gradient at the same position on EVERY track, which
+   paints one continuous vertical line down the chart (a single absolute
+   element could not align: the tracks sit right of the sticky name
+   column). */
+.gantt__track {
+  position: relative;
+  height: 1.6lh;
+  --gantt-today: -1%;
+  background-image:
+    linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(var(--gantt-today) - 1px),
+      var(--md-sys-color-tertiary) calc(var(--gantt-today) - 1px),
+      var(--md-sys-color-tertiary) calc(var(--gantt-today) + 1px),
+      transparent calc(var(--gantt-today) + 1px)
+    ),
+    repeating-linear-gradient(
+      to right,
+      var(--md-sys-color-outline-variant) 0,
+      var(--md-sys-color-outline-variant) 1px,
+      transparent 1px,
+      transparent calc(100% / var(--gantt-months))
+    );
+}
+
+.gantt__bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 0.9lh;
+  min-width: 0.8ch;
+  border: none;
+  border-radius: var(--shape-medium);
+  background: var(--md-sys-color-primary);
+  cursor: pointer;
+}
+
+.gantt__axis {
+  display: grid;
+  grid-template-columns: minmax(14ch, max-content) 1fr;
+  gap: var(--spacing-2);
+}
+
+.gantt__axis-track {
+  position: relative;
+  height: 2.5ex;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--md-sys-color-outline-variant) 0,
+    var(--md-sys-color-outline-variant) 1px,
+    transparent 1px,
+    transparent calc(100% / var(--gantt-months))
+  );
+}
+
+.gantt__tick {
+  position: absolute;
+  top: 0;
+  padding-left: var(--spacing-1);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-xs, 0.75em);
+  white-space: nowrap;
+}
+
+.gantt__lane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding-top: var(--spacing-1);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.gantt__lane-title {
+  color: var(--md-sys-color-on-surface-variant);
+  font-weight: 600;
+}
+
+.gantt__lane-count {
+  height: auto;
+  background: none;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.gantt__lane-dash {
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.6;
+}

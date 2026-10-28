@@ -48,6 +48,11 @@ const JS_SCOPED = new Map<string, string>([
   // Radix popper sets this on the popover content (JS) — the Dropdown
   // menu's min-width rides it (trigger-width anchoring).
   ["--radix-popover-trigger-width", "Dropdown.tsx"],
+  // The gantt chart's JS-scoped axis: the tick count drives the month
+  // gridline period, the today percentage the layered today line (both set
+  // inline from React on the chart container).
+  ["--gantt-months", "GanttView.tsx"],
+  ["--gantt-today", "GanttView.tsx"],
 ]);
 
 function walkFiles(dir: string, out: string[] = []): string[] {

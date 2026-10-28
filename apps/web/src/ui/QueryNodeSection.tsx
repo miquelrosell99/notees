@@ -29,11 +29,11 @@
  * isDefault) belongs to the Queries hub's saved views and is not read here.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { parseQueryAst, type QueryAst } from "@notees/query";
 
-import { NodeCollectionTabs, NodeCollectionTopBar, SECTION_DEFAULT_TAB, ViewSwitcher } from "../features/collection/index.js";
+import { NodeCollectionTabs, NodeCollectionTopBar, SECTION_DEFAULT_TAB, useAvailableViewModes, ViewSwitcher } from "../features/collection/index.js";
 import { NodeCollectionToolbar } from "../features/collection/NodeCollectionToolbar.js";
 import {
   updateSectionViewAst,
@@ -48,7 +48,7 @@ import {
 import type { AnyClient, ViewMode } from "../features/collection/index.js";
 import { Button } from "../components/ui/kit/Button.js";
 import { QueryResultsBody, isUnspecifiedQueryAst } from "./queryResults.js";
-import { useQueryRun } from "./queryRun.js";
+import { queryResultItems, useQueryRun } from "./queryRun.js";
 import { appendQueryToken, updateQueryTokenAst } from "./queryTokens.js";
 import { buildQueryExportMarkdown, downloadTextFile, queryExportFileName } from "./queryExport.js";
 
@@ -60,6 +60,11 @@ import "./QueryNodeSection.css";
 // wants the structured builder open when the section renders. The request is
 // a module-level queue consumed on mount (a listener pattern would race: the
 // request fires before this mounts).
+
+/** The query results' view modes (the registry switcher): outline/table
+ *  primary, pivot + gantt on the "…" overflow — gantt availability-gated on
+ *  the results carrying a valued date property. */
+const QUERY_VIEW_MODES: readonly ViewMode[] = ["outline", "table", "pivot", "gantt"];
 
 const pendingBuilderOpens = new Set<string>();
 
@@ -134,6 +139,19 @@ export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectio
   const unspecified = isUnspecifiedQueryAst(effectiveAst);
 
   const run = useQueryRun(client, effectiveAst, { enabled: !unspecified });
+
+  // The registry's availability gate on the FULL result set (the counts
+  // ruling): gantt rides the switcher only while the results carry a valued
+  // date property. A worn mode whose results change underneath renders its
+  // honest empty state, like any view.
+  const resultItems = useMemo(
+    () =>
+      run.result !== null && run.result.kind === "query"
+        ? queryResultItems(client, run.result.rows, run.result.ids.length)
+        : [],
+    [client, run.result],
+  );
+  const viewModes = useAvailableViewModes(client, resultItems, QUERY_VIEW_MODES);
   const resultCount =
     run.result === null ? null : run.result.kind === "query" ? run.result.ids.length : run.result.rows.length;
   const exportable = run.result !== null && run.result.kind === "query" && run.result.ids.length > 0;
@@ -189,7 +207,7 @@ export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectio
                     (pivot is a registry mode like any other; its secondary
                     tier rides the "…" overflow). */}
                 <ViewSwitcher
-                  modes={["outline", "table", "pivot"]}
+                  modes={viewModes}
                   value={viewMode}
                   onChange={setViewMode}
                 />

@@ -507,6 +507,59 @@ describe("query node (nodecollection surface below the content row)", () => {
     expect(container.querySelector(".nt-query-pivot")).toBeNull();
   });
 
+  it("gantt mode: offered only when the results carry a valued date property; bars render on the axis", async () => {
+    const client = await seedClient();
+    const { city, paris } = await seedWorld(client);
+    // A bound datetime property valued on ONE member: the gate arms.
+    const due = await client.createPropertySchema({ name: "due", type: "datetime" });
+    await client.setClassProperty(city, due, {});
+    const { day } = await client.ensureDateChain("2026-03-10");
+    await client.setProperty(paris, due, { nodeId: day }, 0);
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
+    await client.createObject({
+      parentId: host,
+      classIds: [QUERY_CLASS_ID],
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+    });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+    await screen.findByText("Paris");
+    // The date gate passes (one valued member) → Gantt rides the overflow…
+    pickViewMode("Gantt");
+    const gantt = () => container.querySelector(".gantt") as HTMLElement;
+    expect(gantt()).not.toBeNull();
+    // …the start picker defaults to the bound date property, the scheduled
+    // member draws one bar, the unscheduled member rides the lane.
+    expect(within(gantt()).getByLabelText("Start")).not.toBeNull();
+    expect(gantt()!.querySelectorAll(".gantt__bar")).toHaveLength(1);
+    expect(within(gantt()).getByText("London")).not.toBeNull();
+
+    // Back to the list: the gantt unmounts.
+    fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
+    expect(await screen.findByText("Paris")).not.toBeNull();
+    expect(container.querySelector(".gantt")).toBeNull();
+  });
+
+  it("gantt mode: a date-less result set offers no Gantt (the availability gate)", async () => {
+    const client = await seedClient();
+    const { city } = await seedWorld(client);
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
+    await client.createObject({
+      parentId: host,
+      classIds: [QUERY_CLASS_ID],
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+    });
+
+    render(<PageView client={client} pageId={host} />);
+    await screen.findByText("Paris");
+    // outline + table on the strip; the overflow carries pivot but NOT Gantt.
+    expect(screen.queryByRole("radio", { name: "Gantt" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "More options" }));
+    const overflow = document.querySelector(".selection-button__overflow-dropdown") as HTMLElement;
+    expect(within(overflow).queryByRole("menuitem", { name: "Gantt" })).toBeNull();
+    expect(within(overflow).getByRole("menuitem", { name: "Pivot" })).not.toBeNull();
+  });
+
   it("invalid AST renders the placeholder without crashing", async () => {
     const client = await seedClient();
     await seedWorld(client);

@@ -59,8 +59,8 @@ export interface HostedViewsConfig {
   onSelectTab?: ((tab: string) => void) | undefined;
 }
 
-/** The collection view modes (graph = the workspace graph; pivot = the 2D group-by grid). */
-export type ViewMode = "outline" | "prose" | "cards" | "table" | "graph" | "pivot";
+/** The collection view modes (graph = the workspace/scoped map; pivot = the 2D group-by grid; gantt = the time-axis bars). */
+export type ViewMode = "outline" | "prose" | "cards" | "table" | "graph" | "pivot" | "gantt";
 
 export type SortDirection = "asc" | "desc";
 
