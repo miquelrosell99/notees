@@ -12,12 +12,15 @@ predating this file.
 - **fix(web): the active-tab underline centers on the TEXT, not the text +
   badge.** The kit Tabs' sliding indicator measured the padded tab button —
   a trailing count badge (the collection tabs' active-tab count) pulled the
-  centering right. The measurement now targets the `.tabs__tab-label`
-  wrapper (the text) when the tab carries one, falling back to the button.
-  Verified: web typecheck + the section-views / query-node / filter-layer /
-  filter-builder specs (87 tests).
+  centering right. The measurement now targets the leading TEXT RUN — a DOM
+  Range over the label's first text node (the badge rides inside the label,
+  markup-adjacent to the name, so measuring any wrapper still counted it) —
+  falling back to the label, then the button. Verified live against the
+  deployed stack: indicator center == text-run center (delta 0,
+  `scripts/screenshots/indicator-probe.mjs`) + web typecheck and the full
+  suite.
   - **Files**: `apps/web/src/components/ui/kit/Tabs.tsx` (the indicator
-    measurement).
+    measurement), `scripts/screenshots/indicator-probe.mjs` (new).
 
 - **fix(web): the NodeCollectionTopBar right cluster unifies, the page
   footer retires, and the backlink card's top padding tightens — owner
