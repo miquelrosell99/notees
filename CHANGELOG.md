@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-28
 
+- **docs(changelog): the card.review lockstep converged — GTK `506959d`,
+  Flutter `c6f720e`.** Both client legs shipped on their
+  memorization-cards-lockstep branches with `card-review.json`
+  byte-identical across all three repos (sha256
+  `8e3b18c7dcdb39c16b1df77d406712370d165c4b60d8052f9444f603021defe3`) and
+  both client gates green; the LOCKSTEP-PENDING notes in the card.review
+  entries are closed. Main-repo close-out in the same pass: the stale
+  "LWW-ordered records per card" phrasing in `op-types.ts`'s payload doc
+  and SCHEMA.md's convergence bullet corrected to the shipped history-only
+  semantics (append-only, HLC-ordered, NO LWW gate) — comment/docs only, no
+  wire change, and the fixture itself deliberately untouched (byte-pinned
+  across the three repos, a comment edit there would force a coordinated
+  re-vendor).
+
 - **feat(server,web): `cards.algorithm` per-user preference (default fsrs)
   (memorization cards slice).** The memorization-cards scheduler choice
   rides the existing per-user prefs channel — coordination state beside the
