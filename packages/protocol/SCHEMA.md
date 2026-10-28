@@ -154,6 +154,17 @@ Importers and sync plugins (calendar providers, Readwise, read-it-later) need a 
 
 ---
 
+## Memorization cards — `card.review` (NORMATIVE, 2026-10-28 — the SRS review record; store projection pending the next slice)
+
+A memorization card is an ordinary node classed by the system `card` class (the 2026-10-28 rename: display name **Memorization card**); the node's content is the prompt, its embedded children the answer. Scheduling state is log-carried: **one `card.review` op per graded review**, carrying the FULL SRS state transition so every replica derives the same scheduling outcome without depending on a local algorithm implementation.
+
+- **`card.review {cardId, grade, algorithm, stateBefore, stateAfter, reviewedAt, sessionId}`** (strict payload) — `grade` is the four-button scale `again | hard | good | easy`; `algorithm` names the scheduler that produced the states, `sm2 | fsrs`; `reviewedAt` is an ISO-8601 instant; `sessionId` is a uuid grouping one study session's reviews (no referential integrity). `stateBefore`/`stateAfter` are both `cardSrsStateSchema` — **`{due, reps, interval, ease, difficulty, stability}`**: `due` is a YYYY-MM-DD calendar day, `null` = unseen; `reps` the successful-repetition count; `interval` the scheduled gap in days; `ease` the SM2 ease factor, `difficulty`/`stability` the FSRS difficulty/stability-in-days — all three **nullable, `null` = uninitialized** until the chosen algorithm first writes them.
+- **Convergence:** reviews are LWW-ordered records per card — the store keeps the latest review's `stateAfter` as the card's derived SRS state (the store slice immediately following ships the `card_srs` projection + read helpers; until then the TS store dispatches the op through a loudly-marked no-op seam so the exhaustive applier map stays total — the op validates on the wire and replays deterministically, nothing reads SRS state yet).
+- **Scheduling state ALSO rides the seeded card-family property schemas** (cardDue/cardReps/cardInterval/cardEase/cardDifficulty/cardStability, the 2026-10-28 domain slice) as ordinary LWW property ops — the `card.review` op is the review JOURNAL (who graded what, when, from which session, and the exact transition), the properties are the current schedule surface.
+- **Canonical fixture:** `card-review.json` — a node seeded under the system card class is reviewed twice from two sessions: AGAIN on the unseen card initializes SM2 ease at 2.5, GOOD schedules the next day. **LOCKSTEP-PENDING:** the GTK/Flutter ports converge on the fixture + payload schema in the plan's dedicated lockstep task — a recorded deferral, not a silent follow-up (a pre-lockstep client rejects the unknown opType envelope at validation, the strict-payload precedent).
+
+---
+
 ## Node structure — `is_class` × `is_embedded` (NORMATIVE, Revision 12)
 
 Revision 10's `node_type ∈ {page, block, class}` enumeration and Revision 11's `present_as_main` render bit are replaced by **two booleans** that separate three independent concerns: **classification** (`is_class` — what the node represents), **parent relationship** (`parent_id` — which node it structurally belongs to), and **embedding** (`is_embedded` — whether its content belongs to the parent's body). The render cascade is `is_class → ClassView; parentless → document chrome unless a member class effectively carries parentlessRole "block" (below); else the flag decides — and the parent must be a page`:
