@@ -1500,9 +1500,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       }
     }
     if (atom === null) return;
-    // Class chips own no link menu (they reference a class, not a node link):
-    // the click-selection stands, the browser menu shows.
-    if (atom.kind === "chip") return;
+    // Class chips are atomic like mentions and ride the same link menu —
+    // the Convert item flips a class-targeted link between the mention and
+    // chip token forms (Edit stays mention-only).
     event.preventDefault();
     setLinkMenu({
       x: event.clientX,
@@ -1511,36 +1511,96 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       start: atom.start,
       end: atom.end,
       targetNodeId: atom.targetNodeId,
+      kind: atom.kind === "chip" ? "chip" : "mention",
     });
   };
 
   /**
-   * The mention the menu was opened on, re-validated against the freshest
-   * state (the menu survives the debounced flush, which rewrites the same
-   * prose but could in principle rebase the stream).
+   * The link token the menu was opened on (mention or class chip),
+   * re-validated against the freshest state (the menu survives the
+   * debounced flush, which rewrites the same prose but could in principle
+   * rebase the stream).
    */
-  const currentLinkMenuMention = (): { menu: LinkMenuState; token: MentionToken } | null => {
+  const currentLinkMenuToken = ():
+    | { menu: LinkMenuState; token: Record<string, unknown>; kind: "mention" | "chip" }
+    | null => {
     const menu = linkMenu;
     if (menu === null) return null;
     const base = applyTextEdit(committedRef.current, draftRef.current, resolveClassName, resolveMentionName);
     const token = base[menu.tokenIndex];
-    if (
-      typeof token !== "object" ||
-      token === null ||
-      (token as { type?: unknown }).type !== "mention"
-    ) {
-      return null;
+    if (typeof token !== "object" || token === null) return null;
+    const type = (token as { type?: unknown }).type;
+    if (type === "mention") {
+      return { menu, token: token as Record<string, unknown>, kind: "mention" };
     }
-    return { menu, token: token as unknown as MentionToken };
+    if (type === "class_link") {
+      return { menu, token: token as Record<string, unknown>, kind: "chip" };
+    }
+    return null;
   };
 
-  /** "Remove link": replace the mention with its visible text (the custom
-   *  label when set, else the target's current display name — the mention
-   *  stores no other text; a broken target drops the mention). */
-  const removeLink = () => {
-    const hit = currentLinkMenuMention();
+  /** The menu's mention token, when the menu stands on a mention (Edit). */
+  const currentLinkMenuMention = (): { menu: LinkMenuState; token: MentionToken } | null => {
+    const hit = currentLinkMenuToken();
+    if (hit === null || hit.kind !== "mention") return null;
+    return { menu: hit.menu, token: hit.token as unknown as MentionToken };
+  };
+
+  /** The visible text a link keeps when unlinked: the one-off wording when
+   *  set, else the target's current name (mention title / class display
+   *  name — a broken target leaves nothing to keep). */
+  const linkKeptText = (token: Record<string, unknown>, kind: "mention" | "chip"): string => {
+    const override = kind === "mention"
+      ? typeof token.customLabel === "string" ? token.customLabel : undefined
+      : typeof token.displayText === "string" ? token.displayText : undefined;
+    if (override !== undefined) return override;
+    const id = kind === "mention"
+      ? (typeof token.targetNodeId === "string" ? token.targetNodeId : "")
+      : (typeof token.classId === "string" ? token.classId : "");
+    if (id === "") return "";
+    return (kind === "mention" ? resolveMentionName(id) : resolveClassName(id)) ?? "";
+  };
+
+  /** The class-targeted conversion: a mention of a class node becomes a
+   *  class chip, a class chip becomes a mention — same target, the one-off
+   *  wording carried across (customLabel ↔ displayText). */
+  const convertLink = (): void => {
+    const hit = currentLinkMenuToken();
     if (hit === null) return;
-    const kept = hit.token.customLabel ?? resolveMentionName(hit.token.targetNodeId) ?? "";
+    const replacement =
+      hit.kind === "mention"
+        ? {
+            type: "class_link",
+            classId: hit.token.targetNodeId,
+            ...(typeof hit.token.customLabel === "string" && hit.token.customLabel.length > 0
+              ? { displayText: hit.token.customLabel }
+              : {}),
+          }
+        : {
+            type: "mention",
+            targetNodeId: hit.token.classId,
+            ...(typeof hit.token.displayText === "string" && hit.token.displayText.length > 0
+              ? { customLabel: hit.token.displayText }
+              : {}),
+          };
+    applySplice(hit.menu.start, hit.menu.end, [replacement], hit.menu.start);
+  };
+
+  /** True when the menu's target resolves to a class node — the Convert
+   *  item's gate (both directions only make sense for class targets). */
+  const linkTargetIsClass = (): boolean => {
+    const menu = linkMenu;
+    if (menu === null) return false;
+    return client.getNode(menu.targetNodeId)?.isClass === true;
+  };
+
+  /** "Remove link": replace the link with its visible text (the custom
+   *  label when set, else the target's current display name — the link
+   *  stores no other text; a broken target drops the link). */
+  const removeLink = () => {
+    const hit = currentLinkMenuToken();
+    if (hit === null) return;
+    const kept = linkKeptText(hit.token, hit.kind);
     if (kept === "") {
       applySplice(hit.menu.start, hit.menu.end, [], hit.menu.start);
       return;
@@ -1548,9 +1608,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     applySplice(hit.menu.start, hit.menu.end, [{ type: "text", text: kept }], hit.menu.start + kept.length);
   };
 
-  /** "Delete link": drop the mention token wholesale. */
+  /** "Delete link": drop the link token wholesale. */
   const deleteLink = () => {
-    const hit = currentLinkMenuMention();
+    const hit = currentLinkMenuToken();
     if (hit === null) return;
     applySplice(hit.menu.start, hit.menu.end, [], hit.menu.start);
   };
@@ -2445,7 +2505,18 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
             setLinkMenu(null);
             openInSidebar(id);
           }}
-          onEdit={editLink}
+          onEdit={linkMenu.kind === "mention" ? editLink : undefined}
+          onConvert={
+            linkTargetIsClass()
+              ? () => {
+                  setLinkMenu(null);
+                  convertLink();
+                }
+              : undefined
+          }
+          convertLabel={
+            linkMenu.kind === "chip" ? "Convert to link" : "Convert to class chip"
+          }
           onRemove={removeLink}
           onDelete={deleteLink}
         />

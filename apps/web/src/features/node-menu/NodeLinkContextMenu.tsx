@@ -9,6 +9,10 @@
  *   item renders only when the target token is a mention — external links
  *   (markdown spans in text tokens) never offer Edit here (they navigate;
  *   they are authored by the slash "Add URL" command / markdown pasting).
+ * - Convert to class chip / Convert to link — CLASS TARGETS ONLY: flips the
+ *   token between the mention and class_link forms (the inline chip and the
+ *   plain link render differently but reference the same class node; the
+ *   one-off wording rides across as customLabel ↔ displayText).
  * - Remove link — unlink but keep the visible text (the custom label when
  *   one is set, otherwise the target's current display name).
  * - Delete link — drop the mention token from the block entirely.
@@ -38,15 +42,17 @@ export interface NodeLinkMenuState {
 }
 
 /**
- * A request to open the node-link menu against a specific mention token in
- * a node's content stream (any view mode — read or edit).
+ * A request to open the node-link menu against a specific link token in
+ * a node's content stream (any view mode — read or edit): a mention or a
+ * class chip.
  */
 export interface NodeLinkMenuRequest extends NodeLinkMenuState {
-  /** The node whose contentAst holds the mention (page/block/class). */
+  /** The node whose contentAst holds the token (page/block/class). */
   blockId: string;
-  /** Index of the mention token inside contentAst. */
+  /** Index of the token inside contentAst. */
   tokenIndex: number;
-  /** The link's custom label, when set. */
+  /** The link's one-off wording, when set (a mention's customLabel, a
+   *  chip's displayText). */
   customLabel?: string | undefined;
 }
 
@@ -74,26 +80,45 @@ interface NodeLinkMenuHostProps {
   children: ReactNode;
 }
 
+/** Read the link token at `tokenIndex` — a mention or a class chip. */
+function linkTokenAt(
+  client: NodeLinkMenuHostProps["client"],
+  request: NodeLinkMenuRequest,
+):
+  | { kind: "mention"; targetNodeId: string; customLabel?: string; isEmbedded?: boolean }
+  | { kind: "class_link"; classId: string; displayText?: string }
+  | null {
+  const node = client.getNode(request.blockId);
+  const token = node?.contentAst[request.tokenIndex];
+  if (typeof token !== "object" || token === null) return null;
+  const t = token as Record<string, unknown>;
+  if (t.type === "mention" && typeof t.targetNodeId === "string") {
+    return {
+      kind: "mention",
+      targetNodeId: t.targetNodeId,
+      ...(typeof t.customLabel === "string" ? { customLabel: t.customLabel } : {}),
+      ...(t.isEmbedded === true ? { isEmbedded: true } : {}),
+    };
+  }
+  if (t.type === "class_link" && typeof t.classId === "string") {
+    return {
+      kind: "class_link",
+      classId: t.classId,
+      ...(typeof t.displayText === "string" ? { displayText: t.displayText } : {}),
+    };
+  }
+  return null;
+}
+
 /** Read the mention token at `tokenIndex`, validating its type. */
 function mentionTokenAt(
   client: NodeLinkMenuHostProps["client"],
   request: NodeLinkMenuRequest,
 ): { targetNodeId: string; customLabel?: string; isEmbedded?: boolean } | null {
-  const node = client.getNode(request.blockId);
-  const token = node?.contentAst[request.tokenIndex];
-  if (
-    typeof token !== "object" ||
-    token === null ||
-    (token as Record<string, unknown>).type !== "mention"
-  ) {
-    return null;
-  }
-  const t = token as Record<string, unknown>;
-  return {
-    targetNodeId: String(t.targetNodeId),
-    ...(typeof t.customLabel === "string" ? { customLabel: t.customLabel } : {}),
-    ...(t.isEmbedded === true ? { isEmbedded: true } : {}),
-  };
+  const token = linkTokenAt(client, request);
+  if (token === null || token.kind !== "mention") return null;
+  const { targetNodeId, customLabel, isEmbedded } = token;
+  return { targetNodeId, ...(customLabel !== undefined ? { customLabel } : {}), ...(isEmbedded !== undefined ? { isEmbedded } : {}) };
 }
 
 /**
@@ -130,6 +155,63 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
     });
   };
 
+  /** The visible text a link keeps when unlinked: the one-off wording when
+   *  set, else the target's current name (mention title / class display
+   *  name). */
+  const linkKeptText = (token: NonNullable<ReturnType<typeof linkTokenAt>>): string => {
+    if (token.kind === "mention") {
+      return token.customLabel ?? titleOf(client, token.targetNodeId, { budget: "full" }) ?? "";
+    }
+    return token.displayText ?? titleOf(client, token.classId, { budget: "full" }) ?? "";
+  };
+
+  /** The class-targeted conversion, when the menu's token and target allow
+   *  it: a mention of a class node becomes a class chip, a class chip
+   *  becomes a mention — same target, one-off wording carried across. */
+  const convertAction = ():
+    | { label: "Convert to class chip" | "Convert to link"; run(): void }
+    | null => {
+    if (request === null) return null;
+    const token = linkTokenAt(client, request);
+    if (token === null) return null;
+    if (token.kind === "mention") {
+      if (client.getNode(token.targetNodeId)?.isClass !== true) return null;
+      return {
+        label: "Convert to class chip",
+        run: () => {
+          const node = client.getNode(request.blockId);
+          if (node === undefined) return;
+          const next = node.contentAst.slice();
+          next[request.tokenIndex] = {
+            type: "class_link",
+            classId: token.targetNodeId,
+            ...(token.customLabel !== undefined ? { displayText: token.customLabel } : {}),
+          };
+          rewrite(next);
+          close();
+        },
+      };
+    }
+    if (client.getNode(token.classId)?.isClass !== true) return null;
+    return {
+      label: "Convert to link",
+      run: () => {
+        const node = client.getNode(request.blockId);
+        if (node === undefined) return;
+        const next = node.contentAst.slice();
+        next[request.tokenIndex] = {
+          type: "mention",
+          targetNodeId: token.classId,
+          ...(token.displayText !== undefined ? { customLabel: token.displayText } : {}),
+        };
+        rewrite(next);
+        close();
+      },
+    };
+  };
+
+  const convert = convertAction();
+
   return (
     <>
       {children}
@@ -146,6 +228,8 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
             close();
             openInSidebar(id);
           }}
+          onConvert={convert === null ? undefined : convert.run}
+          convertLabel={convert?.label}
           // Edit is a NODE-link action: offered only when the
           // target token is still a mention. External links navigate — they
           // are never edited (Remove/Delete stay available).
@@ -172,22 +256,23 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
           }
           onRemove={() => {
             const node = client.getNode(request.blockId);
-            const token = mentionTokenAt(client, request);
+            const token = linkTokenAt(client, request);
             if (node === undefined || token === null) {
               close();
               return;
             }
-            // The prose projection must resolve mention labels exactly like
-            // the renderer (customLabel ?? the target's current full title) —
-            // without the resolver a label-less mention spans zero prose and
-            // the splice lands beside it instead of on it.
+            // The prose projection must resolve link labels exactly like
+            // the renderer (customLabel/displayText ?? the target's current
+            // full title) — without the resolvers a label-less link spans
+            // zero prose and the splice lands beside it instead of on it.
             const resolveMentionName = (id: string) => titleOf(client, id, { budget: "full" });
-            // Unlink: replace the mention with its visible text (the custom
+            const resolveClassName = (id: string) => titleOf(client, id, { budget: "full" }) ?? "";
+            // Unlink: replace the link with its visible text (the custom
             // label when one is set, else the target's current display name)
             // via the capture splice, so boundary runs trim and adjacent text
             // merges exactly like edit mode.
-            const kept = token.customLabel ?? resolveMentionName(token.targetNodeId) ?? "";
-            const span = proseSpans(node.contentAst, undefined, resolveMentionName).find(
+            const kept = linkKeptText(token);
+            const span = proseSpans(node.contentAst, resolveClassName, resolveMentionName).find(
               (s) => s.tokenIndex === request.tokenIndex,
             );
             if (span === undefined) {
@@ -196,15 +281,15 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
             }
             if (kept === "") {
               // A broken target with no label leaves nothing to keep — drop
-              // the mention wholesale (same outcome as Delete link).
-              rewrite(spliceTokens(node.contentAst, span.start, span.end, [], undefined, resolveMentionName));
+              // the link wholesale (same outcome as Delete link).
+              rewrite(spliceTokens(node.contentAst, span.start, span.end, [], resolveClassName, resolveMentionName));
               close();
               return;
             }
             rewrite(
               spliceTokens(node.contentAst, span.start, span.end, [
                 { type: "text", text: kept },
-              ], undefined, resolveMentionName),
+              ], resolveClassName, resolveMentionName),
             );
           }}
           onDelete={() => {
@@ -214,14 +299,15 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
               return;
             }
             const resolveMentionName = (id: string) => titleOf(client, id, { budget: "full" });
-            const span = proseSpans(node.contentAst, undefined, resolveMentionName).find(
+            const resolveClassName = (id: string) => titleOf(client, id, { budget: "full" }) ?? "";
+            const span = proseSpans(node.contentAst, resolveClassName, resolveMentionName).find(
               (s) => s.tokenIndex === request.tokenIndex,
             );
             if (span === undefined) {
               close();
               return;
             }
-            rewrite(spliceTokens(node.contentAst, span.start, span.end, [], undefined, resolveMentionName));
+            rewrite(spliceTokens(node.contentAst, span.start, span.end, [], resolveClassName, resolveMentionName));
           }}
         />
       )}
@@ -241,6 +327,10 @@ interface NodeLinkContextMenuProps {
   onOpenInSidebar(nodeId: string): void;
   /** NODE links only — absent for external-link targets. */
   onEdit?: (() => void) | undefined;
+  /** CLASS targets only — flips the token between mention and class chip. */
+  onConvert?: (() => void) | undefined;
+  /** The Convert item's direction label ("Convert to class chip" / "Convert to link"). */
+  convertLabel?: string | undefined;
   onRemove(): void;
   onDelete(): void;
 }
@@ -252,6 +342,8 @@ export function NodeLinkContextMenu({
   onOpen,
   onOpenInSidebar,
   onEdit,
+  onConvert,
+  convertLabel,
   onRemove,
   onDelete,
 }: NodeLinkContextMenuProps) {
@@ -278,10 +370,15 @@ export function NodeLinkContextMenu({
           icon: "mdi-dock-right",
           onClick: () => onOpenInSidebar(state.targetNodeId),
         },
-        ...(onEdit !== undefined
+        ...(onEdit !== undefined || onConvert !== undefined
           ? [
               { id: "sep-edit", label: "", separator: true } as const,
-              { id: "edit", label: "Edit link…", icon: "mdi-pencil", onClick: onEdit } as const,
+              ...(onEdit !== undefined
+                ? [{ id: "edit", label: "Edit link…", icon: "mdi-pencil", onClick: onEdit } as const]
+                : []),
+              ...(onConvert !== undefined
+                ? [{ id: "convert", label: convertLabel ?? "Convert", icon: "mdi-swap-horizontal", onClick: onConvert } as const]
+                : []),
             ]
           : []),
         { id: "sep-remove", label: "", separator: true },

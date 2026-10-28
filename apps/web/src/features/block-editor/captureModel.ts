@@ -109,16 +109,20 @@ export interface MentionToken {
   isEmbedded?: boolean;
 }
 
-/** State of the node-link right-click menu (hit-tested to a mention token). */
+/** State of the node-link right-click menu (hit-tested to a link atom —
+ *  a mention token or a class chip). */
 export interface LinkMenuState {
   x: number;
   y: number;
-  /** Index of the mention token inside contentAst (validated again on action). */
+  /** Index of the token inside contentAst (validated again on action). */
   tokenIndex: number;
   /** Prose range the token covers in the current draft. */
   start: number;
   end: number;
   targetNodeId: string;
+  /** The pill kind under the menu — the class chip converts to/from a
+   *  mention (the Convert item), the mention owns Edit/Remove/Delete. */
+  kind: "mention" | "chip";
 }
 
 /** Inline token types the quote token admits as children (SCHEMA.md grammar). */

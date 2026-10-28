@@ -83,7 +83,9 @@ export interface InlineTokensProps {
    * hyperlinks) render with the link look but no own click target — the
    * nested render inside a node-link chip's rich label, where interactive
    * content inside the chip's button would be invalid and the whole chip
-   * owns the gesture. Hover previews still fire on inert mentions.
+   * owns the gesture. The nested elements carry no own hover either — the
+   * chip's own button raises the preview for its target across the whole
+   * label.
    */
   inert?: boolean | undefined;
   /**
@@ -387,7 +389,8 @@ function renderToken(
         );
       if (inert) {
         // Nested inside another chip's rich label: the link look on a span,
-        // no own click; the hover preview still fires.
+        // no own click, no own hover — the chip's own button owns the gesture
+        // AND the hover preview for its target across the whole label.
         const linkColor = resolveColor?.(targetNodeId) ?? null;
         return (
           <span
@@ -395,8 +398,6 @@ function renderToken(
             className="nt-link nt-link--inert"
             title={targetNodeId || undefined}
             style={linkColor !== null ? { borderBottomColor: cssColorFor(linkColor) } : undefined}
-            onMouseEnter={(event) => notifyNodeHover(targetNodeId, "enter", event.currentTarget, event.buttons)}
-            onMouseLeave={(event) => notifyNodeHover(targetNodeId, "leave", event.currentTarget)}
           >
             {iconNode}
             {labelNode}
@@ -470,6 +471,24 @@ function renderToken(
       // opens the class exactly like a mention opens its target; read-only
       // projections degrade to the styled span.
       const assigned = classId === "" ? true : (resolveClassAssigned?.(classId) ?? true);
+      // Right-click rides the node-link context menu (the Convert item
+      // flips the chip to a plain mention, class targets only) — same
+      // contract as the mention chip beside it.
+      const chipMenuProps =
+        onMentionMenu === undefined || classId === ""
+          ? undefined
+          : {
+              onContextMenu: (event: { preventDefault(): void; clientX: number; clientY: number }) => {
+                event.preventDefault();
+                onMentionMenu({
+                  targetNodeId: classId,
+                  tokenIndex: key,
+                  ...(typeof t.displayText === "string" ? { customLabel: t.displayText } : {}),
+                  x: event.clientX,
+                  y: event.clientY,
+                });
+              },
+            };
       if (onOpenNode !== undefined && classId !== "" && !inert) {
         const chipColor = resolveClassColor?.(classId) ?? null;
         return (
@@ -484,6 +503,7 @@ function renderToken(
               if (!assigned && onAssignClass !== undefined) onAssignClass(classId);
               else onOpenNode(classId);
             }}
+            {...chipMenuProps}
           >
             {name}
           </button>
@@ -494,6 +514,7 @@ function renderToken(
           key={key}
           className={`nt-class-link${assigned ? "" : " nt-class-link--pending"}`}
           title={classId || undefined}
+          {...chipMenuProps}
         >
           {name}
         </span>

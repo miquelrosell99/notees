@@ -20,6 +20,8 @@ Three gestures touch a class from a node, and they answer different jobs — rea
 - **`+Class` inline in the text** (a Ctrl/Cmd+Enter pick in the `+` popup assigns and inserts it in one gesture) — classification with the class's name as the marker *inside* the sentence: "report for essay XXX" with `report` as a chip classifies the block and reads as prose. The chip replaces the pill — never two visible references — and the wire asserts the membership. Right when the sentence leads with or contains the type word.
 - **`@Class`** — not classification at all: a node link to the class *as an entity*, with backlinks and graph edges. Right when the prose points at the class itself ("had a @reunión with GMI").
 
+**Converting between the link forms.** A node link whose target is a class node can wear either form, and the link's right-click menu converts it in place: **Convert to class chip** turns a mention into an inline `class_link` token (same target, a custom label carried across as the chip's display text), **Convert to link** turns a chip back into a mention. Picking the wrong form costs one right-click, not a retype — the `+` picker's Ctrl/Cmd convert is just the one-step version of the same flip at insert time.
+
 The rule of thumb: **if the type word appears in the sentence, let the word be the marker (`+`); if it's only metadata, let the pill be the marker (assign); if you're pointing at the class as a thing, use `@`.** And never write the class's name as raw text: plain text classifies nothing and goes stale on rename, while the pill and the chip both re-resolve the class's live name.
 
 ## Disabling and deleting classes
