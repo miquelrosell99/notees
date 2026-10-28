@@ -1,6 +1,6 @@
 # The graph view
 
-The workspace as a map: the sidebar's **Graph** row (or setting your landing view to "Graph View") opens the whole workspace as one interactive map — every page and class is a node, every link is an edge, laid out by a force-directed simulation running off the main thread and drawn by the PixiJS renderer (WebGL). The design law that keeps it readable: **blocks never render** — a link authored on a block rolls up to the page holding it, so the map shows the workspace's pages-and-classes skeleton. The map renders edge-to-edge in the content card — the card frame is the only chrome.
+The workspace as a map: the sidebar's **Graph** row (or setting your landing view to "Graph View") opens the whole workspace as one interactive map — every page and class is a node, every link is an edge, laid out by a force-directed simulation running off the main thread and drawn by the PixiJS renderer (WebGL). The design law that keeps it readable: **blocks never render** — a link authored on a block rolls up to the page holding it, so the map shows the workspace's pages-and-classes skeleton. The map renders edge-to-edge in the content card — the card frame is the only chrome. The same map is also a **collection view mode** (below) — any collection that carries links can wear it.
 
 ## Moving around
 
@@ -36,6 +36,10 @@ The rail's Colors section paints nodes via **query groups only**: the full visua
 
 The page's context column carries the **local graph** card for the open page — its neighborhood (depth 1–3) with the same interactions at card scale ([pages.md](pages.md#page-chrome--what-sticks-and-where)). An empty local neighborhood names the depth to widen.
 
+## The graph as a collection view mode
+
+Every collection surface — a hub, a class's members, the Created section, a page's child blocks — can wear the map through its view switcher: the scoped map's universe is **the collection's items rolled up to the graph node set** (the blocks-never-render law at scope time — a block item maps to the page holding it) plus the **edges among them**. An edge whose rolled-up endpoint lands **outside the collection drops** — the scoped map draws the collection's own pages-and-classes skeleton, never dimmed external nodes: a collection graph answers "how do THESE connect", not "what else exists". The renderer, layouts, families, colors, and time-lapse are the full map's unchanged. The mode is **availability-gated**: a collection offers the map only when at least one item carries a node link or mention ([views.md](views.md#view-availability-gating)) — a link-less collection has no map to draw and no dead switch appears; a saved graph mode the collection can no longer feed falls back to the surface default. The choice persists device-locally like any view mode; the sidebar's Graph row stays the whole workspace, always.
+
 ## Honest states
 
-The graph renderer needs a GPU-backed canvas (WebGL 2) — without it the view says so honestly instead of rendering half a map. An empty workspace says **Nothing to graph yet**; when your filters hide every node the view offers **Reset filters** (back to the shipped defaults). No canvas mounts for an empty map.
+The graph renderer needs a GPU-backed canvas (WebGL 2) — without it the view says so honestly instead of rendering half a map. An empty workspace says **Nothing to graph yet**; when your filters hide every node the view offers **Reset filters** (back to the shipped defaults). No canvas mounts for an empty map. A scoped collection whose items survive neither the scope nor the filters says **Nothing to map in this collection** — the reset affordance stays the full surface's alone (a scoped map has no workspace filters to reset).

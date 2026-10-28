@@ -9,6 +9,47 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): the graph is a scoped collection view mode — availability-gated
+  on links.** (1) The graph (registered `graph`, secondary tier) works as a
+  collection view mode: hosted by a NodeCollection, the map's universe is the
+  collection's items rolled up to the graph node set — the
+  blocks-never-render law at scope time (`rollupGraphScope` in
+  `graph/filter.ts`: a block item maps to the page holding it, stepping
+  through embedded parents; a subpage is its own node; a parentless block
+  drops) — plus the edges among them. An edge whose rolled-up endpoint is
+  OUTSIDE the collection **drops**: the scoped map draws the collection's
+  own pages-and-classes skeleton, no dimmed external nodes (the renderer
+  stays untouched; `applyGraphSettings` already filtered both-endpoints-in-
+  scope, now fed the rolled-up set). Without items the full workspace map is
+  byte-identical (the graph route; the local card unaffected). (2)
+  **Availability**: `graph` declares `availability: (ctx) =>
+  ctx.linkedItemCount >= 1` — a link-less or empty collection offers no map
+  (no dead options); the hosts' `useAvailableViewModes` seam (Stage A) feeds
+  the switcher and the persisted-mode sanitize. (3) **Hosts**: graph joins
+  the mode lists of every main collection surface — all hubs (Tasks, Assets,
+  the outline hubs), the classed-nodes section, the Created section, and the
+  page child-blocks triad. (4) **Persistence ruling change**: graph enters
+  `VIEW_MODES` — a picked graph mode sticks device-locally per surface like
+  any other; the workspace Graph route still renders the full map unchanged.
+  Also fixed on the scoped path: a hosted graph no longer renames the
+  browser tab ("Graph - Notees" is the full surface's alone), and a scoped
+  empty result renders its own honest state ("Nothing to map in this
+  collection") instead of the filters message.
+  - **Files**: `apps/web/src/features/collection/graph/filter.ts`
+    (`rollupGraphScope` + the scope-reader types; the scoped-universe doc),
+    `graph/GraphView.tsx` (the rolled-up scope memo; the tab-title fix; the
+    scoped empty state; the availability declaration; the header law),
+    `ui/app/HubView.tsx` + `classview/lassedNodesSection.tsx` +
+    `page-sections/CreatedSection.tsx` + `ui/PageView.tsx` (graph in the
+    mode lists), `ui/viewPrefs.ts` (`VIEW_MODES`). Tests:
+    `test/graph-scope.test.tsx` (NEW, 9 specs: the scope builder's rollup
+    law, the scoped-universe edge drop, the availability gate, the hosted
+    tab-title seam, the switcher's gated offer + device-local persistence).
+    Verified: web typecheck; web suite 210 files / 2420 tests green.
+  - **Docs**: `docs/features/graph.md` (the scoped variant: universe, the
+    out-of-scope drop, where it appears), `docs/features/views.md` (graph
+    joins the per-surface mode set; the gate named).
+
 - **fix(web): the active-tab underline centers on the TEXT, not the text +
   badge.** The kit Tabs' sliding indicator measured the padded tab button —
   a trailing count badge (the collection tabs' active-tab count) pulled the

@@ -10,6 +10,61 @@ import type { GraphEdge, GraphEdgeKind, GraphTopology } from "@notees/store";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
+/**
+ * The graph node set is classes + standalone pages ONLY (the
+ * blocks-never-render law — blocks surface solely as edge evidence). The
+ * scope builder walks an item's parent chain to its nearest node-set
+ * member; anything else about the node is irrelevant to the walk.
+ */
+export interface GraphScopeNode {
+  id: string;
+  isClass: boolean;
+  isEmbedded: boolean;
+  parentId: string | null;
+}
+
+/** The narrow client read the scope builder needs (both client classes fit). */
+export interface GraphScopeReader {
+  getNode(id: string): GraphScopeNode | undefined;
+}
+
+export function isGraphNodeSetMember(node: GraphScopeNode): boolean {
+  return node.isClass || !node.isEmbedded;
+}
+
+/**
+ * Roll a collection's item ids up to the graph node set (the
+ * blocks-roll-up-to-pages law at scope time): a block item maps to the page
+ * holding it — the walk steps THROUGH embedded parents to the first
+ * standalone node (a subpage is its own graph node; a class is always one).
+ * A parentless block has no graph node above it and drops from the scope.
+ * Returns the rolled-up id set; the display filter then keeps only topology
+ * nodes in the set AND edges with BOTH endpoints in it — an edge to a node
+ * outside the collection DROPS (no dimmed out-of-scope nodes: the renderer
+ * draws the collection's own skeleton, nothing else).
+ */
+export function rollupGraphScope(
+  reader: GraphScopeReader,
+  itemIds: readonly string[],
+): Set<string> {
+  const scope = new Set<string>();
+  for (const id of itemIds) {
+    const seen = new Set<string>([id]);
+    let current = reader.getNode(id);
+    while (
+      current !== undefined &&
+      !isGraphNodeSetMember(current) &&
+      current.parentId !== null &&
+      !seen.has(current.parentId)
+    ) {
+      seen.add(current.parentId);
+      current = reader.getNode(current.parentId);
+    }
+    if (current !== undefined && isGraphNodeSetMember(current)) scope.add(current.id);
+  }
+  return scope;
+}
+
 export interface GraphSettings {
   /** Class nodes render (default on). */
   showClasses: boolean;
@@ -120,8 +175,10 @@ export function sparsifySemantic(
 /**
  * Apply the settings to a topology: node-family filters, link-family filters,
  * semantic sparsification, the orphan filter, and (optionally) scoping to a
- * collection's items. Returns the display topology — the input is never
- * mutated.
+ * collection's items. Scoping keeps only the rolled-up scope's nodes and the
+ * edges with BOTH endpoints in scope — an edge to a node outside the
+ * collection drops (no out-of-scope rendering). Returns the display
+ * topology — the input is never mutated.
  */
 export function applyGraphSettings(
   topology: GraphTopology,

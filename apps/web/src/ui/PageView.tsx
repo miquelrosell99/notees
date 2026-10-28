@@ -157,7 +157,7 @@ import { NodeTopbar, PageHeaderChrome } from "./PageChrome.js";
  *  plus the pivot (a page's child blocks pivot like any collection — the
  *  class bit alone is a dimension). Exported for the NodeView chrome,
  *  which hosts the switcher at the card's top-right. */
-export const BLOCKS_VIEW_MODES: ViewMode[] = ["outline", "prose", "cards", "pivot"];
+export const BLOCKS_VIEW_MODES: ViewMode[] = ["outline", "prose", "cards", "pivot", "graph"];
 
 /**
  * The preview surface's body cap: the page's FIRST body level only —
