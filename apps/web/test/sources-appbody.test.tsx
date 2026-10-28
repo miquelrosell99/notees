@@ -163,6 +163,9 @@ function renderAppBody(client: WorkspaceClient, initialQuery: SourcesQueryState)
         onCalendarRouteChange={vi.fn()}
         onCalendarTitle={vi.fn()}
         resetCalendarRoute={bag.resetCalendarRoute}
+        cardsReview={false}
+        onExitCardsReview={noop}
+        resetCardsReview={noop}
         sourcesQuery={query}
         onSourcesQueryChange={(next, mode) => {
           bag.calls.push({ next, mode });

@@ -39,6 +39,7 @@ import { todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { HubView } from "./HubView.js";
 import { DayStepper } from "../../features/calendar/DayPageHeader.js";
+import { ReviewSession } from "../../features/cards/ReviewSession.js";
 
 export interface AppBodyProps {
   client: AnyClient;
@@ -87,6 +88,12 @@ export interface AppBodyProps {
   onCalendarTitle: (title: string | null) => void;
   /** Leaving the surface for another hub: the bare path becomes the default. */
   resetCalendarRoute: () => void;
+  /** The cards-review subroute flag (law 9 — /cards/review owns its surface). */
+  cardsReview: boolean;
+  /** The review surface's exit: a real pushNav back to /cards (the hub). */
+  onExitCardsReview: () => void;
+  /** Leaving the review surface for another hub (the sidebar's hub switch). */
+  resetCardsReview: () => void;
   /** The Sources hub's parsed query state (law 9 — /sources owns its URL). */
   sourcesQuery: SourcesQueryState;
   /** The Sources hub's URL seam: type picks push, q/sort changes replace. */
@@ -136,6 +143,9 @@ export function AppBody(props: AppBodyProps) {
     onCalendarRouteChange,
     onCalendarTitle,
     resetCalendarRoute,
+    cardsReview,
+    onExitCardsReview,
+    resetCardsReview,
     sourcesQuery,
     onSourcesQueryChange,
   } = props;
@@ -187,6 +197,7 @@ export function AppBody(props: AppBodyProps) {
           setActiveNav(key);
           setSelectedPageId(null);
           resetCalendarRoute();
+          resetCardsReview();
           // Law 9 state/URL parity: the sidebar's hub switch leaves the
           // sources query with the hub — the bare /sources path the push
           // below lands on carries no filter state (the calendar route
@@ -307,6 +318,14 @@ export function AppBody(props: AppBodyProps) {
             onQueryChange={onSourcesQueryChange}
             onOpenNode={openPage}
           />
+        ) : activeNav === "cards" && cardsReview ? (
+          /* The Cards review session (memorization cards): the reveal +
+             four-grade flow over the hub's hand-off (or the deep-link
+             fallback — all due+fresh card members). Owns /cards/review +
+             the "Review - Notees" tab title (law 9); the exit is a real
+             pushNav back to /cards, so the in-app back stack keeps the hub
+             as the back-target. */
+          <ReviewSession client={client} onExit={onExitCardsReview} />
         ) : activeNav === "cards" ? (
           /* The Cards hub (memorization cards): the card-family collection
              with the due/fresh/later buckets, the transient query-builder

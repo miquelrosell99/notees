@@ -85,6 +85,7 @@ import {
   initialNav,
   initialServerUrl,
   calendarRouteFromPath,
+  cardsReviewFromPath,
   pathForCalendar,
   pathForNav,
   popStateNavHandler,
@@ -288,6 +289,15 @@ export function App() {
     calendarRouteFromPath(window.location.pathname),
   );
   /**
+   * The cards-review subroute flag (law 9 — /cards/review owns its URL AND
+   * its "Review - Notees" tab title). Boot deep links and every popstate
+   * landing set it; the in-app navigations that leave the surface clear it
+   * (the calendar-route precedent).
+   */
+  const [cardsReview, setCardsReview] = useState<boolean>(() =>
+    cardsReviewFromPath(window.location.pathname),
+  );
+  /**
    * The calendar view's tab-title contribution while mounted ("October 2026
    * — Calendar"); null cedes to the hub register (law 9).
    */
@@ -432,6 +442,7 @@ export function App() {
       searchOpen,
       activeNav,
       calendarTitle,
+      cardsReview,
       nodeName:
         client !== null && selectedPageId !== null
           ? (() => {
@@ -445,7 +456,7 @@ export function App() {
             })()
           : "",
     });
-  }, [client, selectedPageId, pagesVersion, settingsSection, searchOpen, activeNav, calendarTitle]);
+  }, [client, selectedPageId, pagesVersion, settingsSection, searchOpen, activeNav, calendarTitle, cardsReview]);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   useGlobalGestures({
@@ -476,6 +487,7 @@ export function App() {
     setSearchOpen(false);
     setSelectedPageId(id);
     setCalendarRoute(null);
+    setCardsReview(false);
     setSourcesQuery(DEFAULT_SOURCES_QUERY);
     pushNav(`/${id}`, { node: id });
     recordRecent(id);
@@ -493,6 +505,7 @@ export function App() {
     setSearchOpen(false);
     setSelectedPageId(null);
     setCalendarRoute(null);
+    setCardsReview(false);
     setSourcesQuery(DEFAULT_SOURCES_QUERY);
     setNavStack((stack) => recordNavPush(stack, pathForSettingsSection(section)));
     pushSettingsSection(section);
@@ -521,6 +534,7 @@ export function App() {
     setSettingsSection(null);
     setSelectedPageId(null);
     setCalendarRoute(null);
+    setCardsReview(false);
     setSourcesQuery(DEFAULT_SOURCES_QUERY);
     const path =
       query !== undefined && query !== "" ? `/search?q=${encodeURIComponent(query)}` : "/search";
@@ -542,6 +556,7 @@ export function App() {
       setActiveNav(nav);
       setSelectedPageId(null);
       setCalendarRoute(null);
+      setCardsReview(false);
       setSourcesQuery(DEFAULT_SOURCES_QUERY);
       pushNav(path, { nav });
     };
@@ -575,6 +590,7 @@ export function App() {
       setSettingsSection,
       setSearch: setSearchOpen,
       setCalendarRoute,
+      setCardsReview,
       setSourcesQuery,
       onNavigated: (url) => setNavStack((stack) => recordNavPop(stack, url)),
     });
@@ -859,6 +875,15 @@ export function App() {
         onCalendarRouteChange={navigateCalendar}
         onCalendarTitle={setCalendarTitle}
         resetCalendarRoute={() => setCalendarRoute(null)}
+        cardsReview={cardsReview}
+        onExitCardsReview={() => {
+          // The navigate callback the review surface's exit rides (the
+          // Task 9 concern: no synthetic popstate — a real pushNav entry,
+          // so the in-app back stack keeps the hub as the back-target).
+          setCardsReview(false);
+          pushNav(pathForNav("cards"), { nav: "cards", node: null });
+        }}
+        resetCardsReview={() => setCardsReview(false)}
         sourcesQuery={sourcesQuery}
         onSourcesQueryChange={navigateSources}
       />

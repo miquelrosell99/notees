@@ -8,7 +8,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { navFromPath, pathForCardsReview, pathForNav, tabTitle } from "../src/ui/app/routing.js";
+import {
+  cardsReviewFromPath,
+  navFromPath,
+  pathForCardsReview,
+  pathForNav,
+  tabTitle,
+} from "../src/ui/app/routing.js";
 
 describe("the cards hub's path mapping (law 9)", () => {
   it("the cards hub owns its path and tab title", () => {
@@ -34,5 +40,26 @@ describe("the cards hub's path mapping (law 9)", () => {
 
   it("the review path is a stable exported constant", () => {
     expect(pathForCardsReview()).toBe("/cards/review");
+  });
+
+  it("the review surface owns its tab title (law 9 — 'Review - Notees')", () => {
+    const base = {
+      clientPresent: true,
+      selectedPageId: null,
+      settingsSection: null,
+      searchOpen: false,
+      activeNav: "cards" as const,
+      nodeName: "",
+    };
+    expect(cardsReviewFromPath("/cards/review")).toBe(true);
+    expect(cardsReviewFromPath("/cards/review/")).toBe(true);
+    expect(cardsReviewFromPath("/cards")).toBe(false);
+    expect(tabTitle({ ...base, cardsReview: true })).toBe("Review - Notees");
+    // The hub keeps its own title off the subroute.
+    expect(tabTitle(base)).toBe("Cards - Notees");
+    // An open node still wins over the review surface.
+    expect(
+      tabTitle({ ...base, cardsReview: true, selectedPageId: "x", nodeName: "My card" }),
+    ).toBe("My card - Notees");
   });
 });

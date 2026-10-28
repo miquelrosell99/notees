@@ -21,7 +21,7 @@
  *    emptyTrash / moveObject /
  *    setClassProperty / unsetClassProperty / createPropertySchema /
  *    setProperty / unsetProperty / attachAsset /
- *    setExternalRef / removeExternalRef), the session undo journal
+ *    setExternalRef / removeExternalRef / recordCardReview), the session undo journal
  *    (undoState / undo / redo), syncOnce, the realtime
  *    acceleration path (startRealtime / stopRealtime), status, exportBytes,
  *    stats, the per-user UI prefs reads/writes (getPrefs / patchPrefs), the
@@ -38,7 +38,7 @@
 
 import type { SqlJsStatic } from "sql.js";
 
-import type { WorkspaceFeature } from "@notees/protocol";
+import type { OpPayload, WorkspaceFeature } from "@notees/protocol";
 
 import { Store, validateEnvelope } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
@@ -855,6 +855,8 @@ export class WorkerCore {
         return this.client.unassignProperty(args[0] as string, args[1] as string);
       case "emptyProperty":
         return this.client.emptyProperty(args[0] as string, args[1] as string);
+      case "recordCardReview":
+        return this.client.recordCardReview(args[0] as OpPayload<"card.review">);
       case "ensureDateChain":
         return this.client.ensureDateChain(args[0] as string);
       case "setDatetimeProperty":
