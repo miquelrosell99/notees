@@ -3,25 +3,32 @@
    this file at the app.css import site in App.tsx, in the original
    chunk order. Edit here, not in app.css. */
 
-/* Inline node references: dashed-underline links, clickable in read mode. */
+/* Inline node references: dashed-underline links, clickable in read mode.
+   Resting underline rides on-surface-variant, the established link underline
+   token (the class-link family wears it) — outline is nearly invisible on
+   the dark graphite surface; hover still lifts to primary. The underline is
+   TEXT-DECORATION, not the old border-bottom technique: on the chip's
+   <button> the fragmented inline box painted the border on ONE wrapped line
+   only, while text-decoration paints across every line of the label
+   (verified in-browser 2026-10-28). Propagation names the whole rich label
+   (icon + nested inert elements) one continuous line — the nested elements'
+   own decorations stay chip-scoped off below. */
 .nt-link {
   display: inline;
   padding: 0;
   border: none;
-  /* Resting underline rides on-surface-variant, the established link
-     underline token (the class-link family wears it) — outline is
-     nearly invisible on the dark graphite surface. Hover still lifts to primary. */
-  border-bottom: 1px dashed var(--md-sys-color-on-surface-variant);
   background: transparent;
   color: inherit;
   font: inherit;
   cursor: pointer;
   text-align: left;
+  text-decoration: underline dashed var(--md-sys-color-on-surface-variant);
+  text-underline-offset: 2px;
 }
 
 .nt-link:hover {
   color: var(--md-sys-color-primary);
-  border-bottom-color: var(--md-sys-color-primary);
+  text-decoration-color: var(--md-sys-color-primary);
 }
 
 /* Inert link elements (inside a node-link chip's rich label): they carry no
