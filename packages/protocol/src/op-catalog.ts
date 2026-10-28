@@ -201,6 +201,21 @@ export const OP_CATALOG: OpCatalogEntry[] = [
     example: { ref: "gcal:event:abc123@google.com" },
     affected: "none",
   },
+  {
+    opType: "card.review",
+    description:
+      "Memorization-card review record: one op per graded review, carrying the full SRS state transition (stateBefore/stateAfter — due/reps/interval/ease/difficulty/stability; null ease/difficulty/stability = uninitialized) so every replica derives the same scheduling outcome. grade is again/hard/good/easy; algorithm names the scheduler (sm2/fsrs); sessionId groups one study session's reviews. The store keeps the latest review's stateAfter as the card's derived SRS state.",
+    example: {
+      cardId: "<uuid>",
+      grade: "good",
+      algorithm: "sm2",
+      stateBefore: { due: null, reps: 0, interval: 0, ease: null, difficulty: null, stability: null },
+      stateAfter: { due: "2026-10-29", reps: 1, interval: 1, ease: 2.5, difficulty: null, stability: null },
+      reviewedAt: "2026-10-28T10:00:00.000Z",
+      sessionId: "<uuid>",
+    },
+    affected: "objectId",
+  },
 ];
 
 const BY_TYPE = new Map(OP_CATALOG.map((entry) => [entry.opType, entry]));

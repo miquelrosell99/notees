@@ -42,9 +42,10 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the forty-four required fixtures", () => {
+  it("has exactly the forty-five required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
+      "card-review.json",
       "class-convert.json",
       "class-extends-cycle.json",
       "class-extends-m2m.json",
@@ -197,6 +198,36 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     // Applicable in sequence: HLCs strictly ascend.
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("card-review fixture pins the SRS review record: grade/algorithm/session per review, unseen ease null -> initialized", () => {
+    const fixture = fixtures.find((f) => f.name === "card-review.json")!;
+    const reviews = fixture.envelopes.filter((env) => env.opType === "card.review");
+    expect(reviews).toHaveLength(2);
+    expect(reviews[0]!.payload).toMatchObject({ grade: "again", algorithm: "sm2" });
+    expect(reviews[1]!.payload).toMatchObject({ grade: "good", algorithm: "sm2" });
+    const before0 = reviews[0]!.payload as { stateBefore: { ease: number | null } };
+    const after0 = reviews[0]!.payload as { stateAfter: { ease: number | null } };
+    expect(before0.stateBefore.ease).toBeNull();
+    expect(after0.stateAfter.ease).not.toBeNull();
+    // Two different sessions graded the card…
+    const sessions = reviews.map((env) => (env.payload as { sessionId: string }).sessionId);
+    expect(new Set(sessions).size).toBe(2);
+    // …and the HLCs strictly ascend across the whole fixture.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+    // The schema is strict: an unknown grade and a non-uuid session both fail.
+    expect(
+      payloadSchemaFor("card.review")!.safeParse({
+        cardId: "00000000-0000-0000-0001-000000000011",
+        grade: "great",
+        algorithm: "sm2",
+        stateBefore: { due: null, reps: 0, interval: 0, ease: null, difficulty: null, stability: null },
+        stateAfter: { due: "2026-10-29", reps: 1, interval: 1, ease: 2.5, difficulty: null, stability: null },
+        reviewedAt: "2026-10-28T10:00:00.000Z",
+        sessionId: "not-a-uuid",
+      }).success,
+    ).toBe(false);
   });
 
   it("property-set-lww races the same slot; higher HLC is the LWW winner", () => {

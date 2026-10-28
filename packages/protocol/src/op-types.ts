@@ -836,6 +836,44 @@ export const externalRefDeletePayload = z
   })
   .strict();
 
+// --- card review (SRS) --------------------------------------------------------
+
+/**
+ * Memorization-card review record (the SRS substrate): one op per graded
+ * review, carrying the full SRS state transition (stateBefore/stateAfter)
+ * so every replica applies the same scheduling outcome without depending
+ * on a local algorithm implementation. `due` is a YYYY-MM-DD calendar
+ * day, null = unseen; ease/difficulty/stability stay null until the
+ * chosen algorithm initializes them (sm2 ease factor / fsrs difficulty
+ * and stability in days). Reviews are LWW-ordered records per card —
+ * the store applier keeps the latest review's stateAfter as the card's
+ * derived SRS state. grade is the four-button scale; algorithm names
+ * which scheduler produced the states; sessionId groups the reviews of
+ * one study session (uuid, no referential integrity).
+ */
+export const cardSrsStateSchema = z
+  .object({
+    due: z.string().nullable(),
+    reps: z.number(),
+    interval: z.number(),
+    ease: z.number().nullable(),
+    difficulty: z.number().nullable(),
+    stability: z.number().nullable(),
+  })
+  .strict();
+
+export const cardReviewPayload = z
+  .object({
+    cardId: uuid,
+    grade: z.enum(["again", "hard", "good", "easy"]),
+    algorithm: z.enum(["sm2", "fsrs"]),
+    stateBefore: cardSrsStateSchema,
+    stateAfter: cardSrsStateSchema,
+    reviewedAt: z.string(),
+    sessionId: uuid,
+  })
+  .strict();
+
 // --- registry ----------------------------------------------------------------
 
 export const OP_PAYLOAD_SCHEMAS = {
@@ -868,6 +906,7 @@ export const OP_PAYLOAD_SCHEMAS = {
   "workspace.feature.set": workspaceFeatureSetPayload,
   "external_ref.set": externalRefSetPayload,
   "external_ref.delete": externalRefDeletePayload,
+  "card.review": cardReviewPayload,
 } as const;
 
 export type OpType = keyof typeof OP_PAYLOAD_SCHEMAS;
