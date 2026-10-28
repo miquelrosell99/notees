@@ -1,6 +1,6 @@
 /**
  * ProseView — the prose/flat mode for tree contexts: the SAME editable
- * BlockRow tree with the `nt-prose` display transform (app.css): bullets
+ * BlockRow tree with the `nt-prose` display transform (ProseView.css): bullets
  * hidden, nesting indents flattened to full-width rows, paragraph spacing.
  * Structure and editing are untouched — a view transform only (SCHEMA.md:
  * display state, never content). Collapse is HONORED, not ignored: the fold set is read exactly as in outline — collapsed

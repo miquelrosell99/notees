@@ -1,0 +1,178 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* The page header's title row (BlockRow variant="title"): the page node as
+   a bullet-less, chrome-less row — full editor powers, none of the outline
+   chrome. The typography rides .nt-page-title on the row root; the content
+   wrapper is title-specific, NEVER .nt-block-content, so body-row selectors
+   (and index-based test queries) never match the header row. */
+.nt-block--title {
+  flex: 1;
+}
+
+.nt-block--title .nt-block-row {
+  /* No bullet/chevron gutter in the header. */
+  padding-left: 0;
+  gap: 0;
+}
+
+.nt-title-content {
+  flex: 1;
+  min-width: 0;
+  /* An empty title renders no line box, so without this floor the
+     click-to-edit target collapses to zero height (same contract as
+     .nt-block-content). 1lh = one line in the content's own font. */
+  min-height: 1lh;
+  /* The page title reads as text, not chrome: the brand type table puts the
+     28px H3 in Newsreader (Text role), and the identity claim is "Newsreader
+     for the words". The opsz axis tracks the set size. */
+  font-family: var(--font-family-content);
+  font-optical-sizing: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+  border-radius: var(--shape-small);
+  outline: none;
+}
+
+/* An untitled page reads "Untitled" (the old editable-title placeholder
+   convention, now the display-mode placeholder). */
+.nt-title-content:empty::before {
+  content: "Untitled";
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-page-header {
+  margin-bottom: var(--spacing-2);
+}
+
+/* Identity rows (classes above the title, tags below): small pills flush
+   with the title column — hierarchy cue, not a property table. The classes
+   row carries no label (the pills are self-evident); Tags: keeps its cue. */
+.nt-page-header .node-metadata-row {
+  min-height: var(--height-xs);
+  /* The tags row aligns with the header ICON, not the
+     title — the old icon-width indent left a gap. */
+  margin-left: 0;
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-page-header .node-metadata-row > .section-label {
+  width: auto;
+  flex: 0 0 auto;
+  font: var(--font-label-medium);
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  margin-right: 0;
+}
+
+.nt-page-header .nt-classes-row > .section-label {
+  display: none;
+}
+
+.nt-page-header .nt-tags-row {
+  margin-bottom: var(--spacing-2);
+  /* Breathing room between the page title and the tags row — the identity
+     pills read as a separate hierarchy tier, not a continuation of the
+     title line. */
+  margin-top: var(--spacing-3);
+}
+
+.page-header__title-row {
+  display: flex;
+  /* flex-start, NOT center: the icon anchors to the FIRST title row (see
+     .page-icon-btn) — centering would drag it down the middle of a wrapped
+     title block. */
+  align-items: flex-start;
+  gap: var(--spacing-3);
+}
+
+/* The header title's click-to-edit target is the WHOLE title row, like a
+   block's content: the title wrap is a bare inline span and shrink-wraps its
+   content, so .nt-title-content's flex:1 filled only the text width and the
+   row's empty space was a dead click zone. Stretching the wrap stretches
+   everything beneath it (the title BlockRow fills it by its own flex:1), so
+   a click anywhere in the row — the words or the space beside them — enters
+   edit. The header icon keeps its own click (the picker), the block-bullet
+   analog. */
+.page-header__title-row > .nt-page-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--height-2xl);
+  height: var(--height-2xl);
+  padding: 0;
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  /* Anchor the 56px tap-target box on the title's FIRST line: the negative
+     margin lifts the box so the glyph centers on the headline-medium line
+     box (the token parts, variables.css) rather than on the flex line —
+     with one title row this reads exactly as the old row-centering; extra
+     rows no longer pull the icon down the block's middle. */
+  margin-top: calc((var(--font-size-headline-medium) * var(--line-height-headline-medium) - var(--height-2xl)) / 2);
+}
+
+.page-icon-large {
+  display: inline-flex;
+  line-height: 1;
+}
+
+/* The Capacities action row: quiet affordances above the title — chrome
+   actions compose the borderless ghost Button, flush left like every
+   header cue. */
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-height: var(--height-xs);
+}
+
+/* The page subtitle (the description wire node field): second-level text
+   under the title, quiet like the tags row. */
+.page-header-description {
+  margin: 0;
+  font: var(--font-body-medium);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: text;
+}
+
+.page-header-description-input {
+  margin-bottom: var(--spacing-1);
+}
+
+.nt-page-toolbar {
+  display: flex;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.nt-view-toggle {
+  border: 1px solid var(--md-sys-color-outline);
+  background: var(--md-sys-color-surface);
+  border-radius: var(--shape-medium);
+  padding: 2px 10px;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-view-toggle:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-view-toggle-active,
+.nt-view-toggle-active:hover {
+  background: var(--md-sys-color-primary-container);
+  border-color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface);
+}
+

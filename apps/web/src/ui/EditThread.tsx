@@ -38,7 +38,7 @@
  * the staircase columns stay on the bullet centers through dots and
  * icons alike. The path START sits just below a top-level glyph bottom
  * edge for the same reason. The ancestor path
- * dots and icons recolor through CSS (`:has` — app.css "path bullets"),
+ * dots and icons recolor through CSS (`:has` — ui/BlockRow.css "path bullets"),
  * not here. A MutationObserver keeps the path honest when in-path chrome
  * arrives or leaves without a resize/scroll/store event (an icon
  * rendering after an op).

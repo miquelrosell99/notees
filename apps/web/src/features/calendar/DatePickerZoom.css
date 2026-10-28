@@ -1,0 +1,146 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* --- date picker (zoom grids) ------------------------------------------------ */
+
+.nt-property-date,
+.nt-property-date-range {
+  position: relative;
+  align-items: flex-start;
+}
+
+.nt-datepicker {
+  margin: 4px 0 8px 148px;
+  width: 280px;
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  box-shadow: var(--shadow-elevation-2);
+  padding: 8px;
+}
+
+.nt-datepicker-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.nt-datepicker-nav,
+.nt-datepicker-close {
+  font: inherit;
+  font-size: var(--font-size-base);
+  color: var(--md-sys-color-on-surface-variant);
+  background: none;
+  border: none;
+  border-radius: var(--shape-medium);
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.nt-datepicker-nav:hover,
+.nt-datepicker-close:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-datepicker-breadcrumb {
+  flex: 1;
+  text-align: center;
+  font-size: var(--font-size-button);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-datepicker-crumb {
+  font: inherit;
+  font-size: var(--font-size-button);
+  font-weight: 600;
+  color: var(--md-sys-color-primary-hover);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.nt-datepicker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+}
+
+.nt-datepicker-grid-days {
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.nt-datepicker-weekday {
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  padding: 2px 0;
+}
+
+.nt-datepicker-cellbox {
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--shape-medium);
+}
+
+.nt-datepicker-cellbox:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-datepicker-cell {
+  flex: 1;
+  font: inherit;
+  font-size: var(--font-size-button);
+  color: var(--md-sys-color-on-surface-variant);
+  background: none;
+  border: none;
+  border-radius: var(--shape-medium);
+  padding: 5px 0 5px 4px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.nt-datepicker-cell:hover,
+.nt-datepicker-cell:focus {
+  background: var(--md-sys-color-hover-overlay);
+  outline: none;
+}
+
+.nt-datepicker-cell:focus-visible {
+  /* Keyboard focus gets the accent ring — visually distinct from hover. */
+  box-shadow: var(--shadow-focus-ring);
+}
+
+.nt-datepicker-cell-selected,
+.nt-datepicker-cell-selected:hover {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+.nt-datepicker-cell-drill {
+  font: inherit;
+  font-size: var(--font-size-3xs);
+  line-height: 1;
+  color: var(--md-sys-color-on-surface-variant);
+  background: none;
+  border: none;
+  border-radius: var(--shape-medium);
+  padding: 0 3px;
+  cursor: pointer;
+}
+
+.nt-datepicker-cell-drill:hover,
+.nt-datepicker-cell-drill:focus {
+  color: var(--md-sys-color-primary-hover);
+  outline: none;
+}
+
+.nt-datepicker-cell-muted .nt-datepicker-cell,
+.nt-datepicker-cell-muted .nt-datepicker-cell-drill {
+  color: var(--md-sys-color-outline);
+}
+

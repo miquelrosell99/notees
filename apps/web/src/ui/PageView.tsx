@@ -605,7 +605,7 @@ export function PageView({
    * ALWAYS in the child-blocks section (outline and prose, non-embedded,
    * focus mode included), including an empty body, as the sole "add"
    * affordance. Blocks no longer trail their own ghosts at deeper levels.
-   * Prose hides bullets (app.css .nt-prose), so the ghost mounts there with
+   * Prose hides bullets (ProseView.css .nt-prose), so the ghost mounts there with
    * its gutter dropped; cards is a card grid — the affordance is the
    * GhostCard, the grid's last cell, not a row after the grid. The click
    * realizes the ghost into a real empty block at the end and focuses it.

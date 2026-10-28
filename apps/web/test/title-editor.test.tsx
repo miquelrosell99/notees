@@ -286,7 +286,7 @@ describe("page title row", () => {
       join(...parts: string[]): string;
     };
     const css = process_.getBuiltinModule("node:fs").readFileSync(
-      path.join(process_.cwd(), "src", "ui", "app.css"),
+      path.join(process_.cwd(), "src", "ui", "PageChrome.css"),
       "utf8",
     );
     const wrap = /\.page-header__title-row > \.nt-page-title-wrap \{[^}]*\}/.exec(css);

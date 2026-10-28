@@ -8,7 +8,7 @@
  * The day-header swap is driven by the variant's `dayIso` (the page
  * variant is data, see components/pageVariant.ts); the shared icon button
  * is the single icon+color edit entry for every node kind. The styles
- * stay in app.css — every class hook is exactly the one PageView rendered
+ * stay in ui/PageChrome.css + ui/PageHeaderSection.css — every class hook is exactly the one PageView rendered
  * before the extraction.
  *
  * The panelled composition
@@ -56,11 +56,11 @@ type AnyClient = WorkspaceClient | WorkerClient;
  * properties toggle top-right. The bar composes the fleet SurfaceTopBar
  * primitive (the register the 2026-10-22 hub commit
  * generalized FROM this bar; composing it closes the loop): the bottom
- * hairline rides the primitive's border-bottom, and the app.css
+ * hairline rides the primitive's border-bottom, and the ui/app/PanelLayout.css
  * `.surface-topbar.nt-node-topbar` override zeroes the primitive's
  * vertical padding while carrying the bar's horizontal inset itself
  * (the panelled page's side padding retired with the
- * frame-owned body inset; see app.css). Full-width so the bar never
+ * frame-owned body inset; see ui/app/PanelLayout.css). Full-width so the bar never
  * rescales when a panel column shows or hides. Focus mode
  * (#12) keeps the bar but hides BOTH panel toggles and the classes pills —
  * the toggles would control panels the mode hides, and the classes are

@@ -1,0 +1,96 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* --- embeds (transclusion) -------------------------------------------------------
+   Live subtree projection (EmbedView): a sober bordered container that is
+   visually distinct from the page's own blocks. Read-only for this slice. */
+
+.nt-embed {
+  display: block;
+  margin: 4px 0;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-left: 3px solid var(--md-sys-color-primary);
+  border-radius: var(--shape-medium);
+  padding: 6px 10px;
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.nt-embed-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant);
+  margin-bottom: 2px;
+}
+
+.nt-embed-header-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The embed view switcher (authoring): Full / Card / Wide pill
+   buttons writing the token's `view` field. Token-only CSS. */
+.nt-embed-view-switch {
+  display: inline-flex;
+  flex: none;
+  gap: 0;
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  overflow: hidden;
+}
+
+.nt-embed-view-switch__btn {
+  border: none;
+  padding: 1px var(--spacing-2);
+  font-size: var(--font-size-2xs);
+  font-family: inherit;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.nt-embed-view-switch__btn + .nt-embed-view-switch__btn {
+  border-left: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+.nt-embed-view-switch__btn--active {
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-embed-card-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  max-width: 100%;
+}
+
+.nt-embed-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.nt-embed-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-embed-block-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 1px 0;
+}
+
+.nt-embed-block-children {
+  margin-left: 16px;
+  padding-left: 8px;
+  border-left: 1px solid var(--md-sys-color-outline-variant);
+}
+

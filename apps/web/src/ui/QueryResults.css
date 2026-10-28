@@ -1,0 +1,115 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* --- query results (shared QueryResults body) ------------------------------- */
+
+.nt-query-empty {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  padding: 2px 4px;
+}
+
+/* Queries hub: the saved-views tab bar and the host-page footnote (the
+   header actions moved into the SurfaceTopBar's actions cluster). */
+.nt-view-tabs {
+  margin: 4px 0 8px;
+}
+
+.nt-view-tabs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: center;
+}
+
+.nt-view-tab {
+  display: inline-flex;
+  align-items: center;
+}
+
+.nt-view-tab-label-active {
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-view-tab-default {
+  margin-left: 4px;
+  font-size: var(--font-size-3xs);
+  color: var(--md-sys-color-primary);
+}
+
+.nt-view-tab-menu {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  padding: 0 4px;
+}
+
+.nt-view-tab-menu:hover {
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-queries-host {
+  margin: 12px 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--md-sys-color-primary);
+  font-size: inherit;
+  text-decoration: underline;
+}
+
+.nt-query-invalid {
+  border: 1px dashed var(--md-sys-color-outline);
+  border-radius: var(--shape-medium);
+  margin: 4px 0 0;
+  padding: 2px 10px;
+  color: var(--md-sys-color-error);
+  font-size: var(--font-size-sm);
+  background: var(--md-sys-color-surface);
+}
+
+/* Table mode + the aggregate grid: a sober bordered grid in the token's
+   chrome. Numeric cells (measures, dates) align right with tabular figures. */
+
+.nt-query-table {
+  width: 100%;
+  margin: 4px 0 0;
+  border-collapse: collapse;
+  font-size: var(--font-size-button);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-query-table th {
+  text-align: left;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  padding: 2px 6px;
+}
+
+.nt-query-table td {
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  padding: 2px 6px;
+  vertical-align: baseline;
+}
+
+
+
+.nt-query-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+

@@ -1,0 +1,300 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* --- whiteboard canvas ------------------------------------------------------ */
+
+.nt-wb {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  background: var(--md-sys-color-surface-container-high);
+  overflow: hidden;
+}
+
+.nt-wb-fullscreen {
+  height: 65vh;
+  margin: 8px 0;
+}
+
+.nt-wb-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface);
+  font-size: var(--font-size-sm);
+}
+
+.nt-wb-toolbar-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 4px;
+  background: var(--md-sys-color-outline-variant);
+}
+
+.nt-wb-surface {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.nt-wb-surface:focus {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+}
+
+.nt-wb-embedded .nt-wb-surface {
+  touch-action: auto;
+}
+
+.nt-wb-draw-mode {
+  cursor: crosshair;
+}
+
+/* The dot grid is world-anchored: it lives on the transformed world layer so
+   zoom/pan move the dots with the content and the snap step stays honest. */
+.nt-wb-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  background-image: radial-gradient(var(--md-sys-color-outline-variant) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.nt-wb-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+}
+
+.nt-wb-shape rect,
+.nt-wb-shape ellipse {
+  fill: var(--md-sys-color-hover-overlay);
+  stroke: var(--md-sys-color-on-surface-variant);
+  stroke-width: 1.5;
+}
+
+.nt-wb-shape line {
+  stroke: var(--md-sys-color-on-surface-variant);
+  stroke-width: 1.5;
+}
+
+.nt-wb-shape text {
+  fill: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  pointer-events: none;
+}
+
+.nt-wb-arrowhead {
+  fill: var(--md-sys-color-on-surface-variant);
+}
+
+/* Selection is a dashed box under/around the element — it survives inline
+   paint colors, which outrank stylesheet strokes. */
+.nt-wb-selection-box {
+  fill: none;
+  stroke: var(--md-sys-color-primary);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
+.nt-wb-shape-selected rect,
+.nt-wb-shape-selected ellipse,
+.nt-wb-shape-selected line {
+  stroke: var(--md-sys-color-primary);
+}
+
+.nt-wb-stroke {
+  fill: none;
+  stroke: var(--md-sys-color-on-surface-variant);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nt-wb-stroke-highlight {
+  opacity: 0.45;
+  stroke-width: 8;
+}
+
+/* The canvas context menu's color row: the ColorButton picker nests inside
+   the kit ContextMenu's inline submenu (token-only CSS). */
+.nt-wb-menu-color {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-1) var(--spacing-2);
+}
+
+.nt-wb-drawing {
+  stroke: var(--md-sys-color-primary);
+}
+
+.nt-wb-text-placeholder {
+  fill: none !important;
+  stroke: var(--md-sys-color-outline) !important;
+  stroke-dasharray: 3 3;
+}
+
+.nt-wb-marquee {
+  position: absolute;
+  border: 1px dashed var(--md-sys-color-primary);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent);
+  pointer-events: none;
+}
+
+.nt-wb-card {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  overflow: hidden;
+}
+
+.nt-wb-card-selected {
+  border-color: var(--md-sys-color-primary);
+  box-shadow: 0 0 0 1px var(--md-sys-color-primary);
+}
+
+/* Sticky notes: the node color is the card background; the title bar reads
+   as a tint of the card instead of the plain surface. */
+.nt-wb-card-colored .nt-wb-card-title {
+  background: color-mix(in srgb, var(--md-sys-color-surface) 35%, transparent);
+}
+
+.nt-wb-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: var(--md-sys-color-surface-container-highest);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: grab;
+  user-select: none;
+}
+
+.nt-wb-card-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nt-wb-card-delete {
+  border: none;
+  background: none;
+  color: var(--md-sys-color-on-surface-variant);
+  padding: 0 2px;
+  border-radius: var(--shape-medium);
+  line-height: 1;
+  font-size: var(--font-size-base);
+}
+
+.nt-wb-card-delete:hover {
+  color: var(--md-sys-color-error);
+}
+
+.nt-wb-card-body {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: var(--font-size-button);
+  overflow: auto;
+  cursor: text;
+}
+
+.nt-wb-card-editor {
+  min-height: 1em;
+  outline: none;
+}
+
+.nt-wb-label-input {
+  position: absolute;
+  font-size: var(--font-size-sm);
+  padding: 1px 4px;
+  border: 1px solid var(--md-sys-color-primary);
+  border-radius: var(--shape-small);
+}
+
+.nt-wb-empty {
+  position: absolute;
+  left: 32px;
+  top: 32px;
+  padding: 24px 32px;
+  border: 2px dashed var(--md-sys-color-outline);
+  border-radius: var(--shape-button-compact);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-button);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.nt-wb-missing {
+  padding: 16px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-wb-zoom {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  background: var(--md-sys-color-surface);
+  box-shadow: var(--shadow-elevation-1);
+  font-size: var(--font-size-sm);
+}
+
+.nt-wb-zoom-level {
+  min-width: 44px;
+  text-align: center;
+  color: var(--md-sys-color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+.nt-wb-minimap {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  background: var(--md-sys-color-surface);
+  box-shadow: var(--shadow-elevation-1);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.nt-wb-minimap-card {
+  fill: var(--md-sys-color-surface-container-highest);
+  stroke: var(--md-sys-color-outline);
+}
+
+.nt-wb-minimap-shape {
+  fill: none;
+  stroke: var(--md-sys-color-outline-variant);
+}
+
+.nt-wb-minimap-viewport {
+  fill: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
+  stroke: var(--md-sys-color-primary);
+  stroke-width: 1;
+}
+

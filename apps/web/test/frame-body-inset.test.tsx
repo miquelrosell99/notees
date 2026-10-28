@@ -137,7 +137,7 @@ describe("the frame owns the outer body inset (CSS registers)", () => {
   });
 
   it("the nodeview's page root no longer double-pads: top gap only, horizontal retired", () => {
-    const css = readCss("ui/app.css");
+    const css = readCss("ui/app/PanelLayout.css");
     const blocks = ruleBlocks(css, ".nt-page--panelled");
     expect(blocks.length).toBe(1);
     // Was `var(--spacing-2) var(--spacing-4) 0` — the horizontal inset
@@ -146,7 +146,7 @@ describe("the frame owns the outer body inset (CSS registers)", () => {
   });
 
   it("the nodeview top bar carries its own horizontal inset (the override), pixel-identical to the retired host padding", () => {
-    const css = readCss("ui/app.css");
+    const css = readCss("ui/app/PanelLayout.css");
     const blocks = ruleBlocks(css, ".surface-topbar.nt-node-topbar");
     expect(blocks.length).toBe(1);
     // The top padding retired (the host root's spacing-2

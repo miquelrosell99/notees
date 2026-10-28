@@ -1,0 +1,298 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* --- page ------------------------------------------------------------------- */
+
+.nt-page {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: var(--spacing-10) var(--spacing-6) var(--spacing-10);
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- the panelled main layout -------- */
+
+/* The three-column body row, the raised-card panel registers, and the
+   compact stacking adaptation moved to MainContentFrame.css (the composition generalized into the shared
+   MainContentFrame; the panel cards keep their .nt-page-context /
+   .nt-page-side-panel class names there). What stays here is the
+   nodeview's own panelled surface: the page root modifier and the
+   page-specific registers below. */
+
+/* The panelled main layout fills the whole content card (the card's
+   centered single-column cap drops) and takes its height, so the frame
+   can pin the top bar and stretch the columns between it and the card
+   bottom. */
+.nt-page-card > .nt-node-view:has(.nt-page--panelled) {
+  max-width: none;
+  height: 100%;
+}
+
+.nt-page--panelled {
+  max-width: none;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* The top padding is one step tighter than the retired sides: it carries only the nodeview top bar's top gap, and the
+     bar is chrome — it reads best hugging the card top like the app top
+     bar hugs the viewport. The horizontal padding RETIRED the frame's body row now owns the outer
+     side inset universally (.nt-main-frame__body in MainContentFrame.css)
+     and this root padding would double it — the bar's own horizontal
+     inset rides the .nt-node-topbar override below. */
+  padding: var(--spacing-2) 0 0;
+}
+
+/* The fullscreen whiteboard surface: the canvas is the card's sole
+   content. The page chrome (the panelled columns, the nodeview top bar,
+   the header, the footer) steps aside; the page padding goes and the
+   canvas frame loses its own border/radius and margin — the card frame
+   itself stays (it IS the main content container) and clips the canvas
+   at its corners. */
+.nt-page--whiteboard {
+  max-width: none;
+  height: 100%;
+  padding: 0;
+}
+
+.nt-page-card > .nt-node-view:has(.nt-page--whiteboard) {
+  max-width: none;
+  height: 100%;
+}
+
+.nt-page--whiteboard > .nt-wb.nt-wb-fullscreen {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+/* The raised-card panel's card element and the context column's moved to
+   MainContentFrame.css (the shared frame). What stays: the page-specific
+   content styling inside the panels. */
+
+/* The class variant's first-column stack: Class
+   properties + Templates stack under the Metadata panel. Whitespace only —
+   the panel card carries its own border, so the sections' default top
+   hairlines retire inside it (owner: "why so many divider lines?"). */
+.nt-page-side-panel .node-view-section {
+  border-top: none;
+  padding-top: 0;
+}
+
+.nt-page-side-panel__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-3);
+}
+
+/* The narrow column can't afford the content flow's title-alignment indent
+   (spacing-7 — the toggle + icon + gaps): section contents sit nearly flush
+ ("reduce the left padding … in sidebar mode"). */
+.nt-page-side-panel .node-view-section__content {
+  padding-left: var(--spacing-3);
+}
+
+/* The context column's card element moved to MainContentFrame.css; the
+   page-specific bottom-section register stays. */
+
+/* The context column's bottom section: the page footer
+   (word count + Created/Updated stamps) moved here from the card-bottom
+   bar — the auto top margin pins it to the card's bottom, a section like
+   the others, anchored at the end of the scroll. */
+.nt-page-context__footer {
+  margin-top: auto;
+}
+
+/* The second column's scroll box: the cell wrapper is
+   the SCROLLER now, full middle-cell width — the scrollbar rides the
+   cell's right edge, directly beside the right side pane, instead of the
+   capped column's edge mid-gap (the owner's request). The journal-measure
+   cap moved one level down onto .nt-nodeview-body. Horizontal overflow
+   clips, never scrolls: the kit icon buttons carry an
+   invisible 48×48 hit-area overlay (::after) that inflates every
+   ancestor's scrollWidth by a few px — the column must not turn that into
+   a horizontal scrollbar (wide tables scroll inside .nt-table-wrap). */
+.nt-page--panelled .nt-page-content {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* The footer moved into the context column's bottom —
+     the cell is a single scroll between the full-width top bar above and
+     the card bottom below. */
+  flex: 1;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: clip;
+}
+
+/* The nodeview cell: the journal-measure CAP (46rem,
+   centered inside whatever space the panels leave, spacing-6 lateral
+   padding matching the compact column's text measure) now rides on the
+   cell's content column instead of the scroll box: the text measure is
+   unchanged (toggling a panel never re-measures it), only the scrollbar's
+   home moved to the full-width scroll box above. flex 0 0 auto: the
+   column must not shrink below its content — shrinking would let the
+   scroll box fit without scrolling and clip instead. */
+.nt-nodeview-body {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 46rem;
+  margin-inline: auto;
+  padding-inline: var(--spacing-6);
+}
+
+/* The footer inside the context column: the card-bottom
+   bar retired — no sticky, no full-bleed negative insets, no surface
+   backing (those are compact-layout behaviors, PageFooter.css); here it is
+   a plain bottom section on the sidebar card, transparent over the card's
+   own fill. One tidy row: the words count never wraps,
+   the stamps keep their single line. */
+.nt-page--panelled .nt-page-footer {
+  position: static;
+  bottom: auto;
+  flex: none;
+  flex-wrap: nowrap;
+  margin: 0;
+  padding: var(--spacing-3) 0 0;
+  background: transparent;
+}
+
+.nt-page--panelled .nt-page-footer__words {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-page--panelled .nt-page-footer__dates {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.nt-page-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Focus mode (#12) needs no content-cap rule of its own anymore: the
+   panelled cap above IS the focus-mode geometry, now the layout's measure everywhere. The nodeview top bar
+   above still spans the whole card — the view switcher + node menu stay
+   put at the card's right. */
+
+/* The nodeview top bar: the context collapse toggle and the classes
+   pills on the left, the view-mode switcher + properties toggle + node
+   menu on the right. The bar spans the WHOLE card, above the column split: its controls act on the layout's columns, so it must not
+   rescale when a panel shows or hides — the page's own horizontal padding
+   carries both edges, and each panel toggle sits directly above the column
+   it reveals.
+   The bar composes the fleet SurfaceTopBar primitive: the bottom
+   hairline rides the primitive's own border-bottom (the divider returns —
+   the 2026-10-13 retirement predated the body scrolling tight under the
+   bar; the hub commit's second pass established the seam rule, the clipped
+   content read as cut). The TOP padding stays zeroed: the host page root's
+   own spacing-2 carries the bar's top gap; the override carries the bar's horizontal
+   inset itself since 2026-10-26 — see there.
+   The primitive's base padding rules — the base rule and its small-width
+   variant — both lose to the higher specificity. The bottom gap stays the
+   margin-bottom spacing-2: the bar is
+   chrome and reads best hugging its content — top gap 8, bottom 8 padding
+   + 8 margin around the hairline. */
+.nt-node-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+  padding: 0;
+  margin-bottom: var(--spacing-2);
+}
+
+.surface-topbar.nt-node-topbar {
+  /* The bar's insets ride THIS register since the panelled page's horizontal
+     padding retired (the frame's body row owns the outer side inset
+     universally), so the bar carries its own — var(--spacing-4), pixel-
+     identical to the retired host padding. The verticals tightened the
+     same day (owner: "too much top and bottom padding" — the host root's
+     spacing-2 top padding AND the bar's own spacing-2 doubled the top
+     gap to 16, and spacing-3 bottom + the spacing-2 margin stacked to 20
+     below): the top padding retires (the host root's spacing-2 carries
+     the bar's top gap alone, the original 2026-10-13 register), the
+     bottom is spacing-2 padding + the spacing-2 margin — 8 above the
+     hairline, 8 below it. The primitive's base padding and its
+     small-width variant both still lose to this two-class rule. */
+  padding: 0 var(--spacing-4) var(--spacing-2);
+}
+
+.nt-node-topbar__classes {
+  min-width: 0;
+}
+
+/* Corner convention: pills only, no "Classes:" label. */
+.nt-node-topbar__classes .section-label {
+  display: none;
+}
+
+/* The bar's spacer retires with the SurfaceTopBar composition: the primitive's own .surface-topbar__spacer carries the
+   push, and the right cluster renders through the primitive's actions
+   slot. */
+
+.nt-node-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+/* The empty child-blocks list needs no pull: the ghost row owns its own
+   bottom padding (GhostRow.css), so the next section's border already has
+   real clearance below the "+ Add block" label. A negative-margin
+   cancellation here pulls the border up INTO the label's line box (it read as an overlap in dark theme, on every surface). */
+
+/* The main node view's top-right corner cluster: the
+   blocks view switcher sits left of the "…" node menu, both pinned to the
+   content card's top-right (the card is the nearest positioned ancestor —
+   the same mechanism as the top-left classes corner). */
+.nt-node-view__corner {
+  position: absolute;
+  top: var(--spacing-4);
+  right: var(--spacing-4);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+/* Classes pinned to the content card's top-left corner (the card is the
+   nearest positioned ancestor; the pills sit outside the centered column). */
+.nt-page-card {
+  position: relative;
+}
+
+.nt-page-classes-corner {
+  position: absolute;
+  top: var(--spacing-4);
+  left: var(--spacing-4);
+  z-index: 1;
+}
+
+.nt-page-classes-corner .nt-classes-row {
+  margin-left: 0;
+  min-height: 0;
+}
+
+.nt-page-classes-corner .nt-classes-row > .section-label {
+  display: none;
+}
+
+.nt-page-title {
+  margin: 0;
+  font: var(--font-headline-medium);
+  color: var(--md-sys-color-on-surface);
+  min-width: 0;
+}
+

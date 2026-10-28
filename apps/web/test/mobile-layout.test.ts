@@ -23,8 +23,10 @@ const readFile = (
     getBuiltinModule(name: "node:fs"): { readFileSync(path: string, encoding: "utf8"): string };
   }
 ).getBuiltinModule("node:fs").readFileSync;
-const css = readFile(`${process.cwd()}/src/ui/app.css`, "utf8");
+const css = readFile(`${process.cwd()}/src/ui/app/ResponsivePass.css`, "utf8");
 const frameCss = readFile(`${process.cwd()}/src/ui/MainContentFrame.css`, "utf8");
+// The FAB's base (desktop) rule rides the hub-surfaces chunk.
+const hubCss = readFile(`${process.cwd()}/src/ui/app/HubSurfaces.css`, "utf8");
 
 /** The responsive block: from its banner comment to the next top-level rule. */
 function responsiveBlock(): string {
@@ -83,7 +85,7 @@ describe("mobile layout (app.css responsive pass)", () => {
     expect(block).toContain("position: fixed");
     expect(block).toContain("safe-area-inset-bottom");
     // …and the base (desktop) rule keeps it out of the way.
-    const baseRule = css.match(/\.nt-quick-fab\s*\{[^}]*\}/);
+    const baseRule = hubCss.match(/\.nt-quick-fab\s*\{[^}]*\}/);
     expect(baseRule).not.toBeNull();
     expect(baseRule![0]).toContain("display: none");
   });

@@ -1,7 +1,7 @@
 /**
  * QuickCreateFab — the mobile quick-create floating action button: a
  * fixed-position FAB, visible only at
- * narrow widths (the app.css responsive pass shows it inside the tablet
+ * narrow widths (ui/app/ResponsivePass.css's responsive pass shows it inside the tablet
  * breakpoint and hides it on desktop, where Ctrl/Cmd+Shift+N and the shell
  * chrome own quick capture). Tapping it opens the existing QuickAddModal —
  * the component hosts its own modal state, so the mount is a single

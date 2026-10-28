@@ -1,0 +1,91 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* The tasks hub root (the hub-surface restructure): a
+   pass-through flex root over the hub's CollectionHub — the SurfaceTopBar
+   and the card-border scrolling body live in CollectionHub (CollectionHub.css),
+   and the bucketed surface prepends the collection inside that shared body. */
+.nt-hub-tasks {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The shared .nt-hub-header / .nt-hub-title / .nt-hub-count /
+   .nt-hub-switcher / .nt-hub-actions registers retired with the
+   SurfaceTopBar primitive: every hub's header composes
+   the fleet bar now — verified no user remains. */
+
+/* Sidebar section header toggle (transparent, archive-style). */
+.nt-side-header-toggle {
+  width: calc(100% - var(--spacing-1));
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px var(--spacing-1);
+  margin: var(--spacing-2) var(--spacing-1) var(--spacing-1);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-section);
+  text-transform: uppercase;
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: left;
+  cursor: pointer;
+}
+
+.nt-side-header-toggle:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-side-header-chevron,
+.nt-side-header-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.nt-side-more {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: var(--spacing-2);
+  padding: 4px var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-section);
+  text-transform: uppercase;
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: left;
+}
+
+.nt-side-more:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-ws-offline {
+  flex: 1;
+  padding: 6px var(--spacing-2);
+  font-weight: 600;
+  font-size: var(--font-size-button);
+  letter-spacing: 0.05em;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* The quick-create FAB: hidden on desktop
+   (the shell chrome + Ctrl/Cmd+Shift+N own quick capture there); the
+   responsive pass below surfaces it at narrow widths. Token-only CSS. */
+.nt-quick-fab {
+  display: none;
+}
+

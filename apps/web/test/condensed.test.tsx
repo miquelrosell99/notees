@@ -456,7 +456,9 @@ describe("condensed chrome reveal mechanism (CSS source)", () => {
   };
   const fs = process_.getBuiltinModule("node:fs");
   const path = process_.getBuiltinModule("node:path") as unknown as typeof import("node:path");
-  const css = fs.readFileSync(path.join(process.cwd(), "src", "ui", "app.css"), "utf8");
+  const css = fs.readFileSync(path.join(process.cwd(), "src", "features", "collection", "ProseView.css"), "utf8");
+  // The chevron overlay/hover rules ride the block-row chunk.
+  const blockRowCss = fs.readFileSync(path.join(process.cwd(), "src", "ui", "BlockRow.css"), "utf8");
 
   it("the badge chrome hides at rest and reveals on row hover AND focus-within", () => {
     const base = /\.nt-block-excerpt__chrome \{[^}]*\}/.exec(css);
@@ -496,7 +498,7 @@ describe("condensed chrome reveal mechanism (CSS source)", () => {
   });
 
   it("the collapse chevron rides the 48px overlay floor and self-reveals on overlay hover", () => {
-    const overlay = /\.nt-block-chevron::after \{[^}]*\}/.exec(css);
+    const overlay = /\.nt-block-chevron::after \{[^}]*\}/.exec(blockRowCss);
     expect(overlay).not.toBeNull();
     expect(overlay![0]).toContain("width: max(100%, var(--button-min-height))");
     expect(overlay![0]).toContain("height: max(100%, var(--button-min-height))");
@@ -504,7 +506,7 @@ describe("condensed chrome reveal mechanism (CSS source)", () => {
     // The overlay extends past the grip, where the gutter-hover reveal
     // doesn't fire — the chevron reveals on its own hover so the control
     // is never an invisible click-eater.
-    const hover = /\.nt-block-chevron:hover \{[^}]*\}/.exec(css);
+    const hover = /\.nt-block-chevron:hover \{[^}]*\}/.exec(blockRowCss);
     expect(hover).not.toBeNull();
     expect(hover![0]).toContain("opacity: 1");
   });

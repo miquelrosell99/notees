@@ -1,0 +1,344 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* --- skip link ------------------------------------------------------------- */
+
+/* The first focusable element of the shell: keyboard users jump straight to
+   the content card, past the top bar, sidebar, and rail. Off-screen until
+   focused (the translate keeps it out of view, not display:none, so it stays
+   in the tab order). */
+.nt-skip-link {
+  position: fixed;
+  top: var(--spacing-2);
+  left: var(--spacing-2);
+  z-index: var(--z-skip-link);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  border-radius: var(--shape-button-small);
+  font: var(--font-label-large);
+  text-decoration: none;
+  transform: translateY(calc(-100% - var(--spacing-4)));
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-skip-link:focus-visible {
+  transform: translateY(0);
+  outline: var(--border-width-thick) solid var(--md-sys-color-on-primary);
+  outline-offset: var(--focus-outline-offset);
+}
+
+/* --- bootstrap screen ------------------------------------------------------ */
+
+.nt-bootstrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.nt-bootstrap-form {
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  padding: 28px;
+  width: 360px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: var(--shadow-elevation-3);
+}
+
+.nt-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nt-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--shape-medium);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  font-size: var(--font-size-md);
+}
+
+.nt-bootstrap-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  letter-spacing: -0.01em;
+}
+
+.nt-bootstrap-subtitle {
+  margin: 0;
+  font-size: var(--font-size-button);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nt-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large); /* 9px is off the shape scale; nearest token */
+}
+
+.nt-tab {
+  flex: 1;
+  min-height: var(--button-min-height);
+  padding: var(--spacing-1-5) var(--spacing-2-5);
+  border: none;
+  border-radius: var(--shape-medium);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-button);
+  cursor: pointer;
+}
+
+.nt-tab:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-tab:active {
+  background: var(--md-sys-color-pressed-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-tab-active,
+.nt-tab-active:hover {
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: var(--font-size-button);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-field input {
+  font: inherit;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--shape-extra-large);
+  background: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-field input:disabled {
+  opacity: 0.6;
+}
+
+.nt-hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  border-left: 3px solid var(--md-sys-color-outline);
+  padding-left: 10px;
+}
+
+.nt-bootstrap-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.nt-error {
+  margin: 0;
+  color: var(--md-sys-color-error);
+  font-size: var(--font-size-button);
+}
+
+/* Explicit same-host suggestion after a failed probe: the only path to the
+   guess (the boot screen never re-routes on its own). */
+.nt-server-suggestion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* --- settings modal --------------------------------------------------------- */
+
+/* The shared dialog chrome (.nt-modal-backdrop/.nt-modal/…) lives in
+   components/Modal.css; here remain only the settings body styles. */
+
+.nt-settings-account {
+  margin: 0;
+  font-size: var(--font-size-button);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nt-settings-heading {
+  margin: 0;
+  font-size: var(--font-size-base);
+}
+
+.nt-settings-hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-apikey-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nt-apikey {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  font-size: var(--font-size-button);
+  flex-wrap: wrap;
+}
+
+.nt-apikey-revoked {
+  opacity: 0.55;
+}
+
+.nt-apikey-name {
+  font-weight: 500;
+}
+
+.nt-apikey-prefix {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+}
+
+.nt-apikey-meta {
+  margin-left: auto;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+}
+
+.nt-apikey-revoke,
+.nt-apikey-revoke-confirm button {
+  border: 1px solid var(--md-sys-color-outline);
+  background: transparent;
+  color: var(--md-sys-color-error);
+  border-radius: var(--shape-medium);
+  padding: 3px 8px;
+  font-size: var(--font-size-sm);
+}
+
+.nt-apikey-revoke:hover,
+.nt-apikey-revoke-confirm button:hover {
+  background: var(--md-sys-color-error-container);
+}
+
+.nt-apikey-revoke-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-error);
+}
+
+.nt-apikey-empty {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-button);
+}
+
+.nt-apikey-new {
+  display: flex;
+  gap: 8px;
+}
+
+.nt-apikey-new input {
+  flex: 1;
+  font: inherit;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--shape-extra-large);
+  background: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-apikey-new button {
+  border: 1px solid var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  border-radius: var(--shape-large);
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--font-size-button);
+}
+
+.nt-apikey-new button:disabled {
+  opacity: 0.55;
+}
+
+.nt-apikey-fresh {
+  border: 1px solid var(--md-sys-color-primary);
+  border-radius: var(--shape-large);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: var(--font-size-button);
+}
+
+.nt-apikey-fresh p {
+  margin: 0;
+}
+
+.nt-apikey-token {
+  word-break: break-all;
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: var(--shape-medium);
+  padding: 8px;
+  font-size: var(--font-size-sm);
+}
+
+.nt-apikey-fresh-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.nt-apikey-fresh-actions button {
+  border: 1px solid var(--md-sys-color-outline);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  border-radius: var(--shape-medium);
+  padding: 5px 10px;
+  font-size: var(--font-size-sm);
+}
+
+/* --- shared icon-button primitive -------------------------------------------
+   Used by the shell components AND the boot screens (ThemeToggle), so it
+   stays global; the topbar/sidebar chrome rules moved to components/. */
+
+/* The ad-hoc .nt-icon-btn retired 2026-10-20 — every icon button composes
+   from the fleet catalog Button (ghost/sm/icon-only), the top bar's
+   conversion being the last call site. */
+
