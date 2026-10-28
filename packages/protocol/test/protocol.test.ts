@@ -216,11 +216,24 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     // …and the HLCs strictly ascend across the whole fixture.
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
-    // The schema is strict: an unknown grade and a non-uuid session both fail.
+    // The schema is strict, and each violation is rejected INDEPENDENTLY:
+    // an unknown grade with everything else valid fails…
     expect(
       payloadSchemaFor("card.review")!.safeParse({
         cardId: "00000000-0000-0000-0001-000000000011",
         grade: "great",
+        algorithm: "sm2",
+        stateBefore: { due: null, reps: 0, interval: 0, ease: null, difficulty: null, stability: null },
+        stateAfter: { due: "2026-10-29", reps: 1, interval: 1, ease: 2.5, difficulty: null, stability: null },
+        reviewedAt: "2026-10-28T10:00:00.000Z",
+        sessionId: "0192a000-0000-7000-8000-000000000944",
+      }).success,
+    ).toBe(false);
+    // …and a non-uuid session with everything else valid fails.
+    expect(
+      payloadSchemaFor("card.review")!.safeParse({
+        cardId: "00000000-0000-0000-0001-000000000011",
+        grade: "good",
         algorithm: "sm2",
         stateBefore: { due: null, reps: 0, interval: 0, ease: null, difficulty: null, stability: null },
         stateAfter: { due: "2026-10-29", reps: 1, interval: 1, ease: 2.5, difficulty: null, stability: null },
