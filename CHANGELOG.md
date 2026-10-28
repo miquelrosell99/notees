@@ -24,8 +24,9 @@ predating this file.
   pattern the inline cluster already rides).
   - **Files**: `apps/web/src/features/metadata/NodePills.tsx` (PopupRow
     retired — the popup reuses SortablePill/PillShell over the full
-    `classIds`; module doc rewritten; the "+N" trigger is the fleet Chip
-    toggle holding its active fill while the panel is open; a trailing
+    `classIds`; module doc rewritten; the "+N" trigger is the fleet ghost
+    Button toggle (the top-bar toggle register — rounded square like the
+    pills, holding its active fill while the panel is open); a trailing
     AddPill entry opens the class picker anchored at itself with the popup
     staying open underneath; a help footer names the drag-to-reorder and
     first-class-rides-the-block-row rules), `…/NodePills.css` (the

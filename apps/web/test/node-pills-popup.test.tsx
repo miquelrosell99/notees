@@ -60,17 +60,18 @@ function openPopup() {
 }
 
 describe("NodePills overflow popup — pill contract", () => {
-  it("the +N trigger is a toggle chip that holds its active state while open", async () => {
+  it("the +N trigger is a ghost toggle button that holds its active fill while open", async () => {
     const { client, pageId, classIds } = await seedClassedPage(["alpha", "beta", "gamma"]);
     render(<NodePills client={client} nodeId={pageId} classIds={classIds} overflow />);
 
     const trigger = screen.getByRole("button", { name: "Show 2 more classes" });
     expect(trigger.getAttribute("aria-pressed")).toBe("false");
-    expect(trigger.classList.contains("chip--on")).toBe(false);
+    // The fleet ghost button's active class — the top-bar toggle register.
+    expect(trigger.classList.contains("bg-surface-container-active")).toBe(false);
 
     fireEvent.click(trigger);
     expect(trigger.getAttribute("aria-pressed")).toBe("true");
-    expect(trigger.classList.contains("chip--on")).toBe(true);
+    expect(trigger.classList.contains("bg-surface-container-active")).toBe(true);
     expect(screen.getByRole("dialog", { name: "All classes" })).toBeInTheDocument();
 
     fireEvent.click(trigger);
