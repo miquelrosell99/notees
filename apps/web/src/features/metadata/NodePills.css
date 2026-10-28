@@ -16,7 +16,9 @@
 }
 
 .node-pills-popup {
-  min-width: 180px;
+  /* No min-width: the panel shrink-wraps its pills (the widest pill sets the
+     width) — a fixed floor left dead space on the right of short pill
+     lists. */
   max-height: 280px;
   overflow-y: auto;
   background: var(--md-sys-color-surface);
