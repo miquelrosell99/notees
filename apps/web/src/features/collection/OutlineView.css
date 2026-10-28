@@ -127,16 +127,11 @@ button.outline-group__label:hover {
   white-space: nowrap;
 }
 
+/* The group count: the fleet Badge (neutral pill) owns the look — the class
+   keeps only the row layout (the trailing separation from the name). */
 .outline-group__count {
   flex-shrink: 0;
   margin-inline-start: var(--spacing-1);
-  padding: 3px 8px;
-  border-radius: var(--shape-medium);
-  background: var(--md-sys-color-surface-container-high);
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--font-label-medium);
-  font-size: var(--font-size-xs);
-  line-height: 1;
 }
 
 .outline-group__items {

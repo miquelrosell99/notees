@@ -50,12 +50,10 @@
   min-width: 0;
 }
 
-/* The muted count register (the former .nt-hub-count): small, on the
-   on-surface-variant role, never shrinking. */
+/* The count chip: the fleet Badge (neutral pill) owns the look — this class
+   keeps only the row layout (never shrinking). */
 .surface-topbar__count {
   flex-shrink: 0;
-  font-size: var(--font-size-sm);
-  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* Freeform lead content (CalendarView's date line) fills the bar's

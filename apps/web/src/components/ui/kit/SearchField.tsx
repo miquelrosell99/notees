@@ -70,10 +70,17 @@ export interface SearchFieldProps extends Omit<InputHTMLAttributes<HTMLInputElem
   /** Clear affordance: with a non-empty `value`, an × renders inside the
    * right edge and calls this (the host clears its state). */
   onClear?: (() => void) | undefined;
+  /**
+   * Extra trailing-lane content inside the pill, after the clear
+   * affordance — the collapsible search field rides it with its
+   * collapse/close button (the pill owns the × geometry; a sibling
+   * outside the lane would break the grid).
+   */
+  trailing?: ReactNode | undefined;
 }
 
 export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
-  function SearchField({ icon, label, size = 'md', className = '', 'aria-label': ariaLabel, onClear, ...inputProps }, ref) {
+  function SearchField({ icon, label, size = 'md', className = '', 'aria-label': ariaLabel, onClear, trailing, ...inputProps }, ref) {
     const id = useId();
     const hasValue = typeof inputProps.value === 'string' && inputProps.value !== '';
 
@@ -110,6 +117,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
             <Icon path="mdi mdi-close" size="sm" />
           </button>
         )}
+        {trailing}
       </div>
     );
 

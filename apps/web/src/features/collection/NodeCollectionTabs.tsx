@@ -50,7 +50,7 @@ import {
   reorderSectionViews,
   useSectionViews,
 } from "./sectionViews.js";
-import { Button, ConfirmationModal, Modal, Tabs, TextField } from "../../components/ui/kit/index.js";
+import { Button, Badge, ConfirmationModal, Modal, Tabs, TextField } from "../../components/ui/kit/index.js";
 import { Icon } from "../../ui/Icon.js";
 import type { AnyClient } from "./types.js";
 import "./NodeCollectionTabs.css";
@@ -156,7 +156,7 @@ export function NodeCollectionTabs({ client, nodeId, sectionKey, selected, onSel
               Default
               {selected === SECTION_DEFAULT_TAB && activeCount != null && (
                 <span className="nt-node-collection-tabs__tab-count" aria-hidden="true">
-                  {activeCount}
+                  <Badge size="xs">{activeCount}</Badge>
                 </span>
               )}
             </Tabs.Tab>
@@ -165,7 +165,7 @@ export function NodeCollectionTabs({ client, nodeId, sectionKey, selected, onSel
                 {view.name}
                 {selected === view.id && activeCount != null && (
                   <span className="nt-node-collection-tabs__tab-count" aria-hidden="true">
-                    {activeCount}
+                    <Badge size="xs">{activeCount}</Badge>
                   </span>
                 )}
               </Tabs.Tab>

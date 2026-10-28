@@ -136,6 +136,8 @@ export { CodeTextarea } from './CodeTextarea.js';
 
 export { SearchField } from './SearchField.js';
 export type { SearchFieldProps } from './SearchField.js';
+export { CollapsibleSearchField } from './CollapsibleSearchField.js';
+export type { CollapsibleSearchFieldProps } from './CollapsibleSearchField.js';
 
 export { FilterChips } from './FilterChips.js';
 export type { FilterChipsProps, FilterChipItem } from './FilterChips.js';

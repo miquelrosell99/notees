@@ -1,11 +1,11 @@
-/* NodeCollectionBar — the transient filter layer's body-top chrome: one control row
+/* NodeCollectionToolbar — the transient filter layer's body-top chrome: one control row
    (text search + the structured-facet toggle + the honest "N of M" count +
    clear) with the structured panel expanding beneath it as an in-flow,
    full-width region. The region keeps its bordered box (the frame pairs with the filter search box in the control row) — an
    in-flow box, not a floating overlay; the app only floats transient
    pickers. Token-only. */
 
-.nt-node-collection-bar {
+.nt-node-collection-toolbar {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
@@ -19,47 +19,48 @@
    flexes, capped so the row's actions keep the right side) while the
    structured panel takes a full-width wrapped line beneath the row. No
    overlay: the region is in the flow. */
-.nt-node-collection-bar--inline {
+.nt-node-collection-toolbar--inline {
   display: contents;
 }
 
-.nt-node-collection-bar--inline .nt-node-collection-bar__row {
+.nt-node-collection-toolbar--inline .nt-node-collection-toolbar__row {
   flex: 1 1 auto;
   max-width: 42ch;
   min-width: 12ch;
 }
 
-.nt-node-collection-bar--inline .nt-node-collection-bar__panel {
+.nt-node-collection-toolbar--inline .nt-node-collection-toolbar__panel {
   flex-basis: 100%;
 }
 
-.nt-node-collection-bar__row {
+.nt-node-collection-toolbar__row {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
 }
 
-.nt-node-collection-bar__search {
+.nt-node-collection-toolbar__search {
   flex: 1;
   min-width: 10ch;
 }
 
 /* The narrow-viewport search popup: the field rides the
    magnifier button's anchored panel — padded to the panel's width. */
-.nt-node-collection-bar__search-pop {
+.nt-node-collection-toolbar__search-pop {
   padding: var(--spacing-2);
 }
 
-.nt-node-collection-bar__count {
-  color: var(--md-sys-color-on-surface-variant);
-  white-space: nowrap;
+/* The "N of M" counter: the fleet Badge (neutral pill) owns the look — the
+   class stays as the test hook. */
+.nt-node-collection-toolbar__count {
+  flex-shrink: 0;
 }
 
 /* The structured panel: a bordered region framing the builder — in-flow
    (never an overlay), full width; the box pairs with the search box in the
    control row above it. The kit Card inside stays only on the transient
    add menu. */
-.nt-node-collection-bar__panel {
+.nt-node-collection-toolbar__panel {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);

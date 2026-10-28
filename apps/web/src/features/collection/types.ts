@@ -488,11 +488,13 @@ export interface NodeCollectionProps {
    */
   hostedViews?: HostedViewsConfig | undefined;
   /**
-   * The host section's chrome riding the hosted tab bar's far right (the filter bar's collapsible quick search + structured
-   * toggle, the view switcher): one row with the tabs. Renders only when
-   * `hostedViews` is set — a non-hosted collection has no tab row.
+   * The host section's toolbar cluster riding the top bar's right (the
+   * filter toolbar's collapsible quick search + structured toggle, the view
+   * switcher): one row with the tabs, composed by NodeCollectionTopBar.
+   * Renders only when `hostedViews` is set — a non-hosted collection has no
+   * tab row.
    */
-  tabBarTrailing?: ReactNode | undefined;
+  toolbarContent?: ReactNode | undefined;
 
   className?: string | undefined;
 }

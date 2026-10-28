@@ -140,7 +140,7 @@ describe("slash /query", () => {
     // …and the toggleable builder section opened below the content row
     //.
     await waitFor(() => {
-      expect(container.querySelector(".nt-query-node .nt-node-collection-bar__panel")).not.toBeNull();
+      expect(container.querySelector(".nt-query-node .nt-node-collection-toolbar__panel")).not.toBeNull();
     });
   });
 });

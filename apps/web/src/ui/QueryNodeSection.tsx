@@ -13,7 +13,7 @@
  *    the op log) + custom tabs (node-scoped views on the empty section key,
  *    the node's "main query" surface) + "+", which creates the tab
  *    immediately from the bar's draft;
- *  - NodeCollectionBar (the trailing cluster, LAST so its structured panel
+ *  - NodeCollectionToolbar (the trailing cluster, LAST so its structured panel
  *    wraps a full-width line beneath the tab row) — the full-grammar
  *    builder, toggleable per tab; its "Apply to <tab>" commit rewrites the
  *    SELECTED tab's query (the default tab → the token's queryAst through
@@ -31,9 +31,9 @@ import { useEffect, useState } from "react";
 
 import { parseQueryAst, type QueryAst } from "@notees/query";
 
-import { NodeCollectionTabs, SECTION_DEFAULT_TAB } from "../features/collection/index.js";
+import { NodeCollectionTabs, NodeCollectionTopBar, SECTION_DEFAULT_TAB } from "../features/collection/index.js";
 import { SelectionButton } from "../components/ui/kit/SelectionButton.js";
-import { NodeCollectionBar } from "../features/collection/NodeCollectionBar.js";
+import { NodeCollectionToolbar } from "../features/collection/NodeCollectionToolbar.js";
 import {
   updateSectionViewAst,
   useSectionViews,
@@ -172,62 +172,68 @@ export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectio
 
   return (
     <div className="nt-query-node" onClick={(event) => event.stopPropagation()}>
-      <NodeCollectionTabs
-        client={client}
-        nodeId={nodeId}
-        sectionKey=""
-        selected={selectedView !== null ? tab : SECTION_DEFAULT_TAB}
-        onSelect={setTab}
-        createAst={createAst}
-        activeCount={resultCount}
-        trailing={
-          <>
-            {/* The results' three transient modes — the kit SelectionButton
-                directly (pivot is a query-results view, NOT a collection
-                registry mode, so the registry-backed ViewSwitcher cannot
-                name it). */}
-            <SelectionButton
-              options={[
-                { value: "outline", icon: "mdi-format-list-bulleted", label: "Outline" },
-                { value: "table", icon: "mdi-table", label: "Table" },
-                { value: "pivot", icon: "mdi-table-pivot", label: "Pivot" },
-              ]}
-              value={viewMode}
-              onChange={(value) => setViewMode(value as QueryViewMode)}
-              size="sm"
-              maxVisibleOptions={4}
-              aria-label="View mode"
-              className="view-switcher"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              icon="mdi mdi-download"
-              aria-label="Export results"
-              title="Export results (Markdown)"
-              disabled={!exportable}
-              onClick={handleExport}
-            />
-            {/* The bar renders LAST in the cluster: its structured panel
-                wraps a full-width line beneath the tab row. The key remounts
-                it once when the /query slash queue is consumed — the panel's
-                initial-open prop only reads at mount. */}
-            <NodeCollectionBar
-              key={builderAutoOpen ? "builder-open" : "builder-closed"}
-              client={client}
-              layout="inline"
-              value={draft}
-              onChange={setDraft}
-              matchCount={null}
-              totalCount={null}
-              defaultPanelOpen={builderAutoOpen}
-              applyTarget={{
-                tabLabel: selectedView?.name ?? "Default",
-                onApply: applyToTab,
-              }}
-            />
-          </>
+      <NodeCollectionTopBar
+        tabs={
+          <NodeCollectionTabs
+            client={client}
+            nodeId={nodeId}
+            sectionKey=""
+            selected={selectedView !== null ? tab : SECTION_DEFAULT_TAB}
+            onSelect={setTab}
+            createAst={createAst}
+            activeCount={resultCount}
+            trailing={
+              <>
+                {/* The results' three transient modes — the kit SelectionButton
+                    directly (pivot is a query-results view, NOT a collection
+                    registry mode, so the registry-backed ViewSwitcher cannot
+                    name it). */}
+                <SelectionButton
+                  options={[
+                    { value: "outline", icon: "mdi-format-list-bulleted", label: "Outline" },
+                    { value: "table", icon: "mdi-table", label: "Table" },
+                    { value: "pivot", icon: "mdi-table-pivot", label: "Pivot" },
+                  ]}
+                  value={viewMode}
+                  onChange={(value) => setViewMode(value as QueryViewMode)}
+                  size="sm"
+                  maxVisibleOptions={4}
+                  aria-label="View mode"
+                  className="view-switcher"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  icon="mdi mdi-download"
+                  aria-label="Export results"
+                  title="Export results (Markdown)"
+                  disabled={!exportable}
+                  onClick={handleExport}
+                />
+              </>
+            }
+          />
+        }
+        toolbar={
+          /* The toolbar renders LAST in the cluster: its structured panel
+             wraps a full-width line beneath the tab row. The key remounts
+             it once when the /query slash queue is consumed — the panel's
+             initial-open prop only reads at mount. */
+          <NodeCollectionToolbar
+            key={builderAutoOpen ? "builder-open" : "builder-closed"}
+            client={client}
+            layout="inline"
+            value={draft}
+            onChange={setDraft}
+            matchCount={null}
+            totalCount={null}
+            defaultPanelOpen={builderAutoOpen}
+            applyTarget={{
+              tabLabel: selectedView?.name ?? "Default",
+              onApply: applyToTab,
+            }}
+          />
         }
       />
       <QueryResultsBody

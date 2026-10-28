@@ -40,7 +40,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { EmptyState } from "../../components/ui/kit/index.js";
+import { EmptyState, Badge } from "../../components/ui/kit/index.js";
 import { Icon } from "../../ui/Icon.js";
 import { titleOfNode } from "../../ui/dateDisplay.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
@@ -187,7 +187,7 @@ function BoardColumn({
           />
         </button>
         <span className="board-column__title">{label}</span>
-        <span className="board-column__count">{count}</span>
+        <Badge className="board-column__count" size="xs">{count}</Badge>
       </header>
       {!collapsed && (
         <div className="board-column__body" ref={setNodeRef}>

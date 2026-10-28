@@ -54,31 +54,9 @@
   display: none;
 }
 
-/* Backlink gutter toggle (SCHEMA.md:117): the materialized count rides a
-   Badge; quiet by default, emphasized on row hover / when expanded. */
-.nt-block-backlink-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-micro);
-  padding: 0 var(--spacing-1);
-  margin: 0;
-  border: none;
-  background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  font: inherit;
-  line-height: inherit;
-  cursor: pointer;
-  border-radius: var(--shape-medium);
-  opacity: 0.7;
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.nt-block-backlink-toggle:hover,
-.nt-block-backlink-toggle--expanded,
-.nt-block-row-end:focus-within > .nt-block-backlink-toggle {
-  opacity: 1;
-  color: var(--md-sys-color-on-surface);
-}
+/* Backlink gutter toggle: the fleet ghost Button + `active` state owns the
+   chrome now (the top-bar sidebar-toggle register) — no bespoke styles
+   remain here. */
 
 /* Expanded block backlinks: beneath the block row, aligned with the content
    column (same 26px offset as tags/properties). The card inside is the

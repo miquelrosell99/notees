@@ -12,10 +12,10 @@
  *
  * The section resolves through useSectionData directly (the Section chrome
  * wrapper stays the lazy contract too, but the transient filter layer needs
- * the hook's post-resolution/pre-windowing step): the NodeCollectionBar (collapsible
+ * the hook's post-resolution/pre-windowing step): the NodeCollectionToolbar (collapsible
  * quick search behind the magnifier toggle + the structured-filters toggle)
  * and the view switcher ride the hosted tab bar's FAR RIGHT as the
- * collection's `tabBarTrailing` (one chrome row with the
+ * collection's `toolbarContent` (one chrome row with the
  * tabs, the structured panel dropping a wrapped full-width line beneath),
  * the section's FilterQuery filters the resolved members before the
  * collection's windowing sees them, and the section renders even empty
@@ -46,7 +46,7 @@ import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { useViewModePreference } from "../../ui/viewPrefs.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
-import { NodeCollectionBar } from "../collection/NodeCollectionBar.js";
+import { NodeCollectionToolbar } from "../collection/NodeCollectionToolbar.js";
 import {
   EMPTY_FILTER_QUERY,
   draftOrFactoryAst,
@@ -233,8 +233,8 @@ export function ClassedNodesSection({
       action={{ icon: "mdi-plus", label: "Add member", onClick: addMember }}
     >
       {/* The chrome rides the hosted tab bar's far right (the collection's
-          `tabBarTrailing`), every control one right-hand cluster: the view
-          switcher first, then the NodeCollectionBar (permanent quick search +
+          `toolbarContent`), every control one right-hand cluster: the view
+          switcher first, then the NodeCollectionToolbar (permanent quick search +
           structured-filters toggle) LAST — the bar's wrapped structured
           panel lands beneath the row without moving these controls. The
           create affordance lives in the section header's trailing action
@@ -268,10 +268,10 @@ export function ClassedNodesSection({
           trailingAction={unassignAction}
           emptyTitle="No classed nodes."
           hostedViews={{ nodeId: classId, sectionKey: "classed-nodes", createAst: () => draftOrFactoryAst(memberFilter), selected: tab, onSelectTab: setTab }}
-          tabBarTrailing={
+          toolbarContent={
             <>
               <ViewSwitcher modes={modes} value={membersMode} onChange={setMembersMode} />
-              <NodeCollectionBar
+              <NodeCollectionToolbar
                 client={client}
                 layout="inline"
                 value={memberFilter}

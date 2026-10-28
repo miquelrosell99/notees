@@ -13,7 +13,7 @@
  * Backlinks and Unlinked mentions each ride the shared collapsible-section
  * chrome — the NodeViewSection header IS the section header, the tab row is
  * gone — with the hosted view chrome, the transient
- * NodeCollectionBar, and the lazy useSectionData contract every other section has.
+ * NodeCollectionToolbar, and the lazy useSectionData contract every other section has.
  * One count semantics everywhere (displayed nodes), named exactly once
  *: the hosted
  * reference sections name the number dynamically on the active tab's badge
@@ -42,7 +42,7 @@
  * after the write the source moves to Backlinks, the honest place for
  * it); Ignore dismisses the source device-locally, per page — device
  * state, never an op (./viewPrefs.js). The transient filter layer
- * rides the shared NodeCollectionBar (./NodeCollectionBar.js — the same
+ * rides the shared NodeCollectionToolbar (./NodeCollectionToolbar.js — the same
  * chrome the classed-nodes section renders), since in the
  * hosted tab bar's FAR RIGHT as the collection's `tabBarTrailing` (the
  * collapsible quick search + the structured-filters toggle — one row with
@@ -76,7 +76,7 @@ import { titleOfNode } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../../ui/viewPrefs.js";
 import { promoteMentionInAst } from "../collection/unlinkedRefs.js";
-import { NodeCollectionBar } from "../collection/NodeCollectionBar.js";
+import { NodeCollectionToolbar } from "../collection/NodeCollectionToolbar.js";
 import {
   EMPTY_FILTER_QUERY,
   draftOrFactoryAst,
@@ -150,7 +150,7 @@ export function ReferenceList({
   onOpenPage,
   unlinkedPageId,
   hostedViews,
-  trailing,
+  toolbarContent,
   emptyText,
   defaultSortMode = "dates-first",
 }: {
@@ -160,11 +160,11 @@ export function ReferenceList({
   unlinkedPageId?: string | undefined;
   hostedViews?: HostedViewsConfig | undefined;
   /**
-   * The section's chrome (its NodeCollectionBar) riding the hosted tab bar's far
-   * right — forwarded as the collection's `tabBarTrailing`; renders only in
-   * the hosted tab bar.
+   * The section's toolbar cluster (its NodeCollectionToolbar) riding the top
+   * bar's right — forwarded as the collection's `toolbarContent`; renders
+   * only in the hosted top bar.
    */
-  trailing?: ReactNode | undefined;
+  toolbarContent?: ReactNode | undefined;
   /** The section-empty line when there is nothing to list (rides the collection's empty state). */
   emptyText?: string | undefined;
   /**
@@ -221,7 +221,7 @@ export function ReferenceList({
       defaultSortMode={defaultSortMode}
       onNodeClick={(id) => onOpenPage?.(id)}
       {...(hostedViews !== undefined ? { hostedViews } : {})}
-      {...(trailing !== undefined ? { tabBarTrailing: trailing } : {})}
+      {...(toolbarContent !== undefined ? { toolbarContent } : {})}
       {...(emptyText !== undefined ? { emptyText } : {})}
       trailingAction={(item) => {
         if (unlinkedPageId === undefined) return null;
@@ -265,7 +265,7 @@ function displayNameOf(
  * Unlinked mentions) as a normal collapsible NodeCollection section: the
  * shared NodeViewSection chrome (title + icon — NO header count badge; a
  * hosted section names the count on the active tab) and the ReferenceList collection beneath —
- * its hosted view chrome included, the transient NodeCollectionBar riding the
+ * its hosted view chrome included, the transient NodeCollectionToolbar riding the
  * hosted tab bar's FAR RIGHT as the collection's `trailing`, the active
  * tab's badge naming the displayed row count. The lazy contract
  * lives in useSectionData — one instance per section (the per-view rule):
@@ -357,8 +357,8 @@ function ReferenceSection({
           {...(unlinkedPageId !== undefined ? { unlinkedPageId } : {})}
           hostedViews={{ nodeId: pageId, sectionKey, createAst: () => draftOrFactoryAst(filterQuery), selected: tab, onSelectTab: setTab }}
           defaultSortMode={quickTextOf(filterQuery) === "" ? "dates-first" : "position"}
-          trailing={
-            <NodeCollectionBar
+          toolbarContent={
+            <NodeCollectionToolbar
               client={client}
               layout="inline"
               value={filterQuery}

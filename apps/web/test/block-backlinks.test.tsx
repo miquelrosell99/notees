@@ -104,7 +104,7 @@ describe("block-level backlink gutter", () => {
     // The badge reads the materialized count; the block's query has not run
     // and no panel is rendered.
     const toggle = screen.getByRole("button", { name: "2 linked references" });
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
     expect(blockQueries()).toBe(0);
     expect(document.querySelector(".nt-block-backlink-refs")).toBeNull();
 
@@ -112,7 +112,7 @@ describe("block-level backlink gutter", () => {
     // the block row.
     fireEvent.click(toggle);
     await waitFor(() => expect(blockQueries()).toBe(1));
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
     let panel = document.querySelector(".nt-block-backlink-refs") as HTMLElement;
     expect(panel).not.toBeNull();
     expect(within(panel).getByText("see")).not.toBeNull();

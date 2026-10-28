@@ -2,7 +2,7 @@
  * Query node tests: the `query` content token as a nodecollection surface
  * (QueryNodeSection) over PageView (jsdom) — the
  * token renders nothing inside the content row; below the row the block
- * carries the NodeCollectionTabs + NodeCollectionBar chrome (the toggleable
+ * carries the NodeCollectionTabs + NodeCollectionToolbar chrome (the toggleable
  * full-grammar builder with the per-tab "Apply to <tab>" commit) and the
  * shared QueryResults body: result rendering from the @notees/query bridge,
  * the notify-driven live re-run, the active-tab count badge, the aggregate
@@ -89,7 +89,7 @@ function activeTabBadge(container: HTMLElement): string {
 function openBuilder(container: HTMLElement): HTMLElement {
   const section = querySection(container);
   fireEvent.click(within(section).getByRole("button", { name: "Structured filters" }));
-  const panel = document.querySelector(".nt-node-collection-bar__panel");
+  const panel = document.querySelector(".nt-node-collection-toolbar__panel");
   if (panel === null) throw new Error("no structured builder panel open");
   return panel as HTMLElement;
 }

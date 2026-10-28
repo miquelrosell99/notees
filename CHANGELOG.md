@@ -9,6 +9,50 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): a collapsible search field; the collection toolbar renamed
+  and composed in a NodeCollectionTopBar; one count pill everywhere; the
+  backlink gutter rides the standard toggle register.** Owner round
+  (2026-10-28). (1) The kit gains `CollapsibleSearchField`: collapsed it
+  rides a chrome row as a ghost magnifier button; clicking expands the
+  SearchField pill IN FLOW (not a popup) with the caret in the input; the
+  pill's × clears while text is present, folds the field when empty
+  (one affordance, the aria label names the current action); Escape folds
+  from the keyboard; a hidden value keeps the toggle `active`.
+  `SearchField` gains an additive `trailing` slot (the pill owns the ×
+  geometry). (2) `NodeCollectionBar` retires in favor of
+  `NodeCollectionToolbar` (file, component, the `NodeCollectionToolbarConfig`
+  type, the `nt-node-collection-toolbar` classes, every importer), and the
+  hosted collection's chrome composes explicitly: `NodeCollectionTopBar`
+  hosts the `NodeCollectionTabs` strip + the toolbar cluster (`tabs` /
+  `toolbar` slots), replacing the anonymous `tabBarTrailing` passthrough
+  (the NodeCollection seam is now `toolbarContent` — `toolbar` was already
+  the per-view boolean). The toolbar's quick search is the collapsible
+  field on wide viewports (the narrow ≤768px anchored popup stays). (3)
+  Every "number of nodes" count rides the fleet `Badge` (neutral pill):
+  hub top bars (SurfaceTopBar), the hosted tab's active-tab count, section
+  header counts (NodeViewSection), the toolbar's "N of M", board columns,
+  outline group headers — the bespoke surface-container-high pill styles
+  retire (class hooks stay as layout/test anchors). (4) The block backlink
+  gutter toggle rides the standard ghost-Button toggle register (the top
+  bar's sidebar toggles): transparent with no border at rest, the `active`
+  fill while the panel is open, `aria-pressed` — its bespoke opacity CSS
+  retires. Verified: web typecheck + full suite (208 files / 2389+ tests;
+  the filter-layer spec drives the expand-first flow, the new
+  collapsible-search-field spec pins the fold/focus/×/Escape contract).
+  - **Files**: `apps/web/src/components/ui/fleet/CollapsibleSearchField.tsx`
+    (new) + `SearchField.tsx` (trailing slot) + `index.ts`,
+    `apps/web/src/features/collection/NodeCollectionToolbar.{tsx,css}`
+    (renamed from NodeCollectionBar), `NodeCollectionTopBar.{tsx,css}`
+    (new), `NodeCollection.tsx`/`types.ts`/`index.ts` (composition +
+    `toolbarContent` seam), `QueryNodeSection.tsx`/`SystemSections.tsx`/
+    `lassedNodesSection.tsx`/`CollectionSection.tsx` (hosts),
+    `SurfaceTopBar.{tsx,css}`/`NodeCollectionTabs.{tsx,css}`/
+    `NodeViewSection.{tsx,css}`/`CardsBoard.{tsx,css}`/`OutlineView.{tsx,css}`
+    (count pills), `apps/web/src/ui/BlockBacklinks.tsx` +
+    `BlockRowDnD.css` (standard toggle), tests: `collapsible-search-field`
+    (new), `filter-layer`, `filter-builder`, `query-node`,
+    `slash-breadth`, `block-backlinks`.
+
 - **fix(web): a multi-line node link underlines EVERY line, not one.** The
   read-mode mention chip (`.nt-link`, a `<button>`) carried its dashed
   underline as `border-bottom`; on the button's fragmented inline box the

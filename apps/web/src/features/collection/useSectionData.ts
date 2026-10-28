@@ -55,7 +55,7 @@ import {
   resolveSectionViewProbed,
   type SectionViewPlan,
 } from "./sectionViewResolve.js";
-import type { NodeCollectionBarConfig } from "./filterQuery.js";
+import type { NodeCollectionToolbarConfig } from "./filterQuery.js";
 
 /** The resolution context handed to every strategy. */
 export interface SectionCtx {
@@ -313,12 +313,12 @@ export interface SectionSpec {
   read?: (ctx: SectionCtx) => NodeCollectionItem[];
   query?: (ctx: SectionCtx) => Promise<NodeCollectionItem[]>;
   /**
-   * The transient filter layer (default OFF): true renders the NodeCollectionBar
-   * with its full facet set, a NodeCollectionBarConfig names the offered facets,
+   * The transient filter layer (default OFF): true renders the NodeCollectionToolbar
+   * with its full facet set, a NodeCollectionToolbarConfig names the offered facets,
    * absent/false renders no bar. The bar's state is transient component
    * state — one instance per section view, nothing persisted.
    */
-  filterable?: boolean | NodeCollectionBarConfig;
+  filterable?: boolean | NodeCollectionToolbarConfig;
   /** Optional view-mode switcher set within a view. */
   viewModes?: ViewMode[];
   /** Extra NodeCollection props (groups / renderItem / readOnly / trailingAction / windowed …). */
