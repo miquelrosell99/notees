@@ -2174,5 +2174,6 @@ registerView({
   label: "Graph",
   icon: "mdi-graph-outline",
   component: GraphView,
+  tier: "secondary",
   capabilities: {},
 });

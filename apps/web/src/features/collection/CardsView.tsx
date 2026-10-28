@@ -465,7 +465,6 @@ export function CoverLayoutToggle({ value, onChange }: { value: CoverLayout; onC
       value={value}
       onChange={(val) => onChange(val as CoverLayout)}
       size="sm"
-      maxVisibleOptions={4}
       aria-label="Cover position"
       className="cover-layout-toggle"
     />
@@ -491,7 +490,6 @@ export function CardFlowToggle({ value, onChange }: { value: CardFlow; onChange:
       value={value}
       onChange={(val) => onChange(val as CardFlow)}
       size="sm"
-      maxVisibleOptions={3}
       aria-label="Card layout"
       className="card-flow-toggle"
     />

@@ -31,13 +31,19 @@ export interface ViewModeOption {
   mode: string;
   icon: string;
   label: string;
+  tier?: "primary" | "secondary";
 }
 
 /** Switcher options in registry order, filtered to the available modes. */
 export function getViewModeOptions(available?: ViewMode[] | string[]): ViewModeOption[] {
   const all = getRegisteredViewModes();
   const list = available === undefined ? all : available.map((id) => registry.get(id)).filter((entry): entry is ViewRegistryEntry => entry !== undefined);
-  return list.map((entry) => ({ mode: entry.id, icon: entry.icon, label: entry.label }));
+  return list.map((entry) => ({
+    mode: entry.id,
+    icon: entry.icon,
+    label: entry.label,
+    ...(entry.tier !== undefined ? { tier: entry.tier } : {}),
+  }));
 }
 
 export type { ViewCapabilities };

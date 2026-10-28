@@ -505,6 +505,8 @@ export interface ViewRegistryEntry {
   label: string;
   /** MDI icon path (the kit Icon resolver). */
   icon: string;
+  /** Switcher tier: "primary" modes ride the inline strip (absent = primary), "secondary" modes ride the "…" dropdown. */
+  tier?: "primary" | "secondary";
   component: ComponentType<NodeCollectionProps>;
   capabilities: ViewCapabilities;
 }
