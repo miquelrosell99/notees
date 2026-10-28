@@ -845,9 +845,10 @@ export const externalRefDeletePayload = z
  * on a local algorithm implementation. `due` is a YYYY-MM-DD calendar
  * day, null = unseen; ease/difficulty/stability stay null until the
  * chosen algorithm initializes them (sm2 ease factor / fsrs difficulty
- * and stability in days). Reviews are LWW-ordered records per card —
- * the store applier keeps the latest review's stateAfter as the card's
- * derived SRS state. grade is the four-button scale; algorithm names
+ * and stability in days). Reviews are history-only records per card —
+ * the store applier appends every review HLC-ordered (append-only, NO LWW
+ * gate, NO superseded path) and reads the latest review's stateAfter as the
+ * card's derived SRS state. grade is the four-button scale; algorithm names
  * which scheduler produced the states; sessionId groups the reviews of
  * one study session (uuid, no referential integrity).
  */
