@@ -25,7 +25,9 @@ predating this file.
   - **Files**: `apps/web/src/features/metadata/NodePills.tsx` (PopupRow
     retired — the popup reuses SortablePill/PillShell over the full
     `classIds`; module doc rewritten), `…/NodePills.css` (the row/grip/icon/
-    name rules retired; the list becomes a pill stack), `apps/web/test/
+    name rules retired; the list becomes a pill stack; the popup's 180px
+    `min-width` retired too — the panel shrink-wraps its pills, the widest
+    one setting the width, no dead space on the right), `apps/web/test/
     node-pills-popup.test.tsx` (new — full-list pill contract, hover-reveal
     ×, no grip, the inline-marked class present), `docs/features/classes.md`
     (the popup's full-list exception to the never-two-references ruling).
