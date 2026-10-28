@@ -12,7 +12,7 @@ import { useState } from "react";
 import {
   PRESENTATION_CHROME_HIDE_MS,
   PresentationOverlay,
-} from "../src/components/ui/fleet/PresentationOverlay.js";
+} from "../src/components/ui/kit/PresentationOverlay.js";
 
 function press(key: string): void {
   // Document-level listeners (the overlay's keymap + the overlay stack's

@@ -29,7 +29,7 @@ import { deriveDisplayName } from "@notees/domain";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import type { ClientNode } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
-import { ColorButton } from "../src/components/ui/fleet/ColorButton.js";
+import { ColorButton } from "../src/components/ui/kit/ColorButton.js";
 import { IconPickerPopup } from "../src/features/icon-picker/IconPickerPopup.js";
 import { NodeResultItem } from "../src/features/pickers/NodeResultItem.js";
 import { NodeSelector } from "../src/features/pickers/NodeSelector.js";

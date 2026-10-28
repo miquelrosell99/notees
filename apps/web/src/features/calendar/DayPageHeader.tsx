@@ -8,7 +8,7 @@
  * ensureDateChain pattern) by the CALLER's onNavigateDay seam.
  */
 
-import { Button } from "../../components/ui/fleet/Button.js";
+import { Button } from "../../components/ui/kit/Button.js";
 import {
   addDaysIso,
   isoWeekNumber,

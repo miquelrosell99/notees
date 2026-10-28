@@ -29,8 +29,8 @@ import type { ArchivedEntry, WorkspaceClient } from "@/core/workspace-client/ind
 import { Icon } from "../../ui/Icon.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 import { relativeTime } from "../page-sections/ActivityLogSection.js";
-import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
-import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
+import { EmptyState } from "../../components/ui/kit/EmptyState.js";
+import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
 import "./ArchivedHub.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

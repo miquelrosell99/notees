@@ -11,8 +11,8 @@ import { titleOfNode } from "../../ui/dateDisplay.js";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
-import { Button } from "../../components/ui/fleet/Button.js";
-import { Modal } from "../../components/ui/fleet/Modal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
 import "./TemplatePickerModal.css";
 
 export interface TemplatePickerModalProps {

@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { InProcessStoreBanner } from "../src/components/ui/fleet/InProcessStoreBanner.js";
+import { InProcessStoreBanner } from "../src/components/ui/kit/InProcessStoreBanner.js";
 
 describe("InProcessStoreBanner", () => {
   it("renders the warning with a dismiss action", () => {

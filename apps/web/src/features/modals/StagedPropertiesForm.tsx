@@ -23,8 +23,8 @@ import type {
   StagedPropertyValue,
 } from "./quickCreate.js";
 import { stagedLabelOf, stagedTypeOf } from "./quickCreate.js";
-import { TextField } from "../../components/ui/fleet/TextField.js";
-import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
+import { TextField } from "../../components/ui/kit/TextField.js";
+import { Checkbox } from "../../components/ui/kit/Checkbox.js";
 import { SelectionPropertyControl } from "../pickers/SelectionPropertyControl.js";
 import "./StagedPropertiesForm.css";
 

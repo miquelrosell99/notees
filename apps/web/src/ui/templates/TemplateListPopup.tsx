@@ -20,8 +20,8 @@ import { foldSearchText } from "@notees/store";
 import { clampOverlayLeft, flipOverlayTop } from "../editor-popups/overlay-position.js";
 import { Icon } from "../Icon.js";
 import { titleOfNode } from "../dateDisplay.js";
-import { SearchField } from "../../components/ui/fleet/SearchField.js";
-import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
+import { SearchField } from "../../components/ui/kit/SearchField.js";
+import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
 import "./TemplateListPopup.css";

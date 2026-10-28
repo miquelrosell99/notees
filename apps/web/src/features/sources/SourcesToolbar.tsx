@@ -11,7 +11,7 @@
  * (the query input) lives in the hub and arrives as a prop.
  */
 
-import { SearchField } from "../../components/ui/fleet/index.js";
+import { SearchField } from "../../components/ui/kit/index.js";
 
 import "./SourcesToolbar.css";
 

@@ -24,13 +24,13 @@ import {
   type LogseqDbModel,
 } from "@notees/export";
 
-import { Modal } from "../../components/ui/fleet/Modal.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { TextField } from "../../components/ui/fleet/TextField.js";
-import { Radio, RadioGroup } from "../../components/ui/fleet/Radio.js";
-import { FileDropZone } from "../../components/ui/fleet/FileDropZone.js";
-import { Spinner } from "../../components/ui/fleet/Spinner.js";
-import { Progress } from "../../components/ui/fleet/Progress.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { TextField } from "../../components/ui/kit/TextField.js";
+import { Radio, RadioGroup } from "../../components/ui/kit/Radio.js";
+import { FileDropZone } from "../../components/ui/kit/FileDropZone.js";
+import { Spinner } from "../../components/ui/kit/Spinner.js";
+import { Progress } from "../../components/ui/kit/Progress.js";
 import { listWorkspaces, createWorkspace } from "@/core/auth-api.js";
 import type { AnyClient } from "../collection/types.js";
 import { importMarkdownFile, type MarkdownFileReport } from "./flows/markdown-file.js";

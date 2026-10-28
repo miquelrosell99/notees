@@ -23,8 +23,8 @@ import { useEffect, useState } from "react";
 import type { AssetInfo } from "@/core/workspace-client/index.js";
 
 import { Icon } from "./Icon.js";
-import { ImageModal } from "../components/ui/fleet/ImageModal.js";
-import { notificationStore } from "../components/ui/fleet/notificationStore.js";
+import { ImageModal } from "../components/ui/kit/ImageModal.js";
+import { notificationStore } from "../components/ui/kit/notificationStore.js";
 import { assetImageUrl } from "../features/collection/assetThumbs.js";
 
 /** The minimal client surface AssetView needs (both client classes satisfy it). */

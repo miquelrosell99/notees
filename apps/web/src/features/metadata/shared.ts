@@ -11,7 +11,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_DISPLAY_NAMES, SYSTEM_PROPERTY_SPEC
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { resolveCssColor } from "../../components/ui/fleet/colorPresets.js";
+import { resolveCssColor } from "../../components/ui/kit/colorPresets.js";
 
 /** The panel's client union — in-process or worker-backed. */
 export type AnyClient = WorkspaceClient | WorkerClient;

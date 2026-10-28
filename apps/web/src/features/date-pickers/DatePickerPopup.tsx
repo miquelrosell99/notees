@@ -42,11 +42,11 @@ import { createPortal } from "react-dom";
 import { isValidTimeOfDay, type DatePrecision } from "@notees/domain";
 
 import { Icon } from "../../ui/Icon.js";
-import { Button } from "../../components/ui/fleet/Button.js";
+import { Button } from "../../components/ui/kit/Button.js";
 import { parseDate } from "./dateParser.js";
 import { useViewportPosition } from "../pickers/useViewportPosition.js";
-import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
-import { BooleanToggle } from "../../components/ui/fleet/BooleanToggle.js";
+import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
+import { BooleanToggle } from "../../components/ui/kit/BooleanToggle.js";
 import { useCalendarMode } from "./calendar/useCalendarMode.js";
 import { DaysGrid, MonthsGrid, YearsGrid } from "./calendar/CalendarGrids.js";
 import { RepeatPicker } from "./RepeatPicker.js";

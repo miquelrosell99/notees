@@ -22,9 +22,9 @@ import { useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
+import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
-import { notificationStore } from "../../components/ui/fleet/notificationStore.js";
+import { notificationStore } from "../../components/ui/kit/notificationStore.js";
 import { classRemovalRefusal, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
 import { useOutliner } from "../../ui/outliner-context.js";
 import { Icon } from "../../ui/Icon.js";

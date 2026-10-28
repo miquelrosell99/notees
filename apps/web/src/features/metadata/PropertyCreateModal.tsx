@@ -28,10 +28,10 @@ import { useEffect, useRef, useState } from "react";
 
 import type { ClientPropertyOption } from "@/core/workspace-client/index.js";
 
-import { Modal } from "../../components/ui/fleet/Modal.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
-import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { ToggleSwitch } from "../../components/ui/kit/ToggleSwitch.js";
+import { SelectionButton } from "../../components/ui/kit/SelectionButton.js";
 import { IconPickerPopup } from "../icon-picker/IconPickerPopup.js";
 import { IconTriggerButton, PropertyField } from "./ClassMultiPickField.js";
 import { ClassMultiPickField } from "./ClassMultiPickField.js";

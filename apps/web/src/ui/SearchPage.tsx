@@ -31,11 +31,11 @@ import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/work
 import { titleOf } from "./dateDisplay.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "./renderStateLabel.js";
 import { NodeResultItem } from "../features/pickers/NodeResultItem.js";
-import { Button } from "../components/ui/fleet/Button.js";
-import { Dropdown } from "../components/ui/fleet/Dropdown.js";
-import { SearchField } from "../components/ui/fleet/SearchField.js";
-import { SurfaceTopBar } from "../components/ui/fleet/SurfaceTopBar.js";
-import { Tabs } from "../components/ui/fleet/Tabs.js";
+import { Button } from "../components/ui/kit/Button.js";
+import { Dropdown } from "../components/ui/kit/Dropdown.js";
+import { SearchField } from "../components/ui/kit/SearchField.js";
+import { SurfaceTopBar } from "../components/ui/kit/SurfaceTopBar.js";
+import { Tabs } from "../components/ui/kit/Tabs.js";
 import "./SearchPage.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

@@ -12,13 +12,13 @@ import { rememberWorkspaceName, rememberedWorkspaceList } from "@/core/workspace
 import { STORAGE_KEYS, readStored } from "./storage.js";
 import type { AnyClient } from "./clients.js";
 import type { StoreMode } from "./storeMode.js";
-import { InProcessStoreBanner } from "../../components/ui/fleet/InProcessStoreBanner.js";
+import { InProcessStoreBanner } from "../../components/ui/kit/InProcessStoreBanner.js";
 import { SyncDetailsModal } from "../../features/modals/SyncDetailsModal.js";
 import { WorkspaceSettingsModal } from "../../features/workspaces/WorkspaceSettingsModal.js";
 import { WorkspaceSettingsHost } from "../../features/workspaces/WorkspaceSettingsHost.js";
 import { requestAddSource } from "../../features/sources/AddSourceHost.js";
-import { BackendDownLock } from "../../components/ui/fleet/BackendDownLock.js";
-import { NotificationToaster } from "../../components/ui/fleet/NotificationToaster.js";
+import { BackendDownLock } from "../../components/ui/kit/BackendDownLock.js";
+import { NotificationToaster } from "../../components/ui/kit/NotificationToaster.js";
 
 export interface AppOverlaysProps {
   client: AnyClient;

@@ -42,7 +42,7 @@ import { dayNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { JournalsView } from "../src/features/calendar/JournalsView.js";
-import { SurfaceTopBar } from "../src/components/ui/fleet/SurfaceTopBar.js";
+import { SurfaceTopBar } from "../src/components/ui/kit/SurfaceTopBar.js";
 
 const process_ = process as unknown as { getBuiltinModule(name: string): typeof import("node:fs") };
 const fs = process_.getBuiltinModule("node:fs");
@@ -169,7 +169,7 @@ describe("the frame owns the outer body inset (CSS registers)", () => {
   });
 
   it("the SurfaceTopBar base vertical rhythm: chrome-hugging top, real gap above the divider", () => {
-    const css = readCss("components/ui/fleet/SurfaceTopBar.css");
+    const css = readCss("components/ui/kit/SurfaceTopBar.css");
     const blocks = ruleBlocks(css, ".surface-topbar");
     expect(blocks.length).toBeGreaterThanOrEqual(1);
     // Tightened (was spacing-2 / spacing-3 — the bar is

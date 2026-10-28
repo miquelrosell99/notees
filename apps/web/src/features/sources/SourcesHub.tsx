@@ -38,8 +38,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { AnyClient } from "../../ui/app/clients.js";
 import { MainContentFrame } from "../../ui/MainContentFrame.js";
-import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
-import { Badge, SidePanelToggle } from "../../components/ui/fleet/index.js";
+import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
+import { Badge, SidePanelToggle } from "../../components/ui/kit/index.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
 import type { NodeCollectionItem } from "../collection/index.js";
 import { SourcesFacets } from "./SourcesFacets.js";

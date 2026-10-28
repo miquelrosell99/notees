@@ -4,7 +4,7 @@ import { rendersWithDocumentChrome } from "@notees/domain";
 
 import { titleOf } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
-import { AddPill } from "../../components/ui/fleet/AddPill.js";
+import { AddPill } from "../../components/ui/kit/AddPill.js";
 import { NodePill } from "./NodePills.js";
 import { AliasNodePicker } from "./AliasNodePicker.js";
 import type { AnyClient } from "./shared.js";

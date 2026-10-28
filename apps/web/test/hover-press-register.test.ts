@@ -89,7 +89,7 @@ describe("hub/list row names ride the §7 list-row register", () => {
   // ListRow.css (14px/600 on-surface rides .list-row__primary, the muted
   // stamp color rides .list-row__trailing); the hub stylesheets keep only
   // their deviations — the stamp size override and the button contracts.
-  const listRowCss = readCss("components", "ui", "fleet", "ListRow.css");
+  const listRowCss = readCss("components", "ui", "kit", "ListRow.css");
 
   it("task bucket rows: primary 14px/600, the single-line ellipsis contract kept", () => {
     const primary = /\.list-row__primary \{[^}]*\}/.exec(listRowCss);
@@ -149,7 +149,7 @@ describe("custom buttons carry the pressed layer (skill §6 tactile press)", () 
     // (Button.css retired 2026-10-19).
     expect(journalsCss).not.toMatch(/\.journals-empty__action/);
     const buttonSrc = fs.readFileSync(
-      path.join(process.cwd(), "src", "components", "ui", "fleet", "Button.tsx"),
+      path.join(process.cwd(), "src", "components", "ui", "kit", "Button.tsx"),
       "utf8",
     );
     expect(buttonSrc).toContain("active:bg-primary-pressed");
@@ -190,7 +190,7 @@ describe("settings accents: state layers, not hover-scale", () => {
 });
 
 describe("media queries ride the range syntax (skill §8 — no legacy min/max-width)", () => {
-  const overlayHooksSrc = readCss("components", "ui", "fleet", "overlay-hooks.ts");
+  const overlayHooksSrc = readCss("components", "ui", "kit", "overlay-hooks.ts");
   const appSrc = readCss("ui", "App.tsx");
 
   it("useIsMobile builds range-syntax queries from the token breakpoint", () => {
@@ -283,12 +283,12 @@ describe("the final sweep notes close (2026-10-16)", () => {
   it("journals and trash compose the kit EmptyState — the local empty CSS is dead", () => {
     // Journals: the EmptyState carries the sentence-as-title + the CTA;
     // the local stylesheet keeps only the flex-1 feed anchor.
-    expect(journalsSrc).toContain('from "../../components/ui/fleet/EmptyState.js"');
+    expect(journalsSrc).toContain('from "../../components/ui/kit/EmptyState.js"');
     expect(journalsSrc).toContain("Open today");
     expect(/\.journals-empty \{\s*flex: 1;\s*\}/.test(journalsCss)).toBe(true);
     // Trash: the icon/title/description map onto the kit; the hand-rolled
     // empty block and its styles are gone.
-    expect(trashSrc).toContain('from "../../components/ui/fleet/EmptyState.js"');
+    expect(trashSrc).toContain('from "../../components/ui/kit/EmptyState.js"');
     expect(trashSrc).toContain("Trash is empty.");
     expect(trashCss).not.toMatch(/nt-trash-hub__empty/);
   });

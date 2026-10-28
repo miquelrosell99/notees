@@ -29,10 +29,10 @@ import { MonthCalendar } from "./MonthCalendar.js";
 import { rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import { todayIsoLocal } from "./calendarViewUtils.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
-import { SurfaceTopBar } from "../../components/ui/fleet/SurfaceTopBar.js";
-import { useSidePanel } from "../../components/ui/fleet/SidePanel.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { EmptyState } from "../../components/ui/kit/EmptyState.js";
+import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
+import { useSidePanel } from "../../components/ui/kit/SidePanel.js";
 import "./JournalsView.css";
 
 /** Entries mounted around today before the sentinels take over. */

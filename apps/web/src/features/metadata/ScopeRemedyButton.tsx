@@ -19,8 +19,8 @@ import { useEffect, useState } from "react";
 
 import type { ClientPropertySchema } from "@/core/workspace-client/index.js";
 
-import { Button } from "../../components/ui/fleet/Button.js";
-import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
 import { missingScopeClasses, nearestRemedyClass } from "./scopeRemedy.js";
 import type { AnyClient } from "./shared.js";
 import "./ScopeRemedyButton.css";

@@ -6,11 +6,19 @@ the skill's defaults/foundations is recorded here; an undocumented deviation
 is drift, a documented one is a decision. Newest first. Entries bind until the
 rule they override changes, the review trigger fires, or the owner re-rules.
 
+### The shadcn catalog layer + bridge fixture — RETIRED (2026-10-28)
+- **Rule**: `components/sourcing.md` — the normalized shadcn catalog (`components/ui/` lowercase, Radix underneath) is the canonical component source for every fleet app; custom implementations of catalog-covered components are non-alignment unless documented (ruling recorded 2026-10-19 below, "MIGRATED to the normalized shadcn catalog").
+- **Decision**: the owner re-rules (2026-10-28): the catalog layer is retired app-side. The 22-file lowercase catalog had converged to ZERO consumers — the 2026-10-19 wrapper architecture (fleet wrappers composing the catalog) had already dissolved; every wrapper and all 150 component call sites compose the app's own kit directly, and the catalog's only remaining reader was the design-bridge e2e fixture itself. The catalog, `components.json`, `src/ui/DesignBridgeFixture.tsx`, and `e2e/bridge-fixture.spec.ts` are deleted; the surviving component catalog is the app's own (`apps/web/src/components/ui/kit/`, renamed from `fleet/` the same day). The `@radix-ui/*` dependencies stay — six kit composites (Modal, ContextMenu, Dropdown, Tabs, ToggleSwitch, BooleanToggle) and several feature surfaces ride Radix for behavior; only `cmdk` left with the catalog.
+- **Rationale**: two component catalogs for one job is drift by construction; usage had already decided (kit 150 files, catalog 0). The owner's naming ruling accompanies the retirement: "fleet" names the cross-app design system in the skill; inside the app the canonical components live under a neutral `kit/` name, and only genuinely one-of-a-kind surfaces deserve a "custom" label.
+- **Scope**: `apps/web/src/components/ui/` (lowercase cluster), `apps/web/components.json`, `apps/web/src/main.tsx` (fixture route), `apps/web/e2e/`.
+- **Ruled**: owner ruling 2026-10-28, recorded same day.
+- **Review trigger**: the skill's sourcing ruling changes, or a future slice needs a catalog-covered primitive the kit lacks.
+
 ### The app's Button register extensions — hit-area on every button, rest surfaces, app-only registers
 - **Rule**: the skill's Button template ships the variant register with the icon-only `::after` hit-area floor; `default` rests on `surface` with an `outline` border; sizes sm–lg; no haptics/badges/loading registers.
-- **Decision**: the app Button (a) carries the invisible 48px hit-area overlay on EVERY button, not only icon-only, and (b) rests `default` on `surface-container` with `outline-variant` — the app surfaces sit on paper/graphite grounds where the template's `surface` rest is invisible. App-only registers the template lacks: `xs` size, haptics, icon badges, the delayed-spinner loading register, the `active` toggle state, and `danger-solid` (kept for the bridge fixture; nothing composes it by default since the soft-danger ruling).
+- **Decision**: the app Button (a) carries the invisible 48px hit-area overlay on EVERY button, not only icon-only, and (b) rests `default` on `surface-container` with `outline-variant` — the app surfaces sit on paper/graphite grounds where the template's `surface` rest is invisible. App-only registers the template lacks: `xs` size, haptics, icon badges, the delayed-spinner loading register, the `active` toggle state, and `danger-solid` (its last rider, the bridge fixture, retired 2026-10-28; nothing composes it by default since the soft-danger ruling).
 - **Rationale**: surfaced by the fleet audit (2026-10-26) — registers cited only in code comments belong here per this register's own contract.
-- **Scope**: `apps/web/src/components/ui/fleet/Button.tsx` (+ `.css`).
+- **Scope**: `apps/web/src/components/ui/kit/Button.tsx` (+ `.css`).
 - **Ruled**: recorded 2026-10-26.
 - **Skill alignment**: ADOPTED for the hit-area floor + `default` rest (skill v2.0.6, 2026-10-26). Still app-only: `xs` size, haptics, icon badges, the delayed-spinner loading register, the `active` toggle state, `danger-solid`.
 
@@ -18,7 +26,7 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Rule**: the skill's Tabs template — active tab = accent-primary text + a full-width 2px underline; hover = the state-layer overlay on inactive tabs.
 - **Decision**: the app tabs keep the active identity in ink, not accent color: on-surface text at weight 500 with the short centered sliding bar (the indicator register documented as app-owned below); hover on an inactive tab is an ink shift, not a background layer.
 - **Rationale**: the sliding bar already marks the active tab — accent text on top double-signals; the fleet audit (2026-10-26) found the drift undocumented. The sliding-indicator register itself was documented as app-owned at the 2026-10-19 migration.
-- **Scope**: `apps/web/src/components/ui/fleet/Tabs.css`.
+- **Scope**: `apps/web/src/components/ui/kit/Tabs.css`.
 - **Ruled**: fleet audit 2026-10-26, recorded same day.
 - **Skill alignment**: ADOPTED — the skill's Tabs template now prescribes the ink identity + sliding bar (skill v2.0.9, 2026-10-26); the app register and the fleet law agree.
 - **Review trigger**: the fleet tab template changes, or the owner flags the active tab as under-signaled.
@@ -27,7 +35,7 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Rule**: the skill's Modal template — title at `font-size-xl` semibold, a transparent (borderless) footer, and a 2px backdrop blur.
 - **Decision**: the app modal chrome runs denser: title at `font-title-medium`, hairline dividers on the header and footer (the 2026-10-22 dialog-density ruling tightened the header padding; the dividers frame the scroll region), and no backdrop blur — the scrim rides opacity alone.
 - **Rationale**: fleet audit (2026-10-26) found the drift undocumented; the density and shape passes landed it without a separate recorded reason. Stated as fact, not re-litigated.
-- **Scope**: `apps/web/src/components/ui/fleet/Modal.css`.
+- **Scope**: `apps/web/src/components/ui/kit/Modal.css`.
 - **Ruled**: fleet audit 2026-10-26, recorded same day.
 - **Skill alignment**: NOT ADOPTED — chrome density stays an app decision; revisit if a second fleet app converges on the same density.
 - **Review trigger**: the fleet template codifies chrome density, or blur returns for a specific surface.
@@ -36,7 +44,7 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Rule**: the skill's Card template (`assets/templates/Card.css.template`) ships M3 level-1 elevation at rest and the `--radius-card` (20px) default radius.
 - **Decision**: the app Card keeps `elevation = 'none'` and `radius = 'md'` as defaults (elevation/radius remain opt-in per call site). The app's surfaces — the PageCard slot, settings cards, hub cards — sit directly on the background and carry their own chrome; a default shadow reads as double elevation on the paper ground.
 - **Rationale**: surfaced by the fleet audit (2026-10-26); the template default suits elevated tool cards, this app's cards are mostly chrome containers. Elevation steps (`low`/`medium`/`high`) and the `xl` radius register stay available and documented.
-- **Scope**: `apps/web/src/components/ui/fleet/Card.tsx` defaults only.
+- **Scope**: `apps/web/src/components/ui/kit/Card.tsx` defaults only.
 - **Ruled**: fleet audit 2026-10-26, recorded same day.
 - **Skill alignment**: NOT ADOPTED — card defaults depend on what an app's cards are (chrome containers vs elevated tool cards); the template defaults stay for the generic starter.
 - **Review trigger**: the Card template's defaults change, or a new surface family wants template-default cards.

@@ -8,8 +8,8 @@
  * plays nicely with React Fast Refresh. Shared constants/helpers stay private.
  */
 
-import { Button } from "../../../components/ui/fleet/Button.js";
-import { SelectionButton } from "../../../components/ui/fleet/SelectionButton.js";
+import { Button } from "../../../components/ui/kit/Button.js";
+import { SelectionButton } from "../../../components/ui/kit/SelectionButton.js";
 import type { CalendarMode } from "./useCalendarMode.js";
 
 const MONTHS = [

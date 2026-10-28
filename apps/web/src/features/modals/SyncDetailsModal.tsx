@@ -14,10 +14,10 @@ import type {
   ConflictHistoryEntry,
   SyncStatusSnapshot,
 } from "@/core/workspace-client/index.js";
-import { Badge } from "../../components/ui/fleet/Badge.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
-import { Modal } from "../../components/ui/fleet/Modal.js";
+import { Badge } from "../../components/ui/kit/Badge.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { EmptyState } from "../../components/ui/kit/EmptyState.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
 import { titleOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 

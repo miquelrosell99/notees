@@ -219,9 +219,9 @@ describe("css token drift gate", () => {
     }
     // The allowlist must not rot: every entry's owner file must still set it.
     // Owner files may live in the shell (src/ui), a feature folder, or the
-    // fleet primitive layer (src/components/ui/fleet) — the tree
+    // fleet primitive layer (src/components/ui/kit) — the tree
     // realignment moved component owners out of src/ui.
-    const uiFiles = [...walkFiles(UI_DIR), ...walkFiles(FEATURES_DIR), ...walkFiles(FLEET_DIR)];
+    const uiFiles = [...walkFiles(UI_DIR), ...walkFiles(FEATURES_DIR), ...walkFiles(KIT_DIR)];
     for (const [token, owner] of JS_SCOPED) {
       const src = uiFiles
         .filter((file) => path.basename(file) === owner)
@@ -398,7 +398,7 @@ function walkTsFiles(dir: string, out: string[] = []): string[] {
 
 const SRC_DIR = path.join(process.cwd(), "src");
 const CATALOG_DIR = path.join(SRC_DIR, "components");
-const FLEET_DIR = path.join(CATALOG_DIR, "ui", "fleet");
+const KIT_DIR = path.join(CATALOG_DIR, "ui", "kit");
 
 /** A class string: inside className="…", cn('…'), or cva({…: '…'}). */
 const CLASS_STRING =
@@ -507,12 +507,12 @@ describe("tailwind class drift gate (the shadcn bridge half)", () => {
       "shadow-none", "outline-none", "outline-hidden",
       "border-collapse", "border-separate",
     ]);
-    // The fleet chrome (components/ui/fleet) is the WRAPPER layer over the
+    // The fleet chrome (components/ui/kit) is the WRAPPER layer over the
     // catalog — it composes catalog classes plus its legacy register
     // (border-0, the BEM hooks, …) exactly like the app layer under src/ui,
     // so the catalog-only registered-mapping check skips it.
     for (const file of walkTsFiles(CATALOG_DIR)) {
-      if (file.includes(`${path.sep}ui${path.sep}fleet${path.sep}`)) continue;
+      if (file.includes(`${path.sep}ui${path.sep}kit${path.sep}`)) continue;
       const ts = fs.readFileSync(file, "utf8");
       for (const cls of collectClassStrings(ts)) {
         for (const token of cls.split(/\s+/)) {

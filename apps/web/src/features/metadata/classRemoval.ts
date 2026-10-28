@@ -16,7 +16,7 @@
 import type { ContentAst } from "@notees/protocol";
 import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
-import { notificationStore } from "../../components/ui/fleet/notificationStore.js";
+import { notificationStore } from "../../components/ui/kit/notificationStore.js";
 
 /** Class ids whose membership ×-removal is refused (the journal chain). */
 const NON_REMOVABLE_CLASS_IDS: ReadonlySet<string> = new Set([

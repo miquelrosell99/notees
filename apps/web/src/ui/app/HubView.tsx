@@ -19,7 +19,7 @@ import { TemplatePickerModal } from "../../features/templates/TemplatePickerModa
 import { instantiateTemplate } from "@/core/clone.js";
 import { ClassCreateModal } from "../../features/modals/ClassCreateModal.js";
 import { AssetUploadModal } from "../../features/modals/AssetUploadModal.js";
-import { Button } from "../../components/ui/fleet/Button.js";
+import { Button } from "../../components/ui/kit/Button.js";
 import { NAV_ENTRIES, type NavKey } from "./Sidebar.js";
 import type { TableColumn, ViewMode } from "../../features/collection/index.js";
 import type { AnyClient } from "./clients.js";

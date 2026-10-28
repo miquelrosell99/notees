@@ -8,7 +8,7 @@
  */
 
 import { Icon } from "../../ui/Icon.js";
-import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
+import { cssColorFor } from "../../components/ui/kit/colorPresets.js";
 
 export type NodeIconSize = "xs" | "sm" | "md" | "lg" | "xl" | number;
 

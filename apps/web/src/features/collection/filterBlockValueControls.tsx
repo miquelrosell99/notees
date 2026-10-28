@@ -18,9 +18,9 @@ import { Icon } from "../../ui/Icon.js";
 import { titleOfNode } from "../../ui/dateDisplay.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { NodePill } from "../metadata/NodePills.js";
-import { AddPill } from "../../components/ui/fleet/AddPill.js";
-import { Dropdown } from "../../components/ui/fleet/Dropdown.js";
-import { Input } from "../../components/ui/fleet/Input.js";
+import { AddPill } from "../../components/ui/kit/AddPill.js";
+import { Dropdown } from "../../components/ui/kit/Dropdown.js";
+import { Input } from "../../components/ui/kit/Input.js";
 import { type BuilderFacts } from "./builderFacts.js";
 
 const PROPERTY_OP_LABELS: ReadonlyArray<{ op: PropertyOp; label: string }> = [

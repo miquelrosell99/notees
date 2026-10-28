@@ -22,9 +22,9 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 
 import { titleOfNode } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { Modal } from "../../components/ui/fleet/Modal.js";
-import { SearchField } from "../../components/ui/fleet/SearchField.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { SearchField } from "../../components/ui/kit/SearchField.js";
 import { ensureTemplateFamily } from "../../features/templates/templateFamily.js";
 import { useTemplateInstantiator } from "./useTemplateInstantiator.js";
 import "./TemplateGalleryModal.css";

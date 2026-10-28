@@ -21,7 +21,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { extractBlockToPage } from "../src/core/extractToPage.js";
 import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client/index.js";
 import { NodeContextMenu } from "../src/features/node-menu/NodeContextMenu.js";
-import { notificationStore } from "../src/components/ui/fleet/notificationStore.js";
+import { notificationStore } from "../src/components/ui/kit/notificationStore.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

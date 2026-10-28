@@ -10,10 +10,10 @@ import { useState } from "react";
 
 import type { ClientPropertyOption } from "@/core/workspace-client/index.js";
 
-import { Button } from "../../components/ui/fleet/Button.js";
-import { ColorButton } from "../../components/ui/fleet/ColorButton.js";
-import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
-import { ListSortable } from "../../components/ui/fleet/ListSortable.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { ColorButton } from "../../components/ui/kit/ColorButton.js";
+import { cssColorFor } from "../../components/ui/kit/colorPresets.js";
+import { ListSortable } from "../../components/ui/kit/ListSortable.js";
 import { Icon } from "../../ui/Icon.js";
 import { IconPickerPopup } from "../icon-picker/IconPickerPopup.js";
 import { IconTriggerButton } from "./ClassMultiPickField.js";

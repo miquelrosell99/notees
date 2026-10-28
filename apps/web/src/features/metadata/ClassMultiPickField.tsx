@@ -9,7 +9,7 @@
 import { useRef, useState } from "react";
 
 import { Icon } from "../../ui/Icon.js";
-import { SelectTrigger } from "../../components/ui/fleet/SelectTrigger.js";
+import { SelectTrigger } from "../../components/ui/kit/SelectTrigger.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { titleOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "./shared.js";

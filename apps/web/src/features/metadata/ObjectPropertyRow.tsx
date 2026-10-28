@@ -7,7 +7,7 @@ import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { AnnotationsSection } from "../../ui/AnnotationsSection.js";
 import { titleOf } from "../../ui/dateDisplay.js";
-import { AddPill } from "../../components/ui/fleet/AddPill.js";
+import { AddPill } from "../../components/ui/kit/AddPill.js";
 import { NodePill } from "./NodePills.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { AssetUploadModal } from "../modals/AssetUploadModal.js";

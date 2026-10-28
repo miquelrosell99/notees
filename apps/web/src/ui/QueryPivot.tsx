@@ -25,7 +25,7 @@ import { useMemo, useState } from "react";
 
 import type { AnyClient, ViewMode } from "../features/collection/index.js";
 import { useBuilderFacts } from "../features/collection/builderFacts.js";
-import { Dropdown } from "../components/ui/fleet/Dropdown.js";
+import { Dropdown } from "../components/ui/kit/Dropdown.js";
 import { titleOf } from "./dateDisplay.js";
 import "./QueryPivot.css";
 import type { QueryRunSummary } from "@/core/workspace-client/index.js";

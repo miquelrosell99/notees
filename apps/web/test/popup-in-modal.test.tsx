@@ -33,8 +33,8 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
-import { Modal } from "../src/components/ui/fleet/Modal.js";
-import { usePopupDismissal } from "../src/components/ui/fleet/usePopupDismissal.js";
+import { Modal } from "../src/components/ui/kit/Modal.js";
+import { usePopupDismissal } from "../src/components/ui/kit/usePopupDismissal.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

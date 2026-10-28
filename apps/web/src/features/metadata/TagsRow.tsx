@@ -4,12 +4,12 @@ import type { ClientNode } from "@/core/workspace-client/index.js";
 
 import { titleOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
-import { AddPill } from "../../components/ui/fleet/AddPill.js";
+import { AddPill } from "../../components/ui/kit/AddPill.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { NodeContextMenu } from "../node-menu/NodeContextMenu.js";
 import type { AnyClient } from "./shared.js";
 import { contrastFor } from "./shared.js";
-import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
+import { cssColorFor } from "../../components/ui/kit/colorPresets.js";
 
 /**
  * TagsRow — the "Tags:" metadata row (pages and blocks): any page can be

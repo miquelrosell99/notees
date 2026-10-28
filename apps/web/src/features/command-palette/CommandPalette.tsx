@@ -80,10 +80,10 @@ import {
   listFilterOptions,
 } from "../search-filters/filterModel.js";
 import type { FilterOption, SearchFilter } from "../search-filters/filterModel.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { FilterChips } from "../../components/ui/fleet/FilterChips.js";
-import { FilterMenu } from "../../components/ui/fleet/FilterMenu.js";
-import { SearchField } from "../../components/ui/fleet/SearchField.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { FilterChips } from "../../components/ui/kit/FilterChips.js";
+import { FilterMenu } from "../../components/ui/kit/FilterMenu.js";
+import { SearchField } from "../../components/ui/kit/SearchField.js";
 import "./Modal.css";
 import "./CommandPalette.css";
 

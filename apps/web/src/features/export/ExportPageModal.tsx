@@ -59,14 +59,14 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import type { ExportOptions } from "@notees/export";
 
 import { useCopiedState } from "../modals/useCopiedState.js";
-import { Modal } from "../../components/ui/fleet/Modal.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
 import { copyToClipboard } from "../modals/clipboard.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { Card } from "../../components/ui/fleet/Card.js";
-import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
-import { Radio, RadioGroup } from "../../components/ui/fleet/Radio.js";
-import { Dropdown } from "../../components/ui/fleet/Dropdown.js";
-import { Spinner } from "../../components/ui/fleet/Spinner.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { Card } from "../../components/ui/kit/Card.js";
+import { Checkbox } from "../../components/ui/kit/Checkbox.js";
+import { Radio, RadioGroup } from "../../components/ui/kit/Radio.js";
+import { Dropdown } from "../../components/ui/kit/Dropdown.js";
+import { Spinner } from "../../components/ui/kit/Spinner.js";
 import { Icon } from "../../ui/Icon.js";
 import { downloadBlob } from "../modals/download.js";
 import {

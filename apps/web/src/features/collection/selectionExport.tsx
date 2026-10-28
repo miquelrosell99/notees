@@ -17,7 +17,7 @@
 
 import { useState, type ReactNode } from "react";
 
-import { Button } from "../../components/ui/fleet/index.js";
+import { Button } from "../../components/ui/kit/index.js";
 import { ExportPageModal } from "../export/ExportPageModal.js";
 import type { AnyClient } from "./types.js";
 

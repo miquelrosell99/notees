@@ -27,8 +27,8 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { EffectiveProperty, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
-import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
+import { cssColorFor } from "../../components/ui/kit/colorPresets.js";
+import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
 import { useViewportPosition } from "../pickers/useViewportPosition.js";
 import type { SelectionOption } from "../pickers/SelectionPropertyControl.js";
 import "./PropertyIconButton.css";

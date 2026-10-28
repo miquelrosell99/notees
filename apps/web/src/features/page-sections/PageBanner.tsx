@@ -45,7 +45,7 @@ import { assetImageUrl } from "../collection/assetThumbs.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { AssetUploadModal } from "../modals/AssetUploadModal.js";
-import { Button, ImageModal } from "../../components/ui/fleet/index.js";
+import { Button, ImageModal } from "../../components/ui/kit/index.js";
 import { clearNodeCover, setNodeCover, uploadCoverAsset } from "../metadata/coverProperty.js";
 import "./PageBanner.css";
 

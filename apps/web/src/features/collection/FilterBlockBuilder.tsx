@@ -73,14 +73,14 @@ import {
 import type { AnyClient } from "./index.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { Button } from "../../components/ui/fleet/Button.js";
-import { ButtonWithPanel } from "../../components/ui/fleet/ButtonWithPanel.js";
-import { CodeTextarea } from "../../components/ui/fleet/CodeTextarea.js";
-import { Dropdown, type DropdownOption } from "../../components/ui/fleet/Dropdown.js";
-import { GridMenu } from "../../components/ui/fleet/GridMenu.js";
-import { Input } from "../../components/ui/fleet/Input.js";
-import { SelectionButton, type SelectionButtonOption } from "../../components/ui/fleet/SelectionButton.js";
-import { Card } from "../../components/ui/fleet/Card.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { ButtonWithPanel } from "../../components/ui/kit/ButtonWithPanel.js";
+import { CodeTextarea } from "../../components/ui/kit/CodeTextarea.js";
+import { Dropdown, type DropdownOption } from "../../components/ui/kit/Dropdown.js";
+import { GridMenu } from "../../components/ui/kit/GridMenu.js";
+import { Input } from "../../components/ui/kit/Input.js";
+import { SelectionButton, type SelectionButtonOption } from "../../components/ui/kit/SelectionButton.js";
+import { Card } from "../../components/ui/kit/Card.js";
 import { useBuilderFacts, type BuilderFacts } from "./builderFacts.js";
 import {
   createCondition,

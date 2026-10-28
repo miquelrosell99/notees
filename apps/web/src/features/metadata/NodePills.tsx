@@ -59,15 +59,15 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 
 import { titleOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
-import { AddPill } from "../../components/ui/fleet/AddPill.js";
-import { Button } from "../../components/ui/fleet/Button.js";
+import { AddPill } from "../../components/ui/kit/AddPill.js";
+import { Button } from "../../components/ui/kit/Button.js";
 import { ColorPickerRow } from "../pickers/ColorPickerRow.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { NodeContextMenu } from "../node-menu/NodeContextMenu.js";
 import { removeClassDissolvingLinks } from "./classRemoval.js";
 import { ClassCreateModal } from "../modals/ClassCreateModal.js";
-import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
-import { cssColorFor, resolveCssColor } from "../../components/ui/fleet/colorPresets.js";
+import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
+import { cssColorFor, resolveCssColor } from "../../components/ui/kit/colorPresets.js";
 import { classRemovalRefusal, isClassNonRemovable, refuseClassRemoval } from "./classRemoval.js";
 import "./NodePills.css";
 

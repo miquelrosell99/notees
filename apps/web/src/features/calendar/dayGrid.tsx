@@ -10,7 +10,7 @@
 
 import { useMemo } from "react";
 
-import { Button } from "../../components/ui/fleet/Button.js";
+import { Button } from "../../components/ui/kit/Button.js";
 import "./calendar-grid.css";
 
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

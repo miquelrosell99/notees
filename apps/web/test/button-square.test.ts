@@ -18,7 +18,7 @@ const path = process_.getBuiltinModule("node:path") as unknown as {
   join(...parts: string[]): string;
 };
 const css = process_.getBuiltinModule("node:fs").readFileSync(
-  path.join(process_.cwd(), "src", "components", "ui", "fleet", "Button.css"),
+  path.join(process_.cwd(), "src", "components", "ui", "kit", "Button.css"),
   "utf8",
 );
 

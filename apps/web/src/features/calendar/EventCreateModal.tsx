@@ -18,9 +18,9 @@ import { useEffect, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS, dayNodeId } from "@notees/domain";
 
-import { Modal } from "../../components/ui/fleet/Modal.js";
-import { TextField } from "../../components/ui/fleet/TextField.js";
-import { Button } from "../../components/ui/fleet/Button.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { TextField } from "../../components/ui/kit/TextField.js";
+import { Button } from "../../components/ui/kit/Button.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import "./EventCreateModal.css";
 

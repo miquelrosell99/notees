@@ -16,8 +16,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { SurfaceTopBar } from "../src/components/ui/fleet/SurfaceTopBar.js";
-import { SidePanelToggle, useSidePanel } from "../src/components/ui/fleet/SidePanel.js";
+import { SurfaceTopBar } from "../src/components/ui/kit/SurfaceTopBar.js";
+import { SidePanelToggle, useSidePanel } from "../src/components/ui/kit/SidePanel.js";
 
 function Harness({ side }: { side: "left" | "right" }) {
   const { toggle, panel } = useSidePanel({

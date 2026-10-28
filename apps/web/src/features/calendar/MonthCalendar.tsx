@@ -20,8 +20,8 @@
 
 import { useEffect } from "react";
 
-import { Button } from "../../components/ui/fleet/Button.js";
-import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { SelectionButton } from "../../components/ui/kit/SelectionButton.js";
 import { CalendarDayGrid, MONTHS_SHORT, type CalendarDayExtraMarks } from "./dayGrid.js";
 import { useCalendarMode } from "./useCalendarMode.js";
 import "./MonthCalendar.css";

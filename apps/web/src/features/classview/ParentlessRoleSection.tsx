@@ -16,7 +16,7 @@ import { useState } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
+import { SelectionButton } from "../../components/ui/kit/SelectionButton.js";
 import { Section } from "../../ui/Section.js";
 
 import "./ParentlessRoleSection.css";

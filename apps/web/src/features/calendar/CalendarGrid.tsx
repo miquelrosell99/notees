@@ -32,8 +32,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { Button } from "../../components/ui/fleet/Button.js";
-import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { cssColorFor } from "../../components/ui/kit/colorPresets.js";
 import { titleOf, titleOfNode } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";

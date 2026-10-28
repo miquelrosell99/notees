@@ -45,7 +45,7 @@ import {
   ConfirmationModal,
   EmptyState,
   TextField,
-} from "../../components/ui/fleet/index.js";
+} from "../../components/ui/kit/index.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { PropertiesTable, metadataRowCount } from "../metadata/index.js";
 import { sourceTypeKey } from "./sourcesQuery.js";
