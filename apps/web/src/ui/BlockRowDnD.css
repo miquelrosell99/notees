@@ -1,0 +1,220 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* --- block drag-and-drop --------------------------------------------------------- */
+
+/* The bullet/chevron area is the drag handle (whole-row drag would fight
+   text editing); a 4px activation distance keeps plain clicks untouched. */
+.nt-block-grip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* The bullet is centered in the grip, so the grip spans the grid's two
+     half-tracks and the template's centerline IS the bullet column. */
+  width: calc(var(--nt-grip-half) * 2);
+  flex-shrink: 0;
+  cursor: grab;
+  color: var(--md-sys-color-on-surface-variant);
+  touch-action: none;
+}
+
+.nt-block-grip:active {
+  cursor: grabbing;
+}
+
+/* Right end of the row: the classes column and the backlink gutter toggle,
+   pinned right as a group (either may be absent). */
+.nt-block-row-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+/* Block classes: dedicated column inside the row-end group (first pill
+   + "+N" overflow popup, drag to reorder). */
+.nt-block-classes {
+  padding-left: var(--spacing-2);
+}
+
+/* The "+ Add class" ghost pill rides the chips hover-reveal contract
+   (Pill.css fades the icon-only add pill out until the group is hovered),
+   but opacity-hiding still reserves the pill's slot — a permanent gap
+   after the last class pill, pushing the backlink toggle off the row-end
+   group. In the block row the hidden pill collapses entirely, so the gap
+   exists only while the classes list is hovered or keyboard-focused.
+   An expanded picker keeps the pill in flow: the anchored NodeSelector
+   re-measures its anchor on scroll, and a collapsed anchor would jump. */
+.nt-block-classes .nt-property-chips:not(:hover):not(:focus-within) .pill--add.pill--icon-only:not([aria-expanded="true"]) {
+  display: none;
+}
+
+/* Backlink gutter toggle (SCHEMA.md:117): the materialized count rides a
+   Badge; quiet by default, emphasized on row hover / when expanded. */
+.nt-block-backlink-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-micro);
+  padding: 0 var(--spacing-1);
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  border-radius: var(--shape-medium);
+  opacity: 0.7;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-block-backlink-toggle:hover,
+.nt-block-backlink-toggle--expanded,
+.nt-block-row-end:focus-within > .nt-block-backlink-toggle {
+  opacity: 1;
+  color: var(--md-sys-color-on-surface);
+}
+
+/* Expanded block backlinks: beneath the block row, aligned with the content
+   column (same 26px offset as tags/properties). */
+.nt-block-backlink-refs {
+  margin-left: 26px;
+  padding: var(--spacing-1) 0;
+}
+
+/* Block tags / properties: dedicated rows under the block row, aligned with
+   the content column (past the 18px bullet grip + the row gap). */
+.nt-block-tags,
+.nt-block > .node-metadata-section {
+  margin-left: 26px;
+}
+
+/* Drop indicator (the fallback layer): the line rides the BLOCK ELEMENT's
+   edges — above at the element's top, below at the element's bottom, i.e.
+   after THE ENTIRE block (text row, properties, linked references,
+   children), never mid-element at the text row. The child intent is the
+   same line at the bottom divider, starting at the child-offset indentation
+   (48px — CHILD_DROP_OFFSET_PX — where the dropped child would sit). The
+   primary visual is the portaled `.nt-drop-indicator` (above the floating
+   chip — see below); these class lines carry the same geometry where the
+   portal is absent (no host, or a drop line the snap set can't resolve). */
+.nt-block.nt-drop-above::before,
+.nt-block.nt-drop-below::after,
+.nt-block.nt-drop-child::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--md-sys-color-primary);
+  pointer-events: none;
+}
+
+.nt-block.nt-drop-above::before {
+  top: 0;
+}
+
+.nt-block.nt-drop-below::after,
+.nt-block.nt-drop-child::after {
+  bottom: 0;
+}
+
+/* The child line starts at the child-offset indentation. */
+.nt-block.nt-drop-child::after {
+  left: 48px;
+}
+
+/* The portaled drop indicator: the same line repainted ABOVE the floating
+   drag chip. The chip is opaque and rides the pointer, so it covered the
+   class-based line's start — the indentation cue (owner). The snapped
+   candidate's anchor is the line's START: sibling lines begin at the row's
+   left edge, the child line at the child offset, so the line's left edge
+   alone reads the nesting level — a straight line, no cap (owner: "use a
+   straight line, not the T"). Rides --z-node-overlay — one step above
+   dnd-kit's DragOverlay (999). The row-level ::before/::after lines stay
+   as the no-host / no-candidate fallback. */
+.nt-drop-indicator {
+  position: fixed;
+  height: 2px;
+  background: var(--md-sys-color-primary);
+  pointer-events: none;
+  z-index: var(--z-node-overlay);
+}
+
+/* The dragged source stays in place and reads muted — the floating name
+   chip (DragOverlay) is the only drag preview, so nothing under the
+   pointer reshapes. The row tint carries a whisper of the accent. */
+.nt-block--drag-source {
+  opacity: var(--opacity-45);
+}
+
+.nt-block--drag-source > .nt-block-row {
+  background: color-mix(in srgb, var(--md-sys-color-primary) 8%, var(--md-sys-color-surface-container-high));
+  border-radius: var(--shape-small);
+}
+
+/* The floating drag preview: a FILLED card with the block's full text ("way better card text visibility"). Two positional modes share
+   the card look:
+   - .nt-drag-ghost rides the pointer in free flight (dnd-kit's DragOverlay);
+   - .nt-drop-preview PARKS just below the indicator line when a drop target
+     snaps — at the anchor's x (the winning indentation), so the card shows
+     exactly what the document will look like after the drop. It glides
+     between targets on a short transition ("snaps"). */
+.nt-drag-ghost,
+.nt-drop-preview {
+  max-width: 480px;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--shadow-elevation-2);
+  font-size: var(--font-size-base);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.nt-drop-preview {
+  position: fixed;
+  z-index: var(--z-node-overlay);
+  pointer-events: none;
+  transition:
+    left var(--motion-duration-shorter) var(--motion-easing-standard),
+    top var(--motion-duration-shorter) var(--motion-easing-standard);
+}
+
+.nt-drop-preview__badge {
+  margin-bottom: var(--spacing-1);
+  font: var(--font-label-medium);
+  color: var(--md-sys-color-primary);
+}
+
+.nt-drop-preview__text {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Transient guard message (refused drop, store MoveGuardError, …).
+   Host-owned now: it floats above the workspace regions so a drop refusal
+   surfaces no matter which surface the drag rode. */
+.nt-dnd-error {
+  position: fixed;
+  top: var(--spacing-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-fixed);
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--md-sys-color-error);
+  border-radius: var(--shape-medium);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-error);
+  font-size: var(--font-size-button);
+}
+

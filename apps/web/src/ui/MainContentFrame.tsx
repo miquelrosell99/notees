@@ -30,7 +30,7 @@
  * padding, and each host's top bar carries its own horizontal inset), the
  * middle cell .nt-main-frame__content carries NO width cap — the host
  * wraps its children in its own cap when it wants one (PageView's journal
- * measure rides .nt-nodeview-body in app.css) and rides full-bleed when it
+ * measure rides .nt-nodeview-body in ui/app/PanelLayout.css) and rides full-bleed when it
  * doesn't (the hubs' eventual panel adoption). The scrollbar seam: a host's scroll box scrolls at its own right edge — beside
  * the right side pane — with the text cap centered inside it; the cap
  * never owns the scroll. The panel chrome (padding,

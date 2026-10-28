@@ -103,7 +103,35 @@ import {
   useUndoChrome,
   useWorkspaceConnection,
 } from "./app/index.js";
+// The global stylesheet family, in cascade order — the contract the
+// 2026-10-28 co-location pass established: app.css was the LAST css import,
+// so every file below imports at this same spot, in this exact order, and
+// the cascade is unchanged. app.css itself is the remnant (the fonts/
+// variables imports, the tailwind layers, the preflight-lite resets);
+// everything else moved here from the old app.css grab-bag, one file per
+// surface, co-located with its owner component. Edit the surface file, not
+// this list's order.
 import "./app.css";
+import "./app/AppShell.css";
+import "./app/PanelLayout.css";
+import "./PageChrome.css";
+import "./BlockRow.css";
+import "../features/collection/ProseView.css";
+import "./EmbedView.css";
+import "./QueryResults.css";
+import "./BlockRowDnD.css";
+import "./PageView.css";
+import "../features/calendar/DatePickerZoom.css";
+import "./PageSections.css";
+import "./InlineTokens.css";
+import "./BlockMedia.css";
+import "./WhiteboardCanvas.css";
+import "./SearchSurface.css";
+import "./NodeLinks.css";
+import "./app/HubSurfaces.css";
+import "./app/ResponsivePass.css";
+import "./BlockTable.css";
+import "./PageHeaderSection.css";
 
 /** Footer status before the first status() snapshot arrives. */
 const INITIAL_SYNC_STATUS: SyncStatusSnapshot = {

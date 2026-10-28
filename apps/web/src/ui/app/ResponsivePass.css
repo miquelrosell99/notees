@@ -1,0 +1,82 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* --- responsive pass (MobileLayout) --------------------------------------------
+   Narrow-width adaptations of the app chrome — additive media queries only,
+   no component changes. Two steps: the tablet boundary (768px, the same
+   breakpoint the modal bottom-sheet reads from --breakpoint-tablet) for the
+   sidebar drawer + touch targets, and the phone step (480px) where the peek
+   card becomes a full-width bottom sheet instead of the 1100px hide. */
+
+@media (width <= 768px) {
+  /* The drawer floats over content (Sidebar.css positions it fixed) but
+     inherited the desktop transparent canvas — give it a real surface so
+     the nav reads above the page beneath. */
+  .nt-sidebar-open .nt-sidebar {
+    width: min(280px, 85vw);
+    background: var(--md-sys-color-surface-container-low);
+    border-right: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  }
+
+  /* The quick-create FAB: a floating action button over the content card. */
+  .nt-quick-fab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: var(--spacing-4);
+    bottom: calc(var(--spacing-4) + env(safe-area-inset-bottom, 0px));
+    width: var(--height-button-lg);
+    height: var(--height-button-lg);
+    min-width: var(--height-button-lg);
+    border: none;
+    border-radius: var(--shape-large);
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-surface);
+    box-shadow: var(--shadow-elevation-2);
+    cursor: pointer;
+    /* The z-index scale owns stacking (audit 2026-10-19: was a hardcoded
+       40 — under every floating layer). FAB rides the fixed layer: above
+       card content, below popovers/menus, toasts, and modals. */
+    z-index: var(--z-fixed);
+  }
+
+  /* Touch targets: sidebar rows (28px desktop) and the shell icon buttons
+     (32px) grow to the button height token (--height-button-lg — a size,
+     not the 48dp touch floor; the sidebar is a documented exception
+     surface). */
+  .nt-side-item {
+    min-height: var(--height-button-lg);
+  }
+
+  .nt-side-star {
+    /* No hover on touch: the favorite toggle stays visible and tappable. */
+    display: inline-flex;
+    width: var(--height-button-lg);
+    height: var(--height-button-lg);
+  }
+
+  /* Collapsible section headers stay comfortable to tap. */
+  .nt-side-header-toggle {
+    min-height: var(--height-button-lg);
+    display: flex;
+    align-items: center;
+  }
+
+  /* The topbar keeps its controls reachable; the wordmark yields. */
+  .nt-wordmark {
+    display: none;
+  }
+
+  /* The content column and card breathe at phone/tablet widths. */
+  .nt-page {
+    padding: var(--spacing-5) var(--spacing-4) var(--spacing-8);
+  }
+
+  .nt-page-card {
+    margin: var(--spacing-2) var(--spacing-2) var(--spacing-2) 0;
+  }
+}
+

@@ -187,11 +187,11 @@ const SURFACE_ALIAS_HOMES = new Map<string, RegExp>([
  * test 3 and unlisted em by test 6. Each entry: [selector, file, reason].
  */
 const EM_FONT_SIZE_ALLOWLIST: Array<[string, string, string]> = [
-  [".nt-heading", "app.css", "heading scale source — the block content sizes relative to it"],
-  ["code", "app.css", "inline code tracks the surrounding content size (headings included)"],
+  [".nt-heading", "InlineTokens.css", "heading scale source — the block content sizes relative to it"],
+  ["code", "BlockMedia.css", "inline code tracks the surrounding content size (headings included)"],
   [".nt-deck-slide--sparse .nt-deck-body", "deck.css", "slide density multiplier (P4)"],
   [".nt-deck-slide--dense .nt-deck-body", "deck.css", "slide density multiplier (P4)"],
-  [".nt-list-marker", "app.css", "the list marker tracks the block row's type metrics — a bullet-size glyph beside the dot it replaces"],
+  [".nt-list-marker", "BlockRow.css", "the list marker tracks the block row's type metrics — a bullet-size glyph beside the dot it replaces"],
 ];
 
 describe("css token drift gate", () => {

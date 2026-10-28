@@ -1,0 +1,54 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* The header layout: header left, cover card right (stacks on
+   mobile, the narrow breakpoint). */
+.page-header-section {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--spacing-1) var(--spacing-4);
+  align-items: start;
+}
+
+.page-header-section .nt-page-header {
+  grid-column: 1;
+  grid-row: 1;
+  margin-bottom: 0;
+}
+
+.page-header-section__cover {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+@media (width <= 768px) {
+  .page-header-section {
+    grid-template-columns: 1fr;
+  }
+
+  .page-header-section .nt-page-header,
+  .page-header-section__cover {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+/* the card chrome pins on scroll — only the content and
+   sections travel. Header sticks to the top of the scroll container, the
+   footer to the bottom; both carry the card surface so content slides
+   underneath. */
+.nt-page-header {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--md-sys-color-surface);
+}
+
+.nt-page-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  background: var(--md-sys-color-surface);
+}

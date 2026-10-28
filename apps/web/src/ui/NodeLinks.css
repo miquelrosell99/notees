@@ -1,0 +1,145 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* Inline node references: dashed-underline links, clickable in read mode. */
+.nt-link {
+  display: inline;
+  padding: 0;
+  border: none;
+  /* Resting underline rides on-surface-variant, the established link
+     underline token (the class-link family wears it) — outline is
+     nearly invisible on the dark graphite surface. Hover still lifts to primary. */
+  border-bottom: 1px dashed var(--md-sys-color-on-surface-variant);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nt-link:hover {
+  color: var(--md-sys-color-primary);
+  border-bottom-color: var(--md-sys-color-primary);
+}
+
+/* Inert link elements (inside a node-link chip's rich label): they carry no
+   own click — the whole chip opens the target. They also carry no own
+   underline: the chip's own line names the WHOLE label one link, and a
+   nested underline only doubles the line. The mention icon and the
+   hyperlink color stay (the signal without the noise). */
+.nt-link--inert,
+.nt-hyperlink--inert {
+  cursor: inherit;
+}
+.nt-link .nt-link--inert {
+  border-bottom: none;
+}
+.nt-link .nt-class-link,
+.nt-link .nt-typed-link,
+.nt-link .nt-hyperlink--inert {
+  text-decoration: none;
+}
+
+/* Icon base class: every <Icon> svg/glyph carries it (the component no
+   longer inlines vertical-align, so instance classes like .nt-link__icon
+   below can actually override the default). Default: middle — the classic
+   icon+text alignment. */
+.nt-icon {
+  vertical-align: middle;
+}
+
+/* The linked node's effective icon rides ahead of the label (alignment fixed 2026-10-19 — the value was designed from the
+   start but the component's INLINE vertical-align: middle beat this class,
+   so mentions rendered a hair LOW; the base-class move above makes the
+   designed offset live: -0.15em sets the glyph's center on the cap height,
+   a hair of trailing breath. The class also overrides the svg's
+   presentation width/height attributes (CSS wins), so the glyph tracks the
+   font size (the adaptive-values law). */
+.nt-link__icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  margin-right: 0.3ch;
+}
+
+/* Inline class references: the node-link look with a
+   WAVY underline instead of the dashed one mentions wear, tinted by the
+   class's effective color through the inline text-decoration-color — no
+   pill chrome. The non-interactive projection wears the same shape as a
+   plain span. The NEUTRAL fallback rides on-surface-variant, not outline
+ (the hairline outline token was almost invisible on
+   dark surfaces; on-surface-variant is the secondary-text role, hue-free
+   but legible). */
+.nt-link--class,
+.nt-class-link {
+  border-bottom: none;
+  text-decoration: underline wavy var(--md-sys-color-on-surface-variant);
+  text-underline-offset: 2px;
+}
+
+.nt-link--class:hover {
+  text-decoration-color: var(--md-sys-color-primary);
+}
+
+/* Pending class link: the class
+   is referenced inline but NOT assigned to the owning node. Legal state
+   (undo interleavings, imports, external writers); it renders DASHED —
+   "referenced, not assigned" — and an interactive click assigns it (the
+   tooltip says so). Live links stay solid wavy. */
+.nt-link--class-pending,
+.nt-class-link--pending {
+  text-decoration-style: dashed;
+}
+
+.nt-atom--chip-pending {
+  text-decoration-style: dashed;
+}
+
+/* Atomic node-link pills in the block editor (edit mode): the read-mode
+   dashed-underline look, one caret unit (contenteditable=false span). */
+.nt-atom {
+  /* The edit-mode link underline rides the same token as .nt-link. */
+  border-bottom: 1px dashed var(--md-sys-color-on-surface-variant);
+  color: inherit;
+  font: inherit;
+  cursor: default;
+  user-select: none;
+}
+
+.nt-atom:hover {
+  color: var(--md-sys-color-primary);
+  border-bottom-color: var(--md-sys-color-primary);
+}
+
+/* Class chip (edit mode) — the inline-class mark is a wavy underline (not
+   the mention's dashed border), tinted per class by the inline
+   text-decoration-color set at build time; parity with the read-mode
+   nt-link--class look, neutral fallback included (on-surface-variant). */
+.nt-atom--chip {
+  border-bottom: none;
+  text-decoration: underline wavy var(--md-sys-color-on-surface-variant);
+  text-underline-offset: 2px;
+}
+
+.nt-atom--chip:hover {
+  text-decoration-color: var(--md-sys-color-primary);
+}
+
+/* Arrow/click-selected pill — the only focus hint while selected (the DOM
+   caret stays at a boundary). Primary text on an 8% primary tint inside a
+   focus-ring outline; the underline hides (owner call — the mention's
+   dashed border AND the chip's wavy one) so the ring reads as one clean
+   shape. Layout-neutral by design — no padding/margin pair (a width delta
+   on selection can flip a tight line into wrapping the pill mid-token). */
+.nt-atom--selected,
+.nt-atom--selected:hover {
+  color: var(--md-sys-color-primary);
+  border-bottom-color: transparent;
+  text-decoration-color: transparent;
+  background: color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent);
+  border-radius: var(--shape-extra-small);
+  box-shadow: var(--shadow-focus-ring-primary);
+}
+

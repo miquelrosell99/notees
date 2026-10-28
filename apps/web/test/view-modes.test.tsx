@@ -855,7 +855,7 @@ describe("outline list: rows with children collapse at the listCollapseLevel set
       join(...parts: string[]): string;
     };
     const css = process_.getBuiltinModule("node:fs").readFileSync(
-      path.join(process_.cwd(), "src", "ui", "app.css"),
+      path.join(process_.cwd(), "src", "ui", "BlockRow.css"),
       "utf8",
     );
     const ring = /\.nt-bullet-ring \{[^}]*\}/.exec(css);

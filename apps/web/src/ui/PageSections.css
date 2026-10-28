@@ -1,0 +1,89 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* --- link qualifiers ---------------------------------------- */
+
+/* --- system section rows -------------------------------------------------------
+   The section chrome (header/chevron/badge) is the shared NodeViewSection
+   in components/; the row styles below are shared with ClassView and
+   AnnotationsSection, so they stay global. */
+
+.nt-section-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-section-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-medium);
+  padding: 4px 8px 4px 20px;
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-base);
+}
+
+.nt-section-item:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+/* Class View member rows: the navigation row plus an unassign × that issues
+   class.unassign (removes the member from THIS class only). */
+.nt-class-member {
+  display: flex;
+  align-items: baseline;
+}
+
+.nt-class-member .nt-section-item {
+  flex: 1;
+  width: auto;
+}
+
+.nt-class-member-remove {
+  border: none;
+  background: transparent;
+  padding: 4px 10px;
+  font-size: var(--font-size-base);
+  color: var(--md-sys-color-on-surface-variant);
+  border-radius: var(--shape-medium);
+}
+
+.nt-class-member-remove:hover {
+  color: var(--md-sys-color-error);
+}
+
+.nt-section-crumb {
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-section-source {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-base);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-section-context {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-button);
+  font-style: italic;
+  white-space: nowrap;
+}
+
+.nt-section-empty {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-button);
+  padding: 4px 8px 4px 20px;
+}
+

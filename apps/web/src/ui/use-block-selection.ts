@@ -6,7 +6,7 @@
  *   drag selection: the anchor row is selected first, then every row the
  *   pointer arches over extends the range (document order, inclusive).
  *   While the pointer stays inside the pressed block nothing is selected —
- *   read-mode content is user-select:none (app.css), so the gesture never
+ *   read-mode content is user-select:none (ui/BlockRow.css), so the gesture never
  *   produces a text selection, and the block range arms only on the border
  *   exit. A press inside the EDITING block keeps native text selection
  *   until the pointer exits the contentEditable's borders, then the in-

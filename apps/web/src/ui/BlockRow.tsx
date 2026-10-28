@@ -25,7 +25,7 @@
  *   thread where the columns coincide) and below the bullets and the
  *   hover chevron (z-index 2) — and passes clicks through; no thread for
  *   a top-level edit, in prose, or in cards. The outliner level grid
- *   (app.css): each block is one grid whose template splits AT the
+ *   (ui/BlockRow.css): each block is one grid whose template splits AT the
  *   bullet centerline — [gutter][half-grip][half-grip][content] — and
  *   the children container spans from that centerline, so the indent
  *   rails ride the bullet column by construction (two vars,

@@ -486,7 +486,7 @@ describe("table class-name contract", () => {
         getBuiltinModule(name: "node:fs"): { readFileSync(path: string, encoding: "utf8"): string };
       }
     ).getBuiltinModule("node:fs").readFileSync;
-    const css = readFile(`${process.cwd()}/src/ui/app.css`, "utf8");
+    const css = readFile(`${process.cwd()}/src/ui/BlockTable.css`, "utf8");
     expect(css.indexOf(".nt-blocktable {")).toBeGreaterThan(-1);
     expect(css).not.toContain(".nt-table {\n  display: grid;");
   });

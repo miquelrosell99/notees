@@ -190,7 +190,7 @@ describe("focus mode page chrome (#12)", () => {
     };
     const fs = process_.getBuiltinModule("node:fs");
     const path = process_.getBuiltinModule("node:path") as unknown as typeof import("node:path");
-    const css = fs.readFileSync(path.join(process.cwd(), "src", "ui", "app.css"), "utf8");
+    const css = fs.readFileSync(path.join(process.cwd(), "src", "ui", "app", "PanelLayout.css"), "utf8");
     const rule = /\.nt-nodeview-body \{[^}]*max-width: 46rem[^}]*\}/.exec(css);
     expect(rule).not.toBeNull();
     // The compact layout's measure (46rem) — the panelled content column

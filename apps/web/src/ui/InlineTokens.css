@@ -1,0 +1,86 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* --- inline tokens ------------------------------------------------------------- */
+
+.nt-chip {
+  display: inline-block;
+  background: var(--md-sys-color-surface-container-highest);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-button-compact);
+  padding: 0 var(--spacing-2);
+  font-size: var(--font-size-body-lg);
+  line-height: 1.5;
+}
+
+.nt-mention {
+  background: var(--md-sys-color-primary-container);
+  border: 1px solid var(--md-sys-color-outline);
+}
+
+.nt-typed-link {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.nt-quote {
+  display: block;
+  border-left: 3px solid var(--md-sys-color-outline);
+  padding: 2px 12px;
+  margin: 4px 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* The heading token:
+   the block's content reads as a section head — larger, heavier, the page's
+   own title family. */
+.nt-heading {
+  display: block;
+  font-size: 1.35em;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0.35em 0 0.15em;
+  color: var(--md-sys-color-on-surface);
+}
+
+/* The Table-of-content entry jump flash: the targeted
+   block outlines briefly so the jump reads. */
+@keyframes nt-block-flash {
+  0% {
+    outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+    outline-offset: 2px;
+  }
+  100% {
+    outline: var(--border-width-thick) solid transparent;
+    outline-offset: 6px;
+  }
+}
+
+.nt-block--flash {
+  animation: nt-block-flash var(--motion-duration-long) var(--motion-easing-standard) 2;
+  border-radius: var(--shape-small);
+}
+
+/* External links read as plain hyperlinks, never a pill:
+   underline + link color only — no background, border, or radius. */
+.nt-hyperlink {
+  color: var(--md-sys-color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.nt-placeholder {
+  display: inline-block;
+  border: 1px dashed var(--md-sys-color-outline);
+  border-radius: var(--shape-medium);
+  padding: 0 10px;
+  margin: 1px 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-base);
+  background: var(--md-sys-color-surface-container-high);
+}
+

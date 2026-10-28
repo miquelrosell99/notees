@@ -1,0 +1,232 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* --- code_block + hr renderers ---------------------------------------------
+   Block-scale code: mono pre with the optional language hint as a badge.
+   The divider: a hairline rule across the block width. */
+
+.nt-code-block {
+  display: block;
+  margin: var(--spacing-1) 0;
+}
+
+.nt-code-block__lang {
+  display: inline-block;
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+  padding: 0 var(--spacing-2);
+  border-radius: var(--shape-medium) var(--shape-medium) 0 0;
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-bottom: none;
+}
+
+.nt-code-block__pre {
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  background: var(--md-sys-color-surface-container-low);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-button);
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* The code_block editing surface (the owed editor): the CodeTextarea
+   takes the pre's place inside the same chrome — the language badge stays
+   above, the textarea itself renders as the mono block (the primitive's own
+   class plus the block frame). Token-only CSS. */
+.nt-code-editor {
+  display: block;
+}
+
+.nt-code-editor .nt-code-editor__area {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-button);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.nt-hr {
+  border: none;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  margin: 6px 0;
+  width: 100%;
+}
+
+/* Block-level rule (display-time `---` derivation): a
+   block whose content is exactly --- renders this in place of bullet +
+   text. Rides the inline hr's hairline; the vertical margins track the
+   spacing scale (the row's own padding supplies the rest of the air). */
+.nt-block-rule {
+  border: none;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  margin: var(--spacing-2) 0;
+  width: 100%;
+}
+
+/* --- embed_ref card views ------------------------------------------------------
+   The intermediate reference views: a bounded identity card (icon + name;
+   the wide variant adds the one-line excerpt). Never transcludes. */
+
+.nt-embed-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 2px 0;
+  padding: 4px 10px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nt-embed-card--wide_card {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.nt-embed-card:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-embed-card__label {
+  font-weight: 500;
+}
+
+.nt-embed-card__excerpt {
+  flex-basis: 100%;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-base);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nt-embed-card--broken {
+  border-style: dashed;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: default;
+}
+
+/* --- asset_ref renderer (SCHEMA.md:61) --------------------------------------
+   Inline: an image preview capped at text height, or a filename+size chip.
+   Full-bleed (the token alone in its stream): the image spans the block
+   width (caption from the title), the chip becomes a file card row. */
+
+.nt-asset {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 1px 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.nt-asset--image {
+  display: inline-block;
+  border-radius: var(--shape-medium);
+  overflow: hidden;
+  vertical-align: middle;
+  line-height: 0;
+}
+
+.nt-asset--image img {
+  display: block;
+  max-height: 1.6em;
+  max-width: 8em;
+  object-fit: cover;
+}
+
+.nt-asset--fullbleed.nt-asset--image {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.nt-asset--fullbleed.nt-asset--image img {
+  max-height: 60vh;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.nt-asset--chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  max-width: 100%;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  padding: 0 var(--spacing-2);
+  line-height: 1.5;
+  font-size: var(--font-size-base);
+}
+
+.nt-asset--chip:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-asset-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 24em;
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-asset-size {
+  flex-shrink: 0;
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-asset--fullbleed.nt-asset--chip {
+  display: flex;
+  padding: var(--spacing-2);
+}
+
+.nt-asset--fullbleed.nt-asset--chip .nt-asset-name {
+  max-width: none;
+  flex: 1;
+  text-align: left;
+}
+
+code {
+  background: var(--md-sys-color-surface-container-highest);
+  border-radius: var(--shape-small);
+  padding: 0 var(--spacing-1);
+  /* em, not a rem token: inline code must track the surrounding content
+     size — including inside headings — the sanctioned adaptive pattern. */
+  font-size: 0.92em;
+}
+
+mark {
+  background: var(--md-sys-color-warning-container);
+  border-radius: var(--shape-extra-small);
+  padding: 0 var(--spacing-micro);
+}
+

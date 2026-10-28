@@ -9,6 +9,38 @@ predating this file.
 
 ## 2026-10-28
 
+- **refactor(web): the app.css grab-bag dissolves into co-located CSS, one
+  file per surface.** `ui/app.css` (3,812 lines — the pre-fleet catch-all)
+  shrinks to its genuine remnant: the fonts/variables imports, the tailwind
+  layers, and the preflight-lite resets (97 lines). The other 20 contiguous
+  sections moved verbatim to files co-located with their owner components —
+  `ui/BlockRow.css` (the block chrome register: rows, bullets, chevron,
+  capture gestures, multi-selection, the edit thread), `ui/BlockRowDnD.css`,
+  `ui/BlockTable.css`, `ui/PageChrome.css` + `ui/PageHeaderSection.css`,
+  `ui/app/PanelLayout.css`, `ui/app/AppShell.css`, `ui/app/HubSurfaces.css`,
+  `ui/app/ResponsivePass.css`, `ui/InlineTokens.css`, `ui/NodeLinks.css`,
+  `ui/EmbedView.css`, `ui/BlockMedia.css` (code/hr/embed_ref/asset_ref),
+  `ui/WhiteboardCanvas.css`, `ui/SearchSurface.css`, `ui/QueryResults.css`,
+  `ui/PageView.css`, `ui/PageSections.css`,
+  `features/collection/ProseView.css` (the view transforms + the
+  child-blocks toolbar), `features/calendar/DatePickerZoom.css`. Cascade
+  safety is by construction, not review: `app.css` was the LAST css import
+  in `App.tsx`, so every new file imports at that same spot in the original
+  chunk order — reassembling all pieces in order reproduces the old file
+  byte-for-byte (script-verified), and every emitted file is postcss-valid.
+  The stale doc references ("lives in app.css") now name the new home.
+  - **Files**: `apps/web/src/ui/app.css` (97-line remnant), the 20 new CSS
+    files above, `apps/web/src/ui/App.tsx` (the ordered import family),
+    plus docstring pointer fixes in `BlockRow.tsx`, `PageChrome.tsx`,
+    `PageView.tsx`, `MainContentFrame.tsx`, `Icon.tsx`, `EditThread.tsx`,
+    `use-block-selection.ts`, `ProseView.tsx`, `QuickCreateFab.tsx` — and
+    the CSS-source spec tests repointed at their subject's new home
+    (`condensed`, `view-modes`, `table-nodes`, `title-editor`, `focus-mode`,
+    `frame-body-inset`, `mobile-layout`, `css-token-drift`).
+  - **Contract for future edits** (also the header comment of each new
+    file): edit the surface file, never re-expand `app.css`; the import
+    list in `App.tsx` is ordered — keep it that way.
+
 - **feat(web): the node-link menu converts a class-targeted link between
   mention and inline class chip.** A node link whose target is a class node
   can wear either token form, and the link's right-click menu now flips it

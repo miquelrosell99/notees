@@ -8,7 +8,7 @@
  * ("mdiFormatHighlight" — a bad system-class seed) to their real icons.
  *
  * Every render carries the base `nt-icon` class (the default
- * vertical-align: middle lives in app.css, NOT an inline style — instance
+ * vertical-align: middle lives in ui/NodeLinks.css, NOT an inline style — instance
  * classes such as `.nt-link__icon` must be able to override it). */
 import React from 'react';
 import { resolveIconSize } from './iconSizes.js';

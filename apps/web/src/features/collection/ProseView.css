@@ -1,0 +1,252 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* --- child-blocks view toolbar (outline / prose / cards switcher) ----------- */
+
+.nt-blocks-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: var(--height-sm);
+  margin-bottom: 0;
+  /* the switcher rides the title row, directly left of
+     the floating ⋯ menu button. */
+  margin-left: auto;
+  padding-right: var(--spacing-4);
+}
+
+/* --- view transforms: prose mode -------------------------------------------------
+   A VIEW transform only (SCHEMA.md): the tree shape and data are untouched.
+   Bullets disappear, nesting indents flatten to full-width rows (structure is
+   still implied by order), and blocks get paragraph spacing. Collapse is
+   HONORED here, not ignored: collapsed subtrees
+   hide exactly as in outline, the fold chords act on the same state, and the
+   chevron start-anchors the row (prose has no bullet gutter — the chevron
+   rides the row's left padding): hover-revealed like the outline gutter
+   idiom, and PERSISTENT at rest while the block is collapsed — the
+   persistent chevron IS the collapsed indicator, and the hidden subtree is
+   the other half of the read (nothing silently hidden). The v1 indent-line
+   rail stays outline-only (prose flattens the indents — BlockRow does not
+   mount it under `proseMode`). */
+
+.nt-prose .nt-block-chevron {
+  opacity: 0;
+}
+
+/* Row-hover reveal (prose has no bullet to hover — the row is the
+   surface). Focus reveal stays out: hover only, editing blocks included. */
+.nt-prose .nt-block-row:hover .nt-block-chevron {
+  opacity: 1;
+}
+
+/* Persistent at rest while collapsed: the chevron IS the indicator. */
+.nt-prose .nt-block--collapsed > .nt-block-row .nt-block-chevron {
+  opacity: 1;
+}
+
+.nt-prose .nt-bullet {
+  display: none;
+}
+
+.nt-prose .nt-block {
+  /* Prose flattens the indents — no centerline to ride; simple stacking
+     replaces the level grid. */
+  display: block;
+}
+
+.nt-prose .nt-block-children {
+  padding-left: 0;
+}
+
+.nt-prose .nt-block-row {
+  padding: 8px 0;
+}
+
+/* The focused block view's parent header: the focused
+   block as an editable top-level header in prose — the title-variant row.
+   A breath of space separates the header from the flattened children. */
+.nt-prose-parent {
+  margin-bottom: var(--spacing-3);
+}
+
+/* --- view transforms: the condensed layer (stretchtext,
+   refined same day after owner feedback) ------------------------------------
+   A DISPLAY LAYER over the view modes, not a mode: under the layer a
+   truncatable block renders its excerpt (the `excerptOf` prose flatten, cut
+   at the first hard_break or the 80-char dense-chrome budget) instead of
+   its full content. The excerpt is the head of the block's own prose; the
+   row stays EDITABLE — clicking it enters edit on the full content, blur
+   re-condenses. The "…" IS the toggle: the
+   permanent muted stretchtext mark is the layer's ONE control in both
+   directions — on the condensed row it pins the block (tap to stretch in
+   place, the 48px invisible hit-area overlay around the 22px visible
+   mark); on a pinned row it
+   returns at the END OF THE TEXT (inline after the last word, wherever the
+   text wraps) to un-pin. The hidden-links badge (the BlockBacklink toggle's
+   count-pill pattern) rides beside the mark on condensed rows, revealed
+   with the row — hover + focus-within (the resting-rows-stay-clean law;
+   the permanent "…" names the truncation at rest); touch reveals it
+   permanently. The lens pin button and the re-condense back-arrow are
+   retired — the mark is the affordance. A PINNED block reads at a glance:
+   the mark becomes a FILLED CHIP in the app's active-toggle register
+   (primary-container fill, the focus-mode TopBar button's register) —
+   muted mark = closed, filled chip = open; no bullet indicator, the chip
+   is the single cue in every mode. */
+
+/* The mark as the toggle: visually the same muted "…", now a real button —
+   the row-chrome tap floor + the unified state-layer hover. Visible box
+   stays 22px; the ::after overlay centered on the mark reaches M3's 48px
+   hit-area floor (the 22px register retired
+   with the alignment program — the selection-intercept tradeoff is
+   accepted; read-mode content is unselectable, so the overlay never
+   blocks a selection drag). */
+.nt-block-excerpt__ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 1px;
+  /* The visible 22px floor (the grip column already makes the row 22px
+     tall, so the line box holds). */
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0 var(--spacing-1);
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: var(--opacity-60);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  touch-action: manipulation;
+  font: inherit;
+  line-height: inherit;
+  white-space: nowrap;
+  position: relative;
+}
+
+/* The invisible hit-area floor (the calendar-grid / icon-only button
+   pattern): the interactive area reaches ≥48×48 (M3's 48dp floor) while
+   the visible mark stays 22px. */
+.nt-block-excerpt__ellipsis::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
+.nt-block-excerpt__ellipsis:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+  opacity: var(--opacity-100);
+}
+
+.nt-block-excerpt__ellipsis:active {
+  background: var(--md-sys-color-pressed-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* The pinned cue: the pinned
+   "…" is a SOLID-FILLED toggle chip in the app's active-toggle register —
+   the exact fill the fleet ghost button's active state wears
+   (primary-container / on-primary-container, shape-medium radius), riding
+   the mark's 22px hit zone. The contrast pair: muted mark = closed,
+   filled chip = open. The fill holds through hover/pressed (the
+   fleet active-toggle precedent). No bullet indicator — the chip is the
+   single cue in every mode. */
+.nt-block-excerpt__ellipsis--pinned {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  opacity: var(--opacity-100);
+  border-radius: var(--shape-medium);
+}
+
+.nt-block-excerpt__ellipsis--pinned:hover,
+.nt-block-excerpt__ellipsis--pinned:active {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+/* A mixed block (sentence + inline image/embed) names its prose-less
+   payload in the excerpt row — nothing silently hidden. */
+.nt-block-excerpt__media {
+  margin-left: var(--spacing-2);
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: var(--opacity-60);
+  white-space: nowrap;
+}
+
+.nt-block-excerpt__chrome {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-left: var(--spacing-2);
+  vertical-align: baseline;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Hover-reveal: the row hover shows the badge chrome, and focus-within
+   keeps it visible while the keyboard tabs to it — the standard a11y
+   pairing for hover-reveal chrome. Touch has no hover: reveal
+   permanently. */
+.nt-block-row:hover .nt-block-excerpt__chrome,
+.nt-block:focus-within .nt-block-excerpt__chrome {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .nt-block-excerpt__chrome {
+    opacity: 1;
+  }
+}
+
+.nt-block-links-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  /* The visible 22px floor (the row-chrome idiom — layout rides the row's
+     line box). */
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0 var(--spacing-1);
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  touch-action: manipulation;
+  position: relative;
+}
+
+/* The invisible hit-area floor (the mark's overlay pattern): the badge's
+   interactive area reaches ≥48×48 (M3's 48dp floor) while the visible box
+   stays 22px. */
+.nt-block-links-badge::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
+.nt-block-links-badge:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-block-links-badge:active {
+  background: var(--md-sys-color-pressed-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+

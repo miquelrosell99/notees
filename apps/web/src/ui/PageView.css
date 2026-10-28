@@ -1,0 +1,89 @@
+/* Migrated from ui/app.css (2026-10-28 co-location pass) — the rules
+   below moved verbatim; the cascade order is preserved by importing
+   this file at the app.css import site in App.tsx, in the original
+   chunk order. Edit here, not in app.css. */
+
+/* --- class view ------------------------------------------------------------------ */
+/* The class view is a PageView composition:
+   its chrome reuses the page rules above; the class sections ship co-located
+   CSS in components/classview/. The curated class-icon picker left with the
+   redesign (the shared header icon button is the single icon+color entry);
+   the retired admin panels (extends/extended-by/templates
+   rows/color swatch strip/description shelf) left with it. */
+
+/* --- annotations section (asset chip affordance) ------------------------------
+   Rendered by AnnotationsSection under an asset pill; the metadata rows,
+   pills, picker and range styles moved to components/MetadataSection.css. */
+
+.nt-annotations {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 8px 148px;
+}
+
+.nt-annotation-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.nt-annotation-quote {
+  font-style: italic;
+}
+
+.nt-annotation-page {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-button);
+  white-space: nowrap;
+}
+
+.nt-annotation-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-left: 20px;
+}
+
+.nt-annotation-form input {
+  font: inherit;
+  font-size: var(--font-size-button);
+  padding: 3px 8px;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--shape-medium);
+  background: var(--md-sys-color-surface);
+}
+
+.nt-annotation-quote-input {
+  flex: 1 1 220px;
+}
+
+.nt-annotation-page-input {
+  width: 110px;
+}
+
+.nt-annotation-note-input {
+  flex: 1 1 160px;
+}
+
+.nt-annotation-add {
+  font: inherit;
+  font-size: var(--font-size-button);
+  color: var(--md-sys-color-on-surface-variant);
+  background: none;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--shape-medium);
+  padding: 3px 10px;
+}
+
+.nt-annotation-add:hover {
+  border-color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-annotation-error {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--md-sys-color-error-hover);
+  font-size: var(--font-size-button);
+}
+
