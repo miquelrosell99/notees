@@ -9,6 +9,49 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): Cards hub — nav entry, due/fresh/later buckets,
+  query-builder subsets, review actions (memorization cards slice).** The
+  `/cards` hub ships (the Tasks-hub structure verbatim): every node classed
+  `card` (pages AND blocks) in the shared `CollectionHub` chrome (table
+  default, cards/outline alongside, `hub.cards` persistence), the card
+  family self-healing on entry (`ensureCardFamily`, the `ensureTaskFamily`
+  pattern). The prepended surface carries the transient query builder —
+  the shared `NodeCollectionToolbar`/`FilterQuery` draft runs through the
+  `useQueryRun` seam (default = all members; the quick-text facet narrows
+  through the ranked search first, the section-data contract) — and the
+  due/fresh/later bucket strip, computed client-side from the effective
+  `Card due` value (`partitionCardsIntoBuckets` + `cardRowsOf`, the
+  `taskRowsOf` precedent: due-or-before-today / never-scheduled / future).
+  The header owns the scheduler toggle (FSRS default / SM-2, the Task 7
+  `cards.algorithm` pref seam), a Review action over the filtered list, and
+  New-card creation; every row wears a trailing Review action (the
+  `NodeCollectionItem.trailingAction` seam — `CollectionHub` gains the
+  passthrough prop). Each Review gesture hands a session off to the review
+  surface: `startCardsSession(cardIds, filterSummary)` stores
+  `{cardIds, filterSummary}` under `notees.cards.session` and pushStates
+  to `/cards/review` (the framework-free popstate seam; Task 10 renders
+  the surface — a deep link with no stored session falls back to all due
+  cards). Law 9: the hub owns its URL (`/cards`, pushState/popstate through
+  the nav register) AND its tab title ("Cards - Notees"); any `/cards/*`
+  path lands on the cards hub (the calendar subroute precedent) so the
+  review route keeps the hub's law-9 parity. Docs:
+  `docs/features/cards.md` + a feature-status row. Verified: new
+  `cards-routing.test.ts` (3 tests — path/title law 9, the `/cards/review`
+  landing, the exported review path) + `cards-buckets.test.ts` (4 tests —
+  the partition, the sort registers, the effective cardDue read through a
+  real day-chain id, the session handoff), full gate green (typecheck +
+  test).
+  - **Files**: `apps/web/src/ui/app/Sidebar.tsx` (NavKey + NAV_ENTRIES),
+    `apps/web/src/ui/app/routing.ts` (NAV_PATHS, the /cards/* landing,
+    `pathForCardsReview`), `apps/web/src/ui/app/AppBody.tsx` (the cards
+    dispatch branch), `apps/web/src/ui/app/HubView.tsx` (the cards hub
+    case), `apps/web/src/ui/app/HubSurfaces.css` (the hub root + review
+    action), `apps/web/src/features/classview/CardBuckets.tsx` + `.css`
+    (new), `apps/web/src/features/cards/sessionState.ts` (new),
+    `apps/web/src/features/collection/CollectionHub.tsx` (the
+    `trailingAction` passthrough), `apps/web/test/cards-routing.test.ts` +
+    `cards-buckets.test.ts` (new).
+
 - **feat(web): `ensureCardFamily` self-heal for the card-family property
   schemas (memorization cards slice).** The six SRS schedule schemas
   (`CARD_FAMILY_SEED` / `CARD_PROPERTY_UUIDS`, the …0004- property block)

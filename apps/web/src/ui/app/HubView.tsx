@@ -7,12 +7,38 @@
 
 import { useEffect, useState } from "react";
 
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, rendersWithDocumentChrome } from "@notees/domain";
+import {
+  CARD_PROPERTY_UUIDS,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
+  rendersWithDocumentChrome,
+} from "@notees/domain";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import { parentlessBlockResolverOf } from "../renderStateLabel.js";
 import { CollectionHub } from "../../features/collection/CollectionHub.js";
 import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
 import { TaskBuckets } from "../../features/classview/TaskBuckets.js";
+import {
+  CardBuckets,
+  cardRowsOf,
+  partitionCardsIntoBuckets,
+} from "../../features/classview/CardBuckets.js";
+import { ensureCardFamily } from "../../features/classview/cardFamily.js";
+import { startCardsSession } from "../../features/cards/sessionState.js";
+import { getCardsAlgorithm, setCardsAlgorithm } from "../../features/settings/nodePrefs.js";
+import { DEFAULT_CARDS_ALGORITHM, type CardsAlgorithm } from "@/core/workspace-client/index.js";
+import { NodeCollectionToolbar } from "../../features/collection/NodeCollectionToolbar.js";
+import {
+  EMPTY_FILTER_QUERY,
+  filterQueryToGroup,
+  isFilterInactive,
+  quickTextOf,
+  type FilterQuery,
+} from "../../features/collection/filterQuery.js";
+import { useQueryRun } from "../queryRun.js";
+import { todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
+import { titleOf } from "../dateDisplay.js";
+import { Icon } from "../Icon.js";
 import { createNodesWithClasses } from "../../features/templates/createNodesWithClasses.js";
 import { ensureTemplateProperty, listClassTemplates } from "../../features/templates/templateFamily.js";
 import { TemplatePickerModal } from "../../features/templates/TemplatePickerModal.js";
@@ -20,8 +46,9 @@ import { instantiateTemplate } from "@/core/clone.js";
 import { ClassCreateModal } from "../../features/modals/ClassCreateModal.js";
 import { AssetUploadModal } from "../../features/modals/AssetUploadModal.js";
 import { Button } from "../../components/ui/kit/Button.js";
+import { SelectionButton } from "../../components/ui/kit/SelectionButton.js";
 import { NAV_ENTRIES, type NavKey } from "./Sidebar.js";
-import type { TableColumn, ViewMode } from "../../features/collection/index.js";
+import type { NodeCollectionItem, TableColumn, ViewMode } from "../../features/collection/index.js";
 import type { AnyClient } from "./clients.js";
 
 /** Task property columns, in display order (schemas may not exist yet —
@@ -46,6 +73,26 @@ function taskTableColumns(client: AnyClient): TableColumn[] {
     })),
     { id: "created", kind: "created", label: "Created", sortable: true },
   ];
+}
+
+/** The quick-text rank window (the section-data contract: the search's
+ *  tier order, rows past the limit drop — the global search's cap). */
+const CARDS_TEXT_RANK_LIMIT = 1000;
+
+/**
+ * The ranked quick-text step for the cards hub: the workspace search's
+ * priority-ordered ids become BOTH membership (ids outside the ranked set
+ * drop) AND order (exact title > block text > ordered terms > partials >
+ * fuzzy rescue), mirroring `rankRowsBySearch` in useSectionData.
+ */
+function rankIdsBySearch(client: AnyClient, text: string, ids: readonly string[]): string[] {
+  const rankOf = new Map<string, number>();
+  for (const [index, node] of client.search(text, CARDS_TEXT_RANK_LIMIT).entries()) {
+    rankOf.set(node.id, index);
+  }
+  return ids
+    .filter((id) => rankOf.has(id))
+    .sort((a, b) => rankOf.get(a)! - rankOf.get(b)!);
 }
 
 /** A select schema with options — usable as the cards-board grouping (single or multi). */
@@ -111,6 +158,41 @@ export function HubView({
   useEffect(() => {
     if (nav === "tasks") void ensureTaskFamily(client).catch(() => {});
   }, [client, nav]);
+  // The card family's six SRS schemas + bindings self-heal on Cards-hub
+  // entry (the tasks-hub pattern; idempotent no-op once present).
+  useEffect(() => {
+    if (nav === "cards") void ensureCardFamily(client).catch(() => {});
+  }, [client, nav]);
+
+  // --- Cards-hub transient state (hooks ride above the nav branches) ------
+  //
+  // The query-builder draft: the toolbar's FilterQuery is component state
+  // (transient by design — nothing persisted). The composed draft group
+  // runs through the query-run seam; the quick-text facet narrows through
+  // the ranked search (the section-data contract: text first, then group
+  // membership). Default (inactive draft) = all card members.
+  const [cardFilter, setCardFilter] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
+  const cardFilterActive = !isFilterInactive(cardFilter);
+  const cardGroup = cardFilterActive ? filterQueryToGroup(cardFilter) : null;
+  const cardFilterAst =
+    cardGroup !== null
+      ? { version: 1 as const, scope: { type: "entire_workspace" as const }, root: cardGroup }
+      : null;
+  const cardRun = useQueryRun(client, cardFilterAst, { enabled: cardGroup !== null });
+  // The scheduler pref (Task 7 seam) — the header toggle mirrors it
+  // optimistically; the boot read converges the initial label.
+  const [cardsAlgorithm, setCardsAlgorithmState] = useState<CardsAlgorithm>(
+    DEFAULT_CARDS_ALGORITHM,
+  );
+  useEffect(() => {
+    let cancelled = false;
+    void getCardsAlgorithm().then((algorithm) => {
+      if (!cancelled) setCardsAlgorithmState(algorithm);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const classes = client.listClasses();
   const assetClassId = classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
   // #14 — the Classes hub hosts the class-creation modal (blank + system
@@ -233,6 +315,157 @@ export function HubView({
             }}
           />
         )}
+      </div>
+    );
+  }
+
+  if (nav === "cards") {
+    // Any node classed card — pages AND blocks, table default. The hub
+    // owns the family ensure (above), the due/fresh/later buckets, the
+    // transient query-builder subset, and the Review actions that hand a
+    // session off to the /cards/review surface (Task 10).
+    const members = client.getClassMembers(SYSTEM_CLASS_UUIDS.card);
+    const memberIds = members.map((member) => member.id);
+    const memberIdSet = new Set(memberIds);
+    const text = quickTextOf(cardFilter);
+    // The subset: default (inactive draft) = all members. An active draft
+    // narrows the list — the run's ids ∩ members; the quick-text facet
+    // narrows through the ranked search FIRST (membership AND order, the
+    // section-data contract), the group applies after.
+    let filteredIds = memberIds;
+    if (cardGroup !== null) {
+      const runIds =
+        cardRun.result !== null && cardRun.result.kind === "query"
+          ? cardRun.result.ids.filter((id) => memberIdSet.has(id))
+          : [];
+      filteredIds =
+        text !== ""
+          ? rankIdsBySearch(client, text, runIds)
+          : runIds;
+    } else if (text !== "") {
+      filteredIds = rankIdsBySearch(client, text, memberIds);
+    }
+    const cardItems: NodeCollectionItem[] = [];
+    for (const id of filteredIds) {
+      const node = client.getNode(id);
+      if (node !== undefined) cardItems.push({ node });
+    }
+    const cardBuckets = partitionCardsIntoBuckets(
+      cardRowsOf(client, CARD_PROPERTY_UUIDS.cardDue, filteredIds),
+      todayIsoLocal(),
+    );
+    // The session payload names the subset for the review surface's header.
+    const cardFilterSummary = !cardFilterActive
+      ? "All cards"
+      : `Filtered (${[text !== "" ? `text "${text}"` : null, cardGroup !== null ? "structured filter" : null]
+          .filter((part) => part !== null)
+          .join(" + ")})`;
+    const newCardAction = (
+      <Button
+        size="sm"
+        variant="ghost"
+        icon="mdi-plus"
+        aria-label="New card"
+        onClick={() => {
+          void (async () => {
+            const id = await client.createObject({
+              isEmbedded: false,
+              classIds: [SYSTEM_CLASS_UUIDS.card],
+            });
+            onOpenNode(id);
+          })().catch(() => {});
+        }}
+      >
+        New
+      </Button>
+    );
+    const reviewNowAction = (
+      <Button
+        size="sm"
+        variant="ghost"
+        icon="mdi-play"
+        aria-label="Review now"
+        disabled={filteredIds.length === 0}
+        onClick={() => startCardsSession(filteredIds, cardFilterSummary)}
+      >
+        Review
+      </Button>
+    );
+    const algorithmAction = (
+      <SelectionButton
+        options={[
+          { value: "fsrs", icon: "mdi-cards-playing", label: "FSRS (default)" },
+          { value: "sm2", icon: "mdi-cards-playing-outline", label: "SM-2" },
+        ]}
+        value={cardsAlgorithm}
+        onChange={(value) => {
+          setCardsAlgorithm(value as CardsAlgorithm);
+          setCardsAlgorithmState(value as CardsAlgorithm);
+        }}
+        size="sm"
+        aria-label="Scheduling algorithm"
+      />
+    );
+    // The per-row Review action: a single-card session over the row's node.
+    const cardReviewAction = (item: NodeCollectionItem) => (
+      <button
+        type="button"
+        className="nt-hub-cards__review"
+        aria-label={`Review ${titleOf(client, item.node.id, { read: "fallback", empty: "untitled" }) ?? "untitled"}`}
+        title="Review this card"
+        onClick={(event) => {
+          event.stopPropagation();
+          startCardsSession([item.node.id], "Single card");
+        }}
+      >
+        <Icon path="mdi-play" size={0.7} />
+      </button>
+    );
+    return (
+      <div className="nt-hub-cards">
+        {/* ONE bar for the whole hub (the tasks precedent): the filter bar +
+            bucket strip prepend the collection inside the shared scrolling
+            body; the header carries the scheduler toggle + the Review/New
+            actions. */}
+        <CollectionHub
+          client={client}
+          icon={entry?.icon ?? "mdi-cards-playing-outline"}
+          title={entry?.label ?? "Cards"}
+          items={cardItems}
+          modes={["table", "cards", "outline"]}
+          defaultMode="table"
+          persistKey="hub.cards"
+          defaultSort={{ key: "edited", direction: "desc" }}
+          tableEditable
+          editable
+          emptyTitle="No cards yet"
+          prepend={
+            <div className="nt-hub-cards__filters">
+              <NodeCollectionToolbar
+                client={client}
+                layout="inline"
+                value={cardFilter}
+                onChange={setCardFilter}
+                matchCount={cardItems.length}
+                totalCount={members.length}
+              />
+              <CardBuckets
+                buckets={cardBuckets}
+                onReview={(ids) => startCardsSession(ids, cardFilterSummary)}
+              />
+            </div>
+          }
+          headerActions={
+            <>
+              {algorithmAction}
+              {reviewNowAction}
+              {newCardAction}
+            </>
+          }
+          trailingAction={cardReviewAction}
+          onOpenNode={onOpenNode}
+          onOpenInSidebar={onOpenInSidebar}
+        />
       </div>
     );
   }
