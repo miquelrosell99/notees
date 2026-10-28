@@ -9,6 +9,13 @@ predating this file.
 
 ## 2026-10-28
 
+- **fix(web): the tab indicator measures the text run only where Range rects
+  exist.** The active-tab underline's text-run measurement called
+  `Range.getBoundingClientRect()` unguarded; jsdom implements no Range
+  rects, so every suite rendering the kit Tabs crashed (~35 files). The
+  measurement now guards the API and keeps the label-rect fallback
+  otherwise — no browser-path change.
+
 - **feat(web): the calendar view mode — the collection's items on a month
   grid, with an agenda strip.** A new registered collection view
   (`calendar`, label "Calendar", icon `mdi-calendar-month`, **secondary
