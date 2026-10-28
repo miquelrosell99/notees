@@ -9,6 +9,27 @@ predating this file.
 
 ## 2026-10-28
 
+- **fix(web): the block row's "+N" classes popup becomes the full pill
+  surface.** Three owner reports from the overflow popup (2026-10-28). (1)
+  Its rows were bare icon+name lines with a permanent drag-handle grip and an
+  always-visible ×; they now render the SAME pill element the inline cluster
+  uses — effective color, left icon, click to open, right-click menu, ×
+  revealed on hover under the standard `pill--hover-reveal-right` contract.
+  (2) The list covered only the pills the derived view showed, so the first
+  pill (visible inline) and any class whose pill hides because a class_link
+  token in the content already marks it were absent; the popup now lists
+  every assigned class in order — the full management surface, hidden pills
+  included (the inline cluster's derived view is untouched). (3) The grip
+  handle is gone: the pill itself is the drag source (the SortablePill
+  pattern the inline cluster already rides).
+  - **Files**: `apps/web/src/features/metadata/NodePills.tsx` (PopupRow
+    retired — the popup reuses SortablePill/PillShell over the full
+    `classIds`; module doc rewritten), `…/NodePills.css` (the row/grip/icon/
+    name rules retired; the list becomes a pill stack), `apps/web/test/
+    node-pills-popup.test.tsx` (new — full-list pill contract, hover-reveal
+    ×, no grip, the inline-marked class present), `docs/features/classes.md`
+    (the popup's full-list exception to the never-two-references ruling).
+
 - **fix(web): the Color › submenu rides the kit picker's five-column grid.**
   The context-menu color flyout laid its swatches out as a wrapping flex
   row — eleven cells raggedly broke at the flyout's edge. The bare
