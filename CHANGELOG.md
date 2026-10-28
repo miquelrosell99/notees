@@ -9,6 +9,16 @@ predating this file.
 
 ## 2026-10-28
 
+- **fix(web): the active-tab underline centers on the TEXT, not the text +
+  badge.** The kit Tabs' sliding indicator measured the padded tab button —
+  a trailing count badge (the collection tabs' active-tab count) pulled the
+  centering right. The measurement now targets the `.tabs__tab-label`
+  wrapper (the text) when the tab carries one, falling back to the button.
+  Verified: web typecheck + the section-views / query-node / filter-layer /
+  filter-builder specs (87 tests).
+  - **Files**: `apps/web/src/components/ui/kit/Tabs.tsx` (the indicator
+    measurement).
+
 - **fix(web): the NodeCollectionTopBar right cluster unifies, the page
   footer retires, and the backlink card's top padding tightens — owner
   round on the broken tabs/toolbar layout (2026-10-28).** (1) The topbar's

@@ -103,14 +103,17 @@ function TabsList({ children, variant = 'ghost', className = '', ...props }: Tab
     const list = listRef.current;
     if (!list) return;
 
+    const listRect = list.getBoundingClientRect();
     const activeTab = list.querySelector('.tabs__tab[data-state="active"]') as HTMLElement | null;
     if (!activeTab) {
       setIndicatorStyle({});
       return;
     }
-
-    const listRect = list.getBoundingClientRect();
-    const tabRect = activeTab.getBoundingClientRect();
+    // The indicator names the TEXT: measure the label wrapper when the tab
+    // carries one (a trailing count badge must not pull the centering), the
+    // padded tab itself otherwise.
+    const target = (activeTab.querySelector('.tabs__tab-label') as HTMLElement | null) ?? activeTab;
+    const tabRect = target.getBoundingClientRect();
     const indicatorWidth = Math.min(Math.max(16, tabRect.width * 0.55), 36);
     const offsetLeft = tabRect.left - listRect.left + (tabRect.width - indicatorWidth) / 2;
 
