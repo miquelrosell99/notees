@@ -206,6 +206,10 @@ export function HubView({
           modes={modes}
           defaultMode="table"
           persistKey="hub.tasks"
+          // A subtask (a task-classed child of a task) nests under its parent
+          // in the outline and rides parent-before-child in unset table
+          // order; the buckets/kanban surface is flat by design.
+          nestUnderParents
           tableColumns={taskTableColumns(client)}
           defaultSort={{ key: "edited", direction: "desc" }}
           tableEditable
