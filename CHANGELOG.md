@@ -9,6 +9,26 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(domain): SM-2 and FSRS-5 spaced-repetition scheduler
+  (`nextCardState`, memorization cards slice).** The pure v1 scheduler
+  behind `card.review`: one `CardSrsState` (due YYYY-MM-DD or null,
+  reps, interval days, ease/difficulty/stability) serves both algorithms;
+  SM-2 runs the Anki ease recurrence (first intervals 1/6, lapse resets
+  with the 1.3 ease floor) and FSRS-5 runs the default-parameter
+  recurrence (first review initializes stability + difficulty from the
+  weight vector with a same-day re-view; later reviews update difficulty
+  first and consume the post-update D' in the stability formula). The
+  algorithm-switch contract: the active algorithm's fields move while
+  the other's stay byte-for-byte stale (an sm2-reviewed card graded
+  under fsrs initializes its fsrs fields, keeps its ease, and
+  symmetrically). All day arithmetic is UTC math, so DST never leaks
+  into due dates. `isCardDue`: unseen, due today, or overdue. Verified:
+  new `srs.test.ts` (5 tests, verbatim review-focus pins), full gate
+  green (build + typecheck + test).
+  - **Files**: `packages/domain/src/srs.ts` (new),
+    `packages/domain/src/index.ts` (module export),
+    `packages/domain/test/srs.test.ts` (new).
+
 - **feat(store): `card.review` applier + the `card_review` derived history
   table (memorization cards slice).** The temporary no-op dispatch seam
   becomes the real applier: `applyCardReview` validates membership-only,
