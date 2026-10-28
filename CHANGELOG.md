@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): the block backlink card sheds its noise — count-only gutter
+  badge, filled surface, no in-card hairline, and a toggle-less section
+  header.** Owner review of the just-shipped block-backlinks card (2026-10-28,
+  the sibling entry below). (1) The right-gutter toggle drops its chain icon
+  — one number, not two elements of chrome. (2) The card rides the fleet
+  Card's `filled` variant (`surface-variant`) so the container reads against
+  the page background. (3) The section's top hairline and header clearance
+  retire inside the card (the card boundary and padding own both —
+  BlockRowDnD.css). (4) `NodeViewSection` gains a `hideToggle` prop (plumbed
+  through `ReferenceSection`/`BacklinksSection`): the header renders as inert
+  chrome — no chevron, not a button, the empty toggle slot keeps the title
+  and content aligned — and the block card sets it, since collapsing a
+  surface the user can hide entirely makes no sense. Verified: web typecheck
+  + the block-backlinks spec (the in-panel header now asserts the toggle is
+  gone; the header-toggle cache contract stays spec'd at page level in
+  system-sections), verb-backlinks.
+  - **Files**: `apps/web/src/ui/BlockBacklinks.tsx` (icon retired, filled
+    card, `hideToggle`), `apps/web/src/ui/BlockRowDnD.css` (the in-card
+    hairline/clearance override), `apps/web/src/features/page-sections/NodeViewSection.{tsx,css}`
+    (the `hideToggle` prop + static header), `apps/web/src/features/page-sections/SystemSections.tsx`
+    (the prop plumbed), `apps/web/test/block-backlinks.test.tsx` (the toggle
+    assertion), `packages/protocol/SCHEMA.md` + `docs/features/links.md` +
+    `docs/feature-status.md` (the ruling).
+
 - **feat(web,protocol): the twelfth preset — mono, the theme-adaptive
   black/white — and a 4×3 color grid everywhere.** The Color › context-menu
   flyout gained the palette's eleventh preset plus a 4-column grid: 12 cells
