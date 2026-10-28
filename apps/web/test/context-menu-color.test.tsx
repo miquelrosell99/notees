@@ -79,6 +79,21 @@ describe("Color › context-menu control", () => {
     unmount();
   });
 
+  it("the flyout rides the kit picker's five-column grid (no ragged wrap)", () => {
+    const readFile = (
+      process as unknown as {
+        getBuiltinModule(name: "node:fs"): {
+          readFileSync(path: string, encoding: "utf8"): string;
+        };
+      }
+    ).getBuiltinModule("node:fs").readFileSync;
+    const css = readFile(`${process.cwd()}/src/features/pickers/ColorPickerRow.css`, "utf8");
+    const bare = /\.context-menu-color-row--bare \.context-menu-color-swatches \{[^}]*\}/.exec(css);
+    expect(bare).not.toBeNull();
+    expect(bare![0]).toContain("display: grid");
+    expect(bare![0]).toContain("repeat(5, 1fr)");
+  });
+
   it("marks the current color's swatch as selected", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });

@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-28
 
+- **fix(web): the Color › submenu rides the kit picker's five-column grid.**
+  The context-menu color flyout laid its swatches out as a wrapping flex
+  row — eleven cells raggedly broke at the flyout's edge. The bare
+  (`--bare`) hosting now rides the same register as the kit ColorButton's
+  picker grid (`color-btn-picker__grid`): five columns, the ten presets in
+  two tidy rows with the no-color strike first — one layout idiom for the
+  same palette across the icon picker, the ColorButton picker, and the
+  context menu.
+  - **Files**: `apps/web/src/features/pickers/ColorPickerRow.css` (the bare
+    grid rule), `apps/web/test/context-menu-color.test.tsx` (the grid
+    contract spec).
+
 - **refactor(web): the app.css grab-bag dissolves into co-located CSS, one
   file per surface.** `ui/app.css` (3,812 lines — the pre-fleet catch-all)
   shrinks to its genuine remnant: the fonts/variables imports, the tailwind
