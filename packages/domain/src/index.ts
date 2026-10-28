@@ -3,6 +3,7 @@ export * from "./node.js";
 export * from "./excerpt.js";
 export * from "./features.js";
 export * from "./dates.js";
+export * from "./srs.js";
 export * from "./recurrence.js";
 export * from "./icons.js";
 export * from "./markdownLinks.js";
