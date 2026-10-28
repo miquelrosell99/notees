@@ -181,4 +181,13 @@ describe("chip label underline scoping (ui/NodeLinks.css)", () => {
     // The hyperlink keeps its color — only the line goes.
     expect(scoped![0]).not.toContain("color:");
   });
+
+  it("the chip's own underline rides text-decoration — it paints on EVERY wrapped line (border-bottom painted a single line on the button's fragmented inline box; verified in-browser 2026-10-28)", () => {
+    const rule = /\.nt-link \{[^}]*\}/.exec(css);
+    expect(rule).not.toBeNull();
+    expect(rule![0]).toContain(
+      "text-decoration: underline dashed var(--md-sys-color-on-surface-variant)",
+    );
+    expect(rule![0]).not.toContain("border-bottom:");
+  });
 });
