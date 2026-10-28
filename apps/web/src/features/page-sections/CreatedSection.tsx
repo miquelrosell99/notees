@@ -31,7 +31,7 @@ import "./CreatedSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
-const CREATED_VIEW_MODES: ViewMode[] = ["cards", "outline", "pivot", "graph"];
+const CREATED_VIEW_MODES: ViewMode[] = ["cards", "outline", "pivot", "graph", "gantt"];
 
 export function CreatedSection({
   client,
