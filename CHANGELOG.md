@@ -2381,6 +2381,40 @@ predating this file.
   - **Files**: `apps/web/src/components/ui/fleet/Button.css` (the four
     per-size floor rules + the ruling comment), `apps/web/test/button-square.test.ts`
     (new — the CSS spec pins each size's floor to its height token).
+- **docs: the research-workflow convention layer ships — a taught pipeline over
+  the shipped machinery, zero code.** A method doc (inquiry → sources with
+  rationales → located notes → comparison → synthesis → open questions →
+  writing plan → review) adapted from Atelier's taught research method, written
+  as convention over existing features per the design law: defaults and
+  checks as doc paragraphs, never enforcement. With it, the starter-vocabulary
+  precedent is repaired and generalized — philosophy.md's "listed in the
+  model doc" promise now has the list.
+  - **The model doc gains a NORMATIVE "Starter vocabulary" section**
+    (`packages/protocol/SCHEMA.md`): the epistemic typed-link verbs
+    (supports/contradicts/refines + adds-tension/challenges/gives-example) and
+    the research starters (source-family rationale properties
+    whyItBelongs/readingPurpose/whatItContributed, the `engagement` select,
+    the `synthesis`/`open-question`/`comparison`/`writing-plan`/`concept`
+    classes) — documented convention, user-created, absent from seeds and
+    pickers by decree. Statuses are explicitly descriptive, never rankings
+    or progressions; moves/statuses/epistemic state stay orthogonal labels
+    that never gate links or queries.
+  - **The feature doc** (`docs/features/research-workflow.md`): the pipeline,
+    the five checks (consequential difference, blank ≠ gap, single-source
+    removal, real locators, evidence vs. background), a purpose→format export
+    decision table (readable dossier vs. restorable archive vs. reviewable
+    comparison), build-it-once template recipes (writing plan, comparison),
+    the AI stance (opt-in, bounded, previewed, disclosed — the op log's
+    actor+HLC provenance is the disclosure substrate; the capability waits
+    for the plugin runtime), and the explicit non-adoptions (no seeded
+    profiles, no progression enforcement, no activity tracking, no mandated
+    workflow). Honest about the designed-not-built seam: locator capture is
+    manual paste until the `cites` verb / PDF reader land.
+  - **Also**: the docs index gains a "Methods" group separating the research
+    workflow from the server-automation Workflows page (`docs/README.md`);
+    the typed-link page names the starter verb list (`docs/features/links.md`).
+  - **Verification**: docs-only slice — `pnpm typecheck` + `pnpm test` green
+    (no wire, no fixtures, zero protocol surface touched).
 
 - **fix(web): the block row's "+N" classes popup becomes the full pill
   surface.** Three owner reports from the overflow popup (2026-10-28). (1)
