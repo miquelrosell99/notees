@@ -12,7 +12,9 @@ import { fetchAssetBlob, postAssetUpload } from "./asset-transport.js";
 import {
   normalizeUserPrefs,
   readDevicePrefList,
+  readDevicePrefScalar,
   writeDevicePrefList,
+  writeDevicePrefScalar,
   type PrefsPatch,
   type UserPrefs,
   type UserPrefsSource,
@@ -58,6 +60,7 @@ export class WorkspaceClientServer {
           const prefs = normalizeUserPrefs(await response.json());
           writeDevicePrefList("favorites", prefs.favorites);
           writeDevicePrefList("recents", prefs.recents);
+          writeDevicePrefScalar("cardsAlgorithm", prefs.cardsAlgorithm);
           return { ...prefs, source: "server" };
         }
       } catch {
@@ -67,12 +70,14 @@ export class WorkspaceClientServer {
     return {
       favorites: readDevicePrefList("favorites"),
       recents: readDevicePrefList("recents"),
+      cardsAlgorithm: readDevicePrefScalar("cardsAlgorithm"),
       source: "local",
     };
   }
 
   /**
-   * PUT /api/me/prefs (merge patch; each present list replaces wholesale).
+   * PUT /api/me/prefs (merge patch; each present list replaces wholesale, a
+   * present cardsAlgorithm replaces the scalar).
    * The local cache updates first — optimistic and honest offline: when the
    * server cannot be reached the write persists device-locally and the next
    * successful call syncs it. Resolves `source: "server" | "local"`.
@@ -81,9 +86,13 @@ export class WorkspaceClientServer {
     const merged: UserPrefs = {
       favorites: patch.favorites ?? readDevicePrefList("favorites"),
       recents: patch.recents ?? readDevicePrefList("recents"),
+      cardsAlgorithm: patch.cardsAlgorithm ?? readDevicePrefScalar("cardsAlgorithm"),
     };
     if (patch.favorites !== undefined) writeDevicePrefList("favorites", patch.favorites);
     if (patch.recents !== undefined) writeDevicePrefList("recents", patch.recents);
+    if (patch.cardsAlgorithm !== undefined) {
+      writeDevicePrefScalar("cardsAlgorithm", patch.cardsAlgorithm);
+    }
     if (this.ctx.restServerUrl !== null && this.ctx.restApiKey !== null) {
       try {
         const response = await fetch(`${this.ctx.restServerUrl.replace(/\/$/, "")}/api/me/prefs`, {
@@ -95,6 +104,7 @@ export class WorkspaceClientServer {
           const prefs = normalizeUserPrefs(await response.json());
           writeDevicePrefList("favorites", prefs.favorites);
           writeDevicePrefList("recents", prefs.recents);
+          writeDevicePrefScalar("cardsAlgorithm", prefs.cardsAlgorithm);
           return { ...prefs, source: "server" };
         }
       } catch {

@@ -219,11 +219,14 @@ CREATE INDEX IF NOT EXISTS idx_api_key_user ON api_key (user_id);
 -- state, NOT op-log state — the design law "device state is never an op"
 -- stands, so they live beside the account, scoped to the user row. One small
 -- JSON column per list, order-preserving; the server validates uuid shapes
--- and caps (routes-prefs.ts).
+-- and caps (routes-prefs.ts). cards_algorithm is the spaced-repetition
+-- scheduler choice for the memorization-cards surface ("sm2" | "fsrs",
+-- default "fsrs").
 CREATE TABLE IF NOT EXISTS user_prefs (
     user_id TEXT PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
     favorites TEXT NOT NULL DEFAULT '[]',
     recents TEXT NOT NULL DEFAULT '[]',
+    cards_algorithm TEXT NOT NULL DEFAULT 'fsrs',
     updated_at INTEGER NOT NULL
 );
 
@@ -429,6 +432,12 @@ export class AuthStorage {
     );
     if (!keyColumns.has("scopes")) {
       this.db.exec("ALTER TABLE api_key ADD COLUMN scopes TEXT");
+    }
+    const prefColumns = new Set(
+      (this.db.pragma("table_info(user_prefs)") as { name: string }[]).map((c) => c.name),
+    );
+    if (!prefColumns.has("cards_algorithm")) {
+      this.db.exec("ALTER TABLE user_prefs ADD COLUMN cards_algorithm TEXT NOT NULL DEFAULT 'fsrs'");
     }
     // One-time migration from the retired per-user section_view table: copy rows into node_view dropping user_id and
     // view_mode, keeping the earliest row on a (node, section, name)
@@ -808,14 +817,24 @@ export class AuthStorage {
   // --- per-user UI prefs (favorites/recents — server-side UI state) ---
 
   /** The account's prefs row, or the empty default when never written. */
-  getUserPrefs(userId: string): { favorites: string[]; recents: string[]; updatedAt: number } {
+  getUserPrefs(userId: string): {
+    favorites: string[];
+    recents: string[];
+    cardsAlgorithm: "sm2" | "fsrs";
+    updatedAt: number;
+  } {
     const row = this.db
-      .prepare("SELECT favorites, recents, updated_at FROM user_prefs WHERE user_id = ?")
-      .get(userId) as { favorites: string; recents: string; updated_at: number } | undefined;
-    if (row === undefined) return { favorites: [], recents: [], updatedAt: 0 };
+      .prepare("SELECT favorites, recents, cards_algorithm, updated_at FROM user_prefs WHERE user_id = ?")
+      .get(userId) as
+      | { favorites: string; recents: string; cards_algorithm: string; updated_at: number }
+      | undefined;
+    if (row === undefined) {
+      return { favorites: [], recents: [], cardsAlgorithm: "fsrs", updatedAt: 0 };
+    }
     return {
       favorites: parseIdList(row.favorites),
       recents: parseIdList(row.recents),
+      cardsAlgorithm: row.cards_algorithm === "sm2" ? "sm2" : "fsrs",
       updatedAt: row.updated_at,
     };
   }
@@ -823,27 +842,34 @@ export class AuthStorage {
   /**
    * Merge-patch the account's prefs: a provided list REPLACES its column
    * wholesale (the client is the ordering authority; last write wins per
-   * list). Upserts the row; validation/caps happen in routes-prefs.ts.
+   * list); a provided cardsAlgorithm replaces the scalar. Upserts the row;
+   * validation/caps happen in routes-prefs.ts.
    */
   updateUserPrefs(
     userId: string,
-    patch: { favorites?: string[] | undefined; recents?: string[] | undefined },
-  ): { favorites: string[]; recents: string[]; updatedAt: number } {
+    patch: {
+      favorites?: string[] | undefined;
+      recents?: string[] | undefined;
+      cardsAlgorithm?: "sm2" | "fsrs" | undefined;
+    },
+  ): { favorites: string[]; recents: string[]; cardsAlgorithm: "sm2" | "fsrs"; updatedAt: number } {
     const current = this.getUserPrefs(userId);
     const favorites = patch.favorites ?? current.favorites;
     const recents = patch.recents ?? current.recents;
+    const cardsAlgorithm = patch.cardsAlgorithm ?? current.cardsAlgorithm;
     const updatedAt = Date.now();
     this.db
       .prepare(
-        `INSERT INTO user_prefs (user_id, favorites, recents, updated_at)
-         VALUES (?, ?, ?, ?)
+        `INSERT INTO user_prefs (user_id, favorites, recents, cards_algorithm, updated_at)
+         VALUES (?, ?, ?, ?, ?)
          ON CONFLICT (user_id) DO UPDATE SET
            favorites = excluded.favorites,
            recents = excluded.recents,
+           cards_algorithm = excluded.cards_algorithm,
            updated_at = excluded.updated_at`,
       )
-      .run(userId, JSON.stringify(favorites), JSON.stringify(recents), updatedAt);
-    return { favorites, recents, updatedAt };
+      .run(userId, JSON.stringify(favorites), JSON.stringify(recents), cardsAlgorithm, updatedAt);
+    return { favorites, recents, cardsAlgorithm, updatedAt };
   }
 
   // --- node-scoped hosted views (custom tabs — the prefs channel) --------------

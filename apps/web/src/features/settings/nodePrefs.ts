@@ -1,7 +1,8 @@
 /**
- * nodePrefs — the cross-device favorites/recents store.
+ * nodePrefs — the cross-device favorites/recents store (+ the cards
+ * scheduler pref).
  *
- * favorites/recents are UI preferences,
+ * favorites/recents and the cardsAlgorithm choice are UI preferences,
  * so the server-side per-user prefs store is the authority
  * (`GET/PUT /api/me/prefs`) — the operation log stays untouched ("device
  * state is never an op" stands). This module is the main-thread bridge:
@@ -27,10 +28,14 @@
 import { useEffect, useState } from "react";
 
 import {
+  DEFAULT_CARDS_ALGORITHM,
   MAX_SYNCED_RECENTS,
   mergeFavoriteToggle,
   readDevicePrefList,
+  readDevicePrefScalar,
   writeDevicePrefList,
+  writeDevicePrefScalar,
+  type CardsAlgorithm,
   type PrefsPatch,
   type UserPrefs,
 } from "@/core/workspace-client/index.js";
@@ -44,13 +49,19 @@ export interface PrefsClient {
 export interface NodePrefsState {
   favorites: string[];
   recents: string[];
+  /** The memorization-cards scheduler ("sm2" | "fsrs", default "fsrs"). */
+  cardsAlgorithm: CardsAlgorithm;
   /** False until the first getPrefs resolved (server or local fallback). */
   loaded: boolean;
 }
 
 /** React subscribers + the shared copy. */
 const listeners = new Set<() => void>();
-let cached: NodePrefsState = { ...deviceLists(), loaded: false };
+let cached: NodePrefsState = {
+  ...deviceLists(),
+  cardsAlgorithm: readDevicePrefScalar("cardsAlgorithm"),
+  loaded: false,
+};
 let loadedFor: PrefsClient | null = null;
 let loadInflight: Promise<void> | null = null;
 
@@ -69,7 +80,11 @@ function notify(): void {
   for (const listener of listeners) listener();
 }
 
-function applyLocal(patch: { favorites?: string[]; recents?: string[] }): void {
+function applyLocal(patch: {
+  favorites?: string[];
+  recents?: string[];
+  cardsAlgorithm?: CardsAlgorithm;
+}): void {
   if (patch.favorites !== undefined) {
     writeDevicePrefList("favorites", patch.favorites);
     window.dispatchEvent(new Event("notees:favorites"));
@@ -78,9 +93,14 @@ function applyLocal(patch: { favorites?: string[]; recents?: string[] }): void {
     writeDevicePrefList("recents", patch.recents);
     window.dispatchEvent(new Event("notees:recents"));
   }
+  if (patch.cardsAlgorithm !== undefined) {
+    writeDevicePrefScalar("cardsAlgorithm", patch.cardsAlgorithm);
+    window.dispatchEvent(new Event("notees:prefs"));
+  }
   cached = {
     favorites: patch.favorites ?? cached.favorites,
     recents: patch.recents ?? cached.recents,
+    cardsAlgorithm: patch.cardsAlgorithm ?? cached.cardsAlgorithm,
     loaded: true,
   };
   notify();
@@ -94,7 +114,7 @@ function schedulePush(): void {
     return;
   }
   pushRunning = true;
-  const snapshot = deviceLists();
+  const snapshot = { ...deviceLists(), cardsAlgorithm: cached.cardsAlgorithm };
   activeClient
     .patchPrefs(snapshot)
     .catch((error: unknown) => {
@@ -132,7 +152,10 @@ export function ensureNodePrefsLoaded(client: PrefsClient): void {
   // `cached` now; writes during the flight arrive via the legacy broadcast
   // listener (also synchronous). The client's own getPrefs write-through can
   // clobber localStorage mid-flight — the in-memory copy is merge authority.
-  cached = { ...deviceLists(), loaded: cached.loaded };
+  cached = { ...deviceLists(), cardsAlgorithm: cached.cardsAlgorithm, loaded: cached.loaded };
+  // The scalar is captured like the lists: a setCardsAlgorithm during the
+  // flight wins over the server copy that lands after it.
+  const bootAlgorithm = cached.cardsAlgorithm;
   // A client without the prefs seam (hand-rolled test doubles): the device
   // lists are the honest answer, never a shell crash.
   if (typeof client.getPrefs !== "function") {
@@ -157,21 +180,26 @@ export function ensureNodePrefsLoaded(client: PrefsClient): void {
       const mergedUpstream =
         JSON.stringify(merged.favorites) !== JSON.stringify(prefs.favorites) ||
         JSON.stringify(merged.recents) !== JSON.stringify(prefs.recents);
+      const algorithmChanged = cached.cardsAlgorithm !== bootAlgorithm;
       applyingRemote = true;
       try {
         // Server won (plus the merge): write through to the device keys +
         // legacy broadcasts (the guard keeps our own listener from pushing
-        // it straight back).
-        applyLocal(merged);
+        // it straight back). The scalar rides along — server wins on load,
+        // unless a local set won the race, in which case it is pushed back.
+        applyLocal({
+          ...merged,
+          cardsAlgorithm: algorithmChanged ? cached.cardsAlgorithm : prefs.cardsAlgorithm,
+        });
       } finally {
         applyingRemote = false;
       }
-      if (mergedUpstream) schedulePush();
+      if (mergedUpstream || algorithmChanged) schedulePush();
     })
     .catch((error: unknown) => {
       // Even the local fallback failed to resolve — stay device-local.
       console.warn("[prefs] initial load failed; device-local lists stand:", error);
-      cached = { ...deviceLists(), loaded: true };
+      cached = { ...deviceLists(), cardsAlgorithm: cached.cardsAlgorithm, loaded: true };
       notify();
     })
     .finally(() => {
@@ -212,9 +240,39 @@ export function removeSyncedRecent(client: PrefsClient | null, id: string): void
   }
 }
 
+/**
+ * The memorization-cards scheduler for this user ("sm2" | "fsrs"). The shared
+ * copy is seeded from the device-local key at module load and converged with
+ * the server copy at boot — this never blocks on a fetch.
+ */
+export function getCardsAlgorithm(): Promise<CardsAlgorithm> {
+  return Promise.resolve(cached.cardsAlgorithm);
+}
+
+/**
+ * Set the scheduler choice, server-synced. Optimistic: the device-local key
+ * (`notees.prefs.cardsAlgorithm`) and the shared copy update first, then the
+ * patch rides to the server when the boot-time client is online (offline:
+ * the write persists device-locally and the next successful call syncs it).
+ * Broadcasts `notees:prefs` so any surface holding the value re-reads.
+ */
+export function setCardsAlgorithm(algorithm: CardsAlgorithm): void {
+  applyLocal({ cardsAlgorithm: algorithm });
+  if (activeClient !== null && typeof activeClient.patchPrefs === "function") {
+    activeClient.patchPrefs({ cardsAlgorithm: algorithm }).catch((error: unknown) => {
+      console.warn("[prefs] cardsAlgorithm sync failed; kept device-local:", error);
+    });
+  }
+}
+
 /** Test seam: reset the module store (clears caches + the loaded-client key). */
 export function resetNodePrefsForTests(): void {
-  cached = { favorites: [], recents: [], loaded: false };
+  cached = {
+    favorites: [],
+    recents: [],
+    cardsAlgorithm: DEFAULT_CARDS_ALGORITHM,
+    loaded: false,
+  };
   loadedFor = null;
   activeClient = null;
   loadInflight = null;
@@ -231,7 +289,7 @@ export function useNodePrefs(client: PrefsClient | null): NodePrefsState {
     const onLegacy = () => {
       if (applyingRemote) return;
       const device = deviceLists();
-      cached = { ...device, loaded: true };
+      cached = { ...device, cardsAlgorithm: cached.cardsAlgorithm, loaded: true };
       notify();
       schedulePush();
     };

@@ -9,6 +9,40 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(server,web): `cards.algorithm` per-user preference (default fsrs)
+  (memorization cards slice).** The memorization-cards scheduler choice
+  rides the existing per-user prefs channel — coordination state beside the
+  account in `user_prefs`, never an op ("device state is never an op"
+  stands). Server: `user_prefs` gains `cards_algorithm TEXT NOT NULL
+  DEFAULT 'fsrs'` (fresh DDL + the additive constructor migration for
+  pre-existing relay.db files); `GET /api/me/prefs` returns it (`fsrs` when
+  never set), `PUT /api/me/prefs` merge-patches it under the same strict
+  zod schema — `cardsAlgorithm: "sm2" | "fsrs"`, unknown values 422
+  `validation_failed`, one key still required minimum, same session /
+  per-user-API-key auth and per-user scoping as favorites/recents. Web:
+  `UserPrefs`/`PrefsPatch` carry the scalar; the device-local cache key is
+  `notees.prefs.cardsAlgorithm` with the same honest-offline write-through;
+  the nodePrefs module exposes the seam the cards surface consumes —
+  `getCardsAlgorithm()` (defaults to `"fsrs"`, never blocks on a fetch) and
+  `setCardsAlgorithm(a)` (optimistic local write, `notees:prefs` broadcast,
+  server push when the boot-time client is online; a local set during the
+  boot flight wins over the server copy that lands after it, mirroring the
+  lists' device-truth capture). Verified: server prefs test extended (12
+  tests: round-trip, default, bogus-value 422, per-user scoping,
+  survives-other-patches), web prefs tests extended (21 tests incl. the new
+  seam: device key, broadcast, server push, offline keep-and-warn), full
+  gate green (build + typecheck + test).
+  - **Files**: `apps/server/src/auth.ts` (DDL + additive migration +
+    `getUserPrefs`/`updateUserPrefs`), `apps/server/src/routes-prefs.ts`
+    (zod schema + doc), `apps/server/test/prefs.test.ts` (extended),
+    `apps/web/src/core/workspace-client/prefs.ts` (types, scalar
+    device-key helpers, `normalizeUserPrefs`), `apps/web/src/core/
+    workspace-client/index.ts` (barrel), `apps/web/src/core/
+    workspace-client/client-server.ts` (getPrefs/patchPrefs pass-through),
+    `apps/web/src/features/settings/nodePrefs.ts` (the
+    `getCardsAlgorithm`/`setCardsAlgorithm` seam), `apps/web/test/
+    node-prefs.test.tsx` (extended).
+
 - **feat(domain): SM-2 and FSRS-5 spaced-repetition scheduler
   (`nextCardState`, memorization cards slice).** The pure v1 scheduler
   behind `card.review`: one `CardSrsState` (due YYYY-MM-DD or null,

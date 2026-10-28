@@ -54,7 +54,24 @@ describe("GET /api/me/prefs", () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ favorites: [], recents: [], updatedAt: 0 });
+    expect(response.json()).toEqual({
+      favorites: [],
+      recents: [],
+      cardsAlgorithm: "fsrs",
+      updatedAt: 0,
+    });
+  });
+
+  it("defaults cardsAlgorithm to fsrs for a user who never set it", async () => {
+    server = await makeTestServer();
+    const { token } = await setupUser();
+    const response = await server.app.inject({
+      method: "GET",
+      url: "/api/me/prefs",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().cardsAlgorithm).toBe("fsrs");
   });
 
   it("rejects anonymous callers and the operator API key (not a user)", async () => {
@@ -120,6 +137,71 @@ describe("PUT /api/me/prefs", () => {
 
     const read = await server.app.inject({ method: "GET", url: "/api/me/prefs", headers: auth });
     expect(read.json().recents).toEqual([PAGE_B, PAGE_A]);
+  });
+
+  it("round-trips the cardsAlgorithm pref and survives other patches", async () => {
+    server = await makeTestServer();
+    const { token } = await setupUser();
+    const auth = { authorization: `Bearer ${token}` };
+
+    const first = await server.app.inject({
+      method: "PUT",
+      url: "/api/me/prefs",
+      headers: auth,
+      payload: { cardsAlgorithm: "sm2" },
+    });
+    expect(first.statusCode).toBe(200);
+    expect(first.json().cardsAlgorithm).toBe("sm2");
+
+    // A list-only patch must not clobber the algorithm.
+    await server.app.inject({
+      method: "PUT",
+      url: "/api/me/prefs",
+      headers: auth,
+      payload: { favorites: [PAGE_A] },
+    });
+    const read = await server.app.inject({ method: "GET", url: "/api/me/prefs", headers: auth });
+    expect(read.json().cardsAlgorithm).toBe("sm2");
+    expect(read.json().favorites).toEqual([PAGE_A]);
+
+    const back = await server.app.inject({
+      method: "PUT",
+      url: "/api/me/prefs",
+      headers: auth,
+      payload: { cardsAlgorithm: "fsrs" },
+    });
+    expect(back.json().cardsAlgorithm).toBe("fsrs");
+  });
+
+  it("rejects a bogus cardsAlgorithm value", async () => {
+    server = await makeTestServer();
+    const { token } = await setupUser();
+    const response = await server.app.inject({
+      method: "PUT",
+      url: "/api/me/prefs",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { cardsAlgorithm: "bogus" },
+    });
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error.code).toBe("validation_failed");
+  });
+
+  it("scopes cardsAlgorithm per user like the lists", async () => {
+    server = await makeTestServer();
+    const admin = await setupUser();
+    const second = createSecondUser();
+    await server.app.inject({
+      method: "PUT",
+      url: "/api/me/prefs",
+      headers: { authorization: `Bearer ${admin.token}` },
+      payload: { cardsAlgorithm: "sm2" },
+    });
+    const secondRead = await server.app.inject({
+      method: "GET",
+      url: "/api/me/prefs",
+      headers: { authorization: `Bearer ${second.token}` },
+    });
+    expect(secondRead.json().cardsAlgorithm).toBe("fsrs");
   });
 
   it("dedupes order-preservingly before enforcing the caps", async () => {
@@ -217,7 +299,12 @@ describe("PUT /api/me/prefs", () => {
     server = await makeTestServer();
     const { token, userId } = await setupUser();
     // Never written: no row, the read path synthesizes the empty default.
-    expect(server.ctx.auth.getUserPrefs(userId)).toEqual({ favorites: [], recents: [], updatedAt: 0 });
+    expect(server.ctx.auth.getUserPrefs(userId)).toEqual({
+      favorites: [],
+      recents: [],
+      cardsAlgorithm: "fsrs",
+      updatedAt: 0,
+    });
     const response = await server.app.inject({
       method: "PUT",
       url: "/api/me/prefs",
