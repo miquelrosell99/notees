@@ -2,12 +2,14 @@
  * Per-user UI preferences — favorites & recents.
  *
  *  - GET /api/me/prefs   the authenticated account's prefs
- *                        ({favorites, recents, updatedAt});
+ *                        ({favorites, recents, cardsAlgorithm, updatedAt});
  *  - PUT /api/me/prefs   merge-patch: each present list REPLACES its column
- *                        (the client owns ordering; last write wins per list).
+ *                        (the client owns ordering; last write wins per list),
+ *                        a present cardsAlgorithm REPLACES the scalar.
  *
  * Why this is not in the operation log: the design law "device state is
- * never an op" stands. Favorites/recents are UI preferences, so they live in
+ * never an op" stands. Favorites/recents and the cards scheduler choice are
+ * UI preferences, so they live in
  * the sync server's per-user prefs store (the user_prefs table in relay.db,
  * additive migration in auth.ts) — every client's derived DB semantics stay
  * untouched, and no op/wire change is needed (no lockstep).
@@ -16,7 +18,8 @@
  * owner of the key); the operator API key is not a user and gets 401. The
  * body is validated fail-loud: uuid-shaped node ids only, capped lengths
  * (favorites ≤ MAX_FAVORITES, recents ≤ MAX_RECENTS, both applied AFTER
- * order-preserving dedupe), at least one list required.
+ * order-preserving dedupe), cardsAlgorithm ∈ {"sm2","fsrs"}, at least one
+ * key required.
  */
 
 import type { FastifyInstance } from "fastify";
@@ -39,11 +42,16 @@ const putPrefsBodySchema = z
   .object({
     favorites: idListSchema(MAX_FAVORITE_PREFS, "favorites").optional(),
     recents: idListSchema(MAX_RECENT_PREFS, "recents").optional(),
+    cardsAlgorithm: z.enum(["sm2", "fsrs"]).optional(),
   })
   .strict()
-  .refine((body) => body.favorites !== undefined || body.recents !== undefined, {
-    message: "at least one of favorites/recents is required",
-  });
+  .refine(
+    (body) =>
+      body.favorites !== undefined ||
+      body.recents !== undefined ||
+      body.cardsAlgorithm !== undefined,
+    { message: "at least one of favorites/recents/cardsAlgorithm is required" },
+  );
 
 export function registerPrefsRoutes(app: FastifyInstance, ctx: ServerContext): void {
   app.get("/me/prefs", async (request) => {
