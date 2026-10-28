@@ -4,9 +4,12 @@
  * A button-style selector with multiple options displayed as icons.
  * Features an animated selection indicator that slides between options.
  *
- * When `maxVisibleOptions` is provided, excess options are shown in an
- * overflow dropdown accessed via a "…" toggle. The inline buttons show
- * only icons; the dropdown shows icon + label.
+ * Options declare their tier: "primary" options ride the inline strip,
+ * "secondary" options ride the overflow dropdown accessed via a "…"
+ * toggle (absent tier = primary). The inline buttons show only icons;
+ * the dropdown shows icon + label. The toggle carries an active state
+ * while the selection lives in the dropdown. An all-secondary config is
+ * a caller mistake and fails soft: everything renders inline.
  */
 
 import {
@@ -32,6 +35,8 @@ export interface SelectionButtonOption {
   icon: string;
   /** Accessible label */
   label: string;
+  /** Strip vs overflow dropdown placement (absent = primary, the inline strip) */
+  tier?: "primary" | "secondary";
 }
 
 export interface SelectionButtonProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChange"> {
@@ -53,8 +58,6 @@ export interface SelectionButtonProps extends Omit<HTMLAttributes<HTMLDivElement
   description?: string;
   /** Label position */
   labelPosition?: "left" | "right";
-  /** Max options shown inline before overflow dropdown (undefined = show all) */
-  maxVisibleOptions?: number;
   /** Whether to allow changing the selected option via mouse wheel */
   scrollToChange?: boolean;
   /** ID for the radiogroup, used for label association */
@@ -79,7 +82,6 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
       label,
       description,
       labelPosition = "right",
-      maxVisibleOptions,
       scrollToChange = false,
       id,
       className = "",
@@ -91,26 +93,23 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
     const [indicatorStyle, setIndicatorStyle] = useState<React.CSSProperties>({});
     const [overflowOpen, setOverflowOpen] = useState(false);
 
-    // Split options into visible and overflow
+    // Split options into visible (primary strip) and overflow (secondary
+    // dropdown) by declared tier. An all-secondary config is a caller
+    // mistake — fail soft by treating everything as primary rather than
+    // rendering an empty strip with a "…".
     const { visibleOptions, overflowOptions } = useMemo(() => {
-      if (!maxVisibleOptions || options.length <= maxVisibleOptions) {
+      const overflow = options.filter((o) => o.tier === "secondary");
+      if (overflow.length === options.length) {
         return { visibleOptions: options, overflowOptions: [] as SelectionButtonOption[] };
       }
-      const visible = [...options.slice(0, maxVisibleOptions)];
-      const overflow = [...options.slice(maxVisibleOptions)];
-      const selectedInOverflow = overflow.findIndex((opt) => opt.value === value);
-      if (selectedInOverflow !== -1) {
-        const lastVisible = visible[visible.length - 1];
-        const selected = overflow[selectedInOverflow];
-        if (lastVisible !== undefined && selected !== undefined) {
-          visible[visible.length - 1] = selected;
-          overflow[selectedInOverflow] = lastVisible;
-        }
-      }
-      return { visibleOptions: visible, overflowOptions: overflow };
-    }, [options, value, maxVisibleOptions]);
+      return {
+        visibleOptions: options.filter((o) => o.tier !== "secondary"),
+        overflowOptions: overflow,
+      };
+    }, [options]);
 
     const hasOverflow = overflowOptions.length > 0;
+    const selectionInOverflow = overflowOptions.some((opt) => opt.value === value);
 
     // Calculate indicator position based on selected visible option
     useEffect(() => {
@@ -273,7 +272,7 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
           <>
             <button
               type="button"
-              className={`selection-button__overflow-toggle ${overflowOpen ? "selection-button__overflow-toggle--open" : ""}`}
+              className={`selection-button__overflow-toggle ${overflowOpen ? "selection-button__overflow-toggle--open" : ""} ${selectionInOverflow ? "selection-button__overflow-toggle--active" : ""}`}
               onClick={() => setOverflowOpen((prev) => !prev)}
               disabled={disabled}
               aria-label="More options"

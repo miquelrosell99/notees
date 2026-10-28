@@ -197,7 +197,6 @@ export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectio
                   value={viewMode}
                   onChange={(value) => setViewMode(value as QueryViewMode)}
                   size="sm"
-                  maxVisibleOptions={4}
                   aria-label="View mode"
                   className="view-switcher"
                 />

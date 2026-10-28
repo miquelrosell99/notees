@@ -155,6 +155,14 @@
   background: var(--md-sys-color-surface-container-highest);
 }
 
+/* Persistent "the selection lives in the dropdown" state — the selected
+   vocabulary (primary-container fill) at the toggle's own scale, distinct
+   from the transient --open state. */
+.selection-button__overflow-toggle--active {
+  color: var(--md-sys-color-on-primary-container);
+  background: var(--md-sys-color-primary-container);
+}
+
 /* Overflow dropdown */
 .selection-button__overflow-dropdown {
   position: absolute;
