@@ -141,8 +141,8 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
  * visible on an empty section, and `emptyText` (the section-empty line)
  * rides the collection's empty state.
  *
- * Exported for the block-level backlink gutter (SCHEMA.md:117 — the expanded
- * linked-references section beneath a block row reuses this rendering).
+ * The block-level backlink gutter renders BacklinksSection (this file) in a
+ * card — the whole section chrome, not this list alone.
  */
 export function ReferenceList({
   entries,

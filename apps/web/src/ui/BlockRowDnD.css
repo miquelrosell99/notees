@@ -81,10 +81,11 @@
 }
 
 /* Expanded block backlinks: beneath the block row, aligned with the content
-   column (same 26px offset as tags/properties). */
+   column (same 26px offset as tags/properties). The card inside is the
+   container — it owns the surface, border, radius, and padding. */
 .nt-block-backlink-refs {
   margin-left: 26px;
-  padding: var(--spacing-1) 0;
+  padding: var(--spacing-1) 0 var(--spacing-2);
 }
 
 /* Block tags / properties: dedicated rows under the block row, aligned with

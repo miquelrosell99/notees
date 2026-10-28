@@ -1,11 +1,14 @@
 /**
- * Block-level backlink gutter tests (SCHEMA.md:117): a block
+ * Block-level backlink gutter tests (SCHEMA.md "System sections"): a block
  * with backlinks shows a right-gutter toggle carrying the materialized
  * node_stats count (renders unconditionally, exempt from the lazy-loading
- * contract); toggling expands the linked-references system query scoped to
- * the block, rendered inline beneath the row — the query runs on first
- * toggle and caches until an invalidating notification. jsdom over the
- * in-process WorkspaceClient.
+ * contract); toggling expands the STANDARD Backlinks system section (the
+ * page section's chrome — header, hosted tabs, filter bar) scoped to the
+ * block, containered in a card beneath the row. The section mounts only
+ * while expanded, so a collapsed gutter executes nothing; mounted, the
+ * section's own lazy contract holds (no query while its header is
+ * collapsed, a re-derive per invalidating notification while expanded).
+ * jsdom over the in-process WorkspaceClient.
  *
  * The laziness assertions scope the query spy to the BLOCK's id: the
  * page-level backlinks strip loads the PAGE's references
@@ -109,17 +112,28 @@ describe("block-level backlink gutter", () => {
     fireEvent.click(toggle);
     await waitFor(() => expect(blockQueries()).toBe(1));
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    const panel = document.querySelector(".nt-block-backlink-refs") as HTMLElement;
+    let panel = document.querySelector(".nt-block-backlink-refs") as HTMLElement;
     expect(panel).not.toBeNull();
     expect(within(panel).getByText("see")).not.toBeNull();
     expect(within(panel).getByText("also")).not.toBeNull();
 
-    // Collapse and re-expand: cached — no new query (no write has landed).
+    // Collapse and re-expand: the gutter toggle unmounts the section, so the
+    // re-expand re-runs the cheap linked-references read. The cache contract
+    // lives one level down — the section's own header inside the panel.
     fireEvent.click(toggle);
     expect(document.querySelector(".nt-block-backlink-refs")).toBeNull();
     fireEvent.click(toggle);
-    expect(document.querySelector(".nt-block-backlink-refs")).not.toBeNull();
-    expect(blockQueries()).toBe(1);
+    await waitFor(() => expect(blockQueries()).toBe(2));
+    panel = document.querySelector(".nt-block-backlink-refs") as HTMLElement;
+    expect(within(panel).getByText("see")).not.toBeNull();
+
+    // Collapsing the SECTION HEADER inside the panel serves the cache — a
+    // collapse/expand of the section itself re-runs nothing (no write has
+    // landed).
+    fireEvent.click(within(panel).getByRole("button", { name: "Backlinks" }));
+    fireEvent.click(within(panel).getByRole("button", { name: "Backlinks" }));
+    expect(within(panel).getByText("see")).not.toBeNull();
+    expect(blockQueries()).toBe(2);
   });
 
   it("hides the gutter when the block has no backlinks", async () => {
