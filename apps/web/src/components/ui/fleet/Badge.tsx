@@ -3,13 +3,12 @@
  *
  * A small badge/label for displaying counts, status, or short text.
  *
- * Thin fleet wrapper over the normalized catalog badge
- * (src/components/ui/badge.tsx — cva underneath): the fleet variant
- * register (primary/secondary/warning/neutral) and the xs–md size scale
- * are the app's and live here as cva variants; every visual value resolves
- * to a token through the Tailwind config. The secondary register rides the
- * canonical M3 secondary-container pair (the pre-catalog bare-secondary
- * hue retired with the migration).
+ * Self-contained fleet badge: a plain div carrying the fleet cva register
+ * — the variant register (primary/secondary/warning/neutral) and the
+ * xs–md size scale are the app's and live here as cva variants; every
+ * visual value resolves to a token through the Tailwind config. The
+ * secondary register rides the canonical M3 secondary-container pair (the
+ * pre-catalog bare-secondary hue retired with the migration).
  *
  * Legacy hook classes: `badge` and `badge--${variant}` / `badge--${size}`
  * stay on the root so feature CSS and tests that compound on them keep
@@ -18,7 +17,6 @@
 import type { ReactNode } from 'react';
 import { cva } from 'class-variance-authority';
 
-import { Badge as CatalogBadge } from '@/components/ui/badge.js';
 import { cn } from './cn.js';
 
 const badgeVariants = cva(
@@ -56,8 +54,8 @@ export interface BadgeProps {
 
 export function Badge({ children, variant = 'neutral', size = 'sm', className = '' }: BadgeProps) {
   return (
-    <CatalogBadge className={cn(badgeVariants({ variant, size }), className)}>
+    <div className={cn(badgeVariants({ variant, size }), className)}>
       {children}
-    </CatalogBadge>
+    </div>
   );
 }

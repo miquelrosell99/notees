@@ -6,11 +6,13 @@
  * Rebuilt on the catalog combobox composition (the register's scheduled
  * migration, 2026-10-19): the Radix popover owns portal + popper
  * positioning (viewport flip/shift/clamp replace the old imperative
- * useViewportFlip fit) and the catalog cmdk command owns the list
- * semantics — the listbox/option ARIA, the label-only filter (each item's
- * `value` is its label, so custom renderers can't pollute the match),
- * the arrow-key walk, and the empty state. The fleet register stays
- * fleet-owned per the sourcing table: the boxed SelectTrigger, the menu
+ * useViewportFlip fit) and the cmdk command (absorbed from the retired
+ * src/components/ui/command.tsx layer — the six primitives below, private
+ * to this file) owns the list semantics — the listbox/option ARIA, the
+ * label-only filter (each item's `value` is its label, so custom
+ * renderers can't pollute the match), the arrow-key walk, and the empty
+ * state. The fleet register stays fleet-owned per the sourcing table:
+ * the boxed SelectTrigger, the menu
  * surface/item/search CSS hooks (Dropdown.css), the MDI option chrome,
  * the multi-select/search/groups/custom-renderer contracts, and the
  * Escape LIFO ordering through the app overlay stack (useOverlaySurface —
@@ -35,22 +37,109 @@
  * Dropdown.css, allowlisted in the drift gate):
  * "--radix-popover-trigger-width": the menu's min-width anchor.
  */
-import { useState, useRef, useEffect, useCallback, useId, type ReactNode } from 'react';
+import { useState, useRef, useEffect, useCallback, useId, forwardRef, type ReactNode, type ElementRef, type ComponentPropsWithoutRef } from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
+import { Command as CommandPrimitive } from 'cmdk';
 
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command.js';
 import { SelectTrigger } from './SelectTrigger.js';
 import { useOverlaySurface } from './overlay-hooks.js';
 import './Dropdown.css';
 import { Icon } from '../../../ui/Icon.js';
 import { cn } from './cn.js';
+
+/**
+ * The catalog-command composition (absorbed from the retired
+ * src/components/ui/command.tsx layer): the normalized cmdk primitives —
+ * the popover surface, the search input row (magnify icon +
+ * cmdk-input-wrapper), the list, the empty state, the group, the item.
+ * Private to this file; Dropdown composes these six.
+ */
+const Command = forwardRef<
+  ElementRef<typeof CommandPrimitive>,
+  ComponentPropsWithoutRef<typeof CommandPrimitive>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive
+    ref={ref}
+    className={cn(
+      "flex h-full w-full flex-col overflow-hidden rounded-popover bg-popover text-popover-foreground",
+      className,
+    )}
+    {...props}
+  />
+));
+Command.displayName = 'Command';
+
+const CommandInput = forwardRef<
+  ElementRef<typeof CommandPrimitive.Input>,
+  ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
+>(({ className, ...props }, ref) => (
+  <div className="flex items-center border-b border-border px-3" cmdk-input-wrapper="">
+    <Icon path="mdi mdi-magnify" className="mr-2 h-icon-sm w-icon-sm shrink-0 opacity-50" />
+    <CommandPrimitive.Input
+      ref={ref}
+      className={cn(
+        "flex h-button-md w-full rounded-input bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50",
+        className,
+      )}
+      {...props}
+    />
+  </div>
+));
+CommandInput.displayName = 'CommandInput';
+
+const CommandList = forwardRef<
+  ElementRef<typeof CommandPrimitive.List>,
+  ComponentPropsWithoutRef<typeof CommandPrimitive.List>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive.List
+    ref={ref}
+    className={cn("overflow-y-auto overflow-x-hidden", className)}
+    {...props}
+  />
+));
+CommandList.displayName = 'CommandList';
+
+const CommandEmpty = forwardRef<
+  ElementRef<typeof CommandPrimitive.Empty>,
+  ComponentPropsWithoutRef<typeof CommandPrimitive.Empty>
+>((props, ref) => (
+  <CommandPrimitive.Empty
+    ref={ref}
+    className="py-6 text-center text-sm text-muted-foreground"
+    {...props}
+  />
+));
+CommandEmpty.displayName = 'CommandEmpty';
+
+const CommandGroup = forwardRef<
+  ElementRef<typeof CommandPrimitive.Group>,
+  ComponentPropsWithoutRef<typeof CommandPrimitive.Group>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive.Group
+    ref={ref}
+    className={cn(
+      "overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1-5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-muted-foreground",
+      className,
+    )}
+    {...props}
+  />
+));
+CommandGroup.displayName = 'CommandGroup';
+
+const CommandItem = forwardRef<
+  ElementRef<typeof CommandPrimitive.Item>,
+  ComponentPropsWithoutRef<typeof CommandPrimitive.Item>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive.Item
+    ref={ref}
+    className={cn(
+      "relative flex cursor-pointer select-none items-center gap-2 rounded-item px-2 py-1-5 text-sm outline-none transition-colors duration-short ease-standard aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled='true']:opacity-50 data-[disabled='true']:pointer-events-none [&_svg]:shrink-0",
+      className,
+    )}
+    {...props}
+  />
+));
+CommandItem.displayName = 'CommandItem';
 
 export type DropdownSize = 'sm' | 'md' | 'lg';
 

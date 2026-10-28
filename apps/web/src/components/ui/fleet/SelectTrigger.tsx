@@ -12,13 +12,14 @@
  * - Optional clear button (outside to the right)
  * - Keyboard navigation support
  *
- * Thin fleet wrapper over the normalized catalog button
- * (src/components/ui/button.tsx — the boxed field register applied to a
- * trigger, the Input family): the sm/md/lg row heights, the open/error
- * states, the chevron, and the clear affordance are the app's and live
- * here. The fleet field register overrides the button's default variant
- * (no press scale, the 12px input corner, no hover wash) through the
- * class merge.
+ * Self-contained fleet trigger: the catalog-button radix/cva composition
+ * (the normalized shadcn button — theme-key utilities only, fleet radii,
+ * the state-layer hover, the focus ring from --ring) now lives here as the
+ * private TriggerButton; the boxed field register is applied to it through
+ * the class merge. The sm/md/lg row heights, the open/error states, the
+ * chevron, and the clear affordance are the app's and live here. The fleet
+ * field register overrides the button's default variant (no press scale,
+ * the 12px input corner, no hover wash) through the class merge.
  *
  * INTERACTION CONTRACT (bridge checklist #9 — documented override): the
  * pre-catalog primitive fired onClick on Enter/Space KEYDOWN via a
@@ -31,9 +32,10 @@
  * `select-trigger-container` stay — feature CSS and tests compound on
  * them.
  */
-import { type ReactNode, type MouseEvent } from 'react';
+import { type ReactNode, type MouseEvent, type ButtonHTMLAttributes, forwardRef } from 'react';
+import { Slot } from '@radix-ui/react-slot';
+import { cva, type VariantProps } from 'class-variance-authority';
 
-import { Button as CatalogButton } from '@/components/ui/button.js';
 import { Button } from './Button.js';
 import { Icon } from '../../../ui/Icon.js';
 import { cn } from './cn.js';
@@ -78,6 +80,65 @@ const CONTENT_CLASSES: Record<SelectTriggerSize, string> = {
 };
 
 /**
+ * The catalog-button composition (absorbed from the retired
+ * src/components/ui/button.tsx layer): the normalized shadcn button on
+ * Radix Slot — theme-key utilities only, fleet radii, the state-layer
+ * hover via the --accent alias, the focus ring from --ring. Private to
+ * this file; SelectTrigger composes it as a plain button (variant ghost).
+ */
+const triggerButtonVariants = cva(
+  'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-button border font-sans font-medium select-none transition-colors duration-short ease-standard active:scale-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:shrink-0',
+  {
+    variants: {
+      variant: {
+        default:
+          'bg-primary text-primary-foreground border-primary hover:bg-primary-hover',
+        secondary:
+          'bg-secondary text-secondary-foreground border-secondary hover:bg-surface-container-high',
+        outline:
+          'bg-transparent border-input text-on-surface-variant hover:bg-accent hover:text-accent-foreground hover:border-outline',
+        ghost:
+          'bg-transparent border-transparent text-on-surface-variant hover:bg-accent hover:text-accent-foreground',
+        destructive:
+          'bg-destructive text-destructive-foreground border-destructive hover:bg-error-hover',
+        link: 'border-transparent text-primary underline-offset-4 hover:underline',
+      },
+      size: {
+        default: 'h-button-md px-3 text-button',
+        sm: 'h-button-sm px-2 text-sm rounded-button-sm',
+        lg: 'h-button-lg px-4 text-base',
+        icon: 'h-button-md w-button-md',
+        'icon-sm': 'h-button-sm w-button-sm',
+      },
+    },
+    defaultVariants: {
+      variant: 'default',
+      size: 'default',
+    },
+  },
+);
+
+interface TriggerButtonProps
+  extends ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof triggerButtonVariants> {
+  asChild?: boolean;
+}
+
+const TriggerButton = forwardRef<HTMLButtonElement, TriggerButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : 'button';
+    return (
+      <Comp
+        className={cn(triggerButtonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    );
+  },
+);
+TriggerButton.displayName = 'TriggerButton';
+
+/**
  * SelectTrigger Component
  */
 export function SelectTrigger({
@@ -108,7 +169,7 @@ export function SelectTrigger({
         clearable && hasValue && onClear && 'select-trigger-container--with-clear',
       )}
     >
-      <CatalogButton
+      <TriggerButton
         type="button"
         variant="ghost"
         disabled={disabled}
@@ -146,7 +207,7 @@ export function SelectTrigger({
             />
           </span>
         </span>
-      </CatalogButton>
+      </TriggerButton>
 
       {/* Clear button - outside the trigger */}
       {clearable && hasValue && onClear && (

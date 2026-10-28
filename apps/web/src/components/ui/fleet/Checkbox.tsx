@@ -4,10 +4,12 @@
  * A styled checkbox input component (check variant, default density —
  * the subset the metadata property editors use).
  *
- * Thin fleet wrapper over the normalized catalog checkbox
- * (src/components/ui/checkbox.tsx — Radix underneath): the container +
- * label composition, the sm/md/lg size scale, and the
- * checked/disabled/indeterminate register are the app's and live here.
+ * Self-contained fleet checkbox: the Radix checkbox composition (absorbed
+ * from the retired src/components/ui/checkbox.tsx layer — the Root +
+ * Indicator with the fleet check icon) now lives here as the private
+ * CatalogCheckbox; the container + label composition, the sm/md/lg size
+ * scale, and the checked/disabled/indeterminate register are the app's
+ * and live here.
  *
  * INTERACTION CONTRACT (bridge checklist #9 — documented override): the
  * pre-catalog primitive was a NATIVE <input type=checkbox>; the catalog
@@ -23,10 +25,36 @@
  * variants) and the label hooks stay — feature CSS compounds on them.
  */
 
-import { forwardRef, useId, type ComponentPropsWithoutRef } from 'react';
+import { forwardRef, useId, type ComponentPropsWithoutRef, type ElementRef } from 'react';
+import * as CheckboxPrimitive from '@radix-ui/react-checkbox';
 
-import { Checkbox as CatalogCheckbox } from '@/components/ui/checkbox.js';
+import { Icon } from '../../../ui/Icon.js';
 import { cn } from './cn.js';
+
+/**
+ * The catalog-checkbox composition (absorbed from the retired
+ * src/components/ui/checkbox.tsx layer): Radix Root + Indicator, the
+ * check chrome on the fleet Icon, the normalized token register.
+ * Private to this file.
+ */
+const CatalogCheckbox = forwardRef<
+  ElementRef<typeof CheckboxPrimitive.Root>,
+  ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <CheckboxPrimitive.Root
+    ref={ref}
+    className={cn(
+      "peer h-icon-md w-icon-md shrink-0 rounded-shape-md border border-input bg-transparent transition-colors duration-short ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed data-[state=checked]:bg-primary data-[state=checked]:border-primary data-[state=checked]:text-primary-foreground",
+      className,
+    )}
+    {...props}
+  >
+    <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current">
+      <Icon path="mdi mdi-check" className="h-icon-xs w-icon-xs" />
+    </CheckboxPrimitive.Indicator>
+  </CheckboxPrimitive.Root>
+));
+CatalogCheckbox.displayName = 'Checkbox';
 
 export type CheckboxSize = 'sm' | 'md' | 'lg';
 

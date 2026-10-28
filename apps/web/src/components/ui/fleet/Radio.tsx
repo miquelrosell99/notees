@@ -4,10 +4,11 @@
  * A styled radio input component — the check variant's single-selection
  * sibling: same density, same tokens, a dot instead of the checkmark.
  *
- * Thin fleet wrapper over the normalized catalog radio-group
- * (src/components/ui/radio-group.tsx — Radix underneath): the container
- * + label composition and the sm/md/lg size scale are the app's and live
- * here.
+ * Self-contained fleet radio: the Radix radio-group composition (absorbed
+ * from the retired src/components/ui/radio-group.tsx layer — the Root +
+ * Item with the dot Indicator, private below) now lives here; the
+ * container + label composition and the sm/md/lg size scale are the app's
+ * and live here.
  *
  * INTERACTION CONTRACT (bridge checklist #9 — documented override): the
  * pre-catalog primitive was a standalone NATIVE <input type=radio> that
@@ -27,13 +28,46 @@
  * and the label hooks stay — feature CSS compounds on them.
  */
 
-import { forwardRef, useId, type ReactNode } from 'react';
+import { forwardRef, useId, type ReactNode, type ElementRef, type ComponentPropsWithoutRef } from 'react';
+import * as RadioGroupPrimitive from '@radix-ui/react-radio-group';
 
-import {
-  RadioGroup as CatalogRadioGroup,
-  RadioGroupItem,
-} from '@/components/ui/radio-group.js';
 import { cn } from './cn.js';
+
+/**
+ * The catalog-radio-group composition (absorbed from the retired
+ * src/components/ui/radio-group.tsx layer): Radix Root + Item with the
+ * dot Indicator, the normalized token register. Private to this file.
+ */
+const CatalogRadioGroup = forwardRef<
+  ElementRef<typeof RadioGroupPrimitive.Root>,
+  ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <RadioGroupPrimitive.Root
+    className={cn("grid gap-2", className)}
+    {...props}
+    ref={ref}
+  />
+));
+CatalogRadioGroup.displayName = 'RadioGroup';
+
+const RadioGroupItem = forwardRef<
+  ElementRef<typeof RadioGroupPrimitive.Item>,
+  ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Item>
+>(({ className, ...props }, ref) => (
+  <RadioGroupPrimitive.Item
+    ref={ref}
+    className={cn(
+      "aspect-square h-icon-md w-icon-md rounded-full border border-input text-primary transition-colors duration-short ease-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed",
+      className,
+    )}
+    {...props}
+  >
+    <RadioGroupPrimitive.Indicator className="flex items-center justify-center">
+      <span className="block h-2 w-2 rounded-full bg-current" />
+    </RadioGroupPrimitive.Indicator>
+  </RadioGroupPrimitive.Item>
+));
+RadioGroupItem.displayName = 'RadioGroupItem';
 
 export type RadioSize = 'sm' | 'md' | 'lg';
 
