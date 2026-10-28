@@ -1,12 +1,19 @@
 /**
  * Per-user UI prefs tests: GET/PUT /api/me/prefs round-trip, auth
  * scoping (session vs API-key owner vs operator key vs anonymous), caps, and
- * uuid validation. Favorites/recents are server-side per-user UI state — not
- * op-log state.
+ * uuid validation. Favorites/recents and cardsAlgorithm are server-side
+ * per-user UI state — not op-log state. The last block pins the additive
+ * cards_algorithm migration for relay.db files that predate the column.
  */
 
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { AuthStorage } from "../src/auth.js";
 import { closeTestServer, makeTestServer, type TestServer } from "./helpers";
 
 let server: TestServer | null = null;
@@ -313,5 +320,47 @@ describe("PUT /api/me/prefs", () => {
     });
     expect(response.statusCode).toBe(200);
     expect(server.ctx.auth.getUserPrefs(userId).favorites).toEqual([PAGE_A]);
+  });
+});
+
+describe("user_prefs cards_algorithm migration", () => {
+  it("adds the column to a pre-migration table: existing rows read fsrs, patches round-trip", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notees-prefs-migration-"));
+    const dbPath = join(dir, "auth.db");
+    try {
+      // The pre-migration shape: favorites + recents, no cards_algorithm.
+      const legacy = new Database(dbPath);
+      legacy.exec(`
+        CREATE TABLE user_prefs (
+            user_id TEXT PRIMARY KEY,
+            favorites TEXT NOT NULL DEFAULT '[]',
+            recents TEXT NOT NULL DEFAULT '[]',
+            updated_at INTEGER NOT NULL
+        );
+        INSERT INTO user_prefs (user_id, favorites, recents, updated_at)
+            VALUES ('user-a', '["${PAGE_A}"]', '[]', 100);
+      `);
+      legacy.close();
+
+      const migrated = new AuthStorage(dbPath);
+      // The ALTER backfilled the existing row to the fsrs default.
+      expect(migrated.getUserPrefs("user-a")).toEqual({
+        favorites: [PAGE_A],
+        recents: [],
+        cardsAlgorithm: "fsrs",
+        updatedAt: 100,
+      });
+      // And the new column accepts the merge patch.
+      expect(migrated.updateUserPrefs("user-a", { cardsAlgorithm: "sm2" }).cardsAlgorithm).toBe("sm2");
+      expect(migrated.getUserPrefs("user-a").cardsAlgorithm).toBe("sm2");
+      migrated.close();
+
+      // Idempotent: a second boot over the migrated file is a no-op.
+      const reopened = new AuthStorage(dbPath);
+      expect(reopened.getUserPrefs("user-a").cardsAlgorithm).toBe("sm2");
+      reopened.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
