@@ -47,9 +47,9 @@ describe("system seeds (ported)", () => {
     }
   });
 
-  it("every property UUID lives in the reserved …-0000-…/…-0003-…/…-0006-… blocks", () => {
+  it("every property UUID lives in the reserved …-0000-…/…-0003-…/…-0004-…/…-0006-… blocks", () => {
     for (const id of Object.values(SYSTEM_PROPERTY_UUIDS)) {
-      expect(id).toMatch(/^00000000-0000-0000-0000-|^00000000-0000-0000-0003-|^00000000-0000-0000-0006-/);
+      expect(id).toMatch(/^00000000-0000-0000-0000-|^00000000-0000-0000-0003-|^00000000-0000-0000-0004-|^00000000-0000-0000-0006-/);
     }
   });
 

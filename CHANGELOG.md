@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(domain): the card class becomes the Memorization card, and the
+  card-family SRS property schemas seed with it — memorization cards slice 1.**
+  (1) The `card` system class renames its display name `Card` →
+  `Memorization card` (the TS seed key and the class UUID `…0001-…0011` are
+  unchanged), the icon moves `mdiCardOutline` → `mdiCardsPlayingOutline`, and
+  the gallery description now names the spaced-repetition role — the node's
+  content is the prompt, its embedded children the answer. (2) Six class-bound
+  property schemas seed at the fresh `…0004-` property block (`…0003-` stays
+  the task/meeting/event family): cardDue (datetime) plus cardReps,
+  cardInterval, cardEase, cardDifficulty, cardStability (number) — all
+  UNPINNED, the 2026-10-27 pinned roster stays frozen (source family,
+  meetingDate/location, the task heads). Live schedule state rides these
+  values as ordinary LWW property ops. (3) New domain exports
+  `CARD_PROPERTY_UUIDS` + `CARD_FAMILY_SEED` — the TASK_FAMILY_SEED-shaped
+  ensure manifest the web self-heal consumes. The property-UUID block rule
+  extends to `…0004-` (test data). Sibling-client check: GTK/Flutter
+  seed-manifest + applier lockstep is the plan's dedicated lockstep task — a
+  recorded deferral, not a silent follow-up. Verified: domain suite (140
+  tests, incl. the new seeds-cards spec), full gate green.
+  - **Files**: `packages/domain/src/seeds.ts` (display name, icon,
+    description, the six UUIDs + SPECS + display names, `CARD_PROPERTY_UUIDS`,
+    `CARD_FAMILY_SEED`), `packages/domain/test/seeds-cards.test.ts` (new),
+    `packages/domain/test/domain.test.ts` (the …0004- block rule).
+
 - **feat(web): the Tasks hub joins the nestUnderParents family — a subtask
   nests under its parent task.** The Tasks hub passes `nestUnderParents`
   (the render-time nesting prop the Pages hub introduced): the outline nests
@@ -453,6 +477,29 @@ predating this file.
     `docs/features/pages.md`, the skills + `ui-primitives.md`,
     `scripts/screenshots/topbar-layout-probe.mjs` (new), tests:
     `focus-mode` (footer assertion flips).
+- **feat(domain): the card class becomes the Memorization card, and the
+  card-family SRS property schemas seed with it — memorization cards slice 1.**
+  (1) The `card` system class renames its display name `Card` →
+  `Memorization card` (the TS seed key and the class UUID `…0001-…0011` are
+  unchanged), the icon moves `mdiCardOutline` → `mdiCardsPlayingOutline`, and
+  the gallery description now names the spaced-repetition role — the node's
+  content is the prompt, its embedded children the answer. (2) Six class-bound
+  property schemas seed at the fresh `…0004-` property block (`…0003-` stays
+  the task/meeting/event family): cardDue (datetime) plus cardReps,
+  cardInterval, cardEase, cardDifficulty, cardStability (number) — all
+  UNPINNED, the 2026-10-27 pinned roster stays frozen (source family,
+  meetingDate/location, the task heads). Live schedule state rides these
+  values as ordinary LWW property ops. (3) New domain exports
+  `CARD_PROPERTY_UUIDS` + `CARD_FAMILY_SEED` — the TASK_FAMILY_SEED-shaped
+  ensure manifest the web self-heal consumes. The property-UUID block rule
+  extends to `…0004-` (test data). Sibling-client check: GTK/Flutter
+  seed-manifest + applier lockstep is the plan's dedicated lockstep task — a
+  recorded deferral, not a silent follow-up. Verified: domain suite (140
+  tests, incl. the new seeds-cards spec), full gate green.
+  - **Files**: `packages/domain/src/seeds.ts` (display name, icon,
+    description, the six UUIDs + SPECS + display names, `CARD_PROPERTY_UUIDS`,
+    `CARD_FAMILY_SEED`), `packages/domain/test/seeds-cards.test.ts` (new),
+    `packages/domain/test/domain.test.ts` (the …0004- block rule).
 - **feat(web): the backlink card sheds its header, the gutter button IS the
   badge, and the collection chrome quietens — owner round on the
   block-backlinks card (2026-10-28).** (1) The block card's section header
