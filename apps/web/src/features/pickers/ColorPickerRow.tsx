@@ -5,6 +5,10 @@
  * color (object.update color: null). Extracted as its own
  * component so node pickers can offer the color-swatch row without pulling
  * in the full context menu.
+ *
+ * The `--bare` modifier strips the standalone card chrome (background,
+ * border, label) for hosting inside an already-card surface — the node
+ * context menu's Color › submenu flyout.
  */
 
 import { useMemo } from "react";

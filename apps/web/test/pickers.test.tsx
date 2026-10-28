@@ -29,6 +29,7 @@ import { deriveDisplayName } from "@notees/domain";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import type { ClientNode } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
+import { ColorButton } from "../src/components/ui/fleet/ColorButton.js";
 import { IconPickerPopup } from "../src/features/icon-picker/IconPickerPopup.js";
 import { NodeResultItem } from "../src/features/pickers/NodeResultItem.js";
 import { NodeSelector } from "../src/features/pickers/NodeSelector.js";
@@ -459,6 +460,22 @@ describe("icon picker color section", () => {
     const picker = screen.getByRole("dialog", { name: "Color picker" });
     fireEvent.click(within(picker).getByRole("button", { name: "Remove color" }));
     expect(colors).toEqual([null]);
+  });
+
+  it("an unset color renders the visible no-color placeholder (the button never disappears)", () => {
+    render(
+      <ColorButton color="" aria-label="Icon color" showPicker showNoneOption onColorChange={() => {}} />,
+    );
+    expect(screen.getByRole("button", { name: "Icon color" }).className).toContain(
+      "color-btn--empty",
+    );
+  });
+
+  it("a set color renders the plain swatch, no placeholder", () => {
+    render(<ColorButton color="red" aria-label="Icon color" />);
+    expect(screen.getByRole("button", { name: "Icon color" }).className).not.toContain(
+      "color-btn--empty",
+    );
   });
 });
 

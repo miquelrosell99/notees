@@ -3,7 +3,14 @@
  *
  * A button that displays as a solid color swatch.
  * Styled like Button, but shows a filled color instead of an icon.
- * Has a gap between the color fill and the button border.
+ * An empty `color` renders the visible no-color placeholder (bordered
+ * swatch with a diagonal strike — the picker row's "no color" idiom),
+ * so the control never disappears when nothing is set.
+ *
+ * Size contract: the visible box rides the Button icon-only register
+ * (`--button-icon-only-visible-*`); M3's 48dp touch floor lives on the
+ * invisible ::after overlay, exactly like the fleet Button — the old
+ * 48px min-size on the visible box defeated every size variant.
  *
  * Supports preset tokens (`"sky"`), custom hex colors (`#RRGGBB`), and —
  * for display only — the retired `var(--md-sys-color-preset-*)` encoding (folded to
@@ -231,10 +238,12 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
 
   const isHexValid = isValidHexColor(hexInput);
   const previewColor = isHexValid ? normalizeHex(hexInput) : 'var(--md-sys-color-disabled)';
+  const isEmpty = color.trim() === '';
 
   const classNames = [
     'color-btn',
     `color-btn--${size}`,
+    isEmpty && 'color-btn--empty',
     active && 'color-btn--active',
     disabled && 'color-btn--disabled',
     className,

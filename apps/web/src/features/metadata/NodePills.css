@@ -1,4 +1,6 @@
-/* NodePills — sortable class pill cluster + the "+N" overflow popup. */
+/* NodePills — sortable class pill cluster + the "+N" overflow popup
+   (the popup's class names ride the node-pills-popup* prefix — the TSX in
+   NodePills.tsx is the naming authority). */
 
 .node-pills__sortable {
   display: inline-flex;
@@ -13,7 +15,7 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.class-pills-popup {
+.node-pills-popup {
   min-width: 180px;
   max-height: 280px;
   overflow-y: auto;
@@ -24,7 +26,7 @@
   padding: var(--spacing-1);
 }
 
-.class-pills-popup__list {
+.node-pills-popup__list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -32,7 +34,7 @@
   flex-direction: column;
 }
 
-.class-pills-popup__row {
+.node-pills-popup__row {
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
@@ -41,12 +43,12 @@
   background: var(--md-sys-color-surface);
 }
 
-.class-pills-popup__row--dragging {
+.node-pills-popup__row--dragging {
   z-index: var(--z-sticky);
   box-shadow: var(--shadow-elevation-1);
 }
 
-.class-pills-popup__grip {
+.node-pills-popup__grip {
   display: inline-flex;
   align-items: center;
   border: none;
@@ -56,13 +58,13 @@
   cursor: grab;
 }
 
-.class-pills-popup__icon {
+.node-pills-popup__icon {
   flex-shrink: 0;
   display: inline-flex;
   color: var(--md-sys-color-on-surface-variant);
 }
 
-.class-pills-popup__name {
+.node-pills-popup__name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
