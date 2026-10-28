@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web,protocol): the twelfth preset — mono, the theme-adaptive
+  black/white — and a 4×3 color grid everywhere.** The Color › context-menu
+  flyout gained the palette's eleventh preset plus a 4-column grid: 12 cells
+  (the no-color strike + 11 presets) in a tidy 4×3 instead of the wrapping
+  flex row that raggedly broke at the flyout's edge. The kit ColorButton's
+  picker rides the same register — its grid drops to 4 columns and the
+  no-color option moves INTO the grid (the strike cell, selected when unset),
+  so the icon picker's palette is 4×3 too; the custom-content submenu flyout
+  loses the 11.25rem text-submenu floor that left dead space beside the
+  grid. `mono` is a new wire preset token (protocol `COLOR_PRESET_TOKENS`,
+  SCHEMA.md's normative list): the concrete value lives in the themed preset
+  table and flips per scheme — black on the light scheme, white on the dark —
+  so one stored value reads correctly in every theme; web pill contrast
+  special-cases its foreground (the surface color, always the swatch's
+  inverse, since luminance math on one hex can't track the flip). Sibling
+  clients (GTK/Flutter) map `mono` on their next sync — unknown tokens
+  degrade gracefully there until then.
+  - **Files**: `packages/protocol/src/colors.ts` (+ SCHEMA.md's token list),
+    `apps/web/src/ui/variables.css` (the per-scheme preset values),
+    `apps/web/src/components/ui/fleet/colorPresets.ts` (hex map + entry +
+    the pill-foreground ruling), `ColorButton.{tsx,css}` (4-col grid, the
+    none cell), `apps/web/src/features/pickers/ColorPickerRow.css` (the bare
+    grid), `apps/web/src/components/ui/fleet/ContextMenu.{tsx,css}` (the
+    custom-flyout min-width ruling), tests: `color-presets`, `pickers`,
+    `context-menu-color`, `whiteboard-toolset`.
+
 - **fix(web): a button is never taller than it is wide — the fleet Button
   gains the at-least-a-square width floor.** The "+N" classes trigger (a
   short "+1" label on the 26px-tall `xs` box) rendered as a tall sliver,
