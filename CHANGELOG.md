@@ -69,9 +69,10 @@ predating this file.
   (cleared after read — a later deep link falls back honestly), the deep
   link with no/corrupt session covers every card-classed member, and
   `buildReviewQueue` orders the session: due first (due-date ascending,
-  overdue ahead of due-today), then not-yet-due day-ascending (a Review-now
-  hand-off may carry Later members — early review allowed, never
-  preferred), then fresh in input order. Each card renders front-first
+  overdue ahead of due-today), then fresh in input order. (The
+  not-yet-due arm this slice sketched was dropped the same day by the
+  review-rulings fix: the queue is due + new only — a future-due card
+  never enters the session.) Each card renders front-first
   (the card node's own content, read-only through `ProseView`); Reveal
   flips to the back — the embedded children in the condensed prose layer —
   with a front-only card rendering an explicit "No answer on this card"
@@ -773,29 +774,7 @@ predating this file.
     `docs/features/pages.md`, the skills + `ui-primitives.md`,
     `scripts/screenshots/topbar-layout-probe.mjs` (new), tests:
     `focus-mode` (footer assertion flips).
-- **feat(domain): the card class becomes the Memorization card, and the
-  card-family SRS property schemas seed with it — memorization cards slice 1.**
-  (1) The `card` system class renames its display name `Card` →
-  `Memorization card` (the TS seed key and the class UUID `…0001-…0011` are
-  unchanged), the icon moves `mdiCardOutline` → `mdiCardsPlayingOutline`, and
-  the gallery description now names the spaced-repetition role — the node's
-  content is the prompt, its embedded children the answer. (2) Six class-bound
-  property schemas seed at the fresh `…0004-` property block (`…0003-` stays
-  the task/meeting/event family): cardDue (datetime) plus cardReps,
-  cardInterval, cardEase, cardDifficulty, cardStability (number) — all
-  UNPINNED, the 2026-10-27 pinned roster stays frozen (source family,
-  meetingDate/location, the task heads). Live schedule state rides these
-  values as ordinary LWW property ops. (3) New domain exports
-  `CARD_PROPERTY_UUIDS` + `CARD_FAMILY_SEED` — the TASK_FAMILY_SEED-shaped
-  ensure manifest the web self-heal consumes. The property-UUID block rule
-  extends to `…0004-` (test data). Sibling-client check: GTK/Flutter
-  seed-manifest + applier lockstep is the plan's dedicated lockstep task — a
-  recorded deferral, not a silent follow-up. Verified: domain suite (140
-  tests, incl. the new seeds-cards spec), full gate green.
-  - **Files**: `packages/domain/src/seeds.ts` (display name, icon,
-    description, the six UUIDs + SPECS + display names, `CARD_PROPERTY_UUIDS`,
-    `CARD_FAMILY_SEED`), `packages/domain/test/seeds-cards.test.ts` (new),
-    `packages/domain/test/domain.test.ts` (the …0004- block rule).
+
 - **feat(web): the backlink card sheds its header, the gutter button IS the
   badge, and the collection chrome quietens — owner round on the
   block-backlinks card (2026-10-28).** (1) The block card's section header
