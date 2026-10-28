@@ -28,7 +28,7 @@ import {
 } from "../features/settings/deviceSettings.js";
 import type { CardFlow, CoverLayout, ViewMode } from "../features/collection/types.js";
 
-const VIEW_MODES: readonly ViewMode[] = ["outline", "prose", "cards", "table", "pivot", "graph", "gantt"];
+const VIEW_MODES: readonly ViewMode[] = ["outline", "prose", "cards", "table", "pivot", "graph", "gantt", "calendar"];
 const COVER_LAYOUTS: readonly CoverLayout[] = ["no-cover", "cover-top", "cover-left", "cover-right"];
 const CARD_FLOWS: readonly CardFlow[] = ["stack", "grid", "masonry"];
 

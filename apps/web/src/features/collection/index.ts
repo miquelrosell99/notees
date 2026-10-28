@@ -10,6 +10,7 @@ import "./TableView.js";
 import "./graph/GraphView.js";
 import "./pivot/PivotView.js";
 import "./gantt/GanttView.js";
+import "./calendar/CalendarView.js";
 
 export { registerView, unregisterView, getViewDefinition, getRegisteredViewModes, getViewModeOptions, availableViewModes } from "./registry.js";
 export type { ViewAvailabilityContext, ViewModeOption } from "./registry.js";
