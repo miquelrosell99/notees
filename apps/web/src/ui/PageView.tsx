@@ -10,7 +10,7 @@
  * notifications.
  *
  * The main-content restructure: the chrome LEAVES (NodeTopbar,
- * PageHeaderChrome, PageFooterChrome) live in PageChrome.tsx; the editing
+ * PageHeaderChrome) live in PageChrome.tsx; the editing
  * machinery lives in usePageMachinery.ts. What stays here is the composer:
  * the reads (page/tree/cover), the body (the block tree), the notices +
  * compact properties in mainChrome, and the panelled/compact composition.
@@ -50,9 +50,9 @@
  * history section (the per-node op-log slice), the
  * Comments
  * section (the original model: child blocks classed `comment`, threaded,
- * quick-add/reply), and — as its bottom section, the footer with the word
- * count + Created/Updated stamps (the card-bottom bar relocated here,
- *). Column collapse: EACH panel column keeps its own
+ * quick-add/reply). (The footer with the word count + Created/Updated
+ * stamps retired 2026-10-28 — owner call; the column ends at Comments.)
+ * Column collapse: EACH panel column keeps its own
  * device-local collapse, toggled from the nodeview top bar (the
  * properties hamburger pattern, now a pair) — the `layout` prop stays
  * BINARY ("default"/"compact"); per-column device prefs replace the plan's
@@ -151,7 +151,7 @@ import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
 import { ensureTemplateFamily } from "../features/templates/templateFamily.js";
 import { usePageMachinery } from "./usePageMachinery.js";
 import { MainContentFrame } from "./MainContentFrame.js";
-import { NodeTopbar, PageHeaderChrome, PageFooterChrome } from "./PageChrome.js";
+import { NodeTopbar, PageHeaderChrome } from "./PageChrome.js";
 
 /** The child-blocks triad, in switcher order. Exported for the NodeView
  *  chrome, which hosts the switcher at the card's top-right. */
@@ -783,17 +783,6 @@ export function PageView({
     </>
   );
 
-  const footerChrome = (
-    <PageFooterChrome
-      client={client}
-      page={page}
-      tree={tree}
-      onOpenNode={onOpenPage}
-      embedded={embedded}
-      focusMode={focusMode}
-    />
-  );
-
   /**
    * The page chrome composed per layout mode. The panelled main layout
    * is
@@ -942,11 +931,6 @@ export function PageView({
                   <ActivityLogSection client={client} nodeId={pageId} />
                   <VersionHistorySection client={client} nodeId={pageId} />
                   <CommentsSection client={client} nodeId={pageId} onOpenNode={onOpenPage} />
-                  {/* The footer (word count + Created/Updated stamps) is the
-                      column's bottom section: the
-                      card-bottom bar retired — the auto top margin pins it
-                      to the card bottom. */}
-                  <div className="nt-page-context__footer">{footerChrome}</div>
                 </>
               ) : undefined
             }
@@ -979,8 +963,7 @@ export function PageView({
             <div className="nt-page-content">
               {/* The nodeview proper: the capped, centered content column —
                   it scrolls inside the full-width wrapper above when the
-                  content outgrows the cell. The footer moved to the
-                  context column's bottom. */}
+                  content outgrows the cell. */}
               <div className="nt-nodeview-body">
                 {findInPageBar}
                 {headerChrome}
@@ -994,7 +977,6 @@ export function PageView({
           {findInPageBar}
           {headerChrome}
           {mainChrome}
-          {footerChrome}
           {(chromeModes !== undefined || chromeMenu !== undefined || topBarActionsExtra !== undefined) && (
             <div className="nt-node-view__corner">
               {topBarActionsExtra}

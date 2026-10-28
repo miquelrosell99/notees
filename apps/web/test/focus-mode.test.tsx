@@ -119,7 +119,9 @@ describe("focus mode page chrome (#12)", () => {
     expect(container.querySelector(".nt-node-topbar")).not.toBeNull();
     expect(container.querySelector(".nt-node-topbar__classes")).not.toBeNull();
     expect(container.querySelector(".nt-tags-row")).not.toBeNull();
-    expect(container.querySelector(".nt-page-footer")).not.toBeNull();
+    expect(container.querySelector(".nt-page-footer")).toBeNull();
+    // The page footer retired entirely (2026-10-28 owner call) — no word
+    // count, no Created/Updated stamps, in any layout.
     // The backlinks section would ride below the content, but the hide-when-
     // empty ruling keeps it off: the mention here targets a block inside the
     // page (own-subtree, not a reference), so the page has neither backlinks

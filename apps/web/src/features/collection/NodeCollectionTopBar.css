@@ -1,20 +1,49 @@
 /* NodeCollectionTopBar — the hosted collection's top chrome: ONE wrapping
    flex line hosting the tabs strip (left, absorbing the free width) and the
-   toolbar cluster (right). The toolbar rides with display: contents so its
-   control row joins this line and its structured panel wraps a full-width
-   line beneath. Token-only. */
+   toolbar cluster (right). Token-only. */
 
 .nt-node-collection-topbar {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--spacing-2);
+  /* The tab row breathes before the view below it — the topbar owns this
+     spacing now (the tabs' own stack margin retires inside it, below). */
+  margin-bottom: var(--spacing-3);
 }
 
 /* The tabs strip absorbs the free width (its own bar scrolls/wraps its
-   overflow); flex-start keeps the toolbar row top-aligned with the tab row
-   even while the strip carries its second (manage) row beneath it. */
+   overflow). BASIS 0, not auto: an auto basis rides the tablist's
+   max-content, which at narrow hosts overfills the line and wraps the
+   toolbar cluster onto a second row even when tabs + controls would fit. */
 .nt-node-collection-topbar__tabs {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
+}
+
+/* The tabs strip's page-stack bottom margin retires inside the topbar (the
+   topbar owns the spacing); without this the margin reads through the strip
+   and inflates the chrome row's height. */
+.nt-node-collection-topbar .nt-node-collection-tabs {
+  margin-bottom: 0;
+}
+
+/* The right cluster: ONE right-justified group for every right-hand control
+   (the ported view chrome, the filter toolbar). `margin-inline-start: auto`
+   absorbs the free width — no flex growth to fight the tabs strip — while
+   `justify-content: flex-end` keeps the controls at the chrome row's right
+   edge whether the search pill is collapsed (icons flush right) or expanded
+   (the pill's flex:1 fills the cluster, the remaining controls stay right).
+   The cap leaves the tabs the long side. The toolbar rides with
+   `display: contents`; its structured panel takes a full-cluster-width
+   wrapped line beneath the row (in-flow, never an overlay). */
+.nt-node-collection-topbar__cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+  margin-inline-start: auto;
+  max-width: 46ch;
+  min-width: 12ch;
 }

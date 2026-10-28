@@ -101,14 +101,6 @@
 /* The context column's card element moved to MainContentFrame.css; the
    page-specific bottom-section register stays. */
 
-/* The context column's bottom section: the page footer
-   (word count + Created/Updated stamps) moved here from the card-bottom
-   bar — the auto top margin pins it to the card's bottom, a section like
-   the others, anchored at the end of the scroll. */
-.nt-page-context__footer {
-  margin-top: auto;
-}
-
 /* The second column's scroll box: the cell wrapper is
    the SCROLLER now, full middle-cell width — the scrollbar rides the
    cell's right edge, directly beside the right side pane, instead of the

@@ -9,6 +9,45 @@ predating this file.
 
 ## 2026-10-28
 
+- **fix(web): the NodeCollectionTopBar right cluster unifies, the page
+  footer retires, and the backlink card's top padding tightens — owner
+  round on the broken tabs/toolbar layout (2026-10-28).** (1) The topbar's
+  right side renders as ONE cluster: a `__cluster` wrapper hosts the ported
+  view chrome + the toolbar (`margin-inline-start: auto` absorbs the free
+  width without a flex fight, `justify-content: flex-end` keeps the
+  controls at the row's right edge collapsed and lets the expanded search
+  pill fill the cluster) — the previous composition left the sort button
+  as a separate flex item beside a grown justify-end toolbar row, splitting
+  the controls across the row with dead space between. The tabs strip rides
+  `flex: 1 1 0` — an `auto` basis carries the tablist's max-content, which
+  at narrow hosts overfilled the line and wrapped the cluster onto a second
+  row — and the topbar owns the bottom breathing (the tabs' stack margin
+  retires inside it, it read through and inflated the row). (2) The page
+  footer (word count + Created/Updated stamps) is deleted entirely — owner
+  call: no value, and the narrow context column clipped the stamps;
+  `PageFooter`/`PageFooterChrome` retire with the context-footer register.
+  (3) In the backlink card the tab row rides `--height-md` (32px) instead
+  of the 48px tap floor — the floor stood 16px taller than the ghost
+  buttons and its air read as excess top padding in the tight card.
+  (4) The dev skills absorb the round: `coding-conventions` gains the
+  chrome-row layout contracts (right-cluster unity, button-IS-badge,
+  in-card stack-chrome retirement, hover-gating, ghost-active aria) —
+  canonical in `docs/developers/ui-primitives.md`; `development-workflow`
+  gains the visual-verification pattern (test-workspace boot seeds,
+  path-based `${WEB}/${nodeId}` routing — the hash/pushState trap, probe
+  scripts home); a stale pre-kit-rename component path in the skill is
+  corrected. Verified live against the deployed stack with the new
+  `scripts/screenshots/topbar-layout-probe.mjs` (recursive
+  getBoundingClientRect dump + screenshot; cluster contiguous and flush
+  right on one line) + web typecheck and the full suite.
+  - **Files**: `apps/web/src/features/collection/NodeCollectionTopBar.{tsx,css}`
+    (cluster), `NodeCollectionToolbar.css` (inline row), `apps/web/src/ui/BlockRowDnD.css`
+    (card tab height), `PageFooter.{tsx,css}` (deleted) + `PageChrome.tsx` +
+    `PageView.tsx` + `PanelLayout.css` + `page-sections/index.ts`,
+    `docs/features/pages.md`, the skills + `ui-primitives.md`,
+    `scripts/screenshots/topbar-layout-probe.mjs` (new), tests:
+    `focus-mode` (footer assertion flips).
+
 - **feat(web): the backlink card sheds its header, the gutter button IS the
   badge, and the collection chrome quietens — owner round on the
   block-backlinks card (2026-10-28).** (1) The block card's section header

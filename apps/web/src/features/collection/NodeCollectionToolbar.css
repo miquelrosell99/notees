@@ -13,23 +13,17 @@
   font: var(--font-body-small);
 }
 
-/* Inline layout: the bar renders with `display: contents` inside a wrapping
-   flex chrome row — the NodeCollectionTopBar beside the tabs strip — its
-   control row joins the row's flex line (the search field flexes, capped so
-   the row's actions keep the right side) while the structured panel takes a
-   full-width wrapped line beneath the row. No
-   overlay: the region is in the flow. The cluster JUSTIFIES RIGHT: collapsed
-   (the magnifier button) the controls hug the chrome row's right edge, the
-   empty row width never reads as dead space; expanded, the search pill's
-   flex:1 absorbs the free width and the remaining controls stay right. */
+/* Inline layout: the bar renders with `display: contents` inside the
+   NodeCollectionTopBar's right cluster — its control row joins the cluster
+   (the search pill flexes, the remaining controls ride the cluster's
+   justify-end) while the structured panel takes a full-cluster-width wrapped
+   line beneath the row. No overlay: the region is in the flow. */
 .nt-node-collection-toolbar--inline {
   display: contents;
 }
 
 .nt-node-collection-toolbar--inline .nt-node-collection-toolbar__row {
   flex: 1 1 auto;
-  max-width: 42ch;
-  min-width: 12ch;
   justify-content: flex-end;
 }
 

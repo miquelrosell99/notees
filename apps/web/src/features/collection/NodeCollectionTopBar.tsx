@@ -28,8 +28,9 @@ export interface NodeCollectionTopBarProps {
   tabs: ReactNode;
   /**
    * The toolbar cluster — NodeCollectionToolbar (layout="inline"), alone or
-   * in a fragment with the host's right-cluster extras. Render it last so its
-   * structured panel wraps beneath the row.
+   * in a fragment with the host's right-cluster extras (the view-chrome
+   * portal target). Everything here renders inside ONE right-justified
+   * cluster — never as sibling flex items beside a grown toolbar row.
    */
   toolbar: ReactNode;
 }
@@ -38,7 +39,7 @@ export function NodeCollectionTopBar({ tabs, toolbar }: NodeCollectionTopBarProp
   return (
     <div className="nt-node-collection-topbar">
       <div className="nt-node-collection-topbar__tabs">{tabs}</div>
-      {toolbar}
+      <div className="nt-node-collection-topbar__cluster">{toolbar}</div>
     </div>
   );
 }
