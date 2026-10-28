@@ -211,6 +211,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
       calls,
       client: {
         unassignClass: async () => {},
+        assignClass: async () => {},
         deleteObject: async () => {},
         updateObject: async (id: string, fields: Record<string, unknown>) => {
           calls.push({ id, fields });

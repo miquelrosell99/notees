@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): "Make memorization card" action on blocks and pages
+  (memorization cards slice).** The missing creation half next to the hub's
+  New button: the node context menu (blocks and pages alike) gains a "Make
+  memorization card" item that class-assigns the card system class IN PLACE
+  — the node's content becomes the card's front, its embedded children the
+  answer. New helper `makeCard` (apps/web/src/features/cards/makeCard.ts)
+  composes the canonical `client.assignClass` OR-Set add path and is
+  assign-if-absent: membership read first, an existing card membership
+  emits NO write (a silent re-run beats a redundant op). Fail-loud refusals
+  for class nodes (a class never becomes a card) and date-chain nodes
+  (precision-locked class set — the write would fail at the applier
+  anyway); the menu item is gated to non-class, non-date, not-yet-card
+  nodes. `MenuClient` gains `assignClass` (every host already passes a
+  client that has it; the two stubbed test clients gain the no-op). No new
+  ops, no wire change — no fixture gate, no GTK/Flutter lockstep. Verified:
+  new `make-card` suite (10 — one-write/idempotent/absent/class-refusal/
+  not-found helper pins + menu presence/gating/click-through), full gate
+  green.
+  - **Files**: `apps/web/src/features/cards/makeCard.ts` (new),
+    `apps/web/src/features/node-menu/NodeContextMenu.tsx` (the item + the
+    `MenuClient.assignClass` surface), `apps/web/test/make-card.test.tsx`
+    (new), `apps/web/test/render-cascade.test.tsx` +
+    `apps/web/test/share-modal.test.tsx` (stub alignment),
+    `docs/features/cards.md` (the Making a card section).
+
 - **fix(web): review-session rulings — uuidv7 session ids, due+new queue,
   one-gesture grade undo (memorization cards slice).** Three review
   findings on the review session, fixed together. (1) The session id is
