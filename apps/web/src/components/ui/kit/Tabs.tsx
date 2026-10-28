@@ -119,8 +119,12 @@ function TabsList({ children, variant = 'ghost', className = '', ...props }: Tab
     if (firstChild !== null && firstChild.nodeType === Node.TEXT_NODE) {
       const range = document.createRange();
       range.selectNodeContents(firstChild);
-      const textRect = range.getBoundingClientRect();
-      if (textRect.width > 0) tabRect = textRect;
+      // jsdom implements no Range rects — measure only where the API exists
+      // (the indicator then keeps the label-rect fallback above).
+      if (typeof range.getBoundingClientRect === "function") {
+        const textRect = range.getBoundingClientRect();
+        if (textRect.width > 0) tabRect = textRect;
+      }
     }
     const indicatorWidth = Math.min(Math.max(16, tabRect.width * 0.55), 36);
     const offsetLeft = tabRect.left - listRect.left + (tabRect.width - indicatorWidth) / 2;
