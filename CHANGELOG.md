@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(protocol): the `card.review` op — the SRS review record on the wire
+  (memorization cards slice).** New strict payload schema `card.review`:
+  `cardId`, `grade` (again/hard/good/easy), `algorithm` (sm2/fsrs), the full
+  SRS state transition `stateBefore`/`stateAfter` (`cardSrsStateSchema` — due
+  YYYY-MM-DD or null = unseen, reps, interval days, ease/difficulty/stability
+  null = uninitialized), `reviewedAt`, `sessionId` (uuid, one study session's
+  reviews grouped). `OpType` / `KNOWN_OP_TYPES` / `OpPayload<"card.review">`
+  derive through the registry; the op catalog gains the row. The canonical
+  fixture `card-review.json` (fixture gate 44→45) seeds a node under the
+  system card class and reviews it twice from two sessions — AGAIN on the
+  unseen card initializes SM2 ease at 2.5, GOOD schedules the next day. The
+  store's exhaustive dispatch map stays total through a loudly-marked no-op
+  seam (`applyCardReviewPlaceholder`) — the derived `card_srs` projection is
+  the next slice; the op validates on the wire and replays deterministically,
+  nothing reads SRS state yet. SCHEMA.md gains the normative section
+  (LOCKSTEP-PENDING: GTK/Flutter converge on the fixture in the plan's
+  lockstep task — a recorded deferral). Verified: protocol suite (674 tests,
+  incl. the new card-review pins), full gate green (build + typecheck + test).
+  - **Files**: `packages/protocol/src/op-types.ts` (`cardSrsStateSchema`,
+    `cardReviewPayload`, the registry entry), `packages/protocol/src/op-catalog.ts`
+    (the catalog row), `packages/protocol/test/protocol.test.ts` (45-name list,
+    the pin block), `packages/protocol/fixtures/card-review.json` (new),
+    `packages/store/src/appliers.ts` (the temporary dispatch seam),
+    `packages/protocol/SCHEMA.md` (the normative section).
+
 - **feat(domain): the card class becomes the Memorization card, and the
   card-family SRS property schemas seed with it — memorization cards slice 1.**
   (1) The `card` system class renames its display name `Card` →
