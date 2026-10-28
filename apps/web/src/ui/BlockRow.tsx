@@ -1135,10 +1135,11 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
           </div>
         )}
       </div>
-      {/* Expanded block backlinks: the linked-references system query scoped
-          to this block, lazy per the section contract (query on first
-          toggle, cached until an invalidating notification). Hidden in
-          focus mode (#12) with the gutter toggle. */}
+      {/* Expanded block backlinks: the standard Backlinks system section
+          (the page section's chrome — header, hosted tabs, filter bar)
+          scoped to this block, containered in a card. Mounts only while
+          expanded, so the lazy contract holds (a collapsed gutter executes
+          nothing). Hidden in focus mode (#12) with the gutter toggle. */}
       {backlinkCount > 0 && !focusMode && (
         <BlockBacklinkPanel nodeId={node.id} expanded={backlinksExpanded} client={client} />
       )}

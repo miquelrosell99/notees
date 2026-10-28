@@ -34,6 +34,27 @@ predating this file.
     grid), `apps/web/src/components/ui/fleet/ContextMenu.{tsx,css}` (the
     custom-flyout min-width ruling), tests: `color-presets`, `pickers`,
     `context-menu-color`, `whiteboard-toolset`.
+- **feat(web): the block-level backlink gutter expands the standard Backlinks
+  system section, containered in a card.** The expanded linked-references
+  panel beneath a block row was a bare list — no header, no tabs, no
+  filtering. It now mounts `BacklinksSection` itself (the page section's
+  exact chrome — collapsible header, hosted views/tabs, the transient filter
+  bar, the sort button) scoped to the block, inside the fleet `Card`. The
+  gutter toggle remains the single outer control: the section mounts only
+  while expanded (a collapsed gutter still executes nothing), and the
+  section's own lazy contract holds mounted (no query while its header is
+  collapsed, a re-derive per invalidating notification while expanded) — the
+  old bespoke panel's own cache-across-collapse retires with it (re-expand
+  re-runs the cheap linked-references read; the cache lives one level down,
+  at the section header). Verified: web typecheck + the block-backlinks spec
+  (rewritten — the gutter re-expand now asserts the re-query, the header
+  collapse/expand asserts the cache), verb-backlinks, extended-by-section.
+  - **Files**: `apps/web/src/ui/BlockBacklinks.tsx` (the panel rewritten —
+    `BacklinksSection` in a `Card`; the toggle unchanged), `apps/web/src/ui/BlockRowDnD.css`
+    (the container comment/padding), `apps/web/src/ui/BlockRow.tsx` + `apps/web/src/features/page-sections/SystemSections.tsx`
+    (comments), `apps/web/test/block-backlinks.test.tsx` (the laziness
+    assertions re-leveled), `packages/protocol/SCHEMA.md` (the block
+    right-gutter-toggle ruling).
 
 - **fix(web): a button is never taller than it is wide — the fleet Button
   gains the at-least-a-square width floor.** The "+N" classes trigger (a

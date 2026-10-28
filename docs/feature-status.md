@@ -12,7 +12,7 @@ Honesty, up front — every feature below is labeled. "Today" means it ships and
 | Interactive outliner: text core | **Today** (typing, Enter/shift+Enter/Backspace, Tab indent / shift+Tab outdent, Enter sibling placement) |
 | Outliner: marks editing, collapse, prose mode, drag reorder | **Today** |
 | Condensed layer (stretchtext — one-line excerpts with in-place stretch, over any view mode) | **Today** |
-| System sections UI with the lazy-loading contract | **Today** (page-level: backlinks, unlinked mentions, child pages, plus the workspace **Activity** feed; classed-nodes section lives in Class View); block-level gutter toggle Designed |
+| System sections UI with the lazy-loading contract | **Today** (page-level: backlinks, unlinked mentions, child pages, plus the workspace **Activity** feed; classed-nodes section lives in Class View; the block-level gutter toggle expands the standard Backlinks section, in a card, beneath the block row) |
 | Capture gestures: `@` mentions, `#` tags, `+` classes, verb-on-selection | **Today** (verb capture with schema-at-capture: an exact property-schema name binds the mark, a new name offers create-and-bind; target resolution Designed) |
 | Embeds (live subtree transclusion) | **Today** (read-only projection, cycle-guarded, with the Full/Card/Wide view switcher writing the token's `view`) |
 | Whiteboards (spatial canvas) | **Today** (full tool palette — select/card/sticky/shapes, the pen/highlighter/eraser group, text/connector — plus colors, sizes, align/distribute, the canvas context menu, minimap, zoom, snap, keyboard; cards as child blocks, embedded mode) |
