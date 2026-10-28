@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-28
 
+- **fix(web): a multi-line node link underlines EVERY line, not one.** The
+  read-mode mention chip (`.nt-link`, a `<button>`) carried its dashed
+  underline as `border-bottom`; on the button's fragmented inline box the
+  border painted on a single wrapped line (verified in-browser with a
+  minimal repro: border-bottom → one line on the button, all lines on a
+  span; `text-decoration` → all lines on both). The chip's underline now
+  rides `text-decoration: underline dashed` (+ `text-underline-offset: 2px`,
+  the class-link family's offset) — propagation names the whole rich label
+  one continuous line, and the nested inert elements' own decorations stay
+  chip-scoped off (their `text-decoration: none` removes their own line;
+  the rule-text spec pins the technique since jsdom has no layout). Hover
+  lifts `text-decoration-color` to primary. Edit-mode atoms keep
+  `border-bottom` — a span fragments correctly.
+  - **Files**: `apps/web/src/ui/NodeLinks.css` (the `.nt-link` underline
+    technique + comment), `apps/web/test/node-link-label.test.tsx` (the
+    technique spec).
+
 - **feat(web): the block backlink card sheds its noise — count-only gutter
   badge, filled surface, no in-card hairline, and a toggle-less section
   header.** Owner review of the just-shipped block-backlinks card (2026-10-28,
