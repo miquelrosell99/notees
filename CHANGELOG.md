@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): the Tasks hub joins the nestUnderParents family — a subtask
+  nests under its parent task.** The Tasks hub passes `nestUnderParents`
+  (the render-time nesting prop the Pages hub introduced): the outline nests
+  a task-classed child under its parent task row, the table lists both as
+  first-class rows (its explicit Edited-desc default sort keeps overriding
+  the unset-order DFS, per the column-sort contract), and the bucketed /
+  kanban surface stays flat by design. The editable task outline opens
+  children expanded — the drag order is the order there.
+  - **Files**: `apps/web/src/ui/app/HubView.tsx` (the one prop),
+    `apps/web/test/view-modes.test.tsx` (the subtask spec — table
+    membership, outline nesting, no top-level subtask row). Verified: web
+    typecheck + full suite (213 files / 2463 tests).
+
 - **feat(web): the Pages hub queries all page nodes — subpages are first-class
   items; nesting is display-time.** The Pages hub's underlying read was
   workspace ROOT pages, so a subpage surfaced only inside its parent's

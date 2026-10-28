@@ -512,6 +512,42 @@ describe("tasks hub", () => {
     expect(hub.querySelector(".nt-block--editing")).not.toBeNull();
   });
 
+  it("a subtask nests under its parent task in the outline (nestUnderParents), and both ride the table", async () => {
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+    const parentTask = await client.createObject({ isEmbedded: false, name: "Zoo parent task" });
+    await client.assignClass(parentTask, SYSTEM_CLASS_UUIDS.task);
+    const subtask = await client.createObject({
+      parentId: parentTask,
+      contentAst: [{ type: "text", text: "Aardvark subtask" }],
+    });
+    await client.assignClass(subtask, SYSTEM_CLASS_UUIDS.task);
+
+    render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
+
+    // The table lists both — the subtask is a first-class row.
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("Zoo parent task")).not.toBeNull();
+    expect(within(table).getByText("Aardvark subtask")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
+    const hub = document.querySelector(".nt-hub") as HTMLElement;
+    const ownTitle = (li: Element): string =>
+      li.querySelector(
+        ":scope > .outline-row > .nt-block > .nt-block-row > .nt-block-content",
+      )?.textContent ?? "";
+    const topTitles = [...hub.querySelectorAll(".outline-flat > li")].map(ownTitle);
+    // The subtask is NOT a top-level row…
+    expect(topTitles.some((t) => t.includes("Zoo parent task"))).toBe(true);
+    expect(topTitles.some((t) => t.includes("Aardvark subtask"))).toBe(false);
+    // …it rides INSIDE the parent's row (the editable task surface opens
+    // children expanded — the drag order is the order there).
+    const parentRow = [...hub.querySelectorAll(".outline-flat > li")].find(
+      (li) => ownTitle(li).includes("Zoo parent task"),
+    ) as HTMLElement;
+    expect(parentRow.textContent).toContain("Aardvark subtask");
+  });
+
   it("list view opens via the bullet: read-only rows are inert (content click does nothing)", async () => {
     const client = await seedClient();
     const parentless = await client.createObject({ isEmbedded: false, name: "Solo" });
