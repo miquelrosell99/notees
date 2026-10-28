@@ -20,7 +20,8 @@ predating this file.
   flat string). The chip stays ONE link to its target: the nested elements
   render inert — the established link looks (dashed mention underline, wavy
   class underline, hyperlink color) on spans, no nested buttons/anchors, no
-  own click; hover previews still fire. Nesting caps at one level
+  own click, no own hover — the chip's button owns the click AND the hover
+  preview for its target across the whole label. Nesting caps at one level
   (labelDepth), so link cycles terminate; a customLabel still wins; the
   resolver is wired only in the editor row, leaving picker/search
   projections on the flat string.
