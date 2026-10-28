@@ -9,6 +9,37 @@ predating this file.
 
 ## 2026-10-28
 
+- **refactor(web): SelectionButton overflow is tier-declared per option, not
+  count-derived.** The kit `SelectionButton` (the mode/view switcher
+  primitive) previously split its options inline vs overflow from a
+  `maxVisibleOptions` count, swapping the selected option into the strip so
+  the sliding indicator always had a target. Overflow is now a design
+  decision of the caller: each option declares `tier: "primary" |
+  "secondary"` (absent = primary, the inline strip); the count prop is
+  removed outright (no backward compatibility), the swap trick is deleted,
+  and an all-secondary config fails soft by rendering everything inline
+  rather than an empty strip with a "…". The overflow toggle carries a new
+  persistent active state (`selection-button__overflow-toggle--active`,
+  the selected vocabulary at the toggle's own scale — distinct from the
+  transient `--open`) while the selection lives in the dropdown. Arrow-key
+  navigation keeps cycling the inline strip (secondary options are
+  reachable as real dropdown buttons); wheel cycling still walks all
+  options. The collection view switcher sources tiers from the view
+  registry (`ViewRegistryEntry.tier`, mapped through
+  `getViewModeOptions`): outline/prose/cards/table stay primary, **graph
+  is the first secondary-tier mode**. The transient outline/table/pivot
+  switch and the cards cover/flow toggles are all-primary — their count
+  props just go away.
+  - **Files**: `apps/web/src/components/ui/kit/SelectionButton.tsx` (the
+    `tier` field, the split-by-tier memo, the toggle active class),
+    `apps/web/src/components/ui/kit/SelectionButton.css` (the `--active`
+    modifier), `apps/web/src/features/collection/ViewSwitcher.tsx` +
+    `registry.ts` + `types.ts` + `graph/GraphView.tsx` (registry-sourced
+    tiers, graph secondary), `apps/web/src/features/collection/CardsView.tsx`
+    and `apps/web/src/ui/QueryNodeSection.tsx` (count props removed),
+    `apps/web/test/selection-button-tiers.test.tsx` (the tier spec — default
+    inline, mixed tiers, the toggle active state, the all-secondary fail-soft).
+
 - **feat(web): a collapsible search field; the collection toolbar renamed
   and composed in a NodeCollectionTopBar; one count pill everywhere; the
   backlink gutter rides the standard toggle register.** Owner round
