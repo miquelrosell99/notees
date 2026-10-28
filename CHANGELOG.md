@@ -9,6 +9,37 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): the backlink card sheds its header, the gutter button IS the
+  badge, and the collection chrome quietens — owner round on the
+  block-backlinks card (2026-10-28).** (1) The block card's section header
+  is gone entirely: `NodeViewSection`'s `hideToggle` (shipped hours earlier)
+  retires in favor of `hideHeader` — content alone; the gutter toggle owns
+  the surface, and the hosted default tab names the section. (2) The gutter
+  toggle's count rides the ghost Button as its own label — the nested Badge
+  pill doubled the box and overlapped (owner screenshot); one element, one
+  chrome. (3) The card insets tighten to the card padding (owner call:
+  left/right read like top/bottom) — the section's page-stack indent
+  (spacing-7) and hairline retire inside the card. (4) The inline toolbar
+  cluster justifies right (the NodeCollectionTopBar composition had it
+  content-left inside its 42ch row, leaving the card's right side empty).
+  (5) The "+" add-tab in the collection tabs rides hidden until the tabs
+  strip is hovered or focus-held (`:focus-within` keeps it reachable by
+  keyboard). (6) The default hosted tab is named dynamically: the
+  `HostedViewsConfig.defaultViewLabel` → `NodeCollectionTabs.defaultTabLabel`
+  seam; the reference sections name theirs "Backlinks" / "Unlinked
+  mentions", every other surface keeps "Default". Verified: web typecheck +
+  the node-view-section (hideHeader + hover scoping), block-backlinks,
+  filter-layer, section-views, query-node, verb-backlinks, system-sections
+  specs.
+  - **Files**: `apps/web/src/features/page-sections/NodeViewSection.{tsx,css}`
+    (hideHeader; the --static header + its CSS retire), `apps/web/src/ui/BlockBacklinks.tsx`
+    + `BlockRowDnD.css` (count-as-label; in-card insets), `apps/web/src/features/collection/NodeCollectionToolbar.css`
+    (inline cluster right-justified), `NodeCollectionTabs.{tsx,css}` (add-tab
+    hover gate; `defaultTabLabel`), `NodeCollection.tsx`/`types.ts` +
+    `SystemSections.tsx` (`defaultViewLabel`), tests: `node-view-section-chevron`
+    (hideHeader spec), `packages/protocol/SCHEMA.md` + `docs/features/links.md`
+    + `docs/feature-status.md` (the ruling).
+
 - **refactor(web): SelectionButton overflow is tier-declared per option, not
   count-derived.** The kit `SelectionButton` (the mode/view switcher
   primitive) previously split its options inline vs overflow from a

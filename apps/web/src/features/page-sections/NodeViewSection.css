@@ -55,13 +55,6 @@
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
-/* The static header (hideToggle): inert chrome — no pointer or focus
-   affordance, the layout inherits the toggle-button form so the title and
-   content keep their alignment. */
-.node-view-section__header--static {
-  cursor: default;
-}
-
 .node-view-section__toggle {
   display: flex;
   align-items: center;

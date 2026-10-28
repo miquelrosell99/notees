@@ -85,13 +85,18 @@ export interface NodeCollectionTabsProps {
    */
   activeCount?: number | null;
   /**
+   * The DEFAULT tab's label — the host names it like its system section
+   * ("Backlinks", "Unlinked mentions"); absent = "Default".
+   */
+  defaultTabLabel?: string | undefined;
+  /**
    * The host section's chrome riding the bar's far right (the bar's quick
    * search + structured toggle, the view switcher) — one row with the tabs.
    */
   trailing?: ReactNode;
 }
 
-export function NodeCollectionTabs({ client, nodeId, sectionKey, selected, onSelect, createAst, activeCount, trailing }: NodeCollectionTabsProps) {
+export function NodeCollectionTabs({ client, nodeId, sectionKey, selected, onSelect, createAst, activeCount, defaultTabLabel, trailing }: NodeCollectionTabsProps) {
   const { views, lastWriteError } = useSectionViews(client, nodeId, sectionKey);
   const [renaming, setRenaming] = useState<SectionView | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -153,7 +158,7 @@ export function NodeCollectionTabs({ client, nodeId, sectionKey, selected, onSel
         <Tabs className="nt-node-collection-tabs__tabs" value={selected} onChange={onSelect}>
           <Tabs.List>
             <Tabs.Tab value={SECTION_DEFAULT_TAB}>
-              Default
+              {defaultTabLabel ?? "Default"}
               {selected === SECTION_DEFAULT_TAB && activeCount != null && (
                 <span className="nt-node-collection-tabs__tab-count" aria-hidden="true">
                   <Badge size="xs">{activeCount}</Badge>

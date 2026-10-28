@@ -293,6 +293,7 @@ export function NodeCollection({
               onSelect={setTab}
               createAst={hosted.createAst}
               activeCount={tabRowCount}
+              defaultTabLabel={hosted.defaultViewLabel}
             />
           }
           toolbar={

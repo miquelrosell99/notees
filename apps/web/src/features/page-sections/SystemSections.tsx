@@ -282,7 +282,7 @@ function ReferenceSection({
   load,
   refreshKey,
   unlinkedPageId,
-  hideToggle = false,
+  hideHeader = false,
   sectionKey,
   emptyText,
   defaultExpanded = false,
@@ -298,11 +298,10 @@ function ReferenceSection({
   /** Enables the Promote/Ignore row actions (the unlinked section only). */
   unlinkedPageId?: string | undefined;
   /**
-   * Hide the header's collapse toggle (the block backlink card's gutter
-   * toggle owns show/hide there — collapsing a surface the user can hide
-   * entirely makes no sense).
+   * Hide the section header ENTIRELY (the block backlink card: the gutter
+   * toggle owns the surface, the hosted tab names the section).
    */
-  hideToggle?: boolean | undefined;
+  hideHeader?: boolean | undefined;
   /** The hosted custom views' section key (per-section saved views). */
   sectionKey: HostedViewsConfig["sectionKey"];
   emptyText: string;
@@ -347,7 +346,7 @@ function ReferenceSection({
       className="nt-section"
       expanded={expanded}
       onExpandedChange={setExpanded}
-      {...(hideToggle ? { hideToggle: true } : {})}
+      {...(hideHeader ? { hideHeader: true } : {})}
     >
       {rows === null ? null : (
         <ReferenceList
@@ -355,7 +354,7 @@ function ReferenceSection({
           client={client}
           onOpenPage={onOpenPage}
           {...(unlinkedPageId !== undefined ? { unlinkedPageId } : {})}
-          hostedViews={{ nodeId: pageId, sectionKey, createAst: () => draftOrFactoryAst(filterQuery), selected: tab, onSelectTab: setTab }}
+          hostedViews={{ nodeId: pageId, sectionKey, createAst: () => draftOrFactoryAst(filterQuery), selected: tab, onSelectTab: setTab, defaultViewLabel: title }}
           defaultSortMode={quickTextOf(filterQuery) === "" ? "dates-first" : "position"}
           toolbarContent={
             <NodeCollectionToolbar
@@ -449,19 +448,19 @@ export function ChildPagesSection({
  * ruling covers every reference section); the count itself no longer
  * displays anywhere — the active tab's badge
  * names the displayed rows. The block backlink card mounts it with
- * `hideToggle` — the gutter toggle owns show/hide there.
+ * `hideHeader` — the gutter toggle owns show/hide there.
  */
 export function BacklinksSection({
   client,
   pageId,
   onOpenPage,
-  hideToggle = false,
+  hideHeader = false,
 }: {
   client: AnyClient;
   pageId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
   /** Hide the header's collapse toggle (the block backlink card's gutter toggle owns show/hide there). */
-  hideToggle?: boolean | undefined;
+  hideHeader?: boolean | undefined;
 }) {
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
   const backlinkCount = client.getBacklinkCount(pageId);
@@ -474,7 +473,7 @@ export function BacklinksSection({
       title="Backlinks"
       icon={<Icon path="mdi-link-variant" size={0.9} />}
       load={loadLinkedRefs}
-      {...(hideToggle ? { hideToggle: true } : {})}
+      {...(hideHeader ? { hideHeader: true } : {})}
       sectionKey="linked-references"
       emptyText="No backlinks."
       defaultExpanded
