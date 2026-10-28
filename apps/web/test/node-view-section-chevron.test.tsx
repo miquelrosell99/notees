@@ -64,3 +64,12 @@ describe("NodeViewSection nested mount", () => {
     expect(screen.queryByText("the inner content")).toBeNull();
   });
 });
+
+describe("NodeViewSection hideHeader", () => {
+  it("the headerless section renders its content alone — no header button, no title chrome", () => {
+    render(<NodeViewSection title="Backlinks" hideHeader>the content</NodeViewSection>);
+    expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
+    expect(screen.queryByText("Backlinks")).toBeNull();
+    expect(screen.getByText("the content")).not.toBeNull();
+  });
+});

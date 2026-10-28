@@ -67,11 +67,20 @@
 }
 
 /* Inside the card the section loses its stack chrome: no top hairline (the
-   card boundary is the separator) and no header clearance under it (the
-   card padding owns the breathing room). */
+   card boundary is the separator), no header clearance under it (the card
+   padding owns the breathing room), and the insets tighten to the card
+   padding itself (the owner call: left/right read like top/bottom) — the
+   content's title-alignment indent (spacing-7, designed for the
+   page-section stack) retires. The header itself renders nothing at all in
+   the card (hideHeader): the gutter toggle owns the surface, the hosted
+   tab names the section. */
 .nt-block-backlink-card .node-view-section {
   border-top: none;
   padding-top: 0;
+}
+
+.nt-block-backlink-card .node-view-section__content {
+  padding-left: 0;
 }
 
 /* Block tags / properties: dedicated rows under the block row, aligned with

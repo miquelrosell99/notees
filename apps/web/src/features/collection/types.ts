@@ -40,6 +40,11 @@ export interface HostedViewsConfig {
   /** The section key ("" = the node's main query). */
   sectionKey: HostedSectionKey | "";
   /**
+   * The DEFAULT tab's label — named like the system section when the host
+   * has a name for it ("Backlinks", "Unlinked mentions"); absent = "Default".
+   */
+  defaultViewLabel?: string | undefined;
+  /**
    * The AST a new tab starts from — the host's current draft, falling back
    * to the factory AST when the draft is empty.
    */

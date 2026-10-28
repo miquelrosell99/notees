@@ -66,6 +66,19 @@
   color: var(--md-sys-color-on-surface);
 }
 
+/* The "+" add-tab rides QUIET until the tabs strip is hovered (or holds the
+   keyboard focus — a hover-only affordance would strand keyboard users): the
+   chrome reads as tabs alone at rest. */
+.nt-node-collection-tabs__tabs .tabs__add-slot {
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-node-collection-tabs__tabs:hover .tabs__add-slot,
+.nt-node-collection-tabs__tabs:focus-within .tabs__add-slot {
+  opacity: 1;
+}
+
 .nt-node-collection-tabs__manage {
   display: flex;
   align-items: center;
