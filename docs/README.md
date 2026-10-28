@@ -38,6 +38,7 @@ Documentation for people — using the app, and developing or operating it. One 
 
 - **[Calendar and day pages](features/calendar.md)** — the grid calendar and day agenda, day pages, recurrence, quick capture.
 - **[Tasks](features/tasks.md)** — the Tasks hub's buckets and the checkbox semantics.
+- **[Cards](features/cards.md)** — memorization cards: turn any block or page into a card, the Cards hub's due/fresh/later buckets, and the spaced-repetition review session (SM-2 or FSRS).
 
 **Output**
 
