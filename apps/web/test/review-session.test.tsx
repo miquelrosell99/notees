@@ -21,6 +21,7 @@ import type { OpPayload } from "@notees/protocol";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { scheduledIsoOf, todayIsoLocal } from "../src/features/calendar/calendarViewUtils.js";
 import { CARDS_SESSION_STORAGE_KEY } from "../src/features/cards/sessionState.js";
+import { getCardsAlgorithm, resetNodePrefsForTests, setCardsAlgorithm } from "../src/features/settings/nodePrefs.js";
 import { nextCardState } from "@notees/domain";
 import { ReviewSession } from "../src/features/cards/ReviewSession.js";
 
@@ -37,6 +38,7 @@ const clients: WorkspaceClient[] = [];
 
 beforeEach(() => {
   sessionStorage.clear();
+  resetNodePrefsForTests();
 });
 
 afterEach(() => {
@@ -207,7 +209,7 @@ describe("ReviewSession", () => {
     expect(screen.getByText(/1 card reviewed/)).toBeTruthy();
   });
 
-  it("undo reverts the property writes; the card.review history row stays (Review Focus 5)", async () => {
+  it("undo reverts the WHOLE grade in one gesture; the card.review history row stays (Review Focus 5)", async () => {
     const client = await seedClient();
     const cardId = await seedCard(client, "Undo card", "Undo answer");
     startSession([cardId]);
@@ -220,32 +222,79 @@ describe("ReviewSession", () => {
     fireEvent.click(screen.getByRole("button", { name: "Good" }));
     await flush();
 
-    // The grade journaled the 5 property writes plus the due-day date-chain
-    // ensure (year/month/day object.creates inside setDatetimeProperty) —
-    // the card.review op itself never enters the journal.
+    // The grade's schedule writes (5 property writes + the due-day
+    // date-chain creates they trigger) journal as ONE entry — a grade is a
+    // single gesture. The card.review op itself never enters the journal.
     const journaled = client.undoDepth().undo - depthBefore;
-    expect(journaled).toBe(8);
+    expect(journaled).toBe(1);
     // The history row landed in the derived projection.
     const historyCount = (
       client.store.database.prepare("SELECT COUNT(*) AS n FROM card_review").get() as { n: number }
     ).n;
     expect(historyCount).toBe(1);
 
-    // Draining the journal reverts every property write.
-    while (client.undoDepth().undo > depthBefore) {
-      await client.undo();
-    }
+    // ONE undo reverts every property write of the grade.
+    await client.undo();
     await flush();
 
     expect(effectiveValue(client, cardId, CARD_PROPERTY_UUIDS.cardReps)).not.toBe(1);
+    expect(effectiveValue(client, cardId, CARD_PROPERTY_UUIDS.cardInterval)).not.toBe(0);
+    expect(effectiveValue(client, cardId, CARD_PROPERTY_UUIDS.cardDifficulty) ?? null).toBeNull();
     expect(
       scheduledIsoOf(effectiveValue(client, cardId, CARD_PROPERTY_UUIDS.cardDue)),
     ).toBeNull();
+    expect(client.undoDepth().undo).toBe(depthBefore);
     // The history row SURVIVES the undo — a review cannot be un-happened.
     const historyAfter = (
       client.store.database.prepare("SELECT COUNT(*) AS n FROM card_review").get() as { n: number }
     ).n;
     expect(historyAfter).toBe(1);
+  });
+
+  it("the sm2 grade writes the ease factor and leaves the fsrs fields stale", async () => {
+    setCardsAlgorithm("sm2");
+    try {
+      const client = await seedClient();
+      const cardId = await seedCard(client, "SM2 card", "SM2 answer");
+      startSession([cardId]);
+      const reviews = vi.spyOn(client, "recordCardReview");
+
+      startReview(client);
+      await flush();
+
+      const today = todayIsoLocal();
+      const expected = nextCardState(UNSEEN_CARD_STATE, "good", "sm2", today);
+
+      fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
+      fireEvent.click(screen.getByRole("button", { name: "Good" }));
+      await flush();
+
+      // SM-2 good on an unseen card: interval 1 day (due tomorrow), the
+      // ease factor initialized at 2.5 and moved by the quality-4 update.
+      expect(scheduledIsoOf(effectiveValue(client, cardId, CARD_PROPERTY_UUIDS.cardDue))).toBe(
+        expected.due,
+      );
+      expect(effectiveValue(client, cardId, CARD_PROPERTY_UUIDS.cardReps)).toBe(expected.reps);
+      expect(effectiveValue(client, cardId, CARD_PROPERTY_UUIDS.cardInterval)).toBe(
+        expected.interval,
+      );
+      expect(effectiveValue(client, cardId, CARD_PROPERTY_UUIDS.cardEase)).toBeCloseTo(
+        expected.ease ?? -1,
+        6,
+      );
+      // The fsrs fields stay untouched (byte-for-byte stale = null here).
+      expect(
+        effectiveValue(client, cardId, CARD_PROPERTY_UUIDS.cardDifficulty) ?? null,
+      ).toBeNull();
+      expect(
+        effectiveValue(client, cardId, CARD_PROPERTY_UUIDS.cardStability) ?? null,
+      ).toBeNull();
+      // The envelope records which scheduler ran.
+      expect(reviews).toHaveBeenCalledTimes(1);
+      expect((reviews.mock.calls[0]![0] as OpPayload<"card.review">).algorithm).toBe("sm2");
+    } finally {
+      setCardsAlgorithm("fsrs");
+    }
   });
 
   it("the exit action leaves the session for the cards hub", async () => {

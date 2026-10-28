@@ -39,6 +39,7 @@
 import type { SqlJsStatic } from "sql.js";
 
 import type { OpPayload, WorkspaceFeature } from "@notees/protocol";
+import type { CardSrsState, SrsAlgorithm } from "@notees/domain";
 
 import { Store, validateEnvelope } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
@@ -857,6 +858,10 @@ export class WorkerCore {
         return this.client.emptyProperty(args[0] as string, args[1] as string);
       case "recordCardReview":
         return this.client.recordCardReview(args[0] as OpPayload<"card.review">);
+      case "reviewCard":
+        return this.client.reviewCard(
+          args[0] as { cardId: string; stateAfter: CardSrsState; algorithm: SrsAlgorithm },
+        );
       case "ensureDateChain":
         return this.client.ensureDateChain(args[0] as string);
       case "setDatetimeProperty":

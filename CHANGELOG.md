@@ -9,6 +9,35 @@ predating this file.
 
 ## 2026-10-28
 
+- **fix(web): review-session rulings — uuidv7 session ids, due+new queue,
+  one-gesture grade undo (memorization cards slice).** Three review
+  findings on the review session, fixed together. (1) The session id is
+  minted with `uuidv7` (the repo's identity law), not `crypto.randomUUID`.
+  (2) `buildReviewQueue` drops the future-due arm — the queue is due + new
+  ONLY (due-date ascending, overdue first; then fresh in input order);
+  a hand-off may carry not-yet-due ids, the queue never admits them (the
+  spec's Queue ruling outranks the brief's step-1 sketch), and the pinned
+  test now asserts the exclusion. (3) The grade's schedule writes are ONE
+  undo gesture: new client surface `reviewCard` (WorkspaceClient +
+  WorkerClient RPC) wraps the six card-family property writes — including
+  the due-day date-chain creates they trigger — in the undo journal's
+  `batchAsync` inside the client, so one undo reverts the whole grade
+  under both client classes; the `card.review` op stays outside the batch
+  and never journaled. New sm2-arm test pins the ease write (2.5 → quality
+  update) and the fsrs fields staying stale under SM-2. Docs reconciled to
+  one wording: the queue is due + new only. Verified: covering suites
+  green (`review-queue` 4, `review-session` 7 — single-undo Focus 5 pin +
+  the sm2 arm, `cards-routing` 4), full gate green.
+  - **Files**: `apps/web/src/features/cards/ReviewSession.tsx` (uuidv7
+    session id, the `reviewCard` call), `apps/web/src/features/cards/
+    reviewQueue.ts` (the future-due arm dropped), `apps/web/src/core/
+    workspace-client/client.ts` (`reviewCard`, the batchAsync gesture),
+    `apps/web/src/core/worker-client.ts` + `apps/web/src/worker/
+    worker-core.ts` (the RPC mirror), `apps/web/test/review-queue.test.ts`
+    + `review-session.test.tsx` (the exclusion + single-undo + sm2 pins),
+    `docs/features/cards.md` + `docs/feature-status.md` (the due+new
+    wording).
+
 - **feat(web): card review session — reveal + four-grade flow over due
   queues (memorization cards slice).** `/cards/review` ships: the Cards
   hub's Review hand-off (`notees.cards.session`) is consumed on mount

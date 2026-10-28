@@ -5,10 +5,11 @@
  * Queue: the hub's Review gestures store `{ cardIds, filterSummary }` under
  * `notees.cards.session` (sessionState.ts) — those ids ARE the session;
  * consumed on mount (the deep link with no/corrupt stored session falls
- * back to every card-classed member, due AND fresh, `buildReviewQueue`
- * ordering them due-first). The session reads each card's SRS state from
- * the six card-family PROPERTY VALUES (the schedule's sole authority) —
- * missing/unparseable fields read as `UNSEEN_CARD_STATE`.
+ * back to every card-classed member, and `buildReviewQueue` takes the due
+ * + fresh set — future-due cards never enter the session). The session
+ * reads each card's SRS state from the six card-family PROPERTY VALUES
+ * (the schedule's sole authority) — missing/unparseable fields read as
+ * `UNSEEN_CARD_STATE`.
  *
  * Render: the front is the card node's own content read-only (the ProseView
  * single-item pattern); Reveal flips to the back — the same row plus its
@@ -18,13 +19,13 @@
  *
  * Grading: `nextCardState` computes the next SRS state with the session's
  * algorithm (read once at mount from the cards.algorithm pref). The
- * property writes compose exactly like taskCycle composes its status write
- * — one write per touched value, addressed at the row's EXISTING idx (the
- * inactive algorithm's fields stay byte-for-byte stale, per the srs.ts
- * mid-deck switch contract). The card.review envelope then appends through
- * the client's single op seam — the op is audit history ONLY and never
- * enters the undo journal (a review cannot be un-happened; undoing a grade
- * reverts the property writes, the history row stays — Review Focus 5).
+ * property writes ride the client's `reviewCard` batch — ONE undo gesture
+ * per grade, including the due-day date-chain creates (the row-idx
+ * addressing and the inactive-algorithm staleness live inside the client,
+ * the taskCycle precedent). The card.review envelope then appends through
+ * the client's single op seam — audit history ONLY, never journaled (a
+ * review cannot be un-happened; undoing a grade reverts the property
+ * writes, the history row stays — Review Focus 5).
  *
  * Law 9: /cards/review is the review surface's own deep-linkable URL (the
  * nav register lands any /cards/* path on the cards hub; AppBody branches
@@ -32,6 +33,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { uuidv7 } from "uuidv7";
 
 import {
   CARD_PROPERTY_UUIDS,
@@ -113,7 +115,7 @@ export function ReviewSession({
   const [reviewed, setReviewed] = useState(0);
   const [lapses, setLapses] = useState(0);
   /** One study session's identity — shared by every card.review op. */
-  const [sessionId] = useState(() => crypto.randomUUID());
+  const [sessionId] = useState(() => uuidv7());
 
   useEffect(() => {
     let cancelled = false;
@@ -127,8 +129,8 @@ export function ReviewSession({
       }
       let ids = session?.cardIds ?? null;
       if (ids === null) {
-        // Deep-link fallback: every card-classed member, due AND fresh —
-        // the queue orders due-first and the session may stop anytime.
+        // Deep-link fallback: every card-classed member — the queue takes
+        // the due + fresh set (future-due never enters the session).
         const members = await client.getClassMembers(SYSTEM_CLASS_UUIDS.card);
         ids = members.map((member) => member.id);
       }
@@ -175,55 +177,13 @@ export function ReviewSession({
     const stateAfter = nextCardState(stateBefore, gradeValue, algorithm, todayIsoLocal());
     setGrading(true);
     try {
-      // The property writes compose like taskCycle's status write: one write
-      // per touched value, re-reading the rows at write time and addressing
-      // each at its EXISTING idx (never a hard-coded 0). The inactive
-      // algorithm's fields stay byte-for-byte stale (the srs.ts contract).
-      const props = await client.getEffectiveProperties(card.id);
-      const idxOf = (schemaId: string): number =>
-        props.find((row) => row.propertySchemaId === schemaId)?.idx ?? 0;
-      await client.setDatetimeProperty(
-        card.id,
-        CARD_PROPERTY_UUIDS.cardDue,
-        { iso: stateAfter.due! },
-        idxOf(CARD_PROPERTY_UUIDS.cardDue),
-      );
-      await client.setProperty(
-        card.id,
-        CARD_PROPERTY_UUIDS.cardReps,
-        stateAfter.reps,
-        idxOf(CARD_PROPERTY_UUIDS.cardReps),
-      );
-      await client.setProperty(
-        card.id,
-        CARD_PROPERTY_UUIDS.cardInterval,
-        stateAfter.interval,
-        idxOf(CARD_PROPERTY_UUIDS.cardInterval),
-      );
-      if (algorithm === "sm2") {
-        await client.setProperty(
-          card.id,
-          CARD_PROPERTY_UUIDS.cardEase,
-          stateAfter.ease,
-          idxOf(CARD_PROPERTY_UUIDS.cardEase),
-        );
-      } else {
-        await client.setProperty(
-          card.id,
-          CARD_PROPERTY_UUIDS.cardDifficulty,
-          stateAfter.difficulty,
-          idxOf(CARD_PROPERTY_UUIDS.cardDifficulty),
-        );
-        await client.setProperty(
-          card.id,
-          CARD_PROPERTY_UUIDS.cardStability,
-          stateAfter.stability,
-          idxOf(CARD_PROPERTY_UUIDS.cardStability),
-        );
-      }
-      // The audit-history record — appended through the single op seam;
-      // invertEnvelope has no case for card.review, so it never joins the
-      // undo journal (the history row stays when a grade is undone).
+      // The schedule writes are ONE gesture: the client's reviewCard wraps
+      // them in the undo journal's batch (one Ctrl+Z reverts the whole
+      // grade, date-chain creates included); the inactive algorithm's
+      // fields stay byte-for-byte stale (the srs.ts contract). The
+      // card.review envelope is appended separately — audit history only,
+      // never journaled (a review cannot be un-happened).
+      await client.reviewCard({ cardId: card.id, stateAfter, algorithm });
       const payload: OpPayload<"card.review"> = {
         cardId: card.id,
         grade: gradeValue,

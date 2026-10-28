@@ -28,6 +28,7 @@ import type { Envelope, OpPayload } from "@notees/protocol";
 import { Store, type GraphOptions } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
 import type { WorkspaceFeature } from "@notees/protocol";
+import { CARD_PROPERTY_UUIDS, type CardSrsState, type SrsAlgorithm } from "@notees/domain";
 
 import type { WorkspaceClientOptions } from "./types.js";
 import type { PrefsPatch } from "./prefs.js";
@@ -675,6 +676,71 @@ export class WorkspaceClient {
   /** Append the card.review audit-history op (never journaled — see the writes domain). */
   recordCardReview(payload: OpPayload<"card.review">) {
     return this.writes.recordCardReview(payload);
+  }
+
+  /**
+   * The grade gesture (memorization cards): write the next SRS state into
+   * the six card-family property values as ONE undo-journal batch — a
+   * grade is a single gesture, so ONE undo reverts the whole grade's
+   * schedule writes (including the due-day date-chain creates the cardDue
+   * write triggers inside the batch). The batch lives INSIDE the client so
+   * the gesture survives the WorkerClient RPC boundary (one call, one
+   * journal entry). The card.review audit record is a separate, never-
+   * journaled op the caller appends after this resolves. The inactive
+   * algorithm's fields stay byte-for-byte stale (the srs.ts mid-deck
+   * switch contract); every write addresses the row's EXISTING idx (the
+   * taskCycle precedent, re-read at write time).
+   */
+  async reviewCard(input: {
+    cardId: string;
+    stateAfter: CardSrsState;
+    algorithm: SrsAlgorithm;
+  }): Promise<void> {
+    const { cardId, stateAfter, algorithm } = input;
+    await this.ctx.undoJournal.batchAsync(async () => {
+      const props = this.readsProps.getEffectiveProperties(cardId);
+      const idxOf = (schemaId: string): number =>
+        props.find((row) => row.propertySchemaId === schemaId)?.idx ?? 0;
+      await this.dates.setDatetimeProperty(
+        cardId,
+        CARD_PROPERTY_UUIDS.cardDue,
+        { iso: stateAfter.due! },
+        idxOf(CARD_PROPERTY_UUIDS.cardDue),
+      );
+      await this.writes.setProperty(
+        cardId,
+        CARD_PROPERTY_UUIDS.cardReps,
+        stateAfter.reps,
+        idxOf(CARD_PROPERTY_UUIDS.cardReps),
+      );
+      await this.writes.setProperty(
+        cardId,
+        CARD_PROPERTY_UUIDS.cardInterval,
+        stateAfter.interval,
+        idxOf(CARD_PROPERTY_UUIDS.cardInterval),
+      );
+      if (algorithm === "sm2") {
+        await this.writes.setProperty(
+          cardId,
+          CARD_PROPERTY_UUIDS.cardEase,
+          stateAfter.ease,
+          idxOf(CARD_PROPERTY_UUIDS.cardEase),
+        );
+      } else {
+        await this.writes.setProperty(
+          cardId,
+          CARD_PROPERTY_UUIDS.cardDifficulty,
+          stateAfter.difficulty,
+          idxOf(CARD_PROPERTY_UUIDS.cardDifficulty),
+        );
+        await this.writes.setProperty(
+          cardId,
+          CARD_PROPERTY_UUIDS.cardStability,
+          stateAfter.stability,
+          idxOf(CARD_PROPERTY_UUIDS.cardStability),
+        );
+      }
+    });
   }
 
   promotePropertyCarrier(objectId: string, propertySchemaId: string, idx = 0) {
