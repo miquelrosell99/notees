@@ -1,10 +1,10 @@
 # UI primitives — the web client's component library
 
 The web client (`apps/web`) composes **all chrome from one primitive library**:
-`src/components/ui/fleet/` — one reusable element per file, co-located CSS,
+`src/components/ui/kit/` — one reusable element per file, co-located CSS,
 exported through the `index.ts` barrel. This page is the canonical reference
 for that library (extracted from AGENTS.md, 2026-10-06; the path corrected to
-the fleet tree realignment, 2026-10-20); AGENTS.md carries only
+the kit tree realignment, 2026-10-20); AGENTS.md carries only
 the pointer and the law.
 
 ## The law
@@ -37,10 +37,10 @@ the pointer and the law.
    The seam also stamps the popup root **`data-fleet-popup`** for as long as
    it is open; the overlay system keys off the stamp (the
    "popups in modals" fix):
-   - `[data-fleet-popup] { pointer-events: auto }` (fleet Modal.css) — a
+   - `[data-fleet-popup] { pointer-events: auto }` (kit Modal.css) — a
      modal layer that locks the body's pointer events must not render
      portaled popups click-dead;
-   - the fleet Modal treats a press inside a stamped popup — or inside a
+   - the kit Modal treats a press inside a stamped popup — or inside a
      stacked fleet dialog (the confirmation-over-form pattern) — as an
      INSIDE press, so a portaled picker or a raised confirmation never
      dismisses the dialog underneath the click; and focus may leave into
@@ -120,17 +120,17 @@ outlasts the grace window or the local backlog crosses the risk threshold —
 the outage's at-a-glance signal is the avatar's sync badge, not a banner),
 `InProcessStoreBanner` (the in-process-store warning bar).
 
-Structure & surfaces: `Card`, `Tabs`, `Modal` (the fleet owns the dialog
+Structure & surfaces: `Card`, `Tabs`, `Modal` (the kit owns the dialog
 layer semantics deliberately: the Root runs Radix `modal={false}` so
-portaled fleet popups stay clickable and focusable inside the dialog — what
-Radix modal mode gave up is re-implemented fleet-side and popup-aware: the
+portaled kit popups stay clickable and focusable inside the dialog — what
+Radix modal mode gave up is re-implemented kit-side and popup-aware: the
 `.modal-backdrop` scrim (backdrop click to close), the body scroll lock
 (react-remove-scroll, dialog content as shard), the background aria-hiding
 pass (the same `hideOthers` Radix runs, captured through a callback ref —
 Radix's Presence can mount the portal content after mount effects have run),
 a soft focus loop (Radix FocusScope loops Tab inside, lets it leave into
 a stamped popup), and dismissal guards — a press or focus move into a
-stamped popup or a stacked fleet dialog (the confirmation-over-form
+stamped popup or a stacked kit dialog (the confirmation-over-form
 pattern) never dismisses the dialog underneath; Radix non-modal layers
 otherwise dismiss on focus-outside, which collapsed stacked dialogs), `ImageModal`,
 `ConfirmationModal`, `ContextMenu` (two submenu forms on one primitive —
@@ -147,7 +147,7 @@ over the parent line on pointer-fine devices — the tap stays the explicit
 toggle on touch — and the chevron rides the icon-role token, never the
 outline border token), `Separator`, `ErrorBoundary`, `ListSortable` (+ the
 `useListDragSort` hook), `FloatingButtonArray`, `FloatingToolbar` (the
-transient toolbar panel — one elevated row of fleet `Button`s riding the
+transient toolbar panel — one elevated row of kit `Button`s riding the
 popup register the menus ride, surface-container-high + level-2 shadow +
 4dp menu corner; presentational only, the caller owns positioning, so the
 editor's selection formatting bar portals it and writes top/left
@@ -174,9 +174,9 @@ passes no `trailing` — the additive slot renders no cluster when absent,
 so no existing bar's layout shifts. The Sources hub and the Journal hub
 are the reference hosts, and future hubs inherit the placement by
 composing `leading`/`trailing`. Counts that name the surface's items
-render as a fleet `Badge` in `titleExtra` next to the title — never an
+render as a kit `Badge` in `titleExtra` next to the title — never an
 "N things" text in the actions),
-`MainContentFrame` (`src/ui/`, NOT a fleet primitive — the app-chrome
+`MainContentFrame` (`src/ui/`, NOT a kit primitive — the app-chrome
 composition layer: the panelled main-content layout generalized out of
 PageView, a full-width top bar above a three-column body
 of raised-card panel · uncapped content cell · raised-card panel; purely
@@ -212,7 +212,7 @@ implementation.
 ## The text-field register split
 
 **The ruling is the design system's, not this repo's**: `rosellramos-design-system`
-→ `law/spec.md` §8 — the UNDERLINE register is the fleet default for labeled
+→ `law/spec.md` §8 — the UNDERLINE register is the kit default for labeled
 form fields (straight hairline, 2px accent underline + accent label on focus,
 the underline IS the focus indicator); boxed is reserved for dense toolbar
 rows; in-row cells may be borderless. It was promoted from this repo's
@@ -222,7 +222,7 @@ fleet-wide).
 Notees-specific implementation notes the skill cannot know:
 
 - The app.css global `input` register carries an extra-large `border-radius`
-  and a `:focus-visible` box-shadow ring; the fleet `TextField` opts out of
+  and a `:focus-visible` box-shadow ring; the kit `TextField` opts out of
   all three (`rounded-none`, `focus-visible:outline-none`,
   `focus-visible:shadow-none`) — otherwise the underline curves and the
   field reads as a rounded box.
