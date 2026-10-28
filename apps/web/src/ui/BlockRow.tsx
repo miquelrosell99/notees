@@ -741,6 +741,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
       tokens={node.contentAst}
       resolveName={resolveName}
       resolveFullTitle={(id) => titleOf(client, id, { budget: "full" })}
+      resolveLabelTokens={(id) => client.getNode(id)?.contentAst ?? undefined}
       resolveVerb={(schemaId) =>
         outlinerClient.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null
       }

@@ -7,6 +7,32 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-28
+
+- **fix(web): a node-link chip renders the link elements inside its target's
+  title.** A mention whose target title itself carried link elements (a
+  nested mention, an inline class link, a markdown hyperlink) flattened the
+  target to a string for the chip label — and the flatten DROPS bare link
+  tokens, so the label showed gaps ("PMCF a y" for "formación PMCF ·
+  Implant Protect a · GMI Chile y · GMI Colombia"). The chip now renders the
+  target's own title token stream through InlineTokens when it qualifies
+  (inline-scale tokens + at least one link element; anything else keeps the
+  flat string). The chip stays ONE link to its target: the nested elements
+  render inert — the established link looks (dashed mention underline, wavy
+  class underline, hyperlink color) on spans, no nested buttons/anchors, no
+  own click; hover previews still fire. Nesting caps at one level
+  (labelDepth), so link cycles terminate; a customLabel still wins; the
+  resolver is wired only in the editor row, leaving picker/search
+  projections on the flat string.
+  - **Files**: `apps/web/src/ui/InlineTokens.tsx` (the `resolveLabelTokens` /
+    `labelDepth` / `inert` props, the chip-label stream filter, the inert
+    mention/class-link/hyperlink arms; module doc updated),
+    `apps/web/src/ui/BlockRow.tsx` (the resolver wired to the target's
+    contentAst), `apps/web/src/ui/app.css` (the `.nt-link--inert` /
+    `.nt-hyperlink--inert` cursor rule), `apps/web/test/node-link-label.test.tsx`
+    (new — rich label, inert-ness, flat fallbacks, customLabel precedence,
+    cycle termination).
+
 ## 2026-10-27
 
 - **feat(protocol,store,server): tags get their fixture gate and a first-class
