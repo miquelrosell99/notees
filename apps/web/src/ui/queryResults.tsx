@@ -170,7 +170,15 @@ export function QueryResultsBody({ client, ast, run, unspecified = false, viewMo
   return (
     <>
       <NodeCollection
-        viewMode={viewMode === "table" ? "table" : viewMode === "gantt" ? "gantt" : "outline"}
+        viewMode={
+          viewMode === "table"
+            ? "table"
+            : viewMode === "gantt"
+              ? "gantt"
+              : viewMode === "calendar"
+                ? "calendar"
+                : "outline"
+        }
         client={client}
         // The query result owns ITS pagination — the 200-row window
         // (QUERY_RESULT_CAP) + the load-more below — so the collection view

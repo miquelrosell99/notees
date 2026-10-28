@@ -11,15 +11,20 @@
  * lookups in the model).
  */
 
-import { parseDateNodeId } from "@notees/domain";
+import {
+  dateOrdinal,
+  dateValueDay,
+  ordinalDate,
+  todayOrdinal,
+  type CalendarDate,
+} from "../dateValue.js";
 
 /** A calendar date at day precision (year/month-precision refs normalize
- *  to the first day — the axis is day-granular). */
-export interface GanttDate {
-  year: number;
-  month: number;
-  day: number;
-}
+ *  to the first day — the axis is day-granular). The shared seam lives in
+ *  `../dateValue.js`; the gantt's public names stand (re-exported below). */
+export type GanttDate = CalendarDate;
+
+export { dateOrdinal, ordinalDate, todayOrdinal };
 
 /** The minimal row the model needs — the view resolves the picked date
  *  properties' effective values into `start`/`end` before calling in. */
@@ -57,21 +62,6 @@ export interface GanttChart {
   ticks: number[];
 }
 
-// --- dates ↔ ordinals --------------------------------------------------------
-
-const MS_PER_DAY = 86_400_000;
-
-/** Days since epoch (UTC) — the single ordering key. */
-export function dateOrdinal(date: GanttDate): number {
-  return Math.round(Date.UTC(date.year, date.month - 1, date.day) / MS_PER_DAY);
-}
-
-/** The calendar date of a day ordinal (UTC round-trip). */
-export function ordinalDate(ordinal: number): GanttDate {
-  const stamp = new Date(ordinal * MS_PER_DAY);
-  return { year: stamp.getUTCFullYear(), month: stamp.getUTCMonth() + 1, day: stamp.getUTCDate() };
-}
-
 /** The month bucket key (year × 12 + month) — window math stays calendar-
  *  honest across year boundaries. */
 function monthIndex(date: GanttDate): number {
@@ -80,11 +70,6 @@ function monthIndex(date: GanttDate): number {
 
 function firstDayOf(month: number): GanttDate {
   return { year: Math.floor(month / 12), month: (month % 12) + 1, day: 1 };
-}
-
-/** Today's ordinal (local calendar day) — the today-line's position. */
-export function todayOrdinal(now: Date = new Date()): number {
-  return dateOrdinal({ year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() });
 }
 
 /** The axis tick label of a month-start ordinal: the canonical `YYYY/MM`. */
@@ -96,45 +81,14 @@ export function ganttMonthLabel(monthStartOrdinal: number): string {
 
 // --- datetime value resolution ------------------------------------------------
 
-function slotDate(slot: unknown): GanttDate | null {
-  const nodeId =
-    typeof slot === "string"
-      ? slot.length > 0
-        ? slot
-        : null
-      : typeof slot === "object" && slot !== null && typeof (slot as { nodeId?: unknown }).nodeId === "string"
-        ? (slot as { nodeId: string }).nodeId
-        : null;
-  if (nodeId === null) return null;
-  const parsed = parseDateNodeId(nodeId);
-  if (parsed === null) return null;
-  return { year: parsed.year, month: parsed.month, day: parsed.day };
-}
-
-function isRangeValue(value: unknown): value is { start?: unknown; end?: unknown } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    ("start" in value || "end" in value)
-  );
-}
-
 /**
- * Resolve one datetime VALUE to its calendar date for the picked side: a
- * point renders its single date; a range renders its own side, falling
- * back to the other side when that side is open (`{start, end: null}`
- * reads as a same-day range). Null when no date ref rides the value — the
- * row lands in the Unscheduled lane (or renders a point bar, for an end).
+ * Resolve one datetime VALUE for the gantt: the shared `dateValueDay`
+ * (point refs / v1 bare uuids / ranges with side fallback — see
+ * `../dateValue.js`). Year/month-precision refs normalize to the first
+ * day; the calendar grid's day-only strictness does not apply here.
  */
 export function ganttDateOf(value: unknown, side: "start" | "end"): GanttDate | null {
-  if (value === null || value === undefined) return null;
-  if (isRangeValue(value)) {
-    const primary = side === "start" ? value.start : value.end;
-    const fallback = side === "start" ? value.end : value.start;
-    return slotDate(primary) ?? slotDate(fallback);
-  }
-  return slotDate(value);
+  return dateValueDay(value, side);
 }
 
 // --- the chart ----------------------------------------------------------------

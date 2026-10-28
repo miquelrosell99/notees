@@ -64,7 +64,7 @@ import "./QueryNodeSection.css";
 /** The query results' view modes (the registry switcher): outline/table
  *  primary, pivot + gantt on the "…" overflow — gantt availability-gated on
  *  the results carrying a valued date property. */
-const QUERY_VIEW_MODES: readonly ViewMode[] = ["outline", "table", "pivot", "gantt"];
+const QUERY_VIEW_MODES: readonly ViewMode[] = ["outline", "table", "pivot", "gantt", "calendar"];
 
 const pendingBuilderOpens = new Set<string>();
 

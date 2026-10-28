@@ -63,7 +63,7 @@ import type { NodeCollectionItem, TableColumn, ViewMode } from "../collection/in
 type AnyClient = WorkspaceClient | WorkerClient;
 
 /** The classed-nodes modes, in switcher order (table is the section default). */
-const MEMBERS_VIEW_MODES: ViewMode[] = ["outline", "cards", "table", "pivot", "graph", "gantt"];
+const MEMBERS_VIEW_MODES: ViewMode[] = ["outline", "cards", "table", "pivot", "graph", "gantt", "calendar"];
 
 /** The first bound select property with options — the cards-board grouping (single or multi). */
 function groupingBindingFor(

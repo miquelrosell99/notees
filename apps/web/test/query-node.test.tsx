@@ -560,6 +560,36 @@ describe("query node (nodecollection surface below the content row)", () => {
     expect(within(overflow).getByRole("menuitem", { name: "Pivot" })).not.toBeNull();
   });
 
+  it("calendar mode: offered when the results carry a valued date property; the grid renders", async () => {
+    const client = await seedClient();
+    const { city, paris } = await seedWorld(client);
+    const when = await client.createPropertySchema({ name: "when", type: "datetime" });
+    await client.setClassProperty(city, when, {});
+    const { day } = await client.ensureDateChain("2026-03-10");
+    await client.setProperty(paris, when, { nodeId: day }, 0);
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
+    await client.createObject({
+      parentId: host,
+      classIds: [QUERY_CLASS_ID],
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+    });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+    await screen.findByText("Paris");
+    pickViewMode("Calendar");
+    const grid = () => container.querySelector(".collection-calendar") as HTMLElement;
+    expect(grid()).not.toBeNull();
+    expect(within(grid()).getByLabelText("Date property")).not.toBeNull();
+    expect(grid()!.textContent).toContain("March 2026");
+    const cell = grid()!.querySelector('.collection-calendar__cell[data-iso="2026-03-10"]') as HTMLElement;
+    expect(within(cell).getByText("Paris")).not.toBeNull();
+
+    // Back to the list: the grid unmounts.
+    fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
+    expect(await screen.findByText("Paris")).not.toBeNull();
+    expect(container.querySelector(".collection-calendar")).toBeNull();
+  });
+
   it("invalid AST renders the placeholder without crashing", async () => {
     const client = await seedClient();
     await seedWorld(client);

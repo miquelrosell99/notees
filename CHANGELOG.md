@@ -9,6 +9,61 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): the calendar view mode — the collection's items on a month
+  grid, with an agenda strip.** A new registered collection view
+  (`calendar`, label "Calendar", icon `mdi-calendar-month`, **secondary
+  tier**) — the complement to the gantt (gantt is duration, calendar is
+  point-in-time). (1) The shared date seam: the gantt's date-value
+  resolution moved OUT of `ganttModel.ts` into `collection/dateValue.ts`
+  (`dateValueDay` — point refs / v1 bare uuids / ranges with side fallback;
+  ordinals ↔ dates ↔ local ISO) and the gantt imports it re-exported — its
+  public names and behavior stand (its 14 specs are the regression net).
+  The calendar adds a `dayPrecisionOnly` strictness: a year/month ref is
+  not a point in time and stays off the grid. (2) The pure model
+  (`calendar/calendarModel.ts`, the TDD core): items → weekday-aligned
+  month cells (the `firstDayOfWeek` device setting's vocabulary), the
+  dated items' month span as the navigation bounds, and
+  `clampCalendarMonth` — outside the span the NEAREST bound month stands (a
+  dead page never renders, the same fail-soft ruling as the persisted-mode
+  sanitize). (3) The view: the toolbar row (the date-property picker + the
+  month title with ‹ › navigation, disabled at the bounds), the planner
+  grid reusing the calendar surface's visual vocabulary (weekday header,
+  today-filled day, selected outline) at planner scale, items as compact
+  chips in their day cell (node-color tint), overflow folded behind a "+N"
+  affordance whose agenda lists the FULL set (counts never window), and the
+  agenda strip below — the selected day's items (today preselected; click a
+  day to select). Read-only navigation: chip click opens, shift+click
+  peeks. One page per month — a collection lens, not the journal's infinite
+  feed. The property pick and the visible month are view-local transient
+  state. (4) **No Unscheduled lane**: an item with no date value stays off
+  the grid entirely — a point in time IS the calendar's unit; the lane is
+  the gantt's concern. (5) **Availability**: `availability: (ctx) =>
+  ctx.datePropertyCount >= 1`; the mode joins `VIEW_MODES` (persists
+  device-locally) and every host pivot/graph/gantt reached — all hubs, the
+  classed-nodes section, the Created section, the page child-blocks triad,
+  and the query results' registry switcher. (6) **Recurring events:
+  skipped** — occurrence expansion is the calendar feature's machinery
+  (`eventRowsForDays` scans the workspace's event set, not a collection);
+  this lens places items by their property values only.
+  - **Files**: `apps/web/src/features/collection/dateValue.ts` (NEW — the
+    shared date seam), `gantt/ganttModel.ts` (imports the shared seam;
+    public API unchanged), `collection/calendar/calendarModel.ts` (NEW —
+    the pure model), `collection/calendar/CalendarView.{tsx,css}` (NEW —
+    the registry view), `types.ts` (`ViewMode` + `calendar`), `index.ts`
+    (barrel), `ui/viewPrefs.ts` (`VIEW_MODES`), `ui/app/HubView.tsx` +
+    `classview/lassedNodesSection.tsx` + `page-sections/CreatedSection.tsx`
+    + `ui/PageView.tsx` (the mode lists), `ui/QueryNodeSection.tsx` +
+    `ui/queryResults.tsx` (the query switcher + the mapping). Tests:
+    `test/calendar-collection-view.test.tsx` (NEW, 13 specs: the value
+    strictness, grid placement, the no-lane ruling, the
+    window/today/bounds/clamp units, the rendered grid, the agenda,
+    navigation, gating + persistence; named apart from the calendar
+    feature's own `calendar-view.test.tsx`),
+    `test/query-node.test.tsx` (the query-results offer + render). Verified:
+    web typecheck; web suite 212 files / 2450 tests green.
+  - **Docs**: `docs/features/views.md` (calendar in the registered set; the
+    gate named; a "The calendar view" mechanics section beside the gantt's).
+
 - **feat(web): the gantt view mode — items as bars on a shared time axis.**
   A new registered collection view (`gantt`, label "Gantt", icon
   `mdi-chart-gantt`, **secondary tier**): items draw as bars positioned by a
@@ -99,57 +154,6 @@ predating this file.
     out-of-scope drop, where it appears), `docs/features/views.md` (graph
     joins the per-surface mode set; the gate named).
 
-- **fix(web): the active-tab underline centers on the TEXT, not the text +
-  badge.** The kit Tabs' sliding indicator measured the padded tab button —
-  a trailing count badge (the collection tabs' active-tab count) pulled the
-  centering right. The measurement now targets the leading TEXT RUN — a DOM
-  Range over the label's first text node (the badge rides inside the label,
-  markup-adjacent to the name, so measuring any wrapper still counted it) —
-  falling back to the label, then the button. Verified live against the
-  deployed stack: indicator center == text-run center (delta 0,
-  `scripts/screenshots/indicator-probe.mjs`) + web typecheck and the full
-  suite.
-  - **Files**: `apps/web/src/components/ui/kit/Tabs.tsx` (the indicator
-    measurement), `scripts/screenshots/indicator-probe.mjs` (new).
-
-- **fix(web): the NodeCollectionTopBar right cluster unifies, the page
-  footer retires, and the backlink card's top padding tightens — owner
-  round on the broken tabs/toolbar layout (2026-10-28).** (1) The topbar's
-  right side renders as ONE cluster: a `__cluster` wrapper hosts the ported
-  view chrome + the toolbar (`margin-inline-start: auto` absorbs the free
-  width without a flex fight, `justify-content: flex-end` keeps the
-  controls at the row's right edge collapsed and lets the expanded search
-  pill fill the cluster) — the previous composition left the sort button
-  as a separate flex item beside a grown justify-end toolbar row, splitting
-  the controls across the row with dead space between. The tabs strip rides
-  `flex: 1 1 0` — an `auto` basis carries the tablist's max-content, which
-  at narrow hosts overfilled the line and wrapped the cluster onto a second
-  row — and the topbar owns the bottom breathing (the tabs' stack margin
-  retires inside it, it read through and inflated the row). (2) The page
-  footer (word count + Created/Updated stamps) is deleted entirely — owner
-  call: no value, and the narrow context column clipped the stamps;
-  `PageFooter`/`PageFooterChrome` retire with the context-footer register.
-  (3) In the backlink card the tab row rides `--height-md` (32px) instead
-  of the 48px tap floor — the floor stood 16px taller than the ghost
-  buttons and its air read as excess top padding in the tight card.
-  (4) The dev skills absorb the round: `coding-conventions` gains the
-  chrome-row layout contracts (right-cluster unity, button-IS-badge,
-  in-card stack-chrome retirement, hover-gating, ghost-active aria) —
-  canonical in `docs/developers/ui-primitives.md`; `development-workflow`
-  gains the visual-verification pattern (test-workspace boot seeds,
-  path-based `${WEB}/${nodeId}` routing — the hash/pushState trap, probe
-  scripts home); a stale pre-kit-rename component path in the skill is
-  corrected. Verified live against the deployed stack with the new
-  `scripts/screenshots/topbar-layout-probe.mjs` (recursive
-  getBoundingClientRect dump + screenshot; cluster contiguous and flush
-  right on one line) + web typecheck and the full suite.
-  - **Files**: `apps/web/src/features/collection/NodeCollectionTopBar.{tsx,css}`
-    (cluster), `NodeCollectionToolbar.css` (inline row), `apps/web/src/ui/BlockRowDnD.css`
-    (card tab height), `PageFooter.{tsx,css}` (deleted) + `PageChrome.tsx` +
-    `PageView.tsx` + `PanelLayout.css` + `page-sections/index.ts`,
-    `docs/features/pages.md`, the skills + `ui-primitives.md`,
-    `scripts/screenshots/topbar-layout-probe.mjs` (new), tests:
-    `focus-mode` (footer assertion flips).
 - **feat(web): pivot graduates to a registry view mode, and the view
   registry gains availability gating.** (1) The pivot — previously a
   query-results-only transient mode on a raw kit `SelectionButton` — is a
@@ -205,6 +209,57 @@ predating this file.
     `docs/features/views.md` (pivot registered secondary; the availability
     gate).
 
+- **fix(web): the active-tab underline centers on the TEXT, not the text +
+  badge.** The kit Tabs' sliding indicator measured the padded tab button —
+  a trailing count badge (the collection tabs' active-tab count) pulled the
+  centering right. The measurement now targets the leading TEXT RUN — a DOM
+  Range over the label's first text node (the badge rides inside the label,
+  markup-adjacent to the name, so measuring any wrapper still counted it) —
+  falling back to the label, then the button. Verified live against the
+  deployed stack: indicator center == text-run center (delta 0,
+  `scripts/screenshots/indicator-probe.mjs`) + web typecheck and the full
+  suite.
+  - **Files**: `apps/web/src/components/ui/kit/Tabs.tsx` (the indicator
+    measurement), `scripts/screenshots/indicator-probe.mjs` (new).
+
+- **fix(web): the NodeCollectionTopBar right cluster unifies, the page
+  footer retires, and the backlink card's top padding tightens — owner
+  round on the broken tabs/toolbar layout (2026-10-28).** (1) The topbar's
+  right side renders as ONE cluster: a `__cluster` wrapper hosts the ported
+  view chrome + the toolbar (`margin-inline-start: auto` absorbs the free
+  width without a flex fight, `justify-content: flex-end` keeps the
+  controls at the row's right edge collapsed and lets the expanded search
+  pill fill the cluster) — the previous composition left the sort button
+  as a separate flex item beside a grown justify-end toolbar row, splitting
+  the controls across the row with dead space between. The tabs strip rides
+  `flex: 1 1 0` — an `auto` basis carries the tablist's max-content, which
+  at narrow hosts overfilled the line and wrapped the cluster onto a second
+  row — and the topbar owns the bottom breathing (the tabs' stack margin
+  retires inside it, it read through and inflated the row). (2) The page
+  footer (word count + Created/Updated stamps) is deleted entirely — owner
+  call: no value, and the narrow context column clipped the stamps;
+  `PageFooter`/`PageFooterChrome` retire with the context-footer register.
+  (3) In the backlink card the tab row rides `--height-md` (32px) instead
+  of the 48px tap floor — the floor stood 16px taller than the ghost
+  buttons and its air read as excess top padding in the tight card.
+  (4) The dev skills absorb the round: `coding-conventions` gains the
+  chrome-row layout contracts (right-cluster unity, button-IS-badge,
+  in-card stack-chrome retirement, hover-gating, ghost-active aria) —
+  canonical in `docs/developers/ui-primitives.md`; `development-workflow`
+  gains the visual-verification pattern (test-workspace boot seeds,
+  path-based `${WEB}/${nodeId}` routing — the hash/pushState trap, probe
+  scripts home); a stale pre-kit-rename component path in the skill is
+  corrected. Verified live against the deployed stack with the new
+  `scripts/screenshots/topbar-layout-probe.mjs` (recursive
+  getBoundingClientRect dump + screenshot; cluster contiguous and flush
+  right on one line) + web typecheck and the full suite.
+  - **Files**: `apps/web/src/features/collection/NodeCollectionTopBar.{tsx,css}`
+    (cluster), `NodeCollectionToolbar.css` (inline row), `apps/web/src/ui/BlockRowDnD.css`
+    (card tab height), `PageFooter.{tsx,css}` (deleted) + `PageChrome.tsx` +
+    `PageView.tsx` + `PanelLayout.css` + `page-sections/index.ts`,
+    `docs/features/pages.md`, the skills + `ui-primitives.md`,
+    `scripts/screenshots/topbar-layout-probe.mjs` (new), tests:
+    `focus-mode` (footer assertion flips).
 - **feat(web): the backlink card sheds its header, the gutter button IS the
   badge, and the collection chrome quietens — owner round on the
   block-backlinks card (2026-10-28).** (1) The block card's section header

@@ -1,0 +1,175 @@
+/* CalendarView — the calendar collection view: the toolbar row (the date
+   property picker + the month title with its ‹ › navigation), the weekday
+   header and the planner grid (7 columns, week rows, one cell per day),
+   and the agenda strip for the selected day. The calendar surface's
+   vocabulary (weekday header, today/selected conventions) at planner
+   scale; token-only CSS, adaptive values. */
+
+.collection-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
+}
+
+.collection-calendar--empty {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.collection-calendar__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.collection-calendar__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.collection-calendar__title {
+  font: var(--font-title-small);
+  color: var(--md-sys-color-on-surface);
+  min-width: 12ch;
+  text-align: center;
+}
+
+.collection-calendar__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--spacing-micro);
+}
+
+.collection-calendar__weekday {
+  text-align: center;
+  font: var(--font-label-small);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant);
+  padding: var(--spacing-1);
+}
+
+.collection-calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--spacing-micro);
+}
+
+.collection-calendar__cell {
+  min-height: 4lh;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--spacing-1);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface);
+  cursor: pointer;
+}
+
+.collection-calendar__cell--out {
+  background: var(--md-sys-color-surface-container);
+  opacity: 0.6;
+}
+
+.collection-calendar__cell--selected {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -1px;
+}
+
+.collection-calendar__day {
+  align-self: flex-start;
+  min-width: 2ch;
+  text-align: center;
+  border-radius: var(--shape-full);
+  padding: 0 var(--spacing-1);
+  font-weight: 500;
+  color: var(--md-sys-color-on-surface);
+}
+
+.collection-calendar__cell--today .collection-calendar__day {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+.collection-calendar__chips {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.collection-calendar__chip {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+  padding: 0 var(--spacing-1);
+  border: none;
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  font-size: var(--font-size-xs, 0.75em);
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.collection-calendar__chip-tint {
+  flex: none;
+  width: 0.3em;
+  align-self: stretch;
+  min-height: 1em;
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-primary);
+}
+
+.collection-calendar__chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-calendar__chip--more {
+  justify-content: center;
+  color: var(--md-sys-color-on-surface-variant);
+  font-weight: 600;
+}
+
+.collection-calendar__agenda {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.collection-calendar__agenda-title {
+  font: var(--font-title-small);
+  color: var(--md-sys-color-on-surface);
+}
+
+.collection-calendar__agenda-empty {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.collection-calendar__agenda-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1);
+  border: none;
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.collection-calendar__agenda-row .collection-calendar__chip-tint {
+  align-self: center;
+  height: 1em;
+}
