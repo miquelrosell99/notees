@@ -26,50 +26,18 @@
   padding: var(--spacing-1);
 }
 
+/* The popup list is a vertical stack of the SAME pill element the inline
+   cluster renders — effective color, hover-reveal ×, click to open. The
+   pill itself is the drag source (no grip); each row wraps its pill in the
+   sortable wrapper, so rows align start and the dragging pill lifts over
+   its siblings. */
 .node-pills-popup__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
-}
-
-.node-pills-popup__row {
-  display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--spacing-1);
-  padding: var(--spacing-1) var(--spacing-2);
-  border-radius: var(--shape-small);
-  background: var(--md-sys-color-surface);
 }
 
-.node-pills-popup__row--dragging {
-  z-index: var(--z-sticky);
-  box-shadow: var(--shadow-elevation-1);
-}
-
-.node-pills-popup__grip {
-  display: inline-flex;
-  align-items: center;
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--md-sys-color-on-surface-variant);
-  cursor: grab;
-}
-
-.node-pills-popup__icon {
-  flex-shrink: 0;
-  display: inline-flex;
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.node-pills-popup__name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font: var(--font-label-medium);
-  color: var(--md-sys-color-on-surface);
+.node-pills-popup__list .node-pills__sortable {
+  display: flex;
 }
