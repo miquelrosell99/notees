@@ -9,6 +9,27 @@ predating this file.
 
 ## 2026-10-28
 
+- **feat(web): the node-link menu converts a class-targeted link between
+  mention and inline class chip.** A node link whose target is a class node
+  can wear either token form, and the link's right-click menu now flips it
+  in place: **Convert to class chip** (mention → `class_link`, the
+  customLabel carried across as the chip's displayText) and **Convert to
+  link** (the way back) — the `+` picker's Ctrl/Cmd convert is the same flip
+  at insert time, so picking the wrong form costs one right-click, not a
+  retype. Class chips join the menu on their own right-click (read mode and
+  the block editor both), and Remove/Delete there resolve the chip label
+  through the class-name resolver like the mention path always did.
+  Non-class targets never see the item. The wire is untouched — the
+  conversion is an ordinary `object.update contentAst` token swap.
+  - **Files**: `apps/web/src/features/node-menu/NodeLinkContextMenu.tsx`
+    (the token-kind reader, the convert action, chip-aware Remove/Delete),
+    `apps/web/src/ui/InlineTokens.tsx` (chip right-click fires the link
+    menu), `apps/web/src/features/block-editor/BlockTextEditor.tsx` +
+    `captureModel.ts` (edit-mode hit test admits chips, the draft-aware
+    convert splice, Edit stays mention-only),
+    `apps/web/test/link-convert.test.tsx` (new — both directions, label
+    carry, the non-class gate).
+
 - **fix(web): node color edits reach every node, and the kit swatch button
   behaves like a button.** Four UI bugs on the color surfaces: (1) the icon
   picker's color swatch vanished when no color was set — `cssColorFor("")`
