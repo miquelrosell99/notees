@@ -275,6 +275,19 @@ span.pill__text {
   box-shadow: var(--shadow-focus-ring);
 }
 
+/* The legacy scalar cell (the retired `url` type's shape — a plain-string
+   value on a text schema): plain inline text, linkified per the
+   markdownLinks grammar, the whole cell one click target — the first edit
+   mints the carrier block carrying the string and opens the block editor. */
+.nt-property-scalar {
+  cursor: pointer;
+  text-align: left;
+}
+
+.nt-property-scalar:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
 /* S5 block-to-property drop affordance. While a
    block drag is live, a text row the drop WOULD land on reads as a drop
    target — the empty placeholder carries an accent ring (Capacities-grade
@@ -293,7 +306,8 @@ span.pill__text {
   cursor: no-drop;
 }
 
-/* url/email rows: the external-link affordance beside the text editor. */
+/* email rows: the external-link affordance beside the text editor (the
+   `url` property type is retired — no click-to-open href for its values). */
 .nt-property-link {
   display: inline-flex;
   align-items: center;

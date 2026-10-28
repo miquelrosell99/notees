@@ -12,7 +12,6 @@
 /** The type → icon table (mdi names, sprite-verified). */
 const TYPE_ICONS: Record<string, string> = {
   text: "mdi-format-text",
-  url: "mdi-link-variant",
   email: "mdi-email-outline",
   image: "mdi-image-outline",
   number: "mdi-numeric",

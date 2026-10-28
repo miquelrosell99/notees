@@ -272,21 +272,27 @@ describe("metadata pickers (ported popups)", () => {
     ]);
   });
 
-  it("url/email scalars keep the text editor and gain a link affordance", async () => {
+  it("email scalars keep the text editor and gain the mailto affordance; a legacy bare-string text value renders inline linkified, with no click-to-open chip", async () => {
     const client = await seedClient();
-    const urlSchema = await client.createPropertySchema({ name: "homepage", type: "url" });
+    const textSchema = await client.createPropertySchema({ name: "homepage", type: "text" });
     const emailSchema = await client.createPropertySchema({ name: "contact", type: "email" });
     const pageId = await client.createObject({ isEmbedded: false, name: "Linked" });
-    await client.setProperty(pageId, urlSchema, "https://example.org", 0);
+    // The legacy url-type shape: a plain string on what is now a text schema.
+    await client.setProperty(pageId, textSchema, "https://example.org", 0);
     await client.setProperty(pageId, emailSchema, "hi@example.org", 0);
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
 
-    const link = screen.getByRole("link", { name: "Open homepage" }) as HTMLAnchorElement;
-    expect(link.href).toBe("https://example.org/");
-    expect(link.target).toBe("_blank");
+    // Email: the mailto chip rides the scalar editor.
     const mail = screen.getByRole("link", { name: "Open contact" }) as HTMLAnchorElement;
     expect(mail.href).toBe("mailto:hi@example.org");
+    // The retired-url value: no property link chip anywhere — the bare URL
+    // linkifies through the markdownLinks grammar inside the inline text
+    // (the only affordance).
+    expect(screen.queryByRole("link", { name: "Open homepage" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Edit property homepage" }).textContent).toContain(
+      "https://example.org",
+    );
   });
 
   it("boolean schemas render the checkbox toggle writing true/false", async () => {

@@ -120,7 +120,6 @@ function coerceScalar(client: AnyClient, schema: ClientPropertySchema, raw: unkn
         : { ok: false, error: `no node named or identified by "${text}"` };
     }
     case "text":
-    case "url":
     case "email": {
       if (typeof raw === "string") return { ok: true, value: raw };
       if (typeof raw === "number" || typeof raw === "boolean") {

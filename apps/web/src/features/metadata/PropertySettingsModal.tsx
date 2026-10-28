@@ -295,14 +295,14 @@ export function PropertySettingsModal({
             </span>
           </PropertyField>
         )}
-        {(schema.type === "text" || schema.type === "url" || schema.type === "email") && (
+        {(schema.type === "text" || schema.type === "email") && (
           <PropertyField label="Validation pattern">
             <input
               type="text"
               className="nt-property-settings__input"
               key={`pattern:${schema.validationRules?.pattern ?? ""}`}
               defaultValue={schema.validationRules?.pattern ?? ""}
-              placeholder={schema.type === "url" ? "https?://.*" : schema.type === "email" ? ".+@.+\\..+" : "Regex pattern"}
+              placeholder={schema.type === "email" ? ".+@.+\\..+" : "Regex pattern"}
               aria-label="Validation pattern"
               aria-invalid={patternError !== null}
               onBlur={(event) => {

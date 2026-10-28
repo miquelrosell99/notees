@@ -13,20 +13,19 @@ import { effectivePropertyIcon } from "../src/features/metadata/propertyIcon.js"
 describe("effectivePropertyIcon", () => {
   it("the stored schema icon wins over the type fallback", () => {
     expect(effectivePropertyIcon({ icon: "mdi-star", type: "text" })).toBe("mdi-star");
-    expect(effectivePropertyIcon({ icon: "mdi mdi-heart-outline", type: "url" })).toBe(
+    expect(effectivePropertyIcon({ icon: "mdi mdi-heart-outline", type: "email" })).toBe(
       "mdi mdi-heart-outline",
     );
   });
 
   it("null or blank stored icon falls back to the type icon", () => {
     expect(effectivePropertyIcon({ icon: null, type: "text" })).toBe("mdi-format-text");
-    expect(effectivePropertyIcon({ icon: "", type: "url" })).toBe("mdi-link-variant");
+    expect(effectivePropertyIcon({ icon: "", type: "email" })).toBe("mdi-email-outline");
     expect(effectivePropertyIcon({ icon: "   ", type: "number" })).toBe("mdi-numeric");
   });
 
   it("every property type maps to its sprite-verified icon", () => {
     expect(effectivePropertyIcon({ icon: null, type: "text" })).toBe("mdi-format-text");
-    expect(effectivePropertyIcon({ icon: null, type: "url" })).toBe("mdi-link-variant");
     expect(effectivePropertyIcon({ icon: null, type: "email" })).toBe("mdi-email-outline");
     expect(effectivePropertyIcon({ icon: null, type: "image" })).toBe("mdi-image-outline");
     expect(effectivePropertyIcon({ icon: null, type: "number" })).toBe("mdi-numeric");

@@ -185,7 +185,6 @@ function coerceSingle(client: AnyClient, schema: ClientPropertySchema, text: str
         : { ok: false, error: `no node named "${text}"` };
     }
     case "text":
-    case "url":
     case "email":
       return { ok: true, value: text };
     default:

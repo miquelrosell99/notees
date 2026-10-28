@@ -61,9 +61,11 @@ export function ScalarPropertyValue({
   // the uuid does not survive reloads).
   const deadCarrierRef = rawRef !== null && carrier === undefined;
   const editableText = deadCarrierRef ? "" : toEditableText(row.value);
-  // Url/email scalars keep the text editor and gain an
-  // external-link affordance (mailto: for email; url values keep their
-  // authored scheme, tel: included).
+  // Email scalars keep the text editor and gain the
+  // mailto: external-link affordance (the url type is retired — a text
+  // property's legacy bare-string value never renders here: text rows group
+  // into TextPropertyRow, whose scalar cells render inline and mint a carrier
+  // on edit).
   const linkHref = propertyLinkHref(row.schema?.type, row.value);
   return (
     <>

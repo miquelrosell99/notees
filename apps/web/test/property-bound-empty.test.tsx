@@ -48,10 +48,10 @@ async function flushWrites(): Promise<void> {
 }
 
 describe("bound-but-empty rows — the virtual property shows", () => {
-  it("a class-bound url with no value renders the empty cell with the from-class hint", async () => {
+  it("a class-bound url (text-typed since the url type retired) with no value renders the empty cell with the from-class hint", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
-    const schemaId = await client.createPropertySchema({ name: "URL", type: "url" });
+    const schemaId = await client.createPropertySchema({ name: "URL", type: "text" });
     const classId = await client.createClass("Source");
     await client.setClassProperty(classId, schemaId, {});
     await client.assignClass(pageId, classId);
@@ -110,7 +110,7 @@ describe("bound-but-empty rows — the virtual property shows", () => {
   it("typing into the cell authors the value — the bound row shadows into authored", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
-    const schemaId = await client.createPropertySchema({ name: "URL", type: "url" });
+    const schemaId = await client.createPropertySchema({ name: "URL", type: "text" });
     const classId = await client.createClass("Source");
     await client.setClassProperty(classId, schemaId, {});
     await client.assignClass(pageId, classId);
@@ -123,15 +123,18 @@ describe("bound-but-empty rows — the virtual property shows", () => {
     await flushWrites();
     await flushWrites();
 
+    // Text is node-backed: the typed string lands on a minted carrier block
+    // ({nodeId} value), not a raw string.
     const rows = client.getEffectiveProperties(pageId).filter((r) => r.propertySchemaId === schemaId);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ source: "authored", value: "https://x.org", boundBy: classId });
+    expect(rows[0]).toMatchObject({ source: "authored", boundBy: classId });
+    expect(rows[0]!.value).toMatchObject({ nodeId: expect.any(String) });
   });
 
   it("unrealize returns the row to the bound-empty state (the class still supplies it)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
-    const schemaId = await client.createPropertySchema({ name: "URL", type: "url" });
+    const schemaId = await client.createPropertySchema({ name: "URL", type: "text" });
     const classId = await client.createClass("Source");
     await client.setClassProperty(classId, schemaId, {});
     await client.assignClass(pageId, classId);

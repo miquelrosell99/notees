@@ -58,7 +58,6 @@ const TARGET_TYPES = [
   "number",
   "boolean",
   "datetime",
-  "url",
   "email",
   "select",
   "multi_select",
@@ -109,7 +108,7 @@ export function convertValueForType(
 ): Conversion {
   if (value === null || value === undefined) return { ok: true, value: null };
   const drop = (reason: string): Conversion => ({ ok: false, reason });
-  const scalarTarget = to === "text" || to === "url" || to === "email";
+  const scalarTarget = to === "text" || to === "email";
   if (scalarTarget) {
     if (typeof value === "string") {
       // select values are option IDS — the honest text is the label.

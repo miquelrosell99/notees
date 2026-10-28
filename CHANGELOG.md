@@ -230,6 +230,57 @@ predating this file.
     corrected — the same registry backs the query results' switch),
     `docs/features/views.md` (pivot registered secondary; the availability
     gate).
+- **feat(protocol)!: retire the dedicated `url` property type — the seeded
+  `url` property survives as a text-typed schema.** The `url` enum value is
+  rejected outright by the strict `propertySchema.create` schema (no backward
+  compatibility); the seeded `url` property (…0000-000000000024, source
+  family, pinned) keeps its name/uuid/scope/binding and retypes to `text`
+  (`packages/domain` seed manifest). Legacy url values are plain strings —
+  legal text values — so there is no bulk value rewrite: the web renders them
+  inline as plain text (bare URLs linkify through the existing markdownLinks
+  grammar, the only affordance — the click-to-open chip/href is gone;
+  `email` is untouched and keeps its mailto chip), and the first edit mints a
+  normal carrier block through the existing ops (`object.create` +
+  `property.set` with the `{nodeId}` ref) and opens the block editor — in the
+  properties table/sidebar text row (the legacy scalar cell replaces the
+  boxed `<input>` fallback) and in the table view's text cell (a legacy
+  string value renders inline, one click converts it to the carrier-block
+  convention). The store drops the retired type's arms (default-value
+  validity, scalar shape, pattern validation now text/email, the FTS
+  indexed-type list); the validationRules/fixtures corpus retargets the
+  url-shaped pattern cases onto text schemas; the property create/convert
+  modals, the settings pattern field, the type-glyph tables, and the import
+  coercion switch go email-only/text. Live workspaces converge by
+  `scripts/migrate-url-type-to-text.mts` (dry-run default, `--apply`, Path B
+  in-place payload rewrite + snapshot byte patch + `restore_epoch` bump +
+  replay/count verification; LOCKSTEP-GATED on the GTK/Flutter ports, not in
+  migrate-pending's registry — the migrate-unified-datetime precedent).
+  Documented in SCHEMA.md (the seed-manifest + citations notes, the
+  validationRules/PC2/PG6 arms), `docs/features/properties.md`,
+  `docs/features/views.md`, `docs/developers/migrations.md`.
+  - **Verification**: `pnpm install && pnpm typecheck && pnpm test` — all
+    green (the full suite, store adapters included). New coverage: the
+    retired `url` type is rejected outright on `propertySchema.create`
+    (store suite, both adapters); the seeded url spec seeds `type: "text"`
+    (domain suite); fixtures `property-assign.json` +
+    `property-validation-rules.json` retargeted (the lockstep corpus stays
+    valid).
+  - **Files**: `packages/protocol/src/op-types.ts`,
+    `packages/protocol/fixtures/{property-assign,property-validation-rules,property-schema-update-fields}.json`,
+    `packages/protocol/SCHEMA.md`, `packages/domain/src/seeds.ts`,
+    `packages/domain/test/domain.test.ts`, `packages/store/src/{property-values,appliers,content}.ts`,
+    `packages/store/test/{property-validation,property-assign,search-ranking,store}.test.ts`,
+    `apps/web/src/features/metadata/{TextPropertyRow,ScalarPropertyValue,PropertyCreateModal,PropertyConvertModal,PropertySettingsModal,propertyIcon}.tsx?`,
+    `apps/web/src/features/collection/{TableView,propertyDisplay}.ts(x)`,
+    `apps/web/src/features/classview/PropertyDefinitionsSection.tsx`,
+    `apps/web/src/features/{import/import-writes,modals/ImportTableModal,modals/quickCreate}.ts(x)`,
+    `apps/web/src/features/metadata/MetadataSection.css`,
+    `apps/web/test/{property-icon,property-bound-empty,property-edit-modal,class-create-modal,property-owner-rulings,properties-panel,pickers,add-property-realize,system-class-deploy-bindings}.test.ts(x)`,
+    `scripts/migrate-url-type-to-text.mts` (new), `scripts/migrate-pending.mts`,
+    `docs/developers/migrations.md`, `docs/features/{properties,views}.md`.
+  - **Clients**: GTK/Flutter/CLI lockstep slices ship in the sibling repos
+    before the live migration runs (the clients' own branches; the CLI vendor
+    pin bumps after the TS slice lands on main).
 
 - **fix(web): the active-tab underline centers on the TEXT, not the text +
   badge.** The kit Tabs' sliding indicator measured the padded tab button —
