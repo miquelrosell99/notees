@@ -3424,6 +3424,14 @@ mark {
   border-bottom-color: var(--md-sys-color-primary);
 }
 
+/* Inert link elements (inside a node-link chip's rich label): they keep the
+   link look — dashed mention underline, wavy class underline, hyperlink
+   color — but carry no own click; the whole chip opens the target. */
+.nt-link--inert,
+.nt-hyperlink--inert {
+  cursor: inherit;
+}
+
 /* Icon base class: every <Icon> svg/glyph carries it (the component no
    longer inlines vertical-align, so instance classes like .nt-link__icon
    below can actually override the default). Default: middle — the classic
