@@ -67,7 +67,9 @@ order. A card with a future due date is not reviewable yet and never
 enters the session — a hand-off may carry such ids, the queue drops them.
 
 Each card renders front-first: the card node's own content, read-only.
-**Reveal** flips to the back — the same content plus the card's embedded
+A progress line rides the header — `n of total`, the active card's
+position in the queue (plus the hand-off's filter summary when one was
+stored). **Reveal** flips to the back — the same content plus the card's embedded
 children in the condensed prose layer — and the four-grade bar appears
 (Again/Hard/Good/Easy, keys 1–4). A front-only card (no embedded children)
 renders an explicit "No answer on this card" empty state and still grades.
