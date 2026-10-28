@@ -3186,6 +3186,18 @@ function applyExternalRefDelete(db: StoreDatabase, env: Envelope): ChangeSummary
 
 // --- dispatch ------------------------------------------------------------------------
 
+// TEMPORARY (memorization-cards slice): the exhaustive dispatch map must stay
+// total, so card.review lands here as an acknowledged no-op until the derived
+// card_srs projection ships (the store slice immediately following this one).
+// The op already validates on the wire and replays deterministically (every
+// replica drops it equally); nothing reads SRS state yet, so no read lies.
+// The real applier replaces this body — the payload shape it consumes is
+// `OpPayload<"card.review">` (due/reps/interval/ease/difficulty/stability).
+function applyCardReviewPlaceholder(_db: StoreDatabase, env: Envelope): ChangeSummary {
+  const p = env.payload as OpPayload<"card.review">;
+  return summary("card.review", [p.cardId]);
+}
+
 const APPLIERS: Record<
   OpType,
   (db: StoreDatabase, env: Envelope) => ChangeSummary
@@ -3219,6 +3231,7 @@ const APPLIERS: Record<
   "workspace.feature.set": applyWorkspaceFeatureSet,
   "external_ref.set": applyExternalRefSet,
   "external_ref.delete": applyExternalRefDelete,
+  "card.review": applyCardReviewPlaceholder,
 };
 
 /**
