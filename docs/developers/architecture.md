@@ -593,14 +593,16 @@ only content-fts/linkedTo remain probe leaves; the builder deliberately does
 not offer them (the transient layer must evaluate on every keystroke), and a
 plan needing the probe channel keeps rows unfiltered and warns once. State is
 component state, one instance per section view/tab, lost on reload. The bar
-chrome (components/FilterBar.tsx) rides the hosted tab bar's FAR RIGHT (the
-NodeCollection's `tabBarTrailing`, the classed-nodes
+chrome (NodeCollectionToolbar.tsx) rides the hosted topbar's right cluster
+(NodeCollectionTopBar — the classed-nodes
 table and the linked-references / unlinked-mentions sections): every button
 on the row sits right (the add-view + left the tablist for the cluster), the
-quick search is a PERMANENT field, and the structured panel drops a wrapped
-full-width line beneath the tab row — the FilterBar renders LAST in the
-cluster (and the views' own toolbars portal into a slot before it, see
-views/viewChrome.tsx), so the wrap never moves the row's other controls.
+quick search COLLAPSES to a ghost magnifier (the kit CollapsibleSearchField),
+and the structured panel PORTALS into a boxless full-width slot the topbar
+owns beneath the chrome row — a `flex-basis: 100%` flex item of the bar, so
+the capped 46ch cluster never squeezes it (the toolbar renders LAST in the
+cluster, and the views' own toolbars portal into a slot before it, see
+viewChrome.tsx, so the panel's line never moves the row's other controls).
 The live count moved OFF the panel: the ACTIVE hosted tab carries a total-count
 badge beside its name (NodeCollection computes the open tab's displayed row
 count post-refinement and hands it to NodeCollectionTabs;, replacing the "N of M nodes match" foot line).

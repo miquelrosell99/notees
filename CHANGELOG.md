@@ -47,6 +47,29 @@ predating this file.
   gate can't run workflow YAML end-to-end locally); `pnpm typecheck` green
   (no source touched).
 
+- **fix(web): the hosted collection's query-builder panel spans the top bar
+  side to side, and the sort button rejoins the control group.** The hosted
+  NodeCollection's structured filter panel wrapped a line inside the topbar's
+  right cluster — a width-capped mini-column (`max-width: 46ch`) hugging the
+  bar's right edge — so the builder rendered as a narrow box beside the tabs
+  instead of the full-width line beneath the chrome row, and the cluster's
+  grown toolbar row wedged dead space between the ported view chrome (the
+  sort button) and the search/filter controls, reading as a detached button.
+  The topbar now owns a boxless full-width panel slot (its last child,
+  `display: contents`) that the inline NodeCollectionToolbar portals its
+  structured panel into — a `flex-basis: 100%` flex item of the BAR, wrapping
+  the full-width line below the tabs+controls row; outside a topbar (the
+  hub-cards host) the panel keeps rendering in place beneath the row. The
+  inline control row no longer grows (`flex: 0 1 auto`), so the cluster
+  shrink-wraps the ported view chrome and the toolbar's controls into one
+  tight right-justified group (`apps/web/src/features/collection/NodeCollectionTopBar.tsx`,
+  `NodeCollectionToolbar.tsx`, both chrome CSS files). New spec in
+  `apps/web/test/filter-layer.test.tsx` pins the panel's seat: outside the
+  capped cluster, inside the bar-level slot, after the chrome row. Verified:
+  the filter-layer suite (13 tests) green; live-stack probe before/after —
+  the panel goes from a 282px right-hugging column to the bar's full width,
+  the sort button flush with the search/filter group.
+
 - **feat(protocol): date-chain embedding lock — `object.update {isEmbedded}`
   fails loud on date nodes, and the web "Move to content" entry hides on
   them.** A date node's journal role is platform-fixed (document chrome), but
