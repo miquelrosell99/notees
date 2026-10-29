@@ -10,7 +10,7 @@
 
 import { uuidv7 } from "uuidv7";
 import { planMerge, type MergePlanSummary } from "@notees/store";
-import { validateDisplayTemplate } from "@notees/domain";
+import { SYSTEM_PROPERTY_UUIDS, validateDisplayTemplate } from "@notees/domain";
 import type { OpPayload } from "@notees/protocol";
 
 import { UUID_LIKE } from "./types.js";
@@ -25,6 +25,17 @@ import type {
 import type { ClientContext } from "./client-context.js";
 import { WorkspaceClientReads } from "./client-reads.js";
 import { WorkspaceClientReadsProps } from "./client-reads-props.js";
+
+/**
+ * The system schemas' wire keys by schema id — the reverse of
+ * SYSTEM_PROPERTY_UUIDS. The dual-key eligibility rule (below) validates
+ * "{{citekey}}" against the schema whose DISPLAY name is "Citekey": the
+ * seeds author property_schema rows with display names, while the shipped
+ * templates name wire keys.
+ */
+const SYSTEM_WIRE_KEY_BY_SCHEMA_ID = new Map<string, string>(
+  Object.entries(SYSTEM_PROPERTY_UUIDS).map(([key, id]) => [id, key]),
+);
 
 export class WorkspaceClientWrites {
   constructor(
@@ -354,9 +365,13 @@ export class WorkspaceClientWrites {
    * AVAILABLE to the class (the scope contract): global schemas plus
    * schemas scoped to the class or one of its extends-ancestors
    * (getClassParents walks the direct edges; the lineage is the transitive
-   * closure). Matched CASE-INSENSITIVELY, the query-language resolver
-   * precedent (resolversFor): the shipped seed template names
-   * "{{citekey}}" while the schema's display name is "Citekey".
+   * closure). The DUAL-KEY rule, the render side's contract
+   * (displayTemplateTitle.ts): a placeholder validates against a schema's
+   * DISPLAY name folded CASE-INSENSITIVELY ("Citekey" answers
+   * "{{citekey}}") AND against the system wire key aliased from the
+   * schema's manifest id — the seeds author rows with display names while
+   * the shipped templates name wire keys, so a template that renders must
+   * also validate.
    */
   private availableTemplateSchemaNames(classId: string): Set<string> {
     const lineage = new Set<string>([classId]);
@@ -374,6 +389,8 @@ export class WorkspaceClientWrites {
     for (const schema of this.props.listPropertySchemas()) {
       if (schema.scopeClassIds === null || schema.scopeClassIds.some((id) => lineage.has(id))) {
         names.add(schema.name.toLowerCase());
+        const wireKey = SYSTEM_WIRE_KEY_BY_SCHEMA_ID.get(schema.id);
+        if (wireKey !== undefined) names.add(wireKey.toLowerCase());
       }
     }
     return names;
