@@ -166,6 +166,11 @@ export function Breadcrumbs({
   excludeIds,
   excludeLeaf = false,
   anchor = "left",
+  /** Non-interactive trail: crumbs render as plain text (no navigation, no
+   *  overflow popups, no edit affordances) — the peek-card header's
+   *  right-anchored occlusion still hides the upper levels when the trail
+   *  overflows. */
+  interactive = true,
   /** Parent-edit gestures: crumb chevron/right-click menus + Add parent. */
   editable = false,
   /** The "+ Add parent" pill on a parentless node (default on with `editable`).
@@ -192,6 +197,8 @@ export function Breadcrumbs({
    * capped (see clipCrumbName).
    */
   anchor?: "left" | "right" | undefined;
+  /** False renders the trail as plain text (no clicks, no popups). */
+  interactive?: boolean | undefined;
   editable?: boolean | undefined;
   /** False hides the "+ Add parent" pill (existing-parents-only surfaces). */
   addParent?: boolean | undefined;
@@ -336,19 +343,9 @@ export function Breadcrumbs({
     const childBelow = childBelowOf(item);
     // The date-chain parenting lock: an edge whose child is a date node has
     // no edit affordance (reassign/remove would be rejected by the store).
-    const edgeEditable = editable && childBelow !== undefined && !isDateLocked(childBelow);
-    return (
-    <span key={key} className="node-breadcrumb-item ui-hover-reveal-group">
-      <button
-        type="button"
-        className="node-breadcrumb-link"
-        onClick={() => onOpenNode?.(item.node.id)}
-        onContextMenu={
-          edgeEditable
-            ? (event) => openEditMenu(event, item.node, childBelow)
-            : undefined
-        }
-      >
+    const edgeEditable = interactive && editable && childBelow !== undefined && !isDateLocked(childBelow);
+    const crumbLabel = (
+      <>
         {client.effectiveNodeIcon(item.node) !== null && (
           <Icon
             path={client.effectiveNodeIcon(item.node)!}
@@ -357,7 +354,26 @@ export function Breadcrumbs({
           />
         )}
         <span className="node-breadcrumb-name">{item.name}</span>
-      </button>
+      </>
+    );
+    return (
+    <span key={key} className="node-breadcrumb-item ui-hover-reveal-group">
+      {interactive ? (
+        <button
+          type="button"
+          className="node-breadcrumb-link"
+          onClick={() => onOpenNode?.(item.node.id)}
+          onContextMenu={
+            edgeEditable
+              ? (event) => openEditMenu(event, item.node, childBelow)
+              : undefined
+          }
+        >
+          {crumbLabel}
+        </button>
+      ) : (
+        <span className="node-breadcrumb-link node-breadcrumb-link--static">{crumbLabel}</span>
+      )}
       {edgeEditable && (
         <HoverRevealButton
           className="node-breadcrumb-edit"
@@ -434,6 +450,11 @@ export function Breadcrumbs({
     >
       {anchor === "right" && leadClipped && (
         <span className="node-breadcrumb-item node-breadcrumb-lead-clip">
+          {!interactive ? (
+            <span className="node-breadcrumb-link node-breadcrumb-ellipsis node-breadcrumb-link--static" aria-hidden="true">
+              …
+            </span>
+          ) : (
           <button
             type="button"
             className="node-breadcrumb-link node-breadcrumb-ellipsis"
@@ -443,8 +464,9 @@ export function Breadcrumbs({
           >
             …
           </button>
+          )}
           <Icon path="mdi-chevron-right" size={0.75} className="node-breadcrumb-separator" />
-          {leadPopupOpen && (
+          {interactive && leadPopupOpen && (
             <>
               <button
                 type="button"
@@ -469,6 +491,11 @@ export function Breadcrumbs({
 
       {needsCollapse && (
         <span className="node-breadcrumb-item node-breadcrumb-ellipsis-container">
+          {!interactive ? (
+            <span className="node-breadcrumb-link node-breadcrumb-ellipsis node-breadcrumb-link--static" aria-hidden="true">
+              …
+            </span>
+          ) : (
           <button
             type="button"
             className="node-breadcrumb-link node-breadcrumb-ellipsis"
@@ -478,8 +505,9 @@ export function Breadcrumbs({
           >
             …
           </button>
+          )}
           <Icon path="mdi-chevron-right" size={0.75} className="node-breadcrumb-separator" />
-          {popupOpen && (
+          {interactive && popupOpen && (
             <>
               <button
                 type="button"

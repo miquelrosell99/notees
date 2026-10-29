@@ -26,7 +26,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { NodeView } from "../src/ui/NodeView.js";
-import { NodeCardFrame } from "../src/features/collection/NodeCardFrame.js";
+import { NodeCard } from "../src/features/collection/NodeCard.js";
 import { FloatingEditorHost, openFloatingEditor } from "../src/features/block-editor/FloatingEditor.js";
 import { ReferenceSubtree } from "../src/features/block-editor/ReferenceSubtree.js";
 import { PropertiesTable } from "../src/features/metadata/PropertiesTable.js";
@@ -126,18 +126,20 @@ describe("the focused block view (NodeView on a block)", () => {
   });
 });
 
-describe("the right-rail card (NodeCardFrame)", () => {
+describe("the right-rail card (NodeCard)", () => {
   it("shift+clicking a block bullet inside the card peeks the block", async () => {
     const client = await seedClient();
     const [pageId, blockId] = await seedPageWithBlock(client);
     const onOpenInSidebar = vi.fn();
     const { container } = render(
-      <NodeCardFrame
+      <NodeCard
         client={client}
         nodeId={pageId}
         onOpenNode={() => {}}
         onClose={() => {}}
         onOpenInSidebar={onOpenInSidebar}
+        collapsed={false}
+        onToggleCollapsed={() => {}}
       />,
     );
 

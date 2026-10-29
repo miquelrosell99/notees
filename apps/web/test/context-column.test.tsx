@@ -11,10 +11,11 @@
  * nodeview top bar (the `layout` prop stays binary — per-column device
  * prefs replace the recorded "third state" option). Embedded/compact/class
  * surfaces render NO context column. The right rail hosts workspace cards
- * only — the generic NodeCardFrame around NodeView, whose
- * collapse is session-local; reorder is a registered follow-up.
+ * only — the generic NodeCard around NodeView; the collapse state is the
+ * App's stack state and the order is the peek recency (no reorder gesture).
  */
 
+import { useState } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
@@ -24,7 +25,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { NodeView } from "../src/ui/NodeView.js";
-import { NodeCardFrame } from "../src/features/collection/NodeCardFrame.js";
+import { NodeCard } from "../src/features/collection/NodeCard.js";
 import { DEVICE_SETTINGS_PREFIX } from "../src/features/settings/deviceSettings.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -302,18 +303,33 @@ describe("NodeView preview surface", () => {
   });
 });
 
-describe("NodeCardFrame (the cards-only rail)", () => {
+/** A stateful NodeCard harness: the collapse state is the App's stack
+ *  state, so the collapse-toggle test drives it through a real parent. */
+function CollapsibleCard({ client, nodeId }: { client: WorkspaceClient; nodeId: string }) {
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <NodeCard
+      client={client}
+      nodeId={nodeId}
+      onOpenNode={() => {}}
+      onClose={() => {}}
+      collapsed={collapsed}
+      onToggleCollapsed={() => setCollapsed((open) => !open)}
+    />
+  );
+}
+
+describe("NodeCard (the cards-only rail)", () => {
   it("the generic frame renders NodeView in its body with the breadcrumbs header; collapse is session-local", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ isEmbedded: false, name: "Carded" });
+    const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Carded", parentId });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "body block" }],
     });
 
-    const { container } = render(
-      <NodeCardFrame client={client} nodeId={pageId} onOpenNode={() => {}} onClose={() => {}} />,
-    );
+    const { container } = render(<CollapsibleCard client={client} nodeId={pageId} />);
     const card = container.querySelector(".nt-sidebar-card")!;
     expect(card).not.toBeNull();
     // The header trails the breadcrumbs; the body hosts the node view.
@@ -334,20 +350,31 @@ describe("NodeCardFrame (the cards-only rail)", () => {
     const onClose = vi.fn();
 
     const { container, unmount } = render(
-      <NodeCardFrame client={client} nodeId={pageId} onOpenNode={onOpenNode} onClose={onClose} />,
+      <NodeCard
+        client={client}
+        nodeId={pageId}
+        onOpenNode={onOpenNode}
+        onClose={onClose}
+        collapsed={false}
+        onToggleCollapsed={() => {}}
+      />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Open in main view" }));
+    // Open-in-main rides the card-actions menu (the three-dot).
+    fireEvent.click(screen.getByRole("button", { name: "Card actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open in main view" }));
     expect(onOpenNode).toHaveBeenCalledWith(pageId);
     expect(onClose).toHaveBeenCalled();
     unmount();
 
     const onCloseSecond = vi.fn();
     render(
-      <NodeCardFrame
+      <NodeCard
         client={client}
         nodeId={pageId}
         onOpenNode={() => {}}
         onClose={onCloseSecond}
+        collapsed={false}
+        onToggleCollapsed={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Close card" }));
@@ -355,11 +382,13 @@ describe("NodeCardFrame (the cards-only rail)", () => {
 
     // Missing node: the frame's header breadcrumbs skip and the body says so.
     const missing = render(
-      <NodeCardFrame
+      <NodeCard
         client={client}
         nodeId="0192a000-0000-7000-8000-000000000099"
         onOpenNode={() => {}}
         onClose={() => {}}
+        collapsed={false}
+        onToggleCollapsed={() => {}}
       />,
     );
     expect(missing.container.querySelector(".nt-page-missing")).not.toBeNull();
