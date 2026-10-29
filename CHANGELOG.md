@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): the SectionSpec registry — every page section declared once,
+  a variant's stack is a key list; placement is data.** The new
+  `sectionRegistry` module holds all eight page sections as `{ key, render }`
+  entries; `pageVariant.ts`'s hand-written render-closure stacks become key
+  lists composed through `sectionEntries` — an unknown key fails loud (a
+  stack never silently drops a section). The date-page ruling that omits
+  Unlinked mentions is a plain key filter over the reference family. The
+  render contract stays the owner's boundary: the closures mount the
+  existing section components unchanged — the descriptor's job is placement,
+  not a new rendering contract (the data-facing `SectionSpec` in
+  useSectionData.ts stays unconsumed beyond its `key` identity). Verified:
+  new section-registry suite (5 tests — key-list order, entry identity
+  across compositions, fail-loud unknown key, the per-variant stacks:
+  class/plain/date); pageview-render-filter, class-view, system-sections
+  green against the restructured variant; full gate green (typecheck + 2545
+  web tests, full chain). Slice 6 of the section skin conversion — the
+  conversion is complete: all six collection-backed sections ride the skin
+  and every page section rides the registry.
+
 - **feat(web): Created converts onto the CollectionSection skin — the last
   collection-backed section; the skin gains the resolve-on-mount seams it
   needed.** Three new skin props, each with this one consumer: `hideUntilResolved`
