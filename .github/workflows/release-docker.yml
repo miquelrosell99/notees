@@ -4,9 +4,11 @@ name: Release Docker images
 # (packages: write) — the dedicated CI push that does NOT depend on a
 # personal registry token (the host's ghcr login stays read-only).
 #
-# Tag push (v*) publishes the tag (v-prefixed + semver), `latest`, and an
-# optional extra tag. Manual dispatch publishes `latest` plus the given
-# image_tag — the way to (re)publish an existing release's images.
+# Tag push (v*) publishes the tag (v-prefixed + semver). `:latest` applies
+# ONLY to stable semver tags — prereleases (v2.0.0-m2 and friends, any tag
+# with a `-`) never move `latest`. Manual dispatch publishes `latest` plus
+# the given image_tag — the way to (re)publish an existing stable release's
+# images. Nightly main builds live in nightly-docker.yml (`:nightly`).
 
 on:
   push:
@@ -25,7 +27,7 @@ permissions:
 
 jobs:
   docker:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
@@ -36,13 +38,13 @@ jobs:
             dockerfile: apps/web/Dockerfile
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -50,18 +52,18 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/miquelrosell99/${{ matrix.image }}
           tags: |
             type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
             type=raw,value=${{ inputs.image_tag }},enable=${{ inputs.image_tag != '' }}
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: ${{ matrix.dockerfile }}

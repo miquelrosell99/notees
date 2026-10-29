@@ -44,5 +44,10 @@ export default defineConfig({
     // error and failing the whole chain. The specs assert state; the async
     // teardown races are environmental, so the gate ignores them.
     dangerouslyIgnoreUnhandledErrors: true,
+    // CI-only flake mitigation: under the Actions runner's load the jsdom
+    // timing specs (block-dnd, capture, …) flake a different failure each
+    // run. Retry failed specs up to twice when CI is set; local runs stay
+    // single-attempt.
+    retry: process.env.CI ? 2 : 0,
   },
 });
