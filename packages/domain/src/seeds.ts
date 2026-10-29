@@ -1426,9 +1426,10 @@ export const SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK: ReadonlySet<SystemClassName> = 
  * their designed chrome leads with cover art instead). Every other
  * source-family member is deliberately ABSENT — it inherits the base's
  * template through SYSTEM_CLASS_EXTENDS (extends-aware resolution at read
- * time). The server seed and the web ensure paths emit the payload on
- * class.create; validation of placeholder names is client write time
- * (parseDisplayTemplate/validateDisplayTemplate).
+ * time). This manifest IS the seed declaration — the consumers (the server
+ * seed, the web ensure/deploy paths) read it directly, and placeholder-name
+ * validation is client write time (parseDisplayTemplate /
+ * validateDisplayTemplate, packages/domain).
  */
 export const SYSTEM_CLASS_DISPLAY_TEMPLATES: Partial<Record<SystemClassName, string>> = {
   source: "@{{citekey}}",
