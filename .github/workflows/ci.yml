@@ -4,11 +4,6 @@ name: ci
 # gone — the nightly cron covers main's head, and per-push failures on main
 # were the operator pain. Flake mitigation for the jsdom timing specs lives in
 # the vitest configs (CI-conditional retry), not here.
-#
-# SonarQube: the `sonar` job runs on the NIGHTLY schedule only (PR CI stays
-# fast). It is inert unless the repo defines:
-#   - SONAR_TOKEN       (repository secret — the SonarQube token)
-#   - SONAR_HOST_URL    (repository variable — the SonarQube server URL)
 
 on:
   pull_request:
@@ -53,19 +48,3 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: OpenAPI route coverage
         run: pnpm -C apps/server exec vitest run test/openapi-coverage.test.ts test/error-taxonomy.test.ts
-
-  # SonarQube scan — nightly only, conditional on the repo being configured
-  # (SONAR_HOST_URL var set). Keeps PR CI fast; quality-gate feedback rides
-  # the nightly run instead of blocking every PR.
-  sonar:
-    if: ${{ github.event_name == 'schedule' && vars.SONAR_HOST_URL != '' }}
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 0
-      - name: SonarQube scan
-        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}

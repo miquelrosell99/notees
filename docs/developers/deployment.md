@@ -248,11 +248,8 @@ workflow's `GITHUB_TOKEN` (`packages: write`) — no personal registry token
 - `:nightly` (+ `nightly-YYYYMMDD`) — the scheduled build of main's head
   (`nightly-docker.yml`, cron `23 3 * * *`, manual dispatch too). Main is
   not built per push: CI gates PRs and runs the same nightly cron against
-  main's head (`ci.yml`), which also carries a conditional SonarQube scan
-  (nightly schedule only, requires the `SONAR_TOKEN` secret and
-  `SONAR_HOST_URL` repository variable — inert until configured). The
-  per-push-main CI trigger was retired: the nightly cron covers main's
-  head, and per-push failures were the noise.
+  main's head (`ci.yml`). The per-push-main CI trigger was retired: the
+  nightly cron covers main's head, and per-push failures were the noise.
 
 **Deploy: plain Docker — Komodo is NOT required** (every
 operation it performs is reproducible with the commands below).
