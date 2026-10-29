@@ -79,6 +79,15 @@ const ctx: WorkerContext = {
               // Staged restore: the snapshot bytes land in the OPFS file,
               // then the connection opens by name (restoreAsync).
               writeFile: (bytes) => opfs.saveFile(fileName, bytes),
+              // Streaming snapshot upload: the backend checkpoints the WAL
+              // and streams this file lazily — the image never materializes
+              // in the WASM/JS heap.
+              openFile: async () => {
+                const root = await navigator.storage.getDirectory();
+                const dir = await root.getDirectoryHandle("notees");
+                const handle = await dir.getFileHandle(fileName);
+                return handle.getFile();
+              },
             }),
             // The VFS persists pages through — no whole-file export saves.
             persistent: true,
