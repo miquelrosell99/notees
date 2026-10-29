@@ -470,8 +470,10 @@ describe("the reference sections' filter bars", () => {
     render(<PageView client={client} pageId={pageId} />);
     // Backlinks is expanded by default: its chrome (the collapsible quick
     // search's magnifier toggle + the structured-filters toggle) rides the
-    // hosted top bar's right.
+    // hosted top bar's right. The section composes through the
+    // CollectionSection skin.
     const backlinks = section(/Backlinks/);
+    expect(backlinks.classList.contains("nt-collection-section")).toBe(true);
     expect(within(backlinks).queryByLabelText("Filter by text")).toBeNull();
     expect(within(backlinks).getByRole("button", { name: "Search rows" })).not.toBeNull();
     expect(within(backlinks).getByRole("button", { name: "Structured filters" })).not.toBeNull();

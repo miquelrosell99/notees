@@ -21,8 +21,40 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
-import { ReferenceList } from "../src/features/page-sections/SystemSections.js";
 import { BlockBacklinkPanel } from "../src/ui/BlockBacklinks.js";
+import { NodeCollection, groupByContainingPage } from "../src/features/collection/index.js";
+
+/**
+ * The reference collection the section composes (the retired ReferenceList's
+ * exact composition) — the subject under test is the row chrome, not the
+ * section chrome.
+ */
+function ReferenceCollection({
+  client,
+  target,
+  onOpenPage,
+}: {
+  client: WorkspaceClient;
+  target: string;
+  onOpenPage: (id: string) => void;
+}) {
+  const items = client.getLinkedReferences(target).map((entry) => ({
+    node: client.getNode(entry.source.id) ?? entry.source,
+    meta: { containingPageId: entry.containingPageId, verb: entry.verb },
+  }));
+  const { standalone, groups } = groupByContainingPage(client, items, onOpenPage);
+  return (
+    <NodeCollection
+      viewMode="outline"
+      client={client}
+      items={items}
+      readOnly={false}
+      groups={groups}
+      ungroupedItems={standalone}
+      onNodeClick={onOpenPage}
+    />
+  );
+}
 
 const WS = "0192a000-0000-7000-8000-0000000000e1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000e2";
@@ -105,13 +137,7 @@ describe("bound-verb backlinks", () => {
     await flushSync();
 
     const onOpenPage = vi.fn();
-    render(
-      <ReferenceList
-        entries={client.getLinkedReferences(target)}
-        client={client}
-        onOpenPage={onOpenPage}
-      />,
-    );
+    render(<ReferenceCollection client={client} target={target} onOpenPage={onOpenPage} />);
     // The row end is identity chrome: the bound-verb badge that named the
     // property schema the edge arrived through is retired — the property
     // context lives in the row's own Properties table.
@@ -157,14 +183,7 @@ describe("bound-verb backlinks", () => {
     });
     await flushSync();
 
-    render(
-      <ReferenceList
-        entries={client.getUnlinkedReferences(target)}
-        client={client}
-        onOpenPage={vi.fn()}
-        unlinkedPageId={target}
-      />,
-    );
+    render(<ReferenceCollection client={client} target={target} onOpenPage={vi.fn()} />);
     expect(document.querySelector(".nt-ref-verb")).toBeNull();
   });
 });

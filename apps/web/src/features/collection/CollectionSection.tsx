@@ -31,7 +31,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 
-import type { AnyClient, NodeCollectionItem, NodeCollectionProps, ViewMode } from "./index.js";
+import type { AnyClient, CollectionGroup, NodeCollectionItem, NodeCollectionProps, ViewMode } from "./index.js";
 import { NodeCollection } from "./index.js";
 
 import { NodeCollectionToolbar } from "./NodeCollectionToolbar.js";
@@ -94,6 +94,13 @@ export interface CollectionSectionProps {
   resolveOnMount?: boolean | undefined;
   /** Observe the transient FilterQuery (the live sort-flip: ranked quick text leads until the user picks a sort). */
   onFilterChange?: ((query: FilterQuery) => void) | undefined;
+  /**
+   * Post-resolution grouping (the Backlinks shape): computed from the
+   * resolved items at render — the returned groups/ungrouped items join the
+   * collection's props (the grouping reads chrome state the skin owns, so
+   * the host cannot precompute it outside).
+   */
+  groupBy?: ((items: NodeCollectionItem[]) => { groups?: CollectionGroup[]; ungroupedItems?: NodeCollectionItem[] }) | undefined;
 }
 
 export function CollectionSection({
@@ -116,6 +123,7 @@ export function CollectionSection({
   refreshKey,
   resolveOnMount = false,
   onFilterChange,
+  groupBy,
 }: CollectionSectionProps) {
   const [expanded, setExpanded] = useState(!defaultCollapsed);
   const [filterQuery, setFilterQuery] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
@@ -198,6 +206,7 @@ export function CollectionSection({
           viewMode={viewMode}
           client={client}
           items={rows}
+          {...(groupBy !== undefined ? groupBy(rows) : {})}
           {...collection}
           {...(filterable !== false && hosted
             ? {

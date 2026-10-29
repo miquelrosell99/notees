@@ -65,33 +65,26 @@
  * Extracted from PageView.tsx; the group component subtracted 2026-10-21.
  */
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { Section } from "../../ui/Section.js";
 import { titleOfNode } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../../ui/viewPrefs.js";
 import { promoteMentionInAst } from "../collection/unlinkedRefs.js";
 import { CollectionSection } from "../collection/CollectionSection.js";
-import { NodeCollectionToolbar } from "../collection/NodeCollectionToolbar.js";
-import { ViewChromeSlot } from "../collection/viewChrome.js";
 import {
   EMPTY_FILTER_QUERY,
   draftOrFactoryAst,
-  filterQueryToGroup,
-  isFilterInactive,
   quickTextOf,
   type FilterQuery,
 } from "../collection/filterQuery.js";
-import { NodeCollection, groupByContainingPage } from "../collection/index.js";
-import type { HostedViewsConfig, NodeCollectionItem, SortMode, ToolbarClusterContent } from "../collection/index.js";
+import { groupByContainingPage } from "../collection/index.js";
+import type { HostedViewsConfig } from "../collection/index.js";
 import { SECTION_DEFAULT_TAB } from "../collection/NodeCollectionTabs.js";
-import { NodeViewSection } from "./NodeViewSection.js";
-import { useSectionData, type SectionRowFilter } from "../collection/useSectionData.js";
 import "./SystemSections.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -113,147 +106,6 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
   };
 }
 
-/**
- * ReferenceList — the page's references as an ORDINARY outline collection
- * ("Backlinks should be like any other section"),
- * its rows EDITABLE (the reference rows answer
- * content edits like the tasks hub — a content click swaps in the block
- * editor; the bullet element still owns opening the source, the block
- * itself in focused view when the edge is direct, otherwise the containing
- * page): one row per entry, children behind the chevron like every other
- * collection list — the flat-list starting fold state answers the global
- * "Auto-collapse nodes at this depth in lists" device setting like every
- * other flat collection. The Logseq-era bespoke row (a breadcrumb trail +
- * an inline editable subtree per row) is retired; the grouping by
- * containing page, the ungrouped-page-sources-first ruling, the hosted tabs, the sort button, and the transient filter
- * layer are the shared machinery already. What a row still owns rides the
- * shared trailing-action seam: on the unlinked section only, the
- * Promote/Ignore pair (the bound-verb badge that named the property schema
- * a backlink arrived through is retired — the row end is identity chrome
- * and the property context lives in the row's own Properties table).
- *
- * `unlinkedPageId` enables the promote/ignore action pair on every row (the
- * unlinked section only): Promote converts the literal match into a mention;
- * Ignore dismisses the source for this page, device-locally.
- *
- * The list opens on the Dates-first sort: date-page groups newest → oldest, then the other pages A–Z; the
- * sort button in the hosted chrome switches it (Name A–Z / Default order).
- *
- * Always rendered by its hosts — even empty: the hosted view chrome stays
- * visible on an empty section, and `emptyText` (the section-empty line)
- * rides the collection's empty state.
- *
- * The block-level backlink gutter renders BacklinksSection (this file) in a
- * card — the whole section chrome, not this list alone.
- */
-export function ReferenceList({
-  entries,
-  client,
-  onOpenPage,
-  unlinkedPageId,
-  hostedViews,
-  toolbarContent,
-  emptyText,
-  defaultSortMode = "dates-first",
-}: {
-  entries: ReferenceEntry[];
-  client: AnyClient;
-  onOpenPage?: ((nodeId: string) => void) | undefined;
-  unlinkedPageId?: string | undefined;
-  hostedViews?: HostedViewsConfig | undefined;
-  /**
-   * The section's toolbar cluster (its NodeCollectionToolbar) riding the top
-   * bar's right — forwarded as the collection's `toolbarContent`; renders
-   * only in the hosted top bar. Plain node or render prop — see
-   * ToolbarClusterContent.
-   */
-  toolbarContent?: ToolbarClusterContent | undefined;
-  /** The section-empty line when there is nothing to list (rides the collection's empty state). */
-  emptyText?: string | undefined;
-  /**
-   * The list's sort default — Dates first unless the host says otherwise.
-   * The page sections pass "position" while their quick search ranks the
-   * pool (the ranked order leads then; the dates-first default yields
-   * until the user picks a sort — the views' live-default contract).
-   */
-  defaultSortMode?: SortMode | undefined;
-}) {
-  const promote = useCallback(
-    (source: ClientNode) => {
-      if (unlinkedPageId === undefined) return;
-      const name = client.getDisplayName(unlinkedPageId);
-      if (name === null) return;
-      const next = promoteMentionInAst(source.contentAst, name, unlinkedPageId);
-      if (next !== null) void client.updateObject(source.id, { contentAst: next });
-    },
-    [client, unlinkedPageId],
-  );
-  /**
-   * What a row still owns rides the shared trailing-action seam: on the
-   * unlinked section only, the Promote/Ignore pair. (The bound-verb badge
-   * that used to name the property schema a backlink arrived through is
-   * retired — the row end is identity chrome, the property context lives
-   * in the row's own Properties table, and a uniform label on every row
-   * read as noise.)
-   */
-  const items: NodeCollectionItem[] = entries.map((entry) => ({
-    // The reference reads are scope-classed (op-lag slice 3): a source
-    // edited without touching this page leaves its pooled snapshot stale —
-    // each row re-reads its source through the scope-classed getNode, which
-    // the source's own edit invalidates.
-    node: client.getNode(entry.source.id) ?? entry.source,
-    meta: { containingPageId: entry.containingPageId, verb: entry.verb },
-  }));
-  const { standalone, groups } = groupByContainingPage(client, items, onOpenPage);
-  return (
-    <NodeCollection
-      viewMode="outline"
-      client={client}
-      items={items}
-      /**
-       * Editable rows (reference rows answer
-       * content edits; an edit that removes the mention honestly moves the
-       * row to the other section or out of it). `readOnly={false}` rather
-       * than `editable`: this is NOT a drag-ordered editing surface, so
-       * the read-time sort button must stay (an `editable` surface hides
-       * it — there the sort would fight the drag order).
-       */
-      readOnly={false}
-      groups={groups}
-      ungroupedItems={standalone}
-      defaultSortMode={defaultSortMode}
-      onNodeClick={(id) => onOpenPage?.(id)}
-      {...(hostedViews !== undefined ? { hostedViews } : {})}
-      {...(toolbarContent !== undefined ? { toolbarContent } : {})}
-      {...(emptyText !== undefined ? { emptyText } : {})}
-      trailingAction={(item) => {
-        if (unlinkedPageId === undefined) return null;
-        return (
-          <span className="nt-ref-actions">
-            <button
-              type="button"
-              className="nt-ref-action"
-              aria-label={`Promote ${displayNameOf(item.node, parentlessBlockResolverOf(client))} to a link`}
-              title="Promote to link"
-              onClick={() => promote(item.node)}
-            >
-              <Icon path="mdi-link-plus" size={0.8} />
-            </button>
-            <button
-              type="button"
-              className="nt-ref-action"
-              aria-label={`Ignore ${displayNameOf(item.node, parentlessBlockResolverOf(client))}`}
-              title="Ignore (this device)"
-              onClick={() => writeIgnoredUnlinkedRef(unlinkedPageId, item.node.id, true)}
-            >
-              <Icon path="mdi-eye-off-outline" size={0.8} />
-            </button>
-          </span>
-        );
-      }}
-    />
-  );
-}
 
 /** Crumb-safe row label for the action aria labels. */
 function displayNameOf(
@@ -265,17 +117,31 @@ function displayNameOf(
 
 /**
  * ReferenceSection — ONE of the page's reference sections (Backlinks /
- * Unlinked mentions) as a normal collapsible NodeCollection section: the
- * shared NodeViewSection chrome (title + icon — NO header count badge; a
- * hosted section names the count on the active tab) and the ReferenceList collection beneath —
- * its hosted view chrome included, the transient NodeCollectionToolbar riding the
- * hosted tab bar's FAR RIGHT as the collection's `trailing`, the active
- * tab's badge naming the displayed row count. The lazy contract
- * lives in useSectionData — one instance per section (the per-view rule):
- * no query while collapsed, cached rows across a silent collapse/expand,
- * a re-derive per client notification while expanded. `refreshKey` carries
- * the device-only values the read closes over (the unlinked ignore list —
- * not a client notification).
+ * Unlinked mentions) composing through the CollectionSection skin: the
+ * chrome, the lazy contract, the transient filter layer, and the hosted
+ * tabs all ride the skin; this component keeps only what a reference
+ * section OWNS — the entry→item mapping (the per-row scope-classed re-read:
+ * a source edited without touching this page leaves its pooled snapshot
+ * stale, so each item re-reads its source through the scope-classed getNode,
+ * which the source's own edit invalidates), the containing-page grouping,
+ * the live sort default (ranked quick text leads until the user picks a
+ * sort), the lifted hosted-tab state ("Save as tab" persists the draft as a
+ * section view and must SELECT the new tab — controlled hostedViews, which
+ * also auto-wires the skin's toolbar Save-as-tab), and the Promote/Ignore
+ * row-action pair (the unlinked section only — `unlinkedPageId` enables it:
+ * Promote converts the literal match into a mention; Ignore dismisses the
+ * source for this page, device-locally).
+ *
+ * The rows answer content edits like the tasks hub (`readOnly={false}`, NOT
+ * `editable` — no drag order, so the read-time sort button stays). The
+ * section opens on the Dates-first sort: date-page groups newest → oldest,
+ * then the other pages A–Z. Always rendered by its hosts — even empty: the
+ * hosted view chrome stays visible on an empty section, and `emptyText`
+ * (the section-empty line) rides the collection's empty state. The block
+ * backlink card mounts BacklinksSection (this file) in a card — the whole
+ * section chrome, `hideHeader` — the gutter toggle owns the surface there.
+ * `refreshKey` carries the device-only values the read closes over (the
+ * unlinked ignore list — not a client notification).
  */
 function ReferenceSection({
   client,
@@ -295,9 +161,10 @@ function ReferenceSection({
   pageId: string;
   title: string;
   icon: ReactNode;
+  /** The references read (the cheap linked pass / the expensive FTS pass). */
   load: () => ReferenceEntry[];
   /** Values the read closes over that change without a client notification. */
-  refreshKey?: unknown;
+  refreshKey?: string | undefined;
   /** Enables the Promote/Ignore row actions (the unlinked section only). */
   unlinkedPageId?: string | undefined;
   /**
@@ -312,73 +179,109 @@ function ReferenceSection({
   defaultExpanded?: boolean;
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
-  /** The transient filter layer: this section's own FilterQuery (component state, lost on reload). */
+  /**
+   * The host's own FilterQuery COPY: the skin owns the transient state and
+   * reports it here — the host derives the live sort default and the new
+   * tab's starter AST (`createAst`) from the copy.
+   */
   const [filterQuery, setFilterQuery] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
   /**
    * The hosted tab state, lifted: "Save as tab"
    * persists the draft as a section view and must SELECT the new tab — the
-   * tab state lives here now, handed to the collection as a controlled
-   * hostedViews (NodeCollection falls back to its internal state when the
-   * control props are absent).
+   * tab state lives here, handed to the collection as a controlled
+   * hostedViews (which also auto-wires the skin's toolbar Save-as-tab).
    */
   const [tab, setTab] = useState<string>(SECTION_DEFAULT_TAB);
-  const rowFilter = useMemo<SectionRowFilter<ReferenceEntry> | undefined>(() => {
-    if (isFilterInactive(filterQuery)) return undefined;
-    // The quick text narrows the pool by the ranked search before the
-    // structured group applies — it rides the filter, not the AST.
-    const group = filterQueryToGroup(filterQuery);
-    return {
-      group: group ?? { type: "group", logic: "and", children: [] },
-      text: quickTextOf(filterQuery),
-      nodeOf: (entry) => entry.source,
-    };
-  }, [filterQuery]);
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  const { rows, total } = useSectionData<ReferenceEntry[]>({
-    client,
-    active: expanded,
-    refreshKey,
-    read: load,
-    filter: rowFilter,
-  });
-
+  const promote = useCallback(
+    (source: ClientNode) => {
+      if (unlinkedPageId === undefined) return;
+      const name = client.getDisplayName(unlinkedPageId);
+      if (name === null) return;
+      const next = promoteMentionInAst(source.contentAst, name, unlinkedPageId);
+      if (next !== null) void client.updateObject(source.id, { contentAst: next });
+    },
+    [client, unlinkedPageId],
+  );
   return (
-    <NodeViewSection
+    <CollectionSection
+      client={client}
       title={title}
       icon={icon}
       className="nt-section"
-      expanded={expanded}
-      onExpandedChange={setExpanded}
-      {...(hideHeader ? { hideHeader: true } : {})}
-    >
-      {rows === null ? null : (
-        <ReferenceList
-          entries={rows}
-          client={client}
-          onOpenPage={onOpenPage}
-          {...(unlinkedPageId !== undefined ? { unlinkedPageId } : {})}
-          hostedViews={{ nodeId: pageId, sectionKey, createAst: () => draftOrFactoryAst(filterQuery), selected: tab, onSelectTab: setTab, defaultViewLabel: title }}
-          defaultSortMode={quickTextOf(filterQuery) === "" ? "dates-first" : "position"}
-          toolbarContent={(setSlot) => (
-            <>
-              <NodeCollectionToolbar
-                client={client}
-                layout="inline"
-                value={filterQuery}
-                onChange={setFilterQuery}
-                matchCount={rows.length}
-                totalCount={total}
-                viewSaver={{ client, nodeId: pageId, sectionKey, onSaved: setTab }}
-              />
-              <ViewChromeSlot slotRef={setSlot} />
-            </>
-          )}
-          emptyText={emptyText}
-        />
-      )}
-    </NodeViewSection>
+      hideHeader={hideHeader}
+      defaultCollapsed={!defaultExpanded}
+      filterable
+      emptyText={emptyText}
+      viewMode="outline"
+      read={() =>
+        load().map((entry) => ({
+          // The reference reads are scope-classed (op-lag slice 3): a source
+          // edited without touching this page leaves its pooled snapshot stale —
+          // each item re-reads its source through the scope-classed getNode,
+          // which the source's own edit invalidates.
+          node: client.getNode(entry.source.id) ?? entry.source,
+          meta: { containingPageId: entry.containingPageId, verb: entry.verb },
+        }))
+      }
+      {...(refreshKey !== undefined ? { refreshKey } : {})}
+      onFilterChange={setFilterQuery}
+      groupBy={(items) => {
+        const { standalone, groups } = groupByContainingPage(client, items, onOpenPage);
+        return { groups, ungroupedItems: standalone };
+      }}
+      collection={{
+        /**
+         * Editable rows (reference rows answer content edits; an edit that
+         * removes the mention honestly moves the row to the other section or
+         * out of it). `readOnly={false}` rather than `editable`: this is NOT
+         * a drag-ordered editing surface, so the read-time sort button must
+         * stay (an `editable` surface hides it — there the sort would fight
+         * the drag order).
+         */
+        readOnly: false,
+        defaultSortMode: quickTextOf(filterQuery) === "" ? "dates-first" : "position",
+        onNodeClick: (id) => onOpenPage?.(id),
+        hostedViews: {
+          nodeId: pageId,
+          sectionKey,
+          createAst: () => draftOrFactoryAst(filterQuery),
+          selected: tab,
+          onSelectTab: setTab,
+          defaultViewLabel: title,
+        },
+        trailingAction: (item) => {
+          if (unlinkedPageId === undefined) return null;
+          // What a row still owns rides the shared trailing-action seam: the
+          // Promote/Ignore pair (the row end is identity chrome, the property
+          // context lives in the row's own Properties table).
+          return (
+            <span className="nt-ref-actions">
+              <button
+                type="button"
+                className="nt-ref-action"
+                aria-label={`Promote ${displayNameOf(item.node, parentlessBlockResolverOf(client))} to a link`}
+                title="Promote to link"
+                onClick={() => promote(item.node)}
+              >
+                <Icon path="mdi-link-plus" size={0.8} />
+              </button>
+              <button
+                type="button"
+                className="nt-ref-action"
+                aria-label={`Ignore ${displayNameOf(item.node, parentlessBlockResolverOf(client))}`}
+                title="Ignore (this device)"
+                onClick={() => writeIgnoredUnlinkedRef(unlinkedPageId, item.node.id, true)}
+              >
+                <Icon path="mdi-eye-off-outline" size={0.8} />
+              </button>
+            </span>
+          );
+        },
+      }}
+    />
   );
 }
+
 
 /**
  * ChildPagesSection — the page's main children as the read-only tree, ONE
