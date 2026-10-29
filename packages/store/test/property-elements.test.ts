@@ -829,6 +829,7 @@ describe("fixture convergence (property-wire batch)", () => {
           f !== "is-embedded-date-chain.json" &&
           f !== "is-embedded-parent-page.json" &&
           f !== "object-delete-class-routing.json" &&
+          f !== "object-delete-date-chain.json" &&
           f !== "property-validation-rules.json",
       )
       .sort()
