@@ -320,6 +320,56 @@ function CollapsibleCard({ client, nodeId }: { client: WorkspaceClient; nodeId: 
 }
 
 describe("NodeCard (the cards-only rail)", () => {
+  it("a root page's header trail is the page's own name — the leaf crumb, never an empty header", async () => {
+    const client = await seedClient();
+    const rootId = await client.createObject({ isEmbedded: false, name: "Lonely root" });
+
+    const { container } = render(
+      <NodeCard
+        client={client}
+        nodeId={rootId}
+        onOpenNode={() => {}}
+        onClose={() => {}}
+        collapsed={false}
+        onToggleCollapsed={() => {}}
+      />,
+    );
+    const trail = container.querySelector(".node-breadcrumbs")!;
+    expect(trail).not.toBeNull();
+    expect(trail.textContent).toContain("Lonely root");
+  });
+
+  it("every system section starts collapsed in the card — a glance, not a workspace", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Carded" });
+    // A child page (the Child pages section gates on it)…
+    await client.createObject({ isEmbedded: false, name: "Kid", parentId: pageId });
+    // …and a backlink (the Backlinks section gates on the mention edge).
+    await client.createObject({
+      isEmbedded: false,
+      name: "Source",
+      contentAst: [{ type: "mention", targetNodeId: pageId }],
+    });
+
+    const { container } = render(
+      <NodeCard
+        client={client}
+        nodeId={pageId}
+        onOpenNode={() => {}}
+        onClose={() => {}}
+        collapsed={false}
+        onToggleCollapsed={() => {}}
+      />,
+    );
+    const headers = Array.from(
+      container.querySelectorAll<HTMLElement>(".node-view-section__header"),
+    );
+    expect(headers.length).toBeGreaterThanOrEqual(2);
+    for (const header of headers) {
+      expect(header.getAttribute("aria-expanded")).toBe("false");
+    }
+  });
+
   it("the generic frame renders NodeView in its body with the breadcrumbs header; collapse is session-local", async () => {
     const client = await seedClient();
     const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
@@ -332,8 +382,12 @@ describe("NodeCard (the cards-only rail)", () => {
     const { container } = render(<CollapsibleCard client={client} nodeId={pageId} />);
     const card = container.querySelector(".nt-sidebar-card")!;
     expect(card).not.toBeNull();
-    // The header trails the breadcrumbs; the body hosts the node view.
-    expect(card.querySelector(".node-breadcrumbs")).not.toBeNull();
+    // The header trails the breadcrumbs — ending at the card's own node
+    // (the leaf crumb: the trail names what the card holds).
+    const trail = card.querySelector(".node-breadcrumbs")!;
+    expect(trail).not.toBeNull();
+    expect(trail.textContent).toContain("Parent");
+    expect(trail.textContent).toContain("Carded");
     expect(card.querySelector(".nt-page")).not.toBeNull();
 
     // Collapse hides the body (session-local card management)…

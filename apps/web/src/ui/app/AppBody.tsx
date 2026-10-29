@@ -307,6 +307,7 @@ export function AppBody(props: AppBodyProps) {
           <CalendarView
             client={client}
             onOpenPage={openPage}
+            onOpenInSidebar={openInSidebar}
             route={calendarRoute}
             onRouteChange={onCalendarRouteChange}
             onTitle={onCalendarTitle}

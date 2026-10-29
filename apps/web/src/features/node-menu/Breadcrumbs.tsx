@@ -171,6 +171,8 @@ export function Breadcrumbs({
    *  right-anchored occlusion still hides the upper levels when the trail
    *  overflows. */
   interactive = true,
+  /** The trail ends at the current node (the leaf crumb). */
+  leaf = false,
   /** Parent-edit gestures: crumb chevron/right-click menus + Add parent. */
   editable = false,
   /** The "+ Add parent" pill on a parentless node (default on with `editable`).
@@ -199,6 +201,10 @@ export function Breadcrumbs({
   anchor?: "left" | "right" | undefined;
   /** False renders the trail as plain text (no clicks, no popups). */
   interactive?: boolean | undefined;
+  /** Append the node's OWN crumb after the ancestors — the trail ends at
+   *  the current node (the peek-card header's contract: the card names what
+   *  it holds, root pages included). */
+  leaf?: boolean | undefined;
   editable?: boolean | undefined;
   /** False hides the "+ Add parent" pill (existing-parents-only surfaces). */
   addParent?: boolean | undefined;
@@ -229,6 +235,12 @@ export function Breadcrumbs({
 
   const currentNode = client.getNode(nodeId);
   let items = ancestryOf(client, nodeId, showPropertyHops ?? false);
+  // The leaf crumb: the trail names the current node itself (the
+  // peek-card header's contract). Appended BEFORE the early return so a
+  // root page's trail is its own name, not an empty header.
+  if (leaf && currentNode !== undefined) {
+    items = [...items, { kind: "node", node: currentNode, name: crumbNameOf(client, currentNode) }];
+  }
   if (stopAfterId !== undefined) {
     // Truncate AT this node (inclusive): property entries between the stop
     // node and the row survive — they name the hops below it.

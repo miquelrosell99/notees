@@ -36,10 +36,13 @@ export function TemplatesSection({
   client,
   classId,
   onOpenPage,
+  /** The peek-card surface: start collapsed regardless of the surface default. */
+  sectionsStartCollapsed = false,
 }: {
   client: AnyClient;
   classId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  sectionsStartCollapsed?: boolean | undefined;
 }) {
   const [pickerAnchor, setPickerAnchor] = useState<HTMLButtonElement | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -85,7 +88,7 @@ export function TemplatesSection({
       title="Templates"
       icon={<Icon path="mdi-clipboard-text" size={0.9} />}
       count={templateBindings.length}
-      defaultExpanded={templateBindings.length === 0}
+      defaultExpanded={sectionsStartCollapsed ? false : templateBindings.length === 0}
       className="nt-templates"
     >
       {/* No empty-state text: the "Bind template" pill below IS the empty

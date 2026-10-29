@@ -391,11 +391,14 @@ export function ChildPagesSection({
    * read-only — no create affordance.
    */
   embedded = false,
+  /** The peek-card surface: start collapsed regardless of the surface default. */
+  sectionsStartCollapsed = false,
 }: {
   client: AnyClient;
   pageId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
   embedded?: boolean | undefined;
+  sectionsStartCollapsed?: boolean | undefined;
 }) {
   const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
   const childPageCount = client.getChildPageCount(pageId);
@@ -407,7 +410,7 @@ export function ChildPagesSection({
       title="Child pages"
       icon={<Icon path="mdi-file-tree-outline" size={0.9} />}
       badge={childPageCount}
-      defaultCollapsed={false}
+      defaultCollapsed={sectionsStartCollapsed}
       action={
         embedded
           ? undefined
@@ -455,12 +458,15 @@ export function BacklinksSection({
   pageId,
   onOpenPage,
   hideHeader = false,
+  /** The peek-card surface: start collapsed (the card is a glance). */
+  sectionsStartCollapsed = false,
 }: {
   client: AnyClient;
   pageId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
   /** Hide the header's collapse toggle (the block backlink card's gutter toggle owns show/hide there). */
   hideHeader?: boolean | undefined;
+  sectionsStartCollapsed?: boolean | undefined;
 }) {
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
   const backlinkCount = client.getBacklinkCount(pageId);
@@ -476,7 +482,7 @@ export function BacklinksSection({
       {...(hideHeader ? { hideHeader: true } : {})}
       sectionKey="linked-references"
       emptyText="No backlinks."
-      defaultExpanded
+      defaultExpanded={!sectionsStartCollapsed}
       onOpenPage={onOpenPage}
     />
   );
@@ -496,10 +502,14 @@ export function UnlinkedMentionsSection({
   client,
   pageId,
   onOpenPage,
+  /** The peek-card surface: already collapsed by default — accepted for
+   *  the descriptor's uniform contract. */
+  sectionsStartCollapsed: _sectionsStartCollapsed = false,
 }: {
   client: AnyClient;
   pageId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  sectionsStartCollapsed?: boolean | undefined;
 }) {
   const ignored = useIgnoredUnlinkedRefs(pageId);
   // The ignore-list hook hands back a FRESH array every render — key the

@@ -37,6 +37,7 @@
  */
 
 import { useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { usePeekInSidebar } from "../../ui/outliner-context.js";
 import { createPortal } from "react-dom";
 import {
   DndContext,
@@ -120,6 +121,8 @@ export function NodePill({
   label,
   className = "",
   onOpen,
+  /** Shift+click "peek": open the node as a right-sidebar card instead. */
+  onOpenInSidebar,
   onContextMenu,
   onRemove,
   removeLabel,
@@ -133,6 +136,9 @@ export function NodePill({
   label: string;
   className?: string;
   onOpen?: (() => void) | undefined;
+  /** Shift+click target — the right rail's peek card (the bullet gesture's
+   *  pill twin). Unwired (and outside a view) the shift+click no-ops. */
+  onOpenInSidebar?: (() => void) | undefined;
   onContextMenu?: ((event: MouseEvent<HTMLSpanElement>) => void) | undefined;
   onRemove?: (() => void) | undefined;
   removeLabel?: string | undefined;
@@ -155,7 +161,19 @@ export function NodePill({
         </span>
       )}
       {onOpen !== undefined ? (
-        <button type="button" className="pill__text" onClick={onOpen}>
+        <button
+          type="button"
+          className="pill__text"
+          onClick={(event) => {
+            // The peek twin of the bullet gesture: shift+click opens the
+            // node as a right-sidebar card instead of the main view.
+            if (event.shiftKey) {
+              onOpenInSidebar?.();
+              return;
+            }
+            onOpen();
+          }}
+        >
           {label}
         </button>
       ) : (
@@ -185,6 +203,8 @@ function PillShell({
   nodeId,
   client,
   onOpenPage,
+  /** Shift+click peek override; the surrounding view's openInSidebar is the fallback. */
+  onOpenInSidebar,
   onContextMenuNode,
   onRemove,
   removeLabel,
@@ -195,11 +215,13 @@ function PillShell({
   nodeId: string;
   client: AnyClient;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  onOpenInSidebar?: ((pageId: string) => void) | undefined;
   onContextMenuNode: (node: ClientNode, x: number, y: number) => void;
   onRemove: (classId: string) => void;
   removeLabel: (label: string) => string;
   readOnly?: boolean | undefined;
 }) {
+  const peek = usePeekInSidebar(onOpenInSidebar);
   const cls = client.getNode(classId);
   // Never a bare UUID: archived/trashed classes keep
   // their name via the raw read; a dangling binding (the class row
@@ -218,6 +240,7 @@ function PillShell({
       label={label}
       className={nonRemovable ? "pill--non-removable" : ""}
       onOpen={() => onOpenPage?.(classId)}
+      onOpenInSidebar={() => peek(classId)}
       onContextMenu={
         readOnly
           ? undefined
@@ -299,6 +322,8 @@ export function NodePills({
    * mutation chrome.
    */
   readOnly = false,
+  /** Shift+click peek override for every pill (the view context is the fallback). */
+  onOpenInSidebar,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -313,6 +338,7 @@ export function NodePills({
   addLabel?: string | undefined;
   excludePickerNodeId?: string | undefined;
   readOnly?: boolean | undefined;
+  onOpenInSidebar?: ((pageId: string) => void) | undefined;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [colorMenu, setColorMenu] = useState<{ classId: string; x: number; y: number } | null>(null);
@@ -412,6 +438,7 @@ export function NodePills({
     nodeId,
     client,
     onOpenPage,
+    onOpenInSidebar,
     onContextMenuNode,
     onRemove,
     removeLabel: labelForRemove,

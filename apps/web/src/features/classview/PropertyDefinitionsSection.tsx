@@ -268,9 +268,12 @@ function BindingRow({
 export function PropertyDefinitionsSection({
   client,
   classId,
+  /** The peek-card surface: start collapsed regardless of the surface default. */
+  sectionsStartCollapsed = false,
 }: {
   client: AnyClient;
   classId: string;
+  sectionsStartCollapsed?: boolean | undefined;
 }) {
   const { direct, inherited } = bindingAttributionOf(client, classId);
   const [editFor, setEditFor] = useState<string | null>(null);
@@ -359,7 +362,7 @@ export function PropertyDefinitionsSection({
         title="Class properties"
         icon={<Icon path="mdi-format-list-bulleted-square" size={0.9} />}
         count={direct.length}
-        defaultExpanded={direct.length === 0}
+        defaultExpanded={sectionsStartCollapsed ? false : direct.length === 0}
         className="nt-propdefs"
       >
         {direct.length === 0 ? (

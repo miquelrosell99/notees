@@ -245,7 +245,13 @@ export function FloatingEditorHost({
                   icon="mdi-arrow-right"
                   aria-label="Open in main view"
                   title="Open in main view"
-                  onClick={() => {
+                  onClick={(event) => {
+                    // Shift+click peeks into the right rail INSTEAD — the
+                    // window stays open (peek never navigates).
+                    if (event.shiftKey) {
+                      openInSidebar?.(win.nodeId);
+                      return;
+                    }
                     closeFloatingEditor(win.nodeId);
                     openNode(win.nodeId);
                   }}

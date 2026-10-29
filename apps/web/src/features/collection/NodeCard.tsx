@@ -118,7 +118,7 @@ export function NodeCard({
           <Icon path={collapsed ? "mdi-chevron-down" : "mdi-chevron-up"} size={0.8} />
         </button>
         {node !== undefined && (
-          <Breadcrumbs client={client} nodeId={nodeId} anchor="right" interactive={false} />
+          <Breadcrumbs client={client} nodeId={nodeId} anchor="right" interactive={false} leaf />
         )}
         <span className="nt-sidebar-card__actions">
           <ButtonWithPanel
@@ -272,6 +272,7 @@ export function NodeCard({
               onOpenInSidebar={onOpenInSidebar}
               onDeleted={() => onClose()}
               globalShortcuts={false}
+              sectionsStartCollapsed
             />
           )}
         </div>

@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): NodeCard polish — the header trail names the card's node,
+  the card's sections start collapsed, and the peek gesture reaches the
+  pills and the Open arrows.** Three owner asks on the landed rail cards:
+  (1) the card header's non-clickable breadcrumb trail now ENDS at the
+  card's own node — the new `leaf` option on `Breadcrumbs` appends the
+  current node's crumb, so a root page's header names the page itself
+  instead of rendering an empty trail. (2) Every system section starts
+  COLLAPSED inside a card — `sectionsStartCollapsed` threads NodeCard →
+  NodeView → PageView → the variant section context, and Child pages /
+  Backlinks / Classed nodes / Class properties / Templates / Standalone
+  instances / Extended by all honor it (the date family's Tasks/Dated/
+  Created already collapsed); the card body also stops scrolling sideways
+  (`overflow-x: hidden` — wide tables clip at the card edge). (3) The
+  shift+click peek — until now the bullet/title/row gesture — now rides the
+  node-reference chrome: the shared `NodePill` (class pills everywhere,
+  property-value pills, alias pills) and the tags row take an
+  `onOpenInSidebar` shift target, resolved through the new
+  `usePeekInSidebar` helper (explicit prop, else the surrounding view's
+  `OutlinerContext.openInSidebar`, else a no-op), and the pinned Open
+  arrows shift+peek too: the property cells' navigate button
+  (`PropertySelectCell.onNavigateInSidebar`), the page-header day-page
+  arrow, the calendar's day-number register (TimeGrid + Agenda, ensuring
+  the date chain and peeking the day page), and the floating editor's
+  open-in-main arrow (peek never closes the window). Same-pass fix: the
+  previous slice's CHANGELOG resolution had kept a stray conflict marker —
+  removed. Verified: new tests for the leaf crumb (root + parented), the
+  collapsed-section card, the pill/tag shift gesture, the floating-editor
+  arrow, and the calendar day-number split; full gate green.
 - **fix(web): the journal's virtual days sit at the realized register —
   the ghost offset was one padding too many.** The live-app measurement
   (title-row left edges: realized 322px vs virtual 346px) pinned it: the

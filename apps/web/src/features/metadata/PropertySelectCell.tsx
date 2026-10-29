@@ -36,6 +36,8 @@ export function PropertySelectCell({
    * button idiom).
    */
   onNavigate,
+  /** Shift+click "peek": open the value as a right-sidebar card instead. */
+  onNavigateInSidebar,
   navigateLabel,
   /** The selected value's content — one pill, or the date's display name. */
   children,
@@ -50,6 +52,8 @@ export function PropertySelectCell({
   onClear: (() => void) | undefined;
   trailing?: ReactNode;
   onNavigate?: (() => void) | undefined;
+  /** The shift+click peek twin of onNavigate. */
+  onNavigateInSidebar?: (() => void) | undefined;
   navigateLabel?: string | undefined;
   children?: ReactNode;
 }) {
@@ -96,8 +100,13 @@ export function PropertySelectCell({
             aria-label={navigateLabel}
             onClick={(event) => {
               // The trigger's click owns the picker — the button owns
-              // navigation.
+              // navigation; shift+click peeks into the right rail (the
+              // table rows' pinned-Open contract).
               event.stopPropagation();
+              if (event.shiftKey) {
+                onNavigateInSidebar?.();
+                return;
+              }
               onNavigate();
             }}
           >

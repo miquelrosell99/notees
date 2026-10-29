@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 
+import { usePeekInSidebar } from "../../ui/outliner-context.js";
+
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
 import { titleOf } from "../../ui/dateDisplay.js";
@@ -23,13 +25,17 @@ export function TagsRow({
   onOpenPage,
   /** Read-only projection: static pills — open on click, no add/remove. */
   readOnly = false,
+  /** Shift+click peek override; the surrounding view's openInSidebar is the fallback. */
+  onOpenInSidebar,
 }: {
   client: AnyClient;
   nodeId: string;
   tagIds: string[];
   onOpenPage?: ((pageId: string) => void) | undefined;
   readOnly?: boolean | undefined;
+  onOpenInSidebar?: ((pageId: string) => void) | undefined;
 }) {
+  const peek = usePeekInSidebar(onOpenInSidebar);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [nodeMenu, setNodeMenu] = useState<{ node: ClientNode; x: number; y: number } | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -80,7 +86,15 @@ export function TagsRow({
               <button
                 type="button"
                 className="pill__text"
-                onClick={() => onOpenPage?.(tag.id)}
+                onClick={(event) => {
+                  // The peek twin of the bullet gesture (the class pill's
+                  // contract, tags riding the same element shape).
+                  if (event.shiftKey) {
+                    peek(tag.id);
+                    return;
+                  }
+                  onOpenPage?.(tag.id);
+                }}
               >
                 {label}
               </button>

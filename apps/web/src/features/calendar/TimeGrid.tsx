@@ -103,6 +103,8 @@ export interface TimeGridProps {
   onOpenEvent: (nodeId: string) => void;
   /** The day-number register: open the day's page (chain ensured by the host). */
   onOpenDayPage: (iso: string) => void;
+  /** Shift+click "peek": open the day page as a right-sidebar card. */
+  onOpenDayPageInSidebar?: ((iso: string) => void) | undefined;
 }
 
 export function TimeGrid({
@@ -114,6 +116,7 @@ export function TimeGrid({
   onSelectDay,
   onOpenEvent,
   onOpenDayPage,
+  onOpenDayPageInSidebar,
 }: TimeGridProps) {
   const zoom = days.length === 1 ? "day" : "week";
   const todayIso = todayIsoLocal();
@@ -286,7 +289,13 @@ export function TimeGrid({
                   iso === todayIso ? " cal-timegrid__daynum--today" : ""
                 }`}
                 aria-label={`Open day page ${iso}`}
-                onClick={() => onOpenDayPage(iso)}
+                onClick={(event) => {
+                  if (event.shiftKey) {
+                    onOpenDayPageInSidebar?.(iso);
+                    return;
+                  }
+                  onOpenDayPage(iso);
+                }}
               >
                 {Number(iso.slice(8))}
               </button>

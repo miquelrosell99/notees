@@ -13,6 +13,7 @@ import { NodeSelector } from "../pickers/NodeSelector.js";
 import { AssetUploadModal } from "../modals/AssetUploadModal.js";
 import { ObjectPropertyPill } from "./ObjectPropertyPill.js";
 import { PropertySelectCell } from "./PropertySelectCell.js";
+import { usePeekInSidebar } from "../../ui/outliner-context.js";
 import { QualifierRange } from "./QualifierRange.js";
 import type { AnyClient } from "./shared.js";
 import { isAssetClass, nodeRefOf, resolveTargetClassIds } from "./shared.js";
@@ -60,6 +61,7 @@ export function ObjectPropertyRow({
   classBound?: boolean;
   icon: string;
 }) {
+  const peek = usePeekInSidebar();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** The asset upload modal (drag-drop + preview + progress). */
@@ -206,6 +208,7 @@ export function ObjectPropertyRow({
                 icon={linked.icon}
                 label={titleOf(client, singleRef, { read: "fallback", empty: "untitled" }) ?? "Untitled"}
                 onOpen={() => onOpenPage?.(singleRef)}
+                onOpenInSidebar={() => peek(singleRef)}
               />
             </span>
           ) : null}
@@ -246,6 +249,11 @@ export function ObjectPropertyRow({
           onNavigate={
             singleRef !== null
               ? () => onOpenPage?.(singleRef)
+              : undefined
+          }
+          onNavigateInSidebar={
+            singleRef !== null
+              ? () => peek(singleRef)
               : undefined
           }
           navigateLabel={

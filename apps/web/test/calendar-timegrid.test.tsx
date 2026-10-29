@@ -168,11 +168,48 @@ async function timedEvent(
   return id;
 }
 
-function renderCalendar(client: WorkspaceClient, onOpenPage = vi.fn()) {
-  return { onOpenPage, ...render(<CalendarView client={client} onOpenPage={onOpenPage} />) };
+function renderCalendar(
+  client: WorkspaceClient,
+  onOpenPage = vi.fn(),
+  onOpenInSidebar = vi.fn(),
+) {
+  return {
+    onOpenPage,
+    onOpenInSidebar,
+    ...render(
+      <CalendarView client={client} onOpenPage={onOpenPage} onOpenInSidebar={onOpenInSidebar} />,
+    ),
+  };
 }
 
 describe("TimeGrid (the Day/Week zoom)", () => {
+  it("the day-number register: click opens the day page, shift+click peeks it in the sidebar", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("week"));
+    const { onOpenPage, onOpenInSidebar } = renderCalendar(client);
+    const grid = await screen.findByLabelText("Calendar week view");
+    const dayButton = grid.querySelector<HTMLElement>(
+      `.cal-timegrid__daynum[aria-label="Open day page ${today}"]`,
+    )!;
+    expect(dayButton).not.toBeNull();
+
+    fireEvent.click(dayButton, { shiftKey: true });
+    await waitFor(() => {
+      expect(onOpenInSidebar).toHaveBeenCalledTimes(1);
+    });
+    // The peek resolves through the ensured date chain: the SAME day page
+    // the plain click would open.
+    const dayId = dayNodeOf(today);
+    expect(onOpenInSidebar).toHaveBeenCalledWith(dayId);
+    expect(onOpenPage).not.toHaveBeenCalled();
+
+    fireEvent.click(dayButton);
+    await waitFor(() => {
+      expect(onOpenPage).toHaveBeenCalledWith(dayId);
+    });
+  });
+
   it("the all-day band takes the untimed chip and the multi-day span; the span paints ONE bar across its columns", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();

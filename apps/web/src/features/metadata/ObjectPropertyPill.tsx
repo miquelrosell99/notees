@@ -4,6 +4,7 @@ import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
 import { NodePill } from "./NodePills.js";
+import { usePeekInSidebar } from "../../ui/outliner-context.js";
 import type { AnyClient } from "./shared.js";
 
 /**
@@ -90,6 +91,7 @@ export function ObjectPropertyPill({
   // one compact pill — never the node's subtree (the editable-block
   // treatment is the TEXT property row's contract, not object
   // values').
+  const peek = usePeekInSidebar();
   return (
     <NodePill
       key={`${propertySchemaId}:${row.idx}`}
@@ -99,6 +101,7 @@ export function ObjectPropertyPill({
       className={row.source === "default" ? "pill--default" : ""}
       hoverReveal={row.source !== "default"}
       onOpen={isAssetTarget ? download : () => onOpenPage?.(ref)}
+      onOpenInSidebar={() => peek(ref)}
       onRemove={!readOnly && row.source === "authored" ? () => void unlink(row.idx) : undefined}
       removeLabel={removeLabel}
       trailing={trailing}

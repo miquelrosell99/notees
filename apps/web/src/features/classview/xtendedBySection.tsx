@@ -38,10 +38,13 @@ export function ExtendedBySection({
   client,
   classId,
   onOpenClass,
+  /** The peek-card surface: start collapsed. */
+  sectionsStartCollapsed = false,
 }: {
   client: AnyClient;
   classId: string;
   onOpenClass?: ((classId: string) => void) | undefined;
+  sectionsStartCollapsed?: boolean | undefined;
 }) {
   // Eager read: the hide-when-empty rule needs the count before the section's
   // lazy contract starts (same pattern as SystemSections' gates).
@@ -60,7 +63,7 @@ export function ExtendedBySection({
       title="Extended by"
       icon={<Icon path="mdi-file-tree" size={0.9} />}
       badge={children.length}
-      defaultCollapsed={false}
+      defaultCollapsed={sectionsStartCollapsed}
       load={() => items}
       emptyText="No subclasses."
       renderResults={() => (
