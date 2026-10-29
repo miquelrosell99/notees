@@ -274,8 +274,8 @@ export function CollectionHub({
           count={items.length}
           actions={
             <>
-              {availableModes.length > 1 && <ViewToolbar modes={availableModes} value={mode} onChange={setMode} />}
               <span className="nt-hub__view-chrome" ref={setChromeSlot} />
+              {availableModes.length > 1 && <ViewToolbar modes={availableModes} value={mode} onChange={setMode} />}
               <NodeCollectionToolbar
                 client={client}
                 layout="inline"

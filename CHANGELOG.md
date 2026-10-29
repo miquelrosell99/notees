@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-29
 
+- **fix(web): hub bars render their controls on one row, in the hosted
+  collection's order.** The lifted-toolbar slice left the hub bar's actions
+  wrapped on two rows at any width: the view switcher's `ViewToolbar` still
+  carried its section-row `width: 100%` inside the wrapping actions cluster
+  and claimed a whole flex line, dropping the ported view chrome (sort) and
+  the filter toolbar below it. And the cluster composed
+  switcher-before-sort where every hosted collection bar reads the
+  `NodeCollectionTopBar` register — view chrome first, then the switcher in
+  `toolbarContent`, then the filter toolbar. The hub override now shrinks
+  the toolbar to its content (`width: auto`, `flex-wrap: nowrap`; the
+  cluster itself still wraps at narrow widths) and the actions compose
+  view chrome → view switcher → filter toolbar → header actions, matching
+  the hosted register (the class page's classed-nodes section). Verified:
+  Playwright pass on the vite dev server — Pages and Classes hub bars
+  render one row reading sort, switcher, search, filter (screenshot-checked
+  against the probe class hub); full gate green (typecheck + 2529 web
+  tests, full chain).
+
 - **feat(web): hub top bars carry the full collection toolbar — quick
   search, structured filters, and the view's sort control join the view
   switcher in every hub bar.** The hub chrome was sparse: a view-mode

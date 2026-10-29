@@ -52,6 +52,17 @@
   row-gap: var(--spacing-1);
 }
 
+/* The view switcher's toolbar joins the actions cluster (the hosted
+   register): its base width: 100% belongs to the full-width section-row
+   hosts (NodeView's modes corner, the Created section) — inside the cluster
+   it would claim a whole flex line and drop the view chrome and filter
+   controls to a second row. In the bar it shrinks to its content as one
+   tight group; the cluster itself still wraps at narrow widths. */
+.nt-hub__surface-bar .view-toolbar {
+  width: auto;
+  flex-wrap: nowrap;
+}
+
 /* The view-chrome slot (the hosted .node-collection__view-chrome
    precedent): display:contents merges the ported per-view toolbar into the
    actions cluster's flex line, and the ported toolbar loses its body-top
