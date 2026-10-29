@@ -1,7 +1,8 @@
 name: Nightly Docker images
 
-# Scheduled build of main's head (03:23 UTC, same slot as the nightly CI) —
-# the `:nightly` channel for hosts that want to track main without building
+# Scheduled build of main's head (03:47 UTC, staggered 24 min after the
+# nightly CI's 03:23 so the two runs don't contend) — the `:nightly` channel
+# for hosts that want to track main without building
 # locally. Publishes `ghcr.io/miquelrosell99/{notees-sync,notees-web}:nightly`
 # plus a dated tag (`nightly-YYYYMMDD`). NEVER `:latest` — that tag belongs
 # to stable semver releases only (see release-docker.yml). Uses the
@@ -17,7 +18,7 @@ name: Nightly Docker images
 
 on:
   schedule:
-    - cron: "23 3 * * *"
+    - cron: "47 3 * * *"
   workflow_dispatch:
     inputs:
       git-ref:
