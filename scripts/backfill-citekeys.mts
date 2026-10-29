@@ -1,10 +1,11 @@
 /**
  * One-time citekey backfill (2026-10-29, the citekey-tracking slice): give
  * every EXISTING source node in every workspace a citekey, generated from
- * the workspace's own pattern — owner ruling: ALL workspaces, forced (the
- * Auto-citekey toggle does NOT gate this run; the backfilled keys land
- * UNPINNED, so a workspace with Auto-citekey on tracks metadata like any
- * generated key, and one with it off keeps a static key).
+ * the workspace's own pattern — owner ruling: ALL workspaces, forced. The
+ * backfilled keys land UNPINNED (no metadata): generation is always on
+ * while the Sources feature is on (no generation toggle — the owner ruling
+ * 2026-10-29), so the keys track metadata like any generated key (the
+ * family toggle off is the only off switch).
  *
  * For each workspace on the relay (or --workspace <uuid>): restore the
  * latest snapshot + full tail into a scratch derived store (the hydration
@@ -21,12 +22,13 @@
  * `property.set` envelope per missing key at the log tail — Path A (no
  * epoch bump; the payload keys predate every client, no lockstep gate).
  *
- * DRY RUN BY DEFAULT. --apply backs up relay.db to /tmp, ingests through
- * RelayStorage.ingest, then verifies from the persisted log: the new
- * envelopes read back + protocol-validate, and a FRESH scratch replay shows
- * every planned node carrying its citekey. The sync server's RUNNING
- * derived store does not see ingested envelopes until rehydration — restart
- * it after --apply (the migrations.md Path A note).
+ * DRY RUN BY DEFAULT. --apply backs up relay.db NEXT TO THE DATA DIR (the
+ * /tmp scratch filesystem can be full on fleet hosts — learned 2026-10-29),
+ * ingests through RelayStorage.ingest, then verifies from the persisted
+ * log: the new envelopes read back + protocol-validate, and a FRESH scratch
+ * replay shows every planned node carrying its citekey. The sync server's
+ * RUNNING derived store does not see ingested envelopes until rehydration —
+ * restart it after --apply (the migrations.md Path A note).
  *
  * Usage (from the repo root):
  *   pnpm --filter @notees/server exec tsx ../../scripts/backfill-citekeys.mts \
@@ -283,7 +285,8 @@ export interface WorkspacePlan {
   workspaceId: string;
   /** Stored pattern (undefined = the default renders). */
   pattern: string | undefined;
-  autoCitekey: boolean;
+  /** The Sources family toggle (absent row = on, the server default). */
+  sourcesEnabled: boolean;
   members: number;
   alreadyKeyed: number;
   /** Nothing to generate from (no authors, no title, no date). */
@@ -295,11 +298,12 @@ function planWorkspace(relay: RelayStorage, workspaceId: string): WorkspacePlan 
   const store = buildScratchStore(relay, workspaceId);
   try {
     const featureRow = store.database
-      .prepare("SELECT settings FROM workspace_feature WHERE workspace_id = ? AND feature = 'sources'")
-      .get(workspaceId) as { settings: string } | undefined;
-    const settings = featureRow === undefined ? {} : (JSON.parse(featureRow.settings) as Record<string, unknown>);
+      .prepare("SELECT enabled, settings FROM workspace_feature WHERE workspace_id = ? AND feature = 'sources'")
+      .get(workspaceId) as { enabled: number; settings: string } | undefined;
+    const settings =
+      featureRow === undefined ? {} : (JSON.parse(featureRow.settings) as Record<string, unknown>);
     const pattern = typeof settings.citekeyPattern === "string" ? settings.citekeyPattern : undefined;
-    const autoCitekey = settings.autoCitekey === true;
+    const sourcesEnabled = featureRow === undefined || featureRow.enabled !== 0;
 
     const members = store.classMembers(SYSTEM_CLASS_UUIDS.source).filter((row) => row.is_class === 0);
     const existing: string[] = [];
@@ -331,7 +335,7 @@ function planWorkspace(relay: RelayStorage, workspaceId: string): WorkspacePlan 
     return {
       workspaceId,
       pattern,
-      autoCitekey,
+      sourcesEnabled,
       members: members.length,
       alreadyKeyed,
       skippedEmpty,
@@ -448,7 +452,7 @@ function main(): void {
       console.log(
         `\nworkspace ${workspaceId}: ${plan.members} source member(s), ${plan.alreadyKeyed} already keyed, ` +
           `${plan.appends.length} to backfill, ${plan.skippedEmpty} skipped (nothing to generate from)` +
-          ` — pattern ${plan.pattern ?? "(default)"}, auto-citekey ${plan.autoCitekey ? "on" : "off"}`,
+          ` — pattern ${plan.pattern ?? "(default)"}, sources feature ${plan.sourcesEnabled ? "on" : "off"}`,
       );
       for (const item of plan.appends.slice(0, 20)) {
         console.log(`  + ${item.value}  ←  ${item.title === "" ? "(untitled)" : item.title}`);
