@@ -241,12 +241,12 @@ workflow's `GITHUB_TOKEN` (`packages: write`) — no personal registry token
 
 - `:latest` — the latest **stable** semver release, published by
   `release-docker.yml` on a `v*` tag push. Prereleases (any tag with a `-`,
-  e.g. `v2.0.0-m2`) never move `:latest`. That workflow's manual dispatch
-  republishes `latest` plus a given extra tag — the way to (re)publish an
-  existing stable release's images.
+  e.g. `v2.0.0-m2`) never move `:latest`. Publish requires a pushed tag —
+  sonarly semantics (fleet ruling): the workflow's manual dispatch is
+  build-verify only and never pushes images.
 - `:vX.Y.Z` (+ `X.Y`) — the release tags from the same tag push.
 - `:nightly` (+ `nightly-YYYYMMDD`) — the scheduled build of main's head
-  (`nightly-docker.yml`, cron `23 3 * * *`, manual dispatch too). Main is
+  (`nightly-docker.yml`, cron `47 3 * * *`, manual dispatch too). Main is
   not built per push: CI gates PRs and runs the same nightly cron against
   main's head (`ci.yml`). The per-push-main CI trigger was retired: the
   nightly cron covers main's head, and per-push failures were the noise.
