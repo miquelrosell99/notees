@@ -341,7 +341,11 @@ function Panel({
 }) {
   const panel = (
     <div
-      className="nt-node-collection-toolbar__panel"
+      className={
+        panelHost !== null
+          ? "nt-node-collection-toolbar__panel nt-node-collection-toolbar__panel--bar-line"
+          : "nt-node-collection-toolbar__panel"
+      }
       role="group"
       aria-label="Structured filters"
     >
