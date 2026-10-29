@@ -1420,6 +1420,27 @@ export const SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK: ReadonlySet<SystemClassName> = 
   "event",
 ]);
 
+/**
+ * The class-level displayTemplate seed: `source` ships the citekey-centric
+ * header template; the seven media-type classes opt OUT explicitly ("" —
+ * their designed chrome leads with cover art instead). Every other
+ * source-family member is deliberately ABSENT — it inherits the base's
+ * template through SYSTEM_CLASS_EXTENDS (extends-aware resolution at read
+ * time). The server seed and the web ensure paths emit the payload on
+ * class.create; validation of placeholder names is client write time
+ * (parseDisplayTemplate/validateDisplayTemplate).
+ */
+export const SYSTEM_CLASS_DISPLAY_TEMPLATES: Partial<Record<SystemClassName, string>> = {
+  source: "@{{citekey}}",
+  film: "",
+  tv_broadcast: "",
+  audio_recording: "",
+  radio_broadcast: "",
+  podcast: "",
+  video_recording: "",
+  book: "",
+};
+
 /** Classes the workspace seed emits (nodes + property schemas + bindings + extends). */
 export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [
   "day",

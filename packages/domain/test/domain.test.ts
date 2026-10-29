@@ -5,16 +5,19 @@ import {
   defaultIconFor,
   deriveDisplayName,
   DISPLAY_NAME_MAX,
+  DisplayTemplateError,
   fullTitleOf,
   isClassNode,
   isRuleContent,
   isTextOnlyContent,
+  parseDisplayTemplate,
   plainTextExcerpt,
   rendersAsInlineBlock,
   rendersWithDocumentChrome,
   SEEDED_SYSTEM_CLASSES,
   SYSTEM_CLASS_DESCRIPTIONS,
   SYSTEM_CLASS_DISPLAY_NAMES,
+  SYSTEM_CLASS_DISPLAY_TEMPLATES,
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK,
@@ -27,6 +30,7 @@ import {
   SYSTEM_SOURCE_CLASS_BINDINGS,
   systemClassAncestors,
   stringifyContentAst,
+  validateDisplayTemplate,
   type SystemPropertyName,
 } from "../src/index.js";
 import type { ContentAst } from "@notees/protocol";
@@ -703,6 +707,31 @@ describe("system seeds (ported)", () => {
     expect(SYSTEM_CLASS_EXTENDS.birthday).toEqual(["event"]);
   });
 
+  it("displayTemplate seed manifest pins the template roster verbatim", () => {
+    // `source` ships the citekey-centric header template; the seven
+    // media-type classes opt OUT explicitly ("" — their designed chrome
+    // shows cover art instead). Every other roster class is ABSENT — it
+    // inherits the base's template through SYSTEM_CLASS_EXTENDS (the
+    // effective template derives at read time; extends-aware).
+    expect(SYSTEM_CLASS_DISPLAY_TEMPLATES).toEqual({
+      source: "@{{citekey}}",
+      film: "",
+      tv_broadcast: "",
+      audio_recording: "",
+      radio_broadcast: "",
+      podcast: "",
+      video_recording: "",
+      book: "",
+    });
+    for (const name of Object.keys(SYSTEM_CLASS_DISPLAY_TEMPLATES)) {
+      expect(SEEDED_SYSTEM_CLASSES).toContain(name);
+    }
+    // Sibling source-family members inherit — they must NOT pin.
+    expect(SYSTEM_CLASS_DISPLAY_TEMPLATES).not.toHaveProperty("journal_article");
+    expect(SYSTEM_CLASS_DISPLAY_TEMPLATES).not.toHaveProperty("song");
+    expect(SYSTEM_CLASS_DISPLAY_TEMPLATES).not.toHaveProperty("web_page");
+  });
+
   it("cover is not bound to source anywhere in the seed manifest (a cover makes no sense on sources)", () => {
     for (const binding of SYSTEM_EXTRA_CLASS_BINDINGS) {
       expect(binding.property === "cover" && binding.bindTo === "source").toBe(false);
@@ -762,6 +791,51 @@ describe("system seeds (ported)", () => {
     // NOT make person part of the event hierarchy (no person gating).
     expect(systemClassAncestors("person").has("event")).toBe(false);
     expect(systemClassAncestors("birthday").has("person")).toBe(false);
+  });
+});
+
+describe("displayTemplate placeholder parsing and validation", () => {
+  it("parseDisplayTemplate extracts placeholder schema names, trimmed", () => {
+    expect(parseDisplayTemplate("@{{citekey}}")).toEqual(["citekey"]);
+    expect(parseDisplayTemplate("{{authors}} ({{year}})")).toEqual(["authors", "year"]);
+    expect(parseDisplayTemplate("no placeholders here")).toEqual([]);
+    // Whitespace inside the braces is tolerated (trimmed to the name).
+    expect(parseDisplayTemplate("{{ citekey }}\t{{authors}}")).toEqual(["citekey", "authors"]);
+  });
+
+  it("validateDisplayTemplate passes when every placeholder is an available schema name", () => {
+    const available = new Set(["citekey", "authors", "year"]);
+    expect(() => validateDisplayTemplate("@{{citekey}}", available)).not.toThrow();
+    expect(() => validateDisplayTemplate("{{authors}} ({{year}})", available)).not.toThrow();
+    expect(() => validateDisplayTemplate("plain text, no placeholders", available)).not.toThrow();
+  });
+
+  it("validateDisplayTemplate throws DisplayTemplateError listing unknown placeholders", () => {
+    const available = new Set(["citekey"]);
+    expect(() => validateDisplayTemplate("@{{citeke}}", available)).toThrow(DisplayTemplateError);
+    expect(() => validateDisplayTemplate("{{authors}} ({{year}})", available)).toThrow(
+      /authors.*year/,
+    );
+    // The manifest's own template always validates against the source family.
+    expect(() =>
+      validateDisplayTemplate("@{{citekey}}", new Set(["citekey", "authors"])),
+    ).not.toThrow();
+  });
+
+  it("validateDisplayTemplate throws on empty placeholders", () => {
+    expect(() => validateDisplayTemplate("{{}}", new Set(["citekey"]))).toThrow(DisplayTemplateError);
+    expect(() => validateDisplayTemplate("{{  }}", new Set(["citekey"]))).toThrow(
+      DisplayTemplateError,
+    );
+  });
+
+  it("validateDisplayTemplate throws on a non-string template", () => {
+    expect(() =>
+      validateDisplayTemplate(null as unknown as string, new Set(["citekey"])),
+    ).toThrow(DisplayTemplateError);
+    expect(() =>
+      validateDisplayTemplate(42 as unknown as string, new Set(["citekey"])),
+    ).toThrow(DisplayTemplateError);
   });
 });
 
