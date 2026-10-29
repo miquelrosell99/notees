@@ -485,6 +485,32 @@ describe("JournalsView", () => {
     });
   });
 
+  it("the virtual entry's Open-page button materializes the day and opens it", async () => {
+    const client = await seedClient();
+    const today = todayIso();
+    const target = shiftDays(today, -2);
+    await createDayPage(client, today);
+    expect(client.getNodeRaw(dayNodeId(target))).toBeUndefined();
+
+    const onOpenPage = vi.fn();
+    showEmptyDays(true);
+    const { container } = render(<JournalsView client={client} onOpenPage={onOpenPage} />);
+    const entry = container.querySelector(
+      `.journal-entry[data-journal-id='${dayNodeId(target)}']`,
+    ) as HTMLElement;
+    expect(entry.classList.contains("journal-entry--virtual")).toBe(true);
+    fireEvent.click(within(entry).getByRole("button", { name: "Open page" }));
+
+    // Navigating a ghost realizes it (the owner ruling) and opens the page.
+    await vi.waitFor(() => {
+      expect(client.getNode(dayNodeId(target))).toBeDefined();
+      expect(onOpenPage).toHaveBeenCalledWith(dayNodeId(target));
+    });
+    // Navigate materializes the scaffolding only — no content block.
+    expect(client.getChildren(dayNodeId(target))).toHaveLength(0);
+    showEmptyDays(false);
+  });
+
   it("the wire delete is locked on date-chain nodes — the day stays live", async () => {
     const client = await seedClient();
     const today = todayIso();

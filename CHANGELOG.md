@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): the journal's ghost entries carry the "Open page" navigate —
+  navigating a ghost day realizes it.** The virtual entry's title row now
+  wears the written entries' own Open-page button (the PageChrome embedded
+  register + the title-row hover reveal, both already in place): the click
+  journal-gates `ensureDateChain` and opens the full page view — the day
+  is born on navigate (scaffolding only, no content block; the ghost add
+  row remains the write path that lands a ready block). Pure scrolling
+  (reload, Today, mini-month picks) still creates nothing. Verified: new
+  journals-view test (materialize + onOpenPage + zero children);
+  journals-view suite 19 green; typecheck green.
+
+- **fix(web): NodeCard chrome polish — the rail top bar loses its surface,
+  the header trail hugs the collapse chevron, and the actions popup steps
+  up off the card.** Three owner-caught visuals: (1) the rail's top bar is
+  background-less chrome now — the Add / Clear-all ghost buttons ride the
+  canvas directly instead of inside a surfaced strip that repeated the
+  card shape. (2) The breadcrumb trail no longer stretches the whole header
+  width (the flex-grow pushed it away from the chevron toward the actions):
+  it sizes to its content and hugs the collapse chevron, and the actions
+  pin right via their own auto margin — the right-anchored occlusion
+  survives (under shrink the upper parents still clip behind the lead "…",
+  the current levels stay). (3) The three-dot popup shipped the kit Card's
+  DEFAULT surface — the same step as the card, invisible against its
+  header; it now rides `surface-container-high` + the elevation-2 shadow
+  (the ContextMenu precedent), with a specificity-proof selector. Docs in
+  the same pass.
+
 - **feat(web): the journal's empty-day placeholder becomes the outliner's
   ghost row, with the day class's own icon.** Two owner asks from the live
   app: the free-floating "Empty day — click to start" sentence read as
