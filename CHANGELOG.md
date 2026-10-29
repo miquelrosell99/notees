@@ -7,6 +7,49 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-29
+
+- **chore(ci): restructure GitHub Actions on the fleet RosellRamos pattern.**
+  The CI/deploy pipeline moves from ad-hoc triggers to the fleet pattern.
+  `.github/workflows/ci.yml`: `push: main` removed (the nightly cron covers
+  main's head; per-push failures on main were the noise), triggers now PR +
+  `schedule: 23 3 * * *` + `workflow_dispatch`; `concurrency` group with
+  cancel-in-progress; runner pinned to `ubuntu-22.04` (ubuntu-latest's
+  migration to 26.04 amplifies the jsdom timing flakes); every action
+  SHA-pinned with a version comment (checkout v7.0.0, setup-node v7.1.0).
+  Flake mitigation without touching local runs: `retry: process.env.CI ? 2 :
+  0` in the web vitest config (`apps/web/vite.config.ts`) and a new minimal
+  `apps/server/vitest.config.ts` with the same CI-conditional retry — CI
+  retries the known load-flaky specs (block-dnd, capture,
+  workspace-snapshot-rebuild) up to twice; local `pnpm test` stays
+  single-attempt.
+  `.github/workflows/release-docker.yml`: `:latest` now applies to stable
+  semver tags only (`enable=${{ !contains(github.ref_name, '-') }}` —
+  prereleases like v2.0.0-m2 never move it); runner pinned; actions
+  SHA-pinned (docker/setup-buildx-action v4.4.1, docker/login-action v4.7.0,
+  docker/metadata-action v6.2.0, docker/build-push-action v7.4.0).
+  `.github/workflows/nightly-docker.yml` (new): the scheduled (03:23 UTC,
+  same slot as nightly CI) + manual-dispatch build of main's head publishing
+  `:nightly` + `nightly-YYYYMMDD` to ghcr with GITHUB_TOKEN (packages:
+  write); never `:latest`; concurrency group `nightly-docker` with
+  cancel-in-progress false.
+  SonarQube (conditional): a `sonar` job in ci.yml runs on the nightly
+  schedule only, gated `vars.SONAR_HOST_URL != ''`, using
+  SonarSource/sonarqube-scan-action v8.4.0 (SHA-pinned) + a minimal
+  `sonar-project.properties` (project key `notees`, sources packages/apps,
+  fixtures/node_modules/dist excluded). PR CI stays fast; the scan is inert
+  until the repo defines SONAR_TOKEN (secret) + SONAR_HOST_URL (variable).
+  `compose.example.yaml` + `compose.dev.example.yaml` document the two ghcr
+  channels (`:latest` = stable release, `:nightly` = scheduled main build).
+  `docs/developers/deployment.md` ghcr section updated (channels, triggers,
+  the nightly cron). Verified: workflow YAML parses (yaml lint), full gate
+  `pnpm typecheck && pnpm test` green.
+  - **Files**: `.github/workflows/ci.yml`, `.github/workflows/release-docker.yml`,
+    `.github/workflows/nightly-docker.yml` (new), `apps/web/vite.config.ts`,
+    `apps/server/vitest.config.ts` (new), `sonar-project.properties` (new),
+    `compose.example.yaml`, `compose.dev.example.yaml`,
+    `docs/developers/deployment.md`.
+
 ## 2026-10-28
 
 - **feat(web): "Make memorization card" action on blocks and pages

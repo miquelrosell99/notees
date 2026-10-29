@@ -11,8 +11,10 @@
 #   (the client's same-host guess is hardwired to :8377, prod's port)
 # - data dir defaults to ./config/notees-dev/sync — never prod's data
 # - no tailscale edge (dev runs plain http on loopback)
-# - the app images still track :latest; NOTEES_*_IMAGE overrides cut over to
-#   a locally built image while developing (docker compose build notees-web)
+# - the app images still track :latest (latest STABLE release); NOTEES_*_IMAGE
+#   overrides cut over to a specific tag (:nightly tracks the scheduled main
+#   build; compose.example.yaml documents the channels) or a locally built
+#   image while developing (docker compose build notees-web)
 
 services:
   notees-sync:
