@@ -36,8 +36,52 @@
   gap: var(--spacing-4);
 }
 
+/* The lifted toolbar's register overrides (the SurfaceTopBar className
+   pass-through): the view switcher, the ported view chrome and the filter
+   toolbar's controls join the actions cluster — the bar and the cluster
+   WRAP instead of overflowing at narrow widths (the NodeCollectionTopBar
+   cluster precedent: one tight right-justified group per line). */
+.nt-hub__surface-bar {
+  flex-wrap: wrap;
+  row-gap: var(--spacing-1);
+}
+
+.nt-hub__surface-bar .surface-topbar__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: var(--spacing-1);
+}
+
+/* The view-chrome slot (the hosted .node-collection__view-chrome
+   precedent): display:contents merges the ported per-view toolbar into the
+   actions cluster's flex line, and the ported toolbar loses its body-top
+   bottom margin. */
+.nt-hub__view-chrome {
+  display: contents;
+}
+
+.nt-hub__view-chrome .nt-table-toolbar,
+.nt-hub__view-chrome .cards-toolbar,
+.nt-hub__view-chrome .board-toolbar,
+.nt-hub__view-chrome .outline-toolbar {
+  margin-bottom: 0;
+}
+
+/* The structured filter panel's seat: the full-width line beneath the bar
+   (the NodeCollectionTopBar panel-host precedent) — the inline toolbar
+   PORTALS its panel here; empty (panel closed) the host has no content and
+   contributes no height. The horizontal inset matches the bar's padding so
+   the dropped panel aligns with the bar's content. */
+.nt-hub__bar-panel-host {
+  padding: 0 var(--spacing-6) var(--spacing-2);
+}
+
 @media (width <= 768px) {
   .nt-hub__content {
     padding: 0 var(--spacing-4) var(--spacing-6);
+  }
+
+  .nt-hub__bar-panel-host {
+    padding: 0 var(--spacing-4) var(--spacing-2);
   }
 }

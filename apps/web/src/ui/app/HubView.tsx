@@ -27,7 +27,6 @@ import { ensureCardFamily } from "../../features/classview/cardFamily.js";
 import { startCardsSession } from "../../features/cards/sessionState.js";
 import { getCardsAlgorithm, setCardsAlgorithm } from "../../features/settings/nodePrefs.js";
 import { DEFAULT_CARDS_ALGORITHM, type CardsAlgorithm } from "@/core/workspace-client/index.js";
-import { NodeCollectionToolbar } from "../../features/collection/NodeCollectionToolbar.js";
 import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
@@ -35,7 +34,6 @@ import {
   quickTextOf,
   type FilterQuery,
 } from "../../features/collection/filterQuery.js";
-import { useQueryRun } from "../queryRun.js";
 import { todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
 import { titleOf } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
@@ -73,26 +71,6 @@ function taskTableColumns(client: AnyClient): TableColumn[] {
     })),
     { id: "created", kind: "created", label: "Created", sortable: true },
   ];
-}
-
-/** The quick-text rank window (the section-data contract: the search's
- *  tier order, rows past the limit drop — the global search's cap). */
-const CARDS_TEXT_RANK_LIMIT = 1000;
-
-/**
- * The ranked quick-text step for the cards hub: the workspace search's
- * priority-ordered ids become BOTH membership (ids outside the ranked set
- * drop) AND order (exact title > block text > ordered terms > partials >
- * fuzzy rescue), mirroring `rankRowsBySearch` in useSectionData.
- */
-function rankIdsBySearch(client: AnyClient, text: string, ids: readonly string[]): string[] {
-  const rankOf = new Map<string, number>();
-  for (const [index, node] of client.search(text, CARDS_TEXT_RANK_LIMIT).entries()) {
-    rankOf.set(node.id, index);
-  }
-  return ids
-    .filter((id) => rankOf.has(id))
-    .sort((a, b) => rankOf.get(a)! - rankOf.get(b)!);
 }
 
 /** A select schema with options — usable as the cards-board grouping (single or multi). */
@@ -166,19 +144,15 @@ export function HubView({
 
   // --- Cards-hub transient state (hooks ride above the nav branches) ------
   //
-  // The query-builder draft: the toolbar's FilterQuery is component state
-  // (transient by design — nothing persisted). The composed draft group
-  // runs through the query-run seam; the quick-text facet narrows through
-  // the ranked search (the section-data contract: text first, then group
-  // membership). Default (inactive draft) = all card members.
-  const [cardFilter, setCardFilter] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
-  const cardFilterActive = !isFilterInactive(cardFilter);
-  const cardGroup = cardFilterActive ? filterQueryToGroup(cardFilter) : null;
-  const cardFilterAst =
-    cardGroup !== null
-      ? { version: 1 as const, scope: { type: "entire_workspace" as const }, root: cardGroup }
-      : null;
-  const cardRun = useQueryRun(client, cardFilterAst, { enabled: cardGroup !== null });
+  // The filtered subset: the hub's FilterQuery lives in CollectionHub now
+  // (the shared lifted toolbar — the hub applies it to the collection), and
+  // the hub reports the filtered set upward: the bucket strip and the
+  // Review actions ride it. Null until the first report — the filter
+  // starts inactive, so the subset is every card member.
+  const [cardsSubset, setCardsSubset] = useState<{
+    query: FilterQuery;
+    ids: string[];
+  } | null>(null);
   // The scheduler pref (Task 7 seam) — the header toggle mirrors it
   // optimistically; the boot read converges the initial label.
   const [cardsAlgorithm, setCardsAlgorithmState] = useState<CardsAlgorithm>(
@@ -321,45 +295,29 @@ export function HubView({
 
   if (nav === "cards") {
     // Any node classed card — pages AND blocks, table default. The hub
-    // owns the family ensure (above), the due/fresh/later buckets, the
-    // transient query-builder subset, and the Review actions that hand a
-    // session off to the /cards/review surface (Task 10).
+    // owns the family ensure (above), the due/fresh/later buckets, and the
+    // Review actions that hand a session off to the /cards/review surface
+    // (Task 10). The transient query-builder subset is the shared hub
+    // toolbar's now — CollectionHub applies the FilterQuery to the
+    // collection and reports the filtered set upward (state above), and
+    // the buckets/review ride the report.
     const members = client.getClassMembers(SYSTEM_CLASS_UUIDS.card);
     const memberIds = members.map((member) => member.id);
-    const memberIdSet = new Set(memberIds);
-    const text = quickTextOf(cardFilter);
-    // The subset: default (inactive draft) = all members. An active draft
-    // narrows the list — the run's ids ∩ members; the quick-text facet
-    // narrows through the ranked search FIRST (membership AND order, the
-    // section-data contract), the group applies after.
-    let filteredIds = memberIds;
-    if (cardGroup !== null) {
-      const runIds =
-        cardRun.result !== null && cardRun.result.kind === "query"
-          ? cardRun.result.ids.filter((id) => memberIdSet.has(id))
-          : [];
-      filteredIds =
-        text !== ""
-          ? rankIdsBySearch(client, text, runIds)
-          : runIds;
-    } else if (text !== "") {
-      filteredIds = rankIdsBySearch(client, text, memberIds);
-    }
-    const cardItems: NodeCollectionItem[] = [];
-    for (const id of filteredIds) {
-      const node = client.getNode(id);
-      if (node !== undefined) cardItems.push({ node });
-    }
+    // The subset: default (no report yet — the filter starts inactive) =
+    // every member.
+    const subsetIds = cardsSubset?.ids ?? memberIds;
+    const subsetQuery = cardsSubset?.query ?? EMPTY_FILTER_QUERY;
+    const subsetText = quickTextOf(subsetQuery);
     const cardBuckets = partitionCardsIntoBuckets(
-      cardRowsOf(client, CARD_PROPERTY_UUIDS.cardDue, filteredIds),
+      cardRowsOf(client, CARD_PROPERTY_UUIDS.cardDue, subsetIds),
       todayIsoLocal(),
     );
     // The session payload names the subset for the review surface's header.
-    const cardFilterSummary = !cardFilterActive
-      ? "All cards"
-      : `Filtered (${[text !== "" ? `text "${text}"` : null, cardGroup !== null ? "structured filter" : null]
+    const cardFilterSummary = !isFilterInactive(subsetQuery)
+      ? `Filtered (${[subsetText !== "" ? `text "${subsetText}"` : null, filterQueryToGroup(subsetQuery) !== null ? "structured filter" : null]
           .filter((part) => part !== null)
-          .join(" + ")})`;
+          .join(" + ")})`
+      : "All cards";
     const newCardAction = (
       <Button
         size="sm"
@@ -385,8 +343,8 @@ export function HubView({
         variant="ghost"
         icon="mdi-play"
         aria-label="Review now"
-        disabled={filteredIds.length === 0}
-        onClick={() => startCardsSession(filteredIds, cardFilterSummary)}
+        disabled={subsetIds.length === 0}
+        onClick={() => startCardsSession(subsetIds, cardFilterSummary)}
       >
         Review
       </Button>
@@ -423,15 +381,15 @@ export function HubView({
     );
     return (
       <div className="nt-hub-cards">
-        {/* ONE bar for the whole hub (the tasks precedent): the filter bar +
-            bucket strip prepend the collection inside the shared scrolling
-            body; the header carries the scheduler toggle + the Review/New
-            actions. */}
+        {/* ONE bar for the whole hub (the tasks precedent): the shared
+            lifted toolbar rides the SurfaceTopBar; the bucket strip
+            prepends the collection inside the shared scrolling body; the
+            header carries the scheduler toggle + the Review/New actions. */}
         <CollectionHub
           client={client}
           icon={entry?.icon ?? "mdi-cards-playing-outline"}
           title={entry?.label ?? "Cards"}
-          items={cardItems}
+          items={members.map((node) => ({ node }))}
           modes={["table", "cards", "outline"]}
           defaultMode="table"
           persistKey="hub.cards"
@@ -439,21 +397,14 @@ export function HubView({
           tableEditable
           editable
           emptyTitle="No cards yet"
+          onFilterChange={(query, filteredItems) =>
+            setCardsSubset({ query, ids: filteredItems.map((item) => item.node.id) })
+          }
           prepend={
-            <div className="nt-hub-cards__filters">
-              <NodeCollectionToolbar
-                client={client}
-                layout="inline"
-                value={cardFilter}
-                onChange={setCardFilter}
-                matchCount={cardItems.length}
-                totalCount={members.length}
-              />
-              <CardBuckets
-                buckets={cardBuckets}
-                onReview={(ids) => startCardsSession(ids, cardFilterSummary)}
-              />
-            </div>
+            <CardBuckets
+              buckets={cardBuckets}
+              onReview={(ids) => startCardsSession(ids, cardFilterSummary)}
+            />
           }
           headerActions={
             <>

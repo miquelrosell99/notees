@@ -1,10 +1,13 @@
 /**
- * ViewChromeContext — the hosted tab bar's view-chrome portal seam. A hosted NodeCollection renders an empty slot element inside
+ * ViewChromeContext — the view-chrome portal seam. A hosted NodeCollection renders an empty slot element inside
  * the tab bar's right-hand cluster and provides it here; a view that owns
  * per-view chrome (the table's columns/sort/more row, the cards/board
- * selection + cover-layout row) portals that chrome INTO the slot when a
+ * selection + cover-layout row, the outline's sort button) portals that chrome INTO the slot when a
  * target exists, and renders it in place above the view otherwise (the
- * un-hosted hubs and sections keep the body-top row). The views keep their
+ * body-top row). The hub shell mounts the same kind of slot inside its
+ * SurfaceTopBar's actions cluster and hands it down as NodeCollection's
+ * `viewChromeTarget` (the collection's own provider would clobber an outer
+ * one, so the host passes the element through the prop). The views keep their
  * chrome's state — the portal teleports only the rendering.
  *
  * Ordering contract: NodeCollection mounts the slot BEFORE the host's

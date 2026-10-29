@@ -33,8 +33,13 @@ import "./NodeCollectionTopBar.css";
  * null while no topbar hosts the toolbar (the hub-cards host renders the
  * panel in place) and on the very first render (the ref lands before paint,
  * so the portal never flashes in the wrong seat).
+ *
+ * Exported raw (the ViewChromeContext precedent): the hub shell
+ * (CollectionHub) provides the same context around its own SurfaceTopBar
+ * panel seat — every host of an inline NodeCollectionToolbar names the same
+ * seat contract.
  */
-const PanelHostContext = createContext<HTMLElement | null>(null);
+export const PanelHostContext = createContext<HTMLElement | null>(null);
 
 /** The panel seat an inline NodeCollectionToolbar portals its panel into. */
 export function useNodeCollectionTopBarPanelHost(): HTMLElement | null {

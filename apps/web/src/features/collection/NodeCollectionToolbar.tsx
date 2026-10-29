@@ -1,21 +1,25 @@
 /**
  * NodeCollectionToolbar — the transient filter layer's chrome: the control row a
- * `filterable` section renders with its collection — at the body top for an
+ * `filterable` surface renders with its collection — at the body top for an
  * un-hosted collection, inline in the hosted tab bar's right-hand cluster
  * (the section header is a single <button> — no interactive control nests
- * inside it). Composed from kit primitives only: CollapsibleSearchField for
+ * inside it), or inline in a hub SurfaceTopBar's actions cluster
+ * (CollectionHub — the hub owns the FilterQuery and applies it to the
+ * collection). Composed from kit primitives only: CollapsibleSearchField for
  * the quick text facet, the structured panel is the v1 query-builder block UI
  * ported over the query AST (./FilterBlockBuilder.js — condition rows, nested
  * Match ALL/ANY groups, NOT wrappers, the add menu).
  *
- * The toolbar is CONTROLLED: the FilterQuery is component state at the section
- * (one instance per section view/tab, lost on reload — nothing persisted),
+ * The toolbar is CONTROLLED: the FilterQuery is component state at the host
+ * (one instance per section view/tab or per hub, lost on reload — nothing
+ * persisted),
  * the hook applies its composed group post-resolution/pre-windowing, and
  * the eager count stays unfiltered — while the query is active the bar names
  * the match against it ("0 of N"), it never hides the section. The live
  * count moved OFF this panel's foot to the hosted tab bar's active-tab
  * badge; the panel's foot row now carries only
- * the caller's extras (the "Save as tab" escape).
+ * the caller's extras (the "Save as tab" / "Apply to tab" escapes —
+ * hosted-views-only features; the hubs set neither).
  *
  * The quick search COLLAPSES on wide viewports: a ghost magnifier button
  * expands the field in flow (caret lands in the input), the pill's × folds it
@@ -23,9 +27,10 @@
  * At narrow widths (≤768px) the fold becomes a magnifier button whose POPUP
  * carries the field (see `narrowSearch` below) — on a phone the anchored
  * overlay keeps the chrome row its seats. In a wrapping chrome row (the
- * hosted tab bar's right cluster) the toolbar renders LAST so its controls
+ * hosted tab bar's right cluster, the hub bar's actions cluster) the toolbar
+ * renders LAST so its controls
  * join the cluster's single right-justified group, and its structured panel
- * PORTALS into the topbar's full-width slot — a wrapped line beneath the
+ * PORTALS into the host bar's full-width slot — a wrapped line beneath the
  * tabs+controls row, spanning the bar side to side (the width-capped cluster
  * never squeezes it), without moving the other controls.
  */
@@ -135,11 +140,12 @@ export interface NodeCollectionToolbarProps {
 export function NodeCollectionToolbar({ client, value, onChange, config, matchCount, totalCount, viewSaver, applyTarget, defaultPanelOpen = false, layout = "block" }: NodeCollectionToolbarProps) {
   const [panelOpen, setPanelOpen] = useState(defaultPanelOpen);
   /**
-   * The full-width panel seat: inside a NodeCollectionTopBar the structured
-   * panel PORTALS into the bar's own slot (the bar-level wrapped line spans
-   * side to side); elsewhere (the hub-cards host) it renders in place. Null
-   * on the first render — the host ref lands before paint, so the portal
-   * never flashes in the cluster.
+   * The full-width panel seat: inside a NodeCollectionTopBar (the hosted
+   * sections) or a hub SurfaceTopBar (CollectionHub provides the same
+   * PanelHostContext seat) the structured panel PORTALS into the host's own
+   * slot (the bar-level wrapped line spans side to side); elsewhere it
+   * renders in place. Null on the first render — the host ref lands before
+   * paint, so the portal never flashes in the cluster.
    */
   const topBarPanelHost = useNodeCollectionTopBarPanelHost();
   /**
