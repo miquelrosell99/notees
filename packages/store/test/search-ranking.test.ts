@@ -438,7 +438,12 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(env("property.set", { objectId: "0192a000-0000-7000-8000-0000000000f0", propertySchemaId: SCHEMA_TEXT, value: "synchronoflash" }, 1727200002000));
       store.database.prepare("DELETE FROM search_index_docid").run();
       store.database.prepare("DELETE FROM search_index").run();
-      expect(store.search("synchronoflash")).toEqual([]);
+      // With the index empty the FTS arm has no candidates, but the property
+      // fan-out still answers from the authored row (the search never dies
+      // with the index).
+      expect(store.search("synchronoflash").map((h) => h.nodeId)).toContain(
+        "0192a000-0000-7000-8000-0000000000f0",
+      );
       // The full rebuild (also the cross-backend restore repair path).
       reindexAllSearch(store.database);
       expect(store.search("synchronoflash").map((h) => h.nodeId)).toContain("0192a000-0000-7000-8000-0000000000f0");

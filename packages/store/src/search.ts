@@ -75,6 +75,10 @@ interface SearchQueryInfo {
   /** The lowercased maximal letter/digit runs — the token-match needles. */
   terms: string[];
   mode: SearchMode;
+  /** The trimmed mode needle BEFORE folding/lowercasing — the property
+   *  fan-out probe binds this verbatim (LIKE is ASCII case-insensitive, and
+   *  the user's own diacritics must reach the stored value unchanged). */
+  needle: string;
 }
 
 /** Split a query into (mode, needle text) — the mode prefix/stripping. */
@@ -122,6 +126,7 @@ function compileSearchQuery(query: string): (SearchQueryInfo & { phraseCount: nu
     normalized: needle.toLowerCase(),
     terms,
     mode: parsed.mode,
+    needle: parsed.needle,
   };
 }
 
@@ -223,6 +228,9 @@ function parseSearchCursor(cursor: string | null | undefined): number {
 //   6  fuzzy rescue: the whole query as an ordered subsequence over
 //      main-node titles — scanned only when nothing reached the literal
 //      tiers (Capacities "find by intent")
+//   7  property fan-out: authored property_value rows substring-matching
+//      the term (no schema filter), appended below every FTS-ranked hit
+//      and deduped by node id — see "property fan-out" below
 //
 // Diacritics fold everywhere (store schema v19: folding is INDEX-TIME —
 // reindexNode strips combining marks from the indexed plaintext and
@@ -345,6 +353,47 @@ function compareRecency(a: string | null, b: string | null): number {
   if (b === null) return -1;
   return a < b ? 1 : a > b ? -1 : 0;
 }
+
+// --- property fan-out -------------------------------------------------------------
+//
+// A bare term also probes the AUTHORED property_value rows directly (no
+// schema filter — every schema, every type): the FTS index only carries
+// text-ish values as whole tokens with prefix semantics, so it can never
+// surface "2024" inside the citekey "doe2024", nor booleans/date refs at
+// all. The probe is a plain substring LIKE over CAST(value AS TEXT) —
+// the content-contains convention (wildcards through, parameterized
+// only). Visibility mirrors the query compiler's visibleValuePredicate
+// (the store cannot import @notees/query): no winning SLOT tombstone and
+// no strictly-newer ELEMENT tombstone, on active nodes only. Hits are
+// appended below every FTS-ranked hit (tier 7), deduped by node id — a
+// node the FTS arm already scored keeps its tier rank.
+
+/** The tier property fan-out hits sort into — below the FTS tiers (0-6). */
+const PROPERTY_FANOUT_TIER = 7;
+
+/**
+ * The probe select: authored values substring-matching the term, visible
+ * set only. `pv` mirrors the compiler's alias in visibleValuePredicate.
+ * One row per node (DISTINCT); the JS side dedupes against FTS hits anyway.
+ */
+const PROPERTY_CANDIDATE_SELECT = `
+  SELECT DISTINCT n.id AS nodeId, n.updated_at AS updatedAt
+  FROM property_value pv
+  JOIN node n ON n.id = pv.node_id AND n.is_active = 1
+  WHERE CAST(pv.value AS TEXT) LIKE '%'||?||'%'
+    AND NOT EXISTS (
+      SELECT 1 FROM property_value_tombstone t
+      WHERE t.node_id = pv.node_id AND t.property_schema_id = pv.property_schema_id
+        AND t.idx = pv.idx
+        AND (t.hlc_physical, t.hlc_logical, COALESCE(t.actor_id, '')) >=
+            (pv.hlc_physical, pv.hlc_logical, COALESCE(pv.actor_id, ''))
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM property_value_element_tombstone et
+      WHERE et.element_id = pv.id
+        AND (et.hlc_physical, et.hlc_logical) >
+            (pv.hlc_physical, pv.hlc_logical)
+    )`;
 
 // --- the tier scorer ------------------------------------------------------------
 
@@ -681,6 +730,35 @@ export function searchNodesPage(
         ftsRank: 0,
       } as SearchCandidateRow;
       scored.push({ row, score: { tier: 6, subA: -Math.round(fuzzy * 100), subB: 0 } });
+    }
+  }
+
+  // Property fan-out (default + exact modes): substring probe over authored
+  // property values, appended below every FTS-ranked hit. Starts mode is
+  // excluded — its contract is title/text STARTS WITH, and a substring
+  // probe would break it. The term binds as a parameter only.
+  if (info.mode !== "starts") {
+    const propRows = db
+      .prepare(PROPERTY_CANDIDATE_SELECT)
+      .all(info.needle) as Array<Record<string, unknown>>;
+    for (const raw of propRows) {
+      const nodeId = raw.nodeId as string;
+      if (seen.has(nodeId)) continue;
+      seen.add(nodeId);
+      scored.push({
+        row: {
+          nodeId,
+          updatedAt: (raw.updatedAt as string | null) ?? null,
+          isClass: 0,
+          parentId: null,
+          isEmbedded: 0,
+          aliasedNodeId: null,
+          rawContent: "[]",
+          indexedText: null,
+          ftsRank: 0,
+        },
+        score: { tier: PROPERTY_FANOUT_TIER, subA: 0, subB: 0 },
+      });
     }
   }
 
