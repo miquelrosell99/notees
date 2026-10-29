@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-29
 
+- **fix(web): the journal's virtual days sit at the realized register —
+  the ghost offset was one padding too many.** The live-app measurement
+  (title-row left edges: realized 322px vs virtual 346px) pinned it: the
+  realized embedded entries ride DIRECTLY under `.nt-page` (the journal
+  zeroes the page padding), while the virtual entry had wrapped in
+  `.nt-nodeview-body` — the PANELLED layout's cap, which carries its own
+  `spacing-6` inline padding. The virtual entry now uses the same
+  `.nt-page` register; the start affordance's indent matches the title
+  column exactly (icon width + the title row's gap). Verified: the
+  alignment probe reports identical title-row left edges for realized
+  and virtual entries; journals-view suite green (the structural
+  assertion pins the register); typecheck green.
+
 - **fix(web): the journal's virtual day entries align with their written
   neighbors and speak "empty", not "trash".** Two live-app defects: the
   unrealized day rendered the FULL day-page header (weekday line, week
