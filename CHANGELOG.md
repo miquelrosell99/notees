@@ -9,6 +9,26 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): the first sections convert onto the CollectionSection skin —
+  Extended by, Child pages, and the property References table.** The skin
+  gains the last two composition hooks the conversions need: a `className`
+  passthrough (the converted sections keep their established `.nt-section`
+  test/CSS hooks) and an optional `emptyText` (hosts carrying richer empty
+  chrome — the References table's title+hint — pass it through `collection`
+  instead). The three sections now compose through the skin: their eager
+  counts gate AND name the header badge, the header action (Add child page)
+  rides the skin's `action`, and the trees/tables ride the lazy read. The
+  hide-when-empty ruling tightens in the skin: an eagerly-gated section
+  never RUNS its resolution (the SCHEMA.md contract the system-sections
+  suites pin — the old early-return mounted nothing at all; the skin now
+  suppresses the read's activation, not just the render). Verified: the
+  three sections' existing suites green unmodified (104 assertions across
+  system-sections/extended-by/property-view/collapse/sort/windowing/
+  breadcrumbs/filter-layer/context-column/child-query) plus a new skin test
+  pinning the hidden-never-resolves contract and a compose-through-skin
+  assertion per converted section; full gate green (typecheck + 2539 web
+  tests, full chain). Slice 2 of the section skin conversion.
+
 - **feat(web): the section skin grows its conversion gaps — header
   action/count/hideHeader, refreshKey, resolve-on-mount, FilterQuery
   observation, and the hosted toolbar composed in the owner's register.**
