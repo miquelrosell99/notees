@@ -6,6 +6,7 @@
 
 import type { SqliteStatement, StoreDatabase } from "./types.js";
 import { extractContentPlaintext, extractSearchPlaintext } from "./content.js";
+import { isUuidLike } from "./property-values.js";
 
 export function removeSearchIndexEntry(db: StoreDatabase, nodeId: string): void {
   db.prepare(
@@ -228,9 +229,11 @@ function parseSearchCursor(cursor: string | null | undefined): number {
 //   6  fuzzy rescue: the whole query as an ordered subsequence over
 //      main-node titles — scanned only when nothing reached the literal
 //      tiers (Capacities "find by intent")
-//   7  property fan-out: authored property_value rows substring-matching
-//      the term (no schema filter), appended below every FTS-ranked hit
-//      and deduped by node id — see "property fan-out" below
+//   7  below-FTS fan-out: (a) authored property_value rows
+//      substring-matching the term (no schema filter), and (b) an exact-id
+//      probe when the term parses as a uuid — both appended below every
+//      FTS-ranked hit and deduped by node id — see "property fan-out" and
+//      the uuid arm in searchNodesPage below
 //
 // Diacritics fold everywhere (store schema v19: folding is INDEX-TIME —
 // reindexNode strips combining marks from the indexed plaintext and
@@ -749,6 +752,35 @@ export function searchNodesPage(
         row: {
           nodeId,
           updatedAt: (raw.updatedAt as string | null) ?? null,
+          isClass: 0,
+          parentId: null,
+          isEmbedded: 0,
+          aliasedNodeId: null,
+          rawContent: "[]",
+          indexedText: null,
+          ftsRank: 0,
+        },
+        score: { tier: PROPERTY_FANOUT_TIER, subA: 0, subB: 0 },
+      });
+    }
+  }
+
+  // UUID exact-match (default + exact modes): a term that parses as a uuid —
+  // a node id pasted into the picker — probes the node id directly. Exact
+  // only, no substring/prefix (a fragment is not uuid-shaped, so the arm
+  // stays off). Appended below every FTS-ranked hit, sharing the property
+  // fan-out's below-FTS tier, deduped by node id. Starts mode is excluded
+  // for the same contract reason as the property arm.
+  if (info.mode !== "starts" && isUuidLike(info.needle)) {
+    const idRow = db
+      .prepare("SELECT id AS nodeId, updated_at AS updatedAt FROM node WHERE id = ? AND is_active = 1")
+      .get(info.needle.toLowerCase()) as Record<string, unknown> | undefined;
+    if (idRow !== undefined && !seen.has(idRow.nodeId as string)) {
+      seen.add(idRow.nodeId as string);
+      scored.push({
+        row: {
+          nodeId: idRow.nodeId as string,
+          updatedAt: (idRow.updatedAt as string | null) ?? null,
           isClass: 0,
           parentId: null,
           isEmbedded: 0,

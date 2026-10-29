@@ -168,6 +168,22 @@ predating this file.
   render one row reading sort, switcher, search, filter (screenshot-checked
   against the probe class hub); full gate green (typecheck + 2529 web
   tests, full chain).
+- **feat(store): uuid exact-match in quick search.** Pasting a node uuid into
+  any quick-search surface (the node picker, the command palette, the
+  full-page search, `@`-mention suggestions — all four ride
+  `searchNodesPage`) now finds the node: when the trimmed term parses as a
+  uuid (the store's existing `isUuidLike` idiom), `searchNodesPage` adds an
+  exact-id probe `n.id = ?` over active nodes, bound lowercased so an
+  uppercase paste answers too. Exact only — a uuid fragment is not
+  uuid-shaped, so the arm stays off (no substring, no prefix, YAGNI). The
+  hit merges into the Task-6 property fan-out's below-FTS tier, deduped by
+  node id (an FTS-ranked hit keeps its rank), sharing the property arm's
+  `starts`-mode exclusion; no FTS/index/rank changes, fully parameterized.
+  Triple-adapter tests: full-uuid find with an unrelated title, uppercase
+  paste, exact-only fragment, unknown uuid, non-uuid regression, and the
+  below-FTS dedupe/order against a title that embeds the uuid text. Docs:
+  `docs/features/search.md`.
+
 - **docs(protocol): the class `displayTemplate` contract lands in SCHEMA.md,
   with the citekey-centric doc sweep.** The normative bullet joins SCHEMA.md
   "Node structure" in the `parentlessRole` idiom: `class.create`/`class.update`

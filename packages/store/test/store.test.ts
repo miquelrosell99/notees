@@ -2548,6 +2548,66 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
+  describe("search uuid exact-match", () => {
+    const UUID_TARGET = "0192a000-0000-7000-8000-0000000000d1";
+    const UUID_REFERRER = "0192a000-0000-7000-8000-0000000000d2";
+    const UUID_UNKNOWN = "0192a000-0000-7000-8000-0000000000d3";
+
+    function uuidStore(): Store {
+      const store = baseStore();
+      store.apply(
+        env("object.create", { objectId: UUID_TARGET, contentAst: [{ type: "text", text: "Plain target" }] }, 1727200002000),
+      );
+      return store;
+    }
+
+    it("finds a node by its full uuid even when the title does not contain the term", () => {
+      const store = uuidStore();
+      expect(store.search(UUID_TARGET)).toEqual([{ nodeId: UUID_TARGET }]);
+      store.close();
+    });
+
+    it("answers an uppercase paste too (ids are hex, case-insensitive)", () => {
+      const store = uuidStore();
+      expect(store.search(UUID_TARGET.toUpperCase())).toEqual([{ nodeId: UUID_TARGET }]);
+      store.close();
+    });
+
+    it("is exact-only: a uuid fragment is not a prefix match", () => {
+      const store = uuidStore();
+      // A leading fragment is not uuid-shaped, so the id arm stays off — and
+      // nothing in the title/text matches either.
+      expect(store.search(UUID_TARGET.slice(0, 13))).toEqual([]);
+      store.close();
+    });
+
+    it("an unknown uuid returns only the normal results (none)", () => {
+      const store = uuidStore();
+      expect(store.search(UUID_UNKNOWN)).toEqual([]);
+      store.close();
+    });
+
+    it("a non-uuid term gains no id-arm matches (regression: results unchanged)", () => {
+      const store = uuidStore();
+      expect(store.search("Plain").map((h) => h.nodeId)).toEqual([UUID_TARGET]);
+      expect(store.search("target").map((h) => h.nodeId)).toEqual([UUID_TARGET]);
+      store.close();
+    });
+
+    it("merges below FTS hits, deduped by node id (FTS rank wins)", () => {
+      const store = uuidStore();
+      // A page whose TITLE contains the target's uuid text: the FTS arm
+      // scores it (tier 0); the id arm adds the target itself below it.
+      store.apply(
+        env("object.create", { objectId: UUID_REFERRER, contentAst: [{ type: "text", text: `ref ${UUID_TARGET}` }] }, 1727200003000),
+      );
+      const ids = store.search(UUID_TARGET).map((h) => h.nodeId);
+      expect(ids.filter((id) => id === UUID_TARGET)).toHaveLength(1);
+      expect(ids).toEqual([UUID_REFERRER, UUID_TARGET]);
+      store.close();
+    });
+  });
+
   describe("class search indexing", () => {
     it("classes are findable by name at create and after rename", () => {
       const store = baseStore();
