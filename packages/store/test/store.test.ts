@@ -58,6 +58,8 @@ function loadFixture(name: string): Record<string, unknown>[] {
  * — all applied deliberately in their own tests;
  * is-embedded-parent-page.json claims the render bit
  * under a block parent and fails loud by design;
+ * is-embedded-date-chain.json writes the render bit on a
+ * date-chain node (demote and promote directions) and fails loud by design;
  * property-validation-rules.json pins its reject tail (below-min/above-max,
  * pattern rejects, one bad multi element, one un compilable pattern) after
  * an accepting prefix — all applied deliberately in their own tests;
@@ -67,6 +69,7 @@ function loadFixture(name: string): Record<string, unknown>[] {
 const REPLAY_EXCLUDED_FIXTURES = new Set([
   "class-extends-cycle.json",
   "class-extends-system-lock.json",
+  "is-embedded-date-chain.json",
   "is-embedded-parent-page.json",
   "object-delete-class-routing.json",
   "property-validation-rules.json",
@@ -745,6 +748,30 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // condition) and rolls back: no row for X.
       expect(() => store.apply(violatingX!)).toThrow(MoveGuardError);
       expect(store.getNode(x)).toBeUndefined();
+    });
+
+    it("is-embedded-date-chain fixture throws the date-chain embedding lock on apply", () => {
+      const [yearE, monthE, dayE, demoteDay, promoteMonth] = loadFixture(
+        "is-embedded-date-chain.json",
+      );
+      const year = "00000000-0000-0000-00bb-202400000000";
+      const month = "00000000-0000-0000-00aa-202407000000";
+      const day = "00000000-0000-0000-00dd-202407260000";
+      const store = makeStore();
+      // The prefix applies cleanly: the 2024-07-26 chain, each level with
+      // its precision's system class and the standalone claim.
+      store.applyMany([yearE!, monthE!, dayE!]);
+      expect(store.getNode(year)).toMatchObject({ parent_id: null, is_embedded: 0 });
+      expect(store.getNode(month)).toMatchObject({ parent_id: year, is_embedded: 0 });
+      expect(store.getNode(day)).toMatchObject({ parent_id: month, is_embedded: 0 });
+
+      // The render bit is platform-fixed on the chain: demoting the day node
+      // (it would nest the journal page as an inline block in the month's
+      // body) and promoting the month node both fail loud, state unchanged.
+      expect(() => store.apply(demoteDay!)).toThrow(MoveGuardError);
+      expect(() => store.apply(promoteMonth!)).toThrow(MoveGuardError);
+      expect(store.getNode(day)?.is_embedded).toBe(0);
+      expect(store.getNode(month)?.is_embedded).toBe(0);
     });
 
     it("object-is-embedded fixture: defaults, explicit claims, and the promotion/demotion toggle", () => {

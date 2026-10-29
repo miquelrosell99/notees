@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(protocol): date-chain embedding lock — `object.update {isEmbedded}`
+  fails loud on date nodes, and the web "Move to content" entry hides on
+  them.** A date node's journal role is platform-fixed (document chrome), but
+  the Revision-12 demote (`isEmbedded: true`) was the one write still reaching
+  it: the context menu offered "Move to content" on month/day nodes (parented
+  standalone children), and the applier applied it — nesting the journal page
+  as an inline block in its chain parent's body (or failing with a raw
+  MoveGuardError when it carried standalone children). The store now rejects
+  ANY `isEmbedded` payload on a date-chain node, both directions, with
+  `MoveGuardError` (`packages/store/src/appliers.ts`, the object.update
+  embedding branch — the parent lock lives in object.move, the class lock in
+  the create/class guards; this closes the last carrier). New canonical
+  fixture `is-embedded-date-chain.json` (chain prefix applies cleanly; the
+  demote and the promote envelopes must throw; replay-excluded, asserted in
+  its own store test). The web context menu gates "Move to content" on
+  `parseDateNodeId(node.id) === null` — the same date exclusion the
+  make-memorization-card and Convert-to-page entries already carry
+  (`apps/web/src/features/node-menu/NodeContextMenu.tsx`) — with a new
+  `apps/web/test/move-to-content.test.tsx` covering the toggle, the
+  already-embedded/root stays-off arms, and the date-hide. GTK + Flutter
+  converge on the fixture byte-identically (the vendored corpus re-syncs).
+  Docs: SCHEMA.md "Datetime" (the embedding-locked bullet), the development.md
+  fixture table, AGENTS.md's date-chain invariant. Verified: store 427 tests +
+  protocol 700 tests + the new web spec green; GTK and Flutter gates green
+  per their repos' changelogs.
+
 - **chore(ci): restructure GitHub Actions on the fleet RosellRamos pattern.**
   The CI/deploy pipeline moves from ad-hoc triggers to the fleet pattern.
   `.github/workflows/ci.yml`: `push: main` removed (the nightly cron covers
