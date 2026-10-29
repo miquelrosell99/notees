@@ -115,7 +115,9 @@ coverAsset:<ref>      the cover wire node field: bare ":" = is set, "=" eq, "!="
 bannerAsset:<ref>     the banner wire node field (same shape)
 aliasedNode:<ref>     the alias wire node field (same shape; "is unset" is NOT aliasedNode:)
 prop:name<op>val      property condition (no value → exists)
-<schema>:<op>val      shorthand: bare property-schema field (year:>2010)
+<schema>:<op>val      shorthand: bare property-schema field (year:>2010);
+                      any schema name resolves here — citekey:doe2024 and
+                      author:doe work today as property-schema conditions
 "quoted phrase"       content contains the phrase
 AND OR NOT ( )        boolean composition (juxtaposition = AND)
 ```
@@ -219,9 +221,10 @@ ORDER BY "isClass" ASC
   child/child_path, page, tag, flag, reference_path, extends (covered by
   `class` via the hierarchy closure), regex (needs a SQLite extension),
   in/not_in.
-- DSL sugar not yet mapped: `collection:` scope, `author:` (relation-based),
-  `asset:`/`citekey:` fields (citekey is reachable today as
-  `prop:citekey:…`).
+- DSL sugar not yet mapped: `collection:` scope, `asset:` field. Dedicated
+  relation-based `author:` semantics (resolve a persona and match their
+  works) remain deferred — until then `author:doe` works as property-schema
+  shorthand.
 - `content contains` passes `%`/`_` through to LIKE (parity; wildcard
   escaping is a later concern).
 

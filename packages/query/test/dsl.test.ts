@@ -21,13 +21,20 @@ const CLASS_PAPER = "0192a000-0000-7000-8000-000000000201";
 const CLASS_BOOK = "0192a000-0000-7000-8000-000000000202";
 const SCHEMA_YEAR = "0192a000-0000-7000-8000-000000000301";
 const SCHEMA_TITLE = "0192a000-0000-7000-8000-000000000302";
+const SCHEMA_CITEKEY = "0192a000-0000-7000-8000-000000000303";
+const SCHEMA_AUTHOR = "0192a000-0000-7000-8000-000000000304";
 const NODE_PARIS = "0192a000-0000-7000-8000-000000000401";
 
 const resolvers = {
   resolveClass: (name: string) =>
     ({ paper: CLASS_PAPER, book: CLASS_BOOK })[name.toLowerCase()],
   resolvePropertySchema: (name: string) =>
-    ({ year: SCHEMA_YEAR, title: SCHEMA_TITLE })[name.toLowerCase()],
+    ({
+      year: SCHEMA_YEAR,
+      title: SCHEMA_TITLE,
+      citekey: SCHEMA_CITEKEY,
+      author: SCHEMA_AUTHOR,
+    })[name.toLowerCase()],
   resolveNode: (name: string) => (name.toLowerCase() === "paris" ? NODE_PARIS : undefined),
 };
 const KNOWN_FIELDS = ["year", "title"];
@@ -144,6 +151,27 @@ describe("parseQueryLanguage: fields", () => {
       schemaId: SCHEMA_TITLE,
       op: "contains",
       value: "revolution",
+    });
+  });
+
+  it("citekey:/author: pin the bare-schema shorthand (property conditions)", () => {
+    expect(only(parse("citekey:doe2024"))).toEqual({
+      type: "property",
+      schemaId: SCHEMA_CITEKEY,
+      op: "contains",
+      value: "doe2024",
+    });
+    expect(only(parse("author:doe"))).toEqual({
+      type: "property",
+      schemaId: SCHEMA_AUTHOR,
+      op: "contains",
+      value: "doe",
+    });
+    expect(only(parse('citekey:="doe2024"'))).toEqual({
+      type: "property",
+      schemaId: SCHEMA_CITEKEY,
+      op: "eq",
+      value: "doe2024",
     });
   });
 
