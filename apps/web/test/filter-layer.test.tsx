@@ -373,6 +373,32 @@ describe("the classed-nodes filter bar", () => {
     expect(bar.contains(add)).toBe(true);
     expect(precedes(bar.querySelector(".selection-button"))).toBe(true);
   });
+
+  it("the structured panel rides a full-width topbar slot, not the capped cluster", async () => {
+    const client = await seedClient();
+    const classId = await seedClass(client, "project");
+    await client.createObject({ isEmbedded: false, name: "Alpha", classIds: [classId] });
+
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    const section = classedNodesSection();
+    const bar = section.querySelector(".nt-node-collection-topbar") as HTMLElement;
+    const cluster = bar.querySelector(".nt-node-collection-topbar__cluster") as HTMLElement;
+
+    fireEvent.click(within(section).getByRole("button", { name: "Structured filters" }));
+    const panel = structuredPanel();
+
+    // The panel ports OUT of the width-capped toolbar cluster into a slot
+    // the topbar owns — the wrapped line spans the bar side to side, below
+    // the tabs+controls row (never squeezed into the cluster's right-hand
+    // mini-column).
+    expect(cluster.contains(panel)).toBe(false);
+    const host = bar.querySelector(".nt-node-collection-topbar__panel-host");
+    expect(host).not.toBeNull();
+    expect(host!.contains(panel)).toBe(true);
+    expect(
+      cluster.compareDocumentPosition(host!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });
 
 describe("the narrow-viewport search fold", () => {

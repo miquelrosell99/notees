@@ -1,6 +1,7 @@
 /* NodeCollectionTopBar — the hosted collection's top chrome: ONE wrapping
    flex line hosting the tabs strip (left, absorbing the free width) and the
-   toolbar cluster (right). Token-only. */
+   toolbar cluster (right), with the structured panel's full-width wrapped
+   line beneath both. Token-only. */
 
 .nt-node-collection-topbar {
   display: flex;
@@ -29,14 +30,17 @@
 }
 
 /* The right cluster: ONE right-justified group for every right-hand control
-   (the ported view chrome, the filter toolbar). `margin-inline-start: auto`
-   absorbs the free width — no flex growth to fight the tabs strip — while
-   `justify-content: flex-end` keeps the controls at the chrome row's right
-   edge whether the search pill is collapsed (icons flush right) or expanded
-   (the pill's flex:1 fills the cluster, the remaining controls stay right).
-   The cap leaves the tabs the long side. The toolbar rides with
-   `display: contents`; its structured panel takes a full-cluster-width
-   wrapped line beneath the row (in-flow, never an overlay). */
+   (the ported view chrome — the sort button et al. — and the filter
+   toolbar's control row). `margin-inline-start: auto` absorbs the free
+   width — no flex growth to fight the tabs strip — while
+   `justify-content: flex-end` keeps the controls grouped at the chrome
+   row's right edge. The cap leaves the tabs the long side. The cluster is a
+   MINI-COLUMN by design: the controls row shrink-wraps its buttons into one
+   tight group (a grown row would wedge dead space between the ported view
+   chrome and the toolbar's right-justified controls). The toolbar rides
+   with `display: contents`; its structured panel PORTALS into the bar-level
+   slot below (`.nt-node-collection-topbar__panel-host`) — never a flex item
+   here, where the cap would squeeze it. */
 .nt-node-collection-topbar__cluster {
   display: flex;
   flex-wrap: wrap;
@@ -46,4 +50,12 @@
   margin-inline-start: auto;
   max-width: 46ch;
   min-width: 12ch;
+}
+
+/* The structured panel's seat: the bar's LAST child, boxless (`display:
+   contents`) so the portaled panel flexes against the BAR — a
+   `flex-basis: 100%` flex item that wraps a full-width line beneath the
+   tabs+cluster row. Empty (panel closed) it contributes no item, no gap. */
+.nt-node-collection-topbar__panel-host {
+  display: contents;
 }

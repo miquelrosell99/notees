@@ -15,18 +15,22 @@
 
 /* Inline layout: the bar renders with `display: contents` inside the
    NodeCollectionTopBar's right cluster — its control row joins the cluster
-   (the search pill flexes, the remaining controls ride the cluster's
-   justify-end) while the structured panel takes a full-cluster-width wrapped
-   line beneath the row. No overlay: the region is in the flow. */
+   (shrink-wrapped, so the ported view chrome and the toolbar's controls
+   read as ONE tight right-justified group; no grown row wedging dead space
+   between them) while the structured panel PORTALS into the bar's own
+   full-width slot beneath the row (the cluster's 46ch cap never squeezes
+   it). No overlay: the region is in the flow. */
 .nt-node-collection-toolbar--inline {
   display: contents;
 }
 
 .nt-node-collection-toolbar--inline .nt-node-collection-toolbar__row {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   justify-content: flex-end;
 }
 
+/* Bar-level (portaled) AND in-place (un-hosted) the panel is a full-width
+   wrapped line: flex-basis 100% of whichever wrapping flex parent owns it. */
 .nt-node-collection-toolbar--inline .nt-node-collection-toolbar__panel {
   flex-basis: 100%;
 }

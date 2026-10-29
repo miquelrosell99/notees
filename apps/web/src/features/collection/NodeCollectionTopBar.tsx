@@ -4,11 +4,14 @@
  * (NodeCollectionToolbar) side by side — tabs left (absorbing the free
  * width), toolbar cluster right. The toolbar rides with `layout="inline"`
  * (display: contents): its control row joins this row's flex line and its
- * structured panel takes a full-width wrapped line beneath it — render the
- * toolbar LAST in the slot so the wrap never moves the other controls.
+ * structured panel PORTALS into the bar's own full-width slot beneath the
+ * row — the cluster is width-capped (a mini-column at the bar's right edge),
+ * so a panel that wrapped inside it would squeeze into the cap instead of
+ * spanning the bar side to side. Render the toolbar LAST in the slot so the
+ * wrap never moves the other controls.
  *
  * The composition is explicit slots, not an anonymous `trailing` passthrough:
- * the top bar NAMES the two parts every hosted collection's chrome is made
+ * the top bar NAMES the parts every hosted collection's chrome is made
  * of. Small per-host extras that are not the toolbar (the view-chrome portal
  * target, the query node's view-mode switcher) ride NodeCollectionTabs' own
  * `trailing` slot or the toolbar slot's fragment — the tabs strip stays the
@@ -19,9 +22,24 @@
  * for the selected custom tab) beneath it.
  */
 
-import type { ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 
 import "./NodeCollectionTopBar.css";
+
+/**
+ * The structured panel's full-width seat: the bar's LAST child, a
+ * `display: contents` element whose children flex against the BAR (not the
+ * capped cluster). The inline NodeCollectionToolbar portals its panel here;
+ * null while no topbar hosts the toolbar (the hub-cards host renders the
+ * panel in place) and on the very first render (the ref lands before paint,
+ * so the portal never flashes in the wrong seat).
+ */
+const PanelHostContext = createContext<HTMLElement | null>(null);
+
+/** The panel seat an inline NodeCollectionToolbar portals its panel into. */
+export function useNodeCollectionTopBarPanelHost(): HTMLElement | null {
+  return useContext(PanelHostContext);
+}
 
 export interface NodeCollectionTopBarProps {
   /** The tabs strip — NodeCollectionTabs. */
@@ -36,10 +54,14 @@ export interface NodeCollectionTopBarProps {
 }
 
 export function NodeCollectionTopBar({ tabs, toolbar }: NodeCollectionTopBarProps) {
+  const [panelHost, setPanelHost] = useState<HTMLElement | null>(null);
   return (
-    <div className="nt-node-collection-topbar">
-      <div className="nt-node-collection-topbar__tabs">{tabs}</div>
-      <div className="nt-node-collection-topbar__cluster">{toolbar}</div>
-    </div>
+    <PanelHostContext.Provider value={panelHost}>
+      <div className="nt-node-collection-topbar">
+        <div className="nt-node-collection-topbar__tabs">{tabs}</div>
+        <div className="nt-node-collection-topbar__cluster">{toolbar}</div>
+        <div className="nt-node-collection-topbar__panel-host" ref={setPanelHost} />
+      </div>
+    </PanelHostContext.Provider>
   );
 }
