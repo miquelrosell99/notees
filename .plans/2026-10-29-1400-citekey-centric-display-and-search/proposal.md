@@ -87,14 +87,20 @@ Three seams, all query-time derivation over the existing effective read model:
    authors). Removes both `citekey:`/`author:` entries from the "Deferred"
    section of `packages/query/README.md`.
 2. **Bare-term fan-out.** Quick/global search (CommandPalette, NodeSelector,
-   SearchPage) ORs the existing content match with an effective-property-value
-   probe over **all** property schemas, any type — text by substring,
-   numbers/dates by the `property` condition's existing `json_extract`
-   coercion. Deliberate choice: "search finds everything"; numeric noise is
-   accepted. Implementation: the AST gains one additive condition,
-   `propertyValueAny {op, value}` — compiled over the same effective-values CTE
-   the `property` condition builds, with no schema filter (any effective row on
-   the node matches). No applier change, no log change, no FTS reindex.
+   SearchPage) and `@`-mention suggestions all search through ONE store-side
+   seam — the ranked FTS helper `searchNodes` (`packages/store/src/search.ts`)
+   behind `client.search`/`client.searchPage` — which does NOT go through the
+   query AST. **Mechanism amendment (2026-10-29, plan-time discovery):** the
+   fan-out is implemented inside `searchNodes` — an OR probe over authored
+   `property_value` rows (CAST(value AS TEXT) substring match, tombstone- and
+   inactive-filtered with the same predicates the compiler uses), merged into
+   the ranked result below FTS hits, deduped by node id. No new query-AST
+   condition: collection filters/server `/query` keep the shipped `property`
+   condition, and the search half of this spec ships with ZERO protocol
+   change. The probe is authored-rows-only (binding defaults are query-time
+   derived, never materialized); the only seeded default in the fan-out's
+   reach is citekey's `""`, which carries no search value — an accepted,
+   documented narrowing of "effective" for the search surface.
 3. **`@`-mention resolution.** Mention search probes property values too, so
    `@doe2024` resolves by citekey and `@doe` by author — the muscle-memory
    path from Logseq/Zotero.
