@@ -168,6 +168,11 @@ export interface WorkerClientOptions {
   apiKey: string;
   workspaceId: string;
   sqlWasmUrl: string;
+  /**
+   * The sqlite-wasm asset URL — when set (and the OPFS VFS initializes) the
+   * worker persists through the VFS instead of whole-file sql.js exports.
+   */
+  sqliteWasmUrl?: string;
   /** Offline-first mode: no server, edits stay on the device. */
   offline?: boolean;
   /** Test seam: supply a fake worker instead of spawning the real one. */
@@ -230,6 +235,7 @@ export class WorkerClient {
     );
     const init: WorkerInitMessage = {
       sqlWasmUrl: options.sqlWasmUrl,
+      ...(options.sqliteWasmUrl !== undefined ? { sqliteWasmUrl: options.sqliteWasmUrl } : {}),
       workspaceId: options.workspaceId,
       serverUrl: options.serverUrl,
       apiKey: options.apiKey,
