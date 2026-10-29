@@ -25,6 +25,7 @@ import { dayNodeId } from "@notees/domain";
 import { Store, type StoreBackend } from "../src/index.js";
 import { betterSqlite3Backend } from "../src/adapters/better-sqlite3.js";
 import { sqljsBackend } from "../src/adapters/sqljs.js";
+import { sqliteWasmBackend } from "../src/adapters/sqlitewasm.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR_A = "0192a000-0000-7000-8000-000000000002";
@@ -62,9 +63,12 @@ function env(
 }
 
 let sqlModule: SqlJsStatic;
+let sqliteWasm: import("../src/adapters/sqlitewasm.js").SqliteWasmModule;
 
 beforeAll(async () => {
   sqlModule = await initSqlJs();
+  const { default: initSqliteWasm } = await import("@sqlite.org/sqlite-wasm");
+  sqliteWasm = (await initSqliteWasm()) as unknown as import("../src/adapters/sqlitewasm.js").SqliteWasmModule;
 });
 
 const tmpDirs: string[] = [];
@@ -783,6 +787,7 @@ describe("fixture convergence (property-wire batch)", () => {
 
   function backendFor(name: string): StoreBackend {
     if (name === "sqljs") return sqljsBackend(sqlModule);
+    if (name === "sqlitewasm") return sqliteWasmBackend(sqliteWasm, { kind: "memory" });
     const dir = mkdtempSync(join(tmpdir(), "notees-fixconv-test-"));
     tmpDirs.push(dir);
     return betterSqlite3Backend(join(dir, "store.db"));
@@ -799,10 +804,10 @@ describe("fixture convergence (property-wire batch)", () => {
     "property-date-qualifier.json",
   ];
 
-  it.each(FORWARD_ONLY)("%s converges byte-identical on both adapters (causal forward replay)", (name) => {
+  it.each(FORWARD_ONLY)("%s converges byte-identical on all adapters (causal forward replay)", (name) => {
     const fixture = loadFixture(name);
     const dumps: Record<string, unknown>[] = [];
-    for (const backend of ["sqljs", "better-sqlite3"]) {
+    for (const backend of ["sqljs", "sqlitewasm", "better-sqlite3"]) {
       const store = Store.open(backendFor(backend));
       store.applyMany(fixture);
       dumps.push(dumpDb(store));
@@ -814,7 +819,7 @@ describe("fixture convergence (property-wire batch)", () => {
     expect(dumps[1]).toEqual(dumps[0]);
   });
 
-  it("the whole corpus replays into both adapters with the batch fixtures included", () => {
+  it("the whole corpus replays into all adapters with the batch fixtures included", () => {
     const all = readdirSync(fixturesDir)
       .filter(
         (f) =>
@@ -829,7 +834,7 @@ describe("fixture convergence (property-wire batch)", () => {
       .sort()
       .flatMap(loadFixture);
     const dumps: Record<string, unknown>[] = [];
-    for (const backend of ["sqljs", "better-sqlite3"]) {
+    for (const backend of ["sqljs", "sqlitewasm", "better-sqlite3"]) {
       const store = Store.open(backendFor(backend));
       store.applyMany(all);
       dumps.push(dumpDb(store));

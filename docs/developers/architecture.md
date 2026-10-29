@@ -267,7 +267,7 @@ inheritance** (`refset(n) = own_links(n) ∪ refset(parent(n))` as a query
 matching rule) remains designed, not implemented — no inherited-link
 filtering exists in code.
 
-## 6. DB adapter interface — better-sqlite3 and sql.js
+## 6. DB adapter interface — better-sqlite3, sql.js, and sqlite-wasm
 
 *Implemented.*
 
@@ -275,17 +275,19 @@ filtering exists in code.
 calls: `SqliteDB` (`exec`, `prepare`, `pragma`, `transaction`, optional `serialize`/
 `close`), `SqliteStatement` (`run`/`get`/`all`, positional `?` params only), and the
 `StoreBackend` factory (`open` / `restore(bytes)` / `reset`, plus a declared
-`ftsModule`). Two adapters ship:
+`ftsModule`; an optional staged `restoreAsync(bytes)` serves backends whose storage
+write is async). Three adapters ship:
 
 | Adapter | File | Runtime | Why |
 |---|---|---|---|
 | better-sqlite3 | `packages/store/src/adapters/better-sqlite3.ts` | server, CLI (native, file-backed) | default where Node runs; synchronous single-writer fits the per-workspace derived-DB model |
-| sql.js | `packages/store/src/adapters/sqljs.ts` | browser (WASM, in-memory) | the only synchronous SQLite that runs in the browser; exported via `@notees/store/sqljs` |
+| sql.js | `packages/store/src/adapters/sqljs.ts` | browser (WASM, in-memory) | synchronous WASM SQLite; exported via `@notees/store/sqljs` |
+| sqlite-wasm | `packages/store/src/adapters/sqlitewasm.ts` | browser (official `@sqlite.org/sqlite-wasm` build) | the OPFS-VFS mode keeps DB pages in OPFS and only the working set in WASM memory — a snapshot restore stages the (gzipped) bytes into the OPFS file and opens by name instead of holding the whole image in the heap; the official build ships FTS5, so the restore-time FTS repair arm never fires; exported via `@notees/store/sqlitewasm` |
 
-**Why both:** the store package must run unchanged in the browser worker and in Node
+**Why three:** the store package must run unchanged in the browser worker and in Node
 (the dual-language tax must not recur), so all SQL goes through the
 narrowest driver-agnostic interface, and the store test suite runs *every* test against
-*both* adapters to keep the surface honest.
+*all three* adapters (sqlite-wasm in its memory mode under Node) to keep the surface honest.
 
 **FTS4/FTS5.** The canonical schema uses FTS5 (`search_index` virtual table). The stock
 sql.js WASM build ships without FTS5, so the sql.js backend declares `ftsModule: "fts4"`
@@ -322,7 +324,9 @@ HTTP write path — an asynchronous indexer introduced later turns it red.
 
 Restore is adapter-specific: better-sqlite3 has no deserialize, so restore writes a temp
 file and swaps the connection (temp dir removed on close); sql.js exports/imports whole
-database bytes in memory.
+database bytes in memory; the sqlite-wasm OPFS-VFS backend restores staged-async — the
+bytes land in the OPFS file via the caller's `writeFile`, then the connection opens by
+name (`Store.restoreAsync` prefers a backend's `restoreAsync` over the sync restore).
 
 ## 7. The sync engine
 
@@ -513,7 +517,9 @@ node→asset assertions in the derived store (`node_asset`).
 *Implemented — the web client is the full editor; GTK/Flutter are lockstep clients (see below).*
 
 **Web** (`apps/web`). `src/core/workspace-client/` is the whole data path: a `Store`
-over the **sql.js** backend (local derived state persisted to OPFS via a Web Worker since the slice-2 work), a `SyncEngine`
+in the Web Worker (sqlite-wasm over the OPFS VFS when the VFS initializes — DB pages
+in OPFS, staged snapshot restores; sql.js with whole-file OPFS persistence as the
+fallback), a `SyncEngine`
 (outbox push + seq-cursor pull + snapshot shortcut), and a `Transport`
 (`HttpTransport` against a relay server in the app; `MemoryTransport` over a `MemoryRelay`
 in tests — both in `packages/sync/src/transport.ts`). Reads always hit the local store —
@@ -646,7 +652,7 @@ cursors; writes are atomic (tmp + rename).
 |---|---|---|
 | `packages/protocol` | Wire format: HLC, envelope, op registry, content grammar; canonical fixtures | `src/index.ts` (`hlc`, `envelope`, `op-types`, `content-mark`); specs `SCHEMA.md`, `WIRE.md`; `fixtures/`; gate `test/protocol.test.ts` |
 | `packages/domain` | System seeds (fixed UUIDs), node helpers | `src/index.ts` (`seeds.ts`, `node.ts` — `deriveDisplayName`, `plainTextExcerpt`) |
-| `packages/store` | Derived store: schema, appliers, edge index, stats, search, merge planner, adapter interface + both adapters | `src/index.ts`; `src/schema.ts` (DDL + `migrate`), `src/appliers.ts`, `src/edges.ts`, `src/merge.ts` (`planMerge` — the node-merge planner, SCHEMA.md "Node merge"), `src/db.ts`, `src/store.ts`, `src/adapters/better-sqlite3.ts`, `src/adapters/sqljs.ts` (export `@notees/store/sqljs`) |
+| `packages/store` | Derived store: schema, appliers, edge index, stats, search, merge planner, adapter interface + all three adapters | `src/index.ts`; `src/schema.ts` (DDL + `migrate`), `src/appliers.ts`, `src/edges.ts`, `src/merge.ts` (`planMerge` — the node-merge planner, SCHEMA.md "Node merge"), `src/db.ts`, `src/store.ts`, `src/adapters/better-sqlite3.ts`, `src/adapters/sqljs.ts` (export `@notees/store/sqljs`), `src/adapters/sqlitewasm.ts` (export `@notees/store/sqlitewasm`) |
 | `packages/sync` | SyncEngine, outbox, conflicts, watermark persistence, transports | `src/index.ts`; `src/sync-engine.ts`, `src/outbox.ts`, `src/conflicts.ts`, `src/meta.ts`, `src/transport.ts` (`HttpTransport`, `MemoryTransport`, `MemoryRelay`) |
 | `packages/query` | QueryAST model + SQLite compiler over the derived store (live queries) | `src/index.ts` (`ast.ts` zod model, `compiler.ts` `compile(ast)`, `execute.ts` `runQuery`/`countQuery`/`matches`); 7 condition types; deferred set in README |
 | `packages/export` | Export projections over the object graph: `ExportDocument` IR + serializers (markdown/html/docx/latex package-side — options bag with per-format gating, escaping, full-closure outline, whiteboard sidecars, id8 filename policy, `linkTarget`/`assetPath` hooks, LaTeX CSL bibliography; pdf renders client-side in the web app), format registry (`SerializedExport` union), bundles + manifest v2, BibTeX/CSL; plus the two view-shaped serializers beside the IR registry: `csv.ts` (RFC-4180 view export — the web table toolbar downloads the visible columns × current results) and `json-archive.ts` (the Tier-1 `notees-json-archive` v1 envelope; `notees export json` + the web modal's JSON card) | `src/index.ts`; `document.ts` (IR + context hooks), `markdown.ts`, `html.ts`, `docx.ts`, `latex.ts`, `options.ts`, `formats.ts`, `bundle.ts`, `bibtex.ts`, `csl.ts` |
@@ -702,8 +708,9 @@ code is narrower in these places:
    `class_list` read model; the code lists classes from the `class` registry table joined with
    `class_member_set` (`routes-objects.ts`), with the node row as structural authority.
 6. **Outbox durability.** The designed local-first flow assumes a durable client op log
-   re-feeding the outbox; the outbox is in-memory and the browser store is in-memory
-   (sql.js), so recovery after a full page reload is a server re-sync.
+   re-feeding the outbox; the outbox is in-memory and the browser store rides the OPFS
+   file (sqlite-wasm VFS or whole-file sql.js export), so recovery after a full page
+   reload is a server re-sync.
 7. **Editor.** The Logseq-style outliner (bullets, indent/outdent reparenting via
    TreeCrdt, fractional reorder, verb-mark capture UX) is the designed editor program;
    the shipped web UI is a read-oriented slice-1 shell over the

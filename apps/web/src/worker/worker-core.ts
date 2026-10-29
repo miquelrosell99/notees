@@ -3,8 +3,10 @@
  * persistence slice). Given an initialized sql.js module, an OpfsStore, a
  * file name, and (optionally) a Transport, it:
  *
- *  - opens the Store (sqljsBackend), restoring saved OPFS bytes when present,
- *    else fresh — an unreachable relay never blocks boot (local-first);
+ *  - opens the Store (the sql.js backend over the init's module, or a caller
+ *    backend — the web entry passes the sqlite-wasm OPFS-VFS backend when the
+ *    VFS is available), restoring saved OPFS bytes when present (an
+ *    unreachable relay never blocks boot — local-first);
  *  - bootstraps the WorkspaceClient sync engine for the workspace;
  *  - exposes the worker API: applyBatch (remote frames), the read surface
  *    (getPage / listPages / getBlockTree / search / getBacklinks /
@@ -41,7 +43,7 @@ import type { SqlJsStatic } from "sql.js";
 import type { OpPayload, WorkspaceFeature } from "@notees/protocol";
 import type { CardSrsState, SrsAlgorithm } from "@notees/domain";
 
-import { Store, validateEnvelope } from "@notees/store";
+import { Store, validateEnvelope, type StoreBackend } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
 import type { CatchUpResponse, SendBatchResult, SnapshotMeta, SyncConflict, Transport } from "@notees/sync";
 
@@ -75,6 +77,12 @@ import type { OpfsStore } from "./opfs.js";
 
 export interface WorkerInitMessage {
   sqlWasmUrl: string;
+  /**
+   * The sqlite-wasm asset URL. When present AND the OPFS VFS initializes, the
+   * worker uses the sqlite-wasm backend (pages in OPFS, staged restores);
+   * otherwise it falls back to sql.js over `sqlWasmUrl`.
+   */
+  sqliteWasmUrl?: string;
   workspaceId: string;
   serverUrl: string;
   apiKey: string;
@@ -218,8 +226,23 @@ class NullTransport implements Transport {
 }
 
 export interface WorkerCoreOptions {
-  /** Pre-initialized sql.js module (the entry inits it with locateFile). */
-  SQL: SqlJsStatic;
+  /**
+   * Pre-initialized sql.js module (the entry inits it with locateFile).
+   * Required when no `backend` is passed.
+   */
+  SQL?: SqlJsStatic;
+  /**
+   * Store backend override (the web entry passes the sqlite-wasm OPFS-VFS
+   * backend when the VFS is available). Defaults to the sql.js backend over
+   * `SQL`.
+   */
+  backend?: StoreBackend;
+  /**
+   * True when the backend persists itself (the OPFS VFS writes pages through)
+   * — the whole-file export persist is skipped entirely; `opfs` is then only
+   * the restore staging target inside the backend.
+   */
+  persistent?: boolean;
   /** Persistence target; the entry passes opfsStore(), tests a Map-backed fake. */
   opfs: OpfsStore;
   /** File name within the opfs root (e.g. `<workspaceId>.db`). */
@@ -292,10 +315,23 @@ export class WorkerCore {
 
   /** Open (restoring saved bytes when present) and bootstrap the workspace. */
   static async create(options: WorkerCoreOptions): Promise<WorkerCore> {
-    const saved = await options.opfs.loadFile(options.fileName);
-    const store = Store.open(sqljsBackend(options.SQL));
-    if (saved !== null && saved.byteLength > 0) {
-      store.restore(saved);
+    const persistent = options.persistent === true;
+    const store = Store.open(
+      options.backend ??
+        (options.SQL !== undefined
+          ? sqljsBackend(options.SQL)
+          : (() => {
+              throw new Error("worker-core: either SQL (sql.js) or a StoreBackend is required");
+            })()),
+    );
+    if (!persistent) {
+      // Whole-file persistence (sql.js): restore the saved OPFS bytes. A
+      // self-persisting backend (OPFS VFS) opens its file directly — no
+      // byte-level restore at boot.
+      const saved = await options.opfs.loadFile(options.fileName);
+      if (saved !== null && saved.byteLength > 0) {
+        await store.restoreAsync(saved);
+      }
     }
     const client = WorkspaceClient.wrap(store, {
       transport: options.transport ?? new NullTransport(),
@@ -317,7 +353,8 @@ export class WorkerCore {
       clearTimeout.bind(globalThis),
     );
     client.subscribe((change) => {
-      core.schedulePersist();
+      // A self-persisting backend (OPFS VFS) needs no whole-file export save.
+      if (!persistent) core.schedulePersist();
       core.scheduleNotify(change);
     });
     try {

@@ -9,6 +9,60 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(store,web): sqlite-wasm OPFS-VFS store backend — snapshot restore
+  stops holding the whole image in the WASM heap.** Third `StoreBackend`
+  behind the `db.ts` seam (`packages/store/src/adapters/sqlitewasm.ts`, export
+  `@notees/store/sqlitewasm`), implementing the streamed-snapshot-restore
+  proposal's option 3: the official `@sqlite.org/sqlite-wasm` build opens the
+  workspace OPFS file through the `opfs` VFS, so DB pages live in OPFS and
+  only the working set touches WASM memory. Restore is STAGED ASYNC — the new
+  `StoreBackend.restoreAsync` + `Store.restoreAsync` (sync restore preserved
+  for better-sqlite3/sql.js and every sync caller) writes the (gzipped)
+  snapshot bytes into the OPFS file and opens by name: the memory cliff that
+  OOM-crashed the headless renderer twice during the 2026-10-29 redeploy is
+  gone. The official build ships FTS5, so this backend declares `ftsModule
+  "fts5"` and the restore-time FTS repair re-serialize path never fires for
+  it; persistence rides the VFS (the worker skips its whole-file export
+  persist via the new `persistent` WorkerCore option). The store worker
+  prefers the new backend whenever the `opfs` VFS initializes and falls back
+  to sql.js + whole-file OPFS persistence on ANY unavailability (init failure,
+  no VFS, no `sqliteWasmUrl`), byte-identical from the core's perspective; an
+  existing sql.js-written OPFS file opens directly (same SQLite format). The
+  store suite now runs every adapter test against all THREE backends (the
+  corpus convergence tests included), plus a focused adapter spec
+  (`test/sqlitewasm.test.ts`: FTS5 declaration, serialize/restore round-trip,
+  staged-restore contract, reset). GTK/Flutter check: native SQLite clients,
+  unaffected (the change is the web worker's backend selection). Docs:
+  architecture.md §6 (three adapters, staged restore), the module map,
+  AGENTS.md's store line. Verified: store suite across all backends + the
+  focused spec, full gate green.
+
+- **feat(relay,sync): gzip Content-Encoding on `/snapshot/data` (GET and
+  PUT)** — streamed-snapshot-restore proposal (restore-time memory cliff),
+  option 1 shipped standalone. SQLite images compress ~4–5× and the endpoint
+  now negotiates gzip as pure transfer encoding (no wire change, no protocol
+  fixtures): the GET gzips the blob with `Content-Encoding: gzip` when the
+  request's `Accept-Encoding` advertises it (identity otherwise), and a PUT
+  carrying `Content-Encoding: gzip` is gunzipped before the sanity gates and
+  `saveSnapshot` (node:zlib `gunzipSync`), so the stored bytes and every
+  downstream check see the original image exactly as an identity upload —
+  invalid gzip fails loud 400 `validation_failed` and stores nothing. The
+  route's 512 MiB cap and the client's `SNAPSHOT_UPLOAD_BODY_LIMIT` are
+  unchanged and now bound the COMPRESSED size (the intended effect). The sync
+  `HttpTransport` gzips its uploads via the built-in `CompressionStream`
+  (browsers + Node 18+), identity fallback where it is unavailable; the
+  download direction needed no change — browser fetch advertises gzip and
+  decompresses transparently (comment at `getSnapshotData`). GTK/Flutter
+  check: those clients parse the response body themselves and do not
+  advertise `Accept-Encoding: gzip`, so they keep receiving identity blobs;
+  their snapshot PUTs are identity as today and land on the untouched
+  identity path. Verified: new route tests in `relay-snapshot.test.ts` (GET
+  gzip/identity, PUT gzip round-trip to the original bytes, corrupt gzip 400
+  with stored state untouched) — 17/17; new `packages/sync`
+  `snapshot-encoding.test.ts` (transport emits `Content-Encoding: gzip` with
+  a gunzippable body when CompressionStream exists, identity fallback) —
+  2/2; `pnpm typecheck && pnpm test` gate green.
+
 - **test(smoke): un-stale the verify scripts' snapshot comments and tighten
   the boot window 900 s → 600 s.** The three verify scripts still claimed the
   relay holds no snapshot and gave every fresh profile a full-log replay

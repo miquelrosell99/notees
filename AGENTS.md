@@ -33,7 +33,7 @@ AGENTS.md
 
 - `packages/protocol` — op wire spec, envelopes, fixtures (the convergence gate corpus), `SCHEMA.md` (the normative model)
 - `packages/domain` — seeds (fixed system-class UUIDs), display-name derivation, content stringify (the text-only flatten for class content and the create/promotion boundaries)
-- `packages/store` — derived SQLite schema + appliers; one TS implementation, three backends (better-sqlite3, sql.js)
+- `packages/store` — derived SQLite schema + appliers; one TS implementation, three backends (better-sqlite3, sql.js, sqlite-wasm — the last with memory and OPFS-VFS modes)
 - `packages/sync` — SyncEngine (HLC + server seq, snapshots, compaction, WebSocket)
 - `packages/query` — QueryAST model + SQLite compiler
 - `packages/export` — export projections over the object graph: IR + serializers (markdown/html/docx/latex package-side, pdf client-side in the web app, csv + json-archive view-shaped); detail in `docs/developers/architecture.md`

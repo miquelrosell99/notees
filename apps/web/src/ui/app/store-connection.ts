@@ -10,6 +10,7 @@
  */
 
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
+import sqliteWasmUrl from "@sqlite.org/sqlite-wasm/sqlite3.wasm?url";
 
 import { WorkspaceClient } from "@/core/workspace-client/index.js";
 import { WorkerClient } from "@/core/worker-client.js";
@@ -57,8 +58,8 @@ export async function openStoreConnection(
   if (mode === "worker") {
     nextClient = await WorkerClient.create(
       options.isOffline
-        ? { serverUrl: "", apiKey: "", workspaceId, sqlWasmUrl, offline: true }
-        : { serverUrl: url, apiKey: credential, workspaceId, sqlWasmUrl },
+        ? { serverUrl: "", apiKey: "", workspaceId, sqlWasmUrl, sqliteWasmUrl, offline: true }
+        : { serverUrl: url, apiKey: credential, workspaceId, sqlWasmUrl, sqliteWasmUrl },
     );
   } else {
     nextClient = options.isOffline
