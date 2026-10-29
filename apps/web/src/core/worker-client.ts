@@ -164,6 +164,9 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   // so the structure class converges it — same trust as the parentlessBlock
   // resolver it mirrors.
   getClassDisplayTemplate: "structure",
+  // The extends-aware projection of the same column (the title seam's
+  // template axis): same structural trust as the own-column read.
+  resolveEffectiveDisplayTemplate: "structure",
 };
 
 export interface WorkerClientOptions {
@@ -436,6 +439,14 @@ export class WorkerClient {
    * the store's extends-aware resolver. */
   getClassDisplayTemplate(classId: string): string | null {
     return this.cachedRead<string | null>("getClassDisplayTemplate", [classId], null);
+  }
+
+  /** The class's EFFECTIVE displayTemplate — the store's extends-aware
+   *  resolver (own non-empty wins; own "" opts out and stops; NULL walks the
+   *  extends chain nearest-first). The title seam's template axis reads
+   *  this. */
+  resolveEffectiveDisplayTemplate(classId: string): string | null {
+    return this.cachedRead<string | null>("resolveEffectiveDisplayTemplate", [classId], null);
   }
 
   effectiveNodeIcon(node: {

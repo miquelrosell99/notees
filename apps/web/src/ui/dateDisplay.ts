@@ -15,11 +15,17 @@ import {
   parseDateNodeId,
   dateNodeLabel,
   splitMarkdownLinks,
+  DISPLAY_NAME_MAX,
   type NodeLike,
 } from "@notees/domain";
 
 import { readDeviceSetting } from "../features/settings/deviceSettings.js";
+import { displayTemplateResolver } from "./displayTemplateTitle.js";
 import { untitledLabelOf, type RenderStateLabelInput } from "./renderStateLabel.js";
+import type {
+  ClientPropertySchema,
+  EffectiveProperty,
+} from "../core/workspace-client/index.js";
 
 export type DateFormat =
   | "YYYY/MM/DD"
@@ -111,7 +117,7 @@ function pad2(value: number): string {
 
 // --- the unified title seam --------------------------------
 //
-// Every "display name of a node" in the UI derives from ONE funnel with four
+// Every "display name of a node" in the UI derives from ONE funnel with five
 // explicit axes — no more per-ruling helper proliferation (the bug class
 // where a surface picked the wrong sibling and leaked raw markdown). The
 // axes, each with a default matching the old most-common helper:
@@ -130,6 +136,10 @@ function pad2(value: number): string {
 //   empty    "blank" (default — "" for empty content, callers pick their
 //            placeholder) | "untitled" ("Untitled page/class/block", the
 //            renderStateLabel convention)
+//   template "on" (default — a class-templated node renders its resolved
+//            displayTemplate everywhere it is REFERENCED) | "off" (the
+//            node's own page header — title-is-content stays editable there;
+//            see displayTemplateTitle.ts for the resolution rule)
 //
 // The seam has two entries: `titleOf(client, id, opts)` (the client funnel —
 // resolvers come from the client) and `titleOfNode(node, opts)` (node in
@@ -142,6 +152,7 @@ export type TitleBudget = "capped" | "full";
 export type TitleFlatten = "raw" | "chrome";
 export type TitleRead = "live" | "fallback";
 export type TitleEmpty = "blank" | "untitled";
+export type TitleTemplate = "on" | "off";
 
 export type TitleOpts = {
   /** "capped" (default): the dense-chrome 80-char budget. "full": the
@@ -160,16 +171,30 @@ export type TitleOpts = {
   /** "blank" (default): empty content reads "". "untitled": empty content
    *  reads "Untitled page/class/block" (the renderStateLabel convention). */
   empty?: TitleEmpty | undefined;
+  /** "on" (default): a node whose class carries a displayTemplate renders
+   *  the resolved template (references everywhere — breadcrumbs, pickers,
+   *  search rows, backlinks, mention chips). "off": the content title (the
+   *  page header's own reads — the editable title stays the authority). */
+  template?: TitleTemplate | undefined;
 };
 
 /** The minimal client shape the funnel needs (WorkspaceClient and the test
- *  mocks both satisfy it). The two optional reads power the "fallback" read
- *  and the parentlessRole-aware "Untitled" label. */
+ *  mocks both satisfy it). The optional reads power the "fallback" read,
+ *  the parentlessRole-aware "Untitled" label, and the template axis. */
 export type TitleClient = {
   getNode(id: string): NodeLike | undefined;
   getDisplayName(id: string): string | null;
   getNodeRaw?(id: string): NodeLike | undefined;
   effectiveClassParentlessBlock?(classId: string): boolean;
+  /** The class's EFFECTIVE displayTemplate (the store's extends-aware
+   *  resolver) — the template axis's per-class read. */
+  resolveEffectiveDisplayTemplate?(classId: string): string | null;
+  /** The node's effective properties — the template placeholders' value
+   *  source (matched to placeholders by schema name). */
+  getEffectiveProperties?(id: string): EffectiveProperty[];
+  /** The property-schema registry — select option labels inside the
+   *  placeholder flatten (propertyDisplayText). */
+  listPropertySchemas?(): ClientPropertySchema[];
 };
 
 type TitleNodeOpts = TitleOpts & {
@@ -183,6 +208,10 @@ type TitleNodeOpts = TitleOpts & {
   /** The parentlessRole "block" demote for the "untitled" label (the client
    *  funnel builds it from the client automatically). */
   isParentlessBlockClass?: ((classId: string) => boolean) | undefined;
+  /** The template axis's resolver (the client funnel builds it from the
+   *  client's template reads via displayTemplateResolver; a client without
+   *  those reads — or an "off" axis — never templates). */
+  resolveDisplayTemplate?: ((node: NodeLike) => string | null) | undefined;
 };
 
 function factsOf(n: NodeLike): RenderStateLabelInput {
@@ -196,6 +225,19 @@ function factsOf(n: NodeLike): RenderStateLabelInput {
 
 /** The settings-aware title derivation over one node (the funnel core). */
 function titleFromNode(node: NodeLike, opts: TitleNodeOpts): string {
+  // The template axis runs BEFORE the content derivation: a class-templated
+  // node renders its resolved displayTemplate everywhere it is referenced.
+  // The resolver declines (null) for class/date nodes, nodes with no
+  // resolving class template, and substance-free resolutions ("" / "@") —
+  // all fall through to the content title below, so a blank template never
+  // renders a blank title. The node's own header passes template:"off" and
+  // never reaches this branch (title-is-content stays editable there).
+  if (opts.template !== "off" && opts.resolveDisplayTemplate !== undefined) {
+    const templated = opts.resolveDisplayTemplate(node);
+    if (templated !== null) {
+      return opts.budget === "full" ? templated : templated.slice(0, DISPLAY_NAME_MAX);
+    }
+  }
   const flattenChrome = opts.flatten === "chrome";
   const strippedAst = flattenChrome
     ? (node.contentAst ?? []).map((token) =>
@@ -234,6 +276,7 @@ export function titleOf(client: TitleClient, id: string, opts: TitleOpts = {}): 
         : undefined,
     isParentlessBlockClass:
       opts.empty === "untitled" ? client.effectiveClassParentlessBlock?.bind(client) : undefined,
+    resolveDisplayTemplate: displayTemplateResolver(client),
   };
   const live = client.getNode(id);
   if (live !== undefined) return titleFromNode(live, nodeOpts);

@@ -637,6 +637,12 @@ export class WorkspaceClient {
     return this.reads.getClassDisplayTemplate(classId);
   }
 
+  /** The class's EFFECTIVE displayTemplate (the store's extends-aware
+   *  resolver) — the title seam's template axis read. */
+  resolveEffectiveDisplayTemplate(classId: string) {
+    return this.reads.resolveEffectiveDisplayTemplate(classId);
+  }
+
   /** Write or clear a class's displayTemplate (class.update {displayTemplate}). */
   updateClassDisplayTemplate(classId: string, template: string | null) {
     return this.writes.updateClassDisplayTemplate(classId, template);

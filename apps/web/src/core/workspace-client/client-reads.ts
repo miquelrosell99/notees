@@ -17,7 +17,10 @@ import {
   SYSTEM_PROPERTY_UUIDS,
 } from "@notees/domain";
 import type { NodeRow } from "@notees/store";
-import { getClassDisplayTemplate } from "@notees/store";
+import {
+  getClassDisplayTemplate,
+  resolveEffectiveDisplayTemplate as resolveEffectiveDisplayTemplateFromStore,
+} from "@notees/store";
 
 import {
   mapClassBindingRow,
@@ -53,7 +56,9 @@ export class WorkspaceClientReads {
    *  target's name everywhere this read feeds (breadcrumbs, graph labels,
    *  search rows) — never "Untitled". The recursion guard is PATH-scoped (a
    *  diamond's second mention still resolves; a true cycle folds to nothing
-   *  at the loop point). */
+   *  at the loop point).
+   *  This stays the pure CONTENT-title derivation: a class displayTemplate
+   *  renders at the title seam (`titleOf`'s template axis), never here. */
   getDisplayName(id: string): string | null {
     return this.displayNameOf(id, new Set());
   }
@@ -123,6 +128,17 @@ export class WorkspaceClientReads {
    */
   getClassDisplayTemplate(classId: string): string | null {
     return getClassDisplayTemplate(this.ctx.store.database, classId);
+  }
+
+  /**
+   * The class's EFFECTIVE displayTemplate — the store's extends-aware
+   * resolver: own non-empty wins; own "" = the explicit opt-out (stops the
+   * walk); NULL walks the extends chain nearest-first (within-level tie =
+   * smallest class id), an ancestor "" stops too. The title seam's template
+   * axis reads this; the raw own-column read is getClassDisplayTemplate.
+   */
+  resolveEffectiveDisplayTemplate(classId: string): string | null {
+    return resolveEffectiveDisplayTemplateFromStore(this.ctx.store.database, classId);
   }
 
   /** All document-chrome nodes (parentless or main children), deterministic
