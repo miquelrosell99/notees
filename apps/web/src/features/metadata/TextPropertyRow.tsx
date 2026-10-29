@@ -43,6 +43,19 @@
  * bound-but-empty row; first edit mints the carrier block and authors the
  * {nodeId} value, exactly the Add-pill path.
  *
+ * A default-sourced row whose value is the SCALAR EMPTY STRING (the citekey
+ * seed's `defaultValue: ""`) renders the SAME placeholder cell — an empty
+ * default is an empty field, not a value; the first edit still mints the
+ * carrier (semantics unchanged).
+ *
+ * Citekey regeneration: the citekey row of a source-LINEAGE node (the
+ * class-lineage keying quick-create uses, never a hardcoded node set)
+ * carries a trailing regenerate affordance INSIDE the field at its right
+ * edge (the searchbox clear-x pattern): the workspace pattern rendered from
+ * the node's current metadata, collision-suffixed against the sibling
+ * sources, written through the row's `property.set` path (no new op,
+ * undo-journal eligible). Empty metadata disables the button.
+ *
  * Block-to-property drop (S5): the row registers
  * as a drop target of the ONE workspace drag session — dragging a
  * same-owner body block onto the row makes the block the value's carrier
@@ -56,12 +69,14 @@
 import { useEffect, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { Icon } from "../../ui/Icon.js";
 
-import { plainTextExcerpt, rendersAsInlineBlock } from "@notees/domain";
+import { plainTextExcerpt, rendersAsInlineBlock, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { NodeCollection, type NodeCollectionItem } from "../collection/index.js";
 import type { AnyClient } from "../collection/types.js";
+import { isCitationFamilyClass } from "../modals/quickCreate.js";
+import { citekeyRegenerationFor } from "../sources/citekeyRegenerate.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { InlineTokens } from "../../ui/InlineTokens.js";
 import { AddPill } from "../../components/ui/kit/AddPill.js";
@@ -201,9 +216,42 @@ export function TextPropertyRow({
 
   // The standalone subtree renderer carried its own subscription per carrier
   // root so the cell stays live even outside a subscribing host; the row
-  // keeps that contract with one subscription for all its carriers.
-  const [, setVersion] = useState(0);
+  // keeps that contract with one subscription for all its carriers. The
+  // version value feeds the citekey-regeneration memo below.
+  const [storeVersion, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+
+  /**
+   * The citekey regeneration snapshot — ONLY on the citekey row of a
+   * source-lineage node (the class-lineage keying quick-create uses, never
+   * a hardcoded node set). Recomputed on every store-synced render so the
+   * button's disabled state tracks the metadata live.
+   */
+  const citekeyRegen = useMemo(() => {
+    if (readOnly || propertySchemaId !== SYSTEM_PROPERTY_UUIDS.citekey) return null;
+    const node = client.getNode(nodeId);
+    if (node === undefined) return null;
+    if (!node.classIds.some((classId) => isCitationFamilyClass(client, classId))) return null;
+    return citekeyRegenerationFor(client, node);
+  }, [client, nodeId, propertySchemaId, readOnly, storeVersion]);
+
+  /** The trailing regenerate affordance (the searchbox clear-x pattern —
+   *  INSIDE the field at its right edge). Disabled when the metadata
+   *  renders empty — nothing to generate from. The write rides the row's
+   *  `property.set` path at the cell's own idx. */
+  const citekeyRegenButton = (idx: number) =>
+    citekeyRegen === null ? null : (
+      <button
+        type="button"
+        className="nt-property-value-field__action"
+        aria-label="Regenerate citekey"
+        title="Regenerate citekey"
+        disabled={citekeyRegen.value === ""}
+        onClick={() => void client.setProperty(nodeId, propertySchemaId, citekeyRegen.value, idx)}
+      >
+        <Icon path="mdi mdi-refresh" size={0.8} />
+      </button>
+    );
 
   /** Carrier lookup for the Enter semantics — only THIS row's carriers. */
   const carrierInfo = useMemo(() => {
@@ -488,16 +536,45 @@ export function TextPropertyRow({
                   </span>
                 );
               }
+              // A default-sourced SCALAR EMPTY STRING (the citekey seed's
+              // `defaultValue: ""`) is an empty FIELD, not a value: it
+              // renders the SAME full-width "Type something" placeholder
+              // cell as a bound-but-empty row. The first edit still mints
+              // the carrier (the established mint-on-edit semantics,
+              // unchanged).
+              if (scalarText === "" && row.source === "default") {
+                return (
+                  <span
+                    key={`${propertySchemaId}:${row.idx}`}
+                    className="nt-property-value-field"
+                  >
+                    <input
+                      type="text"
+                      className="nt-property-value"
+                      placeholder="Type something"
+                      aria-label={`Property ${label}`}
+                      onBlur={(event) => {
+                        const text = event.target.value;
+                        if (text.trim() === "") return;
+                        void mintCarrierFor(text, row.idx);
+                      }}
+                    />
+                    {citekeyRegenButton(row.idx)}
+                  </span>
+                );
+              }
               return (
-                <button
-                  key={`${propertySchemaId}:${row.idx}`}
-                  type="button"
-                  className="nt-property-value nt-property-scalar"
-                  aria-label={`Edit property ${label}`}
-                  onClick={() => void mintCarrierFor(scalarText, row.idx)}
-                >
-                  <InlineTokens tokens={scalarTokens} />
-                </button>
+                <span key={`${propertySchemaId}:${row.idx}`} className="nt-property-value-field">
+                  <button
+                    type="button"
+                    className="nt-property-value nt-property-scalar"
+                    aria-label={`Edit property ${label}`}
+                    onClick={() => void mintCarrierFor(scalarText, row.idx)}
+                  >
+                    <InlineTokens tokens={scalarTokens} />
+                  </button>
+                  {citekeyRegenButton(row.idx)}
+                </span>
               );
             }
             if (readOnly) {

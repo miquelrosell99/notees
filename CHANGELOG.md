@@ -168,6 +168,36 @@ predating this file.
   render one row reading sort, switcher, search, filter (screenshot-checked
   against the probe class hub); full gate green (typecheck + 2529 web
   tests, full chain).
+- **feat(web): citekey regenerate button + empty-field placeholder + input
+  hover/focus states.** The source property-field UX slice (three owner
+  asks, one web pass). (1) The **Citekey** row of a source-lineage node
+  (class-lineage keying, the quick-create idiom, never a hardcoded node set)
+  gains a trailing regenerate button inside the field at its right edge —
+  icon-only, the circular-arrows MDI register, the searchbox clear-x
+  trailing pattern — rendering the workspace citekey pattern from the node's
+  current metadata via the shipped read contract (`citekeyEntryOf`, exported
+  from the Sources data layer and now shared by the hub's display rows), the
+  deterministic a/b/c collision suffix against the live library minus the
+  node's own current citekey (re-clicks over unchanged metadata rewrite the
+  same value); the write rides the row's existing `property.set` path — no
+  new op, undo-journal eligible — and empty metadata (no authors/family, no
+  title, no date) renders the button disabled. (2) A default-sourced row
+  whose value is the scalar empty string (the citekey seed's
+  `defaultValue: ""`) renders the same full-width "Type something"
+  placeholder cell as a bound-but-empty row instead of the legacy empty
+  plain-text cell — first edit still mints the carrier, semantics unchanged.
+  (3) The property value cells take the Zotero-like field register
+  (owner refs): a subtle `surface-container-low` background at rest, one
+  step lighter on hover, the accent border on focus (transparent rest
+  border, no layout shift; read-only projections stay super-clean; the kit
+  `Input` is not the property panel's carrier, so the register lives on
+  `.nt-property-value` in the metadata CSS — token-only, adaptive values).
+  New web tests: six cases over the placeholder branch, the button's
+  presence/absence/eligibility, the collision-suffixed write through
+  `property.set`, the self-exclusion idempotency, and the disabled
+  empty-metadata state (the text-property-blocks harness). Docs:
+  `docs/features/sources.md`.
+
 - **feat(store): uuid exact-match in quick search.** Pasting a node uuid into
   any quick-search surface (the node picker, the command palette, the
   full-page search, `@`-mention suggestions — all four ride

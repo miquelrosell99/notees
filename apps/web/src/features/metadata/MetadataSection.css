@@ -253,10 +253,12 @@ span.pill__text {
   font: inherit;
   font-size: var(--font-size-sm);
   padding: var(--spacing-1) var(--spacing-2);
-  /* super-clean fields — the text rides the row directly,
-     no outlined box; the hover surface is gone too —
-     focus alone carries the editing feedback. */
-  border: none;
+  /* The Zotero-like field register (the owner's reference): the editable
+     value cells read as FIELDS — a subtle surface-container-low background
+     at rest, one step lighter on hover, the accent border on focus. The
+     border rides transparent at rest so the focus border draws without a
+     layout shift; the read-only projection stays super-clean. */
+  border: var(--border-width-default) solid transparent;
   border-radius: var(--shape-medium);
   background: transparent;
   color: var(--md-sys-color-on-surface);
@@ -264,14 +266,28 @@ span.pill__text {
   max-width: 100%;
 }
 
-.nt-property-value:focus,
-.nt-property-value:focus-visible {
-  outline: none;
-  background: var(--md-sys-color-hover-overlay);
+/* The field register applies to the EDITABLE cells only (the value inputs
+   and the scalar cell) — read-only spans stay transparent. */
+input.nt-property-value,
+button.nt-property-value {
+  background: var(--md-sys-color-surface-container-low);
 }
 
-.nt-property-value:focus-visible {
-  /* Keyboard focus gets the accent ring — visually distinct from hover. */
+input.nt-property-value:hover,
+button.nt-property-value:hover {
+  background: var(--md-sys-color-surface-container);
+}
+
+input.nt-property-value:focus,
+button.nt-property-value:focus {
+  outline: none;
+  background: var(--md-sys-color-surface-container);
+  border-color: var(--md-sys-color-primary);
+}
+
+input.nt-property-value:focus-visible,
+button.nt-property-value:focus-visible {
+  /* Keyboard focus keeps the accent ring on top of the border. */
   box-shadow: var(--shadow-focus-ring);
 }
 
@@ -284,8 +300,45 @@ span.pill__text {
   text-align: left;
 }
 
-.nt-property-scalar:hover {
+/* The trailing in-field affordance (the citekey regenerate button): the
+   wrapper is the field's positioning context; the button rides at the
+   right edge INSIDE the field (the searchbox clear-x pattern); the cell's
+   end padding clears the button so the text never underlaps it. */
+.nt-property-value-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.nt-property-value-field > .nt-property-value {
+  width: 100%;
+  padding-inline-end: calc(var(--spacing-2) + 1.75em);
+}
+
+.nt-property-value-field__action {
+  position: absolute;
+  inset-inline-end: var(--spacing-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-1);
+  border: none;
+  border-radius: var(--shape-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.nt-property-value-field__action:hover:not(:disabled) {
   background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-property-value-field__action:disabled {
+  opacity: var(--opacity-40);
+  cursor: not-allowed;
 }
 
 /* S5 block-to-property drop affordance. While a

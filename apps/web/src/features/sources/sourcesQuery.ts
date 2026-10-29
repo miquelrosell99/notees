@@ -37,6 +37,7 @@ import type { QueryAst } from "@notees/query";
 
 import { titleOf } from "../../ui/dateDisplay.js";
 import type { ClientNode, EffectiveProperty } from "../../core/workspace-client/index.js";
+import type { CitekeyEntry } from "./citekey.js";
 
 /**
  * The table's sortable display columns (the URL grammar's five fields; the
@@ -378,6 +379,50 @@ function publicationYear(value: unknown): number | null {
   return null;
 }
 
+/**
+ * The citekey pattern renderer's input for ONE source node — the SAME
+ * dual-track read contract the display rows ship (authors text literals
+ * first, the linkedAuthors agent derivation when empty; the
+ * publicationDate chain year; the display title). The regenerate
+ * affordance on the metadata panel's citekey row rides this, so a
+ * regeneration always renders from what the row itself shows.
+ */
+export function citekeyEntryOf(client: SourcesReadSurface, node: ClientNode): CitekeyEntry {
+  return citekeyEntryFromRows(client, node, client.getEffectiveProperties(node.id));
+}
+
+/** The row-fetched half: the display projection already holds the node's
+ *  effective rows — it passes them straight in instead of re-reading. The
+ *  year narrows to the chain read's number-or-null (the pattern renderer
+ *  accepts strings too, but a derived year is never one). */
+interface SourceCitekeyEntry extends CitekeyEntry {
+  year: number | null;
+}
+
+function citekeyEntryFromRows(
+  client: SourcesReadSurface,
+  node: ClientNode,
+  rows: readonly EffectiveProperty[],
+): SourceCitekeyEntry {
+  const authorLiterals = textLiterals(rows, SYSTEM_PROPERTY_UUIDS.authors);
+  const authors =
+    authorLiterals.length > 0
+      ? authorLiterals
+      : nodeRefs(rows, SYSTEM_PROPERTY_UUIDS.linkedAuthors)
+          .map((ref) => agentCitationName(client, ref))
+          .filter((name): name is string => name !== null && name.length > 0);
+  let year: number | null = null;
+  for (const row of rows) {
+    if (row.propertySchemaId !== SYSTEM_PROPERTY_UUIDS.publicationDate) continue;
+    const extracted = publicationYear(row.value);
+    if (extracted !== null) {
+      year = extracted;
+      break;
+    }
+  }
+  return { authors, year, title: deriveDisplayName(node) };
+}
+
 function projectRow(
   client: SourcesReadSurface,
   node: ClientNode,
@@ -386,16 +431,10 @@ function projectRow(
   const rows = client.getEffectiveProperties(node.id);
   const classKey = primaryClassKey(client, node, ancestorCache);
 
-  // Authors — the read contract's ORDER: text rows first; the
-  // linkedAuthors people-graph track only when no authors row resolves.
-  const authorLiterals = textLiterals(rows, SYSTEM_PROPERTY_UUIDS.authors);
-  const authorNames =
-    authorLiterals.length > 0
-      ? authorLiterals
-      : nodeRefs(rows, SYSTEM_PROPERTY_UUIDS.linkedAuthors)
-          .map((ref) => agentCitationName(client, ref))
-          .filter((name): name is string => name !== null && name.length > 0);
-  const authorsText = authorNames.join("; ");
+  // Authors + year ride the same entry the citekey regeneration renders
+  // from — one read contract, both consumers (the rows are already fetched).
+  const entry = citekeyEntryFromRows(client, node, rows);
+  const authorsText = entry.authors.join("; ");
 
   // Venue — the FIRST container candidate the class's binding list carries
   //, the node's value for it ("" when unset; the class may
@@ -408,15 +447,7 @@ function projectRow(
   const venue = venueKey !== undefined ? (textLiterals(rows, SYSTEM_PROPERTY_UUIDS[venueKey])[0] ?? "") : "";
 
   // Year + citekey + attachments.
-  let year: number | null = null;
-  for (const row of rows) {
-    if (row.propertySchemaId !== SYSTEM_PROPERTY_UUIDS.publicationDate) continue;
-    const extracted = publicationYear(row.value);
-    if (extracted !== null) {
-      year = extracted;
-      break;
-    }
-  }
+  const year = entry.year;
   const citekey = textLiterals(rows, SYSTEM_PROPERTY_UUIDS.citekey)[0] ?? "";
   // Count rows carrying a ref — the bound-but-empty synthesis reads value
   // null and never counts (an asset ref is an object value).
