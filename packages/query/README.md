@@ -116,8 +116,9 @@ bannerAsset:<ref>     the banner wire node field (same shape)
 aliasedNode:<ref>     the alias wire node field (same shape; "is unset" is NOT aliasedNode:)
 prop:name<op>val      property condition (no value → exists)
 <schema>:<op>val      shorthand: bare property-schema field (year:>2010);
-                      any schema name resolves here — citekey:doe2024 and
-                      author:doe work today as property-schema conditions
+                      any schema name resolves here (case-insensitively,
+                      the resolver contract) — citekey:doe2024 and
+                      authors:doe work today as property-schema conditions
 "quoted phrase"       content contains the phrase
 AND OR NOT ( )        boolean composition (juxtaposition = AND)
 ```
@@ -223,8 +224,8 @@ ORDER BY "isClass" ASC
   in/not_in.
 - DSL sugar not yet mapped: `collection:` scope, `asset:` field. Dedicated
   relation-based `author:` semantics (resolve a persona and match their
-  works) remain deferred — until then `author:doe` works as property-schema
-  shorthand.
+  works) remain deferred — until then `authors:doe` works as
+  property-schema shorthand (the shipped schema name is "Authors").
 - `content contains` passes `%`/`_` through to LIKE (parity; wildcard
   escaping is a later concern).
 

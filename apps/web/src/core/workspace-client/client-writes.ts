@@ -10,6 +10,7 @@
 
 import { uuidv7 } from "uuidv7";
 import { planMerge, type MergePlanSummary } from "@notees/store";
+import { validateDisplayTemplate } from "@notees/domain";
 import type { OpPayload } from "@notees/protocol";
 
 import { UUID_LIKE } from "./types.js";
@@ -347,6 +348,46 @@ export class WorkspaceClientWrites {
   }
 
   /**
+   * The displayTemplate placeholder eligibility (SCHEMA.md "Class-level
+   * displayTemplate" — the write-time validation MUST): the names a
+   * template's {{name}} placeholders may name — the property schemas
+   * AVAILABLE to the class (the scope contract): global schemas plus
+   * schemas scoped to the class or one of its extends-ancestors
+   * (getClassParents walks the direct edges; the lineage is the transitive
+   * closure). Matched CASE-INSENSITIVELY, the query-language resolver
+   * precedent (resolversFor): the shipped seed template names
+   * "{{citekey}}" while the schema's display name is "Citekey".
+   */
+  private availableTemplateSchemaNames(classId: string): Set<string> {
+    const lineage = new Set<string>([classId]);
+    const queue = [classId];
+    while (queue.length > 0) {
+      const current = queue.pop() as string;
+      for (const parent of this.reads.getClassParents(current)) {
+        if (!lineage.has(parent)) {
+          lineage.add(parent);
+          queue.push(parent);
+        }
+      }
+    }
+    const names = new Set<string>();
+    for (const schema of this.props.listPropertySchemas()) {
+      if (schema.scopeClassIds === null || schema.scopeClassIds.some((id) => lineage.has(id))) {
+        names.add(schema.name.toLowerCase());
+      }
+    }
+    return names;
+  }
+
+  /** The SCHEMA.md write-time MUST, shared by both template write paths. */
+  private validateTemplateFor(classId: string, template: string | undefined | null): void {
+    // "" is the explicit opt-out (no placeholders to validate);
+    // null clears. Only a non-empty string carries placeholders.
+    if (typeof template !== "string" || template.length === 0) return;
+    validateDisplayTemplate(template, this.availableTemplateSchemaNames(classId));
+  }
+
+  /**
    * Create a class (class.create: node row + class registry row — the
    * registry row is what keeps the extends closure rebuild authoritative).
    * The store seeds the hierarchy self-row at create time, so no setExtends
@@ -380,7 +421,13 @@ export class WorkspaceClientWrites {
     // The class-level displayTemplate (registry column, store v36):
     // system authoring passes the seed manifest entry — "" is a real
     // opt-out value, so the undefined check (not truthiness) gates it.
-    if (opts?.displayTemplate !== undefined) payload.displayTemplate = opts.displayTemplate;
+    // Placeholder validation fires BEFORE the op is built (SCHEMA.md
+    // write-time MUST): an unknown or ineligible {{name}} fails loud here,
+    // never reaching the log.
+    if (opts?.displayTemplate !== undefined) {
+      this.validateTemplateFor(id, opts.displayTemplate);
+      payload.displayTemplate = opts.displayTemplate;
+    }
     this.ctx.enqueueLocal(this.ctx.buildEnvelope("class.create", payload, [id]));
     return id;
   }
@@ -421,9 +468,13 @@ export class WorkspaceClientWrites {
    * schema v36): a string presence-writes the template — "" is the explicit
    * opt-out, NOT absence — and `null` clears back to NULL (inherit through
    * extends at read time). class.update maps the column exactly like
-   * parentlessRole; the node row is not a carrier.
+   * parentlessRole; the node row is not a carrier. A non-empty template
+   * validates BEFORE the op is built (SCHEMA.md write-time MUST — an
+   * unknown or ineligible {{name}} placeholder fails loud, never reaching
+   * the log).
    */
   async updateClassDisplayTemplate(classId: string, template: string | null): Promise<void> {
+    this.validateTemplateFor(classId, template);
     this.ctx.enqueueLocal(
       this.ctx.buildEnvelope("class.update", { classId, displayTemplate: template }, [classId]),
     );
