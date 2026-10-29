@@ -40,11 +40,17 @@ export function parseDisplayTemplate(template: string): string[] {
  * Validates a template against the property-schema names available on the
  * class: throws DisplayTemplateError listing unknown and empty
  * placeholders; passes silently when every placeholder resolves.
+ * Case-insensitive: each placeholder name is FOLDED before the set lookup
+ * and the caller passes the available names folded (lowercase) — the render
+ * seam's dual-key contract ("Citekey" answers "{{citekey}}"; system wire
+ * keys alias the display names).
  */
 export function validateDisplayTemplate(template: string, availableSchemaNames: Set<string>): void {
   const names = parseDisplayTemplate(template);
   const empty = names.filter((name) => name.length === 0);
-  const unknown = names.filter((name) => name.length > 0 && !availableSchemaNames.has(name));
+  const unknown = names.filter(
+    (name) => name.length > 0 && !availableSchemaNames.has(name.toLowerCase()),
+  );
   if (empty.length === 0 && unknown.length === 0) return;
   const parts: string[] = [];
   if (unknown.length > 0) {

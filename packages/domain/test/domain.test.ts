@@ -810,6 +810,17 @@ describe("displayTemplate placeholder parsing and validation", () => {
     expect(() => validateDisplayTemplate("plain text, no placeholders", available)).not.toThrow();
   });
 
+  it("validateDisplayTemplate folds the placeholder before the set lookup (case-insensitive)", () => {
+    // The caller passes the available names folded (lowercase); a placeholder
+    // in any casing resolves — the render seam's dual-key contract.
+    const available = new Set(["citekey", "publicationdate", "authors"]);
+    expect(() => validateDisplayTemplate("@{{Citekey}}", available)).not.toThrow();
+    expect(() => validateDisplayTemplate("{{publicationDate}}", available)).not.toThrow();
+    expect(() => validateDisplayTemplate("{{DOI}}", new Set(["doi"]))).not.toThrow();
+    // Still rejects an unknown name in ANY casing.
+    expect(() => validateDisplayTemplate("{{Nope}}", available)).toThrow(DisplayTemplateError);
+  });
+
   it("validateDisplayTemplate throws DisplayTemplateError listing unknown placeholders", () => {
     const available = new Set(["citekey"]);
     expect(() => validateDisplayTemplate("@{{citeke}}", available)).toThrow(DisplayTemplateError);
