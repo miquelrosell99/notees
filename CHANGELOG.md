@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-29
 
+- **chore(ci): git-ref inputs + fail-loud dispatch guards on the docker
+  workflows** (Logseq playbook). `.github/workflows/release-docker.yml`:
+  new `git-ref` dispatch input (default `main` — tags, branches, or SHAs);
+  checkout uses `inputs['git-ref'] || github.ref` (bracket notation — the
+  key carries a dash); a first-step guard fails the run when a
+  `workflow_dispatch` arrives with an empty `image_tag` (a dispatch without
+  a channel tag would push version-less images); tag-push events unchanged.
+  `.github/workflows/nightly-docker.yml`: new `git-ref` dispatch input
+  (default `main`) with the same checkout wiring, plus a guard that fails
+  the run unless the dispatch's `git-ref` is exactly the repository default
+  branch (`github.event.repository.default_branch`) — nightly is main's
+  head; passing a SHA requires the default branch's SHA (exact string
+  compare is deliberate). Schedule events still build the default branch
+  head. Header comments on both workflows document the inputs and the
+  guards. Verified: both YAML files parse (`python yaml.safe_load` — the
+  gate can't run workflow YAML end-to-end locally); `pnpm typecheck` green
+  (no source touched).
+
 - **feat(protocol): date-chain embedding lock — `object.update {isEmbedded}`
   fails loud on date nodes, and the web "Move to content" entry hides on
   them.** A date node's journal role is platform-fixed (document chrome), but
