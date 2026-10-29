@@ -168,6 +168,37 @@ predating this file.
   render one row reading sort, switcher, search, filter (screenshot-checked
   against the probe class hub); full gate green (typecheck + 2529 web
   tests, full chain).
+- **feat(store): search fan-out over authored property values.** A bare term
+  in quick/global search and `@`-mention suggestions now also matches nodes by
+  their **authored property values** — every schema, every type, no index
+  dependency. The store-side `searchNodes`/`searchNodesPage` seam (behind
+  `client.search`/`client.searchPage`, so CommandPalette, NodeSelector,
+  SearchPage, and mention suggestions all pick it up through the one funnel)
+  gained a second candidate arm after the ranked FTS select: a parameterized
+  substring probe `CAST(pv.value AS TEXT) LIKE '%'||?||'%'` over
+  `property_value` joined to active nodes, tombstone-suppressed with the
+  compiler's `visibleValuePredicate` semantics inlined (no winning SLOT
+  tombstone, no strictly-newer ELEMENT tombstone — the store cannot import
+  `@notees/query`). Hits are deduped by node id against the FTS set and
+  appended below every ranked hit at a bounded constant tier (7), so a node
+  matching both appears once, at its FTS rank; the FTS index, the rank
+  formula, the query AST, and the snippet path are untouched. The probe binds
+  the trimmed mode needle verbatim (never reaching SQL as text; LIKE folds
+  ASCII case, the user's own diacritics pass through) and runs in default and
+  exact modes — starts-with mode keeps its title/text-prefix contract. What
+  the FTS arm could never surface: mid-token substrings (`2024` inside the
+  citekey `doe2024`) and non-indexed types (booleans, refs); text-ish values
+  keep their ranked FTS position, the probe is the safety net below. Verified:
+  new dual/triple-adapter block in `packages/store/test/store.test.ts` (8
+  tests × sqljs/sqlitewasm/better-sqlite3 — citekey full/prefix/mid-token,
+  multi-value authors, FTS+property dedupe at the FTS position, slot +
+  element tombstone suppression, trashed-node exclusion, the boolean type,
+  the no-match regression); the reindex-repair test in
+  `test/search-ranking.test.ts` re-pinned (an emptied FTS index no longer
+  means "no results" — the fan-out answers from the authored rows until the
+  rebuild lands). `pnpm --filter @notees/store build`, `pnpm typecheck`,
+  `pnpm test` all green (store 1057 passed).
+
 - **feat(web): class displayTemplate renders at the title seam, header opts
   out.** A node whose class carries a `displayTemplate` (`source`'s
   `"@{{citekey}}"`) now renders the RESOLVED template everywhere it is

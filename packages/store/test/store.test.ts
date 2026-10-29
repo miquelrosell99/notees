@@ -2419,6 +2419,135 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
+  describe("search property fan-out (authored property values)", () => {
+    const CITEKEY = "0192a000-0000-7000-8000-0000000000c1";
+    const AUTHORS = "0192a000-0000-7000-8000-0000000000c2";
+    const FLAG = "0192a000-0000-7000-8000-0000000000c3";
+    const EXTRA = "0192a000-0000-7000-8000-0000000000c4";
+    const AUTHORS_E1 = "0192a000-0000-7000-8000-0000000000e1";
+    const AUTHORS_E2 = "0192a000-0000-7000-8000-0000000000e2";
+
+    function propStore(): Store {
+      const store = baseStore();
+      store.apply(
+        env("propertySchema.create", { propertySchemaId: CITEKEY, name: "citekey", type: "text" }, 1727200002000),
+      );
+      store.apply(
+        env("propertySchema.create", { propertySchemaId: AUTHORS, name: "authors", type: "text", multi: true }, 1727200002100),
+      );
+      store.apply(
+        env("propertySchema.create", { propertySchemaId: FLAG, name: "flag", type: "boolean" }, 1727200002200),
+      );
+      return store;
+    }
+
+    it("citekey matches the full term, a prefix, and a mid-token substring", () => {
+      const store = propStore();
+      store.apply(
+        env("property.set", { objectId: NODE_BOOK, propertySchemaId: CITEKEY, value: "doe2024" }, 1727200003000),
+      );
+      const ids = (term: string) => store.search(term).map((h) => h.nodeId);
+      expect(ids("doe2024")).toContain(NODE_BOOK);
+      expect(ids("doe")).toContain(NODE_BOOK);
+      // Mid-token: FTS prefix tokens can never match "2024" inside "doe2024" —
+      // only the property-value LIKE probe can.
+      expect(ids("2024")).toContain(NODE_BOOK);
+      store.close();
+    });
+
+    it("authors multi-value rows match by any element, including mid-token", () => {
+      const store = propStore();
+      store.apply(
+        env("property.set", { objectId: NODE_BOOK, propertySchemaId: AUTHORS, value: "John Doe", elementId: AUTHORS_E1, idx: 0 }, 1727200003000),
+      );
+      store.apply(
+        env("property.set", { objectId: NODE_BOOK, propertySchemaId: AUTHORS, value: "Jane Smith", elementId: AUTHORS_E2, idx: 1 }, 1727200003100),
+      );
+      const ids = (term: string) => store.search(term).map((h) => h.nodeId);
+      expect(ids("Smith")).toContain(NODE_BOOK);
+      expect(ids("John")).toContain(NODE_BOOK);
+      // Mid-token inside one element.
+      expect(ids("ane")).toContain(NODE_BOOK);
+      store.close();
+    });
+
+    it("a node matching both FTS and property appears once, at its FTS position; property-only hits append below", () => {
+      const store = propStore();
+      // FTS hit on the title AND a property match — the citekey token
+      // "smith2024" can never prefix-match "2024".
+      store.apply(
+        env("object.update", { objectId: NODE_BOOK, contentAst: [{ type: "text", text: "Notes on 2024" }] }, 1727200003000),
+      );
+      store.apply(
+        env("property.set", { objectId: NODE_BOOK, propertySchemaId: CITEKEY, value: "smith2024" }, 1727200003100),
+      );
+      // Property-only hit.
+      store.apply(env("object.create", { objectId: EXTRA, contentAst: [] }, 1727200003200));
+      store.apply(
+        env("property.set", { objectId: EXTRA, propertySchemaId: CITEKEY, value: "doe2024" }, 1727200003300),
+      );
+      // A non-matching page stays out.
+      const ids = store.search("2024").map((h) => h.nodeId);
+      expect(ids.filter((id) => id === NODE_BOOK)).toHaveLength(1);
+      expect(ids).toEqual([NODE_BOOK, EXTRA]);
+      store.close();
+    });
+
+    it("a slot-tombstoned value does NOT match", () => {
+      const store = propStore();
+      store.apply(
+        env("property.set", { objectId: NODE_BOOK, propertySchemaId: CITEKEY, value: "doe2024" }, 1727200003000),
+      );
+      store.apply(env("property.unset", { objectId: NODE_BOOK, propertySchemaId: CITEKEY }, 1727200003100));
+      expect(store.search("2024")).toEqual([]);
+      store.close();
+    });
+
+    it("an element-tombstoned multi-value row does NOT match", () => {
+      const store = propStore();
+      const elementId = AUTHORS_E2;
+      store.apply(
+        env("property.set", { objectId: NODE_BOOK, propertySchemaId: AUTHORS, value: "Jane Smith", elementId, idx: 1 }, 1727200003000),
+      );
+      store.apply(env("property.unset", { objectId: NODE_BOOK, propertySchemaId: AUTHORS, elementId }, 1727200003100));
+      expect(store.search("mith")).toEqual([]);
+      store.close();
+    });
+
+    it("a trashed node does NOT match its property values", () => {
+      const store = propStore();
+      store.apply(
+        env("property.set", { objectId: NODE_BOOK, propertySchemaId: CITEKEY, value: "doe2024" }, 1727200003000),
+      );
+      store.apply(env("object.delete", { objectId: NODE_BOOK }, 1727200003100));
+      expect(store.search("2024")).toEqual([]);
+      store.close();
+    });
+
+    it("non-FTS-indexed property types (boolean) match too — the probe has no schema filter", () => {
+      const store = propStore();
+      store.apply(
+        env("property.set", { objectId: NODE_BOOK, propertySchemaId: FLAG, value: true }, 1727200003000),
+      );
+      expect(store.search("tru").map((h) => h.nodeId)).toContain(NODE_BOOK);
+      store.close();
+    });
+
+    it("a term matching nothing still returns only FTS results (regression)", () => {
+      const store = propStore();
+      store.apply(
+        env("property.set", { objectId: NODE_BOOK, propertySchemaId: CITEKEY, value: "doe2024" }, 1727200003000),
+      );
+      const quantum = "0192a000-0000-7000-8000-0000000000c5";
+      store.apply(
+        env("object.create", { objectId: quantum, contentAst: [{ type: "text", text: "Quantum physics" }] }, 1727200002000),
+      );
+      expect(store.search("Quantum").map((h) => h.nodeId)).toEqual([quantum]);
+      expect(store.search("zzzabsent")).toEqual([]);
+      store.close();
+    });
+  });
+
   describe("class search indexing", () => {
     it("classes are findable by name at create and after rename", () => {
       const store = baseStore();

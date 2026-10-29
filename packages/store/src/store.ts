@@ -844,8 +844,10 @@ export class Store {
    * > first-parent title > partial — with the FTS score, recency, and node
    * id inside a tier. A fully quoted query (`"gmi dental"`) is exact mode
    * (exact substring only); a leading caret (`^gmi`) is starts-with mode.
-   * Matching alias pages also contribute their terminal node. Both FTS
-   * modules produce the same tier order (one shared JS scorer).
+   * Matching alias pages also contribute their terminal node. Below every
+   * ranked hit, the property fan-out appends nodes whose AUTHORED property
+   * values substring-match the term (any schema, any type), deduped by node
+   * id. Both FTS modules produce the same tier order (one shared JS scorer).
    */
   search(query: string, limit = 50): SearchHit[] {
     return searchNodes(this.db, query, limit);
