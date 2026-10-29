@@ -31,11 +31,16 @@
  * host section's filter/view chrome joins the tabs' row; it renders ONLY
  * in the hosted tab bar (a non-hosted collection has no tab row). The
  * view's own per-view toolbar (table columns/sort/more, cards cover/selection)
- * portals into a slot mounted BEFORE the toolbar cluster — the cluster ends
- * with the NodeCollectionToolbar so its wrapped structured panel never moves the row.
- * An UN-hosted collection portals its chrome into the host-passed
- * `viewChromeTarget` when one exists (the hub top bar's slot) and falls back
- * to the body-top row otherwise.
+ * portals into the ViewChromeSlot — by DEFAULT the slot mounts FIRST and
+ * the toolbar content after it; a host passing a render-prop function
+ * positions the slot itself (the owner's register, shared with the hub bar:
+ * toolbar with the search field FIRST, then the slot, then per-host
+ * controls, the view switcher last). Where the structured panel renders
+ * IN PLACE (no host seat beneath the bar) the toolbar stays LAST in its
+ * cluster so the panel's wrapped full-width line never moves the row's
+ * other controls. An UN-hosted collection portals its chrome into the
+ * host-passed `viewChromeTarget` when one exists (the hub top bar's slot)
+ * and falls back to the body-top row otherwise.
  *
  *  The focused-block view (the `parent` prop, the v1
  *  "show parents" NodeCollection prop, generalized): the collection shows
@@ -82,7 +87,7 @@ import { SECTION_DEFAULT_TAB, NodeCollectionTabs } from "./NodeCollectionTabs.js
 import { NodeCollectionTopBar } from "./NodeCollectionTopBar.js";
 import { useSectionViewResolution } from "./sectionViewResolve.js";
 import type { NodeCollectionProps, ViewMode } from "./types.js";
-import { ViewChromeContext } from "./viewChrome.js";
+import { ViewChromeContext, ViewChromeSlot } from "./viewChrome.js";
 
 export function NodeCollection({
   viewMode,
@@ -301,10 +306,14 @@ export function NodeCollection({
             />
           }
           toolbar={
-            <>
-              <span className="node-collection__view-chrome" ref={setChromeSlot} />
-              {toolbarContent}
-            </>
+            typeof toolbarContent === "function" ? (
+              toolbarContent(setChromeSlot)
+            ) : (
+              <>
+                <ViewChromeSlot slotRef={setChromeSlot} />
+                {toolbarContent}
+              </>
+            )
           }
         />
       )}

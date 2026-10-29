@@ -57,6 +57,7 @@ import {
 } from "../collection/filterQuery.js";
 import { useSectionData, type SectionRowFilter } from "../collection/useSectionData.js";
 import { NodeCollection, ViewSwitcher, useAvailableViewModes } from "../collection/index.js";
+import { ViewChromeSlot } from "../collection/viewChrome.js";
 import { SECTION_DEFAULT_TAB } from "../collection/NodeCollectionTabs.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../collection/index.js";
 
@@ -277,9 +278,8 @@ export function ClassedNodesSection({
           trailingAction={unassignAction}
           emptyTitle="No classed nodes."
           hostedViews={{ nodeId: classId, sectionKey: "classed-nodes", createAst: () => draftOrFactoryAst(memberFilter), selected: tab, onSelectTab: setTab }}
-          toolbarContent={
+          toolbarContent={(setSlot) => (
             <>
-              <ViewSwitcher modes={availableModes} value={membersMode} onChange={setMembersMode} />
               <NodeCollectionToolbar
                 client={client}
                 layout="inline"
@@ -289,8 +289,10 @@ export function ClassedNodesSection({
                 totalCount={total}
                 viewSaver={{ client, nodeId: classId, sectionKey: "classed-nodes", onSaved: setTab }}
               />
+              <ViewChromeSlot slotRef={setSlot} />
+              <ViewSwitcher modes={availableModes} value={membersMode} onChange={setMembersMode} />
             </>
-          }
+          )}
         />
       )}
     </NodeViewSection>

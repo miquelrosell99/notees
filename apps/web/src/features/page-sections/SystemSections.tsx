@@ -77,6 +77,7 @@ import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../../ui/viewPrefs.js";
 import { promoteMentionInAst } from "../collection/unlinkedRefs.js";
 import { NodeCollectionToolbar } from "../collection/NodeCollectionToolbar.js";
+import { ViewChromeSlot } from "../collection/viewChrome.js";
 import {
   EMPTY_FILTER_QUERY,
   draftOrFactoryAst,
@@ -86,7 +87,7 @@ import {
   type FilterQuery,
 } from "../collection/filterQuery.js";
 import { NodeCollection, groupByContainingPage } from "../collection/index.js";
-import type { HostedViewsConfig, NodeCollectionItem, SortMode } from "../collection/index.js";
+import type { HostedViewsConfig, NodeCollectionItem, SortMode, ToolbarClusterContent } from "../collection/index.js";
 import { SECTION_DEFAULT_TAB } from "../collection/NodeCollectionTabs.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { useSectionData, type SectionRowFilter } from "../collection/useSectionData.js";
@@ -162,9 +163,10 @@ export function ReferenceList({
   /**
    * The section's toolbar cluster (its NodeCollectionToolbar) riding the top
    * bar's right — forwarded as the collection's `toolbarContent`; renders
-   * only in the hosted top bar.
+   * only in the hosted top bar. Plain node or render prop — see
+   * ToolbarClusterContent.
    */
-  toolbarContent?: ReactNode | undefined;
+  toolbarContent?: ToolbarClusterContent | undefined;
   /** The section-empty line when there is nothing to list (rides the collection's empty state). */
   emptyText?: string | undefined;
   /**
@@ -356,17 +358,20 @@ function ReferenceSection({
           {...(unlinkedPageId !== undefined ? { unlinkedPageId } : {})}
           hostedViews={{ nodeId: pageId, sectionKey, createAst: () => draftOrFactoryAst(filterQuery), selected: tab, onSelectTab: setTab, defaultViewLabel: title }}
           defaultSortMode={quickTextOf(filterQuery) === "" ? "dates-first" : "position"}
-          toolbarContent={
-            <NodeCollectionToolbar
-              client={client}
-              layout="inline"
-              value={filterQuery}
-              onChange={setFilterQuery}
-              matchCount={rows.length}
-              totalCount={total}
-              viewSaver={{ client, nodeId: pageId, sectionKey, onSaved: setTab }}
-            />
-          }
+          toolbarContent={(setSlot) => (
+            <>
+              <NodeCollectionToolbar
+                client={client}
+                layout="inline"
+                value={filterQuery}
+                onChange={setFilterQuery}
+                matchCount={rows.length}
+                totalCount={total}
+                viewSaver={{ client, nodeId: pageId, sectionKey, onSaved: setTab }}
+              />
+              <ViewChromeSlot slotRef={setSlot} />
+            </>
+          )}
           emptyText={emptyText}
         />
       )}

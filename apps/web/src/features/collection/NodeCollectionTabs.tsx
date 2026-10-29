@@ -16,12 +16,12 @@
  *  - the "+" rides the TABLIST's END (the
  *    right-cluster experiment placed it with the filter/view buttons and
  *    the owner brought it back beside the tabs): the LAST item of the tab
- *    strip, the classic new-tab position. The other chrome — the reset,
- *    the host section's `trailing` (the view switcher, the bar's quick
- *    search + structured toggle) — rides the bar's FAR RIGHT.
- *    Ordering contract: the bar renders LAST in the cluster so its
- *    structured panel wraps a full-width line BENEATH the row without
- *    moving the other controls;
+ *    strip, the classic new-tab position. The other chrome — the reset —
+ *    rides beside the tabs; the filter/view controls (the quick search +
+ *    structured toggle, the view-chrome slot, the view switcher) ride the
+ *    bar's FAR RIGHT cluster, ordered by the shared register
+ *    (viewChrome.tsx), composed through the NodeCollectionTopBar's toolbar
+ *    slot.
  *  - the active tab carries a TOTAL COUNT badge beside its name (the resolved row count of the open tab, replacing
  *    the filter panel's "N of M nodes match" foot line): visual only,
  *    `aria-hidden`, so the tab's accessible name stays the bare label;
@@ -37,7 +37,7 @@
  * must not vanish behind row count).
  */
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 
 import type { QueryAst } from "@notees/query";
 
@@ -89,14 +89,9 @@ export interface NodeCollectionTabsProps {
    * ("Backlinks", "Unlinked mentions"); absent = "Default".
    */
   defaultTabLabel?: string | undefined;
-  /**
-   * The host section's chrome riding the bar's far right (the bar's quick
-   * search + structured toggle, the view switcher) — one row with the tabs.
-   */
-  trailing?: ReactNode;
 }
 
-export function NodeCollectionTabs({ client, nodeId, sectionKey, selected, onSelect, createAst, activeCount, defaultTabLabel, trailing }: NodeCollectionTabsProps) {
+export function NodeCollectionTabs({ client, nodeId, sectionKey, selected, onSelect, createAst, activeCount, defaultTabLabel }: NodeCollectionTabsProps) {
   const { views, lastWriteError } = useSectionViews(client, nodeId, sectionKey);
   const [renaming, setRenaming] = useState<SectionView | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -196,7 +191,6 @@ export function NodeCollectionTabs({ client, nodeId, sectionKey, selected, onSel
             Reset to default
           </button>
         )}
-        {trailing}
       </div>
 
       {selectedView !== undefined && (

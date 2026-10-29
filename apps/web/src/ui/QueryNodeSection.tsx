@@ -46,7 +46,7 @@ import {
   type FilterQuery,
 } from "../features/collection/filterQuery.js";
 import type { AnyClient, ViewMode } from "../features/collection/index.js";
-import { Button } from "../components/ui/kit/Button.js";
+import { MoreActions } from "../components/ui/kit/index.js";
 import { QueryResultsBody, isUnspecifiedQueryAst } from "./queryResults.js";
 import { queryResultItems, useQueryRun } from "./queryRun.js";
 import { appendQueryToken, updateQueryTokenAst } from "./queryTokens.js";
@@ -201,49 +201,48 @@ export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectio
             onSelect={setTab}
             createAst={createAst}
             activeCount={resultCount}
-            trailing={
-              <>
-                {/* The results' view modes — the registry-backed ViewSwitcher
-                    (pivot is a registry mode like any other; its secondary
-                    tier rides the "…" overflow). */}
-                <ViewSwitcher
-                  modes={viewModes}
-                  value={viewMode}
-                  onChange={setViewMode}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  icon="mdi mdi-download"
-                  aria-label="Export results"
-                  title="Export results (Markdown)"
-                  disabled={!exportable}
-                  onClick={handleExport}
-                />
-              </>
-            }
           />
         }
         toolbar={
-          /* The toolbar renders LAST in the cluster: its structured panel
-             wraps a full-width line beneath the tab row. The key remounts
-             it once when the /query slash queue is consumed — the panel's
+          /* The cluster rides the owner's register — the filter toolbar
+             (search first), then the results' view-mode switcher (pivot is a
+             registry mode like any other; its secondary tier rides the "…"
+             overflow), then the "⋮ More actions" overflow of the secondary
+             action tier (the export). The toolbar's key remounts it once
+             when the /query slash queue is consumed — the panel's
              initial-open prop only reads at mount. */
-          <NodeCollectionToolbar
-            key={builderAutoOpen ? "builder-open" : "builder-closed"}
-            client={client}
-            layout="inline"
-            value={draft}
-            onChange={setDraft}
-            matchCount={null}
-            totalCount={null}
-            defaultPanelOpen={builderAutoOpen}
-            applyTarget={{
-              tabLabel: selectedView?.name ?? "Default",
-              onApply: applyToTab,
-            }}
-          />
+          <>
+            <NodeCollectionToolbar
+              key={builderAutoOpen ? "builder-open" : "builder-closed"}
+              client={client}
+              layout="inline"
+              value={draft}
+              onChange={setDraft}
+              matchCount={null}
+              totalCount={null}
+              defaultPanelOpen={builderAutoOpen}
+              applyTarget={{
+                tabLabel: selectedView?.name ?? "Default",
+                onApply: applyToTab,
+              }}
+            />
+            <ViewSwitcher
+              modes={viewModes}
+              value={viewMode}
+              onChange={setViewMode}
+            />
+            <MoreActions
+              items={[
+                {
+                  id: "export",
+                  icon: "mdi mdi-download",
+                  label: "Export results",
+                  disabled: !exportable,
+                  onSelect: handleExport,
+                },
+              ]}
+            />
+          </>
         }
       />
       <QueryResultsBody

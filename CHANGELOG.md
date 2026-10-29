@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): ONE owner's register for every collection bar — the search
+  field first, then buttons, then view mode, then the overflows — and a
+  secondary-action tier behind a new kit "⋮ More actions" panel.** The
+  lifted-toolbar slice composed the hub bar's controls in an ad-hoc order
+  that drifted from the hosted collection bars; the owner's ruling now
+  fixes ONE order everywhere: the filter toolbar with its quick search
+  FIRST, then the view-chrome slot (the ported sort button — the slot is
+  the new shared `ViewChromeSlot` component, host-positioned), then the
+  primary header actions ("New class" et al.), then the view switcher,
+  and the "…" overflow last. `NodeCollection`'s hosted `toolbarContent`
+  accepts a render prop receiving the slot's ref-callback so the hosted
+  bars (classed-nodes, backlinks/unlinked, child pages, extended-by)
+  compose the same register; `CollectionHub` reorders its actions cluster
+  to match; `NodeCollectionTabs`' now-unused `trailing` slot retires.
+  Bar actions gain the SelectionButton tier vocabulary: the new kit
+  `MoreActions` (a "⋮ More actions" ghost whose anchored panel lists
+  icon + label rows) hosts the SECONDARY tier — `CollectionHub` gains a
+  `secondaryActions` prop and the query-node section's Export moves there
+  out of the tabs strip. Verified: new more-actions suite (3 tests —
+  empty renders nothing, panel select fires + closes, disabled rows);
+  hub-filter-toolbar + query-node + filter-layer order assertions
+  rewritten to the register; screenshot-checked the Classes hub bar
+  reading search · filter · sort · New class · switcher · "…"; full gate
+  green (typecheck + 2531 web tests, full chain).
+
 - **fix(web): hub bars render their controls on one row, in the hosted
   collection's order.** The lifted-toolbar slice left the hub bar's actions
   wrapped on two rows at any width: the view switcher's `ViewToolbar` still
