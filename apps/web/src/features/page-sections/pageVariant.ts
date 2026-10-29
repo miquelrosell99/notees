@@ -27,26 +27,14 @@
  *    layout keeps those sections in the content stack instead.
  */
 
-import { createElement, type ReactNode } from "react";
-
 import { isSystemClassId, parseDateNodeId, rendersWithDocumentChrome } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { ClassedNodesSection } from "../classview/lassedNodesSection.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
-import { ExtendedBySection } from "../classview/xtendedBySection.js";
-import { ParentlessRoleSection } from "../classview/ParentlessRoleSection.js";
-import { PropertyDefinitionsSection } from "../classview/PropertyDefinitionsSection.js";
-import { TemplatesSection } from "../classview/emplatesSection.js";
-import {
-  BacklinksSection,
-  ChildPagesSection,
-  UnlinkedMentionsSection,
-} from "./SystemSections.js";
 import { createdPeriodBounds, isoOfDateParts } from "../calendar/calendarViewUtils.js";
-import type { SectionSpec } from "../collection/useSectionData.js";
+import { sectionEntries, type SectionEntry } from "./sectionRegistry.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -87,14 +75,12 @@ export interface CornerPillsConfig {
 }
 
 /**
- * A section entry in a variant's stack — SectionSpec-shaped (the `key`
- * identity composes SectionSpec; the read/query strategies and the
- * filter/view extensions stay in the SectionSpec contract), with `render` mounting
- * the existing section component at the variant's placement site.
+ * A section entry in a variant's stack — the registry's SectionEntry (the
+ * `key` identity composes the SectionSpec contract), composed from the
+ * registry by key list: placement is data, the render closures live in the
+ * registry (sectionRegistry.ts).
  */
-export interface VariantSectionSpec extends Pick<SectionSpec, "key"> {
-  render: (ctx: VariantSectionCtx) => ReactNode;
-}
+export type VariantSectionSpec = SectionEntry;
 
 /** The render context a variant section receives at its mount site. */
 export interface VariantSectionCtx {
@@ -155,74 +141,44 @@ export interface PageVariant {
  * the compact layout keeps them in this content stack (the session layout
  * toggle flips between the two).
  */
-const CLASS_SECTIONS: VariantSectionSpec[] = [
-  {
-    key: "classed-nodes",
-    render: ({ client, nodeId, onOpenPage, sectionsStartCollapsed }) =>
-      createElement(ClassedNodesSection, { client, classId: nodeId, onOpenPage, sectionsStartCollapsed }),
-  },
-];
+/**
+ * The class variant's content-column stack — the centerpiece (Classed
+ * nodes), composed from the registry by key list. Class properties +
+ * Templates ride the panelled layout's FIRST column under the Metadata
+ * panel via `sidebarSections`; the compact layout keeps them in this
+ * content stack (the session layout toggle flips between the two).
+ */
+const CLASS_SECTIONS: VariantSectionSpec[] = sectionEntries(["classed-nodes"]);
 
 /** The class variant's first-column stack (the panelled layout's side panel). */
-const CLASS_SIDEBAR_SECTIONS: VariantSectionSpec[] = [
-  {
-    key: "property-definitions",
-    render: ({ client, nodeId, sectionsStartCollapsed }) =>
-      createElement(PropertyDefinitionsSection, { client, classId: nodeId, sectionsStartCollapsed }),
-  },
-  {
-    key: "parentless-role",
-    render: ({ client, nodeId, sectionsStartCollapsed }) =>
-      createElement(ParentlessRoleSection, { client, classId: nodeId, sectionsStartCollapsed }),
-  },
-  {
-    key: "templates",
-    render: ({ client, nodeId, onOpenPage, sectionsStartCollapsed }) =>
-      createElement(TemplatesSection, { client, classId: nodeId, onOpenPage, sectionsStartCollapsed }),
-  },
-];
+const CLASS_SIDEBAR_SECTIONS: VariantSectionSpec[] = sectionEntries([
+  "property-definitions",
+  "parentless-role",
+  "templates",
+]);
 
 /** The class variant's ahead-of-family relation section: Extended by. */
-const CLASS_SYSTEM_SECTIONS: VariantSectionSpec[] = [
-  {
-    key: "extended-by",
-    render: ({ client, nodeId, onOpenClass, sectionsStartCollapsed }) =>
-      createElement(ExtendedBySection, { client, classId: nodeId, onOpenClass, sectionsStartCollapsed }),
-  },
-];
+const CLASS_SYSTEM_SECTIONS: VariantSectionSpec[] = sectionEntries(["extended-by"]);
 
 /**
  * Every page's reference family — the self-gating system sections
- * (SystemSections.tsx), as descriptor data: Child pages, Backlinks,
- * Unlinked mentions, in render order. Placement is data (the S5 contract);
- * the sections own their hide-when-empty gates.
+ * (SystemSections.tsx), as a key list: Child pages, Backlinks, Unlinked
+ * mentions, in render order. Placement is data (the S5 contract); the
+ * sections own their hide-when-empty gates.
  */
-const PAGE_SYSTEM_SECTIONS: VariantSectionSpec[] = [
-  {
-    key: "child-pages",
-    render: ({ client, nodeId, onOpenPage, embedded, sectionsStartCollapsed }) =>
-      createElement(ChildPagesSection, { client, pageId: nodeId, onOpenPage, embedded, sectionsStartCollapsed }),
-  },
-  {
-    key: "backlinks",
-    render: ({ client, nodeId, onOpenPage, sectionsStartCollapsed }) =>
-      createElement(BacklinksSection, { client, pageId: nodeId, onOpenPage, sectionsStartCollapsed }),
-  },
-  {
-    key: "unlinked-mentions",
-    render: ({ client, nodeId, onOpenPage, sectionsStartCollapsed }) =>
-      createElement(UnlinkedMentionsSection, { client, pageId: nodeId, onOpenPage, sectionsStartCollapsed }),
-  },
-];
+const PAGE_SYSTEM_SECTIONS: VariantSectionSpec[] = sectionEntries([
+  "child-pages",
+  "backlinks",
+  "unlinked-mentions",
+]);
 
 /**
  * The date family's reference stack: the day/month/year pages' descriptor
- * OMITS the unlinked spec — spec absence is the date-page ruling now
- *. The unlinked section (and its FTS count)
- * never mounts there at all.
+ * OMITS the unlinked key — spec absence is the date-page ruling now. The
+ * unlinked section (and its FTS count) never mounts there at all.
  */
-const DATE_SYSTEM_SECTIONS: VariantSectionSpec[] = PAGE_SYSTEM_SECTIONS.filter(
-  (spec) => spec.key !== "unlinked-mentions",
+const DATE_SYSTEM_SECTIONS: VariantSectionSpec[] = sectionEntries(
+  PAGE_SYSTEM_SECTIONS.map((spec) => spec.key).filter((key) => key !== "unlinked-mentions"),
 );
 
 /**
@@ -267,7 +223,6 @@ export function extendsCornerPills(
   };
 }
 
-/** The empty stacks every non-class variant declares. */
 const NO_SECTIONS: VariantSectionSpec[] = [];
 
 /**
