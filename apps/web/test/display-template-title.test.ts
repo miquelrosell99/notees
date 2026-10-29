@@ -278,4 +278,24 @@ describe("placeholder resolution — the real seeded shape (display names + wire
     });
     expect(titleOf(client, "n1")).toBe("The Long Way to a Small Angry Planet");
   });
+
+  it("display-name/wire-key collision: equal-rank aliases resolve first-index-wins in the deterministic effective-read order", () => {
+    const client = makeClient({
+      nodes: new Map([["n1", sourceNode()]]),
+      templates: new Map([[SOURCE_CLASS, "@{{citekey}}"]]),
+      props: new Map([
+        [
+          "n1",
+          [
+            // System Citekey reachable via BOTH the folded display name and
+            // the wire-key alias; listed FIRST, so it wins the equal-rank tie.
+            textProp("Citekey", "system-key", false, SYSTEM_PROPERTY_UUIDS.citekey),
+            // User schema whose display name shadows the wire key.
+            textProp("citekey", "user-value", false, "00000000-0000-0000-0fff-000000000099"),
+          ],
+        ],
+      ]),
+    });
+    expect(titleOf(client, "n1")).toBe("@system-key");
+  });
 });
