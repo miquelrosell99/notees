@@ -1,39 +1,26 @@
 /**
  * ClassedNodesSection — the class's instances, the class page's centerpiece
- * (the Capacities database / Tana supertag table): the editable collection
- * with one column per property binding, its mode chrome (table by default,
- * outline/cards/pivot switchable — the cards mode renders the
- * property board when a bound select property can group) riding the hosted
- * tab bar's far right. Expanded by default; rows open the member (inline
- * blocks resolve to their containing main node) and the row × unassigns the
+ * (the Capacities database / Tana supertag table), composing through the
+ * CollectionSection skin: the chrome, the lazy contract, the transient
+ * filter layer, the hosted tabs, and the hosted toolbar cluster (quick
+ * search first → the view-chrome slot → the mode switcher) all ride the
+ * skin. What the section owns stays: the availability-gated mode switcher
+ * (the eager member read gates it — the resolved rows live in the skin),
+ * the live sort defaults (pure alphabetical while the pool is the section's
+ * own order; while the quick search ranks the pool the ranked order IS the
+ * display order — membership AND order — so the defaults yield until the
+ * user picks a sort), the per-class device-local mode preference, the
+ * table's per-binding columns, the member-open semantics (inline blocks
+ * resolve to their containing main node), and the row × unassigning the
  * member from THIS class. The create affordance — a node classed with this
  * class — rides the section header's trailing action, visible even on an
- * empty database.
- *
- * The section resolves through useSectionData directly (the Section chrome
- * wrapper stays the lazy contract too, but the transient filter layer needs
- * the hook's post-resolution/pre-windowing step): the NodeCollectionToolbar (collapsible
- * quick search behind the magnifier toggle + the structured-filters toggle)
- * and the view switcher ride the hosted tab bar's FAR RIGHT as the
- * collection's `toolbarContent` (one chrome row with the
- * tabs, the structured panel dropping a wrapped full-width line beneath),
- * the section's FilterQuery filters the resolved members before the
- * collection's windowing sees them, and the section renders even empty
- * (the create affordance stays visible) — a hosted section: the count rides
- * the hosted tab bar's active-tab badge, naming the displayed rows, and the
- * header stays bare (the
- * header badge is the count's home only where tabs are absent). The query is
- * component state — one instance per class page,
- * lost on reload, nothing persisted. The member set opens pure
- * ALPHABETICAL in every mode — the list view's Name A–Z
- * and the table's Name-asc default (containers own table defaults; an
- * unset table renders the container's row order) — the sort chrome switches
- * both. While the quick search ranks the pool the ranked order leads (the
- * search ruling: its ids are membership AND order) and the alphabetical
- * default yields until the user picks a sort.
+ * empty database (the section renders even empty; the count rides the
+ * hosted tab bar's active-tab badge, never the header). The query is
+ * component state — one instance per class page, lost on reload, nothing
+ * persisted.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 
 import { rendersWithDocumentChrome } from "@notees/domain";
 
@@ -43,21 +30,16 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 import { titleOfNode } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { Icon } from "../../ui/Icon.js";
-import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { useViewModePreference } from "../../ui/viewPrefs.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
-import { NodeCollectionToolbar } from "../collection/NodeCollectionToolbar.js";
 import {
   EMPTY_FILTER_QUERY,
   draftOrFactoryAst,
-  filterQueryToGroup,
-  isFilterInactive,
   quickTextOf,
   type FilterQuery,
 } from "../collection/filterQuery.js";
-import { useSectionData, type SectionRowFilter } from "../collection/useSectionData.js";
-import { NodeCollection, ViewSwitcher, useAvailableViewModes } from "../collection/index.js";
-import { ViewChromeSlot } from "../collection/viewChrome.js";
+import { ViewSwitcher, useAvailableViewModes } from "../collection/index.js";
+import { CollectionSection } from "../collection/CollectionSection.js";
 import { SECTION_DEFAULT_TAB } from "../collection/NodeCollectionTabs.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../collection/index.js";
 
@@ -102,39 +84,18 @@ export function ClassedNodesSection({
   const modes: ViewMode[] = MEMBERS_VIEW_MODES;
 
   /**
-   * The transient filter layer: one FilterQuery per class page (component
-   * state, lost on reload), applied to the resolved members
-   * post-resolution/pre-windowing through the hook. The eager badge below
-   * stays UNFILTERED.
+   * The host's own FilterQuery COPY: the skin owns the transient state and
+   * reports it here — the host derives the live sort defaults and the new
+   * tab's starter AST (`createAst`) from the copy.
    */
   const [memberFilter, setMemberFilter] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
   /**
    * The hosted tab state, lifted: "Save as tab"
    * persists the structured draft as a section view and must SELECT the new
-   * tab — the tab state lives here now, handed to the collection as a
-   * controlled hostedViews (NodeCollection keeps its internal state when
-   * the control props are absent).
+   * tab — the tab state lives here, handed to the collection as a controlled
+   * hostedViews (which also auto-wires the skin's toolbar Save-as-tab).
    */
   const [tab, setTab] = useState<string>(SECTION_DEFAULT_TAB);
-  const memberFilterActive = useMemo<SectionRowFilter<ClientNode> | undefined>(() => {
-    if (isFilterInactive(memberFilter)) return undefined;
-    // The quick text narrows the pool by the ranked search before the
-    // structured group applies — it rides the filter, not the AST.
-    const group = filterQueryToGroup(memberFilter);
-    return {
-      group: group ?? { type: "group", logic: "and", children: [] },
-      text: quickTextOf(memberFilter),
-      nodeOf: (member) => member,
-    };
-  }, [memberFilter]);
-  const loadMembers = useCallback(() => client.getClassMembers(classId), [client, classId]);
-  const [expanded, setExpanded] = useState(!sectionsStartCollapsed);
-  const { rows: members, total } = useSectionData<ClientNode[]>({
-    client,
-    active: expanded,
-    read: loadMembers,
-    filter: memberFilterActive,
-  });
   /**
    * The sort defaults are LIVE: pure alphabetical while
    * the pool is the section's own order — but while the quick search ranks
@@ -143,6 +104,36 @@ export function ClassedNodesSection({
    * user picks a sort explicitly (the views' chosen-flag reseed).
    */
   const quickTextActive = quickTextOf(memberFilter) !== "";
+
+  // Availability gating rides the same seam as the hubs: the switcher and
+  // the persisted-mode sanitize see only the modes the member set feeds
+  // (a gated mode never renders; a persisted mode that gates out falls
+  // back to the table default — a dead switch never resurrects). The
+  // resolved rows live in the skin, so the gate reads the eager materialized
+  // member list — the same read the resolution runs, re-read per render.
+  const eagerMembers: NodeCollectionItem[] = client.getClassMembers(classId).map((member) => ({ node: member }));
+  const availableModes = useAvailableViewModes(client, eagerMembers, modes);
+  /**
+   * Durable display state per class — device-local, never an
+   * op; table stays the default per the owner rule, and a persisted mode
+   * the surface no longer offers falls back to the default.
+   */
+  const [membersMode, setMembersMode] = useViewModePreference(
+    `classMembers.${classId}`,
+    "table",
+    availableModes,
+  );
+  const memberColumns: TableColumn[] = [
+    { id: "name", kind: "name", label: "Name", sortable: true },
+    ...bindings.map((binding) => ({
+      id: binding.propertySchemaId,
+      kind: "property" as const,
+      label: binding.name,
+      propertySchemaId: binding.propertySchemaId,
+      sortable: true,
+    })),
+    { id: "created", kind: "created", label: "Created", sortable: true },
+  ];
 
   /**
    * A member opens directly when it renders with document chrome; an inline
@@ -190,33 +181,6 @@ export function ClassedNodesSection({
     void client.createObject({ isEmbedded: false, classIds: [classId] });
   };
 
-  const memberItems: NodeCollectionItem[] = (members ?? []).map((member) => ({ node: member }));
-  // Availability gating rides the same seam as the hubs: the switcher and
-  // the persisted-mode sanitize see only the modes the member set feeds
-  // (a gated mode never renders; a persisted mode that gates out falls
-  // back to the table default — a dead switch never resurrects).
-  const availableModes = useAvailableViewModes(client, memberItems, modes);
-  /**
-   * Durable display state per class — device-local, never an
-   * op; table stays the default per the owner rule, and a persisted mode
-   * the surface no longer offers falls back to the default.
-   */
-  const [membersMode, setMembersMode] = useViewModePreference(
-    `classMembers.${classId}`,
-    "table",
-    availableModes,
-  );
-  const memberColumns: TableColumn[] = [
-    { id: "name", kind: "name", label: "Name", sortable: true },
-    ...bindings.map((binding) => ({
-      id: binding.propertySchemaId,
-      kind: "property" as const,
-      label: binding.name,
-      propertySchemaId: binding.propertySchemaId,
-      sortable: true,
-    })),
-    { id: "created", kind: "created", label: "Created", sortable: true },
-  ];
   const unassignAction = (item: NodeCollectionItem) => (
     <button
       type="button"
@@ -234,67 +198,55 @@ export function ClassedNodesSection({
   );
 
   return (
-    <NodeViewSection
+    <CollectionSection
+      client={client}
       title="Classed nodes"
       icon={<Icon path="mdi-shape-outline" size={0.9} />}
       className="nt-section"
-      expanded={expanded}
-      onExpandedChange={setExpanded}
+      defaultCollapsed={sectionsStartCollapsed}
+      filterable
       action={{ icon: "mdi-plus", label: "Add member", onClick: addMember }}
-    >
-      {/* The chrome rides the hosted tab bar's far right (the collection's
-          `toolbarContent`), every control one right-hand cluster: the view
-          switcher first, then the NodeCollectionToolbar (permanent quick search +
-          structured-filters toggle) LAST — the bar's wrapped structured
-          panel lands beneath the row without moving these controls. The
-          create affordance lives in the section header's trailing action
-. */}
-      {members === null ? null : (
-        <NodeCollection
-          viewMode={membersMode}
-          client={client}
-          items={memberItems}
-          showBreadcrumbs={false}
-          tableColumns={memberColumns}
-          propertiesOf={(id) => client.getEffectiveProperties(id)}
-          tableEditable
-          groupByProperty={groupByProperty}
-          defaultSortMode={quickTextActive ? "position" : "alphabetical"}
-          defaultSort={quickTextActive ? undefined : { key: "name", direction: "asc" }}
-          onNodeClick={(id) => {
-            const member = client.getNode(id);
-            // The worker-client's cachedRead serves undefined on a key's
-            // first-ever read (the value lands a macrotask later) — a row
-            // the table rendered exists, so a miss is a read-cache artifact,
-            // not a missing node: open the id directly instead of dropping
-            // the click (the first-click-no-op found by the live probe
-            // 2026-10-20).
-            if (member === undefined) {
-              onOpenPage?.(id);
-              return;
-            }
-            openMember(member);
-          }}
-          trailingAction={unassignAction}
-          emptyTitle="No classed nodes."
-          hostedViews={{ nodeId: classId, sectionKey: "classed-nodes", createAst: () => draftOrFactoryAst(memberFilter), selected: tab, onSelectTab: setTab }}
-          toolbarContent={(setSlot) => (
-            <>
-              <NodeCollectionToolbar
-                client={client}
-                layout="inline"
-                value={memberFilter}
-                onChange={setMemberFilter}
-                matchCount={members.length}
-                totalCount={total}
-                viewSaver={{ client, nodeId: classId, sectionKey: "classed-nodes", onSaved: setTab }}
-              />
-              <ViewChromeSlot slotRef={setSlot} />
-              <ViewSwitcher modes={availableModes} value={membersMode} onChange={setMembersMode} />
-            </>
-          )}
-        />
-      )}
-    </NodeViewSection>
+      viewMode={membersMode}
+      read={() => client.getClassMembers(classId).map((member) => ({ node: member }))}
+      onFilterChange={setMemberFilter}
+      collection={{
+        showBreadcrumbs: false,
+        tableColumns: memberColumns,
+        propertiesOf: (id) => client.getEffectiveProperties(id),
+        tableEditable: true,
+        groupByProperty,
+        defaultSortMode: quickTextActive ? "position" : "alphabetical",
+        defaultSort: quickTextActive ? undefined : { key: "name", direction: "asc" },
+        onNodeClick: (id) => {
+          const member = client.getNode(id);
+          // The worker-client's cachedRead serves undefined on a key's
+          // first-ever read (the value lands a macrotask later) — a row
+          // the table rendered exists, so a miss is a read-cache artifact,
+          // not a missing node: open the id directly instead of dropping
+          // the click (the first-click-no-op found by the live probe
+          // 2026-10-20).
+          if (member === undefined) {
+            onOpenPage?.(id);
+            return;
+          }
+          openMember(member);
+        },
+        trailingAction: unassignAction,
+        emptyTitle: "No classed nodes.",
+        hostedViews: {
+          nodeId: classId,
+          sectionKey: "classed-nodes",
+          createAst: () => draftOrFactoryAst(memberFilter),
+          selected: tab,
+          onSelectTab: setTab,
+        },
+        // The mode switcher rides the cluster's far right — the owner's
+        // register: the toolbar (quick search first), then the view-chrome
+        // slot, then this.
+        toolbarContent: (
+          <ViewSwitcher modes={availableModes} value={membersMode} onChange={setMembersMode} />
+        ),
+      }}
+    />
   );
 }

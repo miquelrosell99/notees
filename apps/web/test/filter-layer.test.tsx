@@ -87,11 +87,13 @@ function tableRowCount(): number {
 }
 
 /** The classed-nodes section wrapper (a class page renders the backlinks
- * strip's bar too — every bar query scopes to its own section). */
+ * strip's bar too — every bar query scopes to its own section). The section
+ * composes through the CollectionSection skin. */
 function classedNodesSection(): HTMLElement {
   const header = screen.getByRole("button", { name: /classed nodes/i });
   const section = header.closest("section");
   if (section === null) throw new Error("no classed-nodes section");
+  expect(section.classList.contains("nt-collection-section")).toBe(true);
   return section as HTMLElement;
 }
 
