@@ -34,7 +34,7 @@ import {
 } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { runSourcesQuery } from "../src/features/sources/sourcesQuery.js";
+import { runSourcesQuery, type SourceRow } from "../src/features/sources/sourcesQuery.js";
 import { groupSourceDuplicates } from "../src/features/sources/duplicates.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000e1";
@@ -345,5 +345,32 @@ describe("groupSourceDuplicates", () => {
 
   it("empty input yields no groups", () => {
     expect(groupSourceDuplicates([])).toEqual([]);
+  });
+
+  it("never merges rows whose concatenated bucket keys would collide (field separators)", () => {
+    // Pure rows — the pinning case: title "A" + author token "bc" and
+    // title "AB" + token "c" both spell "…abc" unseparated; "Chapter 3" +
+    // 2021 and "Chapter 32" + … spell the same digit run. Neither pair
+    // shares a real edge, so no group may form.
+    const row = (id: string, title: string, authorsText: string, year: number | null): SourceRow => ({
+      id,
+      classKey: "journal_article",
+      title,
+      authorsText,
+      year,
+      venue: "",
+      citekey: "",
+      doi: "",
+      isbn: "",
+      attachmentCount: 0,
+      isActive: true,
+    });
+    const groups = groupSourceDuplicates([
+      row("00000000-0000-7000-8000-0000000000a1", "A", "bc, X", null),
+      row("00000000-0000-7000-8000-0000000000a2", "AB", "c, Y", null),
+      row("00000000-0000-7000-8000-0000000000b1", "Chapter 3", "P, Q", 2021),
+      row("00000000-0000-7000-8000-0000000000b2", "Chapter 32", "R, S", null),
+    ]);
+    expect(groups).toEqual([]);
   });
 });

@@ -114,8 +114,11 @@ export function groupSourceDuplicates(rows: readonly SourceRow[]): SourceDuplica
     if (key.isbn !== "") add(`isbn${key.isbn}`, index);
     if (key.citekey !== "") add(`citekey${key.citekey}`, index);
     if (key.title !== "") {
-      if (key.year !== null) add(`title-year${key.title}${key.year}`, index);
-      if (key.authorToken !== "") add(`title-author${key.title}${key.authorToken}`, index);
+      // \u0000-separated fields: concatenated keys must stay unambiguous
+      // ("A"+token "bc" vs title "AB"+token "c" — both spell "…abc"
+      // unseparated, and titles ending in digits bleed into the year).
+      if (key.year !== null) add(`title-year\u0000${key.title}\u0000${key.year}`, index);
+      if (key.authorToken !== "") add(`title-author\u0000${key.title}\u0000${key.authorToken}`, index);
     }
   }
   for (const members of buckets.values()) {
