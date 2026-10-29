@@ -6,16 +6,18 @@ name: Release Docker images
 #
 # Tag push (v*) publishes the tag (v-prefixed + semver). `:latest` applies
 # ONLY to stable semver tags — prereleases (v2.0.0-m2 and friends, any tag
-# with a `-`) never move `latest`. Manual dispatch publishes `latest` plus
-# the given image_tag — the way to (re)publish an existing stable release's
-# images. A dispatch takes two inputs:
+# with a `-`) never move `latest`.
 #
-#   image_tag — REQUIRED in practice (a first-step guard fails the run when
-#     it is empty): a dispatch without a channel tag would push version-less
-#     images.
-#   git-ref — the ref to build (tags, branches, or SHAs; default `main`).
-#     Lets a dispatch (re)build an existing release's images from its tag
-#     instead of whatever main's head is today.
+# Publish requires a PUSHED tag — sonarly semantics, per the fleet ruling.
+# A manual dispatch is build-verify only: it builds the images but NEVER
+# pushes (the build-push step's push is gated to tag events). A dispatch
+# takes one input:
+#
+#   git-ref — the ref to build (branches or SHAs; default `main`). Lets a
+#     dispatch verify that a branch/SHA still builds the release images.
+#     A git-ref pointing at a release tag (v* / refs/tags/v*) fails loud on
+#     dispatch — push the tag instead; a pushed tag triggers the real
+#     release run (and is the ONLY way images get published).
 #
 # Nightly main builds live in nightly-docker.yml (`:nightly`).
 
@@ -25,18 +27,18 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
-      image_tag:
-        description: "Extra image tag to apply (e.g. 2.0.0-m2); 'latest' is always applied. Required on dispatch — the run fails loud if empty."
-        required: false
-        default: ""
       git-ref:
-        description: "Ref to build — tags, branches, or SHAs (default main)."
+        description: "Ref to build-verify — branches or SHAs (default main). Never pushed; pushing a v* tag is the only way to publish."
         required: false
         default: "main"
 
 permissions:
   contents: read
   packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   docker:
@@ -50,13 +52,16 @@ jobs:
           - image: notees-web
             dockerfile: apps/web/Dockerfile
     steps:
-      - name: Guard — dispatch requires an image tag
+      - name: Guard — dispatch must not target a release tag
         if: github.event_name == 'workflow_dispatch'
         run: |
-          if [ -z "${{ inputs.image_tag }}" ]; then
-            echo "::error::workflow_dispatch requires the image_tag input — a dispatch without a channel tag would push version-less images (only 'latest'). Set image_tag to the release you are (re)publishing."
-            exit 1
-          fi
+          ref="${{ inputs['git-ref'] }}"
+          case "$ref" in
+            v*|refs/tags/v*)
+              echo "::error::git-ref '$ref' is a release tag — push the tag instead; a pushed tag triggers the real release run (and moves :latest only for stable semver). A dispatch build-verifies only and never publishes."
+              exit 1
+              ;;
+          esac
 
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -83,14 +88,15 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
-            type=raw,value=${{ inputs.image_tag }},enable=${{ inputs.image_tag != '' }}
 
       - name: Build and push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          push: true
+          # Publish requires a pushed tag (sonarly semantics) — a dispatch
+          # build-verifies only and never pushes.
+          push: ${{ github.ref_type == 'tag' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
