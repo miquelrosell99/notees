@@ -43,11 +43,29 @@
   background: transparent;
 }
 
-/* The composed kit EmptyState (see JournalsView.tsx) anchors to the feed's
-   full height — the hand-rolled column's flex:1 role; the visual recipe is
-   EmptyState's own. */
-.journals-empty {
-  flex: 1;
+/* The unrealized day (the permanent-address model): the same date header
+   the realized entry renders, plus ONE muted start affordance — no page
+   chrome, no card. The entry stays slim so empty days read as rhythm,
+   not records. */
+.journal-entry--virtual .day-page-header {
+  margin: 0;
+}
+
+.journal-virtual-start {
+  align-self: flex-start;
+  margin-top: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-card);
+  cursor: pointer;
+}
+
+.journal-virtual-start:hover {
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* The embedded feed title is a plain heading, not a link — the

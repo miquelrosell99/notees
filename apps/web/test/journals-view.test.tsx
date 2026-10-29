@@ -1,9 +1,12 @@
 /**
- * JournalsView tests: the feed lists day-classed pages newest-first; the
- * anchor is today when it exists, else the newest entry at or before today;
- * the initial window is a slice around the anchor (IntersectionObserver is
- * absent in jsdom, so it never grows); clicking an entry's title button
- * opens the page view; the empty state creates and opens today.
+ * JournalsView tests: the feed enumerates CALENDAR DAYS (the
+ * permanent-address model) — every day from the anchor back through the
+ * window renders an entry, realized (the day node exists) or virtual (a
+ * slim date header + start affordance); the anchor is today unless a
+ * mini-month pick owns it; the initial window is today plus the radius
+ * (IntersectionObserver is absent in jsdom, so it never grows); navigation
+ * never materializes a node — only the virtual entry's start affordance
+ * does (and the restore affordance on a trashed day).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -82,13 +85,12 @@ function isoOf(id: string): string {
 }
 
 describe("JournalsView", () => {
-  it("lists day pages newest-first around a today anchor", async () => {
+  it("lists a contiguous day window newest-first around a today anchor", async () => {
     const client = await seedClient();
     const today = todayIso();
     await Promise.all([
       createDayPage(client, today),
       createDayPage(client, shiftDays(today, -1)),
-      createDayPage(client, shiftDays(today, -2)),
       createDayPage(client, shiftDays(today, -3)),
     ]);
 
@@ -96,29 +98,35 @@ describe("JournalsView", () => {
     const { container } = render(<JournalsView client={client} onOpenPage={onOpenPage} />);
 
     const shown = renderedIds(container);
-    expect(shown).toHaveLength(4);
+    // Every calendar day in the window renders an entry — realized or
+    // virtual — today plus the radius behind it.
+    expect(shown).toHaveLength(1 + 8);
     expect(shown[0]).toBe(dayNodeId(today));
     expect(shown).toEqual([...shown].sort((a, b) => isoOf(b).localeCompare(isoOf(a))));
+    // Three realized days carry the full page view; the rest are virtual.
+    expect(
+      container.querySelectorAll(".journal-entry--virtual").length,
+    ).toBe(9 - 3);
     // The anchor sits on today's entry.
     const anchor = container.querySelector("[data-anchor='true']");
     expect(anchor?.getAttribute("data-journal-id")).toBe(dayNodeId(today));
   });
 
-  it("anchors on the newest entry at or before today when today has no page", async () => {
+  it("today anchors as a virtual entry when no today page exists", async () => {
     const client = await seedClient();
     const today = todayIso();
     const threeBack = shiftDays(today, -3);
-    const fiveBack = shiftDays(today, -5);
-    await Promise.all([createDayPage(client, threeBack), createDayPage(client, fiveBack)]);
+    await createDayPage(client, threeBack);
 
     const { container } = render(
       <JournalsView client={client} onOpenPage={() => {}} />,
     );
     const anchor = container.querySelector("[data-anchor='true']");
-    expect(anchor?.getAttribute("data-journal-id")).toBe(dayNodeId(threeBack));
+    expect(anchor?.getAttribute("data-journal-id")).toBe(dayNodeId(today));
+    expect(anchor?.classList.contains("journal-entry--virtual")).toBe(true);
   });
 
-  it("anchors on the newest entry when only future day pages exist", async () => {
+  it("realized future pages render above the today anchor", async () => {
     const client = await seedClient();
     const today = todayIso();
     const future = shiftDays(today, 4);
@@ -129,7 +137,11 @@ describe("JournalsView", () => {
       <JournalsView client={client} onOpenPage={() => {}} />,
     );
     const anchor = container.querySelector("[data-anchor='true']");
-    expect(anchor?.getAttribute("data-journal-id")).toBe(dayNodeId(future));
+    expect(anchor?.getAttribute("data-journal-id")).toBe(dayNodeId(today));
+    const shown = renderedIds(container);
+    expect(shown[0]).toBe(dayNodeId(further));
+    expect(shown[1]).toBe(dayNodeId(future));
+    expect(shown[2]).toBe(dayNodeId(today));
   });
 
   it("the side panel renders the mini-month navigator and the events element", async () => {
@@ -226,7 +238,7 @@ describe("JournalsView", () => {
     });
   });
 
-  it("picking a day with no page materializes it and navigates", async () => {
+  it("picking a day with no page navigates to its virtual entry without materializing it", async () => {
     const client = await seedClient();
     const today = todayIso();
     const target = shiftDays(today, -2);
@@ -242,17 +254,26 @@ describe("JournalsView", () => {
     fireEvent.click(dayButton);
 
     await waitFor(() => {
-      expect(client.getNodeRaw(dayNodeId(target))).toBeDefined();
-      expect(
-        container.querySelector(".journal-entry[data-anchor='true']")?.getAttribute("data-journal-id"),
-      ).toBe(dayNodeId(target));
+      // Navigation alone never creates the node (realize-on-first-write)…
+      expect(client.getNodeRaw(dayNodeId(target))).toBeUndefined();
+      const anchor = container.querySelector(".journal-entry[data-anchor='true']");
+      expect(anchor?.getAttribute("data-journal-id")).toBe(dayNodeId(target));
+      expect(anchor?.classList.contains("journal-entry--virtual")).toBe(true);
+    });
+
+    // …the entry's start affordance is what materializes the day.
+    const anchor = container.querySelector(".journal-entry[data-anchor='true']") as HTMLElement;
+    fireEvent.click(within(anchor).getByRole("button", { name: /click to start/i }));
+    await vi.waitFor(() => {
+      expect(client.getNode(dayNodeId(target))).toBeDefined();
     });
   });
 
-  it("renders only a window around the anchor for large journals", async () => {
+  it("renders only a window around the anchor: virtual days fill the gap", async () => {
     const client = await seedClient();
     const today = todayIso();
-    // 40 past pages: the feed must not mount all of them at once.
+    // 40 past pages: the feed must not mount all of them at once — the
+    // window stays today plus the radius, unrealized days included.
     const all = [];
     for (let i = 1; i <= 40; i++) all.push(createDayPage(client, shiftDays(today, -i)));
     await Promise.all(all);
@@ -261,10 +282,54 @@ describe("JournalsView", () => {
       <JournalsView client={client} onOpenPage={() => {}} />,
     );
     const shown = renderedIds(container);
-    expect(shown.length).toBeGreaterThan(0);
-    expect(shown.length).toBeLessThan(40);
+    expect(shown.length).toBe(9);
     // The window is centered on the anchor: newest-first slice from today.
-    expect(shown[0]).toBe(dayNodeId(shiftDays(today, -1)));
+    expect(shown[0]).toBe(dayNodeId(today));
+  });
+
+  it("a feed entry renders the day-page aggregations (Dated/Created)", async () => {
+    const client = await seedClient();
+    const today = todayIso();
+    const todayId = await createDayPage(client, today);
+    // A main node created today lists in the entry's Created section (the
+    // date-chain filter keeps the day page itself out).
+    await client.createObject({
+      isEmbedded: false,
+      name: "Fresh page",
+    });
+    // A datetime value referencing today backlinks the day node — the
+    // entry's Dated section.
+    const whenSchema = await client.createPropertySchema({ name: "When", type: "datetime" });
+    if (client.getNodeRaw(SYSTEM_CLASS_UUIDS.event) === undefined) {
+      await client.createClass("event", { id: SYSTEM_CLASS_UUIDS.event });
+    }
+    const datedClass = await client.createClass("dated-thing");
+    await client.setClassExtends(datedClass, [SYSTEM_CLASS_UUIDS.event]);
+    await client.setClassProperty(datedClass, whenSchema, {});
+    const dated = await client.createObject({
+      isEmbedded: false,
+      name: "Dated thing",
+      classIds: [datedClass],
+    });
+    await client.setDatetimeProperty(dated, whenSchema, { iso: today }, 0);
+
+    const { container } = render(<JournalsView client={client} onOpenPage={vi.fn()} />);
+    await screen.findByText("Journal");
+    const entry = container.querySelector(
+      `.journal-entry[data-journal-id='${todayId}']`,
+    ) as HTMLElement;
+    expect(entry).not.toBeNull();
+    // The full page view's day sections ride the embedded render — the feed
+    // is the day-page context, not a summary surface. Both sections start
+    // collapsed; expanding them lists their rows.
+    const createdToggle = within(entry).getByRole("button", { name: /Created/ });
+    const datedToggle = within(entry).getByRole("button", { name: /Dated/ });
+    fireEvent.click(createdToggle);
+    fireEvent.click(datedToggle);
+    await waitFor(() => {
+      expect(within(entry).getAllByText("Fresh page").length).toBeGreaterThan(0);
+      expect(within(entry).getAllByText("Dated thing").length).toBeGreaterThan(0);
+    });
   });
 
   it("clicking an entry's open-page button opens the page view", async () => {
@@ -281,18 +346,23 @@ describe("JournalsView", () => {
     expect(onOpenPage).toHaveBeenCalledWith(dayNodeId(today));
   });
 
-  it("empty state creates today and opens it", async () => {
+  it("with no pages at all, today renders as a virtual entry whose affordance starts it", async () => {
     const client = await seedClient();
-    const onOpenPage = vi.fn();
-    render(<JournalsView client={client} onOpenPage={onOpenPage} />);
-    fireEvent.click(screen.getByRole("button", { name: /open today/i }));
-    await vi.waitFor(() =>
-      expect(onOpenPage).toHaveBeenCalledWith(dayNodeId(todayIso())),
-    );
-    expect(client.getNodeRaw(dayNodeId(todayIso()))).not.toBeUndefined();
+    render(<JournalsView client={client} onOpenPage={vi.fn()} />);
+    const today = todayIso();
+    const entry = await screen.findByText("Journal").then(() => {
+      const anchor = document.querySelector(".journal-entry[data-anchor='true']") as HTMLElement;
+      expect(anchor?.getAttribute("data-journal-id")).toBe(dayNodeId(today));
+      expect(anchor?.classList.contains("journal-entry--virtual")).toBe(true);
+      return anchor;
+    });
+    fireEvent.click(within(entry).getByRole("button", { name: /click to start/i }));
+    await vi.waitFor(() => {
+      expect(client.getNode(dayNodeId(today))).toBeDefined();
+    });
   });
 
-  it("clicking Today with no today page materializes it and re-anchors the jump", async () => {
+  it("clicking Today never materializes a missing today page", async () => {
     const client = await seedClient();
     const today = todayIso();
     const threeBack = shiftDays(today, -3);
@@ -301,45 +371,64 @@ describe("JournalsView", () => {
     const { container } = render(
       <JournalsView client={client} onOpenPage={() => {}} />,
     );
-    // Without a today page the anchor is the nearest day at-or-before…
+    // The anchor is today even without a page (a virtual entry).
     expect(
       container.querySelector("[data-anchor='true']")?.getAttribute("data-journal-id"),
-    ).toBe(dayNodeId(threeBack));
+    ).toBe(dayNodeId(today));
 
     fireEvent.click(screen.getByRole("button", { name: "Jump to today" }));
 
-    // …and the jump materializes today rather than landing on that past day.
+    // Today re-owns the anchor; the jump stays display-only — no node.
     await vi.waitFor(() => {
-      expect(client.getNodeRaw(dayNodeId(today))).not.toBeUndefined();
+      expect(client.getNodeRaw(dayNodeId(today))).toBeUndefined();
       expect(
         container.querySelector("[data-anchor='true']")?.getAttribute("data-journal-id"),
       ).toBe(dayNodeId(today));
     });
   });
 
-  it("clicking Today resurrects a trashed today page instead of landing on a past day", async () => {
+  it("the wire delete is locked on date-chain nodes — the day stays live", async () => {
+    const client = await seedClient();
+    const today = todayIso();
+    await createDayPage(client, today);
+    // Soft and permanent arms both fail loud; the node never leaves the graph.
+    await expect(client.deleteObject(dayNodeId(today))).rejects.toThrow(/date-chain/);
+    await expect(
+      client.deleteObject(dayNodeId(today), { permanent: true }),
+    ).rejects.toThrow(/date-chain/);
+    expect(client.getNode(dayNodeId(today))).toBeDefined();
+  });
+
+  it("a trashed today page renders a restore affordance that resurrects it", async () => {
     const client = await seedClient();
     const today = todayIso();
     const threeBack = shiftDays(today, -3);
     await createDayPage(client, today);
     await createDayPage(client, threeBack);
-    // Trash today's page: getNodeRaw still sees the row, so a naive
-    // existence check no-ops — but every listing read filters it out.
-    await client.deleteObject(dayNodeId(today));
+    // The wire delete is locked on date-chain nodes (the fourth lock), so
+    // the trashed-day state — possible only from a pre-lock log row or a
+    // foreign client — is seeded at the store level: exactly the rows a
+    // soft delete's applier would have written.
+    const db = client.store.database;
+    db.prepare("UPDATE node SET is_active = 0 WHERE id = ?").run(dayNodeId(today));
+    db.prepare(
+      "INSERT OR REPLACE INTO trash (node_id, deleted_at, is_permanent) VALUES (?, ?, 0)",
+    ).run(dayNodeId(today), new Date().toISOString());
     expect(client.getNodeRaw(dayNodeId(today))).not.toBeUndefined();
     expect(client.getNode(dayNodeId(today))).toBeUndefined();
 
     const { container } = render(
       <JournalsView client={client} onOpenPage={() => {}} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Jump to today" }));
+    const entry = container.querySelector(
+      `.journal-entry[data-journal-id='${dayNodeId(today)}']`,
+    ) as HTMLElement;
+    expect(entry.classList.contains("journal-entry--virtual")).toBe(true);
+    fireEvent.click(within(entry).getByRole("button", { name: /restore/i }));
 
-    // The ensure restores the trashed chain node; the feed anchors on today.
+    // The ensure restores the trashed chain node; the entry turns realized.
     await vi.waitFor(() => {
-      expect(client.getNode(dayNodeId(today))).not.toBeUndefined();
-      expect(
-        container.querySelector("[data-anchor='true']")?.getAttribute("data-journal-id"),
-      ).toBe(dayNodeId(today));
+      expect(client.getNode(dayNodeId(today))).toBeDefined();
     });
   });
 });

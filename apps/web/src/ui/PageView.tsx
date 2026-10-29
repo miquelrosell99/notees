@@ -395,9 +395,12 @@ export function PageView({
    * precision is a day page and gets the date header (weekday/Today flags +
    * the week flag) and the three aggregation sections;
    * month/year pages carry the Created aggregation too. Both facts ride the
-   * variant descriptor now (pageVariantOf); embedded renders (journal feed,
-   * calendar daily-note embed) skip both at the render sites — they already
-   * sit on aggregation surfaces.
+   * variant descriptor now (pageVariantOf); the sections render on embedded
+   * surfaces too (the journal feed IS the day-page context — a feed entry
+   * hiding its day aggregations left the journal showing less than the full
+   * page view, the ruling's "already sit on aggregation surfaces" premise
+   * having died with the surfaces it assumed). Only the preview seam skips
+   * them (a trampoline card carries no aggregations).
    */
   const dayIso = variant.dayIso ?? null;
   /** Month/year Created bounds (null on day pages and non-date nodes). */
@@ -698,7 +701,7 @@ export function PageView({
                 per-family ones inside. */}
             <div className="nt-page-section-stack">
               {variantSections}
-              {!preview && dayIso !== null && !embedded && (
+              {!preview && dayIso !== null && (
                 <DayPageSections
                   client={client}
                   pageId={pageId}
@@ -706,7 +709,7 @@ export function PageView({
                   onOpenPage={onOpenPage}
                 />
               )}
-              {!preview && createdPeriod !== null && !embedded && (
+              {!preview && createdPeriod !== null && (
                 <CreatedSection
                   client={client}
                   pageId={pageId}

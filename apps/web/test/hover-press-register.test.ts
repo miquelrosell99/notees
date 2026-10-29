@@ -280,12 +280,13 @@ describe("the final sweep notes close (2026-10-16)", () => {
     expect(input![0]).not.toContain("--spacing-16");
   });
 
-  it("journals and trash compose the kit EmptyState — the local empty CSS is dead", () => {
-    // Journals: the EmptyState carries the sentence-as-title + the CTA;
-    // the local stylesheet keeps only the flex-1 feed anchor.
-    expect(journalsSrc).toContain('from "../../components/ui/kit/EmptyState.js"');
-    expect(journalsSrc).toContain("Open today");
-    expect(/\.journals-empty \{\s*flex: 1;\s*\}/.test(journalsCss)).toBe(true);
+  it("trash composes the kit EmptyState — and the journal feed no longer has an empty state at all", () => {
+    // Journals: the permanent-address model — today always renders an entry
+    // (virtual when unrealized), so the feed carries NO EmptyState and no
+    // local empty CSS; the kit composition lives on in Trash alone.
+    expect(journalsSrc).not.toContain('from "../../components/ui/kit/EmptyState.js"');
+    expect(journalsSrc).toContain("journal-entry--virtual");
+    expect(journalsCss).not.toMatch(/\.journals-empty/);
     // Trash: the icon/title/description map onto the kit; the hand-rolled
     // empty block and its styles are gone.
     expect(trashSrc).toContain('from "../../components/ui/kit/EmptyState.js"');

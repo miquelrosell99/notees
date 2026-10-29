@@ -1,20 +1,39 @@
 /**
  * JournalsView — the journal feed: a continuous, today-centered scroll of
- * page views, one per existing day-classed page, newest first. Scrolling up
- * reveals future existing day pages, scrolling down older ones; reloading
- * re-centers on today. Each entry's date header is a plain heading; the
- * "Open page" button beside it opens that page in the full page view.
+ * day entries, newest first. A day page is PERMANENTLY ADDRESSABLE
+ * scaffolding, not a record that comes and goes (the owner ruling,
+ * 2026-10-29): every calendar day in the window renders an entry whether or
+ * not the day node exists in the log yet. A REALIZED day (the node exists
+ * and is live) renders its full embedded page view; an UNREALIZED day
+ * renders a slim virtual entry — the same date header plus one muted
+ * start affordance — and the node materializes through the journal-gated
+ * `ensureDateChain` only when the user actually writes (the
+ * realize-on-first-write model: display never depends on node existence).
+ * A trashed day page (possible until the delete lock and for legacy rows)
+ * renders its virtual entry with a restore affordance — `ensureDateChain`
+ * restores it live.
  *
- * Every day page exists in the local store, so "loading" is purely a
- * rendering window: a small slice around today mounts first and
- * IntersectionObserver sentinels grow it in both directions. Prepends
- * compensate scrollTop so the viewport stays put.
+ * The window: the feed enumerates CALENDAR DAYS, not pages — a contiguous
+ * run from the anchor day (today, or the focus day) back N days, plus the
+ * realized future day pages above today. N grows by PAGE days per bottom
+ * sentinel crossing; growth appends below the viewport, so no scroll
+ * compensation rides the extend. The anchor is always present by
+ * construction (it bounds the window), so navigation — Today, the
+ * mini-month pick — is a pure state move: set the focus day, grow the
+ * window if it sits outside, and one layout effect scrolls the anchor
+ * entry to the top on the render where the anchor id changes. No
+ * materialization ever gates navigation (the old pendingJump machinery
+ * died with the existence-gated model).
+ *
+ * Reloading re-centers on today. Each realized entry's date header is a
+ * plain heading; the "Open page" button beside it opens that page in the
+ * full page view.
  *
  * The side panel: the mini-month navigator + the
  * events element (the calendar view's retired panel — the journal is the
  * day-page context the events list belongs to). Picking a day in the
- * mini-month scroll-navigates the feed to that day page, materializing it
- * through the same journal-gated ensure as the Today jump.
+ * mini-month scroll-navigates the feed to that day's entry (realized or
+ * virtual — no node is created by navigation alone).
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -28,20 +47,45 @@ import { EventsPanel } from "./EventsPanel.js";
 import { MonthCalendar } from "./MonthCalendar.js";
 import { rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
-import { todayIsoLocal } from "./calendarViewUtils.js";
+import { DayPageHeader } from "./DayPageHeader.js";
+import { addDaysIso, daysBetweenIsos, todayIsoLocal } from "./calendarViewUtils.js";
 import { Button } from "../../components/ui/kit/Button.js";
-import { EmptyState } from "../../components/ui/kit/EmptyState.js";
 import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
 import { useSidePanel } from "../../components/ui/kit/SidePanel.js";
+import { readDateFormat } from "../../ui/dateDisplay.js";
 import "./JournalsView.css";
 
-/** Entries mounted around today before the sentinels take over. */
+/** Entries mounted around the anchor before the sentinel takes over. */
 const INITIAL_RADIUS = 8;
-/** Entries added per sentinel crossing. */
+/** Days added per sentinel crossing. */
 const PAGE = 10;
 
-/** Compact journal label (YYYYMMDD) from the content-addressed date id. */
-const sortKey = (page: { id: string }): string => rawDateKeywordOf(page) || page.id;
+/**
+ * A feed entry: one calendar day. `realized` — the day node exists and is
+ * live (the full page view renders); `trashed` — the node exists but is
+ * inactive (the restore affordance renders). Both false — the day was
+ * never written: the pure virtual entry.
+ */
+interface DayEntry {
+  iso: string;
+  id: string;
+  realized: boolean;
+  trashed: boolean;
+}
+
+/**
+ * The virtual entry's title: the user's date-format token layout applied
+ * to the ISO string directly (the same recipe `formatDateName` uses for
+ * stored labels) — never through `Date` parsing, which would shift the day
+ * west of UTC.
+ */
+function displayTitleOf(iso: string): string {
+  const [year, month, day] = iso.split("-");
+  return readDateFormat()
+    .replace(/YYYY/g, year!)
+    .replace(/MM/g, month!)
+    .replace(/DD/g, day!);
+}
 
 export function JournalsView({
   client,
@@ -54,107 +98,109 @@ export function JournalsView({
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
   const listRef = useRef<HTMLDivElement>(null);
-  const topSentinelRef = useRef<HTMLDivElement>(null);
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
-  /** scrollHeight − scrollTop captured before a prepend, restored after. */
-  const keepVisualRef = useRef<number | null>(null);
-  const centeredRef = useRef(false);
 
-  /** All day pages, newest first. */
-  const pages = useMemo(() => {
+  /** Live day-classed pages by ISO (listPages filters `is_active = 1`). */
+  const pagesByIso = useMemo(() => {
     const day = SYSTEM_CLASS_UUIDS.day;
-    return client
-      .listPages()
-      .filter((page) => page.classIds.includes(day))
-      .sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
+    const map = new Map<string, { id: string }>();
+    for (const page of client.listPages()) {
+      if (page.classIds.includes(day)) {
+        const key = rawDateKeywordOf(page);
+        if (key !== "") map.set(
+          `${key.slice(0, 4)}-${key.slice(4, 6)}-${key.slice(6, 8)}`,
+          page,
+        );
+      }
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reads resolve through the client notification (version)
   }, [client, version]);
 
-  const todayKey = todayIsoLocal().replace(/-/g, "");
-  /**
-   * Today's entry; else the newest entry at or before today; else the
-   * oldest future entry (the closest one above today — scrolling up from
-   * there reveals the rest of the future); else the top.
-   */
-
+  const todayIso = todayIsoLocal();
   /** The side panel's device-local collapse (the calendar view's old register). */
   const [panelCollapsed, setPanelCollapsed] = useDeviceSetting("journalPanelCollapsed", false);
   /** Focus mode hides every side panel. */
   const [focusMode] = useDeviceSetting("focusMode", false);
   /** The side panel's selected day (local ISO) — the events scope anchor. */
-  const [panelIso, setPanelIso] = useState(todayIsoLocal());
+  const [panelIso, setPanelIso] = useState(todayIso);
   /** The feed's focus day while set: overrides the today anchor. */
   const [focusIso, setFocusIso] = useState<string | null>(null);
   /** First-day-of-week device setting for the mini-month. */
   const [firstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
-  /** Pending scroll-navigate while the day page is being materialized. */
-  const pendingJumpRef = useRef<string | null>(null);
-
-  const anchorIndex = useMemo(() => {
-    // A side-panel jump owns the anchor while its day page exists; Today clears it (scrollToToday below).
-    if (focusIso !== null) {
-      const focusKey = focusIso.replace(/-/g, "");
-      const exact = pages.findIndex((page) => sortKey(page) === focusKey);
-      if (exact >= 0) return exact;
-    }
-    const exact = pages.findIndex((page) => sortKey(page) === todayKey);
-    if (exact >= 0) return exact;
-    const atOrBefore = pages.findIndex((page) => sortKey(page) <= todayKey);
-    if (atOrBefore >= 0) return atOrBefore;
-    return pages.length > 0 ? pages.length - 1 : 0;
-  }, [pages, todayKey, focusIso]);
-
+  /** Days beyond the initial radius revealed by the bottom sentinel. */
   const [extraBefore, setExtraBefore] = useState(0);
-  const [extraAfter, setExtraAfter] = useState(0);
 
+  const anchorIso = focusIso ?? todayIso;
+  /**
+   * The window: realized future day pages above the cap, then every
+   * calendar day from the cap (the newer of today and the anchor) back to
+   * the floor (the anchor minus the radius, never stopping short of today
+   * — a far-future focus must not drop the days between today and the
+   * floor). The anchor is always inside by construction.
+   */
+  const entries = useMemo<DayEntry[]>(() => {
+    const capIso = anchorIso > todayIso ? anchorIso : todayIso;
+    const radiusFloor = addDaysIso(anchorIso, -(INITIAL_RADIUS + extraBefore));
+    const floorIso = radiusFloor > todayIso ? todayIso : radiusFloor;
+    const future = [...pagesByIso.keys()]
+      .filter((iso) => iso > capIso)
+      .sort((a, b) => b.localeCompare(a));
+    const list: DayEntry[] = future.map((iso) => {
+      const page = pagesByIso.get(iso)!;
+      return { iso, id: page.id, realized: true, trashed: false };
+    });
+    const span = daysBetweenIsos(floorIso, capIso);
+    for (let i = 0; i <= span; i++) {
+      const iso = addDaysIso(capIso, -i);
+      const page = pagesByIso.get(iso);
+      if (page !== undefined) {
+        list.push({ iso, id: page.id, realized: true, trashed: false });
+      } else {
+        const id = dayNodeId(iso);
+        list.push({
+          iso,
+          id,
+          realized: false,
+          trashed: client.getNodeRaw(id) !== undefined,
+        });
+      }
+    }
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reads resolve through the client notification (version)
+  }, [client, pagesByIso, anchorIso, todayIso, extraBefore, version]);
 
-  const rangeStart = Math.max(0, anchorIndex - INITIAL_RADIUS - extraBefore);
-  const rangeEnd = Math.min(
-    pages.length,
-    anchorIndex + INITIAL_RADIUS + 1 + extraAfter,
-  );
-  const visible = pages.slice(rangeStart, rangeEnd);
-  const anchorOffset = anchorIndex - rangeStart;
+  const anchorId = dayNodeId(anchorIso);
+  const anchorIndex = entries.findIndex((entry) => entry.iso === anchorIso);
 
   // --- windowing ------------------------------------------------------------
 
-  const extendBefore = () => {
-    if (rangeStart === 0) return;
-    const el = listRef.current;
-    keepVisualRef.current = el !== null ? el.scrollHeight - el.scrollTop : null;
+  /**
+   * The past is unbounded — every calendar day back exists as a potential
+   * entry — so the sentinel always rides the list's tail: a crossing
+   * reveals PAGE older days (appended below the viewport, never disturbing
+   * the scroll).
+   */
+  const extendPast = () => {
     setExtraBefore((n) => n + PAGE);
-  };
-  const extendAfter = () => {
-    if (rangeEnd >= pages.length) return;
-    setExtraAfter((n) => n + PAGE);
   };
 
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return;
-    const top = topSentinelRef.current;
     const bottom = bottomSentinelRef.current;
+    if (bottom === null) return;
     const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          if (entry.target === top) extendBefore();
-          else extendAfter();
+      (entriesObserved) => {
+        for (const entry of entriesObserved) {
+          if (entry.isIntersecting && entry.target === bottom) extendPast();
         }
       },
       { root: listRef.current, rootMargin: "600px" },
     );
-    if (top) observer.observe(top);
-    if (bottom) observer.observe(bottom);
+    observer.observe(bottom);
     return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sentinel wiring follows the visible window
-  }, [rangeStart, rangeEnd, pages.length]);
-
-  /** After a prepend, hold the viewport at the same content. */
-  useLayoutEffect(() => {
-    const el = listRef.current;
-    if (el === null || keepVisualRef.current === null) return;
-    el.scrollTop = el.scrollHeight - keepVisualRef.current;
-    keepVisualRef.current = null;
-  }, [extraBefore]);
+  }, [entries.length]);
 
   /**
    * The anchor's offset within the list's CONTENT. Rect-based, not
@@ -169,91 +215,61 @@ export function JournalsView({
     return anchor.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
   };
 
-  /** First mount: center today (or the anchor) at the top of the feed. */
+  /**
+   * Scroll the anchor entry to the top of the feed whenever the anchor
+   * DAY changes (first mount, Today, a mini-month pick) — the anchor is
+   * present by construction, so no async materialization can delay the
+   * scroll. Deliberately NOT keyed on version: a client notification
+   * re-renders entries in place and must never yank the viewport.
+   */
+  const lastScrolledAnchorRef = useRef<string | null>(null);
   useLayoutEffect(() => {
-    if (centeredRef.current || visible.length === 0) return;
-    centeredRef.current = true;
+    if (lastScrolledAnchorRef.current === anchorId) return;
     const el = listRef.current;
     const top = anchorContentTop();
     if (el !== null && el !== undefined && top !== null) {
       el.scrollTop = top;
+      lastScrolledAnchorRef.current = anchorId;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- centers once on mount
-  }, [visible.length]);
+  }, [anchorId, entries.length]);
 
   /**
-   * A pending jump: set when a
-   * jump materializes a missing day page — the anchor only becomes the
-   * target after the ensure's subscription re-render, so the scroll rides
-   * this effect, re-measuring each render until the anchor row IS the
-   * target day.
-   */
-  const jumpToTodayRef = useRef(false);
-
-  useLayoutEffect(() => {
-    if (!jumpToTodayRef.current && pendingJumpRef.current === null) return;
-    const el = listRef.current;
-    if (el === null) return;
-    const top = anchorContentTop();
-    if (top === null) return;
-    el.scrollTop = top;
-    const anchor = el.querySelector(".journal-entry[data-anchor='true']");
-    const target = pendingJumpRef.current ?? todayIsoLocal();
-    if (anchor?.getAttribute("data-journal-id") === dayNodeId(target)) {
-      jumpToTodayRef.current = false;
-      pendingJumpRef.current = null;
-    }
-  });
-
-  /**
-   * Jump to today: materialize today's page when it doesn't exist yet —
-   * the anchor is "today or the nearest day at or before", so with a
-   * missing page the jump landed on a past day (* clicked Today, saw the 18th). The ensure mirrors the sidebar Today
-   * row and the empty-state CTA, behind the same journal-toggle gate;
-   * when today's page already exists the scroll is synchronous.
+   * Jump to today: a pure state move — today always has an entry (virtual
+   * if the day was never written, restore-armed if it was trashed), so
+   * Today re-owns the anchor and the layout effect scrolls. No node is
+   * created by the jump itself (realize-on-first-write).
    */
   const scrollToToday = () => {
-    const el = listRef.current;
-    if (el === null) return;
     setFocusIso(null); // Today re-owns the anchor.
-    setPanelIso(todayIsoLocal());
-    const todayId = dayNodeId(todayIsoLocal());
-    if (pages.some((page) => page.id === todayId)) {
-      const top = anchorContentTop();
-      if (top !== null) el.scrollTop = top;
-      return;
-    }
-    if (!client.isFeatureEnabled("journal")) return;
-    jumpToTodayRef.current = true;
-    void client.ensureDateChain(todayIsoLocal()).catch(() => {
-      jumpToTodayRef.current = false;
-    });
+    setPanelIso(todayIso);
   };
 
   /**
-   * The side panel's day pick: scroll-navigate the feed
-   * to the day page, materializing it through the same journal-gated
-   * ensure as the Today jump when it doesn't exist yet. The picked day
-   * also becomes the panel's events scope anchor.
+   * The side panel's day pick: scroll-navigate the feed to that day's
+   * entry. A day outside the current window grows the past radius first
+   * (one state batch — the anchor effect scrolls once the entry exists).
+   * The picked day also becomes the panel's events scope anchor.
+   * Navigation never materializes a node.
    */
   const navigateToDay = (iso: string): void => {
     setPanelIso(iso);
-    const id = dayNodeId(iso);
-    if (pages.some((page) => page.id === id)) {
-      setFocusIso(iso);
-      return;
+    if (iso < todayIso) {
+      const needed = daysBetweenIsos(iso, todayIso) - INITIAL_RADIUS;
+      if (needed > extraBefore) setExtraBefore(needed + PAGE);
     }
-    if (!client.isFeatureEnabled("journal")) return;
-    pendingJumpRef.current = iso;
-    setFocusIso(iso); // anchors the window once the page lands
-    void client.ensureDateChain(iso).catch(() => {
-      pendingJumpRef.current = null;
-    });
+    setFocusIso(iso);
   };
 
-  const openToday = async () => {
-    const { day } = await client.ensureDateChain(todayIsoLocal());
-    onOpenPage(day);
+  /**
+   * The virtual entry's start affordance: the day's first real write —
+   * ensure the chain (creating the node, or restoring a trashed one) so
+   * the entry swaps to the full editable page view on the next
+   * notification. Behind the same journal feature gate as the old Today
+   * materialization.
+   */
+  const startDay = (iso: string): void => {
+    if (!client.isFeatureEnabled("journal")) return;
+    void client.ensureDateChain(iso).catch(() => {});
   };
 
   /**
@@ -276,7 +292,7 @@ export function JournalsView({
           selectedDate={panelIso}
           onSelectDate={navigateToDay}
           firstDayOfWeek={firstDayOfWeek}
-          hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
+          hasNote={(iso) => pagesByIso.has(iso)}
           onSelectMonth={(year, month) => {
             void client.ensureDateChain(`${year}-${String(month).padStart(2, "0")}-01`).then(({ month: monthId }) => onOpenPage(monthId));
           }}
@@ -298,65 +314,66 @@ export function JournalsView({
           stays at the card border. The navigator-panel toggle TRAILS the
           bar at the far right (useSidePanel links it to the right-column
           panel — one side declared once); the lone ACTION is Today — a
-          jump that materializes today's page when missing (a
-          pure scroll-to landed on the nearest past day). Discrete
-          day-steppers stay retired: day-jumping rides the calendar popup,
-          the sidebar Today row, and each entry's Open-page button. */}
+          jump that re-owns the today anchor (today always has an entry
+          under the permanent-address model). Discrete day-steppers stay
+          retired: day-jumping rides the calendar popup, the sidebar Today
+          row, and each entry's Open-page button. */}
       <SurfaceTopBar
         icon="mdi-notebook-outline"
         title="Journal"
         actions={
           <>
-            {pages.length > 0 && (
-              /* The outline variant + "Jump to today" title/aria: the bordered button reads
-                 clickable where the ghost idiom doesn't, and the short
-                 "Today" label names the destination, not the jump. */
-              <Button
-                variant="outline"
-                size="sm"
-                title="Jump to today"
-                aria-label="Jump to today"
-                onClick={scrollToToday}
-              >
-                Today
-              </Button>
-            )}
+            {/* The outline variant + "Jump to today" title/aria: the bordered button reads
+               clickable where the ghost idiom doesn't, and the short
+               "Today" label names the destination, not the jump. */}
+            <Button
+              variant="outline"
+              size="sm"
+              title="Jump to today"
+              aria-label="Jump to today"
+              onClick={scrollToToday}
+            >
+              Today
+            </Button>
           </>
         }
         trailing={navigatorPanel.toggle}
       />
-      {pages.length === 0 ? (
-        /* The sentence-as-title follows the CalendarView EmptyState
-           precedent; the CTA is the kit Button (the primary register). */
-        <EmptyState
-          className="journals-empty"
-          title="Daily journal pages are created when you open today's note."
-          actionLabel="Open today’s note"
-          onAction={() => void openToday()}
-        />
-      ) : (
-        <div className="journals-body">
+      <div className="journals-body">
         <div className="journals-list" ref={listRef}>
-          {rangeStart > 0 && <div ref={topSentinelRef} className="journals-sentinel" aria-hidden="true" />}
-          {visible.map((page, i) => (
+          {entries.map((entry, i) => (
             <article
-              key={page.id}
-              className="journal-entry"
-              data-journal-id={page.id}
-              data-anchor={i === anchorOffset ? "true" : undefined}
+              key={entry.id}
+              className={`journal-entry${entry.realized ? "" : " journal-entry--virtual"}`}
+              data-journal-id={entry.id}
+              data-anchor={i === anchorIndex ? "true" : undefined}
             >
-              <PageView client={client} pageId={page.id} onOpenPage={onOpenPage} embedded />
+              {entry.realized ? (
+                <PageView client={client} pageId={entry.id} onOpenPage={onOpenPage} embedded />
+              ) : (
+                <>
+                  <DayPageHeader iso={entry.iso} title={displayTitleOf(entry.iso)} />
+                  {client.isFeatureEnabled("journal") && (
+                    <button
+                      type="button"
+                      className="journal-virtual-start"
+                      onClick={() => startDay(entry.iso)}
+                    >
+                      {entry.trashed
+                        ? "This day is in the trash — click to restore"
+                        : "Nothing yet — click to start"}
+                    </button>
+                  )}
+                </>
+              )}
             </article>
           ))}
-          {rangeEnd < pages.length && (
-            <div ref={bottomSentinelRef} className="journals-sentinel" aria-hidden="true" />
-          )}
+          <div ref={bottomSentinelRef} className="journals-sentinel" aria-hidden="true" />
         </div>
         {/* Focus mode hides every side panel; the linked useSidePanel unit
             owns the collapsed state itself (open = !panelCollapsed). */}
         {!focusMode && navigatorPanel.panel}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

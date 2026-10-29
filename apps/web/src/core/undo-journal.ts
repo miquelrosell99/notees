@@ -31,7 +31,10 @@
  *                         than half-undone. The archival bit (`active`)
  *                         restores the captured pre-op state.
  *  - object.create        → object.delete (soft — trash keeps the subtree
- *                         restorable). The re-issued create (the OR-Set add
+ *                         restorable), EXCEPT a date-chain node: the delete
+ *                         lock makes that inverse illegal and the ensured
+ *                         scaffolding persists — not journaled. The
+ *                         re-issued create (the OR-Set add
  *                         carrier behind assign class/tag) inverts per added
  *                         membership: class.unassign / tag.unassign.
  *  - object.delete        → the ROUTED inverse:
@@ -119,6 +122,7 @@ import type { ContentAst, Envelope } from "@notees/protocol";
 import {
   featureForManagedClass,
   isLockedSystemClassId,
+  parseDateNodeId,
   systemClassNameForId,
 } from "@notees/domain";
 
@@ -390,7 +394,12 @@ export function invertEnvelope(
       if (objectId === null) return null;
       const snap = capture.nodeSnapshot(objectId);
       if (snap === null) {
-        // Fresh node: trash it (soft — the subtree survives for restore).
+        // Fresh node: trash it (soft — the subtree survives for restore) —
+        // UNLESS it is date-chain scaffolding: the delete lock (SCHEMA.md
+        // "Datetime", the permanent-address model) makes that inverse
+        // illegal, and the ensure's day node is meant to persist anyway —
+        // undo removes the user's gesture, never the platform scaffolding.
+        if (parseDateNodeId(objectId) !== null) return null;
         return [
           {
             opType: "object.delete",
