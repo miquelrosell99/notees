@@ -43,17 +43,22 @@
   background: transparent;
 }
 
-/* The unrealized day (the permanent-address model): the same date header
-   the realized entry renders, plus ONE muted start affordance — no page
-   chrome, no card. The entry stays slim so empty days read as rhythm,
-   not records. */
-.journal-entry--virtual .day-page-header {
-  margin: 0;
+/* The unrealized day (the permanent-address model): the realized
+   entries' own embedded header register — muted placeholder icon + plain
+   date title inside the shared 46rem measure — so an empty day sits in
+   the day rhythm, aligned with its written neighbors. The icon only
+   occupies the icon column (non-interactive, muted); the start
+   affordance aligns with the title column (the icon column's width rides
+   --height-2xl, the page-icon-btn register). */
+.journal-virtual-icon {
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .journal-virtual-start {
-  align-self: flex-start;
   margin-top: var(--spacing-2);
+  margin-left: var(--height-2xl);
   padding: var(--spacing-1) var(--spacing-2);
   font: var(--font-body-medium);
   color: var(--md-sys-color-on-surface-variant);

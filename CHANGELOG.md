@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-29
 
+- **fix(web): the journal's virtual day entries align with their written
+  neighbors and speak "empty", not "trash".** Two live-app defects: the
+  unrealized day rendered the FULL day-page header (weekday line, week
+  flag) straight off the feed's left edge — the realized entries ride
+  the 46rem `.nt-nodeview-body` measure with the muted embedded-title
+  register — and the placeholder leaked the trash vocabulary ("This day
+  is in the trash — click to restore") on days that read as merely
+  empty. The virtual entry now mirrors the realized embedded header
+  verbatim (muted non-interactive placeholder icon + embed title inside
+  the same measure, start affordance aligned to the title column) and
+  names every unrealized day uniformly "Empty day — click to start" — a
+  pre-lock trashed day still restores through the same click (the
+  ensure's live-check), the trash hub stays the honest trash surface.
+  Verified: journals-view suite green (incl. a structural assertion on
+  the measure/icon/register); typecheck green.
+
 - **feat(web): picker create-row ordering, the link-edit modal's tab-only
   target, the focused view's top bar, and sidebar section icons — four
   small chrome rulings in one slice.** (1) The node picker's create row

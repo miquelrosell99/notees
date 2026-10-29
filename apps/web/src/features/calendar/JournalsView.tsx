@@ -5,13 +5,15 @@
  * 2026-10-29): every calendar day in the window renders an entry whether or
  * not the day node exists in the log yet. A REALIZED day (the node exists
  * and is live) renders its full embedded page view; an UNREALIZED day
- * renders a slim virtual entry — the same date header plus one muted
- * start affordance — and the node materializes through the journal-gated
- * `ensureDateChain` only when the user actually writes (the
- * realize-on-first-write model: display never depends on node existence).
- * A trashed day page (possible until the delete lock and for legacy rows)
- * renders its virtual entry with a restore affordance — `ensureDateChain`
- * restores it live.
+ * renders a slim virtual entry — the realized entries' own embedded
+ * header register (muted placeholder icon + plain date title, the same
+ * 46rem measure) plus one muted start affordance — and the node
+ * materializes through the journal-gated `ensureDateChain` only when the
+ * user actually writes (the realize-on-first-write model: display never
+ * depends on node existence). The placeholder names the state plainly
+ * ("Empty day — click to start"); a trashed day page (possible until the
+ * delete lock and for legacy rows) restores through the same click —
+ * `ensureDateChain` brings it back live.
  *
  * The window: the feed enumerates CALENDAR DAYS, not pages — a contiguous
  * run from the anchor day (today, or the focus day) back N days, plus the
@@ -47,7 +49,7 @@ import { EventsPanel } from "./EventsPanel.js";
 import { MonthCalendar } from "./MonthCalendar.js";
 import { rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
-import { DayPageHeader } from "./DayPageHeader.js";
+import { Icon } from "../../ui/Icon.js";
 import { addDaysIso, daysBetweenIsos, todayIsoLocal } from "./calendarViewUtils.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
@@ -417,20 +419,42 @@ export function JournalsView({
               {entry.realized ? (
                 <PageView client={client} pageId={entry.id} onOpenPage={onOpenPage} embedded />
               ) : (
-                <>
-                  <DayPageHeader iso={entry.iso} title={displayTitleOf(entry.iso)} />
+                /* The virtual entry mirrors the realized embedded header
+                   register (PageChrome's embedded branch): a muted
+                   placeholder icon + the plain embed title inside the same
+                   46rem measure (.nt-nodeview-body), so an empty day sits
+                   in the day rhythm — aligned with its written neighbors —
+                   instead of hugging the feed's left edge with the full
+                   day-header chrome. The placeholder names the state
+                   plainly (a pre-lock trashed day restores through the
+                   same ensure when clicked). */
+                <div className="nt-nodeview-body">
+                  <div className="page-header-section">
+                    <header className="nt-page-header">
+                      <div className="page-header__title-row">
+                        <span className="page-icon-btn journal-virtual-icon" aria-hidden="true">
+                          <Icon path="mdi-notebook-outline" size={1.4} className="page-icon-large" />
+                        </span>
+                        <span className="nt-page-title-wrap">
+                          <span className="nt-page-title-embed">
+                            <span className="nt-page-title-embed__text">
+                              {displayTitleOf(entry.iso)}
+                            </span>
+                          </span>
+                        </span>
+                      </div>
+                    </header>
+                  </div>
                   {client.isFeatureEnabled("journal") && (
                     <button
                       type="button"
                       className="journal-virtual-start"
                       onClick={() => startDay(entry.iso)}
                     >
-                      {entry.trashed
-                        ? "This day is in the trash — click to restore"
-                        : "Nothing yet — click to start"}
+                      Empty day — click to start
                     </button>
                   )}
-                </>
+                </div>
               )}
             </article>
           ))}

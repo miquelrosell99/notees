@@ -199,6 +199,12 @@ describe("JournalsView", () => {
     const anchor = container.querySelector("[data-anchor='true']");
     expect(anchor?.getAttribute("data-journal-id")).toBe(dayNodeId(today));
     expect(anchor?.classList.contains("journal-entry--virtual")).toBe(true);
+    // The virtual entry rides the realized entries' own register: the 46rem
+    // measure + the muted placeholder icon + the embed title (no raw
+    // left-edge day header).
+    expect(anchor?.querySelector(".nt-nodeview-body")).not.toBeNull();
+    expect(anchor?.querySelector(".journal-virtual-icon")).not.toBeNull();
+    expect(anchor?.querySelector(".day-page-header")).toBeNull();
   });
 
   it("realized future pages render above the today anchor", async () => {
@@ -474,7 +480,7 @@ describe("JournalsView", () => {
     expect(client.getNode(dayNodeId(today))).toBeDefined();
   });
 
-  it("a trashed today page renders a restore affordance that resurrects it", async () => {
+  it("a trashed today page renders the plain empty placeholder; clicking restores it", async () => {
     const client = await seedClient();
     const today = todayIso();
     const threeBack = shiftDays(today, -3);
@@ -499,7 +505,9 @@ describe("JournalsView", () => {
       `.journal-entry[data-journal-id='${dayNodeId(today)}']`,
     ) as HTMLElement;
     expect(entry.classList.contains("journal-entry--virtual")).toBe(true);
-    fireEvent.click(within(entry).getByRole("button", { name: /restore/i }));
+    // The placeholder names the state plainly — no trash vocabulary on a
+    // day the user sees as merely empty.
+    fireEvent.click(within(entry).getByRole("button", { name: /click to start/i }));
 
     // The ensure restores the trashed chain node; the entry turns realized.
     await vi.waitFor(() => {
