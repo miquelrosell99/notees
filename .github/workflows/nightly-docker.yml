@@ -7,11 +7,23 @@ name: Nightly Docker images
 # to stable semver releases only (see release-docker.yml). Uses the
 # workflow's GITHUB_TOKEN (packages: write); manual dispatch reruns the
 # nightly build on demand.
+#
+# The dispatch input `git-ref` (default `main`) selects the ref to build —
+# nightly is main's head, so a dispatch guard fails the run unless git-ref
+# IS the repository default branch (exact string compare against
+# `github.event.repository.default_branch`); passing a SHA is accepted only
+# when it is the default branch's SHA — pass the branch name instead.
+# Schedule events always build the default branch head.
 
 on:
   schedule:
     - cron: "23 3 * * *"
   workflow_dispatch:
+    inputs:
+      git-ref:
+        description: "Ref to build — must be the repository default branch (main). A SHA is accepted only if it is the default branch's SHA."
+        required: false
+        default: "main"
 
 concurrency:
   group: nightly-docker
@@ -33,8 +45,16 @@ jobs:
           - image: notees-web
             dockerfile: apps/web/Dockerfile
     steps:
+      - name: Guard — nightly must build the default branch
+        if: github.event_name == 'workflow_dispatch' && inputs['git-ref'] != github.event.repository.default_branch
+        run: |
+          echo "::error::nightly is main's head: git-ref must be the repository default branch ('${{ github.event.repository.default_branch }}'). A SHA is accepted only when it is the default branch's SHA — pass the branch name instead."
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs['git-ref'] || github.ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
