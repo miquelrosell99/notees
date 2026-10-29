@@ -502,7 +502,7 @@ describe("PageView day branch", () => {
     await waitFor(() => expect(screen.getByText("Fresh today")).toBeDefined());
   });
 
-  it("renders neither the bar nor the sections when embedded", async () => {
+  it("keeps the header suppressed but renders the sections when embedded", async () => {
     const client = await seedClient();
     const iso = "2026-06-15";
     const { day } = await client.ensureDateChain(iso);
@@ -512,10 +512,13 @@ describe("PageView day branch", () => {
 
     render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} embedded />);
     await flushWrites();
-    // Embedded renders skip the day header entirely (they sit on aggregation
-    // surfaces) — no flags line, no title, no sections.
+    // Embedded renders skip the day header (the feed owns the entry chrome)
+    // but carry the day sections — the journal feed IS the day-page context,
+    // not a summary surface.
     expect(document.querySelector(".day-page-header")).toBeNull();
-    expect(screen.queryByRole("button", { name: /^tasks( \d+)?$/i })).toBeNull();
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /^tasks( \d+)?$/i })).not.toBeNull(),
+    );
   });
 });
 

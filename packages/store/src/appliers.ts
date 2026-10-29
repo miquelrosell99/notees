@@ -996,6 +996,21 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   requireNode(db, p.objectId, opType);
   const ts = env.timestamp;
   const affected = new Set<string>([p.objectId, ...ancestorIds(db, p.objectId)]);
+  // Date-chain delete lock (SCHEMA.md "Datetime" — the fourth lock, beside
+  // the parent/class/embedding locks): a date node is permanent journal
+  // scaffolding under the permanent-address model — it realizes on first
+  // write and can never leave the graph. Deleting one fails loud REGARDLESS
+  // of `permanent` (the trash-bypass arm must throw before any purge);
+  // clearing a day means deleting its CONTENT, never the day node. The
+  // guard sits above the class routing: it matches node ids, never class
+  // ids (parseDateNodeId is prefix-strict), so the locked-system-class arm
+  // below is untouched.
+  if (parseDateNodeId(p.objectId) !== null) {
+    throw new MoveGuardError(
+      `${opType}: ${p.objectId} is a date-chain node — the journal chain is permanent platform scaffolding and can never be deleted (clear the day's content instead)`,
+      opType,
+    );
+  }
   // Class-node delete routing (the retired
   // class.delete op's routing, moved here; SCHEMA.md "Workspace features").
   // Classes are nodes: one delete op, four applier-decided outcomes, all a

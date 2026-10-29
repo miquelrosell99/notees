@@ -70,6 +70,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "object-color.json",
       "object-create.json",
       "object-delete-class-routing.json",
+      "object-delete-date-chain.json",
       "object-is-embedded.json",
       "object-list-style.json",
       "object-move-before.json",

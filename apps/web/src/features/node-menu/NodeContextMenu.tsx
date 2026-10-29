@@ -594,11 +594,17 @@ export function NodeContextMenu({
     });
   }
   items.push({ id: "s2", label: "", separator: true });
+  // The permanent-address model (SCHEMA.md "Datetime" — the date-chain
+  // delete lock): a date node is permanent journal scaffolding, so the
+  // menu offers NEITHER archive nor delete on it — clearing a day means
+  // deleting its content. The applier fails loud on `object.delete` as
+  // the wire-level backstop; the UI never advertises the impossible.
+  const isDateChainNode = parseDateNodeId(node.id) !== null;
   // Archive: a reversible state, not deletion —
   // no confirmation. Class nodes are excluded: class disable rides the
   // gallery (the routing refuses direct archival for locked classes and
   // family bases anyway).
-  if (!node.isClass) {
+  if (!node.isClass && !isDateChainNode) {
     items.push({
       id: "archive",
       label: "Archive",
@@ -612,28 +618,31 @@ export function NodeContextMenu({
     });
   }
   // Inline blocks delete instantly; pages and classes ask in the reusable
-  // ConfirmationModal (danger) — the menu closes, the modal decides.
+  // ConfirmationModal (danger) — the menu closes, the modal decides. Date
+  // nodes carry no delete at all (the permanent-address model above).
   const confirmDelete = !rendersAsInlineBlock(node, parentFacts, parentlessBlock);
-  items.push(
-    confirmDelete
-      ? {
-          id: "delete",
-          label: "Delete",
-          icon: "mdi-delete-outline",
-          danger: true,
-          onClick: () => setPendingDelete(node),
-        }
-      : {
-          id: "confirm-delete",
-          label: "Delete",
-          icon: "mdi-delete-outline",
-          danger: true,
-          onClick: () => {
-            void client.deleteObject(node.id).then(() => onDeleted?.(node));
-            onClose();
+  if (!isDateChainNode) {
+    items.push(
+      confirmDelete
+        ? {
+            id: "delete",
+            label: "Delete",
+            icon: "mdi-delete-outline",
+            danger: true,
+            onClick: () => setPendingDelete(node),
+          }
+        : {
+            id: "confirm-delete",
+            label: "Delete",
+            icon: "mdi-delete-outline",
+            danger: true,
+            onClick: () => {
+              void client.deleteObject(node.id).then(() => onDeleted?.(node));
+              onClose();
+            },
           },
-        },
-  );
+    );
+  }
 
   return (
     <>

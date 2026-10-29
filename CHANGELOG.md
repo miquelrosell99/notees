@@ -9,6 +9,57 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(protocol,store): date-chain delete lock — `object.delete` on a
+  journal day/month/year node fails loud, the permanent-address model's
+  fourth lock.** A date node realizes on first write and never leaves the
+  graph: `applyObjectDelete` throws `MoveGuardError` for BOTH arms (soft —
+  the trash row never lands — and `permanent: true` — the purge throws
+  before any deletion), placed above the class delete routing (the guard
+  matches node ids; the locked-system-class arm for the date CLASSES is
+  untouched). Canonical fixture `object-delete-date-chain.json`
+  (chain prefix applies, both deletes throw, nodes stay live), in
+  REPLAY_EXCLUDED_FIXTURES and pinned by a deliberate-apply store test.
+  Web UI mirrors the "no UI for impossible states" law: the node context
+  menu offers neither Delete nor Archive on a date node. SCHEMA.md
+  "Datetime" carries the normative bullet; pre-lock trashed date nodes
+  stay restorable (`object.restore`). The undo journal stops inverting a
+  date-chain create as a delete (the inverse is now illegal — an ensured
+  day node persists; undo removes the gesture, never the scaffolding).
+  Verified: store suite (544) + corpus replay + dates suite green; web
+  client-level lock test. **Lockstep complete: GTK (1099 green, pushed)
+  + Flutter (815 green, pushed) converge on the same fixture
+  (sha256-matched).**
+
+- **feat(web): the journal feed enumerates calendar days — every day
+  renders an entry, realized or virtual (the permanent-address model).**
+  The feed no longer lists existing day pages; it renders a contiguous
+  window of days anchored on today (the bottom sentinel grows the past
+  unbounded; future realized pages ride above), where a realized day
+  renders its full embedded page view and an unrealized day renders a slim
+  virtual entry — the same date header plus one muted start affordance
+  that materializes the node (journal-gated `ensureDateChain`), or a
+  restore affordance for a pre-lock trashed day. Navigation — Today, the
+  mini-month pick — became pure state moves: the anchor is present by
+  construction, one layout effect scrolls on anchor change, and NO
+  navigation materializes a node (the pendingJump machinery and the
+  empty state died with the existence-gated model). The mini-month's
+  has-note dot reads live pages only. Verified: journals-view suite
+  rewritten to the day-window model (15 tests: window contiguity,
+  virtual/realized mixes, pick-navigates-without-creating,
+  start-affordance materializes, Today display-only, trashed-day restore,
+  wire-delete lock) — green with the day-features suite.
+
+- **fix(web): journal feed entries render the day-page sections again —
+  Tasks / Dated / Created.** `PageView` suppressed both `DayPageSections`
+  and `CreatedSection` on embedded renders (the Oct-4 ruling assumed the
+  feed "already sits on aggregation surfaces"); the journal is the day-page
+  context and renders nothing else, so every entry showed less than the
+  full page view. The gate drops to `!preview` (the preview seam still
+  carries no aggregations); the month/year Created section inherits the
+  same correction. Verified: new journals-view test (a feed entry renders
+  the Dated/Created headers and lists their rows on expand); journals-view
+  suite 14 green.
+
 - **feat(sync,store,web): streaming snapshot upload — the image crosses the
   wire without materializing in the JS/WASM heap.** The streamed-snapshot-
   restore proposal's last leftover: snapshot UPLOADS still serialized the

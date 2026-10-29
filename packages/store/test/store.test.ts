@@ -65,6 +65,9 @@ function loadFixture(name: string): Record<string, unknown>[] {
  * under a block parent and fails loud by design;
  * is-embedded-date-chain.json writes the render bit on a
  * date-chain node (demote and promote directions) and fails loud by design;
+ * object-delete-date-chain.json deletes date-chain nodes (the soft and the
+ * permanent arms — the fourth lock, delete-locked) and fails loud by
+ * design;
  * property-validation-rules.json pins its reject tail (below-min/above-max,
  * pattern rejects, one bad multi element, one un compilable pattern) after
  * an accepting prefix — all applied deliberately in their own tests;
@@ -77,6 +80,7 @@ const REPLAY_EXCLUDED_FIXTURES = new Set([
   "is-embedded-date-chain.json",
   "is-embedded-parent-page.json",
   "object-delete-class-routing.json",
+  "object-delete-date-chain.json",
   "property-validation-rules.json",
 ]);
 
@@ -786,6 +790,30 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(() => store.apply(promoteMonth!)).toThrow(MoveGuardError);
       expect(store.getNode(day)?.is_embedded).toBe(0);
       expect(store.getNode(month)?.is_embedded).toBe(0);
+    });
+
+    it("object-delete-date-chain fixture throws the date-chain delete lock on apply", () => {
+      const [yearE, monthE, dayE, deleteDay, deleteYear] = loadFixture(
+        "object-delete-date-chain.json",
+      );
+      const year = "00000000-0000-0000-00bb-202400000000";
+      const month = "00000000-0000-0000-00aa-202407000000";
+      const day = "00000000-0000-0000-00dd-202407260000";
+      const store = makeStore();
+      // The prefix applies cleanly: the 2024-07-26 chain, each level with
+      // its precision's system class and the standalone claim.
+      store.applyMany([yearE!, monthE!, dayE!]);
+      expect(store.getNode(year)).toMatchObject({ parent_id: null, is_embedded: 0 });
+      expect(store.getNode(month)).toMatchObject({ parent_id: year, is_embedded: 0 });
+      expect(store.getNode(day)).toMatchObject({ parent_id: month, is_embedded: 0 });
+
+      // The chain is permanent scaffolding: the soft delete (the trash arm)
+      // and the permanent delete (the purge arm) both fail loud, state
+      // unchanged — the node stays live.
+      expect(() => store.apply(deleteDay!)).toThrow(MoveGuardError);
+      expect(() => store.apply(deleteYear!)).toThrow(MoveGuardError);
+      expect(store.getNode(day)).toMatchObject({ is_active: 1 });
+      expect(store.getNode(year)).toMatchObject({ is_active: 1 });
     });
 
     it("object-is-embedded fixture: defaults, explicit claims, and the promotion/demotion toggle", () => {
