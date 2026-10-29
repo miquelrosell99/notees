@@ -190,6 +190,35 @@ export class HttpTransport implements Transport {
   }
 
   /**
+   * Streaming variant of uploadSnapshot (the OPFS-VFS clients): the image is
+   * piped from its file straight into CompressionStream → the request body,
+   * so the whole snapshot is never materialized in the JS/WASM heap. The
+   * upload is chunked (no Content-Length); the relay reads the body the same
+   * either way.
+   */
+  async uploadSnapshotStream(hlc: Hlc, open: () => ReadableStream<Uint8Array>): Promise<void> {
+    const params = new URLSearchParams({
+      workspaceId: this.workspaceId,
+      physical: String(hlc.physical),
+      logical: String(hlc.logical),
+    });
+    const headers: Record<string, string> = { "Content-Type": "application/octet-stream" };
+    let body = open();
+    if (typeof (globalThis as { CompressionStream?: unknown }).CompressionStream === "function") {
+      body = body.pipeThrough(new CompressionStream("gzip"));
+      headers["Content-Encoding"] = "gzip";
+    }
+    await this.request(`/snapshot/data?${params.toString()}`, {
+      method: "PUT",
+      headers,
+      // Duplex streaming upload (Chromium 105+ / Node 18+): the body is
+      // consumed lazily as the relay reads it.
+      body: body as unknown as NonNullable<RequestInit["body"]>,
+      duplex: "half",
+    } as RequestInit);
+  }
+
+  /**
    * Mint a single-use WebSocket admission ticket (WIRE.md §2). The bearer
    * credential rides the X-API-Key header; the returned ticket — not the
    * credential — goes on the socket URL, so logs along the path record an

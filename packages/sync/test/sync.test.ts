@@ -18,6 +18,7 @@ import {
   TransportError,
   detectConflicts,
   type SyncConflict,
+  type Transport,
 } from "../src/index.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -547,6 +548,75 @@ describe("snapshot upload — the pre-flight size guard", () => {
     expect(uploadCalls).toBeGreaterThan(0);
     expect(relay.getSnapshotMeta().hasSnapshot).toBe(true);
     expect(errors).toHaveLength(1);
+  });
+});
+
+describe("snapshot upload — the streaming source", () => {
+  function streamHarness() {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    const errors: Error[] = [];
+    const store = new Store();
+    // Partial<Transport> so the optional uploadSnapshotStream can be attached
+    // (MemoryTransport itself implements only the bytes path).
+    const transport: MemoryTransport & Partial<Transport> = new MemoryTransport(relay);
+    let bytesCalls = 0;
+    let streamCalls = 0;
+    const realUpload = transport.uploadSnapshot!.bind(transport);
+    transport.uploadSnapshot = async (bytes, hlc) => {
+      bytesCalls++;
+      await realUpload(bytes, hlc);
+    };
+    transport.uploadSnapshotStream = async (hlc, open) => {
+      streamCalls++;
+      // Materialize only in the TEST to hand the bytes to the relay — the
+      // production path never does this.
+      await realUpload(new Uint8Array(await new Response(open()).arrayBuffer()), hlc);
+    };
+    const engine = new SyncEngine(store, transport, new Clock(DEVICE_A), {
+      workspaceId: WS,
+      now: () => nowMs,
+      callbacks: { onError: (e) => errors.push(e) },
+    });
+    return { relay, store, engine, errors, calls: () => ({ bytesCalls, streamCalls }) };
+  }
+
+  it("prefers uploadSnapshotStream when the store exposes a snapshot stream", async () => {
+    const { relay, store, engine, calls } = streamHarness();
+    // A store with a stream source (the OPFS-VFS shape): byteLength + lazy open.
+    store.snapshotStream = async () => ({
+      byteLength: 10,
+      stream: () => new Blob([store.snapshot()]).stream(),
+    });
+    for (const envelope of baseEnvelopes(DEVICE_A)) engine.enqueue(envelope);
+    await engine.syncOnce();
+    expect(calls().streamCalls).toBeGreaterThan(0);
+    expect(calls().bytesCalls).toBe(0);
+    expect(relay.getSnapshotMeta().hasSnapshot).toBe(true);
+  });
+
+  it("falls back to uploadSnapshot when the store has no stream source", async () => {
+    const { relay, store, engine, calls } = streamHarness();
+    store.snapshotStream = async () => null;
+    for (const envelope of baseEnvelopes(DEVICE_A)) engine.enqueue(envelope);
+    await engine.syncOnce();
+    expect(calls().streamCalls).toBe(0);
+    expect(calls().bytesCalls).toBeGreaterThan(0);
+    expect(relay.getSnapshotMeta().hasSnapshot).toBe(true);
+  });
+
+  it("applies the pre-flight cap to the streamed raw byteLength and reports once", async () => {
+    const { store, engine, errors, calls } = streamHarness();
+    store.snapshotStream = async () => ({
+      byteLength: 512 * 1024 * 1024,
+      stream: () => new Blob([store.snapshot()]).stream(),
+    });
+    for (const envelope of baseEnvelopes(DEVICE_A)) engine.enqueue(envelope);
+    await engine.syncOnce();
+    expect(calls().streamCalls).toBe(0);
+    expect(calls().bytesCalls).toBe(0);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.message).toMatch(/snapshot upload skipped/);
   });
 });
 

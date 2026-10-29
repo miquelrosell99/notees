@@ -9,6 +9,27 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(sync,store,web): streaming snapshot upload — the image crosses the
+  wire without materializing in the JS/WASM heap.** The streamed-snapshot-
+  restore proposal's last leftover: snapshot UPLOADS still serialized the
+  whole database through the WASM heap (`sqlite3_js_db_export` → JS buffer →
+  gzip → PUT). New optional seam: `StoreBackend.snapshotStream` /
+  `Store.snapshotStream()` (`SnapshotStreamSource` — raw `byteLength` +
+  lazy `stream()`; ambient-global `ReadableStream` so node and DOM consumers
+  each get their own) and the matching `Transport.uploadSnapshotStream`.
+  The OPFS-VFS backend checkpoints the WAL (`wal_checkpoint(TRUNCATE)` — the
+  main file IS the image; the OPFS `getFile()` snapshot freezes content) and
+  streams the file through `CompressionStream` into a duplex-half fetch body
+  — chunked, no Content-Length, relay unchanged. The engine prefers the
+  stream when BOTH sides have it, keeps the bytes path as the universal
+  fallback, and applies the pre-flight cap to the streamed raw byteLength (a
+  conservative bound on the compressed body). The worker passes the OPFS file
+  opener; the size cap and the 413 honesty path are unchanged. GTK/Flutter
+  check: additive optional capability over the unchanged identity path, no
+  client code needed. Verified: new sync tests (engine prefers/falls-back/
+  cap arms, transport streaming gzip + duplex half), store adapter stream
+  contract arms; full gate green.
+
 - **feat(store,web): sqlite-wasm OPFS-VFS store backend — snapshot restore
   stops holding the whole image in the WASM heap.** Third `StoreBackend`
   behind the `db.ts` seam (`packages/store/src/adapters/sqlitewasm.ts`, export

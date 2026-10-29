@@ -327,6 +327,10 @@ file and swaps the connection (temp dir removed on close); sql.js exports/import
 database bytes in memory; the sqlite-wasm OPFS-VFS backend restores staged-async — the
 bytes land in the OPFS file via the caller's `writeFile`, then the connection opens by
 name (`Store.restoreAsync` prefers a backend's `restoreAsync` over the sync restore).
+The same backend's `snapshotStream()` powers a lazy UPLOAD source — WAL-checkpoint,
+then a stream over the OPFS file — so a client-produced snapshot upload never
+materializes the image either (`Transport.uploadSnapshotStream`, gzip-piped,
+duplex-half fetch; every caller without the seam keeps the bytes path).
 
 ## 7. The sync engine
 

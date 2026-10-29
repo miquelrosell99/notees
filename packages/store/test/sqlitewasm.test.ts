@@ -122,4 +122,34 @@ describe("sqlite-wasm backend (opfs mode)", () => {
     });
     expect(() => backend.open()).toThrow(/OpfsDb/);
   });
+
+  it("memory mode has no stream source — Store.snapshotStream() resolves null", async () => {
+    const store = Store.open(sqliteWasmBackend(sqliteWasm, { kind: "memory" }));
+    expect(await store.snapshotStream()).toBeNull();
+    store.close();
+  });
+
+  it("opfs mode without openFile resolves null even without the VFS", async () => {
+    const backend = sqliteWasmBackend(sqliteWasm, {
+      kind: "opfs",
+      fileName: "ws.db",
+      writeFile: async () => {},
+    });
+    expect(await backend.snapshotStream?.()).toBeNull();
+  });
+
+  it("opfs mode with openFile requires the VFS (checkpoints before reading)", async () => {
+    const backend = sqliteWasmBackend(sqliteWasm, {
+      kind: "opfs",
+      fileName: "ws.db",
+      writeFile: async () => {},
+      openFile: async () => ({
+        size: 3,
+        stream: () => new Blob([new Uint8Array([1, 2, 3])]).stream(),
+      }),
+    });
+    // Node build carries no OpfsDb — the stream source must fail loud here;
+    // in the browser the checkpoint runs before the file is opened.
+    await expect(backend.snapshotStream?.()).rejects.toThrow(/OpfsDb/);
+  });
 });

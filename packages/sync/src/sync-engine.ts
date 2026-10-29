@@ -50,6 +50,10 @@ const ZERO_HLC: Hlc = { physical: 0, logical: 0 };
  * verify smoke drives the browser over a pipe), and V8 caps strings at
  * ~512 Mi chars — a ~510 MiB body already produced a 545 MB frame that
  * killed the smoke with ERR_STRING_TOO_LONG. Keep a wide margin.
+ *
+ * Streaming uploads (the OPFS-VFS backend's snapshotStream) apply this bound
+ * to the RAW image size — a conservative upper bound on the compressed body
+ * that actually crosses the wire.
  */
 export const SNAPSHOT_UPLOAD_BODY_LIMIT = 256 * 1024 * 1024;
 
@@ -429,17 +433,19 @@ export class SyncEngine {
       this.uploadedSnapshotHlc === null || compareHlc(this.receivedHlc, this.uploadedSnapshotHlc) > 0;
     if (!newerThanServer || !newerThanUploaded) return;
     try {
-      const bytes = this.store.snapshot();
-      // Pre-flight guard mirroring the relay's route-local body cap: skip
-      // the upload rather than transfer a body the relay would reject with
-      // 413. The server-side snapshot keeps covering restore either way.
-      // Oversized projections also break tooling that observes browser
-      // traffic — a single request body can exceed a driver's frame limit.
-      if (bytes.byteLength >= this.snapshotUploadLimit) {
+      // Prefer the streaming source when BOTH sides have it (the OPFS-VFS
+      // backend): the image is checkpointed and read lazily from the OPFS
+      // file — the upload never materializes it. byteLength is the raw size,
+      // a conservative bound for the pre-flight cap check (compressed is
+      // smaller).
+      const streamed =
+        this.transport.uploadSnapshotStream !== undefined ? await this.store.snapshotStream() : null;
+      const projectedSize = streamed !== null ? streamed.byteLength : 0;
+      if (streamed !== null && projectedSize >= this.snapshotUploadLimit) {
         if (!this.snapshotOversizeReported) {
           this.snapshotOversizeReported = true;
           const message =
-            `snapshot upload skipped: the local projection (${Math.round(bytes.byteLength / 1048576)} MiB) ` +
+            `snapshot upload skipped: the local projection (${Math.round(projectedSize / 1048576)} MiB) ` +
             "meets the relay's body cap — uploading would be rejected. A server-side snapshot covers " +
             "restore; the client upload stays skipped this session.";
           console.error(`[sync] ${message}`);
@@ -447,7 +453,29 @@ export class SyncEngine {
         }
         return;
       }
-      await upload(bytes, this.receivedHlc);
+      if (streamed !== null) {
+        await this.transport.uploadSnapshotStream!(this.receivedHlc, streamed.stream);
+      } else {
+        const bytes = this.store.snapshot();
+        // Pre-flight guard mirroring the relay's route-local body cap: skip
+        // the upload rather than transfer a body the relay would reject with
+        // 413. The server-side snapshot keeps covering restore either way.
+        // Oversized projections also break tooling that observes browser
+        // traffic — a single request body can exceed a driver's frame limit.
+        if (bytes.byteLength >= this.snapshotUploadLimit) {
+          if (!this.snapshotOversizeReported) {
+            this.snapshotOversizeReported = true;
+            const message =
+              `snapshot upload skipped: the local projection (${Math.round(bytes.byteLength / 1048576)} MiB) ` +
+              "meets the relay's body cap — uploading would be rejected. A server-side snapshot covers " +
+              "restore; the client upload stays skipped this session.";
+            console.error(`[sync] ${message}`);
+            this.callbacks.onError?.(new Error(message));
+          }
+          return;
+        }
+        await upload(bytes, this.receivedHlc);
+      }
       this.uploadedSnapshotHlc = this.receivedHlc;
       this.snapshotOversizeReported = false;
       this.snapshotQuarantineReported = false;

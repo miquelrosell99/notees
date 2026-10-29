@@ -18,6 +18,7 @@ interface CapturedRequest {
   method: string;
   headers: Headers;
   body: unknown;
+  duplex?: string | undefined;
 }
 
 function stubFetch(captured: CapturedRequest): typeof fetch {
@@ -26,6 +27,7 @@ function stubFetch(captured: CapturedRequest): typeof fetch {
     captured.method = init?.method ?? "GET";
     captured.headers = new Headers(init?.headers);
     captured.body = init?.body ?? null;
+    captured.duplex = (init as { duplex?: string } | undefined)?.duplex;
     return new Response(null, { status: 201 });
   }) as typeof fetch;
 }
@@ -73,5 +75,29 @@ describe("HttpTransport.uploadSnapshot — gzip Content-Encoding", () => {
         value: real,
       });
     }
+  });
+});
+
+describe("HttpTransport.uploadSnapshotStream — lazy streaming gzip", () => {
+  it("pipes the source through CompressionStream with duplex half; the captured body gunzips to the original", async () => {
+    const captured: CapturedRequest = { url: "", method: "", headers: new Headers(), body: null };
+    const transport = makeTransport(stubFetch(captured));
+    await transport.uploadSnapshotStream({ physical: 100, logical: 2 }, () =>
+      new Blob([originalBytes]).stream(),
+    );
+
+    expect(captured.method).toBe("PUT");
+    expect(captured.url).toContain("/api/relay/v2/snapshot/data?workspaceId=");
+    expect(captured.headers.get("content-encoding")).toBe("gzip");
+    expect(captured.duplex).toBe("half");
+    const stream = captured.body as ReadableStream<Uint8Array>;
+    const reader = stream.getReader();
+    const chunks: Uint8Array[] = [];
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    expect(gunzipSync(Buffer.concat(chunks.map((c) => Buffer.from(c)))).equals(Buffer.from(originalBytes))).toBe(true);
   });
 });
