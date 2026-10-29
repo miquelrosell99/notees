@@ -128,6 +128,7 @@ import { SelectionBar } from "../features/block-editor/SelectionBar.js";
 import { SelectionOutline } from "./SelectionOutline.js";
 import { coverAssetIdOf } from "../features/metadata/coverProperty.js";
 import { ensureAliasProperty } from "../features/metadata/aliasProperty.js";
+import { syncSourceCitekey } from "../features/sources/citekeyTrack.js";
 import { AliasOfBanner } from "../features/metadata/AliasOfBanner.js";
 import { useDeviceSetting } from "../features/settings/deviceSettings.js";
 import { LocalGraphCard } from "../features/collection/LocalGraphCard.js";
@@ -456,6 +457,21 @@ export function PageView({
     // re-runs it.
     void ensureAliasProperty(client).catch(() => {});
   }, [client]);
+
+  /**
+   * The citekey backfill guard: a source-lineage page opened WITHOUT a
+   * citekey gets one generated from the workspace pattern when Auto-citekey
+   * is on (the same `syncSourceCitekey` engine the App-level change watcher
+   * rides) — the pre-auto-citekey library and imports that bypassed the
+   * create form backfill on open. The engine is idempotent (a converged
+   * node is a cheap no-op read), so the per-render re-run costs nothing;
+   * embedded renders and the preview seam host no writes (the whiteboard
+   * lazy-authoring gating).
+   */
+  useEffect(() => {
+    if (page === undefined || embedded || preview) return;
+    void syncSourceCitekey(client, pageId).catch(() => {});
+  }, [client, page, embedded, preview, pageId]);
 
   /**
    * The cover (the coverAssetId wire node field, the banner's twin): the

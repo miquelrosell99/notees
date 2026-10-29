@@ -209,7 +209,7 @@ export function SourcesSettingsSection({
       <div className="settings-item">
         <BooleanToggle
           label="Auto-citekey"
-          description="Fill an empty citekey from the pattern when an import integration creates a source."
+          description="Fill empty citekeys from your pattern — on create, when a source is opened, and as metadata changes (pinned citekeys never auto-change)."
           checked={settings.autoCitekey}
           onChange={(checked) => writeSettings({ autoCitekey: checked })}
           labelPosition="left"

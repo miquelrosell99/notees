@@ -57,6 +57,7 @@ import { rendersAsInlineBlock } from "@notees/domain";
 import { type NavKey } from "./app/Sidebar.js";
 import { recordRecent } from "../features/sidebar/recentPages.js";
 import { resolveAliasOpen } from "../features/metadata/aliasProperty.js";
+import { syncSourceCitekey } from "../features/sources/citekeyTrack.js";
 import { WorkspacesView } from "../features/workspaces/WorkspacesView.js";
 import {
   SettingsPage,
@@ -639,6 +640,28 @@ export function App() {
       scheduleUndoRefresh();
     });
   }, [client, scheduleUndoRefresh]);
+
+  /**
+   * The citekey auto-track watcher: when a change lands on a source-lineage
+   * node (the notification payload is ancestor-expanded, so an edit to the
+   * node's title, authors, publication date — or its citekey carrier — names
+   * the source), an UNPINNED citekey re-renders from the current metadata
+   * and the value is rewritten the moment the render drifts (the
+   * `syncSourceCitekey` engine — the same one PageView's open guard rides).
+   * Scoped notifications with no affected set (structural/scope-unknown)
+   * skip: the next scoped change on the source, or opening it, covers the
+   * mend. The engine idempotently no-ops on converged nodes, so its own
+   * write's notification settles without a second write.
+   */
+  useEffect(() => {
+    if (client === null) return;
+    return client.subscribe((change) => {
+      if (change.affectedNodeIds === undefined) return;
+      for (const nodeId of change.affectedNodeIds) {
+        void syncSourceCitekey(client, nodeId).catch(() => {});
+      }
+    });
+  }, [client]);
 
   // Poll the (cheap) status snapshot on a cadence and on every worker
   // notification; state is only set when a field actually changed —
