@@ -126,14 +126,18 @@ const probe = setInterval(async () => {
     if (consoleErrors.length) { console.log("ERRORS:", consoleErrors.slice(0, 6)); clearInterval(probe); }
   } catch {}
 }, 15_000);
-// The relay currently holds no snapshot (§34.43 dropped them; recreation
-// still owed), so a FRESH browser profile full-catch-ups the whole log —
-// measured ~5.3 min to idle. 900 s is the permanent window until snapshots
-// return (§34.43's own note: raise permanently if the window recurs).
+// Two boot modes: WITH a snapshot (the steady state — the relay self-heals
+// one after its one-time post-wipe replay, workspace-store.ts) a fresh
+// profile restores the image and catch-ups only the tail, passing this gate
+// in seconds. WITHOUT one (a workspace first touched after a wipe/rebuild
+// while the server is still mid-hydration, or under
+// SNAPSHOT_REBUILD_MIN_ENVELOPES) the whole log replays — minutes at live
+// scale. 600 s covers the slow mode with headroom; raise only when a
+// wipe-era run legitimately exceeds it.
 await page.waitForFunction(
   () => document.body.innerText.length > 500,
   undefined,
-  { timeout: 900_000 },
+  { timeout: 600_000 },
 ).finally(() => clearInterval(probe));
 const bootSecs = ((Date.now() - t0) / 1000).toFixed(1);
 console.log(`boot+settle: ${bootSecs}s; body text length: ${(await page.evaluate(() => document.body.innerText.length))}`);
@@ -152,10 +156,9 @@ await page.getByRole("button", { name: /^search$/i }).first().click();
 const box = page.getByPlaceholder(/search/i).first();
 await box.waitFor({ timeout: 10_000 });
 await box.fill(term);
-// Poll for the hit instead of sleeping a fixed delay: a fresh profile
-// replays the whole log in the background, and the early body>500 boot gate
-// passes seconds in — long before the 2018 date pages exist in the store.
-// (The old 1.5 s sleep worked only because boot itself used to take ~5 min.)
+// Poll for the hit instead of sleeping a fixed delay: the early body>500
+// boot gate passes seconds in — long before the restored/caught-up store
+// holds the 2018 date pages.
 await page.waitForFunction(
   (t) => document.body.innerText.includes(t) || document.body.innerText.includes("2018/09"),
   term,

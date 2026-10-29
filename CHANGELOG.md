@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-29
 
+- **test(smoke): un-stale the verify scripts' snapshot comments and tighten
+  the boot window 900 s → 600 s.** The three verify scripts still claimed the
+  relay holds no snapshot and gave every fresh profile a full-log replay
+  (900 s window) — stale since the §34.49 server self-heal
+  (`ensureSnapshotAfterReplay`, workspace-store.ts): steady state is snapshot
+  restore + tail catch-up (the smoke boots in seconds; verified VERIFY-PASS
+  in ~18 s), and the slow mode is only a workspace first touched after a
+  wipe/rebuild while the server hydrates (minutes — 600 s covers it).
+  The streamed-snapshot-restore proposal (restore-time memory cliff: the
+  whole image crosses into sql.js in one buffer, renderer OOM-crashed twice
+  during the 2026-10-29 redeploy) lives in the internal proposals folder.
+
 - **fix(web): the portaled query-builder panel carries its full-line basis on
   its own modifier class.** The topbar panel-slot portal (below) moves the
   structured panel OUT of the inline toolbar's DOM subtree — and the

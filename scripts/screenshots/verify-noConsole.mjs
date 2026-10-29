@@ -1,0 +1,165 @@
+// Minimal production verification: boot the migrated workspace in the web UI,
+// assert footer has no sync error, UI search returns the API-known hit.
+// Hard timeouts everywhere; streams progress; exits non-zero on failure.
+//
+// Run from anywhere: `node scripts/screenshots/verify-min.mjs` — every path
+// below self-locates (env → fleet stack dir → repo root). It verifies the
+// migrated workspace, so the search term and workspace default to that
+// dataset; point the env vars elsewhere to smoke another deployment.
+import { chromium } from "playwright";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+// Fleet hosts keep the live stack outside the checkout (source/stack split);
+// repo-root deployments use the repo's own config/.
+const stackDir = process.env.NOTEES_STACK_DIR
+  ?? (existsSync("/etc/periphery/stacks/notees") ? "/etc/periphery/stacks/notees" : repoRoot);
+
+const API = process.env.NOTEES_API ?? "http://localhost:8377";
+const WEB = process.env.NOTEES_WEB ?? "http://localhost:8378";
+const WS = process.env.NOTEES_WORKSPACE ?? "3b30e070-039b-47bc-ad0d-2440a2f173c5";
+
+const readFirst = (paths, what) => {
+  for (const p of paths) {
+    if (p && existsSync(p)) return readFileSync(p, "utf8").trim();
+  }
+  throw new Error(`${what} not found — set the env var or one of: ${paths.filter(Boolean).join(", ")}`);
+};
+const KEY = process.env.NOTEES_API_KEY
+  ?? readFirst([process.env.NOTEES_API_KEY_FILE, join(stackDir, "config/notees/sync/api_key.txt")], "API key");
+const PASSWORD = process.env.NOTEES_ADMIN_PASSWORD
+  ?? readFirst([
+    process.env.NOTEES_ADMIN_PASSWORD_FILE,
+    join(stackDir, "config/notees/.admin_password"),
+    join(repoRoot, "config/notees/.admin_password"),
+  ], "admin password");
+const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL ?? "miquelroselltarrago@gmail.com";
+const OUT_DIR = process.env.NOTEES_VERIFY_OUT ?? join(stackDir, "scripts/migrated-verify");
+
+const api = async (path) => {
+  const r = await fetch(API + path, { headers: { "x-api-key": KEY, "x-workspace-id": WS } });
+  if (!r.ok) throw new Error(`api ${path}: ${r.status}`);
+  return r.json();
+};
+
+// Expected hit: reuse the known migrated page (search API proves it indexes).
+const searchApi = await api("/api/search?q=20180900&limit=3");
+const hit = searchApi.results?.[0] ?? searchApi[0];
+const term = "20180900";
+console.log("api search hit:", JSON.stringify(hit).slice(0, 120));
+
+mkdirSync(OUT_DIR, { recursive: true });
+const browser = await chromium.launch({ headless: true, args: ["--disable-dev-shm-usage"] });
+const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+const page = await context.newPage();
+const consoleErrors = [];
+
+page.on("pageerror", (e) => consoleErrors.push("pageerror: " + String(e).slice(0, 200)));
+page.on("requestfailed", (r) => consoleErrors.push("reqfail: " + r.url().slice(-60) + " " + (r.failure()?.errorText ?? "")));
+page.on("response", (r) => { if (r.status() >= 400) consoleErrors.push("http" + r.status() + ": " + r.url().slice(-60)); });
+context.on("workercreated", (w) => {
+  console.log("worker created:", w.url().slice(-40));
+  
+  w.on("pageerror", (e) => consoleErrors.push("worker-error: " + String(e).slice(0, 300)));
+});
+
+const t0 = Date.now();
+// New account-based flow: obtain a session token via the login API and seed
+// it — the app's resume effect validates it, then auto-connects the
+// remembered workspace (no Connect click needed).
+const loginRes = await fetch(API + "/api/auth/login", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ email: ADMIN_EMAIL, password: PASSWORD }),
+});
+if (!loginRes.ok) throw new Error(`login: ${loginRes.status}`);
+const { token: SESSION } = await loginRes.json();
+await page.addInitScript(([url, token, ws]) => {
+  localStorage.setItem("notees.serverUrl", url);
+  localStorage.setItem("notees.sessionToken", token);
+  localStorage.setItem("notees.workspaceId", ws);
+}, [API, SESSION, WS]);
+
+await page.goto(WEB, { waitUntil: "commit", timeout: 120_000 });
+// The resume effect connects automatically; the app shell (sidebar) is the
+// ready signal.
+await page.waitForSelector(".nt-sidebar *, [class*=sidebar] *", { timeout: 5_000 }).catch(() => {});
+console.log("resume-connect in flight");
+// Diagnostic first: what did the boot actually show?
+await page.waitForTimeout(8000);
+console.log("body text:", JSON.stringify(await page.evaluate(() => document.body.innerText)));
+console.log("workers:", page.workers().length);
+const manual = await page.evaluate(async () => {
+  const urls = [...document.querySelectorAll("script")].map((s) => s.src).filter(Boolean);
+  const workerUrl = urls.find((u) => /store-worker/.test(u));
+  if (!workerUrl) return "no worker script tag found; scripts=" + urls.length;
+  return await new Promise((resolve) => {
+    const w = new Worker(workerUrl, { type: "module" });
+    w.onerror = (e) => resolve("worker error: " + (e.message ?? e.type) + " " + (e.filename ?? "").slice(-60));
+    setTimeout(() => resolve("worker spawned OK (no error in 5s)"), 5000);
+  });
+});
+console.log("manual worker probe:", manual);
+console.log("body after connect:", (await page.evaluate(() => document.body.innerText)).slice(0, 400).replace(/\n+/g, " | "));
+console.log("inputs:", await page.evaluate(() => [...document.querySelectorAll("input")].map((i) => i.placeholder + "=" + (i.value || "").slice(0, 30)).join(" | ")));
+const probe = setInterval(async () => {
+  try {
+    console.log(`[probe] body=${(await page.evaluate(() => document.body.innerText.length))} errors=${consoleErrors.length}`);
+    if (consoleErrors.length) { console.log("ERRORS:", consoleErrors.slice(0, 6)); clearInterval(probe); }
+  } catch {}
+}, 15_000);
+// Two boot modes: WITH a snapshot (the steady state — the relay self-heals
+// one after its one-time post-wipe replay, workspace-store.ts) a fresh
+// profile restores the image and catch-ups only the tail, passing this gate
+// in seconds. WITHOUT one (a workspace first touched after a wipe/rebuild
+// while the server is still mid-hydration, or under
+// SNAPSHOT_REBUILD_MIN_ENVELOPES) the whole log replays — minutes at live
+// scale. 600 s covers the slow mode with headroom; raise only when a
+// wipe-era run legitimately exceeds it.
+await page.waitForFunction(
+  () => document.body.innerText.length > 500,
+  undefined,
+  { timeout: 600_000 },
+).finally(() => clearInterval(probe));
+const bootSecs = ((Date.now() - t0) / 1000).toFixed(1);
+console.log(`boot+settle: ${bootSecs}s; body text length: ${(await page.evaluate(() => document.body.innerText.length))}`);
+
+// Footer: no sync error.
+const footerText = await page.evaluate(() => {
+  const el = [...document.querySelectorAll("*")].find((e) => /sync/i.test(e.className) && e.children.length < 6);
+  return el ? el.textContent : "(no footer found)";
+});
+console.log("footer:", footerText.slice(0, 120));
+const footerBad = /sync error|illegal invocation/i.test(footerText);
+console.log("footer clean:", !footerBad);
+
+// UI search — via the command palette (the sidebar search icon opens it).
+await page.getByRole("button", { name: /^search$/i }).first().click();
+const box = page.getByPlaceholder(/search/i).first();
+await box.waitFor({ timeout: 10_000 });
+await box.fill(term);
+// Poll for the hit instead of sleeping a fixed delay: the early body>500
+// boot gate passes seconds in — long before the restored/caught-up store
+// holds the 2018 date pages.
+await page.waitForFunction(
+  (t) => document.body.innerText.includes(t) || document.body.innerText.includes("2018/09"),
+  term,
+  { timeout: 300_000 },
+).catch(() => {});
+const body = await page.evaluate(() => document.body.innerText);
+const found = body.includes("20180900") || body.includes("2018/09");
+console.log("ui search found hit:", found);
+await page.screenshot({ path: join(OUT_DIR, "verify.jpg"), type: "jpeg", quality: 85 });
+
+const rawJson = body.includes('"type":"') || body.includes('[{"type"');
+console.log("raw JSON in rendered body:", rawJson);
+console.log("console errors:", consoleErrors.length ? consoleErrors.slice(0, 5) : "none");
+
+await browser.close();
+if (footerBad || !found || rawJson) {
+  console.log("VERIFY-FAIL");
+  process.exit(1);
+}
+console.log("VERIFY-PASS");
