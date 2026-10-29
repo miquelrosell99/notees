@@ -1,9 +1,8 @@
 /* ─── LinkEditModal ──────────────────────────────────────────── */
 
 /* All chrome composes the kit primitives: Modal (backdrop, panel,
-   header/footer, Esc via the overlay stack), SelectionButton (mode
-   toggle), Button (footer + row actions). This sheet carries only the
-   namespaced field styles. Tokens only. */
+   header/footer, Esc via the overlay stack), Button (footer + row actions).
+   This sheet carries only the namespaced field styles. Tokens only. */
 
 .link-edit-modal .modal__content {
   padding: 0;
@@ -20,10 +19,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
-}
-
-.link-edit-modal__mode-section {
-  align-items: flex-start;
 }
 
 .link-edit-modal__label {

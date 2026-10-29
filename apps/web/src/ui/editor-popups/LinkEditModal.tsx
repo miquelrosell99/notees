@@ -1,11 +1,12 @@
 /**
  * LinkEditModal — modal for editing inline NODE links.
  *
- * the modal is for node links ONLY. It edits two node-ish
- * kinds (node / block) plus the verb kind: the target section hosts ONE kit
+ * The modal is for node links ONLY. The target section hosts ONE kit
  * SelectTrigger whose anchored NodeSelector dropdown (portaled below the
  * trigger) picks the target — click opens the dropdown, a pick replaces the
- * selection in place (Page = pages, Block = blocks) — and the Display Label
+ * selection in place. The picker renders its Main/Blocks scope tabs (the
+ * page-vs-block choice is the TABS' job — the modal carries no mode toggle),
+ * opening on the tab matching the current target's role. The Display Label
  * field sets an optional per-link `customLabel` override (empty = resolve
  * the target's name). Verb mode edits a typed_link mark: the verb field
  * live-matches the workspace's property schemas (an exact name hit saves
@@ -22,10 +23,9 @@
  * overlay stack.
  *
  * The shell composes the kit primitives (Modal for the backdrop/card/
- * header/footer + Esc handling, SelectionButton for the mode toggle,
- * Button for every action) — all chrome comes from components/ui/, and
- * LinkEditModal.css carries only the namespaced `link-edit-modal__*`
- * field styles.
+ * header/footer + Esc handling, Button for every action) — all chrome comes
+ * from components/ui/, and LinkEditModal.css carries only the namespaced
+ * `link-edit-modal__*` field styles.
  *
  * LinkEditModalHost (below) renders the modal at the page level and exposes
  * an opener through context: the block editor's node-link context menu and
@@ -53,7 +53,7 @@ import { titleOf } from "../dateDisplay.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../renderStateLabel.js";
 import { NodeSelector } from "../../features/pickers/NodeSelector.js";
 import { requestPropertyCreate } from "../../features/metadata/PropertyCreateHost.js";
-import { Button, Checkbox, Modal, SelectTrigger, SelectionButton } from "../../components/ui/kit/index.js";
+import { Button, Checkbox, Modal, SelectTrigger } from "../../components/ui/kit/index.js";
 import { notificationStore } from "../../components/ui/kit/notificationStore.js";
 import "./LinkEditModal.css";
 
@@ -82,11 +82,6 @@ export interface LinkEditResult {
    */
   embedded?: boolean | undefined;
 }
-
-const LINK_MODE_OPTIONS = [
-  { value: "node", icon: "mdi-link-variant", label: "Page" },
-  { value: "block", icon: "mdi-text-box", label: "Block" },
-];
 
 /** Minimal schema shape the verb row matches against (PG1). */
 interface VerbSchemaOption {
@@ -299,20 +294,6 @@ export function LinkEditModal({
       footer={footer}
     >
       <div className="link-edit-modal__body" data-editor-companion>
-        {/* Mode toggle — verb targets arrive from the typed-link mark
-            editor and stay in verb mode (no mode switch). */}
-        {linkMode !== "verb" && (
-          <div className="link-edit-modal__section link-edit-modal__mode-section">
-            <SelectionButton
-              options={LINK_MODE_OPTIONS}
-              value={linkMode}
-              onChange={(mode) => setLinkMode(mode as LinkMode)}
-              orientation="horizontal"
-              size="sm"
-            />
-          </div>
-        )}
-
             {/* Verb section (PG1): edit a typed-link mark's verb with the
                 same schema binding + create-and-bind row as the capture
                 popover. */}
@@ -376,10 +357,12 @@ export function LinkEditModal({
               </div>
             ) : (
             <>
-            {/* Link target section */}
+            {/* Link target section — the page-vs-block choice lives in the
+                anchored picker's Main/Blocks scope tabs (the standard
+                NodeSelector surface), not in a modal-local toggle. */}
             <div className="link-edit-modal__section">
               <label className="link-edit-modal__label">
-                {linkMode === "node" ? "Page" : "Block"}
+                Target
               </label>
                 <>
                   {/* ONE target control: the kit SelectTrigger shows the
@@ -390,7 +373,7 @@ export function LinkEditModal({
                     <SelectTrigger
                       isOpen={targetPickerOpen}
                       onClick={() => setTargetPickerOpen((open) => !open)}
-                      ariaLabel={linkMode === "block" ? "Block target" : "Page target"}
+                      ariaLabel="Link target"
                     >
                       <span
                         className={
@@ -422,15 +405,11 @@ export function LinkEditModal({
                     <NodeSelector
                       client={client}
                       anchorEl={targetTriggerRef.current}
-                      searchMode={linkMode === "block" ? "all" : "pages"}
-                      canAdd={(node) =>
-                        linkMode !== "block" ||
-                        rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
-                      }
+                      searchMode="all"
+                      scopeTabs
+                      initialScope={linkMode === "block" ? "blocks" : "main"}
                       excludeNodeId={excludeNodeId}
-                      searchPlaceholder={
-                        linkMode === "block" ? "Search blocks…" : "Search pages…"
-                      }
+                      searchPlaceholder="Search nodes…"
                       onClose={() => setTargetPickerOpen(false)}
                       onAdd={(node) => {
                         setPickedNode(node);

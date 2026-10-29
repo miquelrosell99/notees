@@ -346,7 +346,7 @@ describe("link edit modal (node links only)", () => {
     expect(screen.queryByRole("dialog", { name: "Edit Link Verb" })).toBeNull();
   });
 
-  it("Cancel closes without touching the mention; the mode toggle offers Page/Block only", async () => {
+  it("Cancel closes without touching the mention; no modal-local mode toggle (the picker's tabs own the page-vs-block choice)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Links" });
     const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
@@ -358,13 +358,16 @@ describe("link edit modal (node links only)", () => {
 
     // Edit link… opens the node-link modal with the destination prefilled.
     const dialog = openModalViaMention(container);
-    expect(within(dialog).getByRole("button", { name: "Page target" }).textContent).toContain("Target");
+    expect(within(dialog).getByRole("button", { name: "Link target" }).textContent).toContain("Target");
 
-    // The mode toggle offers Page / Block — URL is gone (the modal is
-    // node-only; external links navigate and are authored directly).
-    expect(within(dialog).getByRole("radio", { name: "Page" })).toBeInTheDocument();
-    expect(within(dialog).getByRole("radio", { name: "Block" })).toBeInTheDocument();
-    expect(within(dialog).queryByRole("radio", { name: "URL" })).toBeNull();
+    // No mode toggle rides the modal — the Page/Block choice is the
+    // anchored picker's Main/Blocks scope tabs (the modal is node-only;
+    // URL links navigate and are authored directly).
+    expect(within(dialog).queryByRole("radiogroup")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Link target" }));
+    const picker = screen.getByRole("dialog", { name: "Select node" });
+    expect(within(picker).getByRole("tab", { name: "Main" })).toBeInTheDocument();
+    expect(within(picker).getByRole("tab", { name: "Blocks" })).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
@@ -373,7 +376,7 @@ describe("link edit modal (node links only)", () => {
     ]);
   });
 
-  it("renders the mode tab row and the field regions as distinct, ordered elements (no collapsed overlap)", async () => {
+  it("renders the target field and the modal sections as distinct, ordered elements (no collapsed overlap)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Links" });
     const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
@@ -385,45 +388,32 @@ describe("link edit modal (node links only)", () => {
 
     const dialog = openModalViaMention(container);
 
-    // The mode selector is a radiogroup row of two tabs (Page/Block — the
-    // modal is node-only, no URL tab); the target field is a separate
-    // labelled region below it. The regression this guards: the tab row
-    // collapsing into the field label/control — so the tab, the section
-    // label, and the control must be DISTINCT elements, the label must not
-    // live inside the tab row, and the tab row must precede the field
-    // region in document order.
-    const group = within(dialog).getByRole("radiogroup");
-    const pageTab = within(group).getByRole("radio", { name: "Page" });
-    const blockTab = within(group).getByRole("radio", { name: "Block" });
-    expect(new Set([pageTab, blockTab]).size).toBe(2);
-    expect(within(group).queryByRole("radio", { name: "URL" })).toBeNull();
-
-    const pageLabel = within(dialog).getByText("Page", { selector: ".link-edit-modal__label" });
-    const targetTrigger = within(dialog).getByRole("button", { name: "Page target" });
-    // Distinct elements, none nested in the tab row.
-    expect(pageLabel).not.toBe(pageTab);
-    expect(targetTrigger).not.toBe(pageTab);
-    expect(group.contains(pageLabel)).toBe(false);
-    expect(group.contains(targetTrigger)).toBe(false);
-    // The tab row sits in its own section, above the target field section.
-    const tabSection = group.closest(".link-edit-modal__section")!;
-    const fieldSection = pageLabel.closest(".link-edit-modal__section")!;
-    expect(tabSection).not.toBe(fieldSection);
-    expect(
-      tabSection.compareDocumentPosition(fieldSection) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    // The modal carries ONE labelled target region — the page-vs-block
+    // choice lives in the anchored picker's scope tabs, not in a
+    // modal-local tab row. The regression this guards: chrome collapsing
+    // into the field label/control — so the section label and the control
+    // must be DISTINCT elements and the label must precede the control.
+    expect(within(dialog).queryByRole("radiogroup")).toBeNull();
+    const targetLabel = within(dialog).getByText("Target", { selector: ".link-edit-modal__label" });
+    const targetTrigger = within(dialog).getByRole("button", { name: "Link target" });
+    expect(targetLabel).not.toBe(targetTrigger);
+    const fieldSection = targetLabel.closest(".link-edit-modal__section")!;
+    expect(fieldSection.contains(targetTrigger)).toBe(true);
 
     // Clicking the trigger opens the anchored dropdown (portaled to the
-    // body, outside the modal subtree).
+    // body, outside the modal subtree) with the Main/Blocks scope tabs.
     fireEvent.click(targetTrigger);
-    expect(screen.getByPlaceholderText("Search pages…")).toBeInTheDocument();
+    const picker = screen.getByRole("dialog", { name: "Select node" });
+    expect(within(picker).getByPlaceholderText("Search nodes…")).toBeInTheDocument();
+    expect(within(picker).getByRole("tab", { name: "Main" })).toBeInTheDocument();
+    expect(within(picker).getByRole("tab", { name: "Blocks" })).toBeInTheDocument();
 
     // Dismissal rides the overlay surfaces in LIFO order: the open picker
     // (a stamped fleet popup) owns the first Escape; the modal closes on the
     // next one, once the picker is gone. Backdrop click still closes
     // directly; Cancel reopens nothing.
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByPlaceholderText("Search pages…")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Select node" })).toBeNull();
     expect(screen.getByRole("dialog", { name: "Edit Link" })).not.toBeNull();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
@@ -433,7 +423,7 @@ describe("link edit modal (node links only)", () => {
     expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
   });
 
-  it("Page mode: ONE target control — clicking opens the anchored picker; picking replaces the selection", async () => {
+  it("ONE target control — clicking opens the anchored picker with scope tabs; picking replaces the selection", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Links" });
     const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
@@ -448,14 +438,14 @@ describe("link edit modal (node links only)", () => {
 
     // ONE target control: a single SelectTrigger reading the current
     // selection — no separate always-expanded search field below it.
-    const trigger = within(dialog).getByRole("button", { name: "Page target" });
+    const trigger = within(dialog).getByRole("button", { name: "Link target" });
     expect(trigger.textContent).toContain("Target");
-    expect(within(dialog).queryByPlaceholderText("Search pages…")).toBeNull();
+    expect(within(dialog).queryByPlaceholderText("Search nodes…")).toBeNull();
 
     // Clicking it opens the anchored picker dropdown (portaled to the body).
     fireEvent.click(trigger);
     const picker = screen.getByRole("dialog", { name: "Select node" });
-    const search = within(picker).getByPlaceholderText("Search pages…") as HTMLInputElement;
+    const search = within(picker).getByPlaceholderText("Search nodes…") as HTMLInputElement;
     expect(search).not.toBeNull();
 
     // Search + pick: the dropdown closes and the control updates in place.
