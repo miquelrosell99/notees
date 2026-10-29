@@ -33,12 +33,6 @@ predating this file.
   `:nightly` + `nightly-YYYYMMDD` to ghcr with GITHUB_TOKEN (packages:
   write); never `:latest`; concurrency group `nightly-docker` with
   cancel-in-progress false.
-  SonarQube (conditional): a `sonar` job in ci.yml runs on the nightly
-  schedule only, gated `vars.SONAR_HOST_URL != ''`, using
-  SonarSource/sonarqube-scan-action v8.4.0 (SHA-pinned) + a minimal
-  `sonar-project.properties` (project key `notees`, sources packages/apps,
-  fixtures/node_modules/dist excluded). PR CI stays fast; the scan is inert
-  until the repo defines SONAR_TOKEN (secret) + SONAR_HOST_URL (variable).
   `compose.example.yaml` + `compose.dev.example.yaml` document the two ghcr
   channels (`:latest` = stable release, `:nightly` = scheduled main build).
   `docs/developers/deployment.md` ghcr section updated (channels, triggers,
@@ -46,9 +40,8 @@ predating this file.
   `pnpm typecheck && pnpm test` green.
   - **Files**: `.github/workflows/ci.yml`, `.github/workflows/release-docker.yml`,
     `.github/workflows/nightly-docker.yml` (new), `apps/web/vite.config.ts`,
-    `apps/server/vitest.config.ts` (new), `sonar-project.properties` (new),
-    `compose.example.yaml`, `compose.dev.example.yaml`,
-    `docs/developers/deployment.md`.
+    `apps/server/vitest.config.ts` (new), `compose.example.yaml`,
+    `compose.dev.example.yaml`, `docs/developers/deployment.md`.
 
 ## 2026-10-28
 
