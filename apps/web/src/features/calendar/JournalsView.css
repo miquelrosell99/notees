@@ -44,35 +44,19 @@
 }
 
 /* The unrealized day (the permanent-address model): the realized
-   entries' own embedded register — muted placeholder icon + plain date
-   title riding DIRECTLY under .nt-page (the journal zeroes the page
-   padding) — so an empty day sits in the day rhythm, aligned with its
-   written neighbors. (.nt-nodeview-body is the panelled layout's cap and
-   carries spacing-6 inline padding — one padding too many here.) The
-   icon only occupies the icon column (non-interactive, muted); the start
-   affordance aligns with the title column: the icon column's width plus
-   the title row's own gap, the page-header register. */
+   entries' own embedded register — the day class's effective icon
+   (resolved exactly like a realized day page's header, user edits flow
+   through) + the plain date title riding DIRECTLY under .nt-page (the
+   journal zeroes the page padding) — so an empty day sits in the day
+   rhythm, aligned with its written neighbors. (.nt-nodeview-body is the
+   panelled layout's cap and carries spacing-6 inline padding — one
+   padding too many here.) The add affordance IS the outliner's GhostRow
+   (its own co-located CSS) — no local styling. The icon only occupies
+   the icon column (non-interactive, muted). */
 .journal-virtual-icon {
   color: var(--md-sys-color-on-surface-variant);
   opacity: 0.6;
   pointer-events: none;
-}
-
-.journal-virtual-start {
-  margin-top: var(--spacing-2);
-  margin-left: calc(var(--height-2xl) + var(--spacing-3));
-  padding: var(--spacing-1) var(--spacing-2);
-  font: var(--font-body-medium);
-  color: var(--md-sys-color-on-surface-variant);
-  background: transparent;
-  border: none;
-  border-radius: var(--shape-card);
-  cursor: pointer;
-}
-
-.journal-virtual-start:hover {
-  color: var(--md-sys-color-on-surface);
-  background: var(--md-sys-color-hover-overlay);
 }
 
 /* The embedded feed title is a plain heading, not a link — the

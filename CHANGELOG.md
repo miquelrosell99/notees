@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): the journal's empty-day placeholder becomes the outliner's
+  ghost row, with the day class's own icon.** Two owner asks from the live
+  app: the free-floating "Empty day — click to start" sentence read as
+  stray text, not an affordance, and the placeholder's icon was a
+  hardcoded notebook instead of the day class's. The virtual entry now
+  mounts the shared `GhostRow` (block gutter + "+ Add block", the exact
+  register the body rows wear, at the block left edge), and the header
+  icon resolves through `definedNodeIcon` exactly like a realized day
+  page's header — a user-edited day class icon flows to the ghost entries,
+  and when nothing is defined no icon span renders, the realized
+  register. The ghost's realize is the day's first real write: ensure the
+  chain (a pre-lock trashed day restores) AND add the day's first empty
+  block, so the swap lands on a page with a row ready to type into. The
+  bespoke placeholder styles retire (the ghost brings its own CSS).
+  Verified: journals-view suite green (materialize tests assert the born
+  block; the structural test pins ghost + icon-resolution parity);
+  typecheck green.
+
 - **feat(web): NodeCard polish — the header trail names the card's node,
   the card's sections start collapsed, and the peek gesture reaches the
   pills and the Open arrows.** Three owner asks on the landed rail cards:
