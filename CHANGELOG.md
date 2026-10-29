@@ -168,6 +168,36 @@ predating this file.
   render one row reading sort, switcher, search, filter (screenshot-checked
   against the probe class hub); full gate green (typecheck + 2529 web
   tests, full chain).
+- **feat(scripts): displayTemplate seed convergence migration.** The
+  citekey-centric declaration (the `SYSTEM_CLASS_DISPLAY_TEMPLATES` seed
+  manifest: `source`'s `"@{{citekey}}"` header template + the seven
+  media-type classes' explicit `""` opt-outs) predates existing
+  workspaces' class rows, whose `class.display_template` column is NULL —
+  `scripts/migrate-display-template.mts` converges them Path A, following
+  the migrate-seed-pins shape section-for-section: the 8-target set is
+  derived from the manifest itself (no second list), the plan reads the
+  converged scratch store (snapshot + full tail) and appends a
+  `class.update {classId, displayTemplate}` envelope ONLY where the column
+  IS NULL — writing the manifest value including the `""` opt-outs, never
+  overwriting a user-set template OR a user-set `""` opt-out (the NULL-only
+  ruling: the comparison is against NULL, never against the manifest
+  value), skipping class-less targets (the applier ensure / web self-heal
+  authors those). Envelopes carry the shared-physical/per-envelope-logical
+  HLC + constant actor/device/client, are zod-validated before ingest,
+  dry-run by default; `--apply` backs up the relay to /tmp, ingests through
+  `RelayStorage.ingest` (no epoch bump — restart the sync server to
+  rehydrate), and verifies from the persisted log: read-back +
+  protocol validation + a fresh scratch replay with every planned row
+  equal to its manifest value and a re-plan of nothing. Idempotent — a
+  second run plans nothing. Behind the LOCKSTEP GATE (the
+  `displayTemplate` payload key — SCHEMA.md LOCKSTEP-PENDING until the
+  GTK/Flutter ports ship fixture acceptance); not in migrate-pending's
+  registry (the migrate-seed-pins precedent). Verified: e2e at
+  `apps/server/test/migrate-display-template.test.ts` (5 tests — manifest
+  derivation, the NULL-only plan incl. the user-`""` and user-template
+  never-overwrite cases + the missing skip, dry-run-writes-nothing,
+  apply-replays-clean + user rows survive + second-run idempotency); full
+  gate green.
 
 - **feat(web): hub top bars carry the full collection toolbar — quick
   search, structured filters, and the view's sort control join the view
