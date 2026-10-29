@@ -442,6 +442,18 @@ export class WorkerClient {
     return this.cachedRead<string | null>("getClassDisplayTemplate", [classId], null);
   }
 
+  /**
+   * Uncached own-column displayTemplate read — one raw RPC straight to the
+   * store (the getChildrenFresh precedent). Deploy-time convergence reads
+   * THIS, never the render cache: a cold-cache `getClassDisplayTemplate`
+   * seeds null, and null is exactly the "never set" sentinel — the cached
+   * read would emit a clobbering update on a cold deploy of a class whose
+   * template a user set.
+   */
+  async getClassDisplayTemplateFresh(classId: string): Promise<string | null> {
+    return (await this.call("getClassDisplayTemplate", [classId])) as string | null;
+  }
+
   /** The class's EFFECTIVE displayTemplate — the store's extends-aware
    *  resolver (own non-empty wins; own "" opts out and stops; NULL walks the
    *  extends chain nearest-first). The title seam's template axis reads

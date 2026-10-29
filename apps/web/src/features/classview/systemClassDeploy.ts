@@ -49,12 +49,28 @@ import {
 
 import type { WorkspaceFeature } from "@notees/protocol";
 
-import type { WorkerClient } from "@/core/worker-client.js";
+import { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { ensureTaskFamily } from "./taskFamily.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
+
+/**
+ * The class's OWN displayTemplate through a FRESH read — never the
+ * WorkerClient's render cache. Deploy-time convergence decides on
+ * `=== null`, and the cached read's cold-cache default IS null: a cold
+ * deploy of an existing class would mistake a user-set template for
+ * "never set" and clobber it (the getChildrenFresh precedent — write
+ * decisions plan from uncached reads). The in-process WorkspaceClient
+ * reads the store directly, so its sync read is already fresh.
+ */
+async function ownDisplayTemplate(client: AnyClient, classId: string): Promise<string | null> {
+  if (client instanceof WorkerClient) {
+    return client.getClassDisplayTemplateFresh(classId);
+  }
+  return client.getClassDisplayTemplate(classId);
+}
 
 /** Set-equality over a stored schema scope (null = global) and the seeded scope. */
 function scopeEquals(stored: string[] | null, seeded: string[] | null): boolean {
@@ -113,27 +129,9 @@ export async function deploySystemClass(
       ...(SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK.has(key)
         ? { parentlessRole: "block" as const }
         : {}),
-      // The displayTemplate seed (the citekey-centric `source` header, the
-      // media roster's explicit "" opt-outs): "" IS a real entry, so the
-      // undefined check (not truthiness) gates the spread.
-      ...(SYSTEM_CLASS_DISPLAY_TEMPLATES[key] !== undefined
-        ? { displayTemplate: SYSTEM_CLASS_DISPLAY_TEMPLATES[key] }
-        : {}),
     });
-  } else {
-    // Converge an EXISTING class whose display_template was never set
-    // (NULL): write the manifest entry, INCLUDING "" (a NULL column is
-    // indistinguishable from "predates the manifest" — the ruling). A
-    // non-NULL column (user-set template or user-set opt-out) is NEVER
-    // overwritten. Existing workspaces converge by the one-time migration;
-    // this is the fresh-workspace/offline self-heal twin.
-    const manifestTemplate = SYSTEM_CLASS_DISPLAY_TEMPLATES[key];
-    if (
-      manifestTemplate !== undefined &&
-      client.getClassDisplayTemplate(classId) === null
-    ) {
-      await client.updateClassDisplayTemplate(classId, manifestTemplate);
-    }
+    // The displayTemplate seed is NOT part of the create — it lands at the
+    // deploy tail (see below), after the property family exists.
   }
 
   // Un-archive an archived seed (the gallery's enable pick). The family
@@ -154,110 +152,130 @@ export async function deploySystemClass(
   }
 
   // The task family's contract (options + display) lives in
-  // TASK_FAMILY_SEED, not SYSTEM_PROPERTY_SPECS — delegate.
+  // TASK_FAMILY_SEED, not SYSTEM_PROPERTY_SPECS — delegate. (Its early
+  // return retired: the displayTemplate tail below runs for every key —
+  // a no-op for task, which carries no manifest entry.)
   if (key === "task") {
     await ensureTaskFamily(client);
-    return classId;
-  }
-
-  // Generic family: the manifest's specs bound to this class (binding rows
-  // carry no order — a pin is a classification, never an order;
-  // sequence retired 2026-10-21). The existence check reads
-  // the REGISTRY only (getRegistryBindings):
-  // getClassBindings read-synthesizes the seed-spec fallback rows, so a
-  // workspace whose binding rows were never authored would LOOK bound
-  // through that read and the self-heal would author nothing — the ClassView
-  // renders configured while the registry-only effective-properties read
-  // sees no bindings. Own rows only: an inherited binding is not this
-  // class's row, and the seeded shape binds every spec on its own class.
-  const family = (
-    Object.entries(SYSTEM_PROPERTY_SPECS) as Array<
-      [SystemPropertyName, (typeof SYSTEM_PROPERTY_SPECS)[SystemPropertyName]]
-    >
-  ).filter(([, spec]) => spec !== undefined && spec.bindTo === key);
-  if (family.length > 0) {
-    const existing = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
-    for (const [name, spec] of family) {
-      const schemaId = SYSTEM_PROPERTY_UUIDS[name];
-      // The seeded scope for this spec: global (the scope-audit flips — url,
-      // the task family) unless the spec stays a family-identity field.
-      const seededScope = spec!.global === true ? null : [classId];
-      const stored = existing.get(schemaId);
-      if (stored === undefined) {
-        await client.createPropertySchema({
-          id: schemaId,
-          name: SYSTEM_PROPERTY_DISPLAY_NAMES[name],
-          type: spec!.type,
-          multi: spec!.multi ?? false,
-          // Scoped to this class unless the spec is marked `global` — the
-          // binding rows below land either way (bindings are per-class config).
-          ...(seededScope === null ? {} : { scopeClassIds: seededScope }),
-          // The spec's default is SCHEMA-level (one
-          // global default per property, the Logseq shape).
-          ...(spec!.defaultValue !== undefined ? { defaultValue: spec!.defaultValue } : {}),
-          ...(spec!.options !== undefined ? { options: spec!.options } : {}),
-          ...(spec!.targetClassFilter !== undefined
-            ? { targetClassFilter: spec!.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
-            : {}),
+  } else {
+    // Generic family: the manifest's specs bound to this class (binding rows
+    // carry no order — a pin is a classification, never an order;
+    // sequence retired 2026-10-21). The existence check reads
+    // the REGISTRY only (getRegistryBindings):
+    // getClassBindings read-synthesizes the seed-spec fallback rows, so a
+    // workspace whose binding rows were never authored would LOOK bound
+    // through that read and the self-heal would author nothing — the ClassView
+    // renders configured while the registry-only effective-properties read
+    // sees no bindings. Own rows only: an inherited binding is not this
+    // class's row, and the seeded shape binds every spec on its own class.
+    const family = (
+      Object.entries(SYSTEM_PROPERTY_SPECS) as Array<
+        [SystemPropertyName, (typeof SYSTEM_PROPERTY_SPECS)[SystemPropertyName]]
+      >
+    ).filter(([, spec]) => spec !== undefined && spec.bindTo === key);
+    if (family.length > 0) {
+      const existing = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
+      for (const [name, spec] of family) {
+        const schemaId = SYSTEM_PROPERTY_UUIDS[name];
+        // The seeded scope for this spec: global (the scope-audit flips — url,
+        // the task family) unless the spec stays a family-identity field.
+        const seededScope = spec!.global === true ? null : [classId];
+        const stored = existing.get(schemaId);
+        if (stored === undefined) {
+          await client.createPropertySchema({
+            id: schemaId,
+            name: SYSTEM_PROPERTY_DISPLAY_NAMES[name],
+            type: spec!.type,
+            multi: spec!.multi ?? false,
+            // Scoped to this class unless the spec is marked `global` — the
+            // binding rows below land either way (bindings are per-class config).
+            ...(seededScope === null ? {} : { scopeClassIds: seededScope }),
+            // The spec's default is SCHEMA-level (one
+            // global default per property, the Logseq shape).
+            ...(spec!.defaultValue !== undefined ? { defaultValue: spec!.defaultValue } : {}),
+            ...(spec!.options !== undefined ? { options: spec!.options } : {}),
+            ...(spec!.targetClassFilter !== undefined
+              ? { targetClassFilter: spec!.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
+              : {}),
+          });
+        } else if (!scopeEquals(stored.scopeClassIds, seededScope)) {
+          // Pre-ruling drift (url bound to source now — a
+          // stored url schema still scoped [web_page] would make the family
+          // base's binding dead config, R5 rejects it): converge the scope to
+          // the seed BEFORE the binding row below (the offline-first twin of
+          // scripts/migrate-seed-scope-flips.mts).
+          await client.updatePropertySchema(schemaId, { scopeClassIds: seededScope });
+        }
+      }
+      const registry = client.getRegistryBindings(classId);
+      const bound = new Set(registry.map((binding) => binding.propertySchemaId));
+      for (const [name, spec] of family) {
+        const schemaId = SYSTEM_PROPERTY_UUIDS[name];
+        // `bind: false`: schema-only seed — no
+        // binding row on `bindTo` (the source pool's type-specific fields bind
+        // on their own classes via SYSTEM_SOURCE_CLASS_BINDINGS below).
+        if (bound.has(schemaId) || spec!.bind === false) continue;
+        await client.setClassProperty(classId, schemaId, {
+          ...(spec!.pinned !== undefined ? { pinned: spec!.pinned } : {}),
         });
-      } else if (!scopeEquals(stored.scopeClassIds, seededScope)) {
-        // Pre-ruling drift (url bound to source now — a
-        // stored url schema still scoped [web_page] would make the family
-        // base's binding dead config, R5 rejects it): converge the scope to
-        // the seed BEFORE the binding row below (the offline-first twin of
-        // scripts/migrate-seed-scope-flips.mts).
-        await client.updatePropertySchema(schemaId, { scopeClassIds: seededScope });
       }
     }
-    const registry = client.getRegistryBindings(classId);
-    const bound = new Set(registry.map((binding) => binding.propertySchemaId));
-    for (const [name, spec] of family) {
-      const schemaId = SYSTEM_PROPERTY_UUIDS[name];
-      // `bind: false`: schema-only seed — no
-      // binding row on `bindTo` (the source pool's type-specific fields bind
-      // on their own classes via SYSTEM_SOURCE_CLASS_BINDINGS below).
-      if (bound.has(schemaId) || spec!.bind === false) continue;
-      await client.setClassProperty(classId, schemaId, {
-        ...(spec!.pinned !== undefined ? { pinned: spec!.pinned } : {}),
-      });
-    }
-  }
 
-  // The manifest's extra binding rows for this class (an extends-child
-  // re-binding an inherited schema so class-local binding reads see it —
-  // the birthday→eventDate shape). Registry-only check here too: birthday
-  // inherits event's eventDate row once the parent is deployed, and an
-  // extends-aware check would mistake that inheritance for the class-local
-  // row the calendar quick-create eligibility walk reads.
-  for (const extra of SYSTEM_EXTRA_CLASS_BINDINGS) {
-    if (extra.bindTo !== key) continue;
-    const bound = client
-      .getRegistryBindings(classId)
-      .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[extra.property]);
-    if (bound) continue;
-    await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[extra.property], {
-      ...(extra.pinned !== undefined ? { pinned: extra.pinned } : {}),
-    });
-  }
-
-  // The source library's per-class rows (SYSTEM_SOURCE_CLASS_BINDINGS): the class's Zotero field list re-bound on the class itself
-  // (the pool schemas ride the source base — the recursive parent deploy
-  // above authors them + the base rows). Registry-only check, the same
-  // own-row precedent: an extends-aware check would mistake the inherited
-  // base row for this class's class-local row.
-  const sourceBindings = SYSTEM_SOURCE_CLASS_BINDINGS[key];
-  if (sourceBindings !== undefined) {
-    for (const ref of sourceBindings) {
-      const property = sourceBindingPropertyOf(ref);
-      const pinned = typeof ref === "string" ? undefined : ref.pinned;
+    // The manifest's extra binding rows for this class (an extends-child
+    // re-binding an inherited schema so class-local binding reads see it —
+    // the birthday→eventDate shape). Registry-only check here too: birthday
+    // inherits event's eventDate row once the parent is deployed, and an
+    // extends-aware check would mistake that inheritance for the class-local
+    // row the calendar quick-create eligibility walk reads.
+    for (const extra of SYSTEM_EXTRA_CLASS_BINDINGS) {
+      if (extra.bindTo !== key) continue;
       const bound = client
         .getRegistryBindings(classId)
-        .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[property]);
+        .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[extra.property]);
       if (bound) continue;
-      await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[property], {
-        ...(pinned !== undefined ? { pinned } : {}),
+      await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[extra.property], {
+        ...(extra.pinned !== undefined ? { pinned: extra.pinned } : {}),
       });
     }
+
+    // The source library's per-class rows (SYSTEM_SOURCE_CLASS_BINDINGS): the class's Zotero field list re-bound on the class itself
+    // (the pool schemas ride the source base — the recursive parent deploy
+    // above authors them + the base rows). Registry-only check, the same
+    // own-row precedent: an extends-aware check would mistake the inherited
+    // base row for this class's class-local row.
+    const sourceBindings = SYSTEM_SOURCE_CLASS_BINDINGS[key];
+    if (sourceBindings !== undefined) {
+      for (const ref of sourceBindings) {
+        const property = sourceBindingPropertyOf(ref);
+        const pinned = typeof ref === "string" ? undefined : ref.pinned;
+        const bound = client
+          .getRegistryBindings(classId)
+          .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[property]);
+        if (bound) continue;
+        await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[property], {
+          ...(pinned !== undefined ? { pinned } : {}),
+        });
+      }
+    }
+  }
+
+  // The displayTemplate seed — the deploy TAIL, on ONE code path for the
+  // fresh-create and the existing-class cases. Written LAST, after the
+  // property family above exists: the write-time placeholder validation
+  // (SCHEMA.md "Class-level displayTemplate") resolves {{name}} placeholders
+  // against the schemas available to the class, and a fresh class's own
+  // family is authored by this same deploy. Convergence is strictly NULL-
+  // only: a class this deploy just created reads NULL by construction; an
+  // existing non-NULL column (a user-set template OR a user-set "" opt-out)
+  // is NEVER overwritten (the ruling; existing workspaces converge by the
+  // one-time migration — this is the fresh-workspace/offline self-heal
+  // twin). The read is FRESH (ownDisplayTemplate): under the WorkerClient
+  // the render cache's cold-cache default IS null — the exact "never set"
+  // sentinel — so a cached read here would clobber a user-set template on a
+  // cold deploy.
+  const manifestTemplate = SYSTEM_CLASS_DISPLAY_TEMPLATES[key];
+  if (manifestTemplate !== undefined && (await ownDisplayTemplate(client, classId)) === null) {
+    await client.updateClassDisplayTemplate(classId, manifestTemplate);
   }
 
   return classId;
