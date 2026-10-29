@@ -9,7 +9,23 @@ predating this file.
 
 ## 2026-10-29
 
-<<<<<<< HEAD
+- **feat(web): the journal's empty-days toggle — empty days hide by
+  default, the top-bar eye-pair button switch reveals them.** The
+  permanent-address feed renders every calendar day, which makes long
+  empty stretches scrollable noise; the new toggle (kit Button, ghost sm,
+  `aria-pressed` + the active state layer — the GraphView icon-toggle
+  register) filters the feed to written days plus the anchor day: eye-off
+  = hiding (the default), eye-outline = every day renders. The choice is
+  device-local (`journalShowEmptyDays`), never an op. Hiding keeps the
+  underlying day window contiguous but changes the sentinel's growth: it
+  jumps straight to the next written day older than the floor (an
+  IntersectionObserver crossing that mounts nothing would never re-fire —
+  the gap-starvation ruling), and retires at the floor cap once every
+  written day is inside the window. The anchor day and trashed days
+  always render, hidden or not. Verified: journals-view suite (18 tests:
+  default-hides, toggle reveals + persists, sentinel retirement inside /
+  presence beyond the window); typecheck green.
+
 - **feat(web): the right rail's peek cards become NodeCard — solid surfaced
   cards with a hairline-separated header, an actions menu, and a recency
   order; the reorder drag is gone.** The rail's card stack rework:

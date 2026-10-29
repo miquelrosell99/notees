@@ -128,16 +128,34 @@ export function JournalsView({
   const [focusIso, setFocusIso] = useState<string | null>(null);
   /** First-day-of-week device setting for the mini-month. */
   const [firstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
+  /**
+   * The empty-days toggle (device-local, default OFF = hiding): hiding
+   * collapses the gaps — the feed lists written days plus the anchor day;
+   * showing renders every calendar day in the window.
+   */
+  const [showEmptyDays, setShowEmptyDays] = useDeviceSetting("journalShowEmptyDays", false);
   /** Days beyond the initial radius revealed by the bottom sentinel. */
   const [extraBefore, setExtraBefore] = useState(0);
 
   const anchorIso = focusIso ?? todayIso;
+  /** The oldest written day — the floor cap when hiding (nothing deeper can ever appear). */
+  const oldestRealizedIso = useMemo(() => {
+    let min: string | null = null;
+    for (const iso of pagesByIso.keys()) {
+      if (min === null || iso < min) min = iso;
+    }
+    return min;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reads resolve through the client notification (version)
+  }, [pagesByIso, version]);
   /**
    * The window: realized future day pages above the cap, then every
    * calendar day from the cap (the newer of today and the anchor) back to
    * the floor (the anchor minus the radius, never stopping short of today
    * — a far-future focus must not drop the days between today and the
-   * floor). The anchor is always inside by construction.
+   * floor). The anchor is always inside by construction. With the toggle
+   * off, the unrealized days FILTER OUT at render: the underlying day
+   * window stays contiguous (the sentinel's growth math is unchanged) but
+   * only written days and the anchor day mount.
    */
   const entries = useMemo<DayEntry[]>(() => {
     const capIso = anchorIso > todayIso ? anchorIso : todayIso;
@@ -166,9 +184,12 @@ export function JournalsView({
         });
       }
     }
-    return list;
+    if (showEmptyDays) return list;
+    return list.filter(
+      (entry) => entry.realized || entry.trashed || entry.iso === anchorIso,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reads resolve through the client notification (version)
-  }, [client, pagesByIso, anchorIso, todayIso, extraBefore, version]);
+  }, [client, pagesByIso, anchorIso, todayIso, extraBefore, showEmptyDays, version]);
 
   const anchorId = dayNodeId(anchorIso);
   const anchorIndex = entries.findIndex((entry) => entry.iso === anchorIso);
@@ -177,13 +198,41 @@ export function JournalsView({
 
   /**
    * The past is unbounded — every calendar day back exists as a potential
-   * entry — so the sentinel always rides the list's tail: a crossing
-   * reveals PAGE older days (appended below the viewport, never disturbing
-   * the scroll).
+   * entry — so the sentinel rides the list's tail: a crossing reveals PAGE
+   * older days (appended below the viewport, never disturbing the scroll).
+   * HIDING changes the growth: the window jumps STRAIGHT to the next
+   * written day older than the floor (plus one page of margin), so every
+   * crossing mounts at least one new entry — a gap of empty days can never
+   * starve the sentinel (IntersectionObserver only re-fires on a
+   * visibility CHANGE, and a crossing that mounts nothing would leave the
+   * sentinel where it is, silent). When no written day is older than the
+   * floor the floor cap is reached and the sentinel retires.
    */
   const extendPast = () => {
-    setExtraBefore((n) => n + PAGE);
+    if (showEmptyDays) {
+      setExtraBefore((n) => n + PAGE);
+      return;
+    }
+    setExtraBefore((n) => {
+      const floorIso = addDaysIso(anchorIso, -(INITIAL_RADIUS + n));
+      const older = [...pagesByIso.keys()]
+        .filter((iso) => iso < floorIso)
+        .sort((a, b) => b.localeCompare(a));
+      const next = older[0];
+      if (next === undefined) return n + PAGE; // floor cap reached; the sentinel retires
+      const needed = daysBetweenIsos(next, anchorIso) - INITIAL_RADIUS;
+      return Math.max(n + PAGE, needed + PAGE);
+    });
   };
+
+  /**
+   * The floor cap: hiding with every written day already inside the window
+   * (or none at all) means nothing deeper can appear — the sentinel
+   * retires instead of paging an ever-deeper empty window.
+   */
+  const floorReached =
+    !showEmptyDays &&
+    (oldestRealizedIso === null || addDaysIso(anchorIso, -(INITIAL_RADIUS + extraBefore)) <= oldestRealizedIso);
 
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return;
@@ -313,16 +362,33 @@ export function JournalsView({
           pinned above the feed, full card width, so the feed's scrollbar
           stays at the card border. The navigator-panel toggle TRAILS the
           bar at the far right (useSidePanel links it to the right-column
-          panel — one side declared once); the lone ACTION is Today — a
-          jump that re-owns the today anchor (today always has an entry
-          under the permanent-address model). Discrete day-steppers stay
-          retired: day-jumping rides the calendar popup, the sidebar Today
-          row, and each entry's Open-page button. */}
+          panel — one side declared once). The ACTIONS ride the empty-days
+          toggle (the eye pair — the fleet's show/hide register: eye-off =
+          the gaps are collapsed, the default; the open eye = every
+          calendar day renders) and Today — a jump that re-owns the today
+          anchor (today always has an entry under the permanent-address
+          model). Discrete day-steppers stay retired: day-jumping rides
+          the calendar popup, the sidebar Today row, and each entry's
+          Open-page button. */}
       <SurfaceTopBar
         icon="mdi-notebook-outline"
         title="Journal"
         actions={
           <>
+            {/* The icon toggle-button composition (the GraphView register):
+               ghost sm + aria-pressed + the active state-layer; the icon
+               names the state, the stable accessible name carries the
+               setting, the tooltip names the action. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={showEmptyDays ? "mdi-eye-outline" : "mdi-eye-off-outline"}
+              active={showEmptyDays}
+              aria-pressed={showEmptyDays}
+              aria-label="Empty days"
+              title={showEmptyDays ? "Hide empty days" : "Show empty days"}
+              onClick={() => setShowEmptyDays(!showEmptyDays)}
+            />
             {/* The outline variant + "Jump to today" title/aria: the bordered button reads
                clickable where the ghost idiom doesn't, and the short
                "Today" label names the destination, not the jump. */}
@@ -368,7 +434,9 @@ export function JournalsView({
               )}
             </article>
           ))}
-          <div ref={bottomSentinelRef} className="journals-sentinel" aria-hidden="true" />
+          {!floorReached && (
+            <div ref={bottomSentinelRef} className="journals-sentinel" aria-hidden="true" />
+          )}
         </div>
         {/* Focus mode hides every side panel; the linked useSidePanel unit
             owns the collapsed state itself (open = !panelCollapsed). */}

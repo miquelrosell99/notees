@@ -85,7 +85,7 @@ function isoOf(id: string): string {
 }
 
 describe("JournalsView", () => {
-  it("lists a contiguous day window newest-first around a today anchor", async () => {
+  it("lists a contiguous day window newest-first around a today anchor (toggle on)", async () => {
     const client = await seedClient();
     const today = todayIso();
     await Promise.all([
@@ -93,6 +93,7 @@ describe("JournalsView", () => {
       createDayPage(client, shiftDays(today, -1)),
       createDayPage(client, shiftDays(today, -3)),
     ]);
+    showEmptyDays(true);
 
     const onOpenPage = vi.fn();
     const { container } = render(<JournalsView client={client} onOpenPage={onOpenPage} />);
@@ -110,6 +111,80 @@ describe("JournalsView", () => {
     // The anchor sits on today's entry.
     const anchor = container.querySelector("[data-anchor='true']");
     expect(anchor?.getAttribute("data-journal-id")).toBe(dayNodeId(today));
+  });
+
+  it("hides empty days by default — only written days and today render", async () => {
+    const client = await seedClient();
+    const today = todayIso();
+    await Promise.all([
+      createDayPage(client, today),
+      createDayPage(client, shiftDays(today, -1)),
+      createDayPage(client, shiftDays(today, -3)),
+    ]);
+
+    const { container } = render(<JournalsView client={client} onOpenPage={vi.fn()} />);
+    const shown = renderedIds(container);
+    // The written days plus the today anchor — the empty days between them
+    // collapse out of the feed.
+    expect(shown).toEqual([
+      dayNodeId(today),
+      dayNodeId(shiftDays(today, -1)),
+      dayNodeId(shiftDays(today, -3)),
+    ]);
+    expect(container.querySelectorAll(".journal-entry--virtual").length).toBe(0);
+    // The toggle reads its default (hiding): not pressed, action "Show".
+    const toggle = screen.getByRole("button", { name: "Empty days" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    expect(toggle.title).toBe("Show empty days");
+  });
+
+  it("the toggle reveals every day and persists the choice on this device", async () => {
+    const client = await seedClient();
+    const today = todayIso();
+    await createDayPage(client, today);
+    await createDayPage(client, shiftDays(today, -1));
+
+    const { container } = render(<JournalsView client={client} onOpenPage={vi.fn()} />);
+    expect(renderedIds(container)).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Empty days" }));
+    await waitFor(() => {
+      expect(renderedIds(container)).toHaveLength(9);
+    });
+    const toggle = screen.getByRole("button", { name: "Empty days" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    expect(toggle.title).toBe("Hide empty days");
+    expect(window.localStorage.getItem("notees.settings.journalShowEmptyDays")).toBe(
+      JSON.stringify(true),
+    );
+
+    // The choice survives a remount (device-local, never an op).
+    window.dispatchEvent(new CustomEvent("notees-settings-changed"));
+  });
+
+  it("hiding retires the sentinel once every written day is inside the window", async () => {
+    const client = await seedClient();
+    const today = todayIso();
+    // Two written days, both inside the initial window: the floor cap is
+    // reached at once — no deeper day can ever appear.
+    await createDayPage(client, today);
+    await createDayPage(client, shiftDays(today, -3));
+
+    const { container, unmount } = render(
+      <JournalsView client={client} onOpenPage={vi.fn()} />,
+    );
+    expect(container.querySelector(".journals-sentinel")).toBeNull();
+    unmount();
+
+    // Written days beyond the window: the sentinel stays to page deeper.
+    const deep = await seedClient();
+    const all = [];
+    for (let i = 1; i <= 40; i++) all.push(createDayPage(deep, shiftDays(today, -i)));
+    await Promise.all(all);
+    const { container: deepContainer } = render(
+      <JournalsView client={deep} onOpenPage={vi.fn()} />,
+    );
+    expect(deepContainer.querySelector(".journals-sentinel")).not.toBeNull();
   });
 
   it("today anchors as a virtual entry when no today page exists", async () => {
@@ -441,4 +516,9 @@ function shiftDays(iso: string, delta: number): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
     date.getDate(),
   ).padStart(2, "0")}`;
+}
+
+/** Device-local the empty-days toggle before a render (the focus-mode precedent). */
+function showEmptyDays(value: boolean): void {
+  window.localStorage.setItem("notees.settings.journalShowEmptyDays", JSON.stringify(value));
 }
