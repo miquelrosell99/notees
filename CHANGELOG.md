@@ -168,6 +168,96 @@ predating this file.
   render one row reading sort, switcher, search, filter (screenshot-checked
   against the probe class hub); full gate green (typecheck + 2529 web
   tests, full chain).
+- **docs(protocol): the class `displayTemplate` contract lands in SCHEMA.md,
+  with the citekey-centric doc sweep.** The normative bullet joins SCHEMA.md
+  "Node structure" in the `parentlessRole` idiom: `class.create`/`class.update`
+  carry the optional-nullable `displayTemplate` (`z.string().max(1024).nullish()`,
+  envelope v3 additive, presence writes / present-null clears, the `color`
+  contract); the tri-state (absent = extends-aware nearest-first inherit with
+  the smallest-class-id within-level tie-break the ports must replicate, `""` =
+  the explicit opt-out that stops inheritance for the class and its
+  subclasses, non-empty = the template with `{{propertySchemaName}}`
+  placeholders); the write-time placeholder-validation ruling (`class.update`
+  fails loud on unknown/unavailable placeholder names — the domain
+  `validateDisplayTemplate` contract; appliers map without validating, the
+  `parentlessRole` precedent — a render contract, not write-enforced data);
+  the render contract (reference chrome only — mentions, links, pickers,
+  breadcrumbs, search rows, backlinks, the graph; a node's own page header
+  stays the editable content title; class and date-chain nodes never
+  templated; an empty resolution falls back to the content title); the seed
+  declaration (`source`'s `"@{{citekey}}"`, the seven media-type `""`
+  opt-outs, convergence by `scripts/migrate-display-template.mts` — strictly
+  NULL-only, never overwriting a user-set template or opt-out); the canonical
+  fixture `class-display-template.json`; and the LOCKSTEP-PENDING marker (the
+  GTK/Flutter ports + the CLI vendor pin converge before the live migration
+  runs). The bullet makes the fixture comment and the op-types payload
+  doc-strings true. The sweep: the `SYSTEM_CLASS_DISPLAY_TEMPLATES` comment in
+  `packages/domain/src/seeds.ts` trimmed to describe the manifest itself (the
+  emission is discoverable in the seed/ensure paths), a user-facing
+  display-template paragraph in `docs/features/classes.md`, and the earlier
+  search-doc coverage verified accurate against the landed store fan-out
+  (`docs/features/search.md`, `docs/api.md`, `docs/developers/development.md`,
+  the query-README shorthand + Deferred pins). Verified: every claim checked
+  against the landed code (store `resolveEffectiveDisplayTemplate`, `apps/web/
+  src/ui/displayTemplateTitle.ts`, `packages/domain/src/display-template.ts`,
+  the migration's NULL-only plan); `pnpm typecheck` + `pnpm test` green.
+
+- **feat(protocol,store): class `displayTemplate` payload + derived column
+  (store schema v36).** The wire slice: `class.create`/`class.update` gain the
+  strict additive optional-nullable `displayTemplate` key (`z.string().max(1024).nullish()`)
+  and the canonical fixture `class-display-template.json` joins the gate
+  (46→47: the seeded `"@{{citekey}}"` template, extends-inheritance, the
+  own-`""` opt-out winning over a live ancestor, the present-null clear). The
+  store projection: `class.display_template` — REGISTRY-ONLY (unlike
+  `parentless_role` the node row is NOT a carrier), a guarded additive ALTER,
+  the create COALESCE + the update presence-write/present-null-clear mapping,
+  and the two read helpers — `getClassDisplayTemplate` plus the extends-aware
+  `resolveEffectiveDisplayTemplate` (BFS over `class_extends` nearest-first,
+  the smallest class id deciding within-level ties, an own or ancestor `""`
+  stopping the walk with nothing — a pure read, deterministic on every
+  replica). Verified: new dual/triple-adapter block in `packages/store/test/
+  store.test.ts` (payload mapping, the re-issued-create COALESCE, the
+  presence/present-null arms, the full inheritance walk incl. the tie-break
+  and the `""` stop); the fixture-gate pin; protocol + store suites green.
+
+- **feat(domain): displayTemplate seed manifest + placeholder validation.**
+  `SYSTEM_CLASS_DISPLAY_TEMPLATES` (packages/domain) is the single seed
+  declaration: `source` ships `"@{{citekey}}"`, the seven media-type classes
+  (film, tv_broadcast, audio_recording, radio_broadcast, podcast,
+  video_recording, book) ship the explicit `""` opt-out, every other
+  source-family member is deliberately absent (inherits the base's template
+  through `SYSTEM_CLASS_EXTENDS` at read time). Beside it, `packages/domain/
+  src/display-template.ts` — `parseDisplayTemplate` (the `{{name}}` walk,
+  trimmed) and `validateDisplayTemplate` + `DisplayTemplateError`: unknown or
+  empty placeholder names fail loud at CLIENT WRITE TIME, before the envelope
+  reaches the log (the wire payload itself stays unvalidated — the
+  parentlessRole render-contract precedent). Verified: new domain suite block
+  (the parse shapes, the unknown/empty/valid validation arms, the manifest
+  contents); `pnpm --filter @notees/domain build` + the domain tests green.
+
+- **feat(server,web): seed + deploy displayTemplate on system classes.** The
+  server seed (`buildSeedEnvelopes`) emits the manifest on the class.create
+  envelopes — `""` IS a real entry, so the undefined check (not truthiness)
+  gates the spread, absent on every other class. The web deploy path
+  (`systemClassDeploy`) emits it on creation AND converges an existing system
+  class whose `display_template` is NULL (a non-NULL column — a user-set
+  template or a user-set `""` opt-out — is NEVER overwritten), the worker/
+  client read plumbing (`getClassDisplayTemplate` /
+  `resolveEffectiveDisplayTemplate` through the cached structure read)
+  landing in the same slice. Verified: `apps/server/test/seed.test.ts` (the
+  envelopes carry the manifest, `""` included) + `apps/web/test/system-class-
+  display-template.test.ts` (deploy emission, the NULL-only converge, the
+  user-value never-overwrite); server + web suites green.
+
+- **test(query): pin citekey/author property-shorthand parsing.** The
+  property-schema shorthand (`<schema>:<op>val`) resolves ANY schema name —
+  `citekey:doe2024` and `author:doe` now ride it as ordinary property
+  conditions, the citekey-centric search path's query-language arm. Pinned in
+  `packages/query/test/dsl.test.ts`; the README's DSL table and the Deferred
+  list updated to say so (dedicated relation-based `author:` semantics remain
+  deferred — until then the shorthand answers). Verified: the query suite
+  green.
+
 - **feat(store): search fan-out over authored property values.** A bare term
   in quick/global search and `@`-mention suggestions now also matches nodes by
   their **authored property values** — every schema, every type, no index
