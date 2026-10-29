@@ -301,7 +301,9 @@ export function FavoritesRecents({
       {sidebarSection(
         "Recents",
         recentPages.map((node) => renderRow(node, rowIconFor(node), "recents")),
-        { scrollable: true },
+        // The clock icon rides the header like Favorites' star (the shared
+        // sidebarSection shell); the section keeps its scrollable list.
+        { scrollable: true, icon: "mdi-clock-outline" },
         collapsedSections,
         onToggleCollapse,
       )}

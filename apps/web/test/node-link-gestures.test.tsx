@@ -410,16 +410,15 @@ describe("node-link context menu", () => {
     const modal = document.body.querySelector<HTMLElement>(".link-edit-modal");
     if (modal === null) throw new Error("link edit modal did not open");
     expect(modal.querySelector(".link-edit-modal__target")?.textContent).toBe("Target");
-    // Node-only modal: the mode toggle offers Page/Block —
-    // no URL mode (external links navigate; they are authored directly).
-    const modeGroup = within(modal).getByRole("radiogroup");
-    expect(within(modeGroup).getByRole("radio", { name: "Page" })).not.toBeNull();
-    expect(within(modeGroup).getByRole("radio", { name: "Block" })).not.toBeNull();
-    expect(within(modeGroup).queryByRole("radio", { name: "URL" })).toBeNull();
+    // No modal-local mode toggle: the page-vs-block choice rides the
+    // anchored picker's Main/Blocks scope tabs (the modal is node-only —
+    // no URL mode either; external links navigate and are authored
+    // directly).
+    expect(within(modal).queryByRole("radiogroup")).toBeNull();
 
     // Open the anchored target picker (portaled to the body) and pick a
     // different destination.
-    fireEvent.click(within(modal).getByRole("button", { name: "Page target" }));
+    fireEvent.click(within(modal).getByRole("button", { name: "Link target" }));
     const pickerInput = document.body.querySelector<HTMLElement>(".node-selector__search-field .search-field__input");
     if (pickerInput === null) throw new Error("no picker in the modal");
     fireEvent.change(pickerInput, { target: { value: "Else" } });
@@ -575,10 +574,12 @@ describe("node-link context menu (read mode)", () => {
     const modal = document.body.querySelector<HTMLElement>(".link-edit-modal");
     if (modal === null) throw new Error("link edit modal did not open from read mode");
     // The anchored target picker opens on trigger click (portaled to body).
-    fireEvent.click(within(modal).getByRole("button", { name: "Page target" }));
+    fireEvent.click(within(modal).getByRole("button", { name: "Link target" }));
     const pickerInput = document.body.querySelector<HTMLElement>(".node-selector__search-field .search-field__input");
     if (pickerInput === null) throw new Error("no picker in the modal");
     fireEvent.change(pickerInput, { target: { value: "Else" } });
+    // "Else" is a partial-exact match for "Elsewhere", so the result row
+    // rides above the create row — the first row is the destination pick.
     fireEvent.click(document.body.querySelector<HTMLElement>(".node-result-item")!);
     const save = within(modal).getByRole("button", { name: "Save" });
     fireEvent.click(save);

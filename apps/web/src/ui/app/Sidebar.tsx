@@ -205,7 +205,9 @@ export function Sidebar({
               </li>
             )),
           ],
-          {},
+          // The section icon rides the header like Favorites' star and
+          // Recents' clock (the shared sidebarSection shell).
+          { icon: "mdi-compass-outline" },
           collapsedSections,
           toggleSection,
         )}

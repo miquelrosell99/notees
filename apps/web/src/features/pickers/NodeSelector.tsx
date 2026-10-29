@@ -18,7 +18,10 @@
  * All modes render the shared NodeResultItem rows; keyboard navigation,
  * date suggestions, and create-from-query are built in (`noCreate` turns
  * the create affordance off — search-without-match shows the honest empty
- * state instead). A query shaped like a DOI, an arXiv id/URL, an ISBN, or
+ * state instead). The create row hoists ABOVE the results while the query
+ * has no partial-exact candidate ("gmi" prefixes "GMI Dental", so the row
+ * stays below; a query nothing starts with puts creation first — no
+ * scrolling). A query shaped like a DOI, an arXiv id/URL, an ISBN, or
  * an http(s) URL additionally offers "Create source from link" below the
  * create row (source-library task 6) — the gesture routes into the
  * add-source dialog via the app-level queue (or the host's
@@ -233,6 +236,12 @@ interface NodeSelectorProps {
    * scope (pages/classes modes, or callers filtering via canAdd) don't.
    */
   scopeTabs?: boolean;
+  /**
+   * The scope tab the picker opens on (only meaningful with `scopeTabs`) —
+   * hosts that know the current target's role (the link-edit modal opening
+   * on a block target) start on the matching tab instead of always Main.
+   */
+  initialScope?: "main" | "blocks";
   /** Trigger style: 'pill-row' (default) or 'inline' (always expanded). */
   trigger?: TriggerMode;
   /** Placeholder text for empty state */
@@ -344,6 +353,7 @@ export function NodeSelector({
   searchMode = "pages",
   classFilters,
   scopeTabs = false,
+  initialScope = "main",
   trigger = "pill-row",
   placeholder = "Select node...",
   emptyText = "Add",
@@ -387,7 +397,7 @@ export function NodeSelector({
   const [debouncedQuery, setDebouncedQuery] = useState(initialSearchQuery);
   const [displayLimit, setDisplayLimit] = useState(DEFAULT_DISPLAY_LIMIT);
   /** Active scope-tab filter (only rendered when scopeTabs is set). */
-  const [scope, setScope] = useState<"main" | "blocks">("main");
+  const [scope, setScope] = useState<"main" | "blocks">(initialScope);
   /**
    * `/` filter mode: the applied chips and the "With class…" browse
    * sub-state (the class listing replaces the option list until a class is
@@ -1147,6 +1157,36 @@ export function NodeSelector({
     [filteredResults, displayLimit],
   );
   const showMoreOption = filteredResults.length > visibleResults.length;
+
+  /**
+   * A "partial exact match": the folded query prefixes a candidate's folded
+   * title or one of its words ("gmi" matches "GMI Dental", "GMI Chile") —
+   * the typed text IS the beginning of something that exists, so the create
+   * row stays below the hits. With NO such candidate the hits are merely
+   * approximate (a fuzzy "gmi" hit on something unrelated) and the create
+   * row hoists ABOVE them — the user never scrolls past approximate
+   * candidates to create.
+   */
+  const hasPartialExactMatch = useMemo(() => {
+    const q = foldSearchText(effectiveQuery.toLowerCase());
+    if (q === "") return false;
+    const boundary = new RegExp(
+      `(^|[^\\p{L}\\p{N}])${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+      "u",
+    );
+    return filteredResults.some((node) =>
+      boundary.test(foldSearchText((titleOfNode(node) ?? "").toLowerCase())),
+    );
+  }, [filteredResults, effectiveQuery]);
+
+  /**
+   * The create row's slot: hoisted above the approximate candidates while
+   * the query names nothing that starts with it (and the query is non-empty
+   * — an empty query's listing, recents or members, keeps the create row
+   * below).
+   */
+  const createFirst =
+    showCreateOption && effectiveQuery !== "" && !hasPartialExactMatch;
   /**
    * The recents listing is live: an empty effective query with no filter
    * prefix and no class scope in a non-classes picker. Names the caption
@@ -1237,12 +1277,17 @@ export function NodeSelector({
   }, [isPickerOpen, position]);
 
   // Total selectable items. The optional empty-query escape rides before the
-  // date suggestion; both offset the ordinary result list.
+  // date suggestion; both offset the ordinary result list. The hoisted
+  // create row takes one slot right after them when no partial-exact match
+  // exists, shifting the results (and everything below) down by one.
   const leadingOffset = (emptyQueryOptionActive ? 1 : 0) + (dateSuggestion ? 1 : 0);
   const archivedCount = archivedMatches.length;
-  // Row order: results, then the archived-class Enable rows, the create row,
-  // the paste-URL source row, the browse-all-types row, the show-more pager.
-  const createIndex = leadingOffset + visibleResults.length + archivedCount;
+  // Row order: [emptyQueryOption] [dateSuggestion] ([create — hoisted])
+  // results, then the archived-class Enable rows, the create row (when not
+  // hoisted), the paste-URL source row, the browse-all-types row, the
+  // show-more pager.
+  const resultStart = leadingOffset + (createFirst ? 1 : 0);
+  const createIndex = createFirst ? leadingOffset : resultStart + visibleResults.length + archivedCount;
   const sourceLinkIndex = createIndex + (showCreateOption ? 1 : 0);
   const showBrowseAll = searchMode === "classes" && onBrowseAllTypes !== undefined;
   const browseAllIndex = sourceLinkIndex + (showSourceLinkOption ? 1 : 0);
@@ -1272,7 +1317,13 @@ export function NodeSelector({
       dateSuggestion.onSelect();
       return;
     }
-    const adjusted = index - leadingOffset;
+    const offset = index - leadingOffset;
+    // The hoisted create row owns the first slot after the leading rows.
+    if (createFirst && offset === 0) {
+      handleCreateNew();
+      return;
+    }
+    const adjusted = offset - (createFirst ? 1 : 0);
     if (adjusted < visibleResults.length) {
       const node = visibleResults[adjusted]!;
       handleAdd(node, modifiers.ctrlKey || modifiers.metaKey);
@@ -1433,8 +1484,19 @@ export function NodeSelector({
           iconOverride={<Icon path="mdi-calendar" size={0.7} />}
         />
       )}
+      {createFirst && (
+        <NodeResultItem
+          key="__create"
+          node={{ name: createRowLabel }}
+          isHighlighted={selectedIndex === createIndex}
+          onClick={handleCreateNew}
+          onMouseEnter={() => setSelectedIndex(createIndex)}
+          className="node-result-item--create"
+          iconOverride={<Icon path="mdi-plus" size={createIconSize} />}
+        />
+      )}
       {visibleResults.map((node, index) => {
-        const globalIndex = leadingOffset + index;
+        const globalIndex = resultStart + index;
         return (
           <NodeResultItem
             key={node.id}
@@ -1455,7 +1517,7 @@ export function NodeSelector({
         );
       })}
       {archivedMatches.map((node, index) => {
-        const globalIndex = leadingOffset + visibleResults.length + index;
+        const globalIndex = resultStart + visibleResults.length + index;
         const name = titleOfNode(node) ?? node.id;
         return (
           <NodeResultItem
@@ -1480,7 +1542,7 @@ export function NodeSelector({
           />
         );
       })}
-      {showCreateOption && (
+      {showCreateOption && !createFirst && (
         <NodeResultItem
           key="__create"
           node={{ name: createRowLabel }}

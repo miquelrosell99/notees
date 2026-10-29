@@ -16,8 +16,10 @@
  * in the nodeview top bar when panelled, with the context-panel toggle
  * between them, else the absolute corner); class pages ride the same top
  * bar / corner via the "…" piece (the old class-only absolute corner
- * overlapped the panelled bar's context toggle); inline-
- * block views keep just the "…" menu in the absolute corner.
+ * overlapped the panelled bar's context toggle); inline-block views ride
+ * the same nodeview top bar the page view composes (the SurfaceTopBar
+ * primitive, hairline included) — the "…" menu sits in its right cluster,
+ * replacing the retired absolute corner.
  *
  * Surfaces: main (default) · workspace card (compact layout via
  * `cornerMenu: false`) · preview (`preview` — hover/peek: no machinery at
@@ -44,6 +46,7 @@ import { NodeMenuButton, type ShareTarget } from "../features/node-menu/NodeMenu
 import { parentlessBlockResolverOf, parentRenderFacts } from "./renderStateLabel.js";
 import { ViewToolbar } from "../features/collection/ViewToolbar.js";
 import { useViewModePreference } from "./viewPrefs.js";
+import { SurfaceTopBar } from "../components/ui/kit/SurfaceTopBar.js";
 
 export function NodeView({
   client,
@@ -179,6 +182,23 @@ export function NodeView({
       />
     ) : undefined;
   /**
+   * The inline-block (focused) view's bar menu: the same "…" node menu
+   * pages carry, riding the focused view's own nodeview top bar below —
+   * the absolute corner retired in favor of the page view's bar shape
+   * (the SurfaceTopBar primitive, hairline included).
+   */
+  const focusedMenu =
+    inlineBlock && cornerMenu && !preview ? (
+      <NodeMenuButton
+        client={client}
+        node={node}
+        onOpenNode={(id) => onOpenNode?.(id)}
+        onPresent={onPresent}
+        onDeleted={onDeleted}
+        shareTarget={shareTarget}
+      />
+    ) : undefined;
+  /**
    * The compact layout's corner renders the two pieces back to back; the
    * panelled NodeTopbar renders them with the context-panel toggle between
    * (view switcher · context toggle · "…").
@@ -237,22 +257,20 @@ export function NodeView({
   if (!cornerMenu || preview) return view;
   return (
     <div className="nt-node-view">
-      {view}
-      {/* Inline-block views render no PageView chrome — the "…" menu rides
-          the absolute corner here (pages and class pages get theirs from
-          PageView: the top bar when panelled, the corner when compact). */}
-      {inlineBlock && (
-        <div className="nt-node-view__corner">
-          <NodeMenuButton
-            client={client}
-            node={node}
-            onOpenNode={(id) => onOpenNode?.(id)}
-            onPresent={onPresent}
-            onDeleted={onDeleted}
-            shareTarget={shareTarget}
-          />
-        </div>
+      {/* The focused block view wears the SAME nodeview top bar the page
+          view composes (the SurfaceTopBar primitive — the hairline rides
+          its border-bottom); the "…" node menu sits in the bar's right
+          cluster. The bar is in-flow above the content, replacing the
+          retired absolute corner. */}
+      {focusedMenu !== undefined && (
+        <SurfaceTopBar
+          className="nt-node-topbar"
+          actions={
+            <div className="nt-node-topbar__right">{focusedMenu}</div>
+          }
+        />
       )}
+      {view}
     </div>
   );
 }

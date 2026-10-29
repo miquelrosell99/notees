@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): picker create-row ordering, the link-edit modal's tab-only
+  target, the focused view's top bar, and sidebar section icons — four
+  small chrome rulings in one slice.** (1) The node picker's create row
+  **hoists above the approximate candidates when the query has no
+  partial-exact match**: while some hit's title — or one of its words —
+  starts with the query (`gmi` keeps the row below "GMI Dental", "GMI
+  Chile"), the row rides under the hits as before; when nothing starts
+  with the query (approximate hits only), the create row lands first —
+  creation never asks for a scroll, and Enter on the hoisted row creates
+  without arrowing down (the keyboard index math rides the hoist). (2) The
+  **Edit Link modal's Page/Block mode toggle is gone** — the page-vs-block
+  choice is the anchored picker's Main/Blocks scope tabs (the standard
+  NodeSelector, `searchMode="all"` + `scopeTabs`), and the modal opens on
+  the tab matching the current target's role (new `initialScope` picker
+  prop). (3) The **focused block view wears the page view's nodeview top
+  bar** — the in-card SurfaceTopBar primitive, hairline divider included —
+  with the "…" node menu in its right cluster, replacing the retired
+  absolute corner. (4) The sidebar's **Navigation and Recents section
+  headers carry icons** (compass, clock) like Favorites' star. Verified:
+  new picker-ordering suite (hoist above approximate hits, partial-exact
+  keeps the row below, Enter creates at index 0); editor-popups + node-link
+  gestures + broken-link suites reworked to the tab-only modal (70 tests
+  across the four files); typecheck green; full gate green.
+
 - **feat(web): the journal's empty-days toggle — empty days hide by
   default, the top-bar eye-pair button switch reveals them.** The
   permanent-address feed renders every calendar day, which makes long

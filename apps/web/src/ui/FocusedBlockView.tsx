@@ -17,7 +17,9 @@
  * never a sibling of the focused block; prose trails it at the flattened
  * list's end). The view mode rides the same per-node device preference
  * the page view uses (`nodeBlocks.<id>`); the switcher itself stays page
- * chrome (the focused view keeps the "…" corner only).
+ * chrome — the focused view's chrome is the nodeview top bar (the page
+ * view's SurfaceTopBar, hairline included) carrying the "…" node menu,
+ * composed by the NodeView shell.
  *
  * ReferenceSubtree stays for the genuine subtree renders (linked
  * references, the hover-preview trampoline) — the focused view is the

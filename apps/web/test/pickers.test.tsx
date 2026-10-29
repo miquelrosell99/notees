@@ -21,7 +21,7 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { deriveDisplayName } from "@notees/domain";
@@ -696,6 +696,59 @@ describe("NodeSelector noCreate", () => {
     );
     fireEvent.change(screen.getByLabelText("Search pages"), { target: { value: "zz" } });
     expect(screen.getByText('Create "zz"')).not.toBeNull();
+  });
+});
+
+describe("NodeSelector create-row ordering (partial-exact match)", () => {
+  it("no partial-exact match: the create row rides ABOVE the approximate hits (no scrolling to create)", async () => {
+    const client = await seedClient();
+    // "gmi" hits the title only mid-word (a literal, approximate match) —
+    // nothing STARTS with the query.
+    await client.createObject({ isEmbedded: false, name: "Bogmire agenda" });
+    render(
+      <NodeSelector client={client} trigger="inline" searchPlaceholder="Search pages" onAdd={() => {}} />,
+    );
+    fireEvent.change(screen.getByLabelText("Search pages"), { target: { value: "gmi" } });
+    const rows = [...document.querySelectorAll(".node-selector__options .node-result-item")];
+    expect(rows[0]?.textContent).toContain('Create "gmi"');
+    expect(rows[1]?.textContent).toContain("Bogmire agenda");
+  });
+
+  it("a partial-exact match (\"gmi\" → \"GMI Dental\") keeps the create row BELOW the hits", async () => {
+    const client = await seedClient();
+    await client.createObject({ isEmbedded: false, name: "GMI Dental" });
+    await client.createObject({ isEmbedded: false, name: "GMI Chile" });
+    render(
+      <NodeSelector client={client} trigger="inline" searchPlaceholder="Search pages" onAdd={() => {}} />,
+    );
+    fireEvent.change(screen.getByLabelText("Search pages"), { target: { value: "gmi" } });
+    const rows = [...document.querySelectorAll(".node-selector__options .node-result-item")];
+    // Both pages start with the query (the ranked tier may order them
+    // either way); the create row rides last.
+    const firstTwo = [rows[0]?.textContent ?? "", rows[1]?.textContent ?? ""].join(" ");
+    expect(firstTwo).toContain("GMI Dental");
+    expect(firstTwo).toContain("GMI Chile");
+    expect(rows[rows.length - 1]?.textContent).toContain('Create "gmi"');
+  });
+
+  it("the hoisted create row owns index 0: Enter creates without arrowing down", async () => {
+    const client = await seedClient();
+    await client.createObject({ isEmbedded: false, name: "Bogmire agenda" });
+    const onAdd = vi.fn();
+    render(
+      <NodeSelector client={client} trigger="inline" searchPlaceholder="Search pages" onAdd={onAdd} />,
+    );
+    const search = screen.getByLabelText("Search pages");
+    fireEvent.change(search, { target: { value: "gmi" } });
+    fireEvent.keyDown(search, { key: "Enter" });
+    // Enter picked the hoisted create row: the pick reports immediately
+    // (the optimistic create), and the write lands a real "gmi" page
+    // (title-is-content: the title reads back from the contentAst).
+    await waitFor(() => expect(onAdd).toHaveBeenCalled());
+    const picked = onAdd.mock.calls[0]![0] as { id: string; name: string };
+    expect(picked.name).toBe("gmi");
+    await waitFor(() => expect(client.getNode(picked.id)).not.toBeUndefined());
+    expect(deriveDisplayName(client.getNode(picked.id)!)).toBe("gmi");
   });
 });
 
