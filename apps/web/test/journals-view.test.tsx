@@ -420,6 +420,8 @@ describe("JournalsView", () => {
     // is the day-page context, not a summary surface. Both sections start
     // collapsed; expanding them lists their rows.
     const createdToggle = within(entry).getByRole("button", { name: /Created/ });
+    // The section composes through the CollectionSection skin.
+    expect(createdToggle.closest("section")!.classList.contains("nt-collection-section")).toBe(true);
     const datedToggle = within(entry).getByRole("button", { name: /Dated/ });
     fireEvent.click(createdToggle);
     fireEvent.click(datedToggle);

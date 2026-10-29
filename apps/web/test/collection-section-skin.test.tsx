@@ -222,6 +222,43 @@ describe("CollectionSection — the skin's chrome gaps", () => {
     expect(read).not.toHaveBeenCalled();
   });
 
+  it("hideUntilResolved renders no chrome until the query lands; the rows report fires once per membership change; the header badge reads the resolved total", async () => {
+    const client = await seedClient();
+    const items = await twoItems(client);
+    const onRowsChange = vi.fn();
+    let resolveQuery!: (items: NodeCollectionItem[]) => void;
+    const query = () =>
+      new Promise<NodeCollectionItem[]>((resolve) => {
+        resolveQuery = resolve;
+      });
+
+    render(
+      <CollectionSection
+        client={client}
+        title="Created"
+        viewMode="outline"
+        query={query}
+        resolveOnMount
+        hideWhenEmpty
+        hideUntilResolved
+        onRowsChange={onRowsChange}
+      />,
+    );
+    // Unresolved: no chrome at all (the Created contract — no eager count).
+    expect(document.querySelector(".nt-collection-section")).toBeNull();
+    expect(onRowsChange).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveQuery(items);
+    });
+    const root = skinRoot();
+    // The rows report fired exactly once for the landing resolution.
+    expect(onRowsChange).toHaveBeenCalledTimes(1);
+    expect(onRowsChange.mock.calls[0]![0]).toHaveLength(2);
+    // The header badge names the resolved total (no eager count prop).
+    expect(within(root).getByText("2")).not.toBeNull();
+  });
+
   it("reports the transient FilterQuery through onFilterChange", async () => {
     const client = await seedClient();
     const items = await twoItems(client);
