@@ -1,5 +1,9 @@
 # Section skin conversion + SectionSpec registry — 2026-10-29
 
+**Status: all six slices landed 2026-10-29** (commits `2d573c869`,
+`f00f69358`, `9a890b365`, `5cbe482f2`, `e4e92ab17`, and slice 6's). Gate
+green at 2545 web tests.
+
 Approved design (owner, 2026-10-29). Two phases, six landing slices, one spec.
 Approach B from the design discussion: slice per section family, each slice
 lands independently (gate green + changelog), nothing half-done.
