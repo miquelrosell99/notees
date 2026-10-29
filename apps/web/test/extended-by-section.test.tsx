@@ -85,6 +85,8 @@ describe("ExtendedBySection", () => {
     const header = screen.getByText("Extended by");
     const section = header.closest(".nt-section");
     expect(section).not.toBeNull();
+    // The section composes through the CollectionSection skin.
+    expect(section!.classList.contains("nt-collection-section")).toBe(true);
     const midRow = section!.querySelector(`[data-block-id="${midId}"]`);
     const leafRow = section!.querySelector(`[data-block-id="${leafId}"]`);
     // Both render — the leaf as a CHILD of the mid row (nested under its

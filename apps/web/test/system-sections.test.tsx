@@ -408,6 +408,8 @@ describe("PageView system sections", () => {
     // Expanded by default: the child page row renders in the section
     // immediately (the read-only blocks list).
     expect(within(section(/Child pages/)).getByText("Child Page")).not.toBeNull();
+    // The section composes through the CollectionSection skin.
+    expect(section(/Child pages/).classList.contains("nt-collection-section")).toBe(true);
 
     // The body block list carries blocks only (projection rule 3).
     const body = container.querySelector(".nt-block-tree")!;

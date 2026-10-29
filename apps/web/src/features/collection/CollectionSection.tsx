@@ -63,8 +63,8 @@ export interface CollectionSectionProps {
   count?: number | undefined;
   /** Collapsed on first render unless overridden. */
   defaultCollapsed?: boolean;
-  /** Text when the resolution came back empty — rides the collection's empty slot (inside the selected tab for hosted collections). */
-  emptyText: string;
+  /** Text when the resolution came back empty — optional when the host carries its own empty chrome (emptyTitle/emptyHint) through `collection`. */
+  emptyText?: string | undefined;
   /** The view the collection renders in. */
   viewMode: ViewMode;
   /**
@@ -84,6 +84,8 @@ export interface CollectionSectionProps {
   hideWhenEmpty?: boolean | undefined;
   /** The header's far-right icon-only action (a section-scoped create affordance). */
   action?: NodeViewSectionAction | undefined;
+  /** Extra class merged onto the skin's root (the converted sections keep their established hooks, e.g. `.nt-section`). */
+  className?: string | undefined;
   /** Headerless mount (the block-backlink card) — the chrome renders no header row. */
   hideHeader?: boolean | undefined;
   /** Re-run the resolution when the key changes (the unlinked ignore list, the created-period bounds). */
@@ -109,6 +111,7 @@ export function CollectionSection({
   collection,
   hideWhenEmpty = false,
   action,
+  className = "",
   hideHeader = false,
   refreshKey,
   resolveOnMount = false,
@@ -134,9 +137,15 @@ export function CollectionSection({
       nodeOf: (item) => item.node,
     };
   }, [filterable, filterQuery]);
+  // The eager-count gate (a materialized read, exempt from the lazy
+  // contract) suppresses the resolution too: a hidden section's query NEVER
+  // RUNS (the SCHEMA.md contract the system-sections suites pin) — the old
+  // early-return mounted nothing at all; the skin mounts but keeps the read
+  // inactive while the eager gate reads 0.
+  const eagerlyHidden = hideWhenEmpty && count === 0;
   const { rows, total } = useSectionData<NodeCollectionItem[]>({
     client,
-    active: resolveOnMount || expanded,
+    active: !eagerlyHidden && (resolveOnMount || expanded),
     read,
     query,
     filter,
@@ -162,7 +171,7 @@ export function CollectionSection({
     <NodeViewSection
       title={title}
       icon={icon}
-      className="nt-collection-section"
+      className={`nt-collection-section ${className}`.trim()}
       expanded={expanded}
       onExpandedChange={setExpanded}
       {...(action !== undefined ? { action } : {})}
@@ -224,7 +233,7 @@ export function CollectionSection({
                 ),
               }
             : {})}
-          emptyText={emptyText}
+          {...(emptyText !== undefined ? { emptyText } : {})}
         />
       )}
     </NodeViewSection>

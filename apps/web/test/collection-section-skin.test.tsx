@@ -198,6 +198,30 @@ describe("CollectionSection — the skin's chrome gaps", () => {
     expect(read).toHaveBeenCalledTimes(2);
   });
 
+  it("a hidden section (eager count 0 + hideWhenEmpty) never runs its read", async () => {
+    const client = await seedClient();
+    const read = vi.fn((): NodeCollectionItem[] => []);
+
+    render(
+      <CollectionSection
+        client={client}
+        title="Child pages"
+        emptyText="Nothing."
+        viewMode="outline"
+        count={0}
+        hideWhenEmpty
+        read={read}
+        defaultCollapsed={false}
+      />,
+    );
+    await act(async () => {});
+    // No section chrome, and the SCHEMA.md contract: the list query never
+    // runs for a hidden section (the eager gate suppresses the resolution,
+    // not just the render).
+    expect(document.querySelector(".nt-collection-section")).toBeNull();
+    expect(read).not.toHaveBeenCalled();
+  });
+
   it("reports the transient FilterQuery through onFilterChange", async () => {
     const client = await seedClient();
     const items = await twoItems(client);
