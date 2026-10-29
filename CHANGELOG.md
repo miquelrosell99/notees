@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): the auto-citekey toggle retires — generation is always on
+  while the Sources feature is on.** The owner ruling (Zotero parity): an
+  always-available deterministic derivation should not hide behind a
+  default-off switch — the toggle was the reason missing citekeys surprised
+  in the first place. The `autoCitekey` key leaves the Sources settings
+  vocabulary (the settings section drops the toggle; the pattern field's
+  description and the settings catalog comment come along); stored rows
+  carrying the retired key converge by whole-row idempotence — it is never
+  read. The gate for EVERY automatic citekey write (create-fill, open
+  backfill, metadata-change auto-track) becomes the Sources family toggle
+  itself (`enabled:false` is the only off switch, absent row = on) via one
+  `sourcesEnabled` read on the `readSourceSettings` snapshot; pinning or a
+  hand-edit remains the per-key opt-out, and a manual create-form value
+  still overrides the generation. Docs: `docs/features/sources.md` (the
+  settings list and the pin paragraph), SCHEMA.md "Sources as containers"
+  (the tracking paragraph's gate sentence), the backfill script's report.
+  Tests: the track suite's gate case re-keys onto `setFeatureEnabled`
+  (feature off → no writes) and the backfill cases run with no settings row
+  at all (on by default); the quick-create suite drops the dead key and
+  pins the manual-value-wins + feature-off suppression behaviors; the
+  sources-settings suite loses the toggle (merge coverage rides the
+  resolver toggle and the pattern commit); undo-journal settings fixtures
+  swap the retired key for `resolverEnabled`; the asset-attachments suite
+  scopes five assertions to the attachments schema (the always-on backfill
+  legitimately authors a citekey row when a source page opens — the
+  global "no authored rows" assumption retired with the toggle). Full gate
+  green (typecheck + 2616 web tests).
+
 - **feat(web): citekey tracking — open-backfill guard, metadata-change
   auto-update, and Zotero-parity pinning.** Three owner asks, one slice. (1)
   **Backfill**: a source-lineage page opened without a citekey now gets one

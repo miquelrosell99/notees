@@ -235,12 +235,15 @@ describe("SourcesSettingsSection writes", () => {
       expect(sourcesRow(client)?.settings).toEqual({ resolverEnabled: true });
     });
 
-    // The second toggle merges against the current row — the first key rides.
-    fireEvent.click(second.getByRole("switch", { name: /auto-citekey/i }));
+    // The pattern commit merges against the current row — the resolver key
+    // rides (read-modify-merge, no clobber).
+    const input = second.getByLabelText("Citekey pattern");
+    fireEvent.change(input, { target: { value: "[auth]_[year]" } });
+    fireEvent.blur(input);
     await waitFor(() => {
       expect(sourcesRow(client)?.settings).toEqual({
         resolverEnabled: true,
-        autoCitekey: true,
+        citekeyPattern: "[auth]_[year]",
       });
     });
   });
@@ -274,7 +277,8 @@ describe("SourcesSettingsSection writes", () => {
 
     expect(screen.getByLabelText("Citekey pattern")).toHaveValue("[auth][year]");
     expect(screen.getByRole("switch", { name: /metadata resolver/i })).toBeChecked();
-    expect(screen.getByRole("switch", { name: /auto-citekey/i })).not.toBeChecked();
+    // No generation toggle — citekeys always generate while the feature is on.
+    expect(screen.queryByRole("switch", { name: /auto-citekey/i })).toBeNull();
   });
 });
 

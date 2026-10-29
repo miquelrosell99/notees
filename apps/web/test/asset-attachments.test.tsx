@@ -236,9 +236,13 @@ describe("Asset attachments (the asset property row)", () => {
     );
     await flushWrites();
 
-    const effective = client.getEffectiveProperties(sourceId);
+    // Scoped to the attachments schema: opening the source page may also
+    // author the always-on citekey backfill (the tracking slice) — not this
+    // test's concern.
+    const effective = client
+      .getEffectiveProperties(sourceId)
+      .filter((row) => row.propertySchemaId === ATTACHMENTS);
     expect(effective).toHaveLength(1);
-    expect(effective[0]!.propertySchemaId).toBe(ATTACHMENTS);
     expect(effective[0]!.value).toEqual({ nodeId: assetId });
   });
 
@@ -274,8 +278,12 @@ describe("Asset attachments (the asset property row)", () => {
     expect(headers["X-Workspace-Id"]).toBe(WS);
     expect(assetCalls[0]!.init.body).toBeInstanceOf(FormData);
 
-    // The property value list links the new asset node (authored row).
-    const effective = client.getEffectiveProperties(sourceId);
+    // The property value list links the new asset node (authored row) —
+    // scoped to the attachments schema (the always-on citekey backfill may
+    // also author a row when the source page opened).
+    const effective = client
+      .getEffectiveProperties(sourceId)
+      .filter((row) => row.propertySchemaId === ATTACHMENTS);
     expect(effective).toHaveLength(1);
     const row = effective[0]!;
     expect(row.propertySchemaId).toBe(ATTACHMENTS);
@@ -314,10 +322,14 @@ describe("Asset attachments (the asset property row)", () => {
     // The modal keeps the file selected and surfaces the server's message.
     const alert = await within(dialog).findByRole("alert");
     expect(alert.textContent).toContain("500");
-    // No authored value; the bound-empty row persists (the class still
-    // supplies the property — the virtual/realized ruling).
+    // No authored ATTACHMENTS value; the bound-empty row persists (the class
+    // still supplies the property — the virtual/realized ruling). (Scoped to
+    // the schema: the always-on citekey backfill may author its own row when
+    // the source page opened.)
     expect(
-      client.getEffectiveProperties(sourceId).filter((r) => r.source === "authored"),
+      client
+        .getEffectiveProperties(sourceId)
+        .filter((r) => r.source === "authored" && r.propertySchemaId === ATTACHMENTS),
     ).toEqual([]);
   });
 
@@ -338,10 +350,14 @@ describe("Asset attachments (the asset property row)", () => {
     const alert = await within(dialog).findByRole("alert");
     expect(alert.textContent).toContain("not an accepted type");
     expect(upload).not.toHaveBeenCalled();
-    // No authored value; the bound-empty row persists (the class still
-    // supplies the property — the virtual/realized ruling).
+    // No authored ATTACHMENTS value; the bound-empty row persists (the class
+    // still supplies the property — the virtual/realized ruling). (Scoped to
+    // the schema: the always-on citekey backfill may author its own row when
+    // the source page opened.)
     expect(
-      client.getEffectiveProperties(sourceId).filter((r) => r.source === "authored"),
+      client
+        .getEffectiveProperties(sourceId)
+        .filter((r) => r.source === "authored" && r.propertySchemaId === ATTACHMENTS),
     ).toEqual([]);
   });
 
@@ -375,8 +391,11 @@ describe("Asset attachments (the asset property row)", () => {
     await flushWrites();
 
     // Only the second link survives — the multi-value list was rewritten.
+    // (Scoped to the attachments schema: the always-on citekey backfill may
+    // author its own row when the source page opened.)
     const refs = client
       .getEffectiveProperties(sourceId)
+      .filter((r) => r.propertySchemaId === ATTACHMENTS)
       .map((r) => (r.value as { nodeId: string }).nodeId);
     expect(refs).toEqual([nodeB]);
     expect(screen.queryByText("a.pdf")).toBeNull();

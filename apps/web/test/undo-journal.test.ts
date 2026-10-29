@@ -757,7 +757,7 @@ describe("invertEnvelope — the inversion matrix", () => {
   });
 
   it("workspace.feature.set restores the captured prior SETTINGS with the toggle (whole-row LWW)", () => {
-    const prior = { citekeyPattern: "[auth][year]", autoCitekey: true };
+    const prior = { citekeyPattern: "[auth][year]", resolverEnabled: true };
     // A settings edit (enabled unchanged) inverts to the prior record.
     expect(
       invertEnvelope(
@@ -811,7 +811,7 @@ describe("invertEnvelope — the inversion matrix", () => {
         env("workspace.feature.set", {
           feature: "sources",
           enabled: true,
-          settings: { autoCitekey: true, citekeyPattern: "[auth][year]" },
+          settings: { resolverEnabled: true, citekeyPattern: "[auth][year]" },
         }),
         fakeCapture({ feature: true, featureSettings: prior }),
       ),

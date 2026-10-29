@@ -737,11 +737,10 @@ describe("the paste-URL source row", () => {
 });
 
 describe("QuickCreateModal citation behaviors", () => {
-  it("auto-fills the citekey from the pattern when the setting is on and the field is empty", async () => {
+  it("auto-fills the citekey from the pattern when the field is empty (always on while the feature is on)", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     await client.setFeatureSettings("sources", {
-      autoCitekey: true,
       citekeyPattern: "[auth:lower][year]",
     });
     let createdId = "";
@@ -801,7 +800,7 @@ describe("QuickCreateModal citation behaviors", () => {
     expect(secondCitekey?.value).toBe("herbert1965a");
   });
 
-  it("does not auto-fill the citekey when the setting is off or the field holds a value", async () => {
+  it("a manually typed citekey wins over the generation; the feature off suppresses it entirely", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     let createdId = "";
@@ -830,8 +829,34 @@ describe("QuickCreateModal citation behaviors", () => {
     const citekey = client
       .getEffectiveProperties(createdId)
       .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.citekey);
-    // Setting off AND a manual value: the manual value wins.
+    // A manual value overrides the generation.
     expect(citekey?.value).toBe("my-key");
+
+    // The Sources feature OFF (the family toggle): no generation at all.
+    await client.setFeatureEnabled("sources", false);
+    let secondId = "";
+    render(
+      <QuickCreateModal
+        isOpen
+        client={client}
+        classId={SYSTEM_CLASS_UUIDS.book}
+        onClose={() => {}}
+        onCreated={(id) => {
+          secondId = id;
+        }}
+      />,
+    );
+    const secondDialog = await screen.findByRole("dialog", { name: /new book/i });
+    fireEvent.change(within(secondDialog).getByLabelText("Title"), { target: { value: "Dune" } });
+    fireEvent.change(within(secondDialog).getByLabelText("Authors"), {
+      target: { value: "Herbert, Frank" },
+    });
+    fireEvent.click(within(secondDialog).getByRole("button", { name: /^create$/i }));
+    await waitFor(() => expect(secondId).not.toBe(""));
+    const secondCitekey = client
+      .getEffectiveProperties(secondId)
+      .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.citekey);
+    expect(secondCitekey?.value).not.toBe("herbert");
   });
 
   it("splits the authors input on ';' — each entry is one plain text element", async () => {
@@ -863,11 +888,11 @@ describe("QuickCreateModal citation behaviors", () => {
     expect(client.getClassMembers(SYSTEM_CLASS_UUIDS.person).length).toBe(0);
   });
 
-  it("skips the citekey write when auto-citekey renders empty (pattern with no data)", async () => {
+  it("skips the citekey write when the generation renders empty (pattern with no data)", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     // A [year]-only pattern with no year renders EMPTY — nothing is written.
-    await client.setFeatureSettings("sources", { autoCitekey: true, citekeyPattern: "[year]" });
+    await client.setFeatureSettings("sources", { citekeyPattern: "[year]" });
     let createdId = "";
     render(
       <QuickCreateModal
