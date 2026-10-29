@@ -473,8 +473,13 @@ function main(): void {
     }
 
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    copyFileSync(join(options.dataDir, "relay.db"), `/tmp/relay.db.bak-backfill-citekeys-${stamp}`);
-    console.log(`\nbackup: /tmp/relay.db.bak-backfill-citekeys-${stamp}`);
+    // The backup lands NEXT to the relay (the data dir — borgmatic's source,
+    // where the prior ops' relay.db.bak-* files live), not /tmp: the scratch
+    // filesystem can be full on fleet hosts (learned 2026-10-29 — the apply
+    // died on ENOSPC mid-backup with the stack down).
+    const backupPath = join(options.dataDir, `relay.db.bak-backfill-citekeys-${stamp}`);
+    copyFileSync(join(options.dataDir, "relay.db"), backupPath);
+    console.log(`\nbackup: ${backupPath}`);
 
     const { savedIds } = relay.ingest(envelopes);
     if (savedIds.length !== envelopes.length) {
