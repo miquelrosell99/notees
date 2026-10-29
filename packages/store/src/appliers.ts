@@ -1587,14 +1587,15 @@ function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   // (the source-library archived-by-default seed).
   const titleText = p.contentAst !== undefined ? (plainTextExcerpt(p.contentAst as never) ?? "") : null;
   db.prepare(
-    `INSERT INTO class (id, workspace_id, name, icon, color, description, parentless_role, active, created_at, updated_at)
-     VALUES (?, ?, COALESCE(?, ''), ?, ?, NULL, ?, 1, ?, ?)
+    `INSERT INTO class (id, workspace_id, name, icon, color, description, parentless_role, display_template, active, created_at, updated_at)
+     VALUES (?, ?, COALESCE(?, ''), ?, ?, NULL, ?, ?, 1, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name = COALESCE(NULLIF(excluded.name, ''), class.name),
        icon = COALESCE(excluded.icon, class.icon),
        color = COALESCE(excluded.color, class.color),
        description = class.description,
        parentless_role = COALESCE(excluded.parentless_role, class.parentless_role),
+       display_template = COALESCE(excluded.display_template, class.display_template),
        updated_at = excluded.updated_at`,
   ).run(
     p.classId,
@@ -1603,6 +1604,7 @@ function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
     p.icon ?? null,
     p.color ?? null,
     p.parentlessRole ?? null,
+    p.displayTemplate ?? null,
     env.timestamp,
     env.timestamp,
   );
@@ -1678,6 +1680,10 @@ function applyClassUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   if (p.parentlessRole !== undefined) {
     sets.push("parentless_role = ?");
     values.push(p.parentlessRole);
+  }
+  if (p.displayTemplate !== undefined) {
+    sets.push("display_template = ?");
+    values.push(p.displayTemplate);
   }
   if (sets.length === 0) return summary(opType, [p.classId], true);
   sets.push("updated_at = ?");

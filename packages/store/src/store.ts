@@ -111,6 +111,57 @@ export interface CardReview {
   reviewedAt: string;
 }
 
+/**
+ * The class's own display template (store schema v36, SCHEMA.md — the
+ * class.create/update displayTemplate payload): the raw registry column
+ * read. NULL = absent (inherit), '' = the explicit opt-out, a non-empty
+ * string = the template. The registry column is the ONLY projection —
+ * unlike `parentless_role` the node row is not a carrier.
+ */
+export function getClassDisplayTemplate(db: SqliteDB, classId: string): string | null {
+  const row = db.prepare("SELECT display_template FROM class WHERE id = ?").get(classId) as
+    | { display_template: string | null }
+    | undefined;
+  return row?.display_template ?? null;
+}
+
+/**
+ * The EFFECTIVE display template (extends-aware, the parentlessRole /
+ * effectiveClassColor chain precedent): a class's own non-empty template
+ * wins; its own '' is an explicit opt-out and STOPS (null, never inherits);
+ * absent (NULL) walks the extends-ancestors NEAREST-FIRST (BFS over
+ * class_extends, ties by class id) and the first non-NULL ancestor value
+ * decides — a non-empty string inherits, an ancestor '' stops the walk
+ * with null. No ancestor value at all = null.
+ */
+export function resolveEffectiveDisplayTemplate(db: SqliteDB, classId: string): string | null {
+  const own = getClassDisplayTemplate(db, classId);
+  if (own !== null) return own === "" ? null : own;
+  const extendsStmt = db.prepare("SELECT parent_class_id FROM class_extends WHERE class_id = ?");
+  const visited = new Set<string>([classId]);
+  let frontier: string[] = [classId];
+  while (frontier.length > 0) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      for (const row of extendsStmt.all(id) as Array<{ parent_class_id: string }>) {
+        if (!visited.has(row.parent_class_id)) {
+          visited.add(row.parent_class_id);
+          next.push(row.parent_class_id);
+        }
+      }
+    }
+    // Nearest level first; within a level the smallest id decides ties so
+    // the read is deterministic on every replica (pure read, no clocks).
+    next.sort();
+    for (const ancestorId of next) {
+      const value = getClassDisplayTemplate(db, ancestorId);
+      if (value !== null) return value === "" ? null : value;
+    }
+    frontier = next;
+  }
+  return null;
+}
+
 export class Store {
   private db: SqliteDB;
   private readonly backend: StoreBackend;

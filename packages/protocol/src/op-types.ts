@@ -238,6 +238,23 @@ export const classCreatePayload = z
      * (one-way demote; there is no per-level unflag).
      */
     parentlessRole: z.enum(["page", "block"]).nullish(),
+    /**
+     * The class's DISPLAY TEMPLATE (SCHEMA.md — the class payload contracts):
+     * an optional format string the render surfaces apply to the derived
+     * titles of the class's members (e.g. `"@{{citekey}}"` for sources).
+     * Tri-state, exactly like `color`: absent = inherit (no write — the
+     * re-issued create's COALESCE preserves the stored value); a non-empty
+     * string = the template; `""` = an EXPLICIT opt-out (round-trips as the
+     * empty string and stops extends-inheritance for the class AND its
+     * subclasses); present `null` = clear back to NULL/inherit. Read by
+     * render only — never a property, never write-enforced (PC1). The
+     * registry column is the only projection (store schema v36) — unlike
+     * `parentless_role` the node row is NOT a carrier; display reads go
+     * through the store helpers (`getClassDisplayTemplate` /
+     * `resolveEffectiveDisplayTemplate`, the extends-aware walk:
+     * nearest non-NULL ancestor wins, an ancestor `""` stops the walk).
+     */
+    displayTemplate: z.string().max(1024).nullish(),
   })
   .strict();
 
@@ -257,6 +274,12 @@ export const classUpdatePayload = z
      * clears to the "page" default (presence writes, present-null clears,
      * the color contract). */
     parentlessRole: z.enum(["page", "block"]).nullish(),
+    /** The display template (class.create for the full contract): non-empty
+     * string = the template, "" = explicit opt-out (round-trips as '', stops
+     * extends-inheritance), absent = no write / inherit, present null clears
+     * back to NULL (presence writes, present-null clears, the color
+     * contract). */
+    displayTemplate: z.string().max(1024).nullish(),
   })
   .strict();
 

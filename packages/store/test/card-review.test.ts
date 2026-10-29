@@ -216,7 +216,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
   });
 });
 
-describe("v34 -> v35 migration (better-sqlite3)", () => {
+describe("v34 -> v36 migration (better-sqlite3)", () => {
   it("creates the card_review table on an old-version database", () => {
     const dir = mkdtempSync(join(tmpdir(), "notees-card-review-migrate-"));
     tmpDirs.push(dir);
@@ -235,6 +235,6 @@ describe("v34 -> v35 migration (better-sqlite3)", () => {
       .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'card_review'")
       .get();
     expect(table).toBeDefined();
-    expect(store.database.pragma("user_version", { simple: true })).toBe(35);
+    expect(store.database.pragma("user_version", { simple: true })).toBe(36);
   });
 });

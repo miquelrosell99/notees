@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 35;
+export const SCHEMA_VERSION = 36;
 
 /**
  * The v35 memorization-card review history (SCHEMA.md "Memorization cards"):
@@ -260,7 +260,9 @@ CREATE INDEX IF NOT EXISTS idx_class_hierarchy_ancestor
 -- node id. The node row (is_class = 1) is the structural authority;
 -- this table carries class-only configuration (description,
 -- parentless_role — the store-v32 render contract, mirrored from the node
--- row like icon/color).
+-- row like icon/color — and display_template — the store-v36 class display
+-- template, registry-only: unlike parentless_role the node row is NOT a
+-- carrier).
 CREATE TABLE IF NOT EXISTS class (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
@@ -269,6 +271,7 @@ CREATE TABLE IF NOT EXISTS class (
     color TEXT,
     description TEXT,
     parentless_role TEXT,
+    display_template TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT,
     updated_at TEXT
@@ -1481,5 +1484,20 @@ export function migrate(
   if (current < 35) {
     // Additive — CARD_REVIEW_DDL was re-executed by the canonical schema
     // exec at the top of migrate(); the delta is documented here.
+  }
+  // v35 -> v36 (2026-10-29 — the class-level displayTemplate,
+  // SCHEMA.md): the class registry gains `display_template`
+  // (the optional-nullable class.create/class.update payload key; the
+  // parentlessRole presence/presence-null idiom). The `node` table is NOT
+  // touched — display reads go through the store helpers, unlike the
+  // page-predicate parentless_role which the node row needed. Purely
+  // additive: a guarded ALTER, a no-op for fresh v36 creates; NULL =
+  // inherit, '' = the explicit opt-out, existing rows converge by default
+  // (NULL) and the log's class.update envelopes carry any live values.
+  {
+    const classColumnsV36 = db.prepare("PRAGMA table_info(class)").all() as { name: string }[];
+    if (!classColumnsV36.some((c) => c.name === "display_template")) {
+      db.exec("ALTER TABLE class ADD COLUMN display_template TEXT;");
+    }
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}
