@@ -3,12 +3,14 @@
  * canonical fixture replay from @notees/protocol, LWW/OR-Set convergence,
  * op-log idempotency, wipe -> replay determinism, and FTS prefix-AND search.
  *
- * Every suite runs against BOTH shipped adapters — sql.js (in-memory WASM,
- * the browser target) and better-sqlite3 (file-backed temp dir) — so the
- * driver-agnostic surface in src/db.ts cannot silently drift toward one
- * driver. Semantics are identical; the only backend difference is the FTS
- * module (stock sql.js has no FTS5, so it builds the same search index with
- * FTS4 — same MATCH/prefix syntax).
+ * Every suite runs against ALL shipped adapters — sql.js (in-memory WASM,
+ * a browser target), sqlite-wasm (the official build, second browser target;
+ * its OPFS-VFS mode pages from OPFS, memory mode serves these Node tests),
+ * and better-sqlite3 (file-backed temp dir) — so the driver-agnostic
+ * surface in src/db.ts cannot silently drift toward one driver. Semantics
+ * are identical; the only backend difference is the FTS module (stock
+ * sql.js has no FTS5, so it builds the same search index with FTS4 — same
+ * MATCH/prefix syntax; the other two declare FTS5).
  */
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -18,7 +20,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import initSqlJs, { type SqlJsStatic } from "sql.js";
+import { default as initSqliteWasm } from "@sqlite.org/sqlite-wasm";
 
+import type { SqliteWasmModule } from "../src/adapters/sqlitewasm.js";
 import type { StoreBackend } from "../src/db.js";
 
 import { newEnvelope, type ContentAst, type Envelope } from "@notees/protocol";
@@ -37,6 +41,7 @@ import {
 } from "../src/index.js";
 import { betterSqlite3Backend } from "../src/adapters/better-sqlite3.js";
 import { sqljsBackend } from "../src/adapters/sqljs.js";
+import { sqliteWasmBackend } from "../src/adapters/sqlitewasm.js";
 import { rebuildEdges } from "../src/edges.js";
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "protocol", "fixtures");
@@ -150,9 +155,14 @@ function dumpDb(store: Store, options: { withAppliedLog?: boolean } = {}): Recor
 // --- adapters under test -------------------------------------------------------
 
 let sqlModule: SqlJsStatic;
+let sqliteWasm: SqliteWasmModule;
 
 beforeAll(async () => {
   sqlModule = await initSqlJs();
+  // The Node condition resolves the package's node.mjs entry — same wasm
+  // build as the browser, no OPFS VFS (memory-mode restores ride the posix
+  // file layer).
+  sqliteWasm = (await initSqliteWasm()) as unknown as SqliteWasmModule;
 });
 
 /** Temp dirs of file-backed better-sqlite3 stores, cleaned after each test. */
@@ -168,6 +178,10 @@ const adapters: { name: string; makeBackend: () => StoreBackend }[] = [
   {
     name: "sqljs",
     makeBackend: () => sqljsBackend(sqlModule),
+  },
+  {
+    name: "sqlitewasm",
+    makeBackend: () => sqliteWasmBackend(sqliteWasm, { kind: "memory" }),
   },
   {
     name: "better-sqlite3",

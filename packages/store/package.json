@@ -1,7 +1,7 @@
 {
   "name": "@notees/store",
   "version": "0.1.0-m1",
-  "description": "Notees local store: SQLite-backed derived view with better-sqlite3 and sql.js (WASM) adapters.",
+  "description": "Notees local store: SQLite-backed derived view with better-sqlite3, sql.js, and sqlite-wasm (OPFS VFS) adapters.",
   "license": "AGPL-3.0",
   "type": "module",
   "sideEffects": false,
@@ -15,6 +15,11 @@
       "types": "./dist/adapters/sqljs.d.ts",
       "development": "./src/adapters/sqljs.ts",
       "default": "./dist/adapters/sqljs.js"
+    },
+    "./sqlitewasm": {
+      "types": "./dist/adapters/sqlitewasm.d.ts",
+      "development": "./src/adapters/sqlitewasm.ts",
+      "default": "./dist/adapters/sqlitewasm.js"
     },
     "./better-sqlite3": {
       "types": "./dist/adapters/better-sqlite3.d.ts",
@@ -39,9 +44,10 @@
     "uuidv7": "^1.0.0"
   },
   "devDependencies": {
+    "@sqlite.org/sqlite-wasm": "3.54.1-build1",
     "@types/better-sqlite3": "^7.6.11",
-    "@types/sql.js": "^1.4.9",
     "@types/node": "^20.14.0",
+    "@types/sql.js": "^1.4.9",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },

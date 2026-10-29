@@ -1,9 +1,12 @@
 /**
  * Minimal synchronous SQLite adapter surface, derived from what the store
- * actually calls. Two implementations ship in `./adapters/`:
+ * actually calls. Three implementations ship in `./adapters/`:
  *
  *  - `better-sqlite3.ts` — server/CLI default (native, file-backed);
- *  - `sqljs.ts` — browser/WASM target (sql.js, in-memory).
+ *  - `sqljs.ts` — browser/WASM target (sql.js, in-memory);
+ *  - `sqlitewasm.ts` — browser/WASM target (official @sqlite.org/sqlite-wasm;
+ *    the OPFS-VFS mode pages from OPFS instead of holding the whole image in
+ *    the WASM heap, and restores are staged async).
  *
  * Only positional `?` parameters are supported (named params are not used
  * anywhere in the store). `get`/`all` row values are driver-native: both
@@ -38,6 +41,13 @@ export interface StoreBackend {
   open(): SqliteDB;
   /** Database initialized from snapshot bytes; NOT migrated (bytes carry user_version). */
   restore(bytes: Uint8Array): SqliteDB;
+  /**
+   * Staged restore for backends whose storage write is asynchronous (the
+   * sqlite-wasm OPFS VFS: the bytes land in the OPFS file, then the
+   * connection opens by name). Callers with an async context
+   * (Store.restoreAsync) prefer this over the sync restore.
+   */
+  restoreAsync?(bytes: Uint8Array): Promise<SqliteDB>;
   /** Fresh database after dropping any prior storage (files or memory). */
   reset(): SqliteDB;
   /**

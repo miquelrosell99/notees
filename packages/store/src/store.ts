@@ -949,7 +949,25 @@ export class Store {
    * which backend produced the snapshot.
    */
   restore(bytes: Uint8Array): void {
-    let next = this.backend.restore(bytes);
+    this.adopt(this.backend.restore(bytes));
+  }
+
+  /**
+   * Async restore: awaits the backend's staged restore when it has one (the
+   * sqlite-wasm OPFS backend — the bytes land in OPFS, the connection opens
+   * by name), else falls back to the synchronous restore. Both paths then
+   * take the identical adopt tail.
+   */
+  async restoreAsync(bytes: Uint8Array): Promise<void> {
+    const next =
+      this.backend.restoreAsync !== undefined
+        ? await this.backend.restoreAsync(bytes)
+        : this.backend.restore(bytes);
+    this.adopt(next);
+  }
+
+  /** The shared restore tail: schema ladder, FTS repair arm, connection swap. */
+  private adopt(next: SqliteDB): void {
     // The snapshot may carry an OLDER schema than this build (restore swaps
     // the whole database; nothing migrates it afterwards). Bump to the
     // current version — migrate() is version-gated and idempotent, and no-ops
