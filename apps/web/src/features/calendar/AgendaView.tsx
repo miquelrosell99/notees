@@ -55,6 +55,8 @@ export interface AgendaViewProps {
   spannedRows: readonly SpannedRow[];
   /** Row click: open the event node. */
   onOpenEvent: (nodeId: string) => void;
+  /** Shift+click "peek" on the day arrow: open the day page as a right-sidebar card. */
+  onOpenDayPageInSidebar?: ((iso: string) => void) | undefined;
   /** The day header's hover arrow: open that day's page (chain ensured). */
   onOpenDayPage: (iso: string) => void;
 }
@@ -66,6 +68,7 @@ export function AgendaView({
   spannedRows,
   onOpenEvent,
   onOpenDayPage,
+  onOpenDayPageInSidebar,
 }: AgendaViewProps) {
   const todayIso = todayIsoLocal();
   const listRef = useRef<HTMLDivElement>(null);
@@ -223,7 +226,13 @@ export function AgendaView({
                   className="cal-agenda__open"
                   aria-label={`Open day page ${iso}`}
                   title="Open day page"
-                  onClick={() => onOpenDayPage(iso)}
+                  onClick={(event) => {
+                    if (event.shiftKey) {
+                      onOpenDayPageInSidebar?.(iso);
+                      return;
+                    }
+                    onOpenDayPage(iso);
+                  }}
                 />
               </div>
               {isToday && (

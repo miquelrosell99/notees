@@ -829,6 +829,25 @@ function stepVisibleOrder(ids: readonly string[], blockId: string, delta: 1 | -1
 
 export const OutlinerContext = createContext<OutlinerContextValue | null>(null);
 
+/** The optional read — null outside a view (hubs, standalone renders,
+ *  pickers) where the chrome falls back to its own wiring or no-ops. */
+export function useOutlinerOptional(): OutlinerContextValue | null {
+  return useContext(OutlinerContext);
+}
+
+/**
+ * The shift+click "peek" resolution for node-reference chrome (class/tag/
+ * value pills, the pinned Open arrows): the host's explicit handler wins;
+ * otherwise the surrounding view's `openInSidebar`; outside a view the
+ * fallback no-ops (the gesture swallows the click, the unwired precedent).
+ */
+export function usePeekInSidebar(
+  explicit?: ((nodeId: string) => void) | undefined,
+): (nodeId: string) => void {
+  const outer = useContext(OutlinerContext);
+  return explicit ?? ((nodeId) => outer?.openInSidebar(nodeId));
+}
+
 export function useOutliner(): OutlinerContextValue {
   const context = useContext(OutlinerContext);
   if (context === null) {

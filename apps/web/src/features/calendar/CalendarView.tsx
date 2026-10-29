@@ -71,12 +71,16 @@ const CALENDAR_ZOOMS: ReadonlyArray<{ value: CalendarZoom; label: string; icon: 
 export function CalendarView({
   client,
   onOpenPage,
+  /** Shift+click "peek" on the day arrows: the day page cards in the right rail. */
+  onOpenInSidebar,
   route = null,
   onRouteChange,
   onTitle,
 }: {
   client: AnyClient;
   onOpenPage: (nodeId: string) => void;
+  /** The right-rail peek seam (the day arrows' shift+click). */
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   /**
    * The App-owned parsed route: the URL's zoom + day. Null / a null zoom = the bare
    * path — the `calendarZoom` device setting fills the zoom, today fills
@@ -197,6 +201,11 @@ export function CalendarView({
     // setSelectedIso would no-op and leave a wandered period behind).
     pickDay(todayIsoLocal());
     setPeriod(periodOf(todayIsoLocal()));
+  };
+  /** The day arrows' shift+click: ensure the chain, then peek the day page. */
+  const peekDayPage = (iso: string): void => {
+    if (onOpenInSidebar === undefined) return;
+    void client.ensureDateChain(iso).then(({ day }) => onOpenInSidebar(day));
   };
   const openDayPage = (iso: string): void => {
     void client
@@ -362,6 +371,7 @@ export function CalendarView({
               onSelectDay={pickDay}
               onOpenEvent={onOpenPage}
               onOpenDayPage={openDayPage}
+              onOpenDayPageInSidebar={peekDayPage}
             />
           )}
           {calendarZoom === "agenda" && (
@@ -372,6 +382,7 @@ export function CalendarView({
               spannedRows={spannedEvents}
               onOpenEvent={onOpenPage}
               onOpenDayPage={openDayPage}
+              onOpenDayPageInSidebar={peekDayPage}
             />
           )}
           {(calendarZoom === "month" || calendarZoom === "year") && (

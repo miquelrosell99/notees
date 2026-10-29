@@ -99,6 +99,12 @@ export interface VariantSectionSpec extends Pick<SectionSpec, "key"> {
 /** The render context a variant section receives at its mount site. */
 export interface VariantSectionCtx {
   client: AnyClient;
+  /**
+   * The compact peek-card surface (NodeCard): every system section starts
+   * COLLAPSED regardless of its surface default — the card is a glance,
+   * not a workspace. Undefined/false keeps each section's own default.
+   */
+  sectionsStartCollapsed?: boolean | undefined;
   /** The page's node id (a class id on the class variant). */
   nodeId: string;
   /** Member/template navigation (the page's onOpenPage funnel). */
@@ -152,8 +158,8 @@ export interface PageVariant {
 const CLASS_SECTIONS: VariantSectionSpec[] = [
   {
     key: "classed-nodes",
-    render: ({ client, nodeId, onOpenPage }) =>
-      createElement(ClassedNodesSection, { client, classId: nodeId, onOpenPage }),
+    render: ({ client, nodeId, onOpenPage, sectionsStartCollapsed }) =>
+      createElement(ClassedNodesSection, { client, classId: nodeId, onOpenPage, sectionsStartCollapsed }),
   },
 ];
 
@@ -161,18 +167,18 @@ const CLASS_SECTIONS: VariantSectionSpec[] = [
 const CLASS_SIDEBAR_SECTIONS: VariantSectionSpec[] = [
   {
     key: "property-definitions",
-    render: ({ client, nodeId }) =>
-      createElement(PropertyDefinitionsSection, { client, classId: nodeId }),
+    render: ({ client, nodeId, sectionsStartCollapsed }) =>
+      createElement(PropertyDefinitionsSection, { client, classId: nodeId, sectionsStartCollapsed }),
   },
   {
     key: "parentless-role",
-    render: ({ client, nodeId }) =>
-      createElement(ParentlessRoleSection, { client, classId: nodeId }),
+    render: ({ client, nodeId, sectionsStartCollapsed }) =>
+      createElement(ParentlessRoleSection, { client, classId: nodeId, sectionsStartCollapsed }),
   },
   {
     key: "templates",
-    render: ({ client, nodeId, onOpenPage }) =>
-      createElement(TemplatesSection, { client, classId: nodeId, onOpenPage }),
+    render: ({ client, nodeId, onOpenPage, sectionsStartCollapsed }) =>
+      createElement(TemplatesSection, { client, classId: nodeId, onOpenPage, sectionsStartCollapsed }),
   },
 ];
 
@@ -180,8 +186,8 @@ const CLASS_SIDEBAR_SECTIONS: VariantSectionSpec[] = [
 const CLASS_SYSTEM_SECTIONS: VariantSectionSpec[] = [
   {
     key: "extended-by",
-    render: ({ client, nodeId, onOpenClass }) =>
-      createElement(ExtendedBySection, { client, classId: nodeId, onOpenClass }),
+    render: ({ client, nodeId, onOpenClass, sectionsStartCollapsed }) =>
+      createElement(ExtendedBySection, { client, classId: nodeId, onOpenClass, sectionsStartCollapsed }),
   },
 ];
 
@@ -194,18 +200,18 @@ const CLASS_SYSTEM_SECTIONS: VariantSectionSpec[] = [
 const PAGE_SYSTEM_SECTIONS: VariantSectionSpec[] = [
   {
     key: "child-pages",
-    render: ({ client, nodeId, onOpenPage, embedded }) =>
-      createElement(ChildPagesSection, { client, pageId: nodeId, onOpenPage, embedded }),
+    render: ({ client, nodeId, onOpenPage, embedded, sectionsStartCollapsed }) =>
+      createElement(ChildPagesSection, { client, pageId: nodeId, onOpenPage, embedded, sectionsStartCollapsed }),
   },
   {
     key: "backlinks",
-    render: ({ client, nodeId, onOpenPage }) =>
-      createElement(BacklinksSection, { client, pageId: nodeId, onOpenPage }),
+    render: ({ client, nodeId, onOpenPage, sectionsStartCollapsed }) =>
+      createElement(BacklinksSection, { client, pageId: nodeId, onOpenPage, sectionsStartCollapsed }),
   },
   {
     key: "unlinked-mentions",
-    render: ({ client, nodeId, onOpenPage }) =>
-      createElement(UnlinkedMentionsSection, { client, pageId: nodeId, onOpenPage }),
+    render: ({ client, nodeId, onOpenPage, sectionsStartCollapsed }) =>
+      createElement(UnlinkedMentionsSection, { client, pageId: nodeId, onOpenPage, sectionsStartCollapsed }),
   },
 ];
 

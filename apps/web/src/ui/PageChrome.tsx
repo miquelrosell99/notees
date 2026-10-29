@@ -24,12 +24,13 @@
  *. One home, no duplication.
  */
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useRef, useState, type ReactNode } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { DayPageHeader } from "../features/calendar/DayPageHeader.js";
+import { OutlinerContext } from "./outliner-context.js";
 import { ClassesRow, TagsRow } from "../features/metadata/index.js";
 import { AliasNodePicker } from "../features/metadata/AliasNodePicker.js";
 import { IconPickerPopup } from "../features/icon-picker/IconPickerPopup.js";
@@ -254,6 +255,9 @@ export function PageHeaderChrome({
   onHeaderMenu: (x: number, y: number) => void;
 }) {
   const pageId = page.id;
+  // The shift+click peek for the header's open arrows: the surrounding
+  // view's openInSidebar (a no-op where the shell wired none).
+  const peekInSidebar = useContext(OutlinerContext)?.openInSidebar ?? (() => {});
   // Stable identity — the memoized BlockRow compares it by reference, so a
   // fresh arrow per render would defeat the title row's bail-out.
   const resolveName = useCallback((id: string) => titleOf(client, id), [client]);
@@ -407,7 +411,13 @@ export function PageHeaderChrome({
                   aria-label="Open page"
                   title="Open page"
                   className="nt-page-title-embed__open"
-                  onClick={() => onOpenPage?.(pageId)}
+                  onClick={(event) => {
+                    if (event.shiftKey) {
+                      peekInSidebar(pageId);
+                      return;
+                    }
+                    onOpenPage?.(pageId);
+                  }}
                 />
               </span>
             ) : (

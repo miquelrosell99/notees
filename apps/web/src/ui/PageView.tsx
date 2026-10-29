@@ -221,6 +221,11 @@ export function PageView({
    */
   preview = false,
   /**
+   * The peek-card surface (the right rail's NodeCard): every system section
+   * starts collapsed — the card is a glance, not a workspace.
+   */
+  sectionsStartCollapsed = false,
+  /**
    * Document-level listeners (find/replace chord, fold chords). Defaults to
    * the main-surface value (`!preview`); secondary surfaces (the right-rail
    * workspace cards) pass false explicitly — the chords stay main-surface-only.
@@ -261,6 +266,8 @@ export function PageView({
   shareTarget?: ShareTarget | undefined;
   preview?: boolean;
   globalShortcuts?: boolean | undefined;
+  /** The peek-card surface: all system sections start collapsed. */
+  sectionsStartCollapsed?: boolean | undefined;
 }) {
   /**
    * Child-blocks view mode (the outline/prose/cards triad): durable display
@@ -590,6 +597,7 @@ export function PageView({
     onOpenPage,
     onOpenClass: onOpenPage,
     embedded,
+    sectionsStartCollapsed,
   };
   const contentSectionSpecs = panelled
     ? variant.sections

@@ -86,11 +86,15 @@ function groupingBindingFor(
 export function ClassedNodesSection({
   client,
   classId,
+  /** The peek-card surface: start collapsed (the card is a glance). */
+  sectionsStartCollapsed = false,
   onOpenPage,
 }: {
   client: AnyClient;
   classId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** The peek-card surface: start collapsed (the card is a glance). */
+  sectionsStartCollapsed?: boolean | undefined;
 }) {
   const bindings = client.getClassBindings(classId);
   const groupByProperty = groupingBindingFor(client, bindings);
@@ -123,7 +127,7 @@ export function ClassedNodesSection({
     };
   }, [memberFilter]);
   const loadMembers = useCallback(() => client.getClassMembers(classId), [client, classId]);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(!sectionsStartCollapsed);
   const { rows: members, total } = useSectionData<ClientNode[]>({
     client,
     active: expanded,

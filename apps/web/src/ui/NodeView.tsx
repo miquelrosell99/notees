@@ -91,6 +91,11 @@ export function NodeView({
    */
   sectionsLayout = false,
   /**
+   * The peek-card surface (the right rail's NodeCard): every system section
+   * starts collapsed — the card is a glance, not a workspace.
+   */
+  sectionsStartCollapsed = false,
+  /**
    * Extra content for the view's own top-bar actions cluster (the chrome
    * ruling, ONE bar per surface): the host injects
    * surface-specific actions (the day page's DayStepper) into the bar
@@ -131,6 +136,8 @@ export function NodeView({
   globalShortcuts?: boolean | undefined;
   /** Session-only: render the main content as in-flow sections (see above). */
   sectionsLayout?: boolean | undefined;
+  /** The peek-card surface: all system sections start collapsed. */
+  sectionsStartCollapsed?: boolean | undefined;
   /** Extra actions injected into the view's own top bar (the day page's
    *  DayStepper) — one bar per surface, never a stacked second bar. */
   topBarActionsExtra?: ReactNode;
@@ -246,6 +253,7 @@ export function NodeView({
       embedded={node.isClass ? false : embedded}
       layout={cornerMenu && !preview ? (sectionsLayout ? "compact" : "default") : "compact"}
       preview={preview}
+      sectionsStartCollapsed={sectionsStartCollapsed}
       blocksMode={blocksMode}
       onBlocksModeChange={setBlocksMode}
       chromeModes={chromeModes}

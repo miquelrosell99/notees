@@ -6,6 +6,7 @@ import { titleOf } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { AddPill } from "../../components/ui/kit/AddPill.js";
 import { NodePill } from "./NodePills.js";
+import { usePeekInSidebar } from "../../ui/outliner-context.js";
 import { AliasNodePicker } from "./AliasNodePicker.js";
 import type { AnyClient } from "./shared.js";
 
@@ -55,6 +56,7 @@ export function AliasesRow({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
+  const peek = usePeekInSidebar();
 
   // Freshness: the cached aliasNodesOf read converges via the client's
   // change notification — bump a version so the row follows writes (the
@@ -94,6 +96,7 @@ export function AliasesRow({
               icon={alias.icon}
               label={label}
               onOpen={() => (onOpenPageRaw ?? onOpenPage)?.(alias.id)}
+              onOpenInSidebar={() => peek(alias.id)}
               onRemove={readOnly ? undefined : () => void client.updateObject(alias.id, { aliasedNodeId: null })}
               removeLabel={`Remove alias ${label}`}
             />

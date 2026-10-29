@@ -119,6 +119,9 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* The card never scrolls sideways: wide tables/pills clip at the card
+     edge instead of growing a second scrollbar. */
+  overflow-x: hidden;
 }
 
 /* The full-page chrome assumes a large card; peek cards keep it compact. */

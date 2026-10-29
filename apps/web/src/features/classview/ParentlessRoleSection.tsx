@@ -26,9 +26,12 @@ type AnyClient = WorkspaceClient | WorkerClient;
 export function ParentlessRoleSection({
   client,
   classId,
+  /** The peek-card surface: start collapsed. */
+  sectionsStartCollapsed = false,
 }: {
   client: AnyClient;
   classId: string;
+  sectionsStartCollapsed?: boolean | undefined;
 }) {
   const [pending, setPending] = useState(false);
   const node = client.getNode(classId);
@@ -58,7 +61,7 @@ export function ParentlessRoleSection({
     <Section
       client={client}
       title="Standalone instances"
-      defaultCollapsed={false}
+      defaultCollapsed={sectionsStartCollapsed}
       load={() => ({ role: effectiveBlock ? "block" : "page" })}
       renderResults={() => (
         <div className="nt-parentless-role">

@@ -19,7 +19,7 @@
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
@@ -27,6 +27,8 @@ import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { NodeView } from "../src/ui/NodeView.js";
 import { NodeCard } from "../src/features/collection/NodeCard.js";
+import { NodePills } from "../src/features/metadata/NodePills.js";
+import { TagsRow } from "../src/features/metadata/TagsRow.js";
 import { FloatingEditorHost, openFloatingEditor } from "../src/features/block-editor/FloatingEditor.js";
 import { ReferenceSubtree } from "../src/features/block-editor/ReferenceSubtree.js";
 import { PropertiesTable } from "../src/features/metadata/PropertiesTable.js";
@@ -148,7 +150,72 @@ describe("the right-rail card (NodeCard)", () => {
   });
 });
 
+describe("shift+clicking node pills peeks them in the sidebar", () => {
+  it("class pills: shift+click peeks the class, a plain click opens it", async () => {
+    const client = await seedClient();
+    const [pageId] = await seedPageWithBlock(client);
+    const cls = await client.createClass("Pill class");
+    await client.assignClass(pageId, cls);
+    const onOpenPage = vi.fn();
+    const onOpenInSidebar = vi.fn();
+    const { container } = render(
+      <NodePills
+        client={client}
+        nodeId={pageId}
+        classIds={[cls]}
+        onOpenPage={onOpenPage}
+        onOpenInSidebar={onOpenInSidebar}
+      />,
+    );
+
+    const pill = container.querySelector<HTMLElement>(".pill__text")!;
+    fireEvent.click(pill, { shiftKey: true });
+    expect(onOpenInSidebar).toHaveBeenCalledWith(cls);
+    expect(onOpenPage).not.toHaveBeenCalled();
+
+    fireEvent.click(pill);
+    expect(onOpenPage).toHaveBeenCalledWith(cls);
+  });
+
+  it("tag pills ride the same contract", async () => {
+    const client = await seedClient();
+    const [pageId] = await seedPageWithBlock(client);
+    const tag = await client.createObject({ isEmbedded: false, name: "Pill tag" });
+    await client.assignTag(pageId, tag);
+    const onOpenPage = vi.fn();
+    const onOpenInSidebar = vi.fn();
+    const { container } = render(
+      <TagsRow client={client} nodeId={pageId} tagIds={[tag]} onOpenPage={onOpenPage} onOpenInSidebar={onOpenInSidebar} />,
+    );
+
+    const pill = container.querySelector<HTMLElement>(".pill__text")!;
+    fireEvent.click(pill, { shiftKey: true });
+    expect(onOpenInSidebar).toHaveBeenCalledWith(tag);
+    expect(onOpenPage).not.toHaveBeenCalled();
+  });
+});
+
 describe("the floating editor window (FloatingEditorHost)", () => {
+  it("shift+clicking the open-in-main arrow peeks instead — the window stays open", async () => {
+    const client = await seedClient();
+    const [pageId] = await seedPageWithBlock(client);
+    const onOpenInSidebar = vi.fn();
+    render(
+      <FloatingEditorHost client={client} openNode={() => {}} openInSidebar={onOpenInSidebar}>
+        <div />
+      </FloatingEditorHost>,
+    );
+
+    await act(async () => {
+      openFloatingEditor(pageId);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open in main view" }), { shiftKey: true });
+    expect(onOpenInSidebar).toHaveBeenCalledWith(pageId);
+    // Peek never navigates: the window is still there.
+    expect(document.querySelector(".nt-float-win")).not.toBeNull();
+  });
+
   it("shift+clicking a block bullet inside the window peeks the block", async () => {
     const client = await seedClient();
     const [pageId, blockId] = await seedPageWithBlock(client);
