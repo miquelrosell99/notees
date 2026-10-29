@@ -362,8 +362,11 @@ export function NodeContextMenu({
   // (inline → Pages zone)
   // lives in the "Convert to page" submenu below, grouped with the root
   // extraction so the two "make this a page" paths read as one deliberate
-  // choice instead of two confusingly-named siblings.
-  if (node.parentId !== null && !node.isEmbedded) {
+  // choice instead of two confusingly-named siblings. Date-chain nodes are
+  // excluded — their journal role is platform-fixed and the write fails
+  // loud at the applier's date-chain embedding lock (the make-memorization-
+  // card and Convert-to-page guards share the date exclusion).
+  if (node.parentId !== null && !node.isEmbedded && parseDateNodeId(node.id) === null) {
     items.push({
       id: "move-to-content",
       label: "Move to content",
