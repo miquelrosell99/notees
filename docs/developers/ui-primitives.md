@@ -132,7 +132,13 @@ same-token panel surface and need the one-step container-token nudge),
 `Slider`, `ColorButton`, `SelectionButton` (THE
 control for mutually-exclusive MODE/VIEW switching — AND/OR, Blocks/Raw,
 outline/cards/table — the bordered button switcher the ViewSwitcher
-rides; `ToggleSwitch` is the settings idiom, not this), `ButtonWithPanel`,
+rides; `ToggleSwitch` is the settings idiom, not this),
+`ButtonWithPanel` (the anchored-panel seam everything popup-ish composes —
+the narrow-search fold, and `MoreActions`, the toolbar's secondary-action
+overflow: a "⋮ More actions" ghost whose panel lists the secondary items —
+the SelectionButton tier vocabulary for bar actions, primary inline /
+secondary in the panel, so a bar never accumulates low-frequency utilities
+like export inline),
 `InlineConfirmButton`, `CodeTextarea`, `FileDropZone`,
 `HoverRevealButton` (the hover-reveal affordance: zero footprint at rest —
 collapsed width + faded out — expanded on hover of the surrounding
