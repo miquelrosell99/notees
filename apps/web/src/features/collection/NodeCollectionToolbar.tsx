@@ -23,12 +23,15 @@
  * At narrow widths (≤768px) the fold becomes a magnifier button whose POPUP
  * carries the field (see `narrowSearch` below) — on a phone the anchored
  * overlay keeps the chrome row its seats. In a wrapping chrome row (the
- * hosted tab bar's `trailing`) the toolbar renders LAST in the cluster so its
- * structured panel wraps a full-width line beneath the row WITHOUT moving
- * the other controls.
+ * hosted tab bar's right cluster) the toolbar renders LAST so its controls
+ * join the cluster's single right-justified group, and its structured panel
+ * PORTALS into the topbar's full-width slot — a wrapped line beneath the
+ * tabs+controls row, spanning the bar side to side (the width-capped cluster
+ * never squeezes it), without moving the other controls.
  */
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import type { AnyClient } from "./index.js";
 
@@ -39,6 +42,7 @@ import { ButtonWithPanel } from "../../components/ui/kit/ButtonWithPanel.js";
 import { CollapsibleSearchField } from "../../components/ui/kit/CollapsibleSearchField.js";
 import { SearchField } from "../../components/ui/kit/SearchField.js";
 import { FilterBlockBuilder } from "./FilterBlockBuilder.js";
+import { useNodeCollectionTopBarPanelHost } from "./NodeCollectionTopBar.js";
 import {
   createSectionView,
   useSectionViews,
@@ -117,17 +121,27 @@ export interface NodeCollectionToolbarProps {
   /**
    * "block" (default) renders the bar as its own body-top row; "inline"
    * renders it inside a toolbar row (a ViewToolbar or the hosted tab bar's
-   * `trailing`) via `display: contents` — the control row joins the row's
-   * flex line and the structured panel takes a full-width wrapped line
-   * beneath it (in-flow, no overlay). Render the bar LAST in the wrapping
-   * cluster so the panel's wrap lands below the row without moving the
-   * cluster's other controls.
+   * right cluster) via `display: contents` — the control row joins the
+   * cluster's flex line (shrink-wrapped, one tight right-justified group
+   * with the other controls) and the structured panel PORTALS into the
+   * topbar's full-width slot beneath the row (in-flow, no overlay; in a
+   * non-topbar host it renders in place beneath the row). Render the bar
+   * LAST in the wrapping cluster so the panel's line lands below the row
+   * without moving the cluster's other controls.
    */
   layout?: "block" | "inline" | undefined;
 }
 
 export function NodeCollectionToolbar({ client, value, onChange, config, matchCount, totalCount, viewSaver, applyTarget, defaultPanelOpen = false, layout = "block" }: NodeCollectionToolbarProps) {
   const [panelOpen, setPanelOpen] = useState(defaultPanelOpen);
+  /**
+   * The full-width panel seat: inside a NodeCollectionTopBar the structured
+   * panel PORTALS into the bar's own slot (the bar-level wrapped line spans
+   * side to side); elsewhere (the hub-cards host) it renders in place. Null
+   * on the first render — the host ref lands before paint, so the portal
+   * never flashes in the cluster.
+   */
+  const topBarPanelHost = useNodeCollectionTopBarPanelHost();
   /**
    * The narrow-viewport fold: at ≤768px the permanent
    * search field gives its row space back and becomes a magnifier button
@@ -264,47 +278,81 @@ export function NodeCollectionToolbar({ client, value, onChange, config, matchCo
         )}
       </div>
       {panelOpen && (
-        <div
-          className="nt-node-collection-toolbar__panel"
-          role="group"
-          aria-label="Structured filters"
-        >
-          <FilterBlockBuilder
-            client={client}
-            group={value.group}
-            config={config}
-            onChange={(group) => onChange({ ...value, group })}
-            footExtra={
-              canApplyToTab || canSaveAsTab ? (
-                <>
-                  {canApplyToTab && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      icon="mdi mdi-check"
-                      aria-label={`Apply to ${applyTarget!.tabLabel}`}
-                      title={`Set this filter as the ${applyTarget!.tabLabel} tab's query`}
-                      onClick={() => void applyToTab()}
-                    />
-                  )}
-                  {canSaveAsTab && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      icon="mdi mdi-tab-plus"
-                      aria-label="Save as tab"
-                      title="Save this filter as a new tab"
-                      onClick={() => void saveAsTab()}
-                    />
-                  )}
-                </>
-              ) : undefined
-            }
-          />
-        </div>
+        <Panel
+          client={client}
+          value={value}
+          onChange={onChange}
+          config={config}
+          panelHost={layout === "inline" ? topBarPanelHost : null}
+          footExtra={
+            canApplyToTab || canSaveAsTab ? (
+              <>
+                {canApplyToTab && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    icon="mdi mdi-check"
+                    aria-label={`Apply to ${applyTarget!.tabLabel}`}
+                    title={`Set this filter as the ${applyTarget!.tabLabel} tab's query`}
+                    onClick={() => void applyToTab()}
+                  />
+                )}
+                {canSaveAsTab && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    icon="mdi mdi-tab-plus"
+                    aria-label="Save as tab"
+                    title="Save this filter as a new tab"
+                    onClick={() => void saveAsTab()}
+                  />
+                )}
+              </>
+            ) : undefined
+          }
+        />
       )}
     </div>
   );
+}
+
+/** The structured panel: the FilterBlockBuilder framed in the bordered
+ * region. Inside a NodeCollectionTopBar it portals into the bar's
+ * full-width slot (the wrapped line beneath the chrome row); elsewhere it
+ * renders in place, a full-width in-flow region beneath the control row —
+ * never an overlay. */
+function Panel({
+  client,
+  value,
+  onChange,
+  config,
+  panelHost,
+  footExtra,
+}: {
+  client: AnyClient;
+  value: FilterQuery;
+  onChange: (query: FilterQuery) => void;
+  config: NodeCollectionToolbarConfig | undefined;
+  /** The topbar's full-width seat, when one hosts this toolbar. */
+  panelHost: HTMLElement | null;
+  footExtra: ReactNode;
+}) {
+  const panel = (
+    <div
+      className="nt-node-collection-toolbar__panel"
+      role="group"
+      aria-label="Structured filters"
+    >
+      <FilterBlockBuilder
+        client={client}
+        group={value.group}
+        config={config}
+        onChange={(group) => onChange({ ...value, group })}
+        footExtra={footExtra}
+      />
+    </div>
+  );
+  return panelHost !== null ? createPortal(panel, panelHost) : panel;
 }
