@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): Backlinks and Unlinked mentions convert onto the
+  CollectionSection skin — the reference sections' drift-prone wiring
+  deletes; `ReferenceList` retires.** The skin gains `groupBy` (post-
+  resolution grouping — the containing-page groups read chrome state the
+  skin owns, so the host cannot precompute them outside). The reference
+  sections now compose through the skin: chrome, lazy contract, transient
+  filter layer, hosted tabs, Save-as-tab, and the hosted toolbar cluster
+  (search first → chrome slot → extras) all ride it. What a reference
+  section owns stays: the entry→item mapping (the per-row scope-classed
+  re-read — a source edited without touching this page leaves its pooled
+  snapshot stale), the containing-page grouping, the live sort default
+  (ranked quick text leads until the user picks a sort), the lifted
+  hosted-tab state, and the Promote/Ignore row-action pair (unlinked
+  only). `ReferenceList` (only ever used by ReferenceSection) folds in and
+  retires; the two tests that rendered it directly now compose the same
+  collection via `NodeCollection` + `groupByContainingPage`, and
+  verb-backlinks exercises the real exported sections. Verified: the
+  reference suites green unmodified (filter-layer 13, system-sections 27,
+  verb-backlinks, list-collapse-level, context-column) plus a
+  compose-through-skin assertion on Backlinks; full gate green (typecheck
+  + 2539 web tests, full chain). Slice 3 of the section skin conversion.
+
 - **feat(web): the first sections convert onto the CollectionSection skin —
   Extended by, Child pages, and the property References table.** The skin
   gains the last two composition hooks the conversions need: a `className`
