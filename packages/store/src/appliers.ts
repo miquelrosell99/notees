@@ -783,6 +783,20 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   // children (they would dangle under a non-page parent — demote or move
   // them first).
   if (p.isEmbedded !== undefined) {
+    // Date-chain embedding lock (SCHEMA.md "Datetime"): the journal chain's
+    // role is platform-fixed — a date node renders with document chrome and
+    // the render bit is not user-reachable state. BOTH directions fail loud:
+    // a demote would nest the journal page as an inline block in its chain
+    // parent's body (the journal surfaces break), a promotion is a standalone
+    // claim the UI never makes. The parent lock lives in applyObjectMove,
+    // the class lock in the object.create / class guards — this closes the
+    // last carrier.
+    if (parseDateNodeId(p.objectId) !== null) {
+      throw new MoveGuardError(
+        `${opType}: date-chain node ${p.objectId} has a platform-fixed journal role; isEmbedded is not writable on it`,
+        opType,
+      );
+    }
     if (p.isEmbedded === false && row.parent_id !== null) {
       const parent = getNodeRow(db, row.parent_id);
       if (!parent || !isPageRow(db, parent as unknown as RenderRow)) {

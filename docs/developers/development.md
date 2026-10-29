@@ -187,6 +187,7 @@ scenarios:
 | `object-create.json` | node creation with content/classes |
 | `object-move.json` | reparent + sibling reorder (`afterId`), fractional positions |
 | `is-embedded-parent-page.json` | the parent-page condition: the standalone claim (isEmbedded = 0) under a block parent must throw on apply |
+| `is-embedded-date-chain.json` | the date-chain embedding lock: `object.update` carrying isEmbedded (demote or promote direction) on a date-chain node must throw on apply |
 | `object-is-embedded.json` | the Revision-12 embedding flag: defaults (parentless 0 / parented 1), explicit claims, the promotion/demotion toggle |
 | `property-set-lww.json` | two ops racing one property slot; higher HLC wins |
 | `typed-link-mark.json` | verb mark with `locator` + `candidateSpans` (record-don't-resolve) |

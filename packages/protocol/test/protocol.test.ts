@@ -42,7 +42,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the forty-five required fixtures", () => {
+  it("has exactly the forty-six required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "card-review.json",
@@ -63,6 +63,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "external-ref.json",
       "heading-content.json",
       "hr.json",
+      "is-embedded-date-chain.json",
       "is-embedded-parent-page.json",
       "link-embedded.json",
       "mention-custom-label.json",
