@@ -1,19 +1,23 @@
 /**
  * CreatedSection — the "Created" aggregation for date pages: everything
- * created on the day (day pages, #4) or inside the month/year
- *. The
- * section hides while empty (there is no cheaper materialized count, so the
- * one createdAt range query IS the count: it resolves from mount and
- * re-runs per notification, independent of expansion), a failed query keeps
- * the previous rows (the Section contract), and the date-chain nodes are
- * excluded (their ids are deterministic auto-created chain pages, never
- * "created that day" content). Only main nodes list (blocks are inline
- * scaffolding). Rows default to the cards view mode
- *, outline one click away; the choice is device-local
- * per host page, never an op. The query rides useSectionData.
+ * created on the day (day pages, #4) or inside the month/year, composing
+ * through the CollectionSection skin: the chrome, the resolve-on-mount
+ * contract, and the hide-when-empty gate all ride the skin. The section
+ * hides while empty (there is no cheaper materialized count, so the one
+ * createdAt range query IS the count: it resolves from mount and re-runs
+ * per notification — and on a bounds change through `refreshKey` —
+ * independent of expansion, and no chrome renders until it lands), a failed
+ * query keeps the previous rows (the Section contract), and the date-chain
+ * nodes are excluded (their ids are deterministic auto-created chain pages,
+ * never "created that day" content). Only main nodes list (blocks are
+ * inline scaffolding). Rows default to the cards view mode, outline one
+ * click away; the choice is device-local per host page, never an op — the
+ * availability gate reads the resolved set through the skin's rows report
+ * (the mode switcher rides the body top, the un-hosted idiom). The query
+ * rides useSectionData.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { parseDateNodeId } from "@notees/domain";
 
@@ -22,11 +26,10 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 
 import { buildCreatedInPeriodAst } from "../calendar/calendarViewUtils.js";
 import { Icon } from "../../ui/Icon.js";
-import { NodeViewSection } from "./NodeViewSection.js";
-import { NodeCollection, ViewToolbar, useAvailableViewModes } from "../collection/index.js";
-import type { ViewMode } from "../collection/index.js";
+import { ViewToolbar, useAvailableViewModes } from "../collection/index.js";
+import type { NodeCollectionItem, ViewMode } from "../collection/index.js";
+import { CollectionSection } from "../collection/CollectionSection.js";
 import { useViewModePreference } from "../../ui/viewPrefs.js";
-import { useSectionData } from "../collection/useSectionData.js";
 import "./CreatedSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -48,13 +51,6 @@ export function CreatedSection({
   before: string;
   onOpenPage: ((nodeId: string) => void) | undefined;
 }) {
-  const [expanded, setExpanded] = useState(false);
-
-  // The count gates hide-when-empty and no cheaper materialized count
-  // exists, so the one structured query resolves from mount (active stays
-  // true) and re-runs per notification, independent of expansion — the
-  // section's pre-restructure contract, now riding useSectionData. A failed query
-  // keeps the previous rows.
   const runCreatedQuery = useCallback(
     () =>
       Promise.resolve(client.runQueryAst(buildCreatedInPeriodAst(after, before))).then((result) =>
@@ -67,50 +63,46 @@ export function CreatedSection({
           .sort(
             (a, b) =>
               (b.createdAt ?? "").localeCompare(a.createdAt ?? "") || a.id.localeCompare(b.id),
-          ),
+          )
+          .map((node) => ({ node })),
       ),
     [client, after, before],
   );
-  const { rows } = useSectionData<ClientNode[]>({
-    client,
-    query: runCreatedQuery,
-    // Bounds are not a notification: a host change re-runs the count.
-    refreshKey: `${after}|${before}`,
-  });
-
-  const createdItems = useMemo(
-    () => (rows ?? []).map((node) => ({ node })),
-    [rows],
-  );
-  // Availability gating (the hub seam): the switcher and the persisted-mode
-  // sanitize see only the modes the created set feeds.
-  const availableModes = useAvailableViewModes(client, createdItems, CREATED_VIEW_MODES);
+  /**
+   * The resolved-rows COPY (the skin owns the resolution; it reports the
+   * rows here) — the availability gate reads the created set: the switcher
+   * and the persisted-mode sanitize see only the modes the set feeds.
+   */
+  const [createdItems, setCreatedItems] = useState<NodeCollectionItem[] | null>(null);
+  const availableModes = useAvailableViewModes(client, createdItems ?? [], CREATED_VIEW_MODES);
   const [viewMode, setViewMode] = useViewModePreference(
     `createdSection.${pageId}`,
     "cards",
     availableModes,
   );
 
-  if (rows === null || rows.length === 0) return null;
   return (
-    <NodeViewSection
+    <CollectionSection
+      client={client}
       title="Created"
       icon={<Icon path="mdi-plus-circle-outline" size={0.9} />}
-      count={rows.length}
       className="nt-section"
-      expanded={expanded}
-      onExpandedChange={setExpanded}
-    >
-      <div className="nt-created-toolbar">
-        <ViewToolbar modes={availableModes} value={viewMode} onChange={setViewMode} />
-      </div>
-      <NodeCollection
-        viewMode={viewMode}
-        client={client}
-        items={createdItems}
-        readOnly
-        onNodeClick={(id) => onOpenPage?.(id)}
-      />
-    </NodeViewSection>
+      hideWhenEmpty
+      hideUntilResolved
+      resolveOnMount
+      refreshKey={`${after}|${before}`}
+      viewMode={viewMode}
+      query={runCreatedQuery}
+      onRowsChange={setCreatedItems}
+      toolbarContent={
+        <div className="nt-created-toolbar">
+          <ViewToolbar modes={availableModes} value={viewMode} onChange={setViewMode} />
+        </div>
+      }
+      collection={{
+        readOnly: true,
+        onNodeClick: (id) => onOpenPage?.(id),
+      }}
+    />
   );
 }

@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): Created converts onto the CollectionSection skin — the last
+  collection-backed section; the skin gains the resolve-on-mount seams it
+  needed.** Three new skin props, each with this one consumer: `hideUntilResolved`
+  (no eager count exists for the created-set query, so no chrome renders
+  until it lands — the old early-return's contract), `onRowsChange` (the
+  resolved-rows report — membership-keyed, fires once per membership change,
+  never per render — feeding the view-mode availability gate), and the
+  header badge reading the resolved `total` when no eager `count` prop
+  exists. The section keeps what it owns: the createdAt range query (the
+  date-chain exclusion + newest-first sort inside), the bounds `refreshKey`,
+  the device-local per-host mode preference, and the body-top mode switcher
+  (the un-hosted idiom). Verified: new skin test (hide-until-resolved → no
+  chrome, one rows report, badge from total), journals-view/calendar suites
+  green plus a compose-through-skin assertion on the journal feed's Created
+  section; full gate green (typecheck + 2540 web tests, full chain). Slice 5
+  of the section skin conversion — every collection-backed section now rides
+  the skin.
+
 - **feat(web): Classed nodes converts onto the CollectionSection skin — the
   class page's centerpiece sheds its hand-rolled filter/tab/toolbar
   wiring.** The section keeps what it owns: the availability-gated mode

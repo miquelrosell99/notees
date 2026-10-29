@@ -29,7 +29,7 @@
  * quick text leads until the user picks a sort).
  */
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { AnyClient, CollectionGroup, NodeCollectionItem, NodeCollectionProps, ViewMode } from "./index.js";
 import { NodeCollection } from "./index.js";
@@ -82,6 +82,18 @@ export interface CollectionSectionProps {
   collection?: Omit<NodeCollectionProps, "client" | "items" | "viewMode"> | undefined;
   /** Hide the whole section when the count gate reads 0 (the section never vanishes behind an unresolved count). */
   hideWhenEmpty?: boolean | undefined;
+  /**
+   * Hide the whole section while the resolution is UNRESOLVED (the Created
+   * contract — no eager materialized count exists, so no chrome renders
+   * until the one query lands; pairs with `resolveOnMount`).
+   */
+  hideUntilResolved?: boolean | undefined;
+  /**
+   * Observe the resolved rows (the Created mode gate: availability gating
+   * reads the created set, which lives in the skin's resolution). Fires
+   * from an effect only when the membership key changes — never per render.
+   */
+  onRowsChange?: ((rows: NodeCollectionItem[] | null) => void) | undefined;
   /** The header's far-right icon-only action (a section-scoped create affordance). */
   action?: NodeViewSectionAction | undefined;
   /** Extra class merged onto the skin's root (the converted sections keep their established hooks, e.g. `.nt-section`). */
@@ -117,6 +129,8 @@ export function CollectionSection({
   toolbarContent,
   collection,
   hideWhenEmpty = false,
+  hideUntilResolved = false,
+  onRowsChange,
   action,
   className = "",
   hideHeader = false,
@@ -161,6 +175,20 @@ export function CollectionSection({
   });
   const resolvedCount = count ?? total ?? undefined;
 
+  // The resolved-rows report (the Created mode gate): guarded by a stable
+  // membership key so a parent setState re-render (fresh `rows` identity,
+  // same membership) never re-fires it — no report→render→report loop. The
+  // guard seeds with the unresolved key: the mount-time null is the host's
+  // initial state already, not a change.
+  const rowsKey = rows === null ? "null" : rows.map((item) => item.node.id).join(",");
+  const lastRowsKey = useRef("null");
+  useEffect(() => {
+    if (onRowsChange === undefined || rowsKey === lastRowsKey.current) return;
+    lastRowsKey.current = rowsKey;
+    onRowsChange(rows);
+  }, [rowsKey, rows, onRowsChange]);
+
+  if (hideUntilResolved && rows === null) return null;
   if (hideWhenEmpty && resolvedCount === 0) return null;
 
   // The hosted ruling: on a hosted collection the chrome
@@ -185,8 +213,10 @@ export function CollectionSection({
       {...(action !== undefined ? { action } : {})}
       {...(hideHeader ? { hideHeader: true } : {})}
       // One count named exactly once: the hosted tab's badge names it
-      // there; the header badge names it only on UN-hosted sections.
-      {...(!hosted && count !== undefined ? { count } : {})}
+      // there; the header badge names it only on UN-hosted sections. With an
+      // eager `count` the badge reads it; without one (Created — the query
+      // IS the count) it reads the resolved total once the resolution lands.
+      {...(!hosted && resolvedCount !== undefined ? { count: resolvedCount } : {})}
     >
       {filterable !== false && !hosted && (
         <NodeCollectionToolbar
