@@ -16,8 +16,7 @@ import { act, render } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { ReferenceList } from "../src/features/page-sections/SystemSections.js";
-import { NodeCollection } from "../src/features/collection/index.js";
+import { NodeCollection, groupByContainingPage } from "../src/features/collection/index.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000e1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000e2";
@@ -81,12 +80,25 @@ async function seedThreeDeep(): Promise<{ client: WorkspaceClient; target: strin
   return { client, target };
 }
 
+/**
+ * The reference collection the section composes (the retired ReferenceList's
+ * exact composition — the subject under test is the outline view's collapse
+ * behavior, not the section chrome).
+ */
 function renderRefs(client: WorkspaceClient, target: string): void {
+  const items = client.getLinkedReferences(target).map((entry) => ({
+    node: client.getNode(entry.source.id) ?? entry.source,
+    meta: { containingPageId: entry.containingPageId, verb: entry.verb },
+  }));
+  const { standalone, groups } = groupByContainingPage(client, items, () => {});
   render(
-    <ReferenceList
-      entries={client.getLinkedReferences(target)}
+    <NodeCollection
+      viewMode="outline"
       client={client}
-      onOpenPage={() => {}}
+      items={items}
+      readOnly={false}
+      groups={groups}
+      ungroupedItems={standalone}
     />,
   );
 }
