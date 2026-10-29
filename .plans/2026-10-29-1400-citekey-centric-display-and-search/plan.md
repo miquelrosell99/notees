@@ -225,3 +225,38 @@ Pasting a node UUID into the picker (or any quick-search surface) must find the 
 - [ ] **Step 2: Run — expect FAIL.**
 - [ ] **Step 3: Implement** the arm in `searchNodesPage`.
 - [ ] **Step 4: Gate + docs + commit** `feat(store): uuid exact-match in quick search` (gate: `pnpm --filter @notees/store build && pnpm typecheck && pnpm test`).
+
+### Task 12: Source duplicate detection — grouping (pure layer)
+
+**Files:**
+- Create: `apps/web/src/features/sources/duplicates.ts`
+- Test: `apps/web/test/sources-duplicates.test.ts` (the sources-data.test.tsx seedClient harness pattern)
+
+**Behavior spec:**
+- Pure function over the source-family row projection (the Sources-hub `SourceRow` shape from `sourcesQuery.ts`, or class members + effective properties — pick what carries title/authors/year/citekey/doi/isbn; the quick-create duplicate criteria at `quickCreate.ts:826-893` is the established matching idiom to reuse for normalization).
+- Match edges: (a) IDENTIFIER equality — DOI (case-insensitive trimmed), ISBN (digits+X, uppercase), citekey (case-insensitive trimmed); (b) fuzzy key — normalized title (lowercase, diacritic-fold, punctuation stripped, whitespace collapsed) AND (publication year OR first-author family token; first author from the authors text's first segment or linkedAuthors first target familyName).
+- Union-find over both edge types: sources linked transitively (A shares a DOI with B, a title with C) land in ONE group.
+- Produces `groupSourceDuplicates(rows): Array<{ members: SourceRow[] }>` — only groups with ≥ 2 members, deterministic ordering (stable sort by first member id). Pure, derived, no wire/model change.
+
+- [ ] **Step 1: Failing tests** — identifier groups (same DOI different titles; same citekey), fuzzy groups (same title+year; same title+first-author, year absent), transitive union (DOI edge + title edge → one group), non-duplicates stay ungrouped, normalization cases (case/diacritics/punctuation), determinism (input order shuffled → same output).
+- [ ] **Step 2: Run — expect FAIL.**
+- [ ] **Step 3: Implement** `duplicates.ts`.
+- [ ] **Step 4: Gate + commit** `feat(web): source duplicate grouping` (gate: `pnpm --filter @notees/web build && pnpm typecheck && pnpm test`).
+
+### Task 13: Duplicates view + merge modal in the Sources hub
+
+**Files:**
+- Modify: `apps/web/src/features/sources/SourcesHub.tsx` (a Duplicates mode — toolbar switch or facet entry; the hub is a single fixed view today, so this adds a mode, not a tab)
+- Create: `apps/web/src/features/sources/SourcesDuplicates.tsx` (+ kit-composed CSS), `apps/web/src/features/modals/MergeDuplicatesModal.tsx`
+- Test: `apps/web/test/sources-duplicates-view.test.tsx`, `apps/web/test/merge-duplicates-modal.test.tsx`
+
+**Behavior spec:**
+- Duplicates mode shows Task 12's groups as grouped lists: group header naming the match basis, member rows (title/authors/year/citekey/DOI via the existing sources row cells / `propertyDisplayText`), ONE "Merge" button per group. Empty state ("No duplicates") when no groups.
+- Merge opens `MergeDuplicatesModal`: a DROPDOWN of the group's members as target candidates (owner requirement — not the free NodeSelector), defaulting to the first member; a dry-run summary of what merge will do (counts — the `MergePlanSummary` shape); confirm invokes the STANDARD merge flow — the same semantics as `MergeNodesModal` (`planMerge`, packages/store/src/merge.ts: losers' children/classes/properties/links/aliases move or copy-into-empty, losers go to TRASH — say so in the modal copy). Wiring: `client.mergeNodes` where the local planner is available (in-process mode, one undo batch); the server route `POST /api/objects/:id/merge {targetId}` (with `?dryRun=true` for the summary) where it is not (worker mode). Guard failures surface as an error line, modal stays open (the MergeNodesModal pattern).
+- After a successful merge the duplicates view refreshes (the merged group disappears).
+- UI: fleet kit components only, token-only CSS, adaptive values.
+
+- [ ] **Step 1: Failing tests** — duplicates mode renders groups + per-group Merge; modal opens with the group's members in the target dropdown; confirm invokes the merge path (assert the ops / endpoint call for the chosen target, losers trashed); guard error shows the error line and stays open; after merge the group list refreshes.
+- [ ] **Step 2: Run — expect FAIL.**
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Gate + docs (docs/features/sources or classes where the hub is documented) + CHANGELOG + commit** `feat(web): sources duplicates view + merge` (gate: `pnpm --filter @notees/web build && pnpm typecheck && pnpm test`).
