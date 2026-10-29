@@ -93,6 +93,71 @@ describe("buildSeedEnvelopes: the project property seed", () => {
   });
 });
 
+describe("buildSeedEnvelopes: the displayTemplate seed (citekey-centric)", () => {
+  const OPT_OUTS = [
+    "film",
+    "tv_broadcast",
+    "audio_recording",
+    "radio_broadcast",
+    "podcast",
+    "video_recording",
+    "book",
+  ] as const;
+
+  it("emits displayTemplate on class.create for `source` and the 7 opt-outs ONLY", () => {
+    const envelopes = buildSeedEnvelopes(factory(), WS);
+    const creates = envelopes.filter((envelope) => envelope.opType === "class.create");
+    const payloadOf = (classId: string): Record<string, unknown> => {
+      const envelope = creates.find(
+        (candidate) => (candidate.payload as { classId: string }).classId === classId,
+      );
+      expect(envelope).toBeDefined();
+      return envelope!.payload as Record<string, unknown>;
+    };
+
+    // `source` ships the citekey-centric header template; the seven
+    // media-type classes opt OUT explicitly ("" — a real entry, not absence).
+    expect(payloadOf(SYSTEM_CLASS_UUIDS.source).displayTemplate).toBe("@{{citekey}}");
+    for (const name of OPT_OUTS) {
+      expect(payloadOf(SYSTEM_CLASS_UUIDS[name]).displayTemplate, name).toBe("");
+    }
+
+    // Every other seeded class carries NO displayTemplate key at all —
+    // absent = inherit through extends at read time.
+    const flagged = new Set<string>([
+      SYSTEM_CLASS_UUIDS.source,
+      ...OPT_OUTS.map((name) => SYSTEM_CLASS_UUIDS[name]),
+    ]);
+    for (const envelope of creates) {
+      const payload = envelope.payload as Record<string, unknown>;
+      if (!flagged.has(payload.classId as string)) {
+        expect(payload, payload.classId as string).not.toHaveProperty("displayTemplate");
+      }
+    }
+  });
+
+  it("replays clean: the class registry rows carry the template (`source`) and the explicit '' opt-out (`film`)", () => {
+    const store = Store.open(betterSqlite3Backend(":memory:"));
+    try {
+      for (const envelope of buildSeedEnvelopes(factory(), WS)) {
+        store.apply(envelope);
+      }
+      const templateOf = (classId: string): string | null | undefined =>
+        (
+          store.database
+            .prepare("SELECT display_template FROM class WHERE id = ?")
+            .get(classId) as { display_template: string | null } | undefined
+        )?.display_template;
+      expect(templateOf(SYSTEM_CLASS_UUIDS.source)).toBe("@{{citekey}}");
+      expect(templateOf(SYSTEM_CLASS_UUIDS.film)).toBe("");
+      // A non-manifest class stays NULL (inherits through extends at read).
+      expect(templateOf(SYSTEM_CLASS_UUIDS.person)).toBeNull();
+    } finally {
+      store.close();
+    }
+  });
+});
+
 describe("seedWorkspace idempotency", () => {
   it("a second run on a non-empty workspace plans and writes nothing (seededCount 0)", async () => {
     let applied: Envelope[] = [];
