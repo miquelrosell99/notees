@@ -159,6 +159,7 @@ const READ_METHODS: ReadonlySet<string> = new Set([
   "effectiveClassColor",
   "effectiveClassIcon",
   "effectiveClassParentlessBlock",
+  "getClassDisplayTemplate",
   "effectiveNodeIcon",
   "effectiveNodeColor",
   "getPage",
@@ -733,6 +734,8 @@ export class WorkerCore {
         return this.client.effectiveClassIcon(args[0] as string);
       case "effectiveClassParentlessBlock":
         return this.client.effectiveClassParentlessBlock(args[0] as string);
+      case "getClassDisplayTemplate":
+        return this.client.getClassDisplayTemplate(args[0] as string);
       case "effectiveNodeIcon":
         return this.client.effectiveNodeIcon(
           args[0] as {
@@ -953,7 +956,13 @@ export class WorkerCore {
         return this.client.createClass(
           args[0] as string,
           args[1] as
-            | { icon?: string; color?: string; id?: string; parentlessRole?: "page" | "block" }
+            | {
+                icon?: string;
+                color?: string;
+                id?: string;
+                parentlessRole?: "page" | "block";
+                displayTemplate?: string;
+              }
             | undefined,
         );
       case "setClassExtends":
@@ -962,6 +971,11 @@ export class WorkerCore {
         return this.client.updateClassParentlessRole(
           args[0] as string,
           args[1] as "page" | "block" | null,
+        );
+      case "updateClassDisplayTemplate":
+        return this.client.updateClassDisplayTemplate(
+          args[0] as string,
+          args[1] as string | null,
         );
       case "setFeatureEnabled":
         return this.client.setFeatureEnabled(

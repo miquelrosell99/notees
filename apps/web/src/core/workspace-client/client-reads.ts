@@ -17,6 +17,7 @@ import {
   SYSTEM_PROPERTY_UUIDS,
 } from "@notees/domain";
 import type { NodeRow } from "@notees/store";
+import { getClassDisplayTemplate } from "@notees/store";
 
 import {
   mapClassBindingRow,
@@ -110,6 +111,18 @@ export class WorkspaceClientReads {
   /** The parent's render facts for the parent-page condition, when known. */
   parentFactsOf(node: { parentId: string | null }): ParentRenderFacts {
     return node.parentId !== null ? this.getNode(node.parentId) : undefined;
+  }
+
+  /**
+   * The class's OWN displayTemplate — the raw `class` registry column (store
+   * schema v36; the node row is NOT a carrier, unlike parentlessRole).
+   * NULL = never set (inherit through extends at read time), "" = the
+   * explicit opt-out. The deploy self-heal reads this to converge only a
+   * NULL column (never a user-set value); display goes through the store's
+   * extends-aware `resolveEffectiveDisplayTemplate`.
+   */
+  getClassDisplayTemplate(classId: string): string | null {
+    return getClassDisplayTemplate(this.ctx.store.database, classId);
   }
 
   /** All document-chrome nodes (parentless or main children), deterministic

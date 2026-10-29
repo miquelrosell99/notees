@@ -32,6 +32,7 @@ import {
   LOCKED_SYSTEM_CLASSES,
   SYSTEM_CLASS_DISPLAY_NAMES,
   SYSTEM_CLASS_DESCRIPTIONS,
+  SYSTEM_CLASS_DISPLAY_TEMPLATES,
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK,
@@ -112,7 +113,27 @@ export async function deploySystemClass(
       ...(SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK.has(key)
         ? { parentlessRole: "block" as const }
         : {}),
+      // The displayTemplate seed (the citekey-centric `source` header, the
+      // media roster's explicit "" opt-outs): "" IS a real entry, so the
+      // undefined check (not truthiness) gates the spread.
+      ...(SYSTEM_CLASS_DISPLAY_TEMPLATES[key] !== undefined
+        ? { displayTemplate: SYSTEM_CLASS_DISPLAY_TEMPLATES[key] }
+        : {}),
     });
+  } else {
+    // Converge an EXISTING class whose display_template was never set
+    // (NULL): write the manifest entry, INCLUDING "" (a NULL column is
+    // indistinguishable from "predates the manifest" — the ruling). A
+    // non-NULL column (user-set template or user-set opt-out) is NEVER
+    // overwritten. Existing workspaces converge by the one-time migration;
+    // this is the fresh-workspace/offline self-heal twin.
+    const manifestTemplate = SYSTEM_CLASS_DISPLAY_TEMPLATES[key];
+    if (
+      manifestTemplate !== undefined &&
+      client.getClassDisplayTemplate(classId) === null
+    ) {
+      await client.updateClassDisplayTemplate(classId, manifestTemplate);
+    }
   }
 
   // Un-archive an archived seed (the gallery's enable pick). The family
