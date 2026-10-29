@@ -199,10 +199,13 @@ describe("JournalsView", () => {
     const anchor = container.querySelector("[data-anchor='true']");
     expect(anchor?.getAttribute("data-journal-id")).toBe(dayNodeId(today));
     expect(anchor?.classList.contains("journal-entry--virtual")).toBe(true);
-    // The virtual entry rides the realized entries' own register: the 46rem
-    // measure + the muted placeholder icon + the embed title (no raw
-    // left-edge day header).
-    expect(anchor?.querySelector(".nt-nodeview-body")).not.toBeNull();
+    // The virtual entry rides the realized entries' own register: directly
+    // under .nt-page (the journal zeroes the page padding — the panelled
+    // layout's .nt-nodeview-body cap would add one spacing-6 too many),
+    // with the muted placeholder icon + the embed title (no raw left-edge
+    // day header).
+    expect(anchor?.querySelector(":scope > .nt-page")).not.toBeNull();
+    expect(anchor?.querySelector(".nt-nodeview-body")).toBeNull();
     expect(anchor?.querySelector(".journal-virtual-icon")).not.toBeNull();
     expect(anchor?.querySelector(".day-page-header")).toBeNull();
   });
