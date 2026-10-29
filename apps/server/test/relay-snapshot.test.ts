@@ -1,3 +1,5 @@
+import { gunzipSync, gzipSync } from "node:zlib";
+
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Store } from "@notees/store";
@@ -183,6 +185,82 @@ describe("PUT /snapshot/data — the sanity gate", () => {
     await ingest(server, [testEnvelope({ opType: "object.create", payload: pagePayload("s") })]);
     const res = await putSnapshot(100, 1, Buffer.from("notees-snapshot-bytes"));
     expect(res.statusCode).toBe(201);
+  });
+});
+
+describe("snapshot data — gzip Content-Encoding (transfer only, no wire change)", () => {
+  async function getData(headers: Record<string, string> = {}) {
+    return server!.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/snapshot/data?workspaceId=${server!.workspaceId}`,
+      headers: { ...server!.authHeaders, ...headers },
+    });
+  }
+
+  it("GET gzips the blob with Content-Encoding: gzip when the client advertises it; identity otherwise", async () => {
+    server = await makeTestServer();
+    await ingest(server, [testEnvelope({ opType: "object.create", payload: pagePayload("s") })]);
+    expect((await putSnapshot(100, 2)).statusCode).toBe(201);
+
+    const gzipped = await getData({ "accept-encoding": "gzip, deflate, br" });
+    expect(gzipped.statusCode).toBe(200);
+    expect(gzipped.headers["content-encoding"]).toBe("gzip");
+    expect(gzipped.headers["content-type"]).toBe("application/octet-stream");
+    expect(gunzipSync(gzipped.rawPayload).equals(SNAPSHOT_BYTES)).toBe(true);
+
+    const identity = await getData();
+    expect(identity.statusCode).toBe(200);
+    expect(identity.headers["content-encoding"]).toBeUndefined();
+    expect(Buffer.from(identity.rawPayload).equals(SNAPSHOT_BYTES)).toBe(true);
+  });
+
+  it("PUT with Content-Encoding: gzip stores the ORIGINAL bytes — a plain GET round-trips them", async () => {
+    server = await makeTestServer();
+    await ingest(server, [testEnvelope({ opType: "object.create", payload: pagePayload("s") })]);
+    const put = await server.app.inject({
+      method: "PUT",
+      url: `/api/relay/v2/snapshot/data?workspaceId=${server.workspaceId}&physical=100&logical=2`,
+      headers: {
+        "content-type": "application/octet-stream",
+        "content-encoding": "gzip",
+        ...server.authHeaders,
+      },
+      payload: gzipSync(SNAPSHOT_BYTES),
+    });
+    expect(put.statusCode).toBe(201);
+
+    const data = await getData();
+    expect(data.statusCode).toBe(200);
+    expect(data.headers["content-encoding"]).toBeUndefined();
+    expect(Buffer.from(data.rawPayload).equals(SNAPSHOT_BYTES)).toBe(true);
+  });
+
+  it("PUT with corrupt gzip is rejected 4xx and stored state is untouched", async () => {
+    server = await makeTestServer();
+    await ingest(server, [testEnvelope({ opType: "object.create", payload: pagePayload("s") })]);
+    const put = await server.app.inject({
+      method: "PUT",
+      url: `/api/relay/v2/snapshot/data?workspaceId=${server.workspaceId}&physical=100&logical=2`,
+      headers: {
+        "content-type": "application/octet-stream",
+        "content-encoding": "gzip",
+        ...server.authHeaders,
+      },
+      payload: Buffer.from("this is not gzip"),
+    });
+    expect(put.statusCode).toBe(400);
+    expect(put.json().error.code).toBe("validation_failed");
+
+    // No checkpoint was installed: the metadata still reports hasSnapshot:false
+    // and the data endpoint still 404s.
+    const meta = await server.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/snapshot?workspaceId=${server.workspaceId}`,
+      headers: server.authHeaders,
+    });
+    expect(meta.json().hasSnapshot).toBe(false);
+    const data = await getData();
+    expect(data.statusCode).toBe(404);
   });
 });
 

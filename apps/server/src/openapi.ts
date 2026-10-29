@@ -874,6 +874,8 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   }],
   ["get", "/api/relay/v2/snapshot/data", {
     summary: "Snapshot bytes (application/octet-stream)",
+    description:
+      "Served identity by default; when the request advertises gzip in Accept-Encoding the blob crosses gzipped with Content-Encoding: gzip (SQLite images compress ~4-5x). Clients that parse the body themselves without advertising gzip are unaffected.",
     tags: ["Relay"],
     query: { workspaceId: { description: "workspace uuid", type: "string", required: true } },
     success: { description: "the serialized derived-state SQLite bytes", schema: { type: "string", format: "binary" } },
@@ -882,7 +884,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["put", "/api/relay/v2/snapshot/data", {
     summary: "Publish snapshot bytes (raw body); mode=import installs them as the workspace's derived store",
     description:
-      "Default mode publishes a client-produced checkpoint (sanity-gated above the envelope threshold). mode=import instead INSTALLS the body as the target workspace's derived store — a snapshot image, usually from POST /api/workspaces/:id/clone's source side — rewriting every workspace_id row; the target must be envelope-empty (409 otherwise) and the body must carry node rows at ANY log size (422 otherwise). An imported workspace's log starts empty: the snapshot is load-bearing for rebuilds.",
+      "Default mode publishes a client-produced checkpoint (sanity-gated above the envelope threshold). mode=import instead INSTALLS the body as the target workspace's derived store — a snapshot image, usually from POST /api/workspaces/:id/clone's source side — rewriting every workspace_id row; the target must be envelope-empty (409 otherwise) and the body must carry node rows at ANY log size (422 otherwise). An imported workspace's log starts empty: the snapshot is load-bearing for rebuilds. A gzipped upload (Content-Encoding: gzip) is transparently decompressed before every sanity gate and the store — the 512 MiB route cap and every downstream check bound the COMPRESSED body; invalid gzip is rejected 400 and nothing is stored.",
     tags: ["Relay"],
     query: {
       workspaceId: { description: "workspace uuid", type: "string", required: true },

@@ -71,6 +71,18 @@ async function toTransportError(response: Response): Promise<TransportError> {
   return new TransportError("http_error", `HTTP ${response.status}: ${response.statusText}`, response.status);
 }
 
+/** One-shot gzip through the built-in CompressionStream (browsers, Node 18+). */
+async function gzipBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  const source = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+  const compressed = source.pipeThrough(new CompressionStream("gzip"));
+  return new Uint8Array(await new Response(compressed).arrayBuffer());
+}
+
 export class HttpTransport implements Transport {
   private readonly base: string;
   private readonly apiKey: string;
@@ -141,6 +153,9 @@ export class HttpTransport implements Transport {
   }
 
   async getSnapshotData(): Promise<Uint8Array> {
+    // No explicit Accept-Encoding: browser fetch advertises gzip
+    // automatically and decompresses transparently, so the bytes seen here
+    // are always the original blob regardless of the transfer encoding.
     const response = await this.request(
       `/snapshot/data?workspaceId=${encodeURIComponent(this.workspaceId)}`,
     );
@@ -153,12 +168,24 @@ export class HttpTransport implements Transport {
       physical: String(hlc.physical),
       logical: String(hlc.logical),
     });
+    // Transfer-only gzip (no wire change): when CompressionStream exists
+    // (browsers, Node 18+) the body crosses gzipped — the server's 512 MiB
+    // body cap and the engine's SNAPSHOT_UPLOAD_BODY_LIMIT then bound the
+    // COMPRESSED size. Identity where CompressionStream is unavailable.
+    const headers: Record<string, string> = { "Content-Type": "application/octet-stream" };
+    let body: NonNullable<RequestInit["body"]> = bytes as unknown as NonNullable<
+      RequestInit["body"]
+    >;
+    if (typeof (globalThis as { CompressionStream?: unknown }).CompressionStream === "function") {
+      body = (await gzipBytes(bytes)) as unknown as NonNullable<RequestInit["body"]>;
+      headers["Content-Encoding"] = "gzip";
+    }
     await this.request(`/snapshot/data?${params.toString()}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/octet-stream" },
+      headers,
       // Cross-lib typing: Uint8Array<ArrayBufferLike> vs DOM RequestInit.body.
       // Both Node ≥18 and DOM fetch accept it at runtime.
-      body: bytes as unknown as NonNullable<RequestInit["body"]>,
+      body,
     });
   }
 

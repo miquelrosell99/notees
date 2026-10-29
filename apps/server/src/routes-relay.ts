@@ -15,6 +15,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { uuidv7 } from "uuidv7";
+import { gunzipSync, gzipSync } from "node:zlib";
 import type { WebSocket } from "ws";
 
 import type { Envelope } from "@notees/protocol";
@@ -57,6 +58,14 @@ const snapshotPutQuerySchema = z.object({
   /** `import` installs the body as the workspace's derived store instead of publishing it as a client checkpoint. */
   mode: z.enum(["import"]).optional(),
 });
+
+/** Whether an encoding header (Accept-Encoding / Content-Encoding) carries a gzip token. */
+function encodingHeaderHasGzip(header: unknown): boolean {
+  return (
+    typeof header === "string" &&
+    header.split(",").some((token) => token.trim().toLowerCase() === "gzip")
+  );
+}
 
 /**
  * The client-produced snapshot PUT rides a RAISED, route-local bodyLimit —
@@ -207,6 +216,16 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     if (bytes === null) {
       throw new AppError(404, "not_found", "snapshot blob missing on disk");
     }
+    // Content-Encoding negotiation (transfer only, no wire change): gzip when
+    // the client advertises it (browsers always do and decompress
+    // transparently), identity otherwise — GTK/Flutter clients parse the
+    // body themselves and keep receiving the raw blob.
+    if (encodingHeaderHasGzip(request.headers["accept-encoding"])) {
+      return reply
+        .header("content-type", "application/octet-stream")
+        .header("content-encoding", "gzip")
+        .send(gzipSync(bytes));
+    }
     return reply.header("content-type", "application/octet-stream").send(bytes);
   });
 
@@ -217,9 +236,28 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     }
     const { workspaceId, physical, logical, mode } = parsed.data;
     requireCredential(ctx, request, workspaceId, "write");
-    const body = request.body;
-    if (!Buffer.isBuffer(body) || body.length === 0) {
+    const rawBody = request.body;
+    if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) {
       throw new AppError(422, "validation_failed", "snapshot data must be a non-empty binary body");
+    }
+    // Content-Encoding negotiation (transfer only): a gzipped upload is
+    // decompressed HERE — before the sanity gates, the mode=import install
+    // path, and saveSnapshot — so every downstream check and the stored blob
+    // see the original image exactly as an identity upload would (the route's
+    // 512 MiB cap bounds the COMPRESSED body, which is the intended effect).
+    // A client that sends gzip it cannot produce correctly fails loud instead
+    // of storing corrupt bytes.
+    let body = rawBody;
+    if (encodingHeaderHasGzip(request.headers["content-encoding"])) {
+      try {
+        body = gunzipSync(rawBody);
+      } catch {
+        throw new AppError(
+          400,
+          "validation_failed",
+          "request carries Content-Encoding: gzip but the body is not valid gzip data",
+        );
+      }
     }
     // mode=import: install the body as the workspace's DERIVED STORE (a
     // snapshot image — usually produced by POST /api/workspaces/:id/clone's
