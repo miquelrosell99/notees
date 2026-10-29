@@ -9,6 +9,26 @@ predating this file.
 
 ## 2026-10-29
 
+- **chore(ci): release-docker concurrency, dispatch = build-verify only
+  (sonarly semantics), nightly stagger** (fleet-pattern alignment, owner
+  ruling). `.github/workflows/release-docker.yml`: workflow-level
+  `concurrency: {group: release-${{ github.ref }}, cancel-in-progress: false}`
+  (serialize releases per ref — two tag pushes in quick succession queue
+  rather than interleave their matrix builds); new first-step guard on
+  `workflow_dispatch` failing loud when `git-ref` matches `v*` /
+  `refs/tags/v*` — push the tag instead (the docker job runs on dispatch, so
+  the in-job step is reachable; header comment documents it). Alignment
+  ruling: publish requires a pushed tag — the build-push step's `push:` is
+  gated `${{ github.ref_type == 'tag' }}`, so a manual dispatch builds and
+  verifies but never pushes images; the now-purposeless `image_tag` dispatch
+  input (and its empty-input guard) is removed — tag events derive tags from
+  the ref. `.github/workflows/nightly-docker.yml`: nightly cron staggered
+  `23 3 * * *` → `47 3 * * *` so it no longer contends with the nightly CI's
+  03:23 slot (header comment updated). `docs/developers/deployment.md` §9
+  image-channel list updated to the new dispatch semantics (and the new cron).
+  Verified: all three workflow YAMLs parse (`python yaml.safe_load`);
+  `pnpm typecheck` green (no source touched).
+
 - **chore(ci): git-ref inputs + fail-loud dispatch guards on the docker
   workflows** (Logseq playbook). `.github/workflows/release-docker.yml`:
   new `git-ref` dispatch input (default `main` — tags, branches, or SHAs);
