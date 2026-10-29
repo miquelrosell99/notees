@@ -10,8 +10,9 @@
  *
  * The citation-family behaviors key off the class LINEAGE, not hardcoded
  * field sets: auto-citekey fills an empty staged citekey from the settings
- * pattern when the toggle is on (deterministic a/b/c collision suffix), and
- * a staged DOI, ISBN, or CITEKEY already on a live source surfaces the
+ * pattern whenever the Sources feature is on (no generation toggle — the
+ * owner ruling 2026-10-29), and a staged DOI, ISBN, or CITEKEY already on a
+ * live source surfaces the
  * "Already in your library" warning (citekey coverage added 2026-10-26) —
  * and an exact title match (a live class member whose flattened title equals
  * the staged title, trim-only compare) surfaces the same non-blocking

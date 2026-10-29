@@ -460,13 +460,12 @@ export function PageView({
 
   /**
    * The citekey backfill guard: a source-lineage page opened WITHOUT a
-   * citekey gets one generated from the workspace pattern when Auto-citekey
-   * is on (the same `syncSourceCitekey` engine the App-level change watcher
-   * rides) — the pre-auto-citekey library and imports that bypassed the
-   * create form backfill on open. The engine is idempotent (a converged
-   * node is a cheap no-op read), so the per-render re-run costs nothing;
-   * embedded renders and the preview seam host no writes (the whiteboard
-   * lazy-authoring gating).
+   * citekey gets one generated from the workspace pattern (the same
+   * `syncSourceCitekey` engine the App-level change watcher rides) — the
+   * pre-tracking library and imports that bypassed the create form backfill
+   * on open. The engine is idempotent (a converged node is a cheap no-op
+   * read), so the per-render re-run costs nothing; embedded renders and the
+   * preview seam host no writes (the whiteboard lazy-authoring gating).
    */
   useEffect(() => {
     if (page === undefined || embedded || preview) return;

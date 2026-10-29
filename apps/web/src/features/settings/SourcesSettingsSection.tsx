@@ -12,8 +12,7 @@
  *     refused client-side (commit on blur/Enter, the rename precedent).
  *  2. Metadata resolver toggle — honest sub-note: a lookup reveals the
  *     queried identifier to the provider, never workspace content.
- *  3. Auto-citekey toggle — fills an empty citekey on import.
- *  4. The class-visibility list — all 39 source type-classes (the
+ *  3. The class-visibility list — all 39 source type-classes (the
  *     SYSTEM_SOURCE_CLASS_BINDINGS roster, every member extends `source`,
  *     listed in the seed roster order) as checked rows: checked = the class
  *     node's `active` bit, unchecked = archived. Toggling a row writes the
@@ -22,9 +21,14 @@
  *     `setArchived(id, true)` seam; disable = archive, the identical
  *     `setArchived(id, false)` write).
  *
+ * Generation has NO toggle (citekeys always generate while the Sources
+ * feature is on — the owner ruling 2026-10-29; pinning or a hand-edit is
+ * the opt-out), so the settings vocabulary carries two keys only:
+ * `citekeyPattern` + `resolverEnabled`.
+ *
  * Every settings write is ONE `workspace.feature.set {feature: "sources",
  * enabled: true, settings}` carrying the READ-MODIFIED-MERGED record, so
- * the three keys never clobber each other (the row is one whole-row LWW
+ * the keys never clobber each other (the row is one whole-row LWW
  * unit — the undo journal restores the prior enabled + settings).
  */
 
@@ -61,10 +65,13 @@ import "./SourcesSettingsSection.css";
 const SOURCE_TYPE_CLASS_ROSTER = Object.keys(SYSTEM_SOURCE_CLASS_BINDINGS) as SystemClassName[];
 
 /** The feature-scoped settings vocabulary (the first consumer; SCHEMA.md
- *  "Workspace features" names it normatively). */
+ *  "Workspace features" names it normatively). Citekey generation has NO
+ *  toggle — it is always on while the Sources feature is on (the owner
+ *  ruling 2026-10-29: the opt-out is pinning or hand-editing, not a
+ *  default-off switch); the vocabulary keeps only the pattern + the
+ *  resolver gate. */
 export interface SourcesFeatureSettings {
   citekeyPattern: string | undefined;
-  autoCitekey: boolean;
   resolverEnabled: boolean;
 }
 
@@ -75,7 +82,6 @@ function readSourcesSettings(
   const settings = row?.settings ?? {};
   return {
     citekeyPattern: typeof settings.citekeyPattern === "string" ? settings.citekeyPattern : undefined,
-    autoCitekey: settings.autoCitekey === true,
     // The server gate's default is ON (an absent row/key allows) — the
     // toggle mirrors that contract, not an absent-means-off reading.
     resolverEnabled: settings.resolverEnabled !== false,
@@ -109,7 +115,7 @@ export function SourcesSettingsSection({
   const compiled = compileCitekeyPattern(draft);
 
   const writeSettings = (patch: Record<string, unknown>) => {
-    // Read-modify-merge against the CURRENT row so the three keys never
+    // Read-modify-merge against the CURRENT row so the keys never
     // clobber each other; one whole-row LWW write per change.
     const current = client.listFeatureRows().find((entry) => entry.feature === "sources")?.settings ?? {};
     void client.setFeatureSettings("sources", { ...current, ...patch }).catch((error: unknown) => {
@@ -156,11 +162,12 @@ export function SourcesSettingsSection({
             Citekey pattern
           </label>
           <p className="settings-item__description">
-            Pattern used when import integrations fill an empty citekey. Tokens:{" "}
+            Pattern for citekey generation — always on while Sources is on: an empty citekey fills on
+            create, when a source is opened, and as its metadata changes. Tokens:{" "}
             <code>[auth]</code>, <code>[auth:lower]</code>, <code>[year]</code>, <code>[title]</code>,{" "}
             <code>[title:lower]</code>, <code>[title:N]</code>, <code>[title:lower:N]</code> (first N
-            words); anything else is a literal. Existing citekeys are never recomputed — changes apply
-            only to future generations.
+            words); anything else is a literal. A pinned citekey is never recomputed; an unpinned one
+            follows the pattern as it tracks metadata.
           </p>
         </div>
         <div className="sources-settings__pattern-field">
@@ -202,16 +209,6 @@ export function SourcesSettingsSection({
           }
           checked={settings.resolverEnabled}
           onChange={(checked) => writeSettings({ resolverEnabled: checked })}
-          labelPosition="left"
-        />
-      </div>
-
-      <div className="settings-item">
-        <BooleanToggle
-          label="Auto-citekey"
-          description="Fill empty citekeys from your pattern — on create, when a source is opened, and as metadata changes (pinned citekeys never auto-change)."
-          checked={settings.autoCitekey}
-          onChange={(checked) => writeSettings({ autoCitekey: checked })}
           labelPosition="left"
         />
       </div>

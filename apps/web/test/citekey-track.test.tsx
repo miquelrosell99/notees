@@ -3,9 +3,10 @@
  *
  * ENGINE (`syncSourceCitekey` — the one pass behind PageView's open-backfill
  * guard and App's change watcher):
- *  - backfills a missing citekey when Auto-citekey is on; idempotent no-op
- *    once converged;
- *  - the Auto-citekey setting gates every automatic write;
+ *  - backfills a missing citekey (always on while the Sources feature is on
+ *    — no generation toggle); idempotent no-op once converged;
+ *  - the Sources FEATURE toggle (enabled:false) gates every automatic
+ *    write — the only off switch;
  *  - a pinned citekey (per-value metadata `{ pinned: true }`) is never
  *    rewritten; an explicit `{ pinned: false }` reads unpinned;
  *  - an unpinned citekey rewrites when the metadata render drifts;
@@ -124,15 +125,10 @@ async function seedLovelaceSource(client: WorkspaceClient): Promise<string> {
   return sourceId;
 }
 
-const enableAutoCitekey = async (client: WorkspaceClient): Promise<void> => {
-  await client.setFeatureSettings("sources", { autoCitekey: true });
-};
-
 describe("syncSourceCitekey (the tracking engine)", () => {
-  it("backfills a missing citekey when auto-citekey is on — then idempotently no-ops", async () => {
+  it("backfills a missing citekey out of the box — then idempotently no-ops", async () => {
     const client = await seedClient();
     await seedSourceFamily(client);
-    await enableAutoCitekey(client);
     const sourceId = await seedLovelaceSource(client);
 
     await expect(syncSourceCitekey(client, sourceId)).resolves.toBe(true);
@@ -144,10 +140,11 @@ describe("syncSourceCitekey (the tracking engine)", () => {
     expect(authoredCitekeyRows(client, sourceId)).toHaveLength(1);
   });
 
-  it("writes nothing when auto-citekey is off (the one opt-in gates every automatic write)", async () => {
+  it("writes nothing when the Sources feature itself is off (the family toggle — the only off switch)", async () => {
     const client = await seedClient();
     await seedSourceFamily(client);
     const sourceId = await seedLovelaceSource(client);
+    await client.setFeatureEnabled("sources", false);
 
     await expect(syncSourceCitekey(client, sourceId)).resolves.toBe(false);
     expect(authoredCitekeyRows(client, sourceId)).toHaveLength(0);
@@ -156,7 +153,6 @@ describe("syncSourceCitekey (the tracking engine)", () => {
   it("rewrites an unpinned citekey when the metadata render drifts", async () => {
     const client = await seedClient();
     await seedSourceFamily(client);
-    await enableAutoCitekey(client);
     const sourceId = await seedLovelaceSource(client);
     await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.citekey, "stalekey", 0);
 
@@ -172,7 +168,6 @@ describe("syncSourceCitekey (the tracking engine)", () => {
   it("never touches a pinned citekey; an explicit pinned:false reads unpinned", async () => {
     const client = await seedClient();
     await seedSourceFamily(client);
-    await enableAutoCitekey(client);
     const pinnedId = await seedLovelaceSource(client);
     await client.setProperty(pinnedId, SYSTEM_PROPERTY_UUIDS.citekey, "handpicked", 0, {
       pinned: true,
@@ -210,7 +205,6 @@ describe("syncSourceCitekey (the tracking engine)", () => {
   it("empty metadata (nothing to generate from) is an honest no-op", async () => {
     const client = await seedClient();
     await seedSourceFamily(client);
-    await enableAutoCitekey(client);
     const sourceId = await client.createObject({
       isEmbedded: false,
       classIds: [SYSTEM_CLASS_UUIDS.source],
@@ -223,7 +217,6 @@ describe("syncSourceCitekey (the tracking engine)", () => {
   it("plain pages and class nodes are no-ops", async () => {
     const client = await seedClient();
     await seedSourceFamily(client);
-    await enableAutoCitekey(client);
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
 
     await expect(syncSourceCitekey(client, pageId)).resolves.toBe(false);
@@ -233,7 +226,6 @@ describe("syncSourceCitekey (the tracking engine)", () => {
   it("collision-suffixes against the live library (the sibling holding the natural render)", async () => {
     const client = await seedClient();
     await seedSourceFamily(client);
-    await enableAutoCitekey(client);
     const siblingId = await client.createObject({
       isEmbedded: false,
       name: "Whatever",
@@ -249,7 +241,6 @@ describe("syncSourceCitekey (the tracking engine)", () => {
   it("a manual carrier-shaped key reads as the current value — converged, no duplicate write", async () => {
     const client = await seedClient();
     await seedSourceFamily(client);
-    await enableAutoCitekey(client);
     const sourceId = await seedLovelaceSource(client);
     const carrier = await client.createObject({
       parentId: sourceId,

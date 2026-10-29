@@ -683,9 +683,10 @@ export async function ensureCitationFamily(
 /**
  * The citation draft read off the staged rows: the staged DOI/ISBN and the
  * effective citekey — the typed value when present, otherwise the
- * auto-citekey generation when the setting is on (empty stays empty: no
- * data for the pattern tokens is not an error). The duplicate warning and
- * the flush share this, so what warns is exactly what would write.
+ * auto-generation (always on while the Sources feature is on; empty stays
+ * empty: no data for the pattern tokens is not an error). The duplicate
+ * warning and the flush share this, so what warns is exactly what would
+ * write.
  */
 export function citationDraftOf(
   client: AnyClient,
@@ -701,20 +702,22 @@ export function citationDraftOf(
   const trimmedCitekey = textOf("citekey").trim();
   const settings = readSourceSettings(client);
   const stagedDate = parseStagedDateText(textOf("publicationDate"));
+  // Generation is unconditional while the feature is on (no autoCitekey
+  // toggle — the owner ruling 2026-10-29); the duplicate-warning draft and
+  // the flush share this, so what warns is exactly what would write. An
+  // empty render (no data for the tokens) stays empty — not an error.
   const citekeyValue =
-    trimmedCitekey !== ""
+    trimmedCitekey !== "" || !settings.sourcesEnabled
       ? trimmedCitekey
-      : settings.autoCitekey
-        ? generateCitekey(
-            settings.citekeyPattern,
-            {
-              authors: splitAuthorList(textOf("authors")),
-              year: stagedDate === null ? null : Number(stagedDate.iso.slice(0, 4)),
-              title,
-            },
-            existingCitekeys(client),
-          )
-        : "";
+      : generateCitekey(
+          settings.citekeyPattern,
+          {
+            authors: splitAuthorList(textOf("authors")),
+            year: stagedDate === null ? null : Number(stagedDate.iso.slice(0, 4)),
+            title,
+          },
+          existingCitekeys(client),
+        );
   return { doi: textOf("doi").trim(), isbn: textOf("isbn").trim(), citekey: citekeyValue };
 }
 
@@ -763,10 +766,18 @@ export function existingCitekeys(client: AnyClient): string[] {
   return out;
 }
 
-/** The citekey/resolver-surface snapshot of the sources feature settings. */
+/**
+ * The citekey/resolver-surface snapshot of the sources feature settings.
+ * Generation has NO toggle (the owner ruling 2026-10-29: citekeys always
+ * generate while the Sources feature is on — the opt-out is pinning or a
+ * hand-edit, never a default-off switch); the snapshot carries the feature
+ * gate itself so every consumer keys off ONE read.
+ */
 export interface SourceSettingsSnapshot {
-  autoCitekey: boolean;
   citekeyPattern: string | undefined;
+  /** The feature gate: an absent row or an explicit enabled:false disables
+   *  every automatic citekey write (create-fill, backfill, auto-track). */
+  sourcesEnabled: boolean;
   /**
    * The resolver gate read (the add-source dialog): an absent row or absent
    * key is the server default ON — only an explicit `false` disables.
@@ -776,16 +787,20 @@ export interface SourceSettingsSnapshot {
 
 /**
  * The sources feature row read (task-5 settings write the same row): an
- * absent row or absent key is the server default — auto-citekey OFF (opt
- * in), the pattern undefined (the default pattern renders instead), the
- * resolver ON (the egress gate, only an explicit false disables).
+ * absent row or absent key is the server default — the pattern undefined
+ * (the default pattern renders instead), the resolver ON (the egress gate,
+ * only an explicit false disables), and generation governed by the FEATURE
+ * toggle alone (enabled:false — the family off — is the only off switch;
+ * the retired autoCitekey key is never read: rows carrying it converge by
+ * idempotence, one whole-row settings write at a time).
  */
 export function readSourceSettings(client: AnyClient): SourceSettingsSnapshot {
   const rows = client.listFeatureRows?.() ?? [];
-  const settings = rows.find((row) => row.feature === "sources")?.settings ?? {};
+  const row = rows.find((entry) => entry.feature === "sources");
+  const settings = row?.settings ?? {};
   return {
-    autoCitekey: settings.autoCitekey === true,
     citekeyPattern: typeof settings.citekeyPattern === "string" ? settings.citekeyPattern : undefined,
+    sourcesEnabled: row === undefined || row.enabled !== false,
     resolverEnabled: settings.resolverEnabled !== false,
   };
 }

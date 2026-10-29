@@ -4,7 +4,7 @@
  *
  *  - the OPEN-BACKFILL GUARD (PageView's effect): a source-lineage page
  *    opened without a citekey gets one generated from the workspace pattern
- *    — the pre-auto-citekey library and imports that bypassed the create
+ *    — the pre-tracking library and imports that bypassed the create
  *    form backfill on open, so the "@{{citekey}}" display template and the
  *    hub rows read a real value;
  *  - the CHANGE WATCHER (App's subscription): an UNPINNED citekey re-renders
@@ -29,9 +29,10 @@
  *     library entry);
  *  2. the node's class LINEAGE must reach `source` (the quick-create
  *     keying, never a hardcoded node set);
- *  3. the workspace Auto-citekey setting is ON — the one opt-in governs
- *     ALL automatic citekey writes (create-fill, backfill, auto-track);
- *     off = fully manual (pin + regenerate still work);
+ *  3. the Sources FEATURE is on (an absent row or explicit enabled:false —
+ *     the family toggle — is the ONLY off switch; generation has no toggle
+ *     of its own, the owner ruling 2026-10-29: the opt-out is pinning or a
+ *     hand-edit, never a default-off switch);
  *  4. a PINNED citekey is never touched;
  *  5. the pattern render from current metadata (collision-suffixed against
  *     the live library minus the node's own keys, the
@@ -89,7 +90,7 @@ export async function syncSourceCitekey(client: AnyClient, nodeId: string): Prom
   if (node === undefined || node.isClass) return false;
   if (node.classIds.length === 0) return false;
   if (!node.classIds.some((classId) => isCitationFamilyClass(client, classId))) return false;
-  if (!readSourceSettings(client).autoCitekey) return false;
+  if (!readSourceSettings(client).sourcesEnabled) return false;
 
   const citekeyRows = client
     .getEffectiveProperties(nodeId)
