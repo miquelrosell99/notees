@@ -613,6 +613,15 @@ owns beneath the chrome row — a `flex-basis: 100%` flex item of the bar, so
 the capped 46ch cluster never squeezes it (the toolbar renders LAST in the
 cluster, and the views' own toolbars portal into a slot before it, see
 viewChrome.tsx, so the panel's line never moves the row's other controls).
+The hub surfaces ride the same seam one level up (CollectionHub): the
+toolbar lifts into the SurfaceTopBar's actions cluster between the
+view-chrome slot and the header actions, the hub's FilterQuery (component
+state at the hub, `useQueryRun`-composed) narrows the items before
+NodeCollection sees them — ranked quick text, then the structured group —
+while the bar's count and the mode gate read the unfiltered set, and the
+structured panel portals into a full-width seat beneath the bar
+(PanelHostContext, the NodeCollectionTopBar precedent). The Cards hub's
+buckets/review ride the filtered-set report (`onFilterChange`).
 The live count moved OFF the panel: the ACTIVE hosted tab carries a total-count
 badge beside its name (NodeCollection computes the open tab's displayed row
 count post-refinement and hands it to NodeCollectionTabs;, replacing the "N of M nodes match" foot line).

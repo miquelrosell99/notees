@@ -513,6 +513,15 @@ export interface NodeCollectionProps {
    */
   toolbarContent?: ReactNode | undefined;
 
+  /**
+   * An EXTERNAL view-chrome portal target (the hub top bar's slot, mounted by
+   * CollectionHub inside the SurfaceTopBar's actions cluster): when set on an
+   * UN-hosted collection, views portal their per-view chrome into it instead
+   * of the body-top fallback row. Hosted collections ignore it (their own tab
+   * bar's slot wins).
+   */
+  viewChromeTarget?: HTMLElement | null;
+
   className?: string | undefined;
 }
 

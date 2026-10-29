@@ -33,6 +33,9 @@
  * view's own per-view toolbar (table columns/sort/more, cards cover/selection)
  * portals into a slot mounted BEFORE the toolbar cluster — the cluster ends
  * with the NodeCollectionToolbar so its wrapped structured panel never moves the row.
+ * An UN-hosted collection portals its chrome into the host-passed
+ * `viewChromeTarget` when one exists (the hub top bar's slot) and falls back
+ * to the body-top row otherwise.
  *
  *  The focused-block view (the `parent` prop, the v1
  *  "show parents" NodeCollection prop, generalized): the collection shows
@@ -85,6 +88,7 @@ export function NodeCollection({
   viewMode,
   hostedViews,
   toolbarContent,
+  viewChromeTarget,
   ...props
 }: NodeCollectionProps & { viewMode: ViewMode }) {
   const entry = getViewDefinition(viewMode);
@@ -304,7 +308,9 @@ export function NodeCollection({
           }
         />
       )}
-      <ViewChromeContext.Provider value={hosted !== null ? chromeSlot : null}>
+      <ViewChromeContext.Provider
+        value={hosted !== null ? chromeSlot : (viewChromeTarget ?? null)}
+      >
         {content}
         {/* The trailing ghost rides after the content in the plain grammar;
             the focused grammar already mounted it inside the parent row's

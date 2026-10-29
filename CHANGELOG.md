@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): hub top bars carry the full collection toolbar — quick
+  search, structured filters, and the view's sort control join the view
+  switcher in every hub bar.** The hub chrome was sparse: a view-mode
+  switcher plus an optional "New" action, with a lone Sort button floating
+  at the collection body top (the per-view chrome portal only had a target
+  on hosted collections). Now `CollectionHub` — the shared shell behind the
+  Pages, Classes, Whiteboards, Inbox, Tasks, Cards, and Assets hubs — owns a
+  transient `FilterQuery` state, composes it through the query runner, and
+  renders `NodeCollectionToolbar` (`layout="inline"`) in the bar's actions
+  cluster: quick search first (ranked — membership AND order), then the
+  structured-filter query builder with its N-of-M badge and clear. The bar's
+  count and the mode-availability gate read the unfiltered set; the
+  collection receives the filtered items; a filter emptied to zero reads
+  "No matching rows." Views keep their own chrome state but render it
+  through a new `viewChromeTarget` prop on `NodeCollection`, so the sort
+  control (and the Cards/Table chrome) relocates into the bar with zero
+  per-view edits — the body-top lone button row disappears. The
+  structured-filter panel drops full-width beneath the bar through a hub
+  panel seat sibling to the bar (same context+ref pattern as the hosted top
+  bar's seat; no kit component touched). The Cards hub's bespoke filter
+  wiring retires — it inherits the shared toolbar (buckets, Review, and the
+  summary ride a new `onFilterChange` report). Sources hub (its own bar) is
+  untouched. Verified: new hub-filter-toolbar suite (6 tests — toolbar in
+  the bar, sort portal with no body-top row, live quick search + badge,
+  empty-filter state, panel seat, structured filter through the run seam,
+  Cards inheritance); full web suite 2529 green; typecheck green.
+
 - **feat(web): the journal's ghost entries carry the "Open page" navigate —
   navigating a ghost day realizes it.** The virtual entry's title row now
   wears the written entries' own Open-page button (the PageChrome embedded

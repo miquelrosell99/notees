@@ -15,20 +15,14 @@
 }
 
 /* The cards hub root: the same pass-through flex root over the hub's
-   CollectionHub — the filter bar + bucket strip prepend the collection
-   inside the shared scrolling body (the tasks precedent above). */
+   CollectionHub — the bucket strip prepends the collection inside the
+   shared scrolling body; the filter toolbar rides the bar (the shared
+   lifted hub toolbar). */
 .nt-hub-cards {
   height: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-
-/* The prepended filter stack: the transient query-builder toolbar above
-   the due/fresh/later bucket strip. */
-.nt-hub-cards__filters {
-  display: flex;
-  flex-direction: column;
 }
 
 /* The per-row Review action (the NodeCollection trailingAction seam):
