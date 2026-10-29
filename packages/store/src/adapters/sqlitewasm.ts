@@ -27,7 +27,7 @@
  * based) working.
  */
 
-import type { SqliteDB, SqliteStatement, StoreBackend } from "../db.js";
+import type { SnapshotStreamSource, SqliteDB, SqliteStatement, StoreBackend } from "../db.js";
 
 /** Narrow structural surface of the `@sqlite.org/sqlite-wasm` module (the adapter never imports the package). */
 export interface SqliteWasmModule {
@@ -217,7 +217,21 @@ export type SqliteWasmBackendOptions =
        * WASM heap).
        */
       writeFile: (bytes: Uint8Array) => Promise<void>;
+      /**
+       * Snapshot-upload source: resolve the OPFS file handle. After a WAL
+       * checkpoint the main file IS the consistent image, and the returned
+       * File is a point-in-time snapshot (getFile freezes content), so the
+       * upload streams it lazily instead of serializing the whole database
+       * through the WASM heap. Absent → uploads fall back to serialize().
+       */
+      openFile?: () => Promise<SnapshotFile>;
     };
+
+/** Minimal file-like snapshot source (an OPFS File is structurally compatible). */
+export interface SnapshotFile {
+  readonly size: number;
+  stream(): ReadableStream<Uint8Array>;
+}
 
 /** Restore staging counter: memory-mode restores get a unique posix file. */
 let restoreCounter = 0;
@@ -248,6 +262,20 @@ export function sqliteWasmBackend(sqlite3: SqliteWasmModule, options: SqliteWasm
       restoreAsync: async (bytes) => {
         await options.writeFile(bytes);
         return new SqliteWasmDB(openOpfs(), sqlite3);
+      },
+      snapshotStream: async (): Promise<SnapshotStreamSource | null> => {
+        if (options.openFile === undefined) return null;
+        const db = openOpfs();
+        // WAL checkpoint so the MAIN file is the complete image (a snapshot
+        // upload must not depend on a -wal sibling the relay would never
+        // see). The File the opener returns is a point-in-time snapshot, so
+        // the stream stays consistent even if a write lands after this call.
+        db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+        const file = await options.openFile();
+        return {
+          byteLength: file.size,
+          stream: () => file.stream(),
+        };
       },
       reset: () => {
         const db = openOpfs();

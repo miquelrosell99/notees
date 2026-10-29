@@ -24,7 +24,7 @@ import type { Envelope, OpPayload, WorkspaceFeature } from "@notees/protocol";
 import { isFamilyFeature, managedClassIds } from "@notees/domain";
 
 import { applyEnvelope, validateEnvelope, type ChangeSummary } from "./appliers.js";
-import type { SqliteDB, StoreBackend } from "./db.js";
+import type { SnapshotStreamSource, SqliteDB, StoreBackend } from "./db.js";
 import { betterSqlite3Backend } from "./adapters/better-sqlite3.js";
 import { ALIAS_CHAIN_DEPTH_CAP } from "./edges.js";
 import { getEffectiveProperties, type EffectiveProperty } from "./effective.js";
@@ -933,6 +933,16 @@ export class Store {
       throw new Error("store: this backend does not support serialize()");
     }
     return this.db.serialize();
+  }
+
+  /**
+   * Streaming snapshot source — null when the backend can only export bytes
+   * (sql.js / better-sqlite3), a lazy image stream for file-backed backends
+   * (the sqlite-wasm OPFS VFS). Uploaders prefer this to avoid holding the
+   * whole image in memory.
+   */
+  snapshotStream(): Promise<SnapshotStreamSource | null> {
+    return this.backend.snapshotStream?.() ?? Promise.resolve(null);
   }
 
   /**

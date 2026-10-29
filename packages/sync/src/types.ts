@@ -67,6 +67,12 @@ export interface Transport {
   getSnapshotData(): Promise<Uint8Array>;
   /** PUT /snapshot/data (best-effort client-produced snapshot). */
   uploadSnapshot?(bytes: Uint8Array, hlc: Hlc): Promise<void>;
+  /**
+   * Streaming variant: the image is read lazily (OPFS-VFS clients avoid
+   * materializing it in the WASM/JS heap). Optional — engines fall back to
+   * `uploadSnapshot`.
+   */
+  uploadSnapshotStream?(hlc: Hlc, open: () => ReadableStream<Uint8Array>): Promise<void>;
   /** Optional realtime channel (WIRE.md); HttpTransport implements it over WebSocket. */
   subscribe?(handlers: RealtimeHandlers): () => void;
 }

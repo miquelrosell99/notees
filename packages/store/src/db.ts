@@ -36,6 +36,20 @@ export interface SqliteDB {
  * deserialize, so restore writes a temp file; sql.js loads the exported
  * bytes into a fresh in-memory database).
  */
+/**
+ * A lazily-readable snapshot image: `byteLength` is the raw (uncompressed)
+ * size — a conservative bound for pre-flight upload-limit checks — and each
+ * `stream()` call opens a fresh read over the same consistent image.
+ *
+ * `ReadableStream` is referenced as the AMBIENT global (no import): node
+ * builds resolve it via @types/node, browsers via lib.dom — the emitted d.ts
+ * keeps the bare name so each consumer gets its own.
+ */
+export interface SnapshotStreamSource {
+  byteLength: number;
+  stream(): ReadableStream<Uint8Array>;
+}
+
 export interface StoreBackend {
   /** Fresh, empty database. Connection pragmas applied; schema NOT migrated. */
   open(): SqliteDB;
@@ -48,6 +62,13 @@ export interface StoreBackend {
    * (Store.restoreAsync) prefer this over the sync restore.
    */
   restoreAsync?(bytes: Uint8Array): Promise<SqliteDB>;
+  /**
+   * Streaming snapshot source — backends whose image lives in a file readable
+   * without materializing it (the OPFS VFS checkpoints the database, then
+   * hands back a lazy stream over the file). Absent or null → callers use
+   * serialize()/snapshot() and hold the whole image.
+   */
+  snapshotStream?(): Promise<SnapshotStreamSource | null>;
   /** Fresh database after dropping any prior storage (files or memory). */
   reset(): SqliteDB;
   /**
