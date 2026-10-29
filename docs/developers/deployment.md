@@ -235,6 +235,25 @@ Two images build from this monorepo (context = the repo root):
   text/html only); `01-log` disables `access_log` so the 30s container
   healthcheck doesn't write one log line per poll forever.
 
+**Image channels + the CI publish path.** All ghcr publishes use the
+workflow's `GITHUB_TOKEN` (`packages: write`) — no personal registry token
+(the host's ghcr login stays read-only). Three tag shapes:
+
+- `:latest` — the latest **stable** semver release, published by
+  `release-docker.yml` on a `v*` tag push. Prereleases (any tag with a `-`,
+  e.g. `v2.0.0-m2`) never move `:latest`. That workflow's manual dispatch
+  republishes `latest` plus a given extra tag — the way to (re)publish an
+  existing stable release's images.
+- `:vX.Y.Z` (+ `X.Y`) — the release tags from the same tag push.
+- `:nightly` (+ `nightly-YYYYMMDD`) — the scheduled build of main's head
+  (`nightly-docker.yml`, cron `23 3 * * *`, manual dispatch too). Main is
+  not built per push: CI gates PRs and runs the same nightly cron against
+  main's head (`ci.yml`), which also carries a conditional SonarQube scan
+  (nightly schedule only, requires the `SONAR_TOKEN` secret and
+  `SONAR_HOST_URL` repository variable — inert until configured). The
+  per-push-main CI trigger was retired: the nightly cron covers main's
+  head, and per-push failures were the noise.
+
 **Deploy: plain Docker — Komodo is NOT required** (every
 operation it performs is reproducible with the commands below).
 

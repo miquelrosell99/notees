@@ -12,7 +12,14 @@
 # Fresh hosts default to the repo-local config dir; hosts keeping their data
 # elsewhere set NOTEES_DATA_DIR in .env. App images track :latest deliberately
 # (you ARE the upstream; NOTEES_*_IMAGE overrides
-# cut over to a specific tag). The edge image is a one-command local build:
+# cut over to a specific tag).
+#
+# Image channels (ghcr.io/miquelrosell99/…):
+#   :latest  — the latest STABLE semver release (release-docker.yml, tag push;
+#              prereleases never move :latest)
+#   :nightly — the scheduled build of main's head (nightly-docker.yml, 03:23
+#              UTC; also nightly-YYYYMMDD dated tags)
+# The edge image is a one-command local build:
 # docker build -t notees-edge:local -f deploy/Dockerfile.caddy deploy/
 
 services:
