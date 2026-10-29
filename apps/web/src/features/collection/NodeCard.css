@@ -28,18 +28,16 @@
   padding: var(--spacing-3);
 }
 
-/* The rail's top bar: the add button on the left, clear all on the right,
-   on a slim surfaced strip (the card surface at bar height). */
+/* The rail's top bar: the add button on the left, clear all on the right.
+   Background-less chrome — the buttons ride the canvas directly (the
+   ghost buttons carry their own hover surfaces). */
 .nt-right-card__topbar {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-2);
-  padding: var(--spacing-1);
-  background: var(--md-sys-color-surface);
-  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-card);
+  padding: 0 var(--spacing-1);
 }
 
 /* The card: a solid surfaced card — the same surface as the main content
@@ -90,6 +88,28 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
+  /* The breadcrumb trail hugs the collapse chevron now (content-sized), so
+     the actions pin to the header's right edge themselves. */
+  margin-left: auto;
+}
+
+/* The trail hugs the collapse chevron: content-sized, shrinking only when
+   the actions need room. The right-anchored occlusion survives the shrink —
+   the upper parent levels clip behind the lead "…", the current levels
+   stay visible. */
+.nt-sidebar-card__header .node-breadcrumbs--anchor-right {
+  flex: 0 1 auto;
+}
+
+/* The actions popup (the kit ButtonWithPanel's Card) ships the DEFAULT
+   card surface — the same step the card itself rides, so it blended into
+   the header and read as nothing. One surface step up + the fleet menu
+   elevation (the ContextMenu precedent); the three-class selector beats
+   the kit's utility classes regardless of load order. */
+.nt-sidebar-card__actions .nt-sidebar-card__menu-panel.card {
+  background: var(--md-sys-color-surface-container-high);
+  border-color: var(--md-sys-color-outline-variant);
+  box-shadow: var(--elevation-2);
 }
 
 .nt-sidebar-card__action {
