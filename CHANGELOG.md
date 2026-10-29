@@ -9,6 +9,27 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): the section skin grows its conversion gaps — header
+  action/count/hideHeader, refreshKey, resolve-on-mount, FilterQuery
+  observation, and the hosted toolbar composed in the owner's register.**
+  `CollectionSection` (the one-skin component, still without riders) gains
+  the chrome the converting sections need: the NodeViewSection header's
+  `action`/`count`/`hideHeader` passthroughs (one count named exactly once —
+  the header badge only on UN-hosted sections, the hosted tab's badge names
+  it there), `refreshKey` and `resolveOnMount` over `useSectionData` (the
+  Created contract — the query IS the count), and `onFilterChange` reporting
+  the skin-owned transient FilterQuery (the live sort-flip: ranked quick
+  text leads until the user picks a sort). The hosted toolbar cluster moves
+  INTO the skin: it composes NodeCollection's render-prop toolbarContent as
+  the toolbar with its quick search FIRST, then the ViewChromeSlot, then the
+  host's extras — the owner's register in one place — with the Save-as-tab
+  wiring auto-riding when the hosted views are controlled. Verified: new
+  collection-section-skin suite (7 tests — header action/count/hideHeader,
+  resolve-on-mount vs lazy, refreshKey re-run, onFilterChange narrows, the
+  hosted register order, Save-as-tab on controlled hosted views); full gate
+  green (typecheck + 2538 web tests, full chain). Slice 1 of the section
+  skin conversion — no section converts yet.
+
 - **feat(web): ONE owner's register for every collection bar — the search
   field first, then buttons, then view mode, then the overflows — and a
   secondary-action tier behind a new kit "⋮ More actions" panel.** The
