@@ -5,9 +5,22 @@
  * the target's display name, multi values joined).
  */
 
-import type { AnyClient } from "./types.js";
-import type { EffectiveProperty } from "@/core/workspace-client/index.js";
-import { datetimeValueText, titleOf } from "../../ui/dateDisplay.js";
+import type {
+  ClientPropertySchema,
+  EffectiveProperty,
+} from "@/core/workspace-client/index.js";
+import { datetimeValueText, titleOf, type TitleClient } from "../../ui/dateDisplay.js";
+
+/**
+ * The structural client shape property flattening needs — the title seam's
+ * TitleClient plus the schema registry (select option labels). Both full
+ * clients (WorkspaceClient/WorkerClient, the AnyClient union) satisfy it;
+ * the displayTemplate title branch synthesizes it from the seam's resolvers
+ * so node-typed values inside a template resolve through the same funnel.
+ */
+export type PropertyDisplayClient = TitleClient & {
+  listPropertySchemas(): ClientPropertySchema[];
+};
 
 export function isEmptyPropertyValue(value: unknown): boolean {
   if (value === undefined || value === null) return true;
@@ -17,7 +30,7 @@ export function isEmptyPropertyValue(value: unknown): boolean {
   return false;
 }
 
-function optionLabel(client: AnyClient, schemaId: string, optionId: unknown): string {
+function optionLabel(client: PropertyDisplayClient, schemaId: string, optionId: unknown): string {
   if (typeof optionId !== "string") return String(optionId);
   const schema = client.listPropertySchemas().find((s) => s.id === schemaId);
   const option = schema?.options?.find((o) => o.id === optionId);
@@ -34,7 +47,7 @@ function isSelectionType(type: string | undefined): boolean {
  *  them as refs). Scalar-typed schemas never take this path. */
 const NODE_TYPED_SCHEMAS = new Set(["datetime", "object", "asset"]);
 
-function nodeRefText(client: AnyClient, value: unknown): string {
+function nodeRefText(client: PropertyDisplayClient, value: unknown): string {
   // Accepts both the canonical { nodeId } ref and the legacy bare-uuid
   // string; an unrecognized shape answers "" (callers fall back honestly).
   const nodeId =
@@ -53,7 +66,7 @@ function nodeRefText(client: AnyClient, value: unknown): string {
 /** datetime range display: `start → end`, either side open → `…`; refs resolve
  *  like the scalar node-typed branches (bare-string leniency included).
  *  Null when the value is not range-shaped. */
-function dateRangeText(client: AnyClient, value: unknown): string | null {
+function dateRangeText(client: PropertyDisplayClient, value: unknown): string | null {
   if (typeof value !== "object" || value === null) return null;
   const range = value as { start?: unknown; end?: unknown };
   if (!("start" in range) && !("end" in range)) return null;
@@ -112,7 +125,7 @@ export function formatNumberValue(
 }
 
 /** The plain-text display of one property value ("" when unset). */
-export function propertyDisplayText(client: AnyClient, prop: EffectiveProperty | undefined): string {
+export function propertyDisplayText(client: PropertyDisplayClient, prop: EffectiveProperty | undefined): string {
   if (prop === undefined || isEmptyPropertyValue(prop.value)) return "";
   const value = prop.value;
   const schemaType = prop.schema?.type;
@@ -122,7 +135,14 @@ export function propertyDisplayText(client: AnyClient, prop: EffectiveProperty |
       .map((entry) => {
         if (isSelectionType(schemaType)) return optionLabel(client, prop.propertySchemaId, entry);
         if (typeof entry === "boolean") return entry ? "☑" : "☐";
-        return nodeRefText(client, entry);
+        if (typeof entry === "number") return formatNumberValue(entry, prop.schema);
+        // Node-typed schemas (datetime/object/asset) resolve refs; scalar
+        // strings ride as authored text (multi-text — the authors family —
+        // never routed through the ref resolver, where a non-uuid string
+        // would flatten to "").
+        if (nodeTyped) return nodeRefText(client, entry);
+        if (typeof entry === "string") return entry;
+        return JSON.stringify(entry) ?? "";
       })
       .filter((text) => text !== "")
       .join(", ");

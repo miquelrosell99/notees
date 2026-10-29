@@ -168,6 +168,42 @@ predating this file.
   render one row reading sort, switcher, search, filter (screenshot-checked
   against the probe class hub); full gate green (typecheck + 2529 web
   tests, full chain).
+- **feat(web): class displayTemplate renders at the title seam, header opts
+  out.** A node whose class carries a `displayTemplate` (`source`'s
+  `"@{{citekey}}"`) now renders the RESOLVED template everywhere it is
+  REFERENCED — the unified `titleOf`/`titleOfNode` seam grew a fifth axis,
+  `template?: "on" | "off"` (default "on"), so breadcrumbs, pickers, search
+  rows, backlinks, the graph, and mention chips all pick it up through the
+  one funnel (~60 call sites, zero per-surface edits). The resolution rule
+  (new `ui/displayTemplateTitle.ts`, one responsibility): for a non-date,
+  non-class node the FIRST class in `classIds` order whose
+  `resolveEffectiveDisplayTemplate` resolves wins (extends-aware store
+  read, exposed through the worker as a cached "structure" read);
+  `{{schemaName}}` placeholders flatten to the node's effective property
+  value for the schema of that name via `propertyDisplayText` (multi joins
+  ", ", node-refs resolve to titles through the same seam — inside a
+  synchronous-recursion guard so a pathological self-referencing value
+  folds to the content title instead of hanging). An unvalued placeholder
+  renders ""; a resolution with no word character after trimming (the
+  `""` / `"@"` empty-result cases) falls back to the content title — a
+  blank template never renders a blank title. The `DISPLAY_NAME_MAX` cap
+  applies to templated results on the capped budget exactly as for content
+  titles. The page's OWN header passes `template: "off"` at its three
+  reads (PageChrome's `resolveName`, the day-page header, the feed embed
+  title) — title-is-content stays the editable authority on the page
+  itself. `propertyDisplayText`'s array branch now routes entries by
+  schema type (multi-text values — the authors family — ride as authored
+  text instead of flattening to "" through the node-ref resolver; numbers
+  format) — the documented "multi joins" contract, previously latent in
+  the table/cards views. `propertyDisplayText`'s client param widened to
+  the structural `PropertyDisplayClient` (the title seam's TitleClient +
+  the schema registry; both full clients satisfy it). Verified: new
+  `apps/web/test/display-template-title.test.ts` (10 tests — templated
+  render, multi join, the cap, unvalued/opted-out/later-class fallbacks,
+  first-templated-class-wins, "off", class/date never templated);
+  `pnpm --filter @notees/web build`, `pnpm typecheck`, `pnpm test` all
+  green.
+
 - **feat(scripts): displayTemplate seed convergence migration.** The
   citekey-centric declaration (the `SYSTEM_CLASS_DISPLAY_TEMPLATES` seed
   manifest: `source`'s `"@{{citekey}}"` header template + the seven

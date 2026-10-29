@@ -160,6 +160,7 @@ const READ_METHODS: ReadonlySet<string> = new Set([
   "effectiveClassIcon",
   "effectiveClassParentlessBlock",
   "getClassDisplayTemplate",
+  "resolveEffectiveDisplayTemplate",
   "effectiveNodeIcon",
   "effectiveNodeColor",
   "getPage",
@@ -736,6 +737,8 @@ export class WorkerCore {
         return this.client.effectiveClassParentlessBlock(args[0] as string);
       case "getClassDisplayTemplate":
         return this.client.getClassDisplayTemplate(args[0] as string);
+      case "resolveEffectiveDisplayTemplate":
+        return this.client.resolveEffectiveDisplayTemplate(args[0] as string);
       case "effectiveNodeIcon":
         return this.client.effectiveNodeIcon(
           args[0] as {

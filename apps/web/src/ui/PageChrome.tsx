@@ -259,8 +259,10 @@ export function PageHeaderChrome({
   // view's openInSidebar (a no-op where the shell wired none).
   const peekInSidebar = useContext(OutlinerContext)?.openInSidebar ?? (() => {});
   // Stable identity — the memoized BlockRow compares it by reference, so a
-  // fresh arrow per render would defeat the title row's bail-out.
-  const resolveName = useCallback((id: string) => titleOf(client, id), [client]);
+  // fresh arrow per render would defeat the title row's bail-out. The page's
+  // own header opts out of the class displayTemplate (template:"off") — the
+  // editable content title stays the authority on the page itself.
+  const resolveName = useCallback((id: string) => titleOf(client, id, { template: "off" }), [client]);
   /**
    * Icon picker popup anchor + open state: the element that opened it (the
    * page icon when one is defined, else the action row's "Add icon" button).
@@ -355,7 +357,7 @@ export function PageHeaderChrome({
                 if (!preview) onHeaderMenu(event.clientX, event.clientY);
               }}
             >
-              <DayPageHeader iso={dayIso} title={titleOfNode(page)} />
+              <DayPageHeader iso={dayIso} title={titleOfNode(page, { template: "off" })} />
             </span>
           ) : (
             <>
@@ -402,7 +404,7 @@ export function PageHeaderChrome({
                  visible for touch + keyboard focus). */
               <span className="nt-page-title-embed">
                 <span className="nt-page-title-embed__text">
-                  {titleOfNode(page)}
+                  {titleOfNode(page, { template: "off" })}
                 </span>
                 <Button
                   variant="ghost"
