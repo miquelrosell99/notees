@@ -11,7 +11,7 @@
  *  - `runSourcesQuery` — the display projection (the items-table rows):
  *    title, the primary classKey pick, authors per the SHIPPED read
  *    contract, the class's container binding as venue, the publicationDate
- *    chain year, citekey, the attachment count.
+ *    chain year, citekey, doi/isbn, the attachment count.
  *  - `facetCounts` — ONE grouped read over the live source family, counted
  *    per roster type (extends-aware), with the archived flag off the class
  *    row's active bit.
@@ -287,6 +287,10 @@ export interface SourceRow {
    *  "" when the class binds none or the node carries no value. */
   venue: string;
   citekey: string;
+  /** The doi/isbn values (the quick-create identifier-normalization
+   *  idiom's inputs — "" when unset; the duplicates grouping reads them). */
+  doi: string;
+  isbn: string;
   attachmentCount: number;
   isActive: boolean;
 }
@@ -449,6 +453,8 @@ function projectRow(
   // Year + citekey + attachments.
   const year = entry.year;
   const citekey = textLiterals(rows, SYSTEM_PROPERTY_UUIDS.citekey)[0] ?? "";
+  const doi = textLiterals(rows, SYSTEM_PROPERTY_UUIDS.doi)[0] ?? "";
+  const isbn = textLiterals(rows, SYSTEM_PROPERTY_UUIDS.isbn)[0] ?? "";
   // Count rows carrying a ref — the bound-but-empty synthesis reads value
   // null and never counts (an asset ref is an object value).
   const attachmentCount = rows.filter(
@@ -467,6 +473,8 @@ function projectRow(
     year,
     venue,
     citekey,
+    doi,
+    isbn,
     attachmentCount,
     isActive: node.isActive,
   };
