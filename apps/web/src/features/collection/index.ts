@@ -36,6 +36,7 @@ export type {
   TableColumn,
   SortDirection,
   SortSpec,
+  ToolbarClusterContent,
   ViewCapabilities,
   ViewMode,
   ViewRegistryEntry,

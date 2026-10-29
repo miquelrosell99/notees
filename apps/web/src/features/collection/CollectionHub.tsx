@@ -8,10 +8,14 @@
  * structured draft rides the query-run seam — the collection sees the
  * FILTERED set, while the bar's count and the mode-availability gate read
  * the UNFILTERED one (an active filter reads "N of M" on the toolbar badge,
- * the switcher never churns). The toolbar renders `layout="inline"` between
- * the view-chrome slot and the header actions; the view chrome (the sort
- * button et al.) PORTALS into a slot the bar owns — the body-top fallback
- * row retires — and the structured panel portals into the full-width seat
+ * the switcher never churns). The actions cluster composes the owner's
+ * register, ONE shared order across every collection bar: the lifted filter
+ * toolbar (`layout="inline"` — the search field FIRST) → the view-chrome
+ * slot the bar owns (the view chrome — the sort button et al. — PORTALS
+ * into it; the body-top fallback row retires) → the primary header actions
+ * → the view switcher → the "⋮ More actions" overflow of the SECONDARY
+ * action tier (`secondaryActions`, the SelectionButton tier vocabulary for
+ * bar actions). The structured panel portals into the full-width seat
  * beneath the bar (the NodeCollectionTopBar precedent). View mode persists per
  * hub device-locally when `persistKey` is given (never an op); without a
  * key it stays session-local. The offered modes pass the registry's
@@ -50,6 +54,8 @@ import {
   type FilterQuery,
 } from "./filterQuery.js";
 import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
+import { MoreActions, type MoreActionsItem } from "../../components/ui/kit/index.js";
+import { ViewChromeSlot } from "./viewChrome.js";
 import "./CollectionHub.css";
 
 /** The quick-text rank window (the global search's cap — the section-data
@@ -162,9 +168,17 @@ export interface CollectionHubProps {
   /** List mode hides the per-row tags row (identity chrome only). */
   hideTags?: boolean | undefined;
   emptyTitle?: string | undefined;
-  /** Right-aligned header extras (#14's "New class" button et al.), AFTER
-   *  the lifted filter toolbar. */
+  /** Right-aligned header extras (#14's "New class" button et al.) — the
+   *  PRIMARY action tier: freeform chrome riding inline, AFTER the lifted
+   *  filter toolbar and the ported view chrome, BEFORE the view switcher. */
   headerActions?: ReactNode;
+  /**
+   * The SECONDARY action tier (the SelectionButton tier vocabulary for bar
+   * actions): low-frequency utilities — export et al. — ride the "⋮ More
+   * actions" overflow panel (the kit MoreActions) at the cluster's far
+   * right, after the view switcher, never inline.
+   */
+  secondaryActions?: MoreActionsItem[] | undefined;
   /**
    * The filtered-set report (optional): the hub owns the transient
    * FilterQuery, and hosts whose chrome outside the collection rides the
@@ -209,6 +223,7 @@ export function CollectionHub({
   hideTags = false,
   emptyTitle,
   headerActions,
+  secondaryActions,
   onFilterChange,
   trailingAction,
   prepend,
@@ -274,8 +289,6 @@ export function CollectionHub({
           count={items.length}
           actions={
             <>
-              <span className="nt-hub__view-chrome" ref={setChromeSlot} />
-              {availableModes.length > 1 && <ViewToolbar modes={availableModes} value={mode} onChange={setMode} />}
               <NodeCollectionToolbar
                 client={client}
                 layout="inline"
@@ -284,7 +297,10 @@ export function CollectionHub({
                 matchCount={filteredItems.length}
                 totalCount={items.length}
               />
+              <ViewChromeSlot slotRef={setChromeSlot} className="nt-hub__view-chrome" />
               {headerActions}
+              {availableModes.length > 1 && <ViewToolbar modes={availableModes} value={mode} onChange={setMode} />}
+              {secondaryActions !== undefined && <MoreActions items={secondaryActions} />}
             </>
           }
         />

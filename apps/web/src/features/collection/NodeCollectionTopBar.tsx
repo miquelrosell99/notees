@@ -7,15 +7,16 @@
  * structured panel PORTALS into the bar's own full-width slot beneath the
  * row — the cluster is width-capped (a mini-column at the bar's right edge),
  * so a panel that wrapped inside it would squeeze into the cap instead of
- * spanning the bar side to side. Render the toolbar LAST in the slot so the
- * wrap never moves the other controls.
+ * spanning the bar side to side. (Without such a seat the toolbar renders
+ * its panel IN PLACE and must ride LAST in its cluster — the wrapped
+ * full-width line never moves the row's other controls.)
  *
  * The composition is explicit slots, not an anonymous `trailing` passthrough:
  * the top bar NAMES the parts every hosted collection's chrome is made
  * of. Small per-host extras that are not the toolbar (the view-chrome portal
- * target, the query node's view-mode switcher) ride NodeCollectionTabs' own
- * `trailing` slot or the toolbar slot's fragment — the tabs strip stays the
- * left cluster, everything right of it is the toolbar cluster.
+ * target, the query node's view-mode switcher) ride the toolbar slot's
+ * fragment — the tabs strip stays the left cluster, everything right of it
+ * is the toolbar cluster, ordered by the shared register (viewChrome.tsx).
  *
  * Alignment is `flex-start`: the toolbar row top-aligns with the tab row even
  * while the tabs strip carries its second manage row (rename/reorder/delete

@@ -82,6 +82,9 @@ export type { ButtonWithPanelProps, PanelPosition, PanelAlignment } from './Butt
 export { SortMenuButton } from './SortMenuButton.js';
 export type { SortMenuButtonProps, SortMenuOption } from './SortMenuButton.js';
 
+export { MoreActions } from './MoreActions.js';
+export type { MoreActionsProps, MoreActionsItem } from './MoreActions.js';
+
 export { Checkbox } from './Checkbox.js';
 export type { CheckboxProps, CheckboxSize } from './Checkbox.js';
 export { Radio, RadioGroup } from './Radio.js';

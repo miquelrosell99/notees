@@ -436,8 +436,10 @@ describe("query node (nodecollection surface below the content row)", () => {
     expect(await within(section).findByText("Set a query to see results.")).not.toBeNull();
     expect(section.querySelectorAll(".outline-flat > li").length).toBe(0);
     expect(activeTabBadge(container)).toBe("");
-    // Export has nothing to ride.
-    expect(within(section).getByRole("button", { name: "Export results" })).toHaveProperty("disabled", true);
+    // Export has nothing to ride (the secondary tier: the "⋮ More actions"
+    // overflow's panel item is disabled).
+    fireEvent.click(within(section).getByRole("button", { name: "More actions" }));
+    expect(within(section).getByRole("menuitem", { name: "Export results" })).toHaveProperty("disabled", true);
   });
 
 
@@ -729,7 +731,8 @@ describe("query node (nodecollection surface below the content row)", () => {
     try {
       render(<PageView client={client} pageId={host} />);
       await screen.findByText("Paris");
-      fireEvent.click(screen.getByRole("button", { name: "Export results" }));
+      fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Export results" }));
 
       expect(downloads).toEqual([`notees-export-${paris.slice(0, 8)}.md`]);
       expect(blob).not.toBeNull();

@@ -168,6 +168,18 @@ export interface CollectionGroup {
   items: NodeCollectionItem[];
 }
 
+/**
+ * The hosted toolbar cluster's content: a plain node renders the
+ * ViewChromeSlot FIRST and the node after it (the default); a FUNCTION
+ * receives the slot's ref-callback so the host positions the slot itself —
+ * the owner's register (shared by the hub bar and every hosted bar) is the
+ * filter toolbar with its search field FIRST, then the slot, then per-host
+ * controls, the view switcher, and the "⋮ More actions" overflow last.
+ */
+export type ToolbarClusterContent =
+  | ReactNode
+  | ((setSlot: (element: HTMLSpanElement | null) => void) => ReactNode);
+
 export interface NodeCollectionProps {
   client: AnyClient;
   /**
@@ -509,9 +521,9 @@ export interface NodeCollectionProps {
    * filter toolbar's collapsible quick search + structured toggle, the view
    * switcher): one row with the tabs, composed by NodeCollectionTopBar.
    * Renders only when `hostedViews` is set — a non-hosted collection has no
-   * tab row.
+   * tab row. Plain node or render prop — see ToolbarClusterContent.
    */
-  toolbarContent?: ReactNode | undefined;
+  toolbarContent?: ToolbarClusterContent | undefined;
 
   /**
    * An EXTERNAL view-chrome portal target (the hub top bar's slot, mounted by

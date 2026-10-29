@@ -1,0 +1,47 @@
+/* MoreActions styles — the secondary-action overflow's panel rows.
+   Token-only (variables.css); the row idiom mirrors the SelectionButton
+   overflow dropdown (icon + label, hover overlay, full-width hit row). */
+
+.more-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1);
+}
+
+.more-actions__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: left;
+  cursor: pointer;
+}
+
+.more-actions__row:hover:not(:disabled) {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.more-actions__row:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.more-actions__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.more-actions__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

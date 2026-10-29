@@ -1,9 +1,11 @@
 /**
  * The hub's lifted filter toolbar, end to end (jsdom over the in-process
  * WorkspaceClient + MemoryRelay): every CollectionHub rides the shared
- * NodeCollectionToolbar in the SurfaceTopBar's actions cluster — the quick
- * search + the structured-filters toggle between the view chrome and the
- * header actions — and the FilterQuery (component state at the hub)
+ * NodeCollectionToolbar in the SurfaceTopBar's actions cluster, composed in
+ * the owner's register — the quick search field FIRST, then the
+ * structured-filters toggle, then the ported view chrome, then the header
+ * actions, the view switcher, and the "⋮ More actions" overflow of the
+ * secondary action tier — and the FilterQuery (component state at the hub)
  * narrows the collection through the section-data contract (ranked quick
  * text, then the structured group through the query-run seam) while the
  * bar's count stays unfiltered. The views' per-view chrome (the outline's
@@ -121,15 +123,23 @@ describe("the hub's lifted filter toolbar", () => {
     expect(sortButton).not.toBeNull();
     expect(document.querySelector(".nt-hub__body .outline-toolbar")).toBeNull();
 
-    // The cluster order: the mode switcher → the ported sort chrome → the
-    // toolbar's search.
+    // The cluster order, the owner's register: the quick search FIRST, then
+    // the structured-filters toggle, then the ported sort chrome, then the
+    // mode switcher.
     const search = openQuickSearch(bar);
-    const precedes = (el: Element | null): boolean =>
-      el !== null && (search.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING) !== 0;
-    expect(precedes(sortButton)).toBe(true);
+    const precedes = (a: Element | null, b: Element | null): boolean =>
+      a !== null &&
+      b !== null &&
+      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    const filterToggle = within(bar).getByRole("button", { name: "Structured filters" });
+    expect(precedes(search, filterToggle)).toBe(true);
+    expect(precedes(filterToggle, sortButton)).toBe(true);
     expect(
-      precedes(within(bar).getByRole("radio", { name: "Outline" })),
+      precedes(sortButton, within(bar).getByRole("radio", { name: "Outline" })),
     ).toBe(true);
+    // The secondary-action tier: no "⋮ More actions" while no hub declares
+    // secondary actions — the cluster ends with the switcher.
+    expect(within(bar).queryByRole("button", { name: "More actions" })).toBeNull();
   });
 
   it("quick search narrows the collection live; the badge names N of M and clear restores", async () => {

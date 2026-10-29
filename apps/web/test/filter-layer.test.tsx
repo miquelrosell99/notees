@@ -355,15 +355,16 @@ describe("the classed-nodes filter bar", () => {
     const add = within(bar).getByRole("button", { name: "Add custom view" });
     expect(add.closest('[role="tablist"]')).not.toBeNull();
 
-    // Ordering contract: the view switcher (and the table's own toolbar)
-    // render BEFORE the FilterBar's search pill, so the wrapped
-    // structured panel can never push them off the row. (SelectionButton
-    // doesn't forward a className — the stable selector is its own.)
+    // Ordering contract (the owner's register, viewChrome.tsx): the quick
+    // search is FIRST; the view chrome (the table's own toolbar, ported into
+    // the ViewChromeSlot) and the view switcher ride AFTER it. (The
+    // structured panel portals into the bar's full-width seat beneath the
+    // row, so nothing on the row moves when it opens.)
     const search = openQuickSearch(bar);
-    const precedes = (el: Element | null): boolean =>
-      el !== null && (search.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING) !== 0;
-    expect(precedes(bar.querySelector(".selection-button"))).toBe(true);
-    expect(precedes(bar.querySelector(".nt-table-toolbar"))).toBe(true);
+    const follows = (el: Element | null): boolean =>
+      el !== null && (search.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(follows(bar.querySelector(".selection-button"))).toBe(true);
+    expect(follows(bar.querySelector(".nt-table-toolbar"))).toBe(true);
 
     // Open the structured panel: everything stays inside the bar, on the
     // row above the panel — nothing moved.
@@ -371,7 +372,7 @@ describe("the classed-nodes filter bar", () => {
     const panel = structuredPanel();
     expect(bar.contains(panel)).toBe(true);
     expect(bar.contains(add)).toBe(true);
-    expect(precedes(bar.querySelector(".selection-button"))).toBe(true);
+    expect(follows(bar.querySelector(".selection-button"))).toBe(true);
   });
 
   it("the structured panel rides a full-width topbar slot, not the capped cluster", async () => {

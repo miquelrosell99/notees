@@ -610,12 +610,16 @@ on the row sits right (the add-view + left the tablist for the cluster), the
 quick search COLLAPSES to a ghost magnifier (the kit CollapsibleSearchField),
 and the structured panel PORTALS into a boxless full-width slot the topbar
 owns beneath the chrome row — a `flex-basis: 100%` flex item of the bar, so
-the capped 46ch cluster never squeezes it (the toolbar renders LAST in the
-cluster, and the views' own toolbars portal into a slot before it, see
-viewChrome.tsx, so the panel's line never moves the row's other controls).
+the capped 46ch cluster never squeezes it (the views' own toolbars portal
+into a ViewChromeSlot the cluster owns, see viewChrome.tsx; where a panel
+renders IN PLACE instead the toolbar rides LAST in its cluster, so the
+panel's line never moves the row's other controls).
 The hub surfaces ride the same seam one level up (CollectionHub): the
-toolbar lifts into the SurfaceTopBar's actions cluster between the
-view-chrome slot and the header actions, the hub's FilterQuery (component
+toolbar lifts into the SurfaceTopBar's actions cluster FIRST, then the
+view-chrome slot, then the header actions, the view switcher, and the "⋮
+More actions" overflow of the secondary action tier — ONE owner's register
+shared by every collection bar (viewChrome.tsx) — and the hub's FilterQuery
+(component
 state at the hub, `useQueryRun`-composed) narrows the items before
 NodeCollection sees them — ranked quick text, then the structured group —
 while the bar's count and the mode gate read the unfiltered set, and the
