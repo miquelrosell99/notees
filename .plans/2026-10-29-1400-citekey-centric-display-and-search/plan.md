@@ -206,3 +206,22 @@ Added 2026-10-29 mid-flight (owner request). Three items, one web slice:
 - Spec coverage: Decision 1 → Tasks 1-3; Decision 2 → Task 5; Decision 3 (amended) → Tasks 6-7; Decision 4 → Tasks 2-4; wire/fixture/lockstep → Tasks 1, 9; docs → Task 8. All covered.
 - Type consistency: `displayTemplate` / `display_template` / `resolveEffectiveDisplayTemplate` / `SYSTEM_CLASS_DISPLAY_TEMPLATES` / `validateDisplayTemplate` / `parseDisplayTemplate` used consistently throughout; web client surface mirrors the parentlessRole names with `DisplayTemplate` substituted.
 - Known open choice left to the implementer (bounded): the exact rank value for property hits in Task 6 (any constant below FTS ranks, pinned by the dedupe/ordering test); the module split inside dateDisplay.ts for `templatedTitleOf`.
+
+### Task 11: UUID exact-match in the store search seam (owner request, mid-flight)
+
+Pasting a node UUID into the picker (or any quick-search surface) must find the node. All four surfaces ride `searchNodesPage` (Task 6's seam), so one arm covers NodeSelector, CommandPalette, SearchPage, and `@`-mention suggestions.
+
+**Files:**
+- Modify: `packages/store/src/search.ts` (`searchNodesPage` — next to the Task-6 property arm)
+- Modify: `packages/store/test/store.test.ts` (the search fan-out block, triple-adapter)
+- Modify: `docs/features/search.md` + `CHANGELOG.md` (same-pass docs)
+
+**Behavior spec:**
+- When the trimmed term parses as a valid UUID (the UUIDv7 shape the platform mints — use the codebase's existing uuid-validation idiom), add an exact-id arm: `n.id = ?` over active nodes, merged into the same below-FTS tier as property hits, deduped by node id (FTS rank wins).
+- Not substring, not prefix — exact only (YAGNI; partial fragments rarely typed deliberately).
+- No FTS/index/rank changes; fully parameterized.
+
+- [ ] **Step 1: Failing triple-adapter tests** — a node found by its full uuid via the seam; a non-uuid term gains no id-arm matches (regression: existing results unchanged); an unknown uuid returns only normal results; uuid term also works in a workspace where the node's title does NOT contain the term.
+- [ ] **Step 2: Run — expect FAIL.**
+- [ ] **Step 3: Implement** the arm in `searchNodesPage`.
+- [ ] **Step 4: Gate + docs + commit** `feat(store): uuid exact-match in quick search` (gate: `pnpm --filter @notees/store build && pnpm typecheck && pnpm test`).
