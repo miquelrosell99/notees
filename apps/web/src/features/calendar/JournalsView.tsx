@@ -50,6 +50,8 @@ import { MonthCalendar } from "./MonthCalendar.js";
 import { rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import { Icon } from "../../ui/Icon.js";
+import { definedNodeIcon } from "../../ui/iconFor.js";
+import { GhostRow } from "../../ui/GhostRow.js";
 import { addDaysIso, daysBetweenIsos, todayIsoLocal } from "./calendarViewUtils.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
@@ -116,6 +118,21 @@ export function JournalsView({
       }
     }
     return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reads resolve through the client notification (version)
+  }, [client, version]);
+
+  /**
+   * The day class's effective icon — the placeholder icon renders EXACTLY
+   * what a realized day page's header resolves (definedNodeIcon over a
+   * synthetic day-classed node), so a user-edited day class icon flows to
+   * the ghost entries too; null (nothing defined anywhere) renders no icon
+   * span, the realized header's own register.
+   */
+  const dayClassIcon = useMemo(() => {
+    const classesById = new Map<string, string | null>(
+      client.listClasses().map((cls) => [cls.id, cls.icon]),
+    );
+    return definedNodeIcon({ icon: "", classIds: [SYSTEM_CLASS_UUIDS.day] }, classesById);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reads resolve through the client notification (version)
   }, [client, version]);
 
@@ -312,15 +329,18 @@ export function JournalsView({
   };
 
   /**
-   * The virtual entry's start affordance: the day's first real write —
-   * ensure the chain (creating the node, or restoring a trashed one) so
-   * the entry swaps to the full editable page view on the next
-   * notification. Behind the same journal feature gate as the old Today
-   * materialization.
+   * The virtual entry's ghost realize: the day's first real write — ensure
+   * the chain (creating the node, or restoring a pre-lock trashed one) and
+   * add the day's first empty block, so the entry swaps to the full
+   * editable page view with a row ready to type into (the ghost's own
+   * contract — the click IS the add). Behind the journal feature gate.
    */
   const startDay = (iso: string): void => {
     if (!client.isFeatureEnabled("journal")) return;
-    void client.ensureDateChain(iso).catch(() => {});
+    void client
+      .ensureDateChain(iso)
+      .then(({ day }) => client.createObject({ parentId: day, contentAst: [] }))
+      .catch(() => {});
   };
 
   /**
@@ -423,21 +443,26 @@ export function JournalsView({
                    (PageChrome's compact branch): the header rides DIRECTLY
                    under .nt-page — the journal zeroes the page padding
                    (.journal-entry .nt-page), so the entry's chrome sits at
-                   the capped column's edge. .nt-nodeview-body is the
-                   PANELLED layout's cap and carries spacing-6 inline
-                   padding — one padding too many here (the measured 24px
-                   ghost offset). The muted placeholder icon occupies the
-                   icon column so the title aligns with the written
-                   neighbors; the placeholder names the state plainly (a
-                   pre-lock trashed day restores through the same ensure
-                   when clicked). */
+                   the capped column's edge. The placeholder icon renders
+                   EXACTLY the realized day pages' icon (the day class's
+                   effective icon, resolved the same way — user edits flow
+                   through); nothing defined → no icon span, the realized
+                   header's own register. The add affordance IS the
+                   outliner's GhostRow: the block gutter + "+ Add block"
+                   the body rows wear, at the block left edge (the old
+                   free-floating sentence read as stray text, not an
+                   affordance). The click realizes the ghost — ensure the
+                   chain and add the day's first empty block (a pre-lock
+                   trashed day restores through the same ensure). */
                 <div className="nt-page">
                   <div className="page-header-section">
                     <header className="nt-page-header">
                       <div className="page-header__title-row">
-                        <span className="page-icon-btn journal-virtual-icon" aria-hidden="true">
-                          <Icon path="mdi-notebook-outline" size={1.4} className="page-icon-large" />
-                        </span>
+                        {dayClassIcon !== null && (
+                          <span className="page-icon-btn journal-virtual-icon" aria-hidden="true">
+                            <Icon path={dayClassIcon} size={1.4} className="page-icon-large" />
+                          </span>
+                        )}
                         <span className="nt-page-title-wrap">
                           <span className="nt-page-title-embed">
                             <span className="nt-page-title-embed__text">
@@ -449,13 +474,7 @@ export function JournalsView({
                     </header>
                   </div>
                   {client.isFeatureEnabled("journal") && (
-                    <button
-                      type="button"
-                      className="journal-virtual-start"
-                      onClick={() => startDay(entry.iso)}
-                    >
-                      Empty day — click to start
-                    </button>
+                    <GhostRow parentId={entry.id} onRealize={() => startDay(entry.iso)} />
                   )}
                 </div>
               )}

@@ -202,12 +202,22 @@ describe("JournalsView", () => {
     // The virtual entry rides the realized entries' own register: directly
     // under .nt-page (the journal zeroes the page padding — the panelled
     // layout's .nt-nodeview-body cap would add one spacing-6 too many),
-    // with the muted placeholder icon + the embed title (no raw left-edge
-    // day header).
+    // the embed title, and the outliner's ghost row as the add affordance.
+    // The placeholder icon renders exactly when a realized day page's
+    // header would (the day class's effective icon — the same
+    // definedNodeIcon resolution; this spec's bootstrap seeds no class
+    // icons, so both render none).
     expect(anchor?.querySelector(":scope > .nt-page")).not.toBeNull();
     expect(anchor?.querySelector(".nt-nodeview-body")).toBeNull();
-    expect(anchor?.querySelector(".journal-virtual-icon")).not.toBeNull();
     expect(anchor?.querySelector(".day-page-header")).toBeNull();
+    expect(anchor?.querySelector(".nt-ghost-row")).not.toBeNull();
+    const dayClassIcon = client
+      .listClasses()
+      .find((c) => c.id === SYSTEM_CLASS_UUIDS.day)?.icon;
+    const iconRendered = anchor?.querySelector(".journal-virtual-icon") !== null;
+    expect(iconRendered).toBe(
+      dayClassIcon !== null && dayClassIcon !== undefined && dayClassIcon !== "",
+    );
   });
 
   it("realized future pages render above the today anchor", async () => {
@@ -345,11 +355,14 @@ describe("JournalsView", () => {
       expect(anchor?.classList.contains("journal-entry--virtual")).toBe(true);
     });
 
-    // …the entry's start affordance is what materializes the day.
+    // …the entry's ghost affordance is what materializes the day — born
+    // with its first empty block, ready to type into.
     const anchor = container.querySelector(".journal-entry[data-anchor='true']") as HTMLElement;
-    fireEvent.click(within(anchor).getByRole("button", { name: /click to start/i }));
+    fireEvent.click(within(anchor).getByRole("button", { name: "Add block" }));
     await vi.waitFor(() => {
-      expect(client.getNode(dayNodeId(target))).toBeDefined();
+      const day = client.getNode(dayNodeId(target));
+      expect(day).toBeDefined();
+      expect(client.getChildren(dayNodeId(target))).toHaveLength(1);
     });
   });
 
@@ -440,9 +453,10 @@ describe("JournalsView", () => {
       expect(anchor?.classList.contains("journal-entry--virtual")).toBe(true);
       return anchor;
     });
-    fireEvent.click(within(entry).getByRole("button", { name: /click to start/i }));
+    fireEvent.click(within(entry).getByRole("button", { name: "Add block" }));
     await vi.waitFor(() => {
       expect(client.getNode(dayNodeId(today))).toBeDefined();
+      expect(client.getChildren(dayNodeId(today))).toHaveLength(1);
     });
   });
 
@@ -508,9 +522,9 @@ describe("JournalsView", () => {
       `.journal-entry[data-journal-id='${dayNodeId(today)}']`,
     ) as HTMLElement;
     expect(entry.classList.contains("journal-entry--virtual")).toBe(true);
-    // The placeholder names the state plainly — no trash vocabulary on a
-    // day the user sees as merely empty.
-    fireEvent.click(within(entry).getByRole("button", { name: /click to start/i }));
+    // The placeholder is the outliner's ghost row — no trash vocabulary on
+    // a day the user sees as merely empty.
+    fireEvent.click(within(entry).getByRole("button", { name: "Add block" }));
 
     // The ensure restores the trashed chain node; the entry turns realized.
     await vi.waitFor(() => {
