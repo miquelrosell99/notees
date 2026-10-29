@@ -9,6 +9,37 @@ predating this file.
 
 ## 2026-10-29
 
+<<<<<<< HEAD
+- **feat(web): the right rail's peek cards become NodeCard — solid surfaced
+  cards with a hairline-separated header, an actions menu, and a recency
+  order; the reorder drag is gone.** The rail's card stack rework:
+  each card is ONE solid surfaced card (the main content card's surface +
+  hairline + shape — the rail itself rides the background canvas), header
+  separated from the body by a hairline. The header carries, left to right:
+  the collapse chevron, a NON-CLICKABLE right-anchored breadcrumb trail (the
+  new `interactive={false}` Breadcrumbs mode — overflow hides the upper
+  parent levels behind a plain "…", the current levels always show), and on
+  the right the card-actions menu (the three-dot, a kit ButtonWithPanel:
+  Open in main view — which navigates and removes the card —, Close, Close
+  others, Close all, Collapse/Expand, Collapse others, Collapse all, Expand
+  all) plus the close X. Collapsing is card management, never node state: a
+  collapsed card hides its body and keeps the header bar — the collapse set
+  is App-owned stack state now (`useRailCards`), so the menu's cross-card
+  actions have a home. A node renders as a single card instance; re-peeking
+  a carded node moves it to the top — the stack order IS the peek recency
+  (persisted device-locally as before) and the reorder GRIP, the rail drag
+  kind, `moveRailCardOrder`, and the reorder report are deleted from the
+  workspace drag session (the header remains a BLOCK drop target — append as
+  the card node's last child — and a collapsed card still transiently
+  expands under drag-hover). `NodeCardFrame` is renamed `NodeCard` (with its
+  own `NodeCard.css` — the rail styles leave PageCard.css); the "Peeked
+  pages" bar is gone, replaced by a slim always-visible rail top bar: Add on
+  the left opens the page picker to card a node directly (the empty rail's
+  door), Clear all on the right (visible once any card exists). Verified:
+  the workspace-dnd / context-column / bullet-peek suites ride the new
+  contract, a new `rail-cards` hook suite covers the single-instance /
+  move-to-top / close-scope / collapse-stack semantics, `rail-card-order`
+  keeps the persistence read; full gate green.
 - **feat(protocol,store): date-chain delete lock — `object.delete` on a
   journal day/month/year node fails loud, the permanent-address model's
   fourth lock.** A date node realizes on first write and never leaves the

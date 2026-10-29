@@ -6,7 +6,7 @@
  * cards. Pure composition: every behavior arrives via props from App.
  */
 
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import { parseDateNodeId } from "@notees/domain";
 
@@ -34,7 +34,8 @@ import { GraphView } from "../../features/collection/graph/GraphView.js";
 import { TrashHub } from "../../features/trash/TrashHub.js";
 import { ArchivedHub } from "../../features/archived/ArchivedHub.js";
 import { SharesHub } from "../../features/sharing/SharesHub.js";
-import { NodeCardFrame } from "../../features/collection/NodeCardFrame.js";
+import { NodeCard } from "../../features/collection/NodeCard.js";
+import { NodeSelector } from "../../features/pickers/NodeSelector.js";
 import { todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { HubView } from "./HubView.js";
@@ -72,14 +73,19 @@ export interface AppBodyProps {
   shareTarget: ShareTarget | undefined;
   sectionsLayout: boolean;
   setPresentingId: Dispatch<SetStateAction<string | null>>;
-  reorderSidebarCard: (activeId: string, targetId: string, position: "before" | "after") => void;
   rightPanelOpen: boolean;
   setRightPanelOpen: Dispatch<SetStateAction<boolean>>;
   /** Focus mode hides every side panel. */
   focusMode: boolean;
   sidebarCards: string[];
-  setSidebarCards: Dispatch<SetStateAction<string[]>>;
   closeSidebarCard: (nodeId: string) => void;
+  closeOtherSidebarCards: (nodeId: string) => void;
+  closeAllSidebarCards: () => void;
+  collapsedCards: ReadonlySet<string>;
+  toggleSidebarCardCollapsed: (nodeId: string) => void;
+  collapseOtherSidebarCards: (nodeId: string) => void;
+  collapseAllSidebarCards: () => void;
+  expandAllSidebarCards: () => void;
   /** The calendar surface's parsed route (null off the surface). */
   calendarRoute: CalendarRoute | null;
   /** The calendar's URL seam: zoom changes push, day changes replace. */
@@ -132,13 +138,18 @@ export function AppBody(props: AppBodyProps) {
     shareTarget,
     sectionsLayout,
     setPresentingId,
-    reorderSidebarCard,
     rightPanelOpen,
     setRightPanelOpen,
     focusMode,
     sidebarCards,
-    setSidebarCards,
     closeSidebarCard,
+    closeOtherSidebarCards,
+    closeAllSidebarCards,
+    collapsedCards,
+    toggleSidebarCardCollapsed,
+    collapseOtherSidebarCards,
+    collapseAllSidebarCards,
+    expandAllSidebarCards,
     calendarRoute,
     onCalendarRouteChange,
     onCalendarTitle,
@@ -149,6 +160,8 @@ export function AppBody(props: AppBodyProps) {
     sourcesQuery,
     onSourcesQueryChange,
   } = props;
+  /** The rail top bar's add-picker anchor (viewport coords); null = closed. */
+  const [addPicker, setAddPicker] = useState<{ top: number; left: number } | null>(null);
   return (
     <div className="nt-body">
       <NodeLinkMenuHost
@@ -161,9 +174,9 @@ export function AppBody(props: AppBodyProps) {
           (which wraps the regions), so the main content card, the right
           rail's workspace cards, and the floating editor windows (portals
           keep the React context) all join the same drag — useWorkspaceDnd.ts.
-          The rail's card reorder rides the same session: the host reports
-          the gesture, the App owns the stack + its device-local order. */}
-      <WorkspaceDndHost onRailCardReorder={reorderSidebarCard}>
+          The rail's cards have no drag kind of their own: the header is a
+          BLOCK drop target only. */}
+      <WorkspaceDndHost>
       <FloatingEditorHost client={client} openNode={openPage} openInSidebar={openInSidebar}>
       <Sidebar
         client={client}
@@ -366,28 +379,43 @@ export function AppBody(props: AppBodyProps) {
           {/* The cards-only rail: the node-relevant widgets
               (graph/TOC/Activity/Comments) relocated into the page chrome's
               context column; this rail hosts workspace cards exclusively —
-              the generic frame around NodeView. Fixed-height surfaced panel
-: it stretches the body height regardless
-              of the card count and scrolls internally when the stack
-              outgrows it. */}
-          {sidebarCards.length > 0 && (
-            <div className="nt-right-card__bar">
-              <span className="nt-right-card__bar-label">Peeked pages</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSidebarCards([]);
-                  setRightPanelOpen(false);
-                }}
-              >
+              NodeCard, the generic frame around NodeView, most recent first.
+              The top bar is the rail's only standing chrome: add a node
+              (the empty rail's door into the picker) + clear all. */}
+          <div className="nt-right-card__topbar">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-plus"
+              aria-label="Add node to sidebar"
+              title="Add node to sidebar"
+              onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                setAddPicker({ top: rect.bottom, left: rect.left });
+              }}
+            />
+            {sidebarCards.length > 0 && (
+              <Button type="button" variant="ghost" size="sm" onClick={closeAllSidebarCards}>
                 Clear all
               </Button>
-            </div>
+            )}
+          </div>
+          {addPicker !== null && (
+            <NodeSelector
+              client={client}
+              anchorRect={addPicker}
+              searchMode="pages"
+              searchPlaceholder="Search pages…"
+              onClose={() => setAddPicker(null)}
+              onAdd={(node) => {
+                setAddPicker(null);
+                openInSidebar(node.id);
+              }}
+            />
           )}
           {sidebarCards.map((cardId) => (
-            <NodeCardFrame
+            <NodeCard
               key={cardId}
               client={client}
               nodeId={cardId}
@@ -395,6 +423,15 @@ export function AppBody(props: AppBodyProps) {
               onOpenNodeRaw={openPageAt}
               onOpenInSidebar={openInSidebar}
               onClose={() => closeSidebarCard(cardId)}
+              collapsed={collapsedCards.has(cardId)}
+              onToggleCollapsed={() => toggleSidebarCardCollapsed(cardId)}
+              stackActions={{
+                closeOthers: () => closeOtherSidebarCards(cardId),
+                closeAll: closeAllSidebarCards,
+                collapseOthers: () => collapseOtherSidebarCards(cardId),
+                collapseAll: collapseAllSidebarCards,
+                expandAll: expandAllSidebarCards,
+              }}
             />
           ))}
         </aside>

@@ -213,7 +213,18 @@ export function App() {
    */
   const [sectionsLayout, setSectionsLayout] = useState(false);
   const rail = useRailCards({ client, clientRef, setRightPanelOpen });
-  const { sidebarCards, setSidebarCards, openInSidebar, closeSidebarCard, reorderSidebarCard } = rail;
+  const {
+    sidebarCards,
+    openInSidebar,
+    closeSidebarCard,
+    closeOtherSidebarCards,
+    closeAllSidebarCards,
+    collapsedCards,
+    toggleSidebarCardCollapsed,
+    collapseOtherSidebarCards,
+    collapseAllSidebarCards,
+    expandAllSidebarCards,
+  } = rail;
   /**
    * Post-delete navigation: a deleted page/class lands on its parent page
    * when one exists, otherwise on the workspace default view (today's page /
@@ -865,12 +876,17 @@ export function App() {
         shareTarget={shareTarget}
         sectionsLayout={sectionsLayout}
         setPresentingId={setPresentingId}
-        reorderSidebarCard={reorderSidebarCard}
         rightPanelOpen={rightPanelOpen}
         setRightPanelOpen={setRightPanelOpen}
         sidebarCards={sidebarCards}
-        setSidebarCards={setSidebarCards}
         closeSidebarCard={closeSidebarCard}
+        closeOtherSidebarCards={closeOtherSidebarCards}
+        closeAllSidebarCards={closeAllSidebarCards}
+        collapsedCards={collapsedCards}
+        toggleSidebarCardCollapsed={toggleSidebarCardCollapsed}
+        collapseOtherSidebarCards={collapseOtherSidebarCards}
+        collapseAllSidebarCards={collapseAllSidebarCards}
+        expandAllSidebarCards={expandAllSidebarCards}
         calendarRoute={calendarRoute}
         onCalendarRouteChange={navigateCalendar}
         onCalendarTitle={setCalendarTitle}

@@ -70,7 +70,7 @@
  * Metadata + Class properties + Templates ride its first column — and its
  * context column too (the column is node-relevant for
  * every node kind). The right rail is cards-only — the generic frame around
- * NodeView (components/NodeCardFrame.tsx).
+ * NodeView (features/collection/NodeCard.tsx).
  *
  * The `preview` surface seam — NodeView's `preview` prop renders
  * this view with NO corner menu, NO global listeners, a READ-ONLY body

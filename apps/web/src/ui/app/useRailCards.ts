@@ -1,23 +1,28 @@
 /**
- * useRailCards — the right rail's peeked-page card stack (session state +
- * device-local order). Owns the stack state, the open/close/reorder
- * operations, the persistence effect (one write seam on every change, the
- * recents precedent), and the stale-id filtering on connect. The rail UI
- * itself renders in AppBody.
+ * useRailCards — the right rail's peeked-node card stack (session state +
+ * device-local recency order). Owns the stack state, the open/close and
+ * collapse-stack operations, the persistence effect (one write seam on every
+ * change, the recents precedent), and the stale-id filtering on connect.
+ * The rail UI itself renders in AppBody.
  */
 
 import { useCallback, useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import { resolveAliasOpen } from "../../features/metadata/aliasProperty.js";
-import { moveRailCardOrder, persistRailCardOrder, readRailCardOrder } from "./railCardOrder.js";
+import { persistRailCardOrder, readRailCardOrder } from "./railCardOrder.js";
 import type { AnyClient } from "./clients.js";
 
 export interface RailCards {
   sidebarCards: string[];
-  setSidebarCards: Dispatch<SetStateAction<string[]>>;
   openInSidebar: (nodeId: string) => void;
   closeSidebarCard: (nodeId: string) => void;
-  reorderSidebarCard: (activeId: string, targetId: string, position: "before" | "after") => void;
+  closeOtherSidebarCards: (nodeId: string) => void;
+  closeAllSidebarCards: () => void;
+  collapsedCards: ReadonlySet<string>;
+  toggleSidebarCardCollapsed: (nodeId: string) => void;
+  collapseOtherSidebarCards: (nodeId: string) => void;
+  collapseAllSidebarCards: () => void;
+  expandAllSidebarCards: () => void;
 }
 
 export function useRailCards(opts: {
@@ -28,14 +33,22 @@ export function useRailCards(opts: {
   const { client, clientRef, setRightPanelOpen } = opts;
   /**
    * Right-sidebar peek cards (shift+click a block bullet): most recent first.
-   * Re-clicking an open card brings it to the top; opening a card opens the
-   * panel. Closing the last card closes the panel with it. The stack ORDER
-   * is device-local (the recents-order precedent — `readRailCardOrder`): a
-   * grip drag reorders it (the workspace drag session reports the gesture,
-   * see useWorkspaceDnd), every change persists, and ids that no longer
-   * exist in the current workspace are filtered out on connect.
+   * A node renders as a SINGLE card instance — re-peeking a carded node
+   * moves its card to the top of the stack, never duplicates it. There is no
+   * reorder gesture: the stack order IS the recency of peeks (the one write
+   * seam persists it device-locally, the recents-order precedent —
+   * `readRailCardOrder`). Opening a card opens the panel; closing the last
+   * card closes the panel with it. Ids that no longer exist in the current
+   * workspace are filtered out on connect.
    */
   const [sidebarCards, setSidebarCards] = useState<string[]>(() => readRailCardOrder());
+  /**
+   * The collapsed card set (session-local card management — display state,
+   * never an op, never persisted). A collapsed card hides its body; the
+   * header bar stays. Closed ids are pruned so the set never outlives the
+   * stack.
+   */
+  const [collapsedCards, setCollapsedCards] = useState<ReadonlySet<string>>(new Set());
   const openInSidebar = useCallback(
     (nodeId: string) => {
       // The redirect seam: a peek card opened on an alias shows the
@@ -47,24 +60,51 @@ export function useRailCards(opts: {
     },
     [clientRef, setRightPanelOpen],
   );
-  function closeSidebarCard(nodeId: string): void {
-    const next = sidebarCards.filter((id) => id !== nodeId);
-    setSidebarCards(next);
-    if (next.length === 0) setRightPanelOpen(false);
-  }
-  /**
-   * The rail reorder report (the workspace drag session's callback): a pure
-   * stack move — no-ops return the same reference and never reach the
-   * persistence effect.
-   */
-  const reorderSidebarCard = useCallback(
-    (activeId: string, targetId: string, position: "before" | "after") => {
-      setSidebarCards((prev) => moveRailCardOrder(prev, activeId, targetId, position));
-    },
-    [],
-  );
+  const closeSidebarCard = useCallback((nodeId: string) => {
+    setSidebarCards((prev) => {
+      const next = prev.filter((id) => id !== nodeId);
+      if (next.length === 0) setRightPanelOpen(false);
+      return next;
+    });
+    setCollapsedCards((prev) => {
+      if (!prev.has(nodeId)) return prev;
+      const next = new Set(prev);
+      next.delete(nodeId);
+      return next;
+    });
+  }, [setRightPanelOpen]);
+  const closeOtherSidebarCards = useCallback((nodeId: string) => {
+    setSidebarCards((prev) => {
+      const next = prev.filter((id) => id === nodeId);
+      if (next.length === 0) setRightPanelOpen(false);
+      return next;
+    });
+    setCollapsedCards(new Set());
+  }, [setRightPanelOpen]);
+  const closeAllSidebarCards = useCallback(() => {
+    setSidebarCards([]);
+    setCollapsedCards(new Set());
+    setRightPanelOpen(false);
+  }, [setRightPanelOpen]);
+  const toggleSidebarCardCollapsed = useCallback((nodeId: string) => {
+    setCollapsedCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  }, []);
+  const collapseOtherSidebarCards = useCallback((nodeId: string) => {
+    setCollapsedCards(new Set([nodeId]));
+  }, []);
+  const collapseAllSidebarCards = useCallback(() => {
+    setCollapsedCards(new Set(sidebarCards));
+  }, [sidebarCards]);
+  const expandAllSidebarCards = useCallback(() => {
+    setCollapsedCards(new Set());
+  }, []);
   // The card order persists device-locally on every change (open, close,
-  // reorder, stale-id filtering) — one write seam, the recents precedent.
+  // stale-id filtering) — one write seam, the recents precedent.
   useEffect(() => {
     persistRailCardOrder(sidebarCards);
   }, [sidebarCards]);
@@ -78,5 +118,16 @@ export function useRailCards(opts: {
       return next.length === prev.length ? prev : next;
     });
   }, [client]);
-  return { sidebarCards, setSidebarCards, openInSidebar, closeSidebarCard, reorderSidebarCard };
+  return {
+    sidebarCards,
+    openInSidebar,
+    closeSidebarCard,
+    closeOtherSidebarCards,
+    closeAllSidebarCards,
+    collapsedCards,
+    toggleSidebarCardCollapsed,
+    collapseOtherSidebarCards,
+    collapseAllSidebarCards,
+    expandAllSidebarCards,
+  };
 }

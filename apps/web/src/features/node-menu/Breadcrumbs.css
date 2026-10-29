@@ -42,6 +42,17 @@
   color: var(--md-sys-color-on-surface);
 }
 
+/* The static trail (the peek-card header): plain text — no pointer, no
+   hover wash. */
+.node-breadcrumb-link--static {
+  cursor: default;
+}
+
+.node-breadcrumb-link--static:hover {
+  background: none;
+  color: inherit;
+}
+
 .node-breadcrumb-icon {
   flex-shrink: 0;
   display: inline-flex;
