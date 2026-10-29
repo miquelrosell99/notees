@@ -11,6 +11,11 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import {
+  SYSTEM_CLASS_DISPLAY_NAMES,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
+} from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PropertiesTable } from "../src/features/metadata/index.js";
@@ -418,5 +423,203 @@ describe("the '+ Add property' assignment (unbound text)", () => {
     expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
     const cell = container.querySelector<HTMLInputElement>('.nt-property-textcell input[placeholder="Type something"]');
     expect(cell).not.toBeNull();
+  });
+});
+
+describe("citekey row: the empty-default placeholder + the regenerate affordance", () => {
+  /** The minimal source family: the `source` class, the citekey schema in
+   *  its SEED shape (`defaultValue: ""` — the scalar-empty default row the
+   *  placeholder fix targets), authors + publicationDate, all bound on the
+   *  base. */
+  async function seedSourceFamily(client: WorkspaceClient): Promise<void> {
+    await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.source, {
+      id: SYSTEM_CLASS_UUIDS.source,
+    });
+    const SOURCE = SYSTEM_CLASS_UUIDS.source;
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.citekey,
+      name: "Citekey",
+      type: "text",
+      scopeClassIds: [SOURCE],
+      defaultValue: "",
+    });
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.authors,
+      name: "Authors",
+      type: "text",
+      multi: true,
+      scopeClassIds: [SOURCE],
+    });
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.publicationDate,
+      name: "Publication date",
+      type: "datetime",
+      scopeClassIds: [SOURCE],
+    });
+    for (const key of ["citekey", "authors", "publicationDate"] as const) {
+      await client.setClassProperty(SOURCE, SYSTEM_PROPERTY_UUIDS[key], {});
+    }
+  }
+
+  /** The one property row li carrying the given schema id. */
+  function rowOf(container: HTMLElement, schemaId: string): HTMLElement {
+    const row = [...container.querySelectorAll<HTMLElement>("li.nt-property")].find((li) =>
+      li.querySelector(`.nt-property-name[data-property-schema-id="${schemaId}"]`),
+    );
+    if (row === undefined) throw new Error(`no row for ${schemaId}`);
+    return row;
+  }
+
+  it("a default-sourced scalar-empty row renders the 'Type something' cell (the citekey seed shape)", async () => {
+    const client = await seedClient();
+    await seedSourceFamily(client);
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      name: "Notes on the Analytical Engine",
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+
+    const { container } = render(<PropertiesTable client={client} nodeId={sourceId} />);
+    // Today the legacy scalar branch renders an empty plain-text cell —
+    // the fix renders the SAME full-width placeholder cell a
+    // bound-but-empty row rides (first edit still mints the carrier).
+    const cell = rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey).querySelector<HTMLInputElement>(
+      'input.nt-property-value[placeholder="Type something"]',
+    );
+    expect(cell).not.toBeNull();
+    // The first edit authors the carrier through the same path as the
+    // bound-but-empty cell: the value lands as the carrier {nodeId} ref.
+    fireEvent.change(cell!, { target: { value: "handwritten" } });
+    fireEvent.blur(cell!);
+    await flushWrites();
+    await flushWrites();
+    const rows = authoredTextRows(client, sourceId, SYSTEM_PROPERTY_UUIDS.citekey);
+    expect(rows).toHaveLength(1);
+    const carrier = client.getNode((rows[0]!.value as { nodeId: string }).nodeId);
+    expect(carrier?.contentAst[0]).toMatchObject({ text: "handwritten" });
+  });
+
+  it("the regenerate button renders inside the citekey field of a source node — and nowhere else", async () => {
+    const client = await seedClient();
+    await seedSourceFamily(client);
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      name: "Notes on the Analytical Engine",
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+
+    const { container } = render(<PropertiesTable client={client} nodeId={sourceId} />);
+    const citekeyRow = rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey);
+    const button = citekeyRow.querySelector<HTMLButtonElement>(
+      'button[aria-label="Regenerate citekey"]',
+    );
+    expect(button).not.toBeNull();
+    // The affordance rides INSIDE the field cell (the searchbox clear-x
+    // trailing pattern).
+    expect(button!.closest(".nt-property-value-field")).not.toBeNull();
+    // The authors row (also a text row on the same node) carries none.
+    expect(
+      rowOf(container, SYSTEM_PROPERTY_UUIDS.authors).querySelector(
+        'button[aria-label="Regenerate citekey"]',
+      ),
+    ).toBeNull();
+  });
+
+  it("the regenerate button is absent on a non-source node carrying citekey", async () => {
+    const client = await seedClient();
+    // A GLOBAL citekey schema (no source class at all): a plain page may
+    // carry an authored value, but the lineage keying keeps the affordance
+    // off — never a hardcoded node set.
+    const schemaId = await client.createPropertySchema({ name: "Citekey", type: "text" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    await client.setProperty(pageId, schemaId, "manual", 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    expect(
+      rowOf(container, schemaId).querySelector('button[aria-label="Regenerate citekey"]'),
+    ).toBeNull();
+  });
+
+  it("click regenerates from the current metadata, collision-suffixed, through the row's property.set path", async () => {
+    const client = await seedClient();
+    await seedSourceFamily(client);
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      name: "Notes on the Analytical Engine",
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+    await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.authors, "Lovelace, Ada", 0);
+    const { year: y1843 } = await client.ensureDateChain("1843-01-01");
+    await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.publicationDate, { nodeId: y1843 }, 0);
+    // A sibling already holding the natural render — the deterministic
+    // a-suffix must disambiguate.
+    const siblingId = await client.createObject({
+      isEmbedded: false,
+      name: "Whatever",
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+    await client.setProperty(siblingId, SYSTEM_PROPERTY_UUIDS.citekey, "lovelace1843notesonthe", 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={sourceId} />);
+    fireEvent.click(
+      rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey).querySelector<HTMLButtonElement>(
+        'button[aria-label="Regenerate citekey"]',
+      )!,
+    );
+    await flushWrites();
+    await flushWrites();
+
+    // The write lands through property.set: an AUTHORED scalar row on the
+    // citekey schema with the pattern-rendered, collision-suffixed value.
+    const rows = authoredTextRows(client, sourceId, SYSTEM_PROPERTY_UUIDS.citekey);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.value).toBe("lovelace1843notesonthea");
+  });
+
+  it("a re-click with unchanged metadata rewrites the same value (the node's own citekey stays out of the collision scan)", async () => {
+    const client = await seedClient();
+    await seedSourceFamily(client);
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      name: "Notes on the Analytical Engine",
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+    await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.authors, "Lovelace, Ada", 0);
+    const { year: y1843 } = await client.ensureDateChain("1843-01-01");
+    await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.publicationDate, { nodeId: y1843 }, 0);
+    await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.citekey, "lovelace1843notesonthe", 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={sourceId} />);
+    fireEvent.click(
+      rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey).querySelector<HTMLButtonElement>(
+        'button[aria-label="Regenerate citekey"]',
+      )!,
+    );
+    await flushWrites();
+    await flushWrites();
+
+    const rows = authoredTextRows(client, sourceId, SYSTEM_PROPERTY_UUIDS.citekey);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.value).toBe("lovelace1843notesonthe");
+  });
+
+  it("empty metadata (no authors, no title, no date) renders the button disabled", async () => {
+    const client = await seedClient();
+    await seedSourceFamily(client);
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+
+    const { container } = render(<PropertiesTable client={client} nodeId={sourceId} />);
+    const button = rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey).querySelector<HTMLButtonElement>(
+      'button[aria-label="Regenerate citekey"]',
+    );
+    expect(button).not.toBeNull();
+    expect(button!.disabled).toBe(true);
+    // The no-op is honest: clicking a disabled button writes nothing.
+    fireEvent.click(button!);
+    await flushWrites();
+    expect(authoredTextRows(client, sourceId, SYSTEM_PROPERTY_UUIDS.citekey)).toHaveLength(0);
   });
 });
