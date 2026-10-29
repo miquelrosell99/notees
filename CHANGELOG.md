@@ -9,6 +9,27 @@ predating this file.
 
 ## 2026-10-29
 
+- **fix(web): displayTemplate placeholders resolve by wire key and folded
+  display name — the shipped "@{{citekey}}" source title renders on real
+  seeded workspaces.** The render lookup matched placeholders against schema
+  names case-sensitively, while the seeds author `property_schema` rows with
+  DISPLAY names ("Citekey", from `SYSTEM_PROPERTY_DISPLAY_NAMES`) and the
+  shipped templates name system WIRE KEYS ("{{citekey}}") — the placeholder
+  never matched, the source silently rendered its content title (the Task-5
+  suite mocked lowercase schema names, so it never saw the real shape). The
+  render seam (`displayTemplateTitle.ts`) now indexes each effective property
+  by its folded display name AND its wire-key alias (the reverse of
+  `SYSTEM_PROPERTY_UUIDS`); the write-time validation (`client-writes`)
+  offers the same dual-key availability set, and the domain
+  `validateDisplayTemplate` now folds each placeholder before the set lookup
+  (the caller passes the available names folded). Verified: 4 render dual-key
+  pins (real display names, both-direction case fold, wire-key alias, unknown
+  fallback), 4 write-path/integration pins (wire-key validation, shipped
+  template re-author, mixed unknown rejection, and a real-store end-to-end —
+  a deployed source with citekey "doe2024" renders "@doe2024" through
+  `titleOf`), a domain fold pin; full gate green (typecheck + 2598 web
+  tests).
+
 - **docs(protocol): the displayTemplate lockstep marker clears — LOCKSTEP
   SHIPPED 2026-10-29 (TS reference + GTK schema v24 + Flutter schema v40).**
   SCHEMA.md's `class-display-template.json` fixture line moves from

@@ -9,18 +9,23 @@
  * for a NON-date, NON-class node, the FIRST class in `classIds` order whose
  * effective template resolves (the store's extends-aware
  * `resolveEffectiveDisplayTemplate`) wins; `{{schemaName}}` placeholders
- * flatten to the node's effective property value for the schema of that
- * name via `propertyDisplayText` (multi values join ", ", node-refs resolve
- * to titles through the same seam). A placeholder whose property is
- * unvalued renders ""; when the fully-resolved string carries no word
- * character after trimming (the plan's "" / "@" empty-result cases) the
- * helper returns null and the caller falls back to the content title — a
- * blank template result never renders a blank title.
+ * flatten to the node's effective property value via `propertyDisplayText`
+ * (multi values join ", ", node-refs resolve to titles through the same
+ * seam), resolved by the DUAL-KEY rule: a placeholder matches a schema by
+ * its DISPLAY name folded case-insensitively OR by the system wire key
+ * aliased from the schema's manifest id (the seeds carry display names —
+ * "Citekey" — while the shipped templates name wire keys — "{{citekey}}";
+ * both spellings render, and the write-time validation offers the same two
+ * keys). A placeholder whose property is unvalued renders ""; when the
+ * fully-resolved string carries no word character after trimming (the "" /
+ * "@" empty-result cases) the helper returns null and the caller falls
+ * back to the content title — a blank template result never renders a
+ * blank title.
  * Class nodes (a class has its own name) and date-chain nodes (date
  * formatting is frozen platform behavior) are NEVER templated.
  */
 
-import type { NodeLike } from "@notees/domain";
+import { SYSTEM_PROPERTY_UUIDS, type NodeLike } from "@notees/domain";
 
 import type { EffectiveProperty } from "../core/workspace-client/index.js";
 import {
@@ -32,6 +37,17 @@ import { isDatePageNode, type TitleClient } from "./dateDisplay.js";
 /** The placeholder grammar (the domain's PLACEHOLDER_RE shape — authored
  *  templates are validated at write time, this is the render-side walk). */
 const PLACEHOLDER_RENDER_RE = /\{\{([^{}]*)\}\}/g;
+
+/**
+ * The system schemas' wire keys by schema id — the reverse of
+ * SYSTEM_PROPERTY_UUIDS. The dual-key rule (below) aliases "{{citekey}}"
+ * to the schema whose DISPLAY name is "Citekey": the seeds author
+ * property_schema rows with display names, while the shipped templates
+ * name wire keys.
+ */
+const SYSTEM_WIRE_KEY_BY_SCHEMA_ID = new Map<string, string>(
+  Object.entries(SYSTEM_PROPERTY_UUIDS).map(([key, id]) => [id, key]),
+);
 
 /**
  * Synchronous-recursion guard: a template placeholder may hold a node-typed
@@ -75,10 +91,25 @@ export function templatedTitleOf(node: NodeLike, client: TitleClient): string | 
   if (ACTIVE.has(node.id)) return null;
   ACTIVE.add(node.id);
   try {
+    // The placeholder index — the DUAL-KEY rule: a placeholder resolves
+    // against (a) the schema's DISPLAY name, folded case-insensitively
+    // ("Citekey" answers "{{citekey}}" and "{{Citekey}}" alike), and
+    // (b) the system WIRE KEY aliased from the schema's manifest id
+    // (schema …000023 answers "{{citekey}}"). The seeds author
+    // property_schema rows with display names (apps/server/src/seed.ts
+    // writes SYSTEM_PROPERTY_DISPLAY_NAMES) while the shipped templates
+    // name wire keys — either spelling renders. First index wins per key;
+    // the effective-properties read order is the deterministic precedence.
     const byName = new Map<string, EffectiveProperty>();
+    const index = (key: string, prop: EffectiveProperty): void => {
+      if (!byName.has(key)) byName.set(key, prop);
+    };
     for (const prop of propertiesOf(node.id)) {
-      const name = prop.schema?.name;
-      if (name !== undefined && name !== null && !byName.has(name)) byName.set(name, prop);
+      const schema = prop.schema;
+      if (schema === undefined || schema === null) continue;
+      index(schema.name.toLowerCase(), prop);
+      const wireKey = SYSTEM_WIRE_KEY_BY_SCHEMA_ID.get(schema.id);
+      if (wireKey !== undefined) index(wireKey.toLowerCase(), prop);
     }
     const displayClient: PropertyDisplayClient = {
       getNode: client.getNode.bind(client),
@@ -100,7 +131,7 @@ export function templatedTitleOf(node: NodeLike, client: TitleClient): string | 
     const text = template.replace(PLACEHOLDER_RENDER_RE, (_match, raw: string) => {
       const name = raw.trim();
       if (name === "") return "";
-      const prop = byName.get(name);
+      const prop = byName.get(name.toLowerCase());
       return prop === undefined ? "" : propertyDisplayText(displayClient, prop);
     });
     // Empty-result fallback: the plan's rule 3 — a template whose placeholders

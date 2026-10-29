@@ -27,10 +27,15 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { DisplayTemplateError, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import {
+  DisplayTemplateError,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
+} from "@notees/domain";
 
 import { WorkerClient } from "../src/core/worker-client.js";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import { titleOf } from "../src/ui/dateDisplay.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000e1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000e2";
@@ -225,6 +230,83 @@ describe("displayTemplate write-time placeholder validation (SCHEMA.md MUST)", (
     await client.updateClassDisplayTemplate(child, "@{{citekey}}");
     await flushSync();
     expect(client.getClassDisplayTemplate(child)).toBe("@{{citekey}}");
+  });
+
+  it("accepts a system WIRE KEY the store carries only under its display name (the op lands)", async () => {
+    const client = await seedClient();
+    const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
+    await deploySystemClass(client, "source");
+    await flushSync();
+
+    // The store carries "Publication date" (the seed writes display names);
+    // the template names the wire key — the dual-key rule validates it.
+    await client.updateClassDisplayTemplate(
+      SYSTEM_CLASS_UUIDS.source,
+      "{{publicationDate}} — {{authors}}",
+    );
+    await flushSync();
+    expect(client.getClassDisplayTemplate(SYSTEM_CLASS_UUIDS.source)).toBe(
+      "{{publicationDate}} — {{authors}}",
+    );
+  });
+
+  it("accepts the shipped '@{{citekey}}' template against a deploy-seeded workspace", async () => {
+    const client = await seedClient();
+    const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
+    await deploySystemClass(client, "source");
+    await flushSync();
+
+    // Clear the seeded template, then re-author it through the validated
+    // write path — the display-name-only store must accept the wire-key
+    // placeholder (the op emits, the column lands).
+    await client.updateClassDisplayTemplate(SYSTEM_CLASS_UUIDS.source, null);
+    await flushSync();
+    expect(client.getClassDisplayTemplate(SYSTEM_CLASS_UUIDS.source)).toBeNull();
+
+    await client.updateClassDisplayTemplate(SYSTEM_CLASS_UUIDS.source, "@{{citekey}}");
+    await flushSync();
+    expect(client.getClassDisplayTemplate(SYSTEM_CLASS_UUIDS.source)).toBe("@{{citekey}}");
+  });
+
+  it("rejects a template mixing a wire key with a genuinely unknown name", async () => {
+    const client = await seedClient();
+    const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
+    await deploySystemClass(client, "source");
+    await flushSync();
+
+    await expect(
+      client.updateClassDisplayTemplate(SYSTEM_CLASS_UUIDS.source, "{{citekey}} {{nope}}"),
+    ).rejects.toThrow(DisplayTemplateError);
+    await flushSync();
+    // The rejected write emitted no op.
+    expect(client.getClassDisplayTemplate(SYSTEM_CLASS_UUIDS.source)).toBe("@{{citekey}}");
+  });
+});
+
+/**
+ * The REAL-shape integration the Task-5 suite missed: a workspace seeded
+ * through the actual deploy path (store carries DISPLAY names — "Citekey",
+ * from SYSTEM_PROPERTY_DISPLAY_NAMES) where a source with an authored
+ * citekey renders "@doe2024" through the title seam — the shipped template
+ * names the wire key.
+ */
+describe("displayTemplate renders end-to-end against the seeded display names", () => {
+  it("a deployed source with citekey 'doe2024' renders '@doe2024' through titleOf", async () => {
+    const client = await seedClient();
+    const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
+    await deploySystemClass(client, "source");
+    await flushSync();
+
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      name: "The Long Way to a Small Angry Planet",
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+    await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.citekey, "doe2024", 0);
+    await flushSync();
+
+    expect(client.getNode(sourceId)).toBeDefined();
+    expect(titleOf(client, sourceId)).toBe("@doe2024");
   });
 });
 

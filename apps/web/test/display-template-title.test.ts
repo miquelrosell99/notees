@@ -5,14 +5,16 @@
  * (template: "off") and keeps the editable content title (title-is-content
  * stays the authority). Resolution rule: for a non-date, non-class node the
  * FIRST class in classIds order whose effective template resolves wins;
- * placeholders flatten through propertyDisplayText; a fully-empty result
- * falls back to the content title; class and date-chain nodes are never
- * templated.
+ * placeholders resolve by the DUAL-KEY rule — the schema's display name
+ * folded case-insensitively OR the system wire key aliased from the schema's
+ * manifest id (the seeds carry "Citekey"; the shipped template names
+ * "{{citekey}}" — both render); a fully-empty result falls back to the
+ * content title; class and date-chain nodes are never templated.
  */
 
 import { describe, expect, it } from "vitest";
 
-import type { NodeLike } from "@notees/domain";
+import { SYSTEM_PROPERTY_UUIDS, type NodeLike } from "@notees/domain";
 
 import type { EffectiveProperty } from "../src/core/workspace-client/index.js";
 import { titleOfNode, titleOf, type TitleClient } from "../src/ui/dateDisplay.js";
@@ -23,13 +25,21 @@ const BOOK_CLASS = "33333333-3333-3333-3333-333333333333";
 const DAY_CLASS = "00000000-0000-0000-0001-000000000005";
 const DAY_ID = "00000000-0000-0000-00dd-202906270000";
 
-function textProp(name: string, value: unknown, multi = false): EffectiveProperty {
+function textProp(
+  name: string,
+  value: unknown,
+  multi = false,
+  /** The real schema id — pass a SYSTEM_PROPERTY_UUIDS entry to exercise
+   *  the wire-key alias against the seeded DISPLAY names. */
+  schemaId?: string,
+): EffectiveProperty {
+  const id = schemaId ?? `schema-${name}`;
   return {
-    propertySchemaId: `schema-${name}`,
+    propertySchemaId: id,
     idx: 0,
     elementId: `element-${name}`,
     schema: {
-      id: `schema-${name}`,
+      id,
       name,
       type: "text",
       multi,
@@ -206,5 +216,66 @@ describe("titleOf — class displayTemplate at the seam", () => {
       props: new Map([[DAY_ID, [textProp("citekey", "doe2024")]]]),
     });
     expect(titleOf(client, DAY_ID)).toBe("2029-06-27");
+  });
+});
+
+
+describe("placeholder resolution — the real seeded shape (display names + wire keys)", () => {
+  it("resolves '{{citekey}}' against the seeded DISPLAY name 'Citekey' (the shipped template renders)", () => {
+    const client = makeClient({
+      nodes: new Map([["n1", sourceNode()]]),
+      templates: new Map([[SOURCE_CLASS, "@{{citekey}}"]]),
+      props: new Map([
+        ["n1", [textProp("Citekey", "doe2024", false, SYSTEM_PROPERTY_UUIDS.citekey)]],
+      ]),
+    });
+    expect(titleOf(client, "n1")).toBe("@doe2024");
+  });
+
+  it("resolves the display name case-insensitively in both directions", () => {
+    const upper = makeClient({
+      nodes: new Map([["n1", sourceNode()]]),
+      templates: new Map([[SOURCE_CLASS, "@{{CITEKEY}}"]]),
+      props: new Map([
+        ["n1", [textProp("Citekey", "doe2024", false, SYSTEM_PROPERTY_UUIDS.citekey)]],
+      ]),
+    });
+    expect(titleOf(upper, "n1")).toBe("@doe2024");
+    const verbatim = makeClient({
+      nodes: new Map([["n1", sourceNode()]]),
+      templates: new Map([[SOURCE_CLASS, "@{{Citekey}}"]]),
+      props: new Map([
+        ["n1", [textProp("Citekey", "doe2024", false, SYSTEM_PROPERTY_UUIDS.citekey)]],
+      ]),
+    });
+    expect(titleOf(verbatim, "n1")).toBe("@doe2024");
+  });
+
+  it("resolves a system WIRE KEY the store carries only under its display name ({{publicationDate}} vs 'Publication date')", () => {
+    const client = makeClient({
+      nodes: new Map([["n1", sourceNode()]]),
+      templates: new Map([[SOURCE_CLASS, "{{publicationDate}} — {{authors}}"]]),
+      props: new Map([
+        [
+          "n1",
+          [
+            textProp("Publication date", "2014", false, SYSTEM_PROPERTY_UUIDS.publicationDate),
+            textProp("Authors", ["J. Doe", "K. Roe"], true, SYSTEM_PROPERTY_UUIDS.authors),
+          ],
+        ],
+      ]),
+    });
+    expect(titleOf(client, "n1")).toBe("2014 — J. Doe, K. Roe");
+  });
+
+  it("a genuinely unknown placeholder still falls back to the content title", () => {
+    const client = makeClient({
+      nodes: new Map([["n1", sourceNode()]]),
+      templates: new Map([[SOURCE_CLASS, "@{{unknownKey}}"]]),
+      props: new Map([
+        ["n1", [textProp("Citekey", "doe2024", false, SYSTEM_PROPERTY_UUIDS.citekey)]],
+      ]),
+    });
+    expect(titleOf(client, "n1")).toBe("The Long Way to a Small Angry Planet");
   });
 });
