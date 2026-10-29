@@ -168,6 +168,38 @@ predating this file.
   render one row reading sort, switcher, search, filter (screenshot-checked
   against the probe class hub); full gate green (typecheck + 2529 web
   tests, full chain).
+- **feat(web): sources duplicates view + merge.** The visible half of the
+  Zotero-like duplicates feature, on top of the task-12 grouping layer.
+  The Sources hub gains a **Duplicates mode** (the toolbar switch beside
+  the search box; session state, the selection/panel-visibility idiom):
+  the middle cell renders `groupSourceDuplicates` clusters as grouped
+  lists — a header naming the match basis (the shared DOI/ISBN/citekey
+  value, or "Similar title"), member rows reading the same row projection
+  as the items table, ONE **Merge** button per group, and the honest "No
+  duplicates" empty state. The type facet and the live search narrow the
+  grouping input in both modes. **MergeDuplicatesModal** (fleet kit
+  only): a DROPDOWN of the group's members as the target candidates (the
+  owner requirement — not the free NodeSelector), defaulting to the first
+  member; an aggregated dry-run summary (the `MergePlanSummary` counts,
+  summed over the losers); confirm through the danger ConfirmationModal
+  naming the kept source and stating the losers go to the trash. The
+  merge rides the standard semantics end to end (`planMerge`'s legs —
+  children move, classes/tags/properties/links remap or copy into empty
+  slots, losers trash last), wired per client mode: the in-process
+  `WorkspaceClient` plans + applies locally (`planMergeSummary` dry-run
+  added beside `mergeNodes` — one undo batch per loser), the worker
+  client rides the server merge route through the new pure
+  `postObjectMerge` transport (`POST /api/objects/:id/merge`,
+  `?dryRun=true` for the preview; the 422 guard's message extracted from
+  the error envelope) and pulls afterwards so the view refreshes. Guard
+  failures surface as an error line and the modal stays open (the
+  MergeNodesModal pattern); a successful merge disappears the group on
+  the subscription re-read. Docs: `docs/features/sources.md` (the hub
+  section). New web tests: ten cases over the seeded-client harness
+  (hub view rendering/empty-state/merge-refresh, the modal's dropdown +
+  summary + standard legs + guard line, and the worker-route transport)
+  — full gate green (build + typecheck + suite).
+
 - **feat(web): source duplicate grouping.** The detection half of the
   Zotero-like duplicates feature (the view + merge modal is the follow-up
   slice; the merge machinery already ships in the store package). New pure

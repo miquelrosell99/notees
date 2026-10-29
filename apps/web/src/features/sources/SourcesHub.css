@@ -29,3 +29,11 @@
   padding-left: var(--spacing-4);
   padding-right: var(--spacing-4);
 }
+
+/* The actions cluster: the Duplicates mode switch + the search box ride
+   one flex row (the switch precedes the search, the hub mode first). */
+.nt-sources-hub__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}

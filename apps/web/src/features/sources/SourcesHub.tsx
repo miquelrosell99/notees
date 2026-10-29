@@ -9,12 +9,14 @@
  * rides the `trailing` cluster — after the actions cluster,
  * last in the bar — while the live filtered count renders as a fleet
  * Badge next to the title (the `titleExtra` slot; the retired "N sources"
- * text), and the actions cluster carries the search box alone (the
- * exports/Add-source/settings doors retired — creation rides the global
+ * text), and the actions cluster carries the Duplicates mode switch
+ * (task 13) beside the search box (the exports/Add-source/settings doors
+ * retired — creation rides the global
  * New flow, whose class-pick routing resolves source-family classes into
  * the add-source dialog and the asset class into the upload modal). The
  * left pane hosts the source-type facets, the middle cell the items
- * table, the right pane the type-aware detail editor — rendered ONLY
+ * table (or, in Duplicates mode, the grouped duplicates list), the right
+ * pane the type-aware detail editor — rendered ONLY
  * while a selection exists (the toggle AND the selection: no selection,
  * no pane, no "Select a source" empty state).
  *
@@ -39,13 +41,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AnyClient } from "../../ui/app/clients.js";
 import { MainContentFrame } from "../../ui/MainContentFrame.js";
 import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
-import { Badge, SidePanelToggle } from "../../components/ui/kit/index.js";
+import { Badge, Button, SidePanelToggle } from "../../components/ui/kit/index.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
 import type { NodeCollectionItem } from "../collection/index.js";
 import { SourcesFacets } from "./SourcesFacets.js";
 import { SourcesTable } from "./SourcesTable.js";
 import { SourcesDetail } from "./SourcesDetail.js";
 import { SourcesToolbar } from "./SourcesToolbar.js";
+import { SourcesDuplicates } from "./SourcesDuplicates.js";
 import {
   parseSourcesQuery,
   rowMatchesQ,
@@ -80,6 +83,12 @@ export function SourcesHub({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Enter in the table hands the focus to the detail pane.
   const detailRef = useRef<HTMLDivElement | null>(null);
+
+  // The hub MODE: the items table (the default) or the Duplicates view
+  // (task 13 — the toolbar switch in the actions cluster). Session state
+  // (like the selection); the type facet + the search box narrow BOTH
+  // modes — the duplicates grouping rides the same filtered row set.
+  const [viewMode, setViewMode] = useState<"library" | "duplicates">("library");
 
   // The panel visibility prefs — DEVICE-LOCAL session state (the device-
   // state-never-an-op law), the deviceSettings register (the focusMode /
@@ -185,8 +194,10 @@ export function SourcesHub({
   // visibility, not the bare pref. The panes themselves ride MainContentFrame's
   // leftPanel/rightPanel slots (the frame owns the aside landmarks), so the
   // toggle-only export is the link here; the panels render from the same
-  // `facetsPanelOpen` / `detailVisible` values below.
-  const detailVisible = detailPanelOpen && selectedId !== null;
+  // `facetsPanelOpen` / `detailVisible` values below. The Duplicates mode
+  // hides the detail pane — the selection is the table's concept.
+  const detailVisible =
+    viewMode === "library" && detailPanelOpen && selectedId !== null;
 
   return (
     <div className="nt-sources-hub">
@@ -213,7 +224,20 @@ export function SourcesHub({
             }
             actions={
               client !== undefined ? (
-                <SourcesToolbar qInput={qInput} onQInput={setQInput} />
+                <div className="nt-sources-hub__actions">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon="mdi-content-duplicate"
+                    active={viewMode === "duplicates"}
+                    aria-label="Show duplicates"
+                    aria-pressed={viewMode === "duplicates"}
+                    onClick={() =>
+                      setViewMode((mode) => (mode === "duplicates" ? "library" : "duplicates"))
+                    }
+                  />
+                  <SourcesToolbar qInput={qInput} onQInput={setQInput} />
+                </div>
               ) : undefined
             }
             trailing={
@@ -249,18 +273,26 @@ export function SourcesHub({
         rightLabel="Source details"
         rightPanelWidth="var(--layout-size-9xl)"
       >
-        <SourcesTable
-          client={client}
-          query={parsed}
-          onQueryChange={onQueryChange}
-          items={items}
-          loading={client !== undefined && rows === null}
-          libraryEmpty={libraryEmpty}
-          q={qInput}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onFocusDetail={() => detailRef.current?.focus()}
-        />
+        {viewMode === "duplicates" && client !== undefined ? (
+          <SourcesDuplicates
+            client={client}
+            rows={displayRows}
+            loading={rows === null}
+          />
+        ) : (
+          <SourcesTable
+            client={client}
+            query={parsed}
+            onQueryChange={onQueryChange}
+            items={items}
+            loading={client !== undefined && rows === null}
+            libraryEmpty={libraryEmpty}
+            q={qInput}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onFocusDetail={() => detailRef.current?.focus()}
+          />
+        )}
       </MainContentFrame>
     </div>
   );

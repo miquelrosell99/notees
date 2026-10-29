@@ -591,6 +591,10 @@ export class WorkspaceClient {
     return this.writes.mergeNodes(sourceId, targetId);
   }
 
+  planMergeSummary(sourceId: string, targetId: string) {
+    return this.writes.planMergeSummary(sourceId, targetId);
+  }
+
   assignClass(id: string, classId: string) {
     return this.writes.assignClass(id, classId);
   }

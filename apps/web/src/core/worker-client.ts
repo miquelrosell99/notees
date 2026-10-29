@@ -17,7 +17,7 @@ import { startTransition } from "react";
 
 import type { OpPayload, WorkspaceFeature } from "@notees/protocol";
 import type { CardSrsState, SrsAlgorithm } from "@notees/domain";
-import type { GraphOptions, GraphTopology } from "@notees/store";
+import type { GraphOptions, GraphTopology, MergePlanSummary } from "@notees/store";
 import type {
   ArchivedEntry,
   AssetInfo,
@@ -51,6 +51,7 @@ import {
   createAnnotation,
   fetchAssetBlob,
   postAssetUpload,
+  postObjectMerge,
   readBlobAsDataUrl,
   type PrefsPatch,
   type SectionView,
@@ -995,6 +996,23 @@ export class WorkerClient {
   /** Record an uploaded asset on a node (asset.attach op, enqueued in the worker). */
   async attachAsset(objectId: string, asset: AssetUploadResult): Promise<void> {
     await this.call("attachAsset", [objectId, asset]);
+  }
+
+  /**
+   * Merge in worker mode: the server's merge route (the local planner +
+   * one-undo-batch application is the in-process client's path — the
+   * worker owns the store but the duplicates merge rides the route so the
+   * relay sees one total-ordered plan, the MergeNodesModal precedent
+   * gating that surface to the in-process client). `dryRun` returns the
+   * plan summary without writing — the modal's preview. After the real
+   * merge the caller pulls so the local projection catches up.
+   */
+  async mergeNodesRemote(
+    sourceId: string,
+    targetId: string,
+    dryRun = false,
+  ): Promise<MergePlanSummary> {
+    return postObjectMerge(this.serverUrl, this.apiKey, this.workspaceId, sourceId, targetId, dryRun);
   }
 
   /** Download an asset's bytes (workspace key); the export engine's include-assets read. */
