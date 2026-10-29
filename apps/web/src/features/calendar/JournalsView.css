@@ -44,12 +44,14 @@
 }
 
 /* The unrealized day (the permanent-address model): the realized
-   entries' own embedded header register — muted placeholder icon + plain
-   date title inside the shared 46rem measure — so an empty day sits in
-   the day rhythm, aligned with its written neighbors. The icon only
-   occupies the icon column (non-interactive, muted); the start
-   affordance aligns with the title column (the icon column's width rides
-   --height-2xl, the page-icon-btn register). */
+   entries' own embedded register — muted placeholder icon + plain date
+   title riding DIRECTLY under .nt-page (the journal zeroes the page
+   padding) — so an empty day sits in the day rhythm, aligned with its
+   written neighbors. (.nt-nodeview-body is the panelled layout's cap and
+   carries spacing-6 inline padding — one padding too many here.) The
+   icon only occupies the icon column (non-interactive, muted); the start
+   affordance aligns with the title column: the icon column's width plus
+   the title row's own gap, the page-header register. */
 .journal-virtual-icon {
   color: var(--md-sys-color-on-surface-variant);
   opacity: 0.6;
@@ -58,7 +60,7 @@
 
 .journal-virtual-start {
   margin-top: var(--spacing-2);
-  margin-left: var(--height-2xl);
+  margin-left: calc(var(--height-2xl) + var(--spacing-3));
   padding: var(--spacing-1) var(--spacing-2);
   font: var(--font-body-medium);
   color: var(--md-sys-color-on-surface-variant);

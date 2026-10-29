@@ -419,16 +419,19 @@ export function JournalsView({
               {entry.realized ? (
                 <PageView client={client} pageId={entry.id} onOpenPage={onOpenPage} embedded />
               ) : (
-                /* The virtual entry mirrors the realized embedded header
-                   register (PageChrome's embedded branch): a muted
-                   placeholder icon + the plain embed title inside the same
-                   46rem measure (.nt-nodeview-body), so an empty day sits
-                   in the day rhythm — aligned with its written neighbors —
-                   instead of hugging the feed's left edge with the full
-                   day-header chrome. The placeholder names the state
-                   plainly (a pre-lock trashed day restores through the
-                   same ensure when clicked). */
-                <div className="nt-nodeview-body">
+                /* The virtual entry mirrors the realized embedded register
+                   (PageChrome's compact branch): the header rides DIRECTLY
+                   under .nt-page — the journal zeroes the page padding
+                   (.journal-entry .nt-page), so the entry's chrome sits at
+                   the capped column's edge. .nt-nodeview-body is the
+                   PANELLED layout's cap and carries spacing-6 inline
+                   padding — one padding too many here (the measured 24px
+                   ghost offset). The muted placeholder icon occupies the
+                   icon column so the title aligns with the written
+                   neighbors; the placeholder names the state plainly (a
+                   pre-lock trashed day restores through the same ensure
+                   when clicked). */
+                <div className="nt-page">
                   <div className="page-header-section">
                     <header className="nt-page-header">
                       <div className="page-header__title-row">
