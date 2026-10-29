@@ -9,6 +9,16 @@ predating this file.
 
 ## 2026-10-29
 
+- **docs(protocol): the displayTemplate lockstep marker clears — LOCKSTEP
+  SHIPPED 2026-10-29 (TS reference + GTK schema v24 + Flutter schema v40).**
+  SCHEMA.md's `class-display-template.json` fixture line moves from
+  LOCKSTEP-PENDING to the shipped marker: both ports accept the
+  `displayTemplate` payload key (`class.create` / `class.update`,
+  `z.string().max(1024).nullish()`), satisfying the strict-payload additive
+  law's gate — the Path A migration (`scripts/migrate-display-template.mts`)
+  is unblocked for `--apply` once the CLI bumps its vendor pin. Docs-only
+  slice (SCHEMA.md, one line).
+
 - **feat(web): the SectionSpec registry — every page section declared once,
   a variant's stack is a key list; placement is data.** The new
   `sectionRegistry` module holds all eight page sections as `{ key, render }`

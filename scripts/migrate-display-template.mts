@@ -35,13 +35,14 @@
  * RUNNING derived store does not see ingested envelopes until rehydration,
  * so restart the sync server after --apply (the migrations.md Path A note).
  *
- * LOCKSTEP GATE (the strict-payload additive law, migrations.md §0): the
- * appended envelopes carry the `displayTemplate` key on `class.update` —
- * a pre-batch client REJECTS them and its sync stalls. SCHEMA.md still
- * carries the LOCKSTEP-PENDING marker for the displayTemplate payload
- * (cleared when the GTK/Flutter ports ship `class-display-template.json`
- * acceptance), so run --apply ONLY after the ports accept the key and the
- * CLI bumps its vendor pin. Until then: dry-run is always safe.
+ * LOCKSTEP SHIPPED (the strict-payload additive law, migrations.md §0): the
+ * appended envelopes carry the `displayTemplate` key on `class.update`.
+ * SCHEMA.md carries the LOCKSTEP SHIPPED 2026-10-29 marker for the
+ * displayTemplate payload (TS reference + GTK schema v24 + Flutter schema
+ * v40 — every port accepts `class-display-template.json`), so the ports'
+ * half of the gate is satisfied; run --apply only after the CLI bumps its
+ * vendor pin (a pre-batch CLI rejects the appended envelopes and stalls).
+ * Until then: dry-run is always safe.
  *
  * The target set is DERIVED from the same domain manifest the seeds
  * consume (SYSTEM_CLASS_DISPLAY_TEMPLATES — no second hardcoded list), so
