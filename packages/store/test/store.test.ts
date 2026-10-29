@@ -29,11 +29,13 @@ import { newEnvelope, type ContentAst, type Envelope } from "@notees/protocol";
 
 import {
   CycleError,
+  getClassDisplayTemplate,
   LockedSystemClassError,
   migrate,
   MoveGuardError,
   NotFoundError,
   PropertyValueShapeError,
+  resolveEffectiveDisplayTemplate,
   SCHEMA_VERSION,
   Store,
   SystemExtendsLockError,
@@ -4632,6 +4634,147 @@ describe.each(adapters)("$name: class parentlessRole (store v32)", ({ makeBacken
     expect(() =>
       store.apply(env("object.update", { objectId: CHILD, isEmbedded: false }, 1727200005000)),
     ).toThrow(MoveGuardError);
+    store.close();
+  });
+});
+
+// --- class-level displayTemplate (SCHEMA.md — the class title template) ----
+
+describe.each(adapters)("$name: class displayTemplate (store v36)", ({ makeBackend }) => {
+  const SOURCE = "0192a000-0000-7000-8000-000000000601";
+  const BOOK = "0192a000-0000-7000-8000-000000000602";
+  const PAPER = "0192a000-0000-7000-8000-000000000604";
+  const WEBLINK = "0192a000-0000-7000-8000-000000000605";
+  const THESIS = "0192a000-0000-7000-8000-000000000606";
+  const TEMPLATE = "@{{citekey}}";
+
+  function makeStore(): Store {
+    return Store.open(makeBackend());
+  }
+
+  const title = (text: string) => [{ type: "text", text }];
+  const createClass = (classId: string, text: string, physical: number, extra: Record<string, unknown> = {}) =>
+    env("class.create", { classId, contentAst: title(text), ...extra }, physical);
+
+  it("class.create presence-writes the registry column; absent = NULL", () => {
+    const store = makeStore();
+    store.apply(createClass(SOURCE, "Source", 1727200001000, { displayTemplate: TEMPLATE }));
+    store.apply(createClass(BOOK, "Book", 1727200002000));
+    expect(getClassDisplayTemplate(store.database, SOURCE)).toBe(TEMPLATE);
+    expect(getClassDisplayTemplate(store.database, BOOK)).toBeNull();
+    // The raw node row is NOT a display-template carrier (unlike
+    // parentless_role) — the registry column is the only projection.
+    store.close();
+  });
+
+  it("class.update presence writes, \"\" round-trips as the empty string, present-null clears to NULL", () => {
+    const store = makeStore();
+    store.apply(createClass(SOURCE, "Source", 1727200001000, { displayTemplate: TEMPLATE }));
+    expect(getClassDisplayTemplate(store.database, SOURCE)).toBe(TEMPLATE);
+    store.apply(env("class.update", { classId: SOURCE, displayTemplate: "" }, 1727200002000));
+    expect(getClassDisplayTemplate(store.database, SOURCE)).toBe("");
+    store.apply(env("class.update", { classId: SOURCE, displayTemplate: null }, 1727200003000));
+    expect(getClassDisplayTemplate(store.database, SOURCE)).toBeNull();
+    store.apply(env("class.update", { classId: SOURCE, displayTemplate: TEMPLATE }, 1727200004000));
+    expect(getClassDisplayTemplate(store.database, SOURCE)).toBe(TEMPLATE);
+    store.close();
+  });
+
+  it("a re-issued template-less class.create (the seed/ensure re-run) preserves the stored template", () => {
+    const store = makeStore();
+    store.apply(createClass(SOURCE, "Source", 1727200001000, { displayTemplate: TEMPLATE }));
+    store.apply(createClass(SOURCE, "Source", 1727200002000));
+    expect(getClassDisplayTemplate(store.database, SOURCE)).toBe(TEMPLATE);
+    // A present "" on re-create is an explicit opt-out, not an absence: it wins.
+    store.apply(env("class.create", { classId: SOURCE, contentAst: title("Source"), displayTemplate: "" }, 1727200003000));
+    expect(getClassDisplayTemplate(store.database, SOURCE)).toBe("");
+    store.close();
+  });
+
+  it("resolveEffectiveDisplayTemplate: own wins, absent inherits nearest ancestor, own \"\" opts out, an ancestor \"\" stops the walk", () => {
+    const store = makeStore();
+    store.apply(createClass(SOURCE, "Source", 1727200001000, { displayTemplate: TEMPLATE }));
+    store.apply(createClass(BOOK, "Book", 1727200002000));
+    store.apply(env("class.setExtends", { classId: BOOK, parentClassIds: [SOURCE] }, 1727200003000));
+    store.apply(createClass(PAPER, "Paper", 1727200004000));
+    store.apply(env("class.setExtends", { classId: PAPER, parentClassIds: [BOOK] }, 1727200005000));
+    // Absent inherits: BOOK has no own template; PAPER inherits through the
+    // NULL BOOK row to the nearest non-NULL ancestor.
+    expect(resolveEffectiveDisplayTemplate(store.database, BOOK)).toBe(TEMPLATE);
+    expect(resolveEffectiveDisplayTemplate(store.database, PAPER)).toBe(TEMPLATE);
+    // Nearest-first: BOOK's own template now shadows SOURCE's for PAPER.
+    store.apply(env("class.update", { classId: BOOK, displayTemplate: "{{title}} (book)" }, 1727200006000));
+    expect(resolveEffectiveDisplayTemplate(store.database, PAPER)).toBe("{{title}} (book)");
+    expect(resolveEffectiveDisplayTemplate(store.database, BOOK)).toBe("{{title}} (book)");
+    // Own "" = explicit opt-out: beats every ancestor template.
+    store.apply(createClass(WEBLINK, "Web link", 1727200007000));
+    store.apply(env("class.setExtends", { classId: WEBLINK, parentClassIds: [BOOK] }, 1727200008000));
+    store.apply(env("class.update", { classId: WEBLINK, displayTemplate: "" }, 1727200009000));
+    expect(resolveEffectiveDisplayTemplate(store.database, WEBLINK)).toBeNull();
+    // An ancestor "" STOPS the walk: THESIS extends WEBLINK — WEBLINK's opt-out
+    // shadows BOOK/SOURCE even though THESIS itself carries nothing.
+    store.apply(createClass(THESIS, "Thesis", 1727200010000));
+    store.apply(env("class.setExtends", { classId: THESIS, parentClassIds: [WEBLINK] }, 1727200011000));
+    expect(getClassDisplayTemplate(store.database, THESIS)).toBeNull();
+    expect(resolveEffectiveDisplayTemplate(store.database, THESIS)).toBeNull();
+    // Clearing the opt-out resumes inheritance from the nearest ancestor.
+    store.apply(env("class.update", { classId: WEBLINK, displayTemplate: null }, 1727200012000));
+    expect(resolveEffectiveDisplayTemplate(store.database, WEBLINK)).toBe("{{title}} (book)");
+    expect(resolveEffectiveDisplayTemplate(store.database, THESIS)).toBe("{{title}} (book)");
+    store.close();
+  });
+
+  it("the full fixture replays stepwise to the derived state and re-applies idempotently", () => {
+    const store = makeStore();
+    const envelopes = loadFixture("class-display-template.json");
+    const [
+      sourceCreate,
+      memberCreate,
+      bookCreate,
+      bookExtends,
+      weblinkCreate,
+      weblinkExtends,
+      weblinkOptOut,
+      sourceClear,
+    ] = envelopes;
+    const FIXTURE_SOURCE = "0192a000-0000-7000-8000-000000000821";
+    const FIXTURE_MEMBER = "0192a000-0000-7000-8000-000000000822";
+    const FIXTURE_BOOK = "0192a000-0000-7000-8000-000000000823";
+    const FIXTURE_WEBLINK = "0192a000-0000-7000-8000-000000000824";
+
+    store.apply(sourceCreate!);
+    expect(getClassDisplayTemplate(store.database, FIXTURE_SOURCE)).toBe(TEMPLATE);
+    expect(resolveEffectiveDisplayTemplate(store.database, FIXTURE_SOURCE)).toBe(TEMPLATE);
+
+    store.apply(memberCreate!);
+    expect(store.getNode(FIXTURE_MEMBER)).toMatchObject({ is_class: 0 });
+
+    store.apply(bookCreate!);
+    store.apply(bookExtends!);
+    expect(getClassDisplayTemplate(store.database, FIXTURE_BOOK)).toBeNull();
+    expect(resolveEffectiveDisplayTemplate(store.database, FIXTURE_BOOK)).toBe(TEMPLATE);
+
+    store.apply(weblinkCreate!);
+    store.apply(weblinkExtends!);
+    store.apply(weblinkOptOut!);
+    // The own "" round-trips and beats the ancestor's still-live template.
+    expect(getClassDisplayTemplate(store.database, FIXTURE_WEBLINK)).toBe("");
+    expect(resolveEffectiveDisplayTemplate(store.database, FIXTURE_WEBLINK)).toBeNull();
+
+    store.apply(sourceClear!);
+    expect(getClassDisplayTemplate(store.database, FIXTURE_SOURCE)).toBeNull();
+    expect(resolveEffectiveDisplayTemplate(store.database, FIXTURE_BOOK)).toBeNull();
+
+    // Idempotent re-apply: every envelope is a skipped replay, state holds.
+    const snapshot = [
+      [FIXTURE_SOURCE, getClassDisplayTemplate(store.database, FIXTURE_SOURCE)],
+      [FIXTURE_BOOK, getClassDisplayTemplate(store.database, FIXTURE_BOOK)],
+      [FIXTURE_WEBLINK, getClassDisplayTemplate(store.database, FIXTURE_WEBLINK)],
+    ] as const;
+    for (const raw of envelopes) store.apply(raw as Envelope);
+    for (const [id, value] of snapshot) {
+      expect(getClassDisplayTemplate(store.database, id)).toBe(value);
+    }
     store.close();
   });
 });
