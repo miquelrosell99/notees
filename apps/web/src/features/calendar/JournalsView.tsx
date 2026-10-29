@@ -6,14 +6,17 @@
  * not the day node exists in the log yet. A REALIZED day (the node exists
  * and is live) renders its full embedded page view; an UNREALIZED day
  * renders a slim virtual entry — the realized entries' own embedded
- * header register (muted placeholder icon + plain date title, the same
- * 46rem measure) plus one muted start affordance — and the node
- * materializes through the journal-gated `ensureDateChain` only when the
- * user actually writes (the realize-on-first-write model: display never
- * depends on node existence). The placeholder names the state plainly
- * ("Empty day — click to start"); a trashed day page (possible until the
- * delete lock and for legacy rows) restores through the same click —
- * `ensureDateChain` brings it back live.
+ * header register (day-class icon + plain date title, directly under the
+ * page cap) with the outliner's ghost add row and the same "Open page"
+ * button the written entries wear. Two materialize paths (both
+ * journal-gated, both through `ensureDateChain`): the ghost realize —
+ * the day's first real write, born with an empty block ready to type
+ * into — and the Open-page navigate, which creates the day and opens the
+ * full page view (the owner ruling: navigating a ghost day realizes it).
+ * Pure scrolling (reload, Today, a mini-month pick) still never creates
+ * anything — display never depends on node existence. A trashed day page
+ * (possible until the delete lock and for legacy rows) restores through
+ * the same ensure.
  *
  * The window: the feed enumerates CALENDAR DAYS, not pages — a contiguous
  * run from the anchor day (today, or the focus day) back N days, plus the
@@ -344,6 +347,19 @@ export function JournalsView({
   };
 
   /**
+   * The virtual entry's "Open page" navigate: materialize the chain (the
+   * owner ruling — navigating a ghost day creates it) and open the full
+   * page view. Behind the journal feature gate like the ghost realize.
+   */
+  const openDay = (iso: string): void => {
+    if (!client.isFeatureEnabled("journal")) return;
+    void client
+      .ensureDateChain(iso)
+      .then(({ day }) => onOpenPage(day))
+      .catch(() => {});
+  };
+
+  /**
    * The navigator panel + its top-bar toggle as ONE component-level unit
    * (useSidePanel): the side is declared once — "right", the body's panel
    * column — and the toggle lands in the bar's far-right trailing slot on
@@ -468,6 +484,20 @@ export function JournalsView({
                             <span className="nt-page-title-embed__text">
                               {displayTitleOf(entry.iso)}
                             </span>
+                            {/* The realized entries' Open-page register
+                               (PageChrome's embedded branch) — navigating a
+                               ghost materializes the day and opens the full
+                               page view (the owner ruling). The hover
+                               reveal rides the existing title-row CSS. */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              icon="mdi-arrow-right"
+                              aria-label="Open page"
+                              title="Open page"
+                              className="nt-page-title-embed__open"
+                              onClick={() => openDay(entry.iso)}
+                            />
                           </span>
                         </span>
                       </div>
