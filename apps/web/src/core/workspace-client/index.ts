@@ -48,6 +48,7 @@ export type {
   WorkspaceClientOptions,
 } from "./types.js";
 export { fetchAssetBlob, postAssetUpload, readBlobAsDataUrl } from "./asset-transport.js";
+export { postObjectMerge } from "./merge-transport.js";
 export {
   DEFAULT_CARDS_ALGORITHM,
   MAX_SYNCED_RECENTS,

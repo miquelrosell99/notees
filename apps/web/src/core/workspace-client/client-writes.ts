@@ -211,6 +211,15 @@ export class WorkspaceClientWrites {
   }
 
   /**
+   * The merge plan's summary WITHOUT applying — the duplicates merge
+   * modal's dry-run preview (same planner, same guards, zero ops; a
+   * MergeGuardError fails loud exactly as the applied path's).
+   */
+  planMergeSummary(sourceId: string, targetId: string): MergePlanSummary {
+    return planMerge(this.ctx.store.database, sourceId, targetId).summary;
+  }
+
+  /**
    * OR-set class membership add (the `#` / `+` set gesture). No-op when the
    * class is already assigned. Membership is NOT an object.update field:
    * class_ids is a CRDT OR-Set whose add carrier is a re-issued
