@@ -168,6 +168,31 @@ predating this file.
   render one row reading sort, switcher, search, filter (screenshot-checked
   against the probe class hub); full gate green (typecheck + 2529 web
   tests, full chain).
+- **feat(web): source duplicate grouping.** The detection half of the
+  Zotero-like duplicates feature (the view + merge modal is the follow-up
+  slice; the merge machinery already ships in the store package). New pure
+  layer `apps/web/src/features/sources/duplicates.ts`:
+  `groupSourceDuplicates(rows)` over the Sources-hub row projection — feed
+  it straight from `runSourcesQuery`. Match edges: IDENTIFIER equality
+  (DOI case-insensitive trimmed, ISBN stripped to digits+X uppercase,
+  citekey case-insensitive trimmed — the quick-create
+  `findSourceByIdentifier` idiom) and a FUZZY key (normalized title —
+  lowercase, diacritic-fold, punctuation stripped, whitespace collapsed —
+  AND publication year OR first-author family token, where the row's
+  authorsText first segment answers, so the linkedAuthors agent derivation
+  links with no second read). Both edge types ride ONE union-find:
+  transitive chains (A shares a DOI with B, B shares a title with C) land
+  in ONE group. Only ≥2-member groups surface, ordered deterministically
+  (members by node id, groups by first member) — shuffled input yields
+  identical output. The row projection gains `doi`/`isbn` fields (the
+  empty-string convention of `venue`/`citekey`). No wire/model/store
+  change — pure + derived. New web tests: nine cases over the seeded
+  client harness (MemoryRelay + sql.js) — identifier/fuzzy/transitive
+  clusters, ISBN stripping, case/diacritic/punctuation folding, the
+  linkedAuthors familyName path, title-only collisions staying apart,
+  singleton exclusion, the deterministic ordering, and input-shuffle
+  invariance (full gate green: 5,465 tests across 312 files).
+
 - **feat(web): citekey regenerate button + empty-field placeholder + input
   hover/focus states.** The source property-field UX slice (three owner
   asks, one web pass). (1) The **Citekey** row of a source-lineage node
