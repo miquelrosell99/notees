@@ -25,6 +25,7 @@ import {
   SYSTEM_PROPERTY_DISPLAY_NAMES,
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
+  plainTextExcerpt,
   type SystemClassName,
   type SystemPropertyName,
 } from "@notees/domain";
@@ -82,6 +83,8 @@ export interface QuickCreateClient {
   ensureDateChain(isoDate: string): Promise<{ year: string; month: string; day: string }>;
   /** The raw node row (the `active` archival bit read) — absent on minimal hosts. */
   getNodeRaw?(id: string): ClientNode | undefined;
+  /** The node row read (the carrier-aware citekey collision scan's ref flattening) — absent on minimal hosts. */
+  getNode?(id: string): ClientNode | undefined;
   /** The effective property read (duplicate DOI/ISBN/citekey + citekey collision scans). */
   getEffectiveProperties?(id: string): Array<{
     propertySchemaId: string;
@@ -729,17 +732,32 @@ export function venueKeysOfPrefill(prefill: { values: Record<string, string> }):
 /**
  * The citekeys of every LIVE source in the workspace (the collision scan's
  * input): the `citekey` text values over the extends-aware, active-only
- * family-members read. Empty/absent on hosts without the effective read.
+ * family-members read. Shape-aware since the pin slice: a value reads as a
+ * carrier ref (`{ "nodeId": … }` — the manual-edit shape) through the
+ * optional `getNode` seam (its carrier block's content flattened); hosts
+ * without the node read skip carrier refs (the pre-slice behavior). Empty/
+ * absent on hosts without the effective read.
  */
 export function existingCitekeys(client: AnyClient): string[] {
   if (client.getEffectiveProperties === undefined) return [];
   const out: string[] = [];
   for (const node of client.getClassMembers(SYSTEM_CLASS_UUIDS.source)) {
     for (const row of client.getEffectiveProperties(node.id)) {
-      if (row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.citekey && typeof row.value === "string") {
-        const trimmed = row.value.trim();
-        if (trimmed !== "") out.push(trimmed);
-      }
+      if (row.propertySchemaId !== SYSTEM_PROPERTY_UUIDS.citekey) continue;
+      const text = ((): string => {
+        const ref =
+          typeof row.value === "object" &&
+          row.value !== null &&
+          "nodeId" in (row.value as Record<string, unknown>)
+            ? String((row.value as { nodeId: unknown }).nodeId ?? "")
+            : null;
+        if (ref === null) {
+          return typeof row.value === "string" ? row.value.trim() : "";
+        }
+        const target = client.getNode?.(ref);
+        return target === undefined ? "" : plainTextExcerpt(target.contentAst).trim();
+      })();
+      if (text !== "") out.push(text);
     }
   }
   return out;

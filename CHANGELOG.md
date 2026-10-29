@@ -9,6 +9,41 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): citekey tracking — open-backfill guard, metadata-change
+  auto-update, and Zotero-parity pinning.** Three owner asks, one slice. (1)
+  **Backfill**: a source-lineage page opened without a citekey now gets one
+  generated from the workspace pattern (PageView's passive effect, the
+  ensure-alias idiom) — the pre-auto-citekey library and imports that
+  bypassed the create form finally read a real "@{{citekey}}" title. (2)
+  **Auto-update**: an App-level subscription watches affected nodes; an
+  UNPINNED citekey re-renders from the node's current metadata (authors /
+  publicationDate / title — the shipped `citekeyEntryOf` dual-track read) and
+  the value is rewritten the moment the render drifts (deterministic a/b/c
+  suffix against the live library). (3) **Pinning**: the metadata panel's
+  Citekey row gains a pin toggle beside the property name (off by default);
+  a pinned citekey is never auto-rewritten. The pin rides the EXISTING
+  per-value `property.set` `metadata` record (`{pinned: true}` on the citekey
+  value — no new op, no fixture gate, applier LWW, every client already
+  parses the payload); the toggle rewrites the current value with the flipped
+  flag (value-preserving, one undoable write), disables while the citekey is
+  empty, and a manual panel edit auto-pins (the BBT precedent — a hand-typed
+  key is never auto-overwritten). The Auto-citekey workspace setting remains
+  the one opt-in governing ALL automatic citekey writes (create-fill,
+  backfill, auto-update). Supporting contract: citekey values now read in
+  BOTH storage shapes everywhere they matter — the collision scan
+  (`existingCitekeys`), the regeneration own-key exclusion, and the drift
+  compare flatten the manual-edit carrier (`{nodeId}`) as well as the
+  generated scalar (`carrierStateOf` extracted to
+  `features/metadata/carrierState.ts`, `citekeyTextOf` in
+  `features/sources/citekeyValue.ts`); an auto-rewrite replacing a carrier
+  trashes the orphaned carrier. Docs: `docs/features/sources.md` (pin +
+  tracking paragraph, settings bullets), SCHEMA.md "Sources as containers"
+  (the pinning convention), the settings toggle description. New web tests:
+  14 over the seeded client harness — engine (backfill, toggle gate, drift
+  rewrite, pinned/pinned:false semantics, empty-metadata and non-source/class
+  no-ops, collision suffix, carrier-shape convergence) and UI (pin button
+  placement/disabled/toggle round-trip, manual-edit auto-pin).
+
 - **fix(web): displayTemplate placeholders resolve by wire key and folded
   display name — the shipped "@{{citekey}}" source title renders on real
   seeded workspaces.** The render lookup matched placeholders against schema

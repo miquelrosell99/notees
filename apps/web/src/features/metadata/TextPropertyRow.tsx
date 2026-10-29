@@ -69,15 +69,21 @@
 import { useEffect, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { Icon } from "../../ui/Icon.js";
 
-import { plainTextExcerpt, rendersAsInlineBlock, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { plainTextExcerpt, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { NodeCollection, type NodeCollectionItem } from "../collection/index.js";
 import type { AnyClient } from "../collection/types.js";
+import { carrierStateOf } from "./carrierState.js";
 import { isCitationFamilyClass } from "../modals/quickCreate.js";
 import { citekeyRegenerationFor } from "../sources/citekeyRegenerate.js";
-import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
+import {
+  citekeyIsPinned,
+  citekeyPinMetadata,
+  CITEKEY_PINNED_METADATA_KEY,
+} from "../sources/citekeyTrack.js";
+import { citekeyTextOf } from "../sources/citekeyValue.js";
 import { InlineTokens } from "../../ui/InlineTokens.js";
 import { AddPill } from "../../components/ui/kit/AddPill.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
@@ -88,27 +94,6 @@ import { propertyDropVerdict } from "../../ui/property-drop.js";
 
 /** Cycle-protection depth cap, mirroring the client's getBlockTree default. */
 const CARRIER_TREE_DEPTH_CAP = 64;
-
-/** Mirror of the metadata scalar branch's carrier resolution. */
-function carrierStateOf(
-  client: AnyClient,
-  value: unknown,
-): { kind: "carrier"; id: string } | { kind: "dead" } | { kind: "scalar" } {
-  const rawRef =
-    typeof value === "object" && value !== null && "nodeId" in (value as Record<string, unknown>)
-      ? String((value as { nodeId: unknown }).nodeId ?? "")
-      : typeof value === "string" &&
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
-        ? value
-        : null;
-  if (rawRef !== null) {
-    const node = client.getNode(rawRef);
-    if (node !== undefined && rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client)))
-      return { kind: "carrier", id: rawRef };
-    return { kind: "dead" };
-  }
-  return { kind: "scalar" };
-}
 
 /** The carrier's editable subtree (recursive, depth-capped). */
 function carrierSubtreeOf(
@@ -253,6 +238,75 @@ export function TextPropertyRow({
       </button>
     );
 
+  /**
+   * The citekey pin state — ONLY on the citekey row of a source-LINEAGE
+   * node (the class-lineage keying quick-create uses). Lives beside the
+   * property NAME (not inside a value cell) so it renders for BOTH storage
+   * shapes — the scalar string and the manual-edit carrier ride different
+   * cells, and the pin must toggle from either. Disabled when no non-empty
+   * authored value exists: pinning an empty citekey would ride a scalar ""
+   * the auto-unset pass trashes. The toggle re-writes the CURRENT value
+   * with the flipped flag (LWW at the row) — value-preserving by
+   * construction, one undoable property write.
+   */
+  const citekeyPin = useMemo(() => {
+    if (readOnly || propertySchemaId !== SYSTEM_PROPERTY_UUIDS.citekey) return null;
+    const node = client.getNode(nodeId);
+    if (node === undefined || node.isClass) return null;
+    if (!node.classIds.some((classId) => isCitationFamilyClass(client, classId))) return null;
+    const authored = client
+      .getEffectiveProperties(nodeId)
+      .filter(
+        (row) => row.propertySchemaId === propertySchemaId && row.source === "authored",
+      );
+    const pinned = citekeyIsPinned(authored);
+    const current = authored.find((row) => citekeyTextOf(client, row.value) !== "");
+    if (current === undefined) return { pinned, disabled: true as const };
+    return { pinned, disabled: false as const, value: current.value, idx: current.idx };
+  }, [client, nodeId, propertySchemaId, readOnly, storeVersion]);
+
+  const citekeyPinButton =
+    citekeyPin === null ? null : (
+      <button
+        type="button"
+        className={
+          "nt-property-pin" + (citekeyPin.pinned ? " nt-property-pin--pinned" : "")
+        }
+        aria-label={citekeyPin.pinned ? "Unpin citekey" : "Pin citekey"}
+        title={
+          citekeyPin.pinned
+            ? "Unpin citekey — auto-update from metadata"
+            : "Pin citekey — stop auto-updating from metadata"
+        }
+        aria-pressed={citekeyPin.pinned}
+        disabled={citekeyPin.disabled}
+        onClick={() => {
+          if (citekeyPin.disabled) return;
+          void client.setProperty(
+            nodeId,
+            propertySchemaId,
+            citekeyPin.value,
+            citekeyPin.idx,
+            citekeyPinMetadata(!citekeyPin.pinned),
+          );
+        }}
+      >
+        <Icon path={citekeyPin.pinned ? "mdi mdi-pin" : "mdi mdi-pin-outline"} size={0.8} />
+      </button>
+    );
+
+  /**
+   * A MANUAL citekey edit pins the key (the Zotero/BBT precedent — a
+   * hand-typed key is a deliberate choice the auto-track watcher must never
+   * overwrite). Every other property rides metadata-free (a metadata-less
+   * set REPLACES the stored record — applier LWW — so non-citekey rows must
+   * not carry this).
+   */
+  const manualEditMetadata: Record<string, unknown> | undefined =
+    propertySchemaId === SYSTEM_PROPERTY_UUIDS.citekey
+      ? { [CITEKEY_PINNED_METADATA_KEY]: true }
+      : undefined;
+
   /** Carrier lookup for the Enter semantics — only THIS row's carriers. */
   const carrierInfo = useMemo(() => {
     const map = new Map<string, CarrierInfo>();
@@ -394,7 +448,7 @@ export function TextPropertyRow({
         parentId: nodeId,
         contentAst: [{ type: "text", text: "" }],
       });
-      await client.setProperty(nodeId, propertySchemaId, { nodeId: carrier }, nextIdx);
+      await client.setProperty(nodeId, propertySchemaId, { nodeId: carrier }, nextIdx, manualEditMetadata);
     } catch (error) {
       setAddError(error instanceof Error ? error.message : String(error));
     }
@@ -414,7 +468,7 @@ export function TextPropertyRow({
         parentId: nodeId,
         contentAst: [{ type: "text", text }],
       });
-      await client.setProperty(nodeId, propertySchemaId, { nodeId: carrierId }, idx);
+      await client.setProperty(nodeId, propertySchemaId, { nodeId: carrierId }, idx, manualEditMetadata);
       setFreshCarrierId(carrierId);
     } catch (error) {
       setAddError(error instanceof Error ? error.message : String(error));
@@ -452,6 +506,7 @@ export function TextPropertyRow({
             {label}
             {classSourced && <span className="nt-property-hint" title="From a class">C</span>}
           </span>
+          {citekeyPinButton}
           {allDefault && <span className="nt-property-hint">default</span>}
           {unbound && <span className="nt-property-hint">unbound</span>}
         </>
@@ -508,7 +563,7 @@ export function TextPropertyRow({
                         parentId: nodeId,
                         contentAst: [{ type: "text", text }],
                       });
-                      await client.setProperty(nodeId, propertySchemaId, { nodeId: carrierId }, 0);
+                      await client.setProperty(nodeId, propertySchemaId, { nodeId: carrierId }, 0, manualEditMetadata);
                     })();
                   }}
                 />

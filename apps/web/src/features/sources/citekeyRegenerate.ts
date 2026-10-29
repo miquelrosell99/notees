@@ -24,6 +24,7 @@ import {
   readSourceSettings,
 } from "../modals/quickCreate.js";
 import { citekeyEntryOf } from "./sourcesQuery.js";
+import { citekeyTextOf } from "./citekeyValue.js";
 
 /** The regeneration snapshot the row's trailing affordance renders from. */
 export interface CitekeyRegeneration {
@@ -41,13 +42,14 @@ export function citekeyRegenerationFor(
   const entry = citekeyEntryOf(client, node);
   // The collision scan covers the SIBLING sources: the node's own current
   // citekeys stay out, so regenerating over unchanged metadata is a
-  // no-op write of the same value, not a self-suffixing.
+  // no-op write of the same value, not a self-suffixing. The own-set read
+  // is shape-aware (scalar string or manual-edit carrier — the
+  // `citekeyTextOf` contract).
   const own = new Set<string>();
   for (const row of client.getEffectiveProperties(node.id)) {
     if (row.propertySchemaId !== SYSTEM_PROPERTY_UUIDS.citekey) continue;
-    if (typeof row.value === "string" && row.value.trim() !== "") {
-      own.add(row.value.trim().toLowerCase());
-    }
+    const text = citekeyTextOf(client, row.value);
+    if (text !== "") own.add(text.toLowerCase());
   }
   const siblings = existingCitekeys(client).filter((key) => !own.has(key.toLowerCase()));
   const settings = readSourceSettings(client);
