@@ -98,8 +98,11 @@ export function templatedTitleOf(node: NodeLike, client: TitleClient): string | 
     // (schema …000023 answers "{{citekey}}"). The seeds author
     // property_schema rows with display names (apps/server/src/seed.ts
     // writes SYSTEM_PROPERTY_DISPLAY_NAMES) while the shipped templates
-    // name wire keys — either spelling renders. First index wins per key;
-    // the effective-properties read order is the deterministic precedence.
+    // name wire keys — either spelling renders. Display-name and wire-key
+    // aliases are EQUAL-RANK: a placeholder matching both resolves to the
+    // first indexed property in the deterministic effective-properties
+    // read order (all replicas derive the same order from the log — the
+    // GTK/Flutter ports MUST index in their effective-read order too).
     const byName = new Map<string, EffectiveProperty>();
     const index = (key: string, prop: EffectiveProperty): void => {
       if (!byName.has(key)) byName.set(key, prop);
