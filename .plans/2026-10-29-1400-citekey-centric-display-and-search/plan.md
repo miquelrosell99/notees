@@ -161,7 +161,7 @@
 ### Task 8: SCHEMA.md + docs + CHANGELOG
 
 **Files:**
-- Modify: `packages/protocol/SCHEMA.md` — new normative bullet in the class-fields area (~265-269 or the `## Class properties` section ~302), the established idiom: contract, tri-state table, placeholder validation rule, "Canonical fixture `class-display-template.json`", LOCKSTEP-PENDING marker cleared in Task 9, migration pointer.
+- Modify: `packages/protocol/SCHEMA.md` — new normative bullet in the class-fields area (~265-269 or the `## Class properties` section ~302), the established idiom: contract, tri-state table, placeholder validation rule, "Canonical fixture `class-display-template.json`", LOCKSTEP-PENDING marker cleared in Task 10, migration pointer.
 - Modify: `packages/query/README.md` (Task 7 did Deferred; add the fan-out paragraph to the search docs if search is documented there — check `docs/developers/` for the search runbook home and update it)
 - Modify: `docs/` user-facing search/class docs where behavior is user-visible
 - Modify: `CHANGELOG.md` — one entry under the current date heading (newest first; anchored, no reordering)
@@ -169,7 +169,31 @@
 - [ ] **Step 1: Write the SCHEMA.md bullet** with the exact values from Task 1 (tri-state, `max(1024)`, fixture name, seed targets, opt-out roster).
 - [ ] **Step 2: Docs sweep + CHANGELOG + gate + commit** `docs: displayTemplate contract + citekey-centric search`.
 
-### Task 9: GTK/Flutter lockstep + landing + live convergence
+### Task 9: Source property-field UX — citekey regenerate + empty-field placeholder + input hover/focus
+
+Added 2026-10-29 mid-flight (owner request). Three items, one web slice:
+
+**Files:**
+- Modify: `apps/web/src/features/metadata/TextPropertyRow.tsx` (the scalar-empty branch ~469-499; the citekey-row regenerate affordance)
+- Modify: `apps/web/src/components/ui/kit/Input.tsx` + co-located CSS IF the searchbox trailing-button pattern and the hover/focus states belong at kit level (kit-first law: compose from `components/ui/kit/`, token-only CSS from `variables.css`, adaptive values — no hard px except hairlines/tap floors; `docs/developers/ui-primitives.md` is the runbook)
+- Modify: `apps/web/src/features/sources/citekey.ts` ONLY if the pattern renderer can't be reused as-is
+- Test: the existing web test covering TextPropertyRow / property rows (find it; match its style) + CHANGELOG.md entry in the same commit (own slice, own entry)
+
+**Interfaces:**
+- Consumes: `renderCitekeyPattern`, `DEFAULT_CITEKEY_PATTERN`, `CitekeyEntry` from `apps/web/src/features/sources/citekey.ts` (the existing pure citekey composition used by quick-create); the quick-create collision-scan idiom for suffixing.
+- Produces: no wire/model change — the button writes through the row's existing `property.set` path (composes existing ops, undo-journal eligible).
+
+**Behavior spec:**
+1. **Regenerate button** — icon-only, circular-arrows MDI icon (match the app's existing icon idiom), rendered at the RIGHT edge INSIDE the citekey text field, the same trailing-button pattern as the searchbox clear "x". Only on the `citekey` property row of source-lineage nodes (key off class lineage like quickCreate.ts does — `collectSelfAndAncestors` vs the source system class, never a hardcoded node set). Click regenerates from the node's current metadata (authors/family + year + title tokens via `renderCitekeyPattern`), collision-suffixed against sibling sources (deterministic a/b/c, the quick-create idiom), and writes via `property.set`. Empty metadata → no-op (render disabled).
+2. **Placeholder fix** — a default-sourced row whose value is the SCALAR EMPTY STRING (the citekey seed's `defaultValue: ""`) renders the SAME full-width "Type something" placeholder cell as a bound-but-empty row. Root cause (verified): `seeds.ts:835` seeds `citekey` with `defaultValue: ""` → the effective read synthesizes a default row with value `""` → TextPropertyRow takes the legacy-scalar branch (`scalarText === "" ? null`, plain-text cell, no placeholder). Authors shows the placeholder because it has no default. First edit still mints the carrier (unchanged semantics).
+3. **Hover/focus states** — property text inputs get the Zotero-like treatment (owner refs: hover lightens the field background, focus draws the accent border). Apply at the kit level if kit `Input` is the shared carrier so all text fields inherit; otherwise the property-row inputs. No new design tokens without need; if a genuine deviation from the design system is introduced, record it in `.agents/design-overrides.md` (prefer none).
+
+- [ ] **Step 1: Failing tests** — scalar-empty-default row renders the "Type something" cell (today: plain-text branch); regenerate button renders inside the citekey field for a source node, is absent on non-citekey rows and non-source nodes; click writes the pattern-rendered, collision-suffixed value through `property.set` (assert the op path the row already uses); disabled/absent when authors+title+date are all empty.
+- [ ] **Step 2: Run — expect FAIL.**
+- [ ] **Step 3: Implement** the three items per the behavior spec; CSS in the kit/property CSS with tokens.
+- [ ] **Step 4: Gate + CHANGELOG + commit** `feat(web): citekey regenerate button + empty-field placeholder + input hover/focus states` (gate: `pnpm --filter @notees/web build && pnpm typecheck && pnpm test`).
+
+### Task 10: GTK/Flutter lockstep + landing + live convergence
 
 - [ ] **Step 1: GTK** (`/root/projects/notees-gtk`) — read its AGENTS.md; vendor `class-display-template.json` byte-identical into `tests/fixtures/wire/`; add `display_template` column (schema version bump per its convention); applier support for the payload key with the same tri-state semantics; pytest replay expectations; fixture sha256 check if it has one.
 - [ ] **Step 2: Flutter** (`/root/projects/notees-flutter`) — same: `test/fixtures/wire/`, schema bump (its v38 line), Dart applier support, flutter_test replay.
