@@ -83,7 +83,7 @@ import {
   type FilterQuery,
 } from "../collection/filterQuery.js";
 import { groupByContainingPage } from "../collection/index.js";
-import type { HostedViewsConfig } from "../collection/index.js";
+import type { HostedViewsConfig, NodeCollectionItem } from "../collection/index.js";
 import { SECTION_DEFAULT_TAB } from "../collection/NodeCollectionTabs.js";
 import "./SystemSections.css";
 

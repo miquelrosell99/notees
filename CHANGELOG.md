@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-29
 
+- **feat(web): Classed nodes converts onto the CollectionSection skin — the
+  class page's centerpiece sheds its hand-rolled filter/tab/toolbar
+  wiring.** The section keeps what it owns: the availability-gated mode
+  switcher (the eager materialized member read gates it — the resolved rows
+  live in the skin), the live sort defaults (alphabetical until the quick
+  search ranks the pool — ranked order leads), the per-class device-local
+  mode preference, the per-binding table columns, the member-open semantics
+  (inline blocks resolve to their containing main node, the cached-read
+  first-click fallback included), the row × unassign, and the header's Add
+  member affordance. The mode switcher rides the hosted cluster's far right
+  as the register's extras. Verified: class-view, filter-layer (the
+  100-row window + ranked-search pinning), collection-sort, windowing,
+  class-bindings, card-family green (67 assertions) plus a
+  compose-through-skin assertion on the section helper; full gate green
+  (typecheck + 2539 web tests, full chain). Slice 4 of the section skin
+  conversion.
+
 - **feat(web): Backlinks and Unlinked mentions convert onto the
   CollectionSection skin — the reference sections' drift-prone wiring
   deletes; `ReferenceList` retires.** The skin gains `groupBy` (post-
