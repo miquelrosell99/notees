@@ -8,7 +8,16 @@ name: Release Docker images
 # ONLY to stable semver tags — prereleases (v2.0.0-m2 and friends, any tag
 # with a `-`) never move `latest`. Manual dispatch publishes `latest` plus
 # the given image_tag — the way to (re)publish an existing stable release's
-# images. Nightly main builds live in nightly-docker.yml (`:nightly`).
+# images. A dispatch takes two inputs:
+#
+#   image_tag — REQUIRED in practice (a first-step guard fails the run when
+#     it is empty): a dispatch without a channel tag would push version-less
+#     images.
+#   git-ref — the ref to build (tags, branches, or SHAs; default `main`).
+#     Lets a dispatch (re)build an existing release's images from its tag
+#     instead of whatever main's head is today.
+#
+# Nightly main builds live in nightly-docker.yml (`:nightly`).
 
 on:
   push:
@@ -17,9 +26,13 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Extra image tag to apply (e.g. 2.0.0-m2); 'latest' is always applied."
+        description: "Extra image tag to apply (e.g. 2.0.0-m2); 'latest' is always applied. Required on dispatch — the run fails loud if empty."
         required: false
         default: ""
+      git-ref:
+        description: "Ref to build — tags, branches, or SHAs (default main)."
+        required: false
+        default: "main"
 
 permissions:
   contents: read
@@ -37,8 +50,18 @@ jobs:
           - image: notees-web
             dockerfile: apps/web/Dockerfile
     steps:
+      - name: Guard — dispatch requires an image tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ -z "${{ inputs.image_tag }}" ]; then
+            echo "::error::workflow_dispatch requires the image_tag input — a dispatch without a channel tag would push version-less images (only 'latest'). Set image_tag to the release you are (re)publishing."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs['git-ref'] || github.ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
