@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-29
 
+- **fix(web): the portaled query-builder panel carries its full-line basis on
+  its own modifier class.** The topbar panel-slot portal (below) moves the
+  structured panel OUT of the inline toolbar's DOM subtree — and the
+  full-line `flex-basis: 100%` rode a descendant selector
+  (`.nt-node-collection-toolbar--inline .…__panel`) that the portal breaks,
+  so the first deploy rendered the panel content-width on the chrome row's
+  line (the live AFTER probe caught it; jsdom asserts the DOM seat, not CSS
+  scoping). The portaled panel now adds `nt-node-collection-toolbar__panel
+  --bar-line`, carrying the basis independent of ancestry; the descendant
+  rule stays for the in-place fallback (un-hosted hosts). Verified: full
+  apps/web suite (222 files / 2513 tests) + typecheck green; live-stack probe
+  — panel `x[655..1144]` = the bar's full width on its own line beneath the
+  tabs+controls row, sort/search/filter flush in one right-justified group;
+  `verify-min.mjs` VERIFY-PASS.
+
 - **chore(ci): release-docker concurrency, dispatch = build-verify only
   (sonarly semantics), nightly stagger** (fleet-pattern alignment, owner
   ruling). `.github/workflows/release-docker.yml`: workflow-level
