@@ -29,9 +29,18 @@
   justify-content: flex-end;
 }
 
-/* Bar-level (portaled) AND in-place (un-hosted) the panel is a full-width
-   wrapped line: flex-basis 100% of whichever wrapping flex parent owns it. */
+/* In-place (un-hosted) inline layout the panel stays a DOM descendant of
+   the inline toolbar, so the descendant selector above carries the basis.
+   PORTAL NOTE: the portaled variant (`.nt-node-collection-toolbar__panel
+   --bar-line`) is no longer inside the toolbar's DOM subtree — the portal
+   breaks descendant scoping — so the full-line basis rides its own
+   modifier: `flex-basis: 100%` of whichever wrapping flex parent owns it
+   (the topbar's panel slot in the hosted chrome). */
 .nt-node-collection-toolbar--inline .nt-node-collection-toolbar__panel {
+  flex-basis: 100%;
+}
+
+.nt-node-collection-toolbar__panel--bar-line {
   flex-basis: 100%;
 }
 
