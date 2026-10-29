@@ -10,6 +10,7 @@ import {
   SEEDED_SYSTEM_CLASSES,
   SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES,
   SYSTEM_CLASS_DISPLAY_NAMES,
+  SYSTEM_CLASS_DISPLAY_TEMPLATES,
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK,
@@ -49,6 +50,15 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
           // by the one-time Path A migration, not by re-seeding.
           ...(SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK.has(name)
             ? { parentlessRole: "block" as const }
+            : {}),
+          // The class-level displayTemplate seed (the citekey-centric header
+          // template on `source`, explicit "" opt-outs on the media roster):
+          // emitted only where the manifest has an entry — "" IS a real
+          // entry. Absent on every other class = inherit through extends at
+          // read time. Live workspaces converge by the one-time migration,
+          // not by re-seeding.
+          ...(SYSTEM_CLASS_DISPLAY_TEMPLATES[name] !== undefined
+            ? { displayTemplate: SYSTEM_CLASS_DISPLAY_TEMPLATES[name] }
             : {}),
         },
         affectedNodeIds: [classId],

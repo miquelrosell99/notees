@@ -160,6 +160,10 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   effectiveClassColor: "structure",
   effectiveClassIcon: "structure",
   effectiveClassParentlessBlock: "structure",
+  // The class registry column: class.update is listing-affecting (structural),
+  // so the structure class converges it — same trust as the parentlessBlock
+  // resolver it mirrors.
+  getClassDisplayTemplate: "structure",
 };
 
 export interface WorkerClientOptions {
@@ -424,6 +428,14 @@ export class WorkerClient {
    * branch. */
   effectiveClassParentlessBlock(classId: string): boolean {
     return this.cachedRead<boolean>("effectiveClassParentlessBlock", [classId], false);
+  }
+
+  /** The class's OWN displayTemplate (the `class` registry column, store
+   * schema v36 — the node row is not a carrier): NULL = never set, "" = the
+   * explicit opt-out. Deploy-time convergence reads it; display goes through
+   * the store's extends-aware resolver. */
+  getClassDisplayTemplate(classId: string): string | null {
+    return this.cachedRead<string | null>("getClassDisplayTemplate", [classId], null);
   }
 
   effectiveNodeIcon(node: {
@@ -802,7 +814,13 @@ export class WorkerClient {
   /** Create a class (class.create); returns the new class id. */
   async createClass(
     name: string,
-    opts?: { icon?: string; color?: string; id?: string; parentlessRole?: "page" | "block" },
+    opts?: {
+      icon?: string;
+      color?: string;
+      id?: string;
+      parentlessRole?: "page" | "block";
+      displayTemplate?: string;
+    },
   ): Promise<string> {
     return (await this.call("createClass", [name, opts])) as string;
   }
@@ -819,6 +837,12 @@ export class WorkerClient {
     parentlessRole: "page" | "block" | null,
   ): Promise<void> {
     await this.call("updateClassParentlessRole", [classId, parentlessRole]);
+  }
+
+  /** The class-level displayTemplate (registry column, store v36): string
+   * presence-writes — "" is the explicit opt-out — null clears. */
+  async updateClassDisplayTemplate(classId: string, template: string | null): Promise<void> {
+    await this.call("updateClassDisplayTemplate", [classId, template]);
   }
 
   /** Write a feature's settings record (workspace.feature.set {enabled: true, settings}). */

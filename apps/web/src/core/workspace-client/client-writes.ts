@@ -346,7 +346,13 @@ export class WorkspaceClientWrites {
    */
   async createClass(
     name: string,
-    opts?: { icon?: string; color?: string; id?: string; parentlessRole?: "page" | "block" },
+    opts?: {
+      icon?: string;
+      color?: string;
+      id?: string;
+      parentlessRole?: "page" | "block";
+      displayTemplate?: string;
+    },
   ): Promise<string> {
     // Caller-chosen id (the object.create pattern): system authoring
     // (ensureTaskFamily) creates the task class at its reserved seed id.
@@ -362,6 +368,10 @@ export class WorkspaceClientWrites {
     // system authoring passes "block" for the flagged roster; user classes
     // omit it (the "page" default).
     if (opts?.parentlessRole !== undefined) payload.parentlessRole = opts.parentlessRole;
+    // The class-level displayTemplate (registry column, store v36):
+    // system authoring passes the seed manifest entry — "" is a real
+    // opt-out value, so the undefined check (not truthiness) gates it.
+    if (opts?.displayTemplate !== undefined) payload.displayTemplate = opts.displayTemplate;
     this.ctx.enqueueLocal(this.ctx.buildEnvelope("class.create", payload, [id]));
     return id;
   }
@@ -394,6 +404,19 @@ export class WorkspaceClientWrites {
   ): Promise<void> {
     this.ctx.enqueueLocal(
       this.ctx.buildEnvelope("class.update", { classId, parentlessRole }, [classId]),
+    );
+  }
+
+  /**
+   * The class-level displayTemplate (the `class` registry column, store
+   * schema v36): a string presence-writes the template — "" is the explicit
+   * opt-out, NOT absence — and `null` clears back to NULL (inherit through
+   * extends at read time). class.update maps the column exactly like
+   * parentlessRole; the node row is not a carrier.
+   */
+  async updateClassDisplayTemplate(classId: string, template: string | null): Promise<void> {
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope("class.update", { classId, displayTemplate: template }, [classId]),
     );
   }
 

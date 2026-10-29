@@ -613,7 +613,13 @@ export class WorkspaceClient {
 
   createClass(
     name: string,
-    opts?: { icon?: string; color?: string; id?: string; parentlessRole?: "page" | "block" },
+    opts?: {
+      icon?: string;
+      color?: string;
+      id?: string;
+      parentlessRole?: "page" | "block";
+      displayTemplate?: string;
+    },
   ) {
     return this.writes.createClass(name, opts);
   }
@@ -624,6 +630,16 @@ export class WorkspaceClient {
 
   updateClassParentlessRole(classId: string, parentlessRole: "page" | "block" | null) {
     return this.writes.updateClassParentlessRole(classId, parentlessRole);
+  }
+
+  /** The class's own displayTemplate (registry column, store v36). */
+  getClassDisplayTemplate(classId: string) {
+    return this.reads.getClassDisplayTemplate(classId);
+  }
+
+  /** Write or clear a class's displayTemplate (class.update {displayTemplate}). */
+  updateClassDisplayTemplate(classId: string, template: string | null) {
+    return this.writes.updateClassDisplayTemplate(classId, template);
   }
 
   setClassProperty(classId: string, propertySchemaId: string, fields: SetClassPropertyInput) {
