@@ -76,6 +76,7 @@ import { titleOfNode } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../../ui/viewPrefs.js";
 import { promoteMentionInAst } from "../collection/unlinkedRefs.js";
+import { CollectionSection } from "../collection/CollectionSection.js";
 import { NodeCollectionToolbar } from "../collection/NodeCollectionToolbar.js";
 import { ViewChromeSlot } from "../collection/viewChrome.js";
 import {
@@ -382,10 +383,11 @@ function ReferenceSection({
 /**
  * ChildPagesSection — the page's main children as the read-only tree, ONE
  * self-gating section: the eager count reads first, the
- * section renders null while it reads 0 (the hide-when-empty ruling), else the lazy <Section> mounts — the ExtendedBySection
- * pattern. The header carries the create affordance ("Add child page" —
- * the create lands IN THE PAGES ZONE, embedded feeds render read-only with
- * no action). The tree opens on the Name A–Z sort.
+ * skin's hide-when-empty gate renders null while it reads 0, else the lazy
+ * read mounts — the ExtendedBySection pattern. The header carries the
+ * create affordance ("Add child page" — the create lands IN THE PAGES ZONE,
+ * embedded feeds render read-only with no action). The tree opens on the
+ * Name A–Z sort. Composes through the CollectionSection skin.
  */
 export function ChildPagesSection({
   client,
@@ -405,17 +407,16 @@ export function ChildPagesSection({
   embedded?: boolean | undefined;
   sectionsStartCollapsed?: boolean | undefined;
 }) {
-  const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
   const childPageCount = client.getChildPageCount(pageId);
-  if (childPageCount === 0) return null;
   return (
-    <Section
-      key={`child-${pageId}`}
+    <CollectionSection
       client={client}
       title="Child pages"
       icon={<Icon path="mdi-file-tree-outline" size={0.9} />}
-      badge={childPageCount}
+      count={childPageCount}
+      hideWhenEmpty
       defaultCollapsed={sectionsStartCollapsed}
+      className="nt-section"
       action={
         embedded
           ? undefined
@@ -426,25 +427,18 @@ export function ChildPagesSection({
                 void client.createObject({ parentId: pageId, isEmbedded: false }),
             }
       }
-      load={loadChildPages}
       emptyText="No child pages."
-      renderResults={(pages) => (
-        // The reusable outline view over the read-only child-page tree
-        // (rows open the page via the row click, per the outline view's
-        // read-only tree path).
-        <NodeCollection
-          viewMode="outline"
-          client={client}
-          items={pages.map((child) => pageTreeOf(client, child))}
-          tree
-          readOnly
-          hideBacklinkCount
-          showBreadcrumbs={false}
-          collapse
-          defaultSortMode="alphabetical"
-          onNodeClick={(id) => onOpenPage?.(id)}
-        />
-      )}
+      viewMode="outline"
+      read={() => client.getChildPages(pageId).map((child) => pageTreeOf(client, child))}
+      collection={{
+        tree: true,
+        readOnly: true,
+        hideBacklinkCount: true,
+        showBreadcrumbs: false,
+        collapse: true,
+        defaultSortMode: "alphabetical",
+        onNodeClick: (id) => onOpenPage?.(id),
+      }}
     />
   );
 }

@@ -8,14 +8,16 @@
  * empty; expanded by default (identity info, usually short). The tree
  * opens on the Name A–Z sort, every sibling level; the
  * sort button in the section switches it back to the Default order.
+ * Composes through the CollectionSection skin (the conversion slice): the
+ * eager count gates AND names the header badge, the tree rides the skin's
+ * lazy read.
  */
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { Section } from "../../ui/Section.js";
-import { NodeCollection } from "../collection/index.js";
+import { CollectionSection } from "../collection/CollectionSection.js";
 import type { NodeCollectionItem } from "../collection/index.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -53,32 +55,30 @@ export function ExtendedBySection({
   // [client, classId] memo cached the FIRST sync-window read forever — the
   // gate re-read 34 on the parent's notification while the rows stayed the
   // mount-time [] ("No subclasses" under a gate of 34, owner-caught 2026-10-12).
+  // The skin re-renders per client notification (the hook's version) and
+  // re-runs the read while expanded, so both halves keep the contract.
   const items = buildTree(client, classId);
 
-  if (children.length === 0) return null;
-
   return (
-    <Section
+    <CollectionSection
       client={client}
       title="Extended by"
       icon={<Icon path="mdi-file-tree" size={0.9} />}
-      badge={children.length}
+      count={children.length}
+      hideWhenEmpty
       defaultCollapsed={sectionsStartCollapsed}
-      load={() => items}
+      className="nt-section"
       emptyText="No subclasses."
-      renderResults={() => (
-        <NodeCollection
-          viewMode="outline"
-          client={client}
-          items={items}
-          tree
-          readOnly
-          hideBacklinkCount
-          showBreadcrumbs={false}
-          defaultSortMode="alphabetical"
-          onNodeClick={(id) => onOpenClass?.(id)}
-        />
-      )}
+      viewMode="outline"
+      read={() => items}
+      collection={{
+        tree: true,
+        readOnly: true,
+        hideBacklinkCount: true,
+        showBreadcrumbs: false,
+        defaultSortMode: "alphabetical",
+        onNodeClick: (id) => onOpenClass?.(id),
+      }}
     />
   );
 }

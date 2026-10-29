@@ -21,7 +21,7 @@ import { Icon } from "../../ui/Icon.js";
 import { Modal } from "../../components/ui/kit/Modal.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
-import { NodeCollection } from "../collection/index.js";
+import { CollectionSection } from "../collection/CollectionSection.js";
 import type { TableColumn } from "../collection/index.js";
 import { titleOf } from "../../ui/dateDisplay.js";
 import { PropertyConvertModal } from "./PropertyConvertModal.js";
@@ -184,27 +184,25 @@ export function PropertyView({
           )}
         </NodeViewSection>
 
-        <NodeViewSection
+        <CollectionSection
+          client={client}
           title="References"
           icon={<Icon path="mdi-link-variant" size={0.9} />}
           count={references.length}
-          defaultExpanded
-        >
-          <NodeCollection
-            viewMode="table"
-            client={client}
-            items={references.map((node) => ({ node }))}
-            tableColumns={referenceColumns}
-            defaultSort={{ key: "edited", direction: "desc" }}
-            propertiesOf={(nodeId) =>
-              client.getEffectiveProperties(nodeId).filter((p) => p.propertySchemaId === propertySchemaId)
-            }
-            readOnly
-            onNodeClick={(id) => onOpenPage?.(id)}
-            emptyTitle="No references yet"
-            emptyHint="Nodes carrying an authored value for this property will list here."
-          />
-        </NodeViewSection>
+          defaultCollapsed={false}
+          viewMode="table"
+          read={() => references.map((node) => ({ node }))}
+          collection={{
+            tableColumns: referenceColumns,
+            defaultSort: { key: "edited", direction: "desc" },
+            propertiesOf: (nodeId) =>
+              client.getEffectiveProperties(nodeId).filter((p) => p.propertySchemaId === propertySchemaId),
+            readOnly: true,
+            onNodeClick: (id) => onOpenPage?.(id),
+            emptyTitle: "No references yet",
+            emptyHint: "Nodes carrying an authored value for this property will list here.",
+          }}
+        />
 
         <div className="nt-property-view__actions">
           {/* The base-definition surfaces: Edit opens

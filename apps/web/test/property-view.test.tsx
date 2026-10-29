@@ -98,8 +98,9 @@ describe("PropertyView", () => {
     expect(boundSection.textContent).toContain("Shelf");
 
     // References: exactly the two carriers — Gamma (bound but unvalued)
-    // never lists.
+    // never lists. The section composes through the CollectionSection skin.
     const refsSection = screen.getByRole("button", { name: /^References/ }).closest(".node-view-section")!;
+    expect(refsSection!.classList.contains("nt-collection-section")).toBe(true);
     const table = within(refsSection as HTMLElement);
     expect(table.getByText("Alpha")).not.toBeNull();
     expect(table.getByText("Beta")).not.toBeNull();
