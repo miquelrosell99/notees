@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-30
 
+- **fix(web): the anchored picker's search pill keeps its side padding —
+  the flush lens retires.** The `@`/`#`/`+` picker's search bar zeroed the
+  sm SearchField's left padding (a ui-primitives pin that rode the panel
+  margin as the horizontal padding), leaving the magnify icon sitting on
+  the pill border. The override is deleted: the sm register's own
+  spacing-2 applies inside anchored panels too, and the ui-primitives
+  catalog sentence comes along (the panel margin is the outer air, never
+  the icon's breathing room; the command palette's md field is the
+  pattern). Every search bar in the app already composes the one kit
+  `SearchField` — the divergence was this single CSS override, not
+  separate components. The `@` focus contract gets its regression pin
+  too: typing the sigil at a word boundary opens the picker and moves
+  the focus to its search bar (verified live against the running build —
+  the mechanism was sound; the jsdom spec pins it). Tests: the outliner
+  editor's mention-focus spec.
+
 - **fix(web): the read-cache refresh goes delta — a structural gesture
   re-serves only what changed, not ~240MB.** Measured on the full-scale
   disposable workspace (59k nodes / 307k envelopes, browser probe on the

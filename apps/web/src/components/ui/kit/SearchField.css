@@ -12,8 +12,9 @@
   /* The 3-column anatomy: leading icon lane | the input
      | trailing clear lane. The middle column is minmax(0, 1fr) so the input
      shrinks before the pill does; the lanes' insets ride the wrapper's
-     horizontal padding (or the anchored picker's zeroed padding + panel
-     margin — the lens then rides the same rail as the result-row icons). */
+     horizontal padding (anchored picker panels included — the panel margin
+     is the outer air there, never a substitute for the icon lane's
+     padding). */
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;

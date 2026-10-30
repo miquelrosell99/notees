@@ -60,17 +60,13 @@
 
 /* The picker's search input composes the kit SearchField (the shared
    rounded bar with icon + clear affordance); the class rides on the
-   wrapper. Spacing only — the field's own look stays kit-standard. */
+   wrapper. Spacing only — the field's own look stays kit-standard: the sm
+   pill keeps its own inline padding inside anchored panels too (the panel
+   margin is the outer air, NOT the icon's breathing room — zeroing the
+   padding put the lens flush on the pill border; the palette's md field is
+   the reference for icon side-padding). */
 .node-selector__search-field {
   margin: var(--spacing-2);
-}
-
-/* The sm pill rides the picker row grid, not the roomier md padding: the
-   anchored picker already gives the field its panel margin, so the sm
-   variant's own inline padding would double-indent the placeholder
-   relative to the result-row labels (the ui-primitives pin). */
-.node-selector__picker .node-selector__search-field.search-field--sm {
-  padding-left: 0;
 }
 
 .node-selector--readonly {
