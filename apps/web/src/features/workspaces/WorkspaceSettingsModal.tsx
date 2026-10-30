@@ -34,6 +34,7 @@ import { cssColorFor } from "../../components/ui/kit/colorPresets.js";
 import { renameWorkspace } from "./workspaceApi.js";
 import { PluginsSettingsTab } from "../settings/PluginsSettingsTab.js";
 import { SourcesSettingsSection } from "../settings/SourcesSettingsSection.js";
+import { WorkflowsSettingsSection } from "../workflows/WorkflowsSettingsSection.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
 
 import "../settings/settingsModal.css";
@@ -109,7 +110,7 @@ export interface WorkspaceSettingsModalProps {
   /** Called after a successful rename so the shell can update its label. */
   onRenamed?: ((name: string) => void) | undefined;
   /** The tab the modal opens on (the account popup's admin entry lands on plugins). */
-  initialTab?: "general" | "features" | "plugins" | "shortcuts" | undefined;
+  initialTab?: "general" | "features" | "workflows" | "plugins" | "shortcuts" | undefined;
   /**
    * The active workspace's client — powers the Features tab's live family
    * toggles. Only sections whose workspaceId matches the client's are
@@ -134,7 +135,7 @@ export function WorkspaceSettingsModal({
   client,
   onAddSource = undefined,
 }: WorkspaceSettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<"general" | "features" | "plugins" | "shortcuts">(initialTab);
+  const [activeTab, setActiveTab] = useState<"general" | "features" | "workflows" | "plugins" | "shortcuts">(initialTab);
   const [dateFormat, setDateFormat] = useDeviceSetting<DateFormat>("dateFormat", "YYYY-MM-DD");
   const [showJournals, setShowJournals] = useDeviceSetting("sidebarShowJournals", true);
   const [showInbox, setShowInbox] = useDeviceSetting("sidebarShowInbox", true);
@@ -212,6 +213,7 @@ export function WorkspaceSettingsModal({
   const tabs = [
     { id: "general" as const, label: "General" },
     { id: "features" as const, label: "Features" },
+    { id: "workflows" as const, label: "Workflows" },
     { id: "plugins" as const, label: "Plugins" },
     { id: "shortcuts" as const, label: "Shortcuts" },
   ];
@@ -370,6 +372,19 @@ export function WorkspaceSettingsModal({
 
           {activeTab === "plugins" && (
             <PluginsSettingsTab serverUrl={serverUrl} credential={credential} />
+          )}
+
+          {activeTab === "workflows" && (
+            <div className="settings-section">
+              <h3 className="settings-section__title">Workflows</h3>
+              {clientMatches ? (
+                <WorkflowsSettingsSection client={client!} />
+              ) : (
+                <p className="settings-item__description">
+                  Open this workspace to see its workflows.
+                </p>
+              )}
+            </div>
           )}
 
           {activeTab === "shortcuts" && (

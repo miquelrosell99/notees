@@ -27,6 +27,7 @@ import { AppError, errorBody, type ErrorCode } from "./errors.js";
 import { registerAssetRoutes } from "./assets.js";
 import { registerIdempotencyHooks } from "./idempotency.js";
 import { registerAuthRoutes, resolvePrincipal } from "./routes-auth.js";
+import { registerFeatureRoutes } from "./routes-features.js";
 import { registerMetaRoutes } from "./routes-meta.js";
 import { registerObjectRoutes } from "./routes-objects.js";
 import { registerPluginRoutes, requireAdmin } from "./routes-plugins.js";
@@ -203,6 +204,7 @@ export async function buildServer(
       // mutation still requires the caller's credentials and scope.
       registerIdempotencyHooks(api, ctx);
       registerObjectRoutes(api, ctx);
+      registerFeatureRoutes(api, ctx);
       registerAssetRoutes(api, ctx);
     },
     { prefix: "/api" },

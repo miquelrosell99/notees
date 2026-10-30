@@ -297,13 +297,15 @@ describe("planWorkflowToggle — enable ordering (anchor → classes → schemas
 
   it("templates: writing-plan root (classed template + Research tag), body blocks depth-first, graft values, has-template value", () => {
     const tail = plan.slice(26);
-    // Root create.
+    // Root create — classed `template` AND the bound class: the graft values
+    // below are scoped to that class and scope eligibility is write-time
+    // fail-loud, so the template must carry it.
     expect(tail[0]).toEqual({
       opType: "object.create",
       payload: {
         objectId: derived("template", "writingPlan"),
         parentId: null,
-        classIds: [SYSTEM_CLASS_UUIDS.template],
+        classIds: [SYSTEM_CLASS_UUIDS.template, SYSTEM_CLASS_UUIDS.plan],
         tagIds: [derived("tag", "research")],
         contentAst: [{ type: "text", text: "Writing plan — {{name}}" }],
       },
@@ -353,7 +355,7 @@ describe("planWorkflowToggle — enable ordering (anchor → classes → schemas
       payload: {
         objectId: derived("template", "comparison"),
         parentId: null,
-        classIds: [SYSTEM_CLASS_UUIDS.template],
+        classIds: [SYSTEM_CLASS_UUIDS.template, derived("class", "comparison")],
         contentAst: [{ type: "text", text: "Comparison" }],
       },
     });

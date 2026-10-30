@@ -114,7 +114,9 @@ export interface WorkflowTemplateSpec {
   /** The template node's title text (may carry {{name}} — titles are text). */
   title: string;
   /** The class node receiving the has-template value (system `plan`, the
-   *  workflow's `comparison`). */
+   *  workflow's `comparison`). The template root ALSO carries this class:
+   *  the graft values are scoped to it and scope eligibility is write-time
+   *  fail-loud — an unclassed template could never carry them. */
   bindTo: "plan" | "comparison";
   /** Author the Research tag on the template (instances land tagged per the
    *  clone engine's tag re-issue). */
@@ -501,7 +503,12 @@ function planEnable(wfId: WorkflowId, spec: WorkflowSpec): WorkflowOpStep[] {
       payload: {
         objectId: templateId,
         parentId: null,
-        classIds: [SYSTEM_CLASS_UUIDS.template],
+        // The template ALSO carries its bound class: the graft values below
+        // are scoped to that class, and scope eligibility is write-time
+        // fail-loud (property.set rejects a node whose class closure misses
+        // the schema's scopeClassIds) — an unclassed template could never
+        // carry them. The writing-plan template IS a plan.
+        classIds: [SYSTEM_CLASS_UUIDS.template, classIdOf(wfId, template.bindTo)],
         ...(template.tagAnchor === true ? { tagIds: [anchorId] } : {}),
         contentAst: textAst(template.title),
       },

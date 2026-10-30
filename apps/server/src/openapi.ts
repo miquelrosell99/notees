@@ -688,6 +688,13 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     query: { idx: { description: "slot index (default 0)", type: "integer" } },
     errors: ["validation_failed", "not_found"],
   }],
+  ["get", "/api/features", {
+    summary: "Workspace feature-toggle rows (the workspace_feature projection)",
+    description:
+      "The read half of the workspace.feature.set surface — one row per toggled feature ({feature, enabled, settings}; settings is NULL when the winning payload carried none). F2 semantics: an ABSENT row means ENABLED (the empty table is the pre-toggle state), so untoggled features do not appear — callers default them to on (the CLI's `feature list`).",
+    tags: ["Objects"],
+    requiredScope: "objects.read",
+  }],
 
   // --- search & query -------------------------------------------------------------------
   ["get", "/api/search", {
@@ -1193,7 +1200,7 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
         "collections.write",
       ],
       mapping: {
-        "objects.read": "GET /api/objects*, /api/classes*, /api/property-schemas*, /api/properties/:id/values, /api/objects/:id/backlinks|effective-properties|children, GET /api/operations",
+        "objects.read": "GET /api/objects*, /api/classes*, /api/property-schemas*, /api/properties/:id/values, /api/objects/:id/backlinks|effective-properties|children, GET /api/features, GET /api/operations",
         "objects.write": "POST/PATCH /api/objects, class assign/unassign, property set/unset, restore, POST/PATCH/DELETE /api/property-schemas, class property bind/unbind",
         "objects.delete": "DELETE /api/objects/:id",
         "assets.read": "GET /api/assets/*",

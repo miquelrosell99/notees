@@ -200,7 +200,7 @@ const queryBodySchema = z
   })
   .strict();
 
-function workspaceFor(ctx: ServerContext, request: FastifyRequest): string {
+export function workspaceFor(ctx: ServerContext, request: FastifyRequest): string {
   const header = request.headers["x-workspace-id"];
   if (typeof header === "string" && z.string().uuid().safeParse(header).success) {
     return header;
