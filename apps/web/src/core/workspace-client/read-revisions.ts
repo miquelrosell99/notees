@@ -233,6 +233,7 @@ export class ReadRevisions {
       case "getReferenceCount":
       case "getUnlinkedReferences":
       case "getUnlinkedReferenceCount":
+      case "getForwardPaths":
       case "aliasNodesOf":
       case "resolveAlias":
       case "resolveNodeByName":
