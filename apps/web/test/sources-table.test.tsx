@@ -291,7 +291,7 @@ describe("SourcesTable — the items table", () => {
     const base = rowOrder();
     first.unmount();
 
-    renderHub(client, { type: null, q: "", sort: { field: "year", direction: "asc" } });
+    renderHub(client, { type: null, q: "", sort: { field: "year", direction: "asc" }, mode: "library", ids: [] });
     await rowsReady();
     await waitFor(() => {
       expect(rowOrder()).toEqual(stableSorted(base, (id) => p.year[id] ?? null, "asc"));
@@ -308,7 +308,7 @@ describe("SourcesTable — the items table", () => {
     const base = rowOrder();
 
     const rerenderWith = (sort: SourcesQueryState["sort"]) =>
-      rerender(<SourcesHub client={client} query={{ type: null, q: "", sort }} />);
+      rerender(<SourcesHub client={client} query={{ type: null, q: "", sort, mode: "library", ids: [] }} />);
 
     rerenderWith({ field: "year", direction: "asc" });
     await waitFor(() =>
@@ -347,7 +347,7 @@ describe("SourcesTable — the items table", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Year" }));
     expect(onQueryChange).toHaveBeenCalledWith(
-      { type: null, q: "", sort: { field: "year", direction: "asc" } },
+      { type: null, q: "", sort: { field: "year", direction: "asc" }, mode: "library", ids: [] },
       "push",
     );
 
@@ -356,13 +356,13 @@ describe("SourcesTable — the items table", () => {
     rerender(
       <SourcesHub
         client={client}
-        query={{ type: null, q: "", sort: { field: "year", direction: "asc" } }}
+        query={{ type: null, q: "", sort: { field: "year", direction: "asc" }, mode: "library", ids: [] }}
         onQueryChange={onQueryChange}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Year" }));
     expect(onQueryChange).toHaveBeenCalledWith(
-      { type: null, q: "", sort: { field: "year", direction: "desc" } },
+      { type: null, q: "", sort: { field: "year", direction: "desc" }, mode: "library", ids: [] },
       "push",
     );
 
@@ -370,13 +370,13 @@ describe("SourcesTable — the items table", () => {
     rerender(
       <SourcesHub
         client={client}
-        query={{ type: null, q: "", sort: { field: "year", direction: "desc" } }}
+        query={{ type: null, q: "", sort: { field: "year", direction: "desc" }, mode: "library", ids: [] }}
         onQueryChange={onQueryChange}
       />,
     );
     // The third click clears the sort back to null.
     fireEvent.click(screen.getByRole("button", { name: "Year" }));
-    expect(onQueryChange).toHaveBeenCalledWith({ type: null, q: "", sort: null }, "push");
+    expect(onQueryChange).toHaveBeenCalledWith({ type: null, q: "", sort: null, mode: "library", ids: [] }, "push");
   });
 
   it("the search box filters live (title/authors/citekey) and replaces the URL, debounced", async () => {
@@ -393,7 +393,7 @@ describe("SourcesTable — the items table", () => {
     });
     // The URL follows, debounced, with replace semantics.
     await waitFor(() => {
-      expect(onQueryChange).toHaveBeenCalledWith({ type: null, q: "turing", sort: null }, "replace");
+      expect(onQueryChange).toHaveBeenCalledWith({ type: null, q: "turing", sort: null, mode: "library", ids: [] }, "replace");
     });
     // The count badge follows the narrow (a badge, not the retired text).
     await waitFor(() => {
@@ -414,7 +414,7 @@ describe("SourcesTable — the items table", () => {
 
   it("filters excluding everything render the honest No-sources-match state", async () => {
     const { client } = await seedClient();
-    renderHub(client, { type: null, q: "zzzz-no-match", sort: null });
+    renderHub(client, { type: null, q: "zzzz-no-match", sort: null, mode: "library", ids: [] });
     await waitFor(() => {
       expect(screen.getByText("No sources match")).not.toBeNull();
     });

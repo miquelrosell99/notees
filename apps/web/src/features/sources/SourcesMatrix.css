@@ -1,0 +1,113 @@
+/**
+ * SourcesMatrix styles — the Literature Matrix mode (the middle cell's
+ * comparison grid). Token-only (variables.css); the grid scrolls inside
+ * the hub cell (the nt-sources-hub__table shared register), the title
+ * column is sticky at the scroll edge, the field picks ride the shared
+ * checkbox chip idiom.
+ */
+
+.nt-sources-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  overflow: hidden;
+}
+
+.nt-sources-matrix__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+}
+
+.nt-sources-matrix__offer {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.nt-sources-matrix__offer-text {
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-sources-matrix__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2) var(--spacing-3);
+}
+
+.nt-sources-matrix__field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+}
+
+.nt-sources-matrix__hint {
+  margin: 0;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-sources-matrix__scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.nt-sources-matrix__grid {
+  border-collapse: collapse;
+  width: 100%;
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-sources-matrix__grid th,
+.nt-sources-matrix__grid td {
+  text-align: start;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  vertical-align: baseline;
+  max-width: 32ch;
+  min-width: 12ch;
+}
+
+.nt-sources-matrix__grid thead th {
+  border-top: 0;
+  font: var(--font-title-small);
+  position: sticky;
+  top: 0;
+  background: var(--md-sys-color-surface);
+  z-index: 1;
+}
+
+.nt-sources-matrix__title-col {
+  position: sticky;
+  inset-inline-start: 0;
+  background: var(--md-sys-color-surface);
+  min-width: 18ch;
+  max-width: 24ch;
+}
+
+.nt-sources-matrix__grid thead .nt-sources-matrix__title-col {
+  z-index: 2;
+}
+
+.nt-sources-matrix__row-title {
+  display: inline-block;
+  max-width: calc(100% - var(--spacing-6));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.nt-sources-matrix__grid td {
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: pre-wrap;
+}

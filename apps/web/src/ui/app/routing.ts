@@ -330,6 +330,8 @@ export function tabTitle(opts: {
   calendarTitle?: string | null;
   /** The cards-review subroute is showing (law 9 — "Review - Notees"). */
   cardsReview?: boolean | undefined;
+  /** The Sources hub's matrix mode is showing (law 9 — "Matrix - Notees"). */
+  sourcesMatrix?: boolean | undefined;
 }): string {
   if (opts.settingsSection !== null) {
     const label =
@@ -342,6 +344,7 @@ export function tabTitle(opts: {
   }
   if (opts.searchOpen) return "Search - Notees";
   if (opts.cardsReview === true) return "Review - Notees";
+  if (opts.sourcesMatrix === true) return "Matrix - Notees";
   if (opts.activeNav === "calendar" && opts.calendarTitle) return opts.calendarTitle;
   const entry = NAV_ENTRIES.find((item) => item.key === opts.activeNav);
   return entry !== undefined ? `${entry.label} - Notees` : "Notees";

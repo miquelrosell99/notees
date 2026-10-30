@@ -195,7 +195,7 @@ describe("SourcesFacets — the type facet list", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Book · 1" }));
     expect(onQueryChange).toHaveBeenCalledWith(
-      { type: "book", q: "", sort: null },
+      { type: "book", q: "", sort: null, mode: "library", ids: [] },
       "push",
     );
 
@@ -205,17 +205,17 @@ describe("SourcesFacets — the type facet list", () => {
     rerender(
       <SourcesHub
         client={client}
-        query={{ type: "book", q: "", sort: null }}
+        query={{ type: "book", q: "", sort: null, mode: "library", ids: [] }}
         onQueryChange={onQueryChange}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Book · 1" }));
-    expect(onQueryChange).toHaveBeenCalledWith({ type: null, q: "", sort: null }, "push");
+    expect(onQueryChange).toHaveBeenCalledWith({ type: null, q: "", sort: null, mode: "library", ids: [] }, "push");
   });
 
   it("the picked type renders pressed (the URL state mirrored back)", async () => {
     const client = await seedClient();
-    renderHub(client, { type: "journal_article", q: "", sort: null });
+    renderHub(client, { type: "journal_article", q: "", sort: null, mode: "library", ids: [] });
 
     expect(screen.getByRole("button", { name: "Journal article · 2" })).toHaveAttribute(
       "aria-pressed",

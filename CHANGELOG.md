@@ -373,6 +373,47 @@ predating this file.
   (blank-line drop, two-level and four-space-step nesting with the caret
   landing in the last nested block, one-undo-restores-everything with the
   "Undo paste" label).
+- **feat(web): the Literature Matrix — a comparison mode in the Sources hub
+  (research-tier2 slice 6).** A mode switch on the Sources hub turns the
+  middle cell into a comparison grid: picked sources × picked fields. Rows
+  are added by repeated single-picks through the shared NodeSelector
+  (scoped `class:source` — its single-pick contract is kept; one pick, one
+  row, a remove button per row); the picked set rides the hub's URL state —
+  `/sources?mode=matrix&ids=<uuid>,<uuid>,…` — parse/serialize through the
+  sourcesQuery idiom, uuid-filtered and deduped, normalized away outside
+  the matrix mode, so a deep link re-opens the same picked set after reload
+  and Back undoes a pick (law 9: the mode owns its URL AND its tab title —
+  "Matrix - Notees"). Columns are picked from the matrix field pool: the
+  LIVE registry bindings on the source base + every roster type (the
+  workflow's source definition fields appear the moment the research
+  workflow is enabled) UNION any schema with an authored row on a picked
+  source (the rationale arm), alphabetical by live schema name; cells ride
+  the shared propertyDisplayText projection (select ids → option labels,
+  node refs → display names, multi rows joined "; "). **New comparison**
+  authors a `comparison`-classed node (the workflow class) embedding the
+  picked sources — one `embed_ref` child per source, the D3 shape: the
+  evidence lives beside the claim and renders live — titled from the
+  matrix ("Comparison — A vs B (+N more)"), and opens it; the annotation
+  surface is the node itself. With the workflow NOT enabled the view says
+  so and offers the one-click enable (the materializer runs, then the
+  comparison authors) — it never silently authors an unclassed page. CSV
+  export over the picked rows reuses the table view's machinery
+  (`@notees/export`'s renderCsv — RFC-4180 quoting + UTF-8 BOM) with a
+  leading Title column. Data layer: sourcesQuery.ts (`mode`/`ids` grammar,
+  `matrixFields`/`matrixRows`/`matrixCsv`/`comparisonTitleFor`) +
+  comparison.ts (`createComparison`); view: SourcesMatrix.tsx (kit chrome
+  only, token-only CSS). The mode hides the detail pane like Duplicates
+  does; without the URL seam (unit-test shell) the mode toggle falls back
+  to local session state. Tests: apps/web/test/sources-matrix.test.tsx —
+  24 (grammar round trip incl. the deep-link re-parse, field pool three
+  ways, row projection, CSV quoting + BOM, the title register, the
+  comparison author incl. the embed set, the mode view incl. the
+  not-installed offer, the tab-title branch); sources-hub.test.tsx updated
+  for the two new query-state fields. Docs: docs/workflows/
+  research-workflow.md (step 5 + the export table row) and
+  docs/features/sources.md (the hub-mode paragraph beside Duplicates). Zero
+  protocol/wire surface; GTK/Flutter untouched (web chrome).
+
 - **feat(web,store): the "Forward path" page section — the first non-query
   system section (research-tier2 slice 5).** A page-level section showing
   where an idea went next: a derived, directed, cycle-safe walk over the

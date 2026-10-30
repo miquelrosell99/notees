@@ -185,7 +185,7 @@ function renderAppBody(client: WorkspaceClient, initialQuery: SourcesQueryState)
 describe("AppBody — the Sources hub branch (review finding 2)", () => {
   it("renders the hub with the App-owned query state and forwards the URL seam", async () => {
     const client = await seedClient();
-    const { bag } = renderAppBody(client, { type: null, q: "smith", sort: null });
+    const { bag } = renderAppBody(client, { type: null, q: "smith", sort: null, mode: "library", ids: [] });
 
     // The hub composes: top bar, facets pane, the table region.
     expect(screen.getByRole("heading", { name: "Sources" })).not.toBeNull();
@@ -206,7 +206,7 @@ describe("AppBody — the Sources hub branch (review finding 2)", () => {
       expect(bag.calls.length).toBeGreaterThan(0);
     });
     expect(bag.calls[0]).toEqual({
-      next: { type: null, q: "smithsonian", sort: null },
+      next: { type: null, q: "smithsonian", sort: null, mode: "library", ids: [] },
       mode: "replace",
     });
   });
@@ -215,7 +215,7 @@ describe("AppBody — the Sources hub branch (review finding 2)", () => {
 describe("AppBody — the hub-switch reset (review finding 1)", () => {
   it("switching hubs resets the sources query to the default (replace), beside the calendar reset", async () => {
     const client = await seedClient();
-    const { bag } = renderAppBody(client, { type: null, q: "smith", sort: null });
+    const { bag } = renderAppBody(client, { type: null, q: "smith", sort: null, mode: "library", ids: [] });
     await waitFor(() => {
       expect(screen.getByLabelText("Search sources")).toHaveValue("smith");
     });

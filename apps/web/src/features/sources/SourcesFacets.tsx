@@ -61,8 +61,15 @@ export function SourcesFacets({
   const activeType = query?.type ?? null;
 
   const pick = (classKey: string): void => {
-    // Toggling the active type clears the filter (back to every type).
-    onQueryChange?.({ type: activeType === classKey ? null : classKey, q: query?.q ?? "", sort: query?.sort ?? null }, "push");
+    // Toggling the active type clears the filter (back to every type). The
+    // mode/picked set ride through untouched (the matrix's own state).
+    onQueryChange?.({
+      type: activeType === classKey ? null : classKey,
+      q: query?.q ?? "",
+      sort: query?.sort ?? null,
+      mode: query?.mode ?? "library",
+      ids: query?.ids ?? [],
+    }, "push");
   };
 
   const enable = (classKey: string): void => {
