@@ -292,7 +292,9 @@ Both are derived (the applier recomputes them; wipe → replay → identical), n
 
 ## System sections
 
-Predefined page sections are **named system queries** over the QueryAST runtime (the `autoFixSystemQuery` pattern), not bespoke UI: **linked references, unlinked references, child pages, classed nodes, extended-by** ship with fixtures like any op type, and the section registry is plugin-extensible (with the plugin runtime). Owed: the system-query registry, section fixtures, and the per-section projection rules above wired in.
+Predefined page sections ride the section registry — one `{ key, render }` entry per section, a variant's stack a key list composed through `sectionEntries` (placement is data; the date-page ruling that omits unlinked mentions is a plain key filter). Most sections resolve through system queries over the QueryAST runtime; **Forward path** is the first NON-query section — a custom derived read (`forwardPaths` in `@notees/store`: a directed, cycle-safe walk over the node's consumer edges — embed/mention/typed-link, depth cap 3) whose component owns the lazy contract. Owed: section fixtures and the per-section projection rules above wired in.
+
+**Forward path (the custom-read precedent).** One path per reachable chain over the node's *consumer* edges — where the idea went next (embedded-in → synthesis → plan), traversed target→source against the edge table's mention-authorship direction: a hop leads to a node whose content carries the current one as an `embed_ref`, a mention (edge `is_embedded = 1` reads as an embed hop), or a typed-link mark whose FIRST `candidateSpan` is the current node (the row carries the verb; non-first candidates never hop). Alias-terminal mentions roll up (`resolved_target_id`). The walk is depth-capped, cycle-safe (visited set per branch), live consumers only, and reads empty for an isolated node. It carries no eager count — the walk IS the expensive read — so the section renders collapsed and executes nothing until the first expand (the lazy-loading contract below).
 
 Section specs and the lazy-loading contract:
 
