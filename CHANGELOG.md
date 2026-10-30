@@ -9,6 +9,26 @@ predating this file.
 
 ## 2026-10-30
 
+- **docs(developers): gate economics + host memory discipline — the two-tier
+  gate is written law.** The 2026-10-30 tier-2 landing burned two OOMs to two
+  concurrent full gates on the 15Gi host, and full suites were being run as a
+  per-edit loop. The development skill's gate section and the canonical
+  runbook now state the two-tier rule: the **scoped gate** (typecheck the
+  changed packages + the covering test files, red-green riding those) is the
+  per-task loop; the **full gate** (`pnpm install && pnpm typecheck &&
+  pnpm test` from the root) is blocking at exactly three moments — pre-landing,
+  after a rebase onto a moved main, and when the change touches
+  protocol/store/query or a cross-package public API. The same pass records
+  the host discipline: one suite at a time (never parallel full gates),
+  sequential dispatches whose gates overlap, worker caps under pressure
+  (`--maxWorkers=2` / `-n 2`), and the load-symptom rule — a red that vanishes
+  on an unloaded re-run is memory-pressure timing, not a verdict; root-cause
+  before retrying (the block-dnd lesson).
+  - **Files**: `docs/developers/development.md` (new "Gate economics"
+    section), `.agents/skills/notees-development/SKILL.md` (the gate section
+    rewrites to the two tiers), `.agents/skills/notees-development/references/development-workflow.md`
+    (condensed mirror). Verified: docs-only slice — no code/test surface.
+
 - **fix(web,store,server): reviewed-minors batch — the block-dnd load-flake
   root-caused, plus eight small fixes and their pins.** Nine items, one pass:
 
