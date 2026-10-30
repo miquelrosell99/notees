@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-10-30
 
+- **feat(web): command palette home — Recently created → Recently linked →
+  Random → Commands, and node rows carry their effective icon.** The
+  empty-query home replaces the device-local Recent (MRU) section with two
+  recency sections: *Recently created* (the five newest document-chrome
+  nodes by `createdAt`) and *Recently linked* (the five nodes with the most
+  recent incoming mention, via a new `recentLinkTargets` recency read:
+  distinct `edge.resolved_target_id` targets ordered by
+  `MAX(edge.created_at)` — plumb through store → `WorkspaceClient` reads →
+  worker `multiRead` → `WorkerClient`, cache class `"change"`). Rows push
+  directly, not through the fuzzy pass — `addFuzzy`'s label re-sort would
+  destroy the recency orderings. Both sections hide when empty; the
+  cross-group id dedupe still keeps a node out of the second section when
+  the first claimed it. *Random* stays (third), and its rows are fixed to
+  actually render: the pick was snapshotted in the open effect, where the
+  `WorkerClient`'s per-id read cache answers `undefined` for cold ids — so
+  every row dropped and the section stayed empty for the whole open (jsdom
+  tests passed because the in-process client answers immediately). The pick
+  is now ids-only state; the display rows derive in a cache-versioned memo
+  and converge when the worker cache warms. Icons: every node row (home
+  sections, Pages, Classes, Content) derives through the existing
+  `effectiveNodeIcon` read (own icon → first class-chain icon →
+  render-state default) instead of `node.icon ?? <generic>` — a page whose
+  class defines an icon now shows it. Tests: the palette suite's home
+  section specs (group order, createdAt ranking, mention-recency ranking
+  with the too-old-for-created case, honest emptiness, the class-chain
+  icon's sprite href) and the Random specs re-scoped to per-group rows.
+
 - **fix(web): multi-line paste — outline-preserving nesting, blank lines
   dropped, one write batch.** Three reported defects of the multi-line
   paste split, one root design each. (1) *Slow, one block at a time*: the
