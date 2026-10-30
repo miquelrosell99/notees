@@ -934,6 +934,28 @@ describe("outliner editor", () => {
     expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId });
   });
 
+  it("typing @ opens the node picker and moves the focus to its search bar", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Mention Me" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    // Emulate the real keystroke: the browser inserts the sigil AND moves
+    // the caret past it before the input event lands.
+    editor.textContent = "hello @";
+    setProseCaret(editor, 7);
+    fireEvent.input(editor);
+    // The mention picker opens with its own search input; typing must land
+    // THERE, not stay in the block (the reported defect: the writing focus
+    // never shifted).
+    const search = await screen.findByPlaceholderText("Search pages and blocks…");
+    expect(document.activeElement).toBe(search);
+  });
+
   it("editing the page title commits the content on Enter and on blur", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Old Name" });
