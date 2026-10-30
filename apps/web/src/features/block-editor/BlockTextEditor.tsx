@@ -43,8 +43,10 @@
  *   caretRangeFromPoint → prose offset → token span) opens the
  *   NodeLinkContextMenu: Open / Open in sidebar navigate; Edit link… opens
  *   the page-level LinkEditModal (retarget + optional custom label);
- *   Remove link replaces the mention with its visible text (the custom
- *   label when set); Delete link drops the token wholesale.
+ *   Unlink replaces the link with its visible text (a class chip keeps the
+ *   membership — the pill reappears); a class chip's Remove unassigns the
+ *   class AND dissolves every inline class_link to it; Delete link drops the
+ *   token wholesale.
  * - `#`  tag: the same popup over pages; picking assigns the tag to the node
  *   (first-class tag_ids OR-set add) and consumes the trigger; the create row
  *   creates + assigns the page.
@@ -232,7 +234,7 @@ import { applyTextEdit, spliceTokens } from "@/editor/edit-apply.js";
 import { mentionProse } from "@/editor/prose.js";
 import { applyMarkToRange, marksOnRange, removeMarkFromRange } from "@/editor/marks.js";
 import { withCandidateSpans } from "@/editor/capture.js";
-import { dissolveClassLinksInAst } from "../metadata/classRemoval.js";
+import { dissolveClassLinksInAst, refuseClassRemoval } from "../metadata/classRemoval.js";
 import type { ClientNode, CreateObjectInput, ClientWriteOp } from "@/core/workspace-client/index.js";
 
 import { VerbPopover } from "../../ui/VerbPopover.js";
@@ -1597,10 +1599,11 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     return client.getNode(menu.targetNodeId)?.isClass === true;
   };
 
-  /** "Remove link": replace the link with its visible text (the custom
+  /** "Unlink": replace the link with its visible text (the custom
    *  label when set, else the target's current display name — the link
-   *  stores no other text; a broken target drops the link). */
-  const removeLink = () => {
+   *  stores no other text; a broken target drops the link). A class chip
+   *  keeps the membership — the pill reappears in the classes row. */
+  const unlinkLink = () => {
     const hit = currentLinkMenuToken();
     if (hit === null) return;
     const kept = linkKeptText(hit.token, hit.kind);
@@ -1609,6 +1612,28 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       return;
     }
     applySplice(hit.menu.start, hit.menu.end, [{ type: "text", text: kept }], hit.menu.start + kept.length);
+  };
+
+  /** "Remove" (CLASS CHIPS only): unassign the class AND dissolve every
+   *  inline class_link to it into plain text — the removal-dissolution
+   *  ruling, one gesture, never a dangling reference. Computed over the
+   *  DRAFT (applyTextEdit keeps unflushed typing); the unassign rides after
+   *  the content commit — the applier refuses it while the content
+   *  references the class. Journal classes refuse with a toast. */
+  const removeClassLink = () => {
+    const hit = currentLinkMenuToken();
+    if (hit === null || hit.kind !== "chip") return;
+    const classId = typeof hit.token.classId === "string" ? hit.token.classId : "";
+    if (classId === "") return;
+    setLinkMenu(null);
+    if (refuseClassRemoval(classId)) return;
+    const base = applyTextEdit(committedRef.current, draftRef.current, resolveClassName, resolveMentionName);
+    const dissolved = dissolveClassLinksInAst(base, classId, (id) => resolveClassName(id) || id);
+    void commitAst(withCandidateSpans(dissolved.ast as ContentAst), hit.menu.start)
+      .then(() => client.unassignClass(nodeRef.current.id, classId))
+      .catch((error: unknown) => {
+        console.warn(`[link-menu] class removal (${classId}) failed:`, error);
+      });
   };
 
   /** "Delete link": drop the link token wholesale. */
@@ -2558,6 +2583,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
         <NodeLinkContextMenu
           state={linkMenu}
           client={client}
+          kind={linkMenu.kind}
           onClose={() => setLinkMenu(null)}
           onOpen={(id) => {
             setLinkMenu(null);
@@ -2579,7 +2605,8 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
           convertLabel={
             linkMenu.kind === "chip" ? "Convert to link" : "Convert to class chip"
           }
-          onRemove={removeLink}
+          onUnlink={unlinkLink}
+          onRemoveClass={linkMenu.kind === "chip" ? removeClassLink : undefined}
           onDelete={deleteLink}
         />
       )}

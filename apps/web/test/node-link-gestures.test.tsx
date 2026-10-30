@@ -7,7 +7,7 @@
  * selection with the mention, Ctrl/Cmd+Enter keeps the text as a custom
  * label (customLabel), Escape restores the selection.
  *
- * Context menu (edit mode, right-click a mention): Remove link keeps the
+ * Context menu (edit mode, right-click a mention): Unlink keeps the
  * visible text, Delete link drops the token, Edit link… opens the
  * LinkEditModal to retarget the link and set/edit an optional custom label.
  *
@@ -350,7 +350,7 @@ describe("node-link context menu", () => {
       "Open page",
       "Open in sidebar",
       "Edit link…",
-      "Remove link",
+      "Unlink",
       "Delete link",
     ]);
   });
@@ -365,23 +365,23 @@ describe("node-link context menu", () => {
     expect(linkMenu()).toBeNull();
   });
 
-  it("Remove link keeps the visible text (mention → text run)", async () => {
+  it("Unlink keeps the visible text (mention → text run)", async () => {
     const { client, pageId, blockId } = await seedLinkedBlock();
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     openMenu(container);
-    fireEvent.click(menuItem("Remove link"));
+    fireEvent.click(menuItem("Unlink"));
 
     expect(linkMenu()).toBeNull();
     expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "see Target again" }]);
   });
 
-  it("Remove link keeps a custom label when one is set", async () => {
+  it("Unlink keeps a custom label when one is set", async () => {
     const { client, pageId, blockId } = await seedLinkedBlock("the Republic");
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     openMenu(container);
-    fireEvent.click(menuItem("Remove link"));
+    fireEvent.click(menuItem("Unlink"));
 
     expect(client.getNode(blockId)?.contentAst).toEqual([
       { type: "text", text: "see the Republic again" },
@@ -510,14 +510,14 @@ describe("node-link context menu (read mode)", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((el) => el.textContent),
-    ).toEqual(["Open page", "Open in sidebar", "Edit link…", "Remove link", "Delete link"]);
+    ).toEqual(["Open page", "Open in sidebar", "Edit link…", "Unlink", "Delete link"]);
   });
 
-  it("Remove link unlinks in place (text survives)", async () => {
+  it("Unlink unlinks in place (text survives)", async () => {
     const { client, pageId, blockId } = await seededReadonly();
     const { container } = renderHosted(client, pageId);
     openReadMenu(container);
-    fireEvent.click(menuItem("Remove link"));
+    fireEvent.click(menuItem("Unlink"));
     expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "see Target again" }]);
   });
 
@@ -549,8 +549,8 @@ describe("node-link context menu (read mode)", () => {
     const items = within(menu)
       .getAllByRole("menuitem")
       .map((el) => el.textContent);
-    // Remove/Delete stay available; Edit is a node-link action only (external links navigate, they are never edited in the modal).
-    expect(items).toEqual(["Open", "Open in sidebar", "Remove link", "Delete link"]);
+    // Unlink/Delete stay available; Edit is a node-link action only (external links navigate, they are never edited in the modal).
+    expect(items).toEqual(["Open", "Open in sidebar", "Unlink", "Delete link"]);
     expect(items).not.toContain("Edit link…");
   });
 
