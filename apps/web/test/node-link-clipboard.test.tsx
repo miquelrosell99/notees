@@ -5,9 +5,12 @@
  * title row edits with the full block editor, so block and title share the
  * contract), both with a toast. Multi-line plain text paste splits into
  * sibling blocks at the caret (first line joins the head, last line
- * absorbs the tail); single-line text, the title row, and unresolvable
- * links keep the browser default. The jsdom harness mirrors
- * outliner-editor.test.tsx.
+ * absorbs the tail) with the source outline preserved — leading
+ * indentation nests each line under the previous shallower one, blank
+ * lines are dropped (never minted as empty blocks), and the whole gesture
+ * journals as ONE undo entry ("Undo paste"); single-line text, the title
+ * row, and unresolvable links keep the browser default. The jsdom harness
+ * mirrors outliner-editor.test.tsx.
  */
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -406,7 +409,7 @@ describe("multi-line paste splits into sibling blocks", () => {
     expect(active!.textContent).toBe("Ydef");
   });
 
-  it("an empty middle line becomes an empty block", async () => {
+  it("interior blank lines are dropped, never minted as empty blocks", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "P" });
     await client.createObject({ parentId: pageId, contentAst: [] });
@@ -420,10 +423,139 @@ describe("multi-line paste splits into sibling blocks", () => {
     await act(async () => {});
 
     const tree = client.getBlockTree(pageId);
-    expect(tree).toHaveLength(3);
+    expect(tree).toHaveLength(2);
     expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "a" }]);
-    expect(tree[1]!.node.contentAst).toEqual([]);
-    expect(tree[2]!.node.contentAst).toEqual([{ type: "text", text: "b" }]);
+    expect(tree[1]!.node.contentAst).toEqual([{ type: "text", text: "b" }]);
+  });
+
+  it("indented lines nest under the previous shallower line", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "P" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    selectContents(editor, "end");
+    act(() => {
+      pasteWithClipboard(editor, "one\n  two\n  three\nfour");
+    });
+    await act(async () => {});
+
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(2);
+    // The head keeps the first line; same-indent lines stay siblings.
+    expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "helloone" }]);
+    expect(tree[1]!.node.contentAst).toEqual([{ type: "text", text: "four" }]);
+    expect(tree[1]!.children).toHaveLength(0);
+    // The deeper lines became children of the first, order preserved.
+    expect(tree[0]!.children.map((row) => row.node.contentAst)).toEqual([
+      [{ type: "text", text: "two" }],
+      [{ type: "text", text: "three" }],
+    ]);
+  });
+
+  it("multi-level indentation rebuilds the source outline (4-space steps)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "P" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    selectContents(editor, "end");
+    act(() => {
+      pasteWithClipboard(
+        editor,
+        "Marco\n    Peri\n    Descrita\n\nDiferencias\n    Anatomía\n        Diente\n        Implante",
+      );
+    });
+    await act(async () => {});
+
+    const tree = client.getBlockTree(pageId);
+    // Two base-level blocks (the blank separator line minted nothing).
+    expect(tree.map((row) => row.node.contentAst)).toEqual([
+      [{ type: "text", text: "helloMarco" }],
+      [{ type: "text", text: "Diferencias" }],
+    ]);
+    expect(tree[0]!.children.map((row) => row.node.contentAst)).toEqual([
+      [{ type: "text", text: "Peri" }],
+      [{ type: "text", text: "Descrita" }],
+    ]);
+    const anatomy = tree[1]!.children[0]!;
+    expect(anatomy.node.contentAst).toEqual([{ type: "text", text: "Anatomía" }]);
+    expect(anatomy.children.map((row) => row.node.contentAst)).toEqual([
+      [{ type: "text", text: "Diente" }],
+      [{ type: "text", text: "Implante" }],
+    ]);
+    // The caret took over the LAST pasted block, nested as it is.
+    const active = document.activeElement;
+    expect(active).not.toBeNull();
+    expect(active!.textContent).toBe("Implante");
+  });
+
+  it("inconsistent indent widths still nest by nearest shallower prefix", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "P" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    selectContents(editor, "end");
+    act(() => {
+      // 4-space then 2-space: "c" neither extends nor matches "b" — the
+      // unwind must re-test against "a" and land c as its child, right
+      // after b (not flattened to the base level).
+      pasteWithClipboard(editor, "a\n    b\n  c\nz");
+    });
+    await act(async () => {});
+
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(2); // helloa + z
+    expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "helloa" }]);
+    expect(tree[0]!.children.map((row) => row.node.contentAst)).toEqual([
+      [{ type: "text", text: "b" }],
+      [{ type: "text", text: "c" }],
+    ]);
+    expect(tree[1]!.node.contentAst).toEqual([{ type: "text", text: "z" }]);
+  });
+
+  it("the whole paste rides ONE undo entry", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "P" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    selectContents(editor, "end");
+    act(() => {
+      pasteWithClipboard(editor, "one\n  two\nthree");
+    });
+    await act(async () => {});
+
+    // Top level: the head block + "three"; "two" nested under the head line.
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(2);
+    expect(tree[0]!.children).toHaveLength(1);
+    const state = await client.undoState();
+    expect(state.undoLabel).toBe("Undo paste");
+
+    await client.undo();
+    const restored = client.getBlockTree(pageId);
+    expect(restored).toHaveLength(1);
+    expect(restored[0]!.node.id).toBe(blockId);
+    expect(restored[0]!.node.contentAst).toEqual([{ type: "text", text: "hello" }]);
+    expect(restored[0]!.children).toHaveLength(0);
   });
 
   it("trailing blank lines are copy noise, not empty blocks", async () => {

@@ -15,7 +15,7 @@
 
 import { startTransition } from "react";
 
-import type { OpPayload, WorkspaceFeature } from "@notees/protocol";
+import type { ContentAst, OpPayload, WorkspaceFeature } from "@notees/protocol";
 import type { CardSrsState, SrsAlgorithm } from "@notees/domain";
 import type { GraphOptions, GraphTopology, MergePlanSummary } from "@notees/store";
 import type {
@@ -763,6 +763,21 @@ export class WorkerClient {
 
   async createObject(partial: CreateObjectInput): Promise<string> {
     return (await this.call("createObject", [partial])) as string;
+  }
+
+  /**
+   * The multi-line paste gesture as ONE RPC: the head update + every pasted
+   * block create apply in one worker pass and journal as ONE undo entry —
+   * the per-block awaited chain this replaces repainted the outline one
+   * block at a time. `creates` carries caller-assigned ids, parents before
+   * children (see WorkspaceClientWrites.pasteBlocks). Returns the created
+   * ids in plan order.
+   */
+  async pasteBlocks(
+    headUpdate: { id: string; contentAst: ContentAst },
+    creates: CreateObjectInput[],
+  ): Promise<string[]> {
+    return (await this.call("pasteBlocks", [headUpdate, creates])) as string[];
   }
 
   async updateObject(id: string, fields: UpdateObjectInput): Promise<void> {

@@ -11,7 +11,7 @@
 import { uuidv7 } from "uuidv7";
 import { planMerge, type MergePlanSummary } from "@notees/store";
 import { SYSTEM_PROPERTY_UUIDS, validateDisplayTemplate } from "@notees/domain";
-import type { OpPayload } from "@notees/protocol";
+import type { ContentAst, OpPayload } from "@notees/protocol";
 
 import { UUID_LIKE } from "./types.js";
 import type {
@@ -66,6 +66,42 @@ export class WorkspaceClientWrites {
     if (partial.beforeId !== undefined) payload.beforeId = partial.beforeId;
     this.ctx.enqueueLocal(this.ctx.buildEnvelope("object.create", payload, [id]));
     return id;
+  }
+
+  /**
+   * The multi-line paste write: the head block's content update and every
+   * pasted block's `object.create` ride ONE undo-journal batch — one undo
+   * restores the pre-paste state (the merged entry reads "Undo paste").
+   * `creates` arrives in source-text order (parents before children) with
+   * caller-assigned ids (`CreateObjectInput.id`), so a child can anchor
+   * `parentId`/`afterId` at a node the same batch creates — the synchronous
+   * in-order apply resolves every anchor before it is referenced. The whole
+   * gesture is ONE worker RPC; the prior per-block awaited chain made a long
+   * paste repaint the outline one block at a time. Returns the created ids
+   * in plan order (the last one hosts the absorbed tail and takes the caret).
+   */
+  async pasteBlocks(
+    headUpdate: { id: string; contentAst: ContentAst },
+    creates: CreateObjectInput[],
+  ): Promise<string[]> {
+    const ids = creates.map((input) => input.id ?? uuidv7());
+    this.ctx.undoJournal.batch(() => {
+      // Enqueued directly (not via updateObject) so the first record carries
+      // the gesture verb — the batch flush labels the merged entry from it.
+      this.ctx.enqueueLocal(
+        this.ctx.buildEnvelope(
+          "object.update",
+          { objectId: headUpdate.id, contentAst: headUpdate.contentAst },
+          [headUpdate.id],
+        ),
+        "normal",
+        "paste",
+      );
+      creates.forEach((input, index) => {
+        void this.createObject({ ...input, id: ids[index]! });
+      });
+    });
+    return ids;
   }
 
   /** Update object fields (object.update; at least one field required). */

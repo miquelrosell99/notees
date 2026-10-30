@@ -40,7 +40,7 @@
 
 import type { SqlJsStatic } from "sql.js";
 
-import type { OpPayload, WorkspaceFeature } from "@notees/protocol";
+import type { ContentAst, OpPayload, WorkspaceFeature } from "@notees/protocol";
 import type { CardSrsState, SrsAlgorithm } from "@notees/domain";
 
 import { Store, validateEnvelope, type StoreBackend } from "@notees/store";
@@ -917,6 +917,11 @@ export class WorkerCore {
         );
       case "createObject":
         return this.createObject(args[0] as CreateObjectInput);
+      case "pasteBlocks":
+        return this.client.pasteBlocks(
+          args[0] as { id: string; contentAst: ContentAst },
+          args[1] as CreateObjectInput[],
+        );
       case "updateObject":
         return this.updateObject(args[0] as string, args[1] as UpdateObjectInput);
       case "setArchived":

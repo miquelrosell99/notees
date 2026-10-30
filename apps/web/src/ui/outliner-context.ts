@@ -8,6 +8,7 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 
 import { foldSearchText } from "@notees/store";
+import type { ContentAst } from "@notees/protocol";
 
 import type { CaretPlacement } from "@/editor/caret.js";
 import type { OutlinePositionMap } from "@/editor/outline.js";
@@ -41,6 +42,17 @@ export interface OutlinerClient {
    * branch. */
   effectiveClassParentlessBlock(classId: string): boolean;
   createObject(partial: CreateObjectInput): Promise<string>;
+  /**
+   * The multi-line paste write: the head block's content update + every
+   * pasted block's create ride ONE undo-journal batch ("Undo paste") and,
+   * on the worker client, ONE RPC. `creates` carries caller-assigned ids in
+   * source-text order (parents before children) so a child can anchor at a
+   * node the same batch creates. Returns the created ids in plan order.
+   */
+  pasteBlocks(
+    headUpdate: { id: string; contentAst: ContentAst },
+    creates: CreateObjectInput[],
+  ): Promise<string[]>;
   updateObject(id: string, fields: UpdateObjectInput): Promise<void>;
   deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void>;
   /**

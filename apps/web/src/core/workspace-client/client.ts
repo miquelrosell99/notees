@@ -24,7 +24,7 @@
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
 import { HttpTransport, OfflineTransport } from "@notees/sync";
-import type { Envelope, OpPayload } from "@notees/protocol";
+import type { ContentAst, Envelope, OpPayload } from "@notees/protocol";
 import { Store, type GraphOptions } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
 import type { WorkspaceFeature } from "@notees/protocol";
@@ -552,6 +552,13 @@ export class WorkspaceClient {
 
   createObject(partial: CreateObjectInput) {
     return this.writes.createObject(partial);
+  }
+
+  pasteBlocks(
+    headUpdate: { id: string; contentAst: ContentAst },
+    creates: CreateObjectInput[],
+  ) {
+    return this.writes.pasteBlocks(headUpdate, creates);
   }
 
   updateObject(id: string, fields: UpdateObjectInput) {
