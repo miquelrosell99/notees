@@ -15,8 +15,9 @@
  *     `notees class empty`). Every write is recoverable (membership unassign
  *     survives authored values; the trash covers the rest).
  *   - the system family (event root: class + eventDate schema/binding;
- *     meeting subclass: class + meetingDate/location/agenda + the
- *     meeting→event extends edge) is ensured FIRST at the reserved seed ids,
+ *     meeting subclass: class + location/agenda + the meeting→event extends
+ *     edge — the date rides the inherited eventDate, the meetingDate
+ *     duplicate retired 2026-10-30) is ensured FIRST at the reserved seed ids,
  *     idempotently. The objects API has no class-create or setExtends route,
  *     so missing classes and the edge ride relay-batch envelopes (the
  *     migrate-mention-texts precedent); schemas + bindings ride the REST

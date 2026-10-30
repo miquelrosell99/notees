@@ -5277,6 +5277,53 @@ describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) =>
   });
 });
 
+// --- propertySchema.delete: the schema's soft delete (active = 0; the row is
+// --- retained so surviving values stay typed — list surfaces filter active = 1)
+
+describe.each(adapters)("$name: propertySchema.delete (soft delete)", ({ makeBackend }) => {
+  const SCHEMA = "0192a000-0000-7000-8000-00000000e111";
+  const CLASS = "0192a000-0000-7000-8000-00000000e112";
+  const NODE = "0192a000-0000-7000-8000-00000000e113";
+
+  it("the fixture pins the soft delete: active flips, the row + values survive, the unknown-id delete is a no-op", () => {
+    const store = Store.open(makeBackend());
+    store.applyMany(loadFixture("property-schema-delete.json"));
+
+    // The schema row survives at active = 0 — a tombstone, not a remove.
+    const schema = store.database
+      .prepare("SELECT active FROM property_schema WHERE id = ?")
+      .get(SCHEMA) as { active: number };
+    expect(schema.active).toBe(0);
+    // The delete of the UNKNOWN id minted no row.
+    const ghost = store.database
+      .prepare("SELECT id FROM property_schema WHERE id = ?")
+      .get("0192a000-0000-7000-8000-00000000e199");
+    expect(ghost).toBeUndefined();
+
+    // The post-delete property.set validated against the retained row and won
+    // the slot LWW — the surviving value is the newer one.
+    const value = store.database
+      .prepare("SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ?")
+      .get(NODE, SCHEMA) as { value: string };
+    expect(JSON.parse(value.value)).toBe("Ship it v2");
+
+    // The binding row does NOT cascade away on the delete (the meetingDate
+    // retirement unsets bindings with an explicit class.property.unset).
+    const binding = store.database
+      .prepare("SELECT 1 FROM class_property WHERE class_id = ? AND property_schema_id = ?")
+      .get(CLASS, SCHEMA);
+    expect(binding).toBeDefined();
+
+    // The list surface (client listPropertySchemas' shape) filters active = 1:
+    // the soft-deleted schema is gone from choices.
+    const listed = store.database
+      .prepare("SELECT id FROM property_schema WHERE workspace_id = ? AND active = 1")
+      .all("0192a000-0000-7000-8000-00000000e100") as Array<{ id: string }>;
+    expect(listed.map((row) => row.id)).not.toContain(SCHEMA);
+    store.close();
+  });
+});
+
 // --- Property-schema scope (scopeClassIds is the sole
 // --- locality authority; R3 write-time enforcement, R4 read gating, R5
 // --- dead-config rejection; update gains icon/scopeClassIds/targetClassFilter/

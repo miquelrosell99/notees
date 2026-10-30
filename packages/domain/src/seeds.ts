@@ -388,8 +388,9 @@ export const SYSTEM_CLASS_EXTENDS: Partial<Record<SystemClassName, SystemClassNa
   person: ["agent"],
   organization: ["agent"],
   // Reshape: meeting IS-A event — the
-  // calendar family root. meeting's own family (meetingDate/location/agenda)
-  // stays meeting-specific on top of the event date.
+  // calendar family root. meeting's own family (location/agenda) stays
+  // meeting-specific on top of the inherited event date (the meetingDate
+  // duplicate retired 2026-10-30).
   meeting: ["event"],
   // A birthday IS an event (a person's birthday lands on the
   // calendar through the event chain, exactly like a meeting).
@@ -561,16 +562,17 @@ export const SYSTEM_PROPERTY_UUIDS = {
   taskClosedDate: "00000000-0000-0000-0003-000000000005",
   taskRecurrence: "00000000-0000-0000-0003-000000000006",
   // Meeting family — the workflow-properties block continues (task
-  // family …001–…006; meeting family …007–…009). meetingDate is DATETIME-typed
-  // per the amended time-of-day law (SCHEMA.md "Time-of-day on dates",
-  // AMENDED 2026-10-09): values may carry a wall-clock `time` beside the
-  // day-node anchor — full-day stays the default.
-  meetingDate: "00000000-0000-0000-0003-000000000007",
+  // family …001–…006; meeting family …007–…009). …007 WITHDRAWN 2026-10-30
+  // (`meetingDate` — the class-local date duplicate; meeting inherits
+  // `event`'s eventDate …0003-…0010 through the extends chain). Never reuse.
+  // Live values converge by scripts/migrate-meeting-date-retirement.mts.
   location: "00000000-0000-0000-0003-000000000008",
   agenda: "00000000-0000-0000-0003-000000000009",
   // Event-family reshape: the EVENT family's minimal date binding — the one that
   // makes `event` (and, via extends, `meeting`) calendar quick-create
-  // eligible. Datetime-typed per the amended law, like meetingDate.
+  // eligible. Datetime-typed per the amended time-of-day law (SCHEMA.md
+  // "Time-of-day on dates", AMENDED 2026-10-09): values may carry a
+  // wall-clock `time` beside the day-node anchor — full-day stays the default.
   eventDate: "00000000-0000-0000-0003-000000000010",
   // The birthday family's ONLY own property — the person the
   // birthday is for (the date rides eventDate; see the spec comment).
@@ -776,10 +778,10 @@ export interface SystemPropertySpec {
    * (alphabetical within each tier) — a classification, never a stored
    * order. DECLARED 2026-10-27 (the seed pin sets slice): the source base
    * family (authors/citekey/doi/linkedAuthors/publicationDate/url), the
-   * meeting family's meetingDate/location, and the task family's
-   * taskStatus/taskScheduled/taskDeadline (TASK_FAMILY_SEED) — everything
-   * else seeds unpinned. Live workspaces converge by
-   * scripts/migrate-seed-pins.mts.
+   * meeting family's location (meetingDate's pin retired with the property
+   * 2026-10-30), and the task family's taskStatus/taskScheduled/taskDeadline
+   * (TASK_FAMILY_SEED) — everything else seeds unpinned. Live workspaces
+   * converge by scripts/migrate-seed-pins.mts.
    */
   pinned?: boolean;
   targetClassFilter?: SystemClassName[];
@@ -864,12 +866,12 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // class). The linked-references roll-up and name-equivalence read paths
   // live in the clients (SCHEMA.md "Node aliases").
   aliasOf: { type: "object" },
-  // the meeting family. meetingDate
-  // is the family's date binding (quick-create eligibility rides the event
-  // root's eventDate too — meeting extends event); location and agenda are
-  // plain text per the section's family list. meetingDate + location are
-  // PINNED (the seed pin sets slice); agenda stays unpinned.
-  meetingDate: { type: "datetime", bindTo: "meeting", pinned: true },
+  // The meeting family: location and agenda are plain text per the
+  // section's family list — the DATE rides the inherited eventDate (meeting
+  // extends event; the class-local meetingDate duplicate retired
+  // 2026-10-30, live values converge by
+  // scripts/migrate-meeting-date-retirement.mts). location is PINNED (the
+  // seed pin sets slice, amended by the retirement); agenda stays unpinned.
   location: { type: "text", bindTo: "meeting", pinned: true },
   agenda: { type: "text", bindTo: "meeting" },
   // Event-family reshape: the event family's minimal shape — one date binding.
@@ -914,8 +916,9 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // The card family (memorization cards slice): the six SRS schedule schemas,
   // class-bound to `card` at the …0004- block (see the UUID map comment). All
   // scalar (datetime/number), all seed UNPINNED — the 2026-10-27 pinned roster
-  // is frozen (source family, meetingDate/location, the task heads) and no card
-  // field joins it. Live schedule state lives in these property values
+  // is frozen (source family, location, the task heads; meetingDate's pin
+  // retired with the property 2026-10-30) and no card field joins it. Live
+  // schedule state lives in these property values
   // (ordinary LWW property ops); CARD_FAMILY_SEED is the task-family-shaped
   // ensure manifest the web self-heal consumes.
   cardDue: { type: "datetime", bindTo: "card" },
@@ -1075,7 +1078,8 @@ export const SYSTEM_PROPERTY_DISPLAY_NAMES: Record<SystemPropertyName, string> =
   taskPriority: "Priority",
   taskClosedDate: "Closed",
   taskRecurrence: "Recurrence",
-  meetingDate: "Meeting date",
+  // meetingDate's display name retired with the property (2026-10-30) — the
+  // …0003-…0007 UUID stays burned.
   location: "Location",
   agenda: "Agenda",
   eventDate: "Event date",
