@@ -33,10 +33,17 @@ import {
   sourceBindingPropertyOf,
   type SystemClassName,
 } from "@notees/domain";
+import { renderCsv } from "@notees/export";
 import type { QueryAst } from "@notees/query";
 
 import { titleOf } from "../../ui/dateDisplay.js";
-import type { ClientNode, EffectiveProperty } from "../../core/workspace-client/index.js";
+import { propertyDisplayText } from "../collection/propertyDisplay.js";
+import type {
+  ClassBinding,
+  ClientNode,
+  ClientPropertySchema,
+  EffectiveProperty,
+} from "../../core/workspace-client/index.js";
 import type { CitekeyEntry } from "./citekey.js";
 
 /**
@@ -52,6 +59,10 @@ export interface SourcesSort {
   direction: SourcesSortDirection;
 }
 
+/** The hub modes: the library table (default) or the Literature Matrix
+ *  (slice 6 — the comparison grid; the picked set rides the URL). */
+export type SourcesMode = "library" | "matrix";
+
 export interface SourcesQueryState {
   /** The picked source-type class key (journal_article, …); null = every type. */
   type: string | null;
@@ -59,11 +70,23 @@ export interface SourcesQueryState {
   q: string;
   /** The sort; null = the table's default order. */
   sort: SourcesSort | null;
+  /** The hub mode; "library" is the default and rides the URL bare. */
+  mode: SourcesMode;
+  /** The matrix mode's picked source ids, in pick order (deep-linkable —
+   *  Review Focus 5; empty outside the matrix mode). */
+  ids: string[];
 }
 
-export const DEFAULT_SOURCES_QUERY: SourcesQueryState = { type: null, q: "", sort: null };
+export const DEFAULT_SOURCES_QUERY: SourcesQueryState = {
+  type: null,
+  q: "",
+  sort: null,
+  mode: "library",
+  ids: [],
+};
 
 const SORT_PATTERN = /^([a-z][a-z0-9_]*):(asc|desc)$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Parse one `sort=<field>:<dir>` value; invalid sorts are rejected outright. */
 export function parseSourcesSort(value: string | null | undefined): SourcesSort | null {
@@ -78,15 +101,33 @@ export function parseSourcesSort(value: string | null | undefined): SourcesSort 
 /**
  * Parse a query string — a location search (with or without the leading ?)
  * or a full path (the "?" and everything after is the query).
+ *
+ * The matrix grammar (`mode=matrix&ids=<uuid>,<uuid>,…`): the picked set is
+ * uuid-filtered (malformed entries drop), deduped preserving first-seen
+ * order, and normalized away outside the matrix mode — the ids ride the
+ * matrix's URL only, so a library-mode state always parses to `ids: []`.
  */
 export function parseSourcesQuery(search: string): SourcesQueryState {
   const queryAt = search.indexOf("?");
   const params = new URLSearchParams(queryAt === -1 ? search : search.slice(queryAt + 1));
   const type = params.get("type");
+  const mode: SourcesMode = params.get("mode") === "matrix" ? "matrix" : "library";
+  const ids: string[] = [];
+  if (mode === "matrix") {
+    const seen = new Set<string>();
+    for (const entry of (params.get("ids") ?? "").split(",")) {
+      const id = entry.trim();
+      if (!UUID_PATTERN.test(id) || seen.has(id.toLowerCase())) continue;
+      seen.add(id.toLowerCase());
+      ids.push(id);
+    }
+  }
   return {
     type: type !== null && type !== "" ? type : null,
     q: params.get("q") ?? "",
     sort: parseSourcesSort(params.get("sort")),
+    mode,
+    ids,
   };
 }
 
@@ -94,6 +135,9 @@ export function parseSourcesQuery(search: string): SourcesQueryState {
  * Serialize the state back to its path (the bare "/sources" when unset).
  * The sort rides `<field>:<dir>` with a literal colon — deep links stay
  * readable in the URL bar (law 9); the parser accepts the encoded form too.
+ * The matrix mode serializes `mode=matrix` plus the comma-joined picked set
+ * (uuid-only, safe unencoded); the picked set is dropped in the library
+ * mode (parse normalizes it away — round-trip stable by construction).
  */
 export function sourcesPathFor(state: SourcesQueryState): string {
   // URLSearchParams' form encoding (spaces as "+"), matching a pasted query.
@@ -103,6 +147,10 @@ export function sourcesPathFor(state: SourcesQueryState): string {
   if (state.q !== "") parts.push(`q=${encode(state.q)}`);
   if (state.sort !== null) {
     parts.push(`sort=${state.sort.field}:${state.sort.direction}`);
+  }
+  if (state.mode === "matrix") {
+    parts.push("mode=matrix");
+    if (state.ids.length > 0) parts.push(`ids=${state.ids.join(",")}`);
   }
   return parts.length === 0 ? "/sources" : `/sources?${parts.join("&")}`;
 }
@@ -582,4 +630,131 @@ export function facetCounts(client: SourcesReadSurface): SourceFacet[] {
     count: counts.get(name) ?? 0,
     archived: !classIsActive(client, name),
   }));
+}
+
+// --- the Literature Matrix (slice 6) ----------------------------------------------------
+
+/**
+ * The structural read surface the matrix data layer composes from — the
+ * sourcesQuery surface PLUS the schema registry reads (the field pool) and
+ * the property-display funnel (cell values). Both client classes satisfy it.
+ */
+export interface MatrixReadSurface extends SourcesReadSurface {
+  /** Own registry bindings of one class (class_property rows). */
+  getRegistryBindings(classId: string): Array<Pick<ClassBinding, "propertySchemaId" | "name" | "active">>;
+  /** The schema registry (select option labels, live schema names). */
+  listPropertySchemas(): ClientPropertySchema[];
+}
+
+/** One pickable matrix column — a property schema the grid can render. */
+export interface MatrixField {
+  schemaId: string;
+  /** The schema's live name (renames ride the registry row). */
+  name: string;
+}
+
+/** One matrix row — a picked source and its per-field cell text. */
+export interface MatrixRow {
+  id: string;
+  title: string;
+  /** schemaId → display text ("" when the row carries no value). */
+  cells: Record<string, string>;
+}
+
+/**
+ * The matrix column pool: every property schema bound (active binding) to
+ * the source base OR any roster type — the source family's LIVE bound
+ * fields, so the workflow's source definition fields appear the moment the
+ * research workflow is enabled — UNION any schema with an AUTHORED row on a
+ * picked source (the rationale arm: a property present on a row's schemas
+ * answers even when no family class binds it). Deduped by schema id,
+ * alphabetical by the live schema name (the picker's pure-alphabetical
+ * convention).
+ */
+export function matrixFields(client: MatrixReadSurface, ids: readonly string[]): MatrixField[] {
+  const schemaIds = new Set<string>();
+  // The family classes: the base every member inherits bindings from + the
+  // roster types carrying their own container bindings.
+  const familyClassIds = [SYSTEM_CLASS_UUIDS.source, ...SOURCE_TYPE_ROSTER.map((name) => SYSTEM_CLASS_UUIDS[name])];
+  for (const classId of familyClassIds) {
+    for (const binding of client.getRegistryBindings(classId)) {
+      if (binding.active) schemaIds.add(binding.propertySchemaId);
+    }
+  }
+  // The rationale arm: authored rows on the picked rows themselves.
+  for (const id of ids) {
+    const node = client.getNode(id);
+    if (node === undefined) continue;
+    for (const row of client.getEffectiveProperties(id)) {
+      if (row.source === "authored" && !isEmptyMatrixValue(row.value)) {
+        schemaIds.add(row.propertySchemaId);
+      }
+    }
+  }
+  const fields = [...schemaIds]
+    .map((schemaId) => {
+      const schema = client.listPropertySchemas().find((candidate) => candidate.id === schemaId);
+      return { schemaId, name: schema?.name ?? schemaId };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return fields;
+}
+
+function isEmptyMatrixValue(value: unknown): boolean {
+  return (
+    value === undefined ||
+    value === null ||
+    (typeof value === "string" && value.trim() === "")
+  );
+}
+
+/**
+ * The matrix rows: the picked ids in pick order (a stale id degrades — the
+ * row skips, never pinning an empty grid), titled per display-name
+ * derivation, cells per the shared propertyDisplayText funnel (select ids →
+ * option labels, node refs → display names, multi rows joined "; " — the
+ * authorsText convention).
+ */
+export function matrixRows(client: MatrixReadSurface, ids: readonly string[]): MatrixRow[] {
+  const rows: MatrixRow[] = [];
+  for (const id of ids) {
+    const node = client.getNode(id);
+    if (node === undefined) continue;
+    const effective = client.getEffectiveProperties(id);
+    const cells: Record<string, string> = {};
+    for (const row of effective) {
+      if (row.source !== "authored") continue;
+      const text = propertyDisplayText(client, row);
+      if (text === "") continue;
+      cells[row.propertySchemaId] =
+        cells[row.propertySchemaId] === undefined ? text : `${cells[row.propertySchemaId]}; ${text}`;
+    }
+    rows.push({ id, title: deriveDisplayName(node), cells });
+  }
+  return rows;
+}
+
+/**
+ * The "New comparison" title, derived from the matrix itself: one source
+ * names it, two read "A vs B", more append the "(+N more)" tail.
+ */
+export function comparisonTitleFor(titles: readonly string[]): string {
+  if (titles.length === 0) return "Comparison";
+  if (titles.length === 1) return `Comparison — ${titles[0]}`;
+  const base = `Comparison — ${titles[0]} vs ${titles[1]}`;
+  return titles.length > 2 ? `${base} (+${titles.length - 2} more)` : base;
+}
+
+/**
+ * The CSV projection over the picked rows — THE TABLE VIEW'S MACHINERY
+ * (the package serializer owns RFC-4180 quoting + the UTF-8 BOM): the
+ * header is "Title" + the picked field names, each row the source title +
+ * its cell text. Cell values are display strings, never raw ids — the same
+ * contract the table view's csvText rides.
+ */
+export function matrixCsv(fields: readonly MatrixField[], rows: readonly MatrixRow[]): string {
+  return renderCsv(
+    ["Title", ...fields.map((field) => field.name)],
+    rows.map((row) => [row.title, ...fields.map((field) => row.cells[field.schemaId] ?? "")]),
+  );
 }

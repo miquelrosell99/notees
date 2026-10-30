@@ -133,6 +133,8 @@ describe("popStateNavHandler's setSourcesQuery seam", () => {
       type: "book",
       q: "smith",
       sort: { field: "year", direction: "desc" },
+      mode: "library",
+      ids: [],
     });
 
     window.history.replaceState({}, "", "/sources");

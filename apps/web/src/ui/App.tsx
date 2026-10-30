@@ -455,6 +455,7 @@ export function App() {
       activeNav,
       calendarTitle,
       cardsReview,
+      sourcesMatrix: sourcesQuery.mode === "matrix",
       nodeName:
         client !== null && selectedPageId !== null
           ? (() => {
@@ -468,7 +469,7 @@ export function App() {
             })()
           : "",
     });
-  }, [client, selectedPageId, pagesVersion, settingsSection, searchOpen, activeNav, calendarTitle, cardsReview]);
+  }, [client, selectedPageId, pagesVersion, settingsSection, searchOpen, activeNav, calendarTitle, cardsReview, sourcesQuery.mode]);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   useGlobalGestures({

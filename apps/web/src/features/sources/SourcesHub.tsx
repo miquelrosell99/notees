@@ -45,6 +45,7 @@ import { Badge, Button, SidePanelToggle } from "../../components/ui/kit/index.js
 import { useDeviceSetting } from "../settings/deviceSettings.js";
 import type { NodeCollectionItem } from "../collection/index.js";
 import { SourcesFacets } from "./SourcesFacets.js";
+import { SourcesMatrix } from "./SourcesMatrix.js";
 import { SourcesTable } from "./SourcesTable.js";
 import { SourcesDetail } from "./SourcesDetail.js";
 import { SourcesToolbar } from "./SourcesToolbar.js";
@@ -89,6 +90,20 @@ export function SourcesHub({
   // (like the selection); the type facet + the search box narrow BOTH
   // modes — the duplicates grouping rides the same filtered row set.
   const [viewMode, setViewMode] = useState<"library" | "duplicates">("library");
+
+  // The Matrix mode (slice 6) is URL-owned (the picked set deep-links — law
+  // 9); without the URL seam (the unit-test shell) it falls back to local
+  // session state, the viewMode precedent.
+  const [localMode, setLocalMode] = useState<"library" | "matrix">("library");
+  const mode = onQueryChange !== undefined ? parsed.mode : localMode;
+  const toggleMode = (): void => {
+    const next = mode === "matrix" ? "library" : "matrix";
+    if (onQueryChange !== undefined) {
+      onQueryChange({ ...parsed, mode: next }, "push");
+    } else {
+      setLocalMode(next);
+    }
+  };
 
   // The panel visibility prefs — DEVICE-LOCAL session state (the device-
   // state-never-an-op law), the deviceSettings register (the focusMode /
@@ -195,9 +210,10 @@ export function SourcesHub({
   // leftPanel/rightPanel slots (the frame owns the aside landmarks), so the
   // toggle-only export is the link here; the panels render from the same
   // `facetsPanelOpen` / `detailVisible` values below. The Duplicates mode
-  // hides the detail pane — the selection is the table's concept.
+  // hides the detail pane — the selection is the table's concept; the
+  // Matrix mode (slice 6, URL-owned) hides it the same way.
   const detailVisible =
-    viewMode === "library" && detailPanelOpen && selectedId !== null;
+    mode !== "matrix" && viewMode === "library" && detailPanelOpen && selectedId !== null;
 
   return (
     <div className="nt-sources-hub">
@@ -225,6 +241,15 @@ export function SourcesHub({
             actions={
               client !== undefined ? (
                 <div className="nt-sources-hub__actions">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon="mdi-compare"
+                    active={mode === "matrix"}
+                    aria-label="Show comparison matrix"
+                    aria-pressed={mode === "matrix"}
+                    onClick={toggleMode}
+                  />
                   <Button
                     variant="ghost"
                     size="sm"
@@ -273,7 +298,14 @@ export function SourcesHub({
         rightLabel="Source details"
         rightPanelWidth="var(--layout-size-9xl)"
       >
-        {viewMode === "duplicates" && client !== undefined ? (
+        {mode === "matrix" && client !== undefined ? (
+          <SourcesMatrix
+            client={client}
+            query={parsed}
+            {...(onQueryChange !== undefined ? { onQueryChange } : {})}
+            {...(onOpenNode !== undefined ? { onOpenNode } : {})}
+          />
+        ) : viewMode === "duplicates" && client !== undefined ? (
           <SourcesDuplicates
             client={client}
             rows={displayRows}

@@ -116,6 +116,8 @@ describe("sourcesQuery — the /sources URL state", () => {
       type: "journal_article",
       q: "smith",
       sort: { field: "year", direction: "desc" },
+      mode: "library",
+      ids: [],
     });
   });
 
@@ -143,7 +145,7 @@ describe("sourcesQuery — the /sources URL state", () => {
 
   it("serializes the defaults to the bare path", () => {
     expect(sourcesPathFor(DEFAULT_SOURCES_QUERY)).toBe("/sources");
-    expect(sourcesPathFor({ type: null, q: "", sort: null })).toBe("/sources");
+    expect(sourcesPathFor({ type: null, q: "", sort: null, mode: "library", ids: [] })).toBe("/sources");
   });
 
   it("round-trips through parse → serialize → parse", () => {
@@ -153,6 +155,8 @@ describe("sourcesQuery — the /sources URL state", () => {
       type: "book_section",
       q: "smith & wesson",
       sort: { field: "venue", direction: "asc" },
+      mode: "library",
+      ids: [],
     });
   });
 });
