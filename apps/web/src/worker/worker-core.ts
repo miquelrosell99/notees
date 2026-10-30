@@ -209,6 +209,7 @@ export const READ_METHODS: ReadonlySet<string> = new Set([
   "getReferenceCount",
   "getUnlinkedReferences",
   "getUnlinkedReferenceCount",
+  "getForwardPaths",
   "getChildPages",
   "getBacklinkCount",
   "getChildPageCount",
@@ -871,6 +872,11 @@ export class WorkerCore {
         return this.getUnlinkedReferences(args[0] as string);
       case "getUnlinkedReferenceCount":
         return this.getUnlinkedReferenceCount(args[0] as string);
+      case "getForwardPaths":
+        return this.client.getForwardPaths(
+          args[0] as string,
+          args[1] as number | undefined,
+        );
       case "getChildPages":
         return this.getChildPages(args[0] as string);
       case "getChildren":

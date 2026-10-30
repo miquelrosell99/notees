@@ -373,6 +373,49 @@ predating this file.
   (blank-line drop, two-level and four-space-step nesting with the caret
   landing in the last nested block, one-undo-restores-everything with the
   "Undo paste" label).
+- **feat(web,store): the "Forward path" page section — the first non-query
+  system section (research-tier2 slice 5).** A page-level section showing
+  where an idea went next: a derived, directed, cycle-safe walk over the
+  node's CONSUMER edges (embedded-in → synthesis → plan), traversed
+  target→source against the edge table's mention-authorship direction. Hop
+  families: `embed_ref` content tokens + mention edges with the per-link
+  transclusion flag (embed hops); plain mention edges (alias-terminal roll-up
+  via `resolved_target_id`); typed-link marks whose FIRST candidateSpan is
+  the node (the row carries the verb — non-first candidates never hop, and
+  the verb-mark outranks the plain mention whose token only exists as its
+  candidate). One path per simple chain (DFS, visited set per branch), depth
+  cap 3 (default), a 64-path breadth valve, live consumers only; an isolated
+  or unknown node reads empty. Store read: `packages/store/src/forward-paths.ts`
+  — `forwardPaths(store, nodeId, { depthCap }) → PathRow[][]` (row 0 = the
+  anchor; each row names the node + the kind/verb leading to the next hop,
+  null on the terminal row). Client plumbing rides the graphTopology seam:
+  `WorkspaceClientReadsRefs.getForwardPaths` + the WorkerClient cached read
+  (invalidation class "change" — a hop can be authored anywhere and neither
+  embed_refs nor candidateSpans produce edge rows targeting the node, so the
+  edge-target inclusion invariant does not cover discovery). Section:
+  `ForwardPathSection` — collapsed by default and a collapsed section
+  executes NO read (the walk IS the expensive read, so no eager count badge
+  exists either); `useSectionData` owns first-activation resolution, the
+  cross-collapse cache, and the per-notification re-derive; rows render one
+  per hop, indented by depth (em-adaptive), labeled by the arrival edge
+  ("embedded in" / "mentioned in" / "via <verb>"), and click through to the
+  hop node. Registry: a plain `{ key: "forward-path", render }` entry on the
+  reference-family stack (placement is data — the registry was already
+  kind-agnostic; the proposal's "every hosted section is a QueryAST system
+  query" claim was stale); date pages inherit it (only unlinked is omitted
+  there). SCHEMA.md "System sections": the registry contract corrected + the
+  Forward path's hop semantics recorded. Zero wire/store-schema surface — the
+  edge table and content streams already carry everything. Tests:
+  `packages/store/test/forward-paths.test.ts` +13 (embed chain, custom +
+  default depth caps, verb-marked hop, non-first-candidate honesty,
+  embed/mention distinction, block-carrier landing, cycle termination both
+  directions, branching paths, trashed-consumer exclusion, alias roll-up,
+  isolated/unknown empties) + `apps/web/test/forward-path.test.tsx` +5 (no
+  read while collapsed — spy, rows + labels on expand, per-depth indent,
+  row-click navigation, empty text, live-write re-derivation) +
+  `apps/web/test/section-registry.test.tsx` stacks updated. GTK/Flutter/CLI
+  untouched (web chrome + a store read they can adopt).
+
 - **feat(web): the synthesis-evidence lint — a suggestion-only dashed hint
   on thin synthesis pages (research-tier2 slice 4).** A `synthesis`-classed
   page whose embedded evidence set is empty or single-source shows a dashed

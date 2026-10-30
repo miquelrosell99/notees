@@ -16,6 +16,7 @@ import {
   rendersWithDocumentChrome,
 } from "@notees/domain";
 import type { WorkspaceFeature } from "@notees/protocol";
+import { forwardPaths, type PathRow } from "@notees/store";
 
 import type { ClientEdge, ClientNode, ReferenceEntry } from "./types.js";
 import type { ClientContext } from "./client-context.js";
@@ -247,6 +248,25 @@ export class WorkspaceClientReadsRefs {
    */
   getReferenceCount(id: string): number {
     return (this.ctx.store.referencesWithRollup(id) as Array<Record<string, unknown>>).length;
+  }
+
+  /**
+   * Forward paths (the page section): the directed consumer walk over the
+   * node's embed/mention/typed-link edges — where the idea went next
+   * (embedded-in → synthesis → plan). Store-level read (graphTopology is the
+   * precedent); the walk is the expensive read, so the section keeps it
+   * behind its first expand (the SCHEMA.md lazy-loading contract).
+   *
+   * Worker-cache freshness: "change" class, not scope — a forward hop can be
+   * authored anywhere (a typed link whose candidateSpans newly include this
+   * node, an embed_ref token on a far-away page), and neither produces an
+   * edge row with this node as target, so the edge-target inclusion
+   * invariant does NOT cover the discovery side (the unlinked-references
+   * accepted-staleness precedent, taken in its conservative form since the
+   * read only runs while the section is expanded).
+   */
+  getForwardPaths(id: string, depthCap?: number): PathRow[][] {
+    return forwardPaths(this.ctx.store, id, depthCap !== undefined ? { depthCap } : undefined);
   }
 
   /**

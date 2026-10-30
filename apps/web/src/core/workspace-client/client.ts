@@ -433,6 +433,10 @@ export class WorkspaceClient {
     return this.readsRefs.getUnlinkedReferenceCount(id);
   }
 
+  getForwardPaths(id: string, depthCap?: number) {
+    return this.readsRefs.getForwardPaths(id, depthCap);
+  }
+
   aliasNodesOf(id: string) {
     return this.readsRefs.aliasNodesOf(id);
   }

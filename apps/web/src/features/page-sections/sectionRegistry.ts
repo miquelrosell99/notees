@@ -24,6 +24,7 @@ import {
   ChildPagesSection,
   UnlinkedMentionsSection,
 } from "./SystemSections.js";
+import { ForwardPathSection } from "./ForwardPathSection.js";
 
 /**
  * A registry entry — SectionSpec-shaped (the `key` identity composes the
@@ -80,6 +81,14 @@ const ENTRIES: SectionEntry[] = [
     key: "unlinked-mentions",
     render: ({ client, nodeId, onOpenPage, sectionsStartCollapsed }) =>
       createElement(UnlinkedMentionsSection, { client, pageId: nodeId, onOpenPage, sectionsStartCollapsed }),
+  },
+  {
+    // The first NON-query system section: the Forward path's custom read
+    // (the consumer walk) lives in the component; the registry entry is the
+    // same { key, render } shape — placement is data.
+    key: "forward-path",
+    render: ({ client, nodeId, onOpenPage, sectionsStartCollapsed }) =>
+      createElement(ForwardPathSection, { client, pageId: nodeId, onOpenPage, sectionsStartCollapsed }),
   },
 ];
 

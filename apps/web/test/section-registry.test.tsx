@@ -71,6 +71,7 @@ describe("the section registry", () => {
       "child-pages",
       "backlinks",
       "unlinked-mentions",
+      "forward-path",
     ]);
   });
 
@@ -90,6 +91,7 @@ describe("the section registry", () => {
       "child-pages",
       "backlinks",
       "unlinked-mentions",
+      "forward-path",
     ]);
   });
 
@@ -106,6 +108,6 @@ describe("the section registry", () => {
     const day = pageVariantOf(client, dayId);
     expect(day.variant).toBe("date-day");
     expect(day.dayIso).toBe("2026-10-29");
-    expect(keys(day.systemSections)).toEqual(["child-pages", "backlinks"]);
+    expect(keys(day.systemSections)).toEqual(["child-pages", "backlinks", "forward-path"]);
   });
 });

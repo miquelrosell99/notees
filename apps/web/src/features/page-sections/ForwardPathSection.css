@@ -1,0 +1,57 @@
+/* ForwardPathSection — the "Forward path" system section's rows: one indented
+   row per hop, the arrival label (edge kind / verb) leading the node's title.
+   Indentation rides the inline paddingInlineStart (em — depth-adaptive by
+   law); this file owns the row chrome only. */
+
+.nt-forward-path__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.nt-forward-path__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.nt-forward-path__kind {
+  flex-shrink: 0;
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-forward-path__node {
+  padding: var(--spacing-1) var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface);
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-forward-path__node:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-forward-path__node:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+.nt-forward-path__empty {
+  margin: 0;
+  padding: var(--spacing-1) 0;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}

@@ -10,4 +10,5 @@ export * from "./property-shells.js";
 export * from "./property-values.js";
 export * from "./store.js";
 export * from "./graph.js";
+export * from "./forward-paths.js";
 export * from "./merge.js";
