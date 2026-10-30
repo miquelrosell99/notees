@@ -4,24 +4,27 @@ The owner-parked calls, newest context first. Each entry records what is
 parked, the date, and what would un-park it. Referenced from AGENTS.md;
 the record of shipped work lives in `CHANGELOG.md`.
 
-## Payload-shape follow-ups — measured, parked as designed-not-built (2026-10-30)
+## Payload-shape follow-ups — UN-PARKED AND SHIPPED (2026-10-30)
 
-The op-lag follow-up's two payload-shape candidates were measured before
-building, and neither is the quick win the probe suggested:
+The owner un-parked both items the same day; both shipped:
 
-- **`listPages` per structural gesture (~5.6MB)**: ~25k rows × ~224B — the
-  clone cost is single-digit milliseconds. A lean summary type would touch a
-  dozen consumers to save ~3MB. Rejected as not worth it at this scale.
-- **`getEffectiveProperties` (~18KB per read; the boot-time bulk)**: the
-  weight is the VALUES themselves (authors lists, long text values), not
-  per-row overhead — `schema` block is ~300B. Shrinking it means lazy
-  property VALUES (render row shells, fetch values on visibility) — a
-  property-row rendering redesign, not a payload tweak.
+- **`listPageSummaries`** (92334c3a1): the lean title-only listing read
+  (~5.6MB → ~1MB per listing transfer); title-pool consumers migrated,
+  content-reading consumers (collection hub, picker cold-row fallback,
+  agenda rows) stay on full `listPages()`.
+- **Lazy property values** (8a00174be): `getPropertyRowShells` — same rows
+  as `getEffectiveProperties` but the value ships only for light types
+  (select/multi_select/boolean/number/date/datetime); heavy types send
+  `value: null + valueCount + deferred`. Every outline BlockRow, the
+  calendar row facts, task/card buckets, hub grouping, and the collapsed
+  PropertiesSection count probe migrated; page-header PropertiesTable and
+  editors keep the full read (expanded sections mount on expansion —
+  values on demand). This removes the ~11k first-serve bulk at boot.
 
-**Un-park condition**: workspace growth makes the measured costs dominate
-again (listings past ~100k rows, or boot transfer measurably slow on the
-owner's devices). The read-delta protocol (2026-10-30) already keeps every
-REFRESH cheap; these two would address first-serves only.
+**Re-park condition**: if workspace growth re-makes first-serves dominate
+(listings past ~100k rows, or a future surface enumerating heavy values
+bulk-style), the next lever is visibility-observer value loading on the
+remaining full-read surfaces — none needed today.
 
 ## Tauri desktop client — PARKED (owner, 2026-10-15)
 
