@@ -9,6 +9,17 @@ predating this file.
 
 ## 2026-10-30
 
+- **refactor(web): the chip menu's removal rungs read in class terms — Remove
+  from inline + Remove class.** The same-day follow-up to the Unlink/Remove
+  slice: the chip's "Unlink" becomes **Remove from inline** (the chip turns
+  back into plain text, the class assignment stays — the pill reappears in
+  the classes row) and "Remove" becomes **Remove class** (unassign + dissolve
+  every inline chip of the class, the ×-on-the-pill write; journal classes
+  refuse with a toast). The pair names what each rung removes, matched
+  against each other. Mentions are untouched: **Unlink** (visible text kept)
+  and **Delete link**. Docs: outliner.md, classes.md. Verification: web
+  typecheck + the link-convert / node-link-gestures suites (28 tests).
+
 - **feat(web): the node-link menu's class-chip rungs — Unlink and Remove
   replace the old Remove link.** The inline class chip's right-click menu
   previously offered a single "Remove link" that replaced the chip with plain
