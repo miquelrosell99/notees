@@ -373,6 +373,31 @@ predating this file.
   (blank-line drop, two-level and four-space-step nesting with the caret
   landing in the last nested block, one-undo-restores-everything with the
   "Undo paste" label).
+- **feat(web): the synthesis-evidence lint — a suggestion-only dashed hint
+  on thin synthesis pages (research-tier2 slice 4).** A `synthesis`-classed
+  page whose embedded evidence set is empty or single-source shows a dashed
+  `LintHintRow` in the page header (kit component, token-only CSS,
+  `role="status"`, no action, no dismiss — never enforcement). Evidence
+  semantics: DISTINCT source-family targets of `embed_ref` tokens in the
+  page's SUBTREE — containment-aware (an embed of a note block resolves to
+  its nearest source-family ancestor) and extends-aware (the sourcesQuery
+  class-parent walk idiom; a user class extending a roster type counts);
+  `mention` tokens with the per-link `isEmbedded` transclusion flag are a
+  SECONDARY signal only (the edge table's `is_embedded` sees no embeds —
+  embeds ride content ASTs). Read layer:
+  `apps/web/src/features/research-lint/evidence.ts` —
+  `synthesisEvidenceOf(reads, nodeId)` (the pure injected-reads contract)
+  + `synthesisEvidenceCount(client, nodeId)` (the synchronous render-time
+  read — PageView's notification-driven re-render recomputes it like every
+  other chrome row) + `evidenceReadsOf(client)`. Render slot:
+  `PageHeaderChrome`, main surface only (embedded/preview/focus grow no
+  lint). Tests: `apps/web/test/synthesis-lint.test.tsx` +12 — counting both
+  directions, embed-of-note resolves to source, extends-awareness,
+  distinctness, the pure reads contract, the 0/1 arms, hidden on
+  non-synthesis nodes, suggestion-only (no write method fires, no button).
+  GTK/Flutter/CLI untouched (web-only chrome). Docs:
+  docs/workflows/research-workflow.md (the synthesis step names the hint).
+
 - **feat(web,server): the workflows mechanism's web executor + Settings →
   Workflows tab + `GET /api/features` (research-tier2 slice 2b).** The web
   half of the D2 ruling (one definition, two executors — the CLI mirrors the
