@@ -48,7 +48,12 @@ export class WorkspaceClientSync {
           this.ctx.userOnConflict?.(conflicts);
         },
         onError: (error) => this.ctx.userOnSyncError?.(error),
-        onPush: (_total, info) => this.ctx.notifyFromInfo(info),
+        // Pushing does NOT change local state — the pushed envelopes applied
+        // locally before they entered the outbox. Notifying here was pure
+        // redundancy: it dirtied the whole read cache after every push
+        // (and, with the read-delta stamps, would have re-served the class/
+        // edge families on every push completion). Pulls and realtime frames
+        // DO apply remote envelopes — those notify.
         onPull: (_total, info) => this.ctx.notifyFromInfo(info),
         // Realtime (WS) frames applied to the store refresh the UI exactly
         // like a pull does.

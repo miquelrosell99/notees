@@ -70,6 +70,7 @@ import {
   type UpdateObjectInput,
   type UpdatePropertySchemaInput,
 } from "../core/workspace-client/index.js";
+import { READ_UNCHANGED } from "../core/workspace-client/read-revisions.js";
 
 import type { OpfsStore } from "./opfs.js";
 
@@ -150,9 +151,11 @@ const DEFAULT_NOTIFY_DEBOUNCE_MS = 50;
 /**
  * Read-only methods served through the main thread's read cache (the exact
  * `cachedRead` surface of WorkerClient). `multiRead` refuses anything else —
- * a batch refresh must never become a write path.
+ * a batch refresh must never become a write path. Exported for the
+ * read-delta coverage test: every entry must map to an explicit stamp
+ * family in ReadRevisions.stampFor (not the global catch-all).
  */
-const READ_METHODS: ReadonlySet<string> = new Set([
+export const READ_METHODS: ReadonlySet<string> = new Set([
   "getNode",
   "getNodeRaw",
   "getDisplayName",
@@ -684,6 +687,16 @@ export class WorkerCore {
    * (`JSON.stringify([method, args])`) resolved in ONE round-trip instead of
    * N awaited RPCs. Only READ_METHODS are accepted — a refresh batch must
    * never become a write path.
+   *
+   * Delta protocol (read-revisions.ts): each key carries a validity stamp
+   * from the store's revision counters; a key whose stamp is unchanged since
+   * the worker last served it gets the READ_UNCHANGED sentinel instead of
+   * the value — at fleet scale the untouched bulk (11k property-row reads
+   * and friends) dwarfs the changed few, and skipping their re-serialize +
+   * structured clone is what makes a structural refresh milliseconds
+   * instead of seconds. Stamps are conservative by construction: an
+   * over-broad stamp re-serves, an under-broad one is a stale-data bug the
+   * coverage test guards.
    */
   private async multiRead(keys: string[]): Promise<unknown[]> {
     return Promise.all(
@@ -692,9 +705,24 @@ export class WorkerCore {
         if (!READ_METHODS.has(method)) {
           throw new Error(`multiRead: "${method}" is not a read method`);
         }
-        return this.invoke(method, args);
+        const stamp = this.client.readStamp(method, args);
+        if (this.servedStamps.get(key) === stamp) return READ_UNCHANGED;
+        const value = await this.invoke(method, args);
+        // The worker thread runs one multiRead to completion without
+        // interleaving applies (message handlers are macrotasks), so the
+        // stamp captured before the read still describes the value.
+        this.noteServed(key, stamp);
+        return value;
       }),
     );
+  }
+
+  /** Last-served stamp per cache key; bounded — over the cap everything re-serves once. */
+  private servedStamps = new Map<string, string>();
+
+  private noteServed(key: string, stamp: string): void {
+    if (this.servedStamps.size >= 100_000) this.servedStamps.clear();
+    this.servedStamps.set(key, stamp);
   }
 
   stats(): WorkerCoreStats {

@@ -30,6 +30,7 @@ import {
 
 import { UndoJournal, type UndoCaptureSource, type UndoRecordMode } from "../undo-journal.js";
 import { mapNode, nodeRowStamp } from "./mappers.js";
+import { ReadRevisions } from "./read-revisions.js";
 import {
   CHANGE_AFFECT_CAP,
   CONFLICT_LOG_CAP,
@@ -103,6 +104,13 @@ export class ClientContext {
    * write path (see undo-journal.ts for the inversion matrix).
    */
   readonly undoJournal: UndoJournal;
+  /**
+   * Read-validity stamps behind the worker's multiRead delta protocol: a
+   * bump per applied envelope (local precise, remote coarse), a stamp per
+   * cached-read key, so a refresh re-serves only what actually changed
+   * (see read-revisions.ts).
+   */
+  readonly revisions: ReadRevisions;
   /** Semantic conflict history for the sync details modal. */
   readonly conflictLog: ConflictHistoryEntry[] = [];
 
@@ -119,6 +127,49 @@ export class ClientContext {
       options.serverUrl !== undefined && options.serverUrl !== "" ? options.serverUrl : null;
     this.restApiKey = options.apiKey !== undefined && options.apiKey !== "" ? options.apiKey : null;
     this.undoJournal = new UndoJournal({ capture: createCaptureSource(this) });
+    // The walk closures MUST NOT cache prepared statements across calls: a
+    // snapshot restore (pull path) swaps the store's underlying database,
+    // and a statement bound to the discarded image throws "Database closed".
+    // sql.js "prepare" is a plain object (no parsing), so per-call is cheap.
+    this.revisions = new ReadRevisions({
+      ancestorsOf: (id) => {
+        const chain: string[] = [];
+        let cur = id;
+        for (let depth = 0; depth < 64; depth += 1) {
+          const row = (
+            this.store.database.prepare("SELECT parent_id FROM node WHERE id = ?") as unknown as {
+              get(id: string): { parent_id: string | null } | undefined;
+            }
+          ).get(cur);
+          if (row === undefined || row.parent_id === null) break;
+          chain.push(row.parent_id);
+          cur = row.parent_id;
+        }
+        return chain;
+      },
+      descendantsOf: (ids) => {
+        if (ids.length === 0) return [];
+        return (
+          this.store.database.prepare(
+            `WITH RECURSIVE sub(id) AS (
+               SELECT value AS id FROM json_each(?)
+               UNION
+               SELECT n.id FROM node n JOIN sub s ON n.parent_id = s.id
+             ) SELECT id FROM sub`,
+          ) as unknown as { all(json: string): Array<{ id: string }> }
+        )
+          .all(JSON.stringify(ids))
+          .map((r) => r.id);
+      },
+    });
+  }
+
+  /**
+   * The validity stamp for one cached-read key (worker-side multiRead
+   * delta protocol — see read-revisions.ts).
+   */
+  readStamp(method: string, args: unknown[]): string {
+    return this.revisions.stampFor(method, args);
   }
 
   getWorkspaceId(): string {
@@ -171,14 +222,32 @@ export class ClientContext {
     mode: UndoRecordMode = "normal",
     verbOverride?: string,
   ): void {
+    // Pre-apply ancestor chains for placement ops: a move's vacated side is
+    // invisible to post-apply walks, and the read-revision stamps must see
+    // it (getChildren(oldParent) re-serves after a child leaves).
+    const oldAncestors = this.collectOldAncestors(envelope);
     const prepared = this.undoJournal.prepare(envelope);
     const summary = this.requireEngine().enqueue(envelope);
     this.undoJournal.commit(prepared, mode, verbOverride);
+    this.revisions.bumpLocal(envelope, summary, oldAncestors);
     this.notify({
       affectedNodeIds: summary.affectedNodeIds,
       structural: isListingAffectingEnvelope(envelope),
     });
     this.kickPush();
+  }
+
+  /**
+   * The pre-apply ancestor chain of a placement op's affected ids — the
+   * side of a move/delete/restore the post-apply walk cannot see. Cheap:
+   * one parent-pointer walk per affected id, placement ops only.
+   */
+  private collectOldAncestors(envelope: Envelope): string[] {
+    const op = envelope.opType;
+    if (op !== "object.move" && op !== "object.delete" && op !== "object.restore") return [];
+    const out: string[] = [];
+    for (const id of envelope.affectedNodeIds) out.push(...this.revisions.ancestorsOf(id));
+    return out;
   }
 
   /** Best-effort background push after a local write; errors go to onSyncError. */
@@ -213,6 +282,7 @@ export class ClientContext {
    */
   notify(change?: { affectedNodeIds?: string[]; structural?: boolean }): void {
     if (this.closed) return;
+    if (change === undefined) this.revisions.bumpAll();
     this.listReadCache.clear();
     this.revision += 1;
     let payload: ChangeNotification = { revision: this.revision };
@@ -253,6 +323,10 @@ export class ClientContext {
   }
 
   notifyFromInfo(info: BatchChangeInfo | undefined): void {
+    // A pull can resolve after close() tore the store down — the notify
+    // below no-ops on `closed`, and the revision bumps must too (their
+    // ancestor walks read the store).
+    if (!this.closed) this.revisions.bumpRemote(info);
     this.notify(
       info === undefined
         ? undefined
