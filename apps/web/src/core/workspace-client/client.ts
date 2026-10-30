@@ -387,6 +387,11 @@ export class WorkspaceClient {
     return this.readsRefs.getBacklinks(id);
   }
 
+  /** Recently linked mention targets, newest incoming link first (palette home). */
+  recentLinkTargets(limit: number): Array<{ id: string; linkedAt: string | null }> {
+    return this.readsRefs.recentLinkTargets(limit);
+  }
+
   getLinkedReferences(id: string) {
     return this.readsRefs.getLinkedReferences(id);
   }

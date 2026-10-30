@@ -119,6 +119,9 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   // subtree. Row freshness rides the scope-classed getNode per-row re-read
   // (ReferenceList).
   getBacklinks: "scope",
+  // The recency ranking can reorder on ANY edge write (a new link anywhere
+  // may displace row N) — content-global, like search.
+  recentLinkTargets: "change",
   getLinkedReferences: "scope",
   getReferences: "scope",
   getReferenceCount: "scope",
@@ -687,6 +690,11 @@ export class WorkerClient {
 
   getBacklinks(id: string): ClientEdge[] {
     return this.cachedRead<ClientEdge[]>("getBacklinks", [id], []);
+  }
+
+  /** Recently linked mention targets, newest incoming link first (palette home). */
+  recentLinkTargets(limit: number): Array<{ id: string; linkedAt: string | null }> {
+    return this.cachedRead<Array<{ id: string; linkedAt: string | null }>>("recentLinkTargets", [limit], []);
   }
 
   /**
