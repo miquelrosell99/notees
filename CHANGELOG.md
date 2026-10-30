@@ -2640,8 +2640,10 @@ predating this file.
     the explicit non-adoptions (no seeded profiles, no progression
     enforcement, no activity tracking, no mandated workflow). Honest about
     the designed-not-built seam: locator capture is manual paste until the
-    `cites` verb / PDF reader land. Fully de-branded — no third-party product
-    names anywhere in shipped docs.
+    `cites` verb / PDF reader land. Fully de-branded — the third-party method
+    branding (the workflow-source credit) is removed from shipped docs;
+    credited-lineage names elsewhere (philosophy.md's influences, the Tana
+    lesson) are pre-existing convention and unchanged.
   - **Also**: the docs index gains a "Workflows" group pointing at the new
     folder (`docs/README.md`); the typed-link page names the starter verb
     list (`docs/features/links.md`); `AGENTS.md` names `docs/workflows/` in
