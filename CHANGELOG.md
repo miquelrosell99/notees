@@ -373,6 +373,63 @@ predating this file.
   (blank-line drop, two-level and four-space-step nesting with the caret
   landing in the last nested block, one-undo-restores-everything with the
   "Undo paste" label).
+- **feat(domain): the workflows mechanism's domain layer — `question`/`plan`
+  everyday seeds + the `@notees/domain` workflow registry with the pure
+  op-plan builder (research-tier2 slice 2).** (1) Two new everyday system
+  classes seed in the deploy-catalog plain-seed pattern exactly like
+  `definition`/`idea`/`place`/`project`/`trip` (zero wire cost, seed
+  convergence only): `question` at …0001-000000000066 and `plan` at
+  …0001-000000000067 — the two genuinely-free hex slots after the
+  source-library roster (…0065; no withdrawal markers follow it), enabled by
+  default, with icons (`mdiHelpCircleOutline`/`mdiClipboardTextOutline`),
+  display names, and gallery descriptions. Exactly the five maps the
+  precedent batch touches: UUIDS/ICONS/DISPLAY_NAMES/DESCRIPTIONS/
+  SEEDED_SYSTEM_CLASSES — no extends, no parentlessRole flag, no
+  displayTemplate, not archived-by-default, in no pinned roster. The
+  workflows doc + SCHEMA.md "Starter vocabulary" already describe these as
+  seeded — the code now matches the spec.
+  **Seed law 10 sibling-manifest follow-up (recorded, the established
+  pattern):** the GTK/Flutter seed manifests + the CLI vendor pin do NOT
+  carry `question`/`plan` in this slice — the sibling repos converge in
+  their own follow-ups before any live migration depends on the new seeds.
+  (2) `deriveUuid` moves to the packages — new `packages/domain/src/ids.ts`,
+  the single deterministic-uuid (sha256/uuid5-layout) implementation the
+  server re-exports (apps/server/src/identity.ts points at the domain copy;
+  actor-id derivation is byte-unchanged, pinned by test). Browser builds
+  stay correct via the existing `node:crypto` shim precedent (@notees/store
+  edges.ts) — web and CLI derive identical ids from the packages.
+  (3) `packages/domain/src/workflows.ts`: the `WORKFLOWS` registry (v1:
+  `research`) mirroring the docs/workflows/research-workflow.md vocabulary
+  exactly, and `planWorkflowToggle(wfId, "enabled" | "disabled")` — a PURE
+  op-plan builder (no I/O, no existence checks; the executor checks). Every
+  materializable entity id derives per the D1 ruling
+  `deriveUuid("notees:workflow:<workflowId>:<kind>:<entityKey>")` (format +
+  literals pinned by test). Enable order: anchor "Research" tag page → the
+  `synthesis`/`comparison`/`source_instance` classes → 15 property schemas
+  (+ select options: `status` still open/partly addressed/in preparation/set
+  aside bound to the system `question` class; `move` pattern/tension/gap/
+  emerging claim scoped+bound to `synthesis`; `guidingInquiries` multi
+  node-backed text scoped `[project]`; `whyItBelongs`/`readingPurpose`/
+  `whatItContributed`/`engagement` scoped `[source_instance]` unbound;
+  `workingPosition`/`complication`/`unresolved` scoped `[plan]` unbound;
+  `objective`/`method`/`results`/`conclusions`/`limitations` scoped `[source]`
+  bound to the source base, hideWhenEmpty) → the binding rows → the
+  writing-plan + comparison template nodes (classed `template`, the writing
+  plan tagged Research and carrying the three node-backed-text graft values
+  on deterministic carrier blocks) + the has-template values on the `plan`/
+  `comparison` class nodes (deterministic OR-Set element ids). Disable =
+  archive: one `object.update {active:false}` per materialized class +
+  template id (the anchor and the schemas stay; instances keep their
+  `class_ids`) — no uninstall. Tests: new `test/workflows.test.ts` (18
+  tests: id format + full literal snapshot, anchor derivation, seed-slot
+  uniqueness + deploy-catalog parity, enable ordering, disable shape,
+  pure-determinism, and wire-legality of every step against the protocol op
+  payload schemas).
+  - **Files**: `packages/domain/src/seeds.ts`, `packages/domain/src/ids.ts`
+    (new), `packages/domain/src/workflows.ts` (new), `packages/domain/src/
+    index.ts`, `apps/server/src/identity.ts` (re-export), `packages/domain/
+    test/workflows.test.ts` (new). Sibling manifests (GTK/Flutter, CLI
+    vendor): deliberately untouched — the recorded follow-up above.
 
 ## 2026-10-29
 

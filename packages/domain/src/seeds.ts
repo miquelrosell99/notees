@@ -112,6 +112,17 @@ export const SYSTEM_CLASS_UUIDS = {
   statute: "00000000-0000-0000-0001-000000000063",
   tv_broadcast: "00000000-0000-0000-0001-000000000064",
   video_recording: "00000000-0000-0000-0001-000000000065",
+  // Workflows slice 2 (2026-10-30): the everyday `question`/`plan` classes
+  // the research workflow reuses (SCHEMA.md "Starter vocabulary" — everyday,
+  // NOT research vocabulary). Deploy-catalog plain seeds per the
+  // definition/idea/place/project/trip precedent (zero wire cost, seed
+  // convergence only): the next two genuinely-free hex slots in the
+  // …0001- block — the roster ends at …0065 and no withdrawal markers
+  // follow it (question takes …0066, plan …0067, brief order). No extends
+  // (neither IS anything else), no parentlessRole flag, no displayTemplate,
+  // NOT archived by default, in no pinned roster.
+  question: "00000000-0000-0000-0001-000000000066",
+  plan: "00000000-0000-0000-0001-000000000067",
 } as const;
 
 export type SystemClassName = keyof typeof SYSTEM_CLASS_UUIDS;
@@ -192,6 +203,8 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
   statute: "mdiScaleBalance",
   tv_broadcast: "mdiTelevision",
   video_recording: "mdiVideoOutline",
+  question: "mdiHelpCircleOutline",
+  plan: "mdiClipboardTextOutline",
 };
 
 /**
@@ -280,6 +293,8 @@ export const SYSTEM_CLASS_DISPLAY_NAMES: Record<SystemClassName, string> = {
   statute: "Statute",
   tv_broadcast: "TV broadcast",
   video_recording: "Video recording",
+  question: "Question",
+  plan: "Plan",
 };
 
 /** The class title a seed/self-heal authors for `name` (display wording). */
@@ -368,6 +383,8 @@ export const SYSTEM_CLASS_DESCRIPTIONS: Record<SystemClassName, string> = {
   statute: "A statute — enacted law.",
   tv_broadcast: "A TV program or broadcast.",
   video_recording: "A recorded video — clip, excerpt, or program.",
+  question: "An open question — a map of attention, not a work pipeline.",
+  plan: "A plan — the argument as it stands and what it still owes.",
 };
 
 /** The card description the gallery renders for `name`. */
@@ -1518,6 +1535,11 @@ export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [
   "statute",
   "tv_broadcast",
   "video_recording",
+  // Workflows slice 2 (2026-10-30): the everyday `question`/`plan` classes
+  // (see SYSTEM_CLASS_UUIDS above) — enabled by default, like the rest of
+  // the deploy catalog.
+  "question",
+  "plan",
 ];
 
 /**
