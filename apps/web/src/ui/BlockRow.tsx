@@ -115,7 +115,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 
 import { excerptOf, isRuleContent, parseDateNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
-import type { BlockTreeNode, ClientNode, EffectiveProperty, WorkspaceClient } from "@/core/workspace-client/index.js";
+import type { BlockTreeNode, ClientNode, PropertyRowShell, WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import { hiddenLinksOf } from "@/editor/condensed.js";
 
@@ -590,7 +590,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
     propertySchemaId: string;
     label: string;
     options: SelectionOption[];
-    rows: EffectiveProperty[];
+    rows: PropertyRowShell[];
     multi: boolean;
     boolean: boolean;
     display: "bullet" | "inline";
@@ -599,13 +599,16 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
     propertySchemaId: string;
     label: string;
     options: SelectionOption[];
-    rows: EffectiveProperty[];
+    rows: PropertyRowShell[];
     multi: boolean;
     boolean: boolean;
     display: "bullet" | "inline";
   }> = [];
   if (!isTitle) {
-    const effectiveRows = client.getEffectiveProperties(node.id);
+    // The shells read: the display-position chrome renders select /
+    // multi_select / boolean pills (LIGHT — values present) plus
+    // assigned/bound-empty buttons (no values) — never a heavy value inline.
+    const effectiveRows = client.getPropertyRowShells(node.id);
     // The property chrome renders schema names — a schema rename/update
     // must force this row too.
     for (const row of effectiveRows) rerenderTargetsRef.current.add(row.propertySchemaId);
@@ -615,7 +618,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
     const selectDisplayGroups: typeof bulletDisplayGroups = [];
     {
       const seenGroups = new Set<string>();
-      const assignedDisplayRows: Array<{ row: EffectiveProperty; display: "bullet" | "inline" }> =
+      const assignedDisplayRows: Array<{ row: PropertyRowShell; display: "bullet" | "inline" }> =
         [];
       for (const row of effectiveRows) {
         const display = row.display;

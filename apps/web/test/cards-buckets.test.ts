@@ -54,15 +54,17 @@ describe("cardRowsOf (the effective cardDue read)", () => {
     const { dayNodeId } = await import("@notees/domain");
     const dueSchemaId = "00000000-0000-0000-0004-000000000001";
     const client = {
-      getEffectiveProperties: (id: string) =>
+      getPropertyRowShells: (id: string) =>
         id === "with-due"
           ? [
               {
                 propertySchemaId: dueSchemaId,
                 // The datetime point value: a day-chain node ref (the slot
                 // grammar), read through the same slot helpers the task
-                // rows use.
+                // rows use. Datetime is a LIGHT type — the shells read
+                // carries the value verbatim.
                 value: { nodeId: dayNodeId("2026-10-27") },
+                deferred: false,
               },
             ]
           : [],

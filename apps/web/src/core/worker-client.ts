@@ -38,6 +38,7 @@ import type {
   EffectiveProperty,
   OperationFeedEntry,
   PageSummary,
+  PropertyRowShell,
   QueryAggregateResult,
   QueryRunResult,
   ReferenceEntry,
@@ -108,6 +109,7 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   getBacklinkCount: "scope",
   getChildPageCount: "scope",
   getEffectiveProperties: "scope",
+  getPropertyRowShells: "scope",
   getAssetInfo: "scope",
   getAnnotationsForAsset: "scope",
   getClassParents: "scope",
@@ -589,6 +591,10 @@ export class WorkerClient {
 
   getEffectiveProperties(id: string): EffectiveProperty[] {
     return this.cachedRead<EffectiveProperty[]>("getEffectiveProperties", [id], []);
+  }
+
+  getPropertyRowShells(id: string): PropertyRowShell[] {
+    return this.cachedRead<PropertyRowShell[]>("getPropertyRowShells", [id], []);
   }
 
   /** Nodes carrying an authored value for the schema (the PropertyView references). */

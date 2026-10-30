@@ -41,7 +41,15 @@ export function PropertiesSection({
   omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
   readOnly?: boolean | undefined;
 }) {
-  const count = propertiesCountOf(propertyGroupsOf(client, nodeId, omitDisplayPositions));
+  // The collapsed-header count probes the SHELLS read: the count classifies
+  // rows (presence/source/display/schema type) and never renders a value, so
+  // the shells answer is identical — the block row's eager read stays light.
+  // The expanded table (PropertiesTable) still rides the FULL read (it
+  // renders values; NodeViewSection mounts it only on expansion — the heavy
+  // read is on-demand).
+  const count = propertiesCountOf(
+    propertyGroupsOf(client, nodeId, omitDisplayPositions, client.getPropertyRowShells(nodeId)),
+  );
   if (hideWhenEmpty && count === 0) return null;
   return (
     <NodeViewSection

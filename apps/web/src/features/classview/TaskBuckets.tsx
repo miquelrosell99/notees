@@ -90,7 +90,7 @@ export function TaskBuckets({
     taskStatusLabel(
       statusSchema,
       client
-        .getEffectiveProperties(id)
+        .getPropertyRowShells(id)
         .find((entry) => entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus)?.value,
     );
 

@@ -552,6 +552,37 @@ export interface EffectiveProperty {
   display: PropertyDisplay | null;
 }
 
+/**
+ * The cheap bulk-read variant of {@link EffectiveProperty} (the shells read):
+ * every identity/derivation field of the full row — propertySchemaId, idx,
+ * elementId, schema, metadata, source, boundBy, eligible, hideWhenEmpty,
+ * display — in the SAME order, but `value` ships only for LIGHT property
+ * types (`LIGHT_PROPERTY_VALUE_TYPES`: select, multi_select, boolean,
+ * number, date, datetime). HEAVY types (text, url, node refs, any unknown
+ * type) defer the value: `value` reads null and `valueCount` carries the
+ * cardinality instead. `deferred` is the flag: a deferred row's `value: null`
+ * means "withheld", never "empty" — only assigned/bound empty rows
+ * (`deferred: false, valueCount: 0`) read as empty.
+ */
+export interface PropertyRowShell {
+  propertySchemaId: string;
+  idx: number;
+  elementId: string;
+  schema: EffectiveProperty["schema"];
+  metadata: Record<string, unknown> | null;
+  source: "authored" | "default" | "assigned" | "bound";
+  boundBy: string | null;
+  eligible: boolean;
+  /** LIGHT types carry the value here (identical to EffectiveProperty.value). */
+  value: unknown;
+  /** HEAVY types: value is null; the cardinality is here instead. */
+  valueCount: number;
+  /** True when a value exists but was deferred (heavy type). */
+  deferred: boolean;
+  hideWhenEmpty: boolean | null;
+  display: PropertyDisplay | null;
+}
+
 export interface ClientEdge {
   id: string;
   sourceId: string;

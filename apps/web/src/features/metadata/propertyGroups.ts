@@ -2,6 +2,7 @@ import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type {
   ClassBinding,
+  EffectiveProperty,
   PropertyDisplay,
 } from "@/core/workspace-client/index.js";
 import type { AnyClient } from "./shared.js";
@@ -21,6 +22,13 @@ export function propertyGroupsOf(
   client: AnyClient,
   nodeId: string,
   omitDisplayPositions?: ReadonlyArray<"bullet" | "inline">,
+  /**
+   * The effective rows to group — defaults to the FULL read. Callers that
+   * only count or classify (never render values) may pass the SHELLS read
+   * instead: the grouping rides row presence, source, display and schema
+   * type only, so a shells-based count is identical to the full-read count.
+   */
+  effectiveRows?: EffectiveProperty[],
 ) {
   const omittedByDisplay = (display: PropertyDisplay | null): boolean =>
     (display === "bullet" || display === "inline") &&
@@ -31,9 +39,7 @@ export function propertyGroupsOf(
   // cover schema is suppressed EVERYWHERE: the cover is header
   // chrome (PageBanner/AddCover), never a property row.
   const isClassNode = node?.isClass === true;
-  const rows = client
-    .getEffectiveProperties(nodeId)
-    .filter(
+  const rows = (effectiveRows ?? client.getEffectiveProperties(nodeId)).filter(
       (row) =>
         !(isClassNode && row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate) &&
         row.propertySchemaId !== SYSTEM_PROPERTY_UUIDS.cover &&

@@ -35,6 +35,7 @@ export type {
   OperationFeedEntry,
   PageSummary,
   PropertyDisplay,
+  PropertyRowShell,
   QueryAggregateResult,
   QueryRunResult,
   QueryRunSummary,
@@ -70,4 +71,5 @@ export {
   type HostedSectionKey,
   type SectionView,
 } from "./section-views.js";
+export { LIGHT_PROPERTY_VALUE_TYPES } from "@notees/store";
 export * from "./client.js";

@@ -5,7 +5,7 @@
  * plain block shows none of the below-row chrome.
  */
 
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { fireEvent, render } from "@testing-library/react";
 
@@ -201,8 +201,27 @@ describe("BlockRow value-display buttons", () => {
       contentAst: [{ type: "text", text: "task" }],
     });
     await client.assignClass(blockId, classId);
-    return { client, pageId, blockId };
+    return { client, pageId, blockId, schemaId };
   }
+
+  it("the row chrome reads property shells (the light bulk read), never the full read", async () => {
+    const { client, pageId, blockId, schemaId } = await seedDisplayBlock("bullet");
+    // A valued select: the pill renders from the shells read's light value.
+    await client.setProperty(blockId, schemaId, "opt-1", 0);
+    const shellsSpy = vi.spyOn(client, "getPropertyRowShells");
+    const fullSpy = vi.spyOn(client, "getEffectiveProperties");
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const block = container.querySelector(`[data-block-id="${blockId}"]`)!;
+    // The valued pill renders (the option icon)…
+    expect(
+      block.querySelector(":scope > .nt-block-row > .nt-block-bullet-props .nt-propicon"),
+    ).not.toBeNull();
+    // …the chrome consulted the shells read for the block…
+    expect(shellsSpy).toHaveBeenCalledWith(blockId);
+    // …and the full read is not consulted for the block row.
+    expect(fullSpy.mock.calls.some((call) => call[0] === blockId)).toBe(false);
+  });
 
   it("a bullet-displayed binding renders the icon button and omits the properties section", async () => {
     const { client, pageId, blockId } = await seedDisplayBlock("bullet");

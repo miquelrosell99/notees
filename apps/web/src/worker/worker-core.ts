@@ -64,6 +64,7 @@ import {
   type EffectiveProperty,
   type PageSummary,
   type PrefsPatch,
+  type PropertyRowShell,
   type ReferenceEntry,
   type SetClassPropertyInput,
   type SyncStatusSnapshot,
@@ -186,6 +187,7 @@ export const READ_METHODS: ReadonlySet<string> = new Set([
   "getClassBindings",
   "getRegistryBindings",
   "getEffectiveProperties",
+  "getPropertyRowShells",
   "getPropertyReferences",
   "getCoverReferences",
   "getAssetInfo",
@@ -605,6 +607,10 @@ export class WorkerCore {
     return this.client.getEffectiveProperties(id);
   }
 
+  getPropertyRowShells(id: string): PropertyRowShell[] {
+    return this.client.getPropertyRowShells(id);
+  }
+
   getAssetInfo(id: string): AssetInfo | undefined {
     return this.client.getAssetInfo(id);
   }
@@ -883,6 +889,8 @@ export class WorkerCore {
         return this.client.getFeatureInstanceCount(args[0] as WorkspaceFeature);
       case "getEffectiveProperties":
         return this.getEffectiveProperties(args[0] as string);
+      case "getPropertyRowShells":
+        return this.getPropertyRowShells(args[0] as string);
       case "getPropertyReferences":
         return this.client.getPropertyReferences(args[0] as string);
       case "getCoverReferences":
