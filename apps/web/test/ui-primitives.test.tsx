@@ -123,19 +123,17 @@ describe("SearchField", () => {
     expect(iconLane).not.toBeNull();
     expect(iconLane![0]).toContain("width: var(--icon-size-md)");
 
-    // Anchored pickers already give the field an 8px panel margin; adding the
-    // sm field's own inline padding would indent the placeholder a second
-    // time relative to the result-row labels.
+    // The flush lens retired same-day (the anchored picker's search pill
+    // keeps its side padding): the picker css carries NO .search-field--sm
+    // padding override anymore — the sm field's own --spacing-2 padding
+    // stands, and the field is positioned by its panel margin alone.
     const pickerCss = process_.getBuiltinModule("node:fs").readFileSync(
       `${process.cwd()}/src/features/pickers/NodeSelector.css`,
       "utf8",
     );
-    const pickerField =
-      /\.node-selector__picker \.node-selector__search-field\.search-field--sm \{[^}]*\}/.exec(
-        pickerCss,
-      );
+    expect(pickerCss).not.toMatch(/\.search-field--sm\s*\{/);
+    const pickerField = /\.node-selector__search-field \{[^}]*\}/.exec(pickerCss);
     expect(pickerField).not.toBeNull();
-    expect(pickerField![0]).toContain("padding-left: 0");
   });
 });
 
