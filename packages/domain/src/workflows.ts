@@ -559,10 +559,17 @@ function planEnable(wfId: WorkflowId, spec: WorkflowSpec): WorkflowOpStep[] {
 
 function planDisable(wfId: WorkflowId, spec: WorkflowSpec): WorkflowOpStep[] {
   // Disable = archive (the owner ruling): one object.update {active:false}
-  // per workflow-materialized class + template node. The anchor tag page and
-  // the schemas stay; instances keep their class_ids (F3 hide-surfaces-keep-
-  // data). No uninstall/delete.
+  // per workflow-materialized entity — the ANCHOR TAG PAGE first (the
+  // installed-state probe reads it: present + archived = disabled), then the
+  // classes + template nodes. Tag assignments on projects ride untouched (F3
+  // hide-surfaces-keep-data); instances keep their class_ids. The schemas
+  // stay (no archival story — scoped to classes the disable archives).
+  // No uninstall/delete.
   const steps: WorkflowOpStep[] = [];
+  steps.push({
+    opType: "object.update",
+    payload: { objectId: workflowAnchorId(wfId), active: false },
+  });
   for (const cls of spec.classes) {
     steps.push({
       opType: "object.update",
@@ -582,7 +589,8 @@ function planDisable(wfId: WorkflowId, spec: WorkflowSpec): WorkflowOpStep[] {
  * The pure toggle planner (D2): the ordered op list an executor walks,
  * existence-checking each step. Enable: anchor → classes → schemas (+options)
  * → bindings → templates (+graft values + has-template values). Disable:
- * one `object.update {active:false}` per materialized class + template id.
+ * one `object.update {active:false}` per materialized entity — the anchor
+ * tag page (the installed-state probe), then the classes + template ids.
  */
 export function planWorkflowToggle(
   wfId: WorkflowId,

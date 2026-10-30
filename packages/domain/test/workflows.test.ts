@@ -384,21 +384,23 @@ describe("planWorkflowToggle — enable ordering (anchor → classes → schemas
   });
 });
 
-describe("planWorkflowToggle — disable (archive exactly the classes + templates, nothing else)", () => {
-  it("five object.update {active:false} steps — the 3 workflow classes, then the 2 templates", () => {
+describe("planWorkflowToggle — disable (archive the anchor + exactly the classes + templates, nothing else)", () => {
+  it("six object.update {active:false} steps — the anchor tag page, then the 3 workflow classes, then the 2 templates", () => {
     const plan = disablePlan();
-    expect(plan).toHaveLength(5);
+    expect(plan).toHaveLength(6);
     expect(plan.every((s) => s.opType === "object.update")).toBe(true);
     expect(plan.map((s) => [s.payload.objectId, s.payload.active])).toEqual([
+      [derived("tag", "research"), false],
       [derived("class", "synthesis"), false],
       [derived("class", "comparison"), false],
       [derived("class", "source_instance"), false],
       [derived("template", "writingPlan"), false],
       [derived("template", "comparison"), false],
     ]);
-    // Never the anchor, never the schemas, never a system class.
+    // The anchor archives FIRST — the installed-state probe (absent = not
+    // installed; present + archived = disabled) reads it in one object read.
+    // Never the schemas, never a system class.
     const touched = new Set(plan.map((s) => s.payload.objectId as string));
-    expect(touched.has(derived("tag", "research"))).toBe(false);
     expect(touched.has(SYSTEM_CLASS_UUIDS.question)).toBe(false);
     expect(touched.has(SYSTEM_CLASS_UUIDS.plan)).toBe(false);
     expect(touched.has(SYSTEM_CLASS_UUIDS.source)).toBe(false);
