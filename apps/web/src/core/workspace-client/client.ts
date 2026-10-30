@@ -559,6 +559,11 @@ export class WorkspaceClient {
     return this.writes.createObject(partial);
   }
 
+  /** The multiRead delta stamp for one cached-read key (read-revisions.ts). */
+  readStamp(method: string, args: unknown[]): string {
+    return this.ctx.readStamp(method, args);
+  }
+
   pasteBlocks(
     headUpdate: { id: string; contentAst: ContentAst },
     creates: CreateObjectInput[],

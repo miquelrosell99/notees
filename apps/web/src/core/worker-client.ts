@@ -59,6 +59,7 @@ import {
   type UserPrefsSource,
 } from "./workspace-client/index.js";
 import type { UndoHistoryEntry, UndoUiState } from "./undo-journal.js";
+import { isReadUnchanged } from "./workspace-client/read-revisions.js";
 import type {
   WorkerInitMessage,
   WorkerRequestMessage,
@@ -375,7 +376,12 @@ export class WorkerClient {
             );
           }
           batch.forEach((key, index) => {
-            this.cache.set(key, results[index]);
+            // Delta refresh: the worker answers READ_UNCHANGED for keys
+            // whose revision stamp is unchanged since its last serve — the
+            // cached value stays (read-revisions.ts).
+            if (!isReadUnchanged(results[index])) {
+              this.cache.set(key, results[index]);
+            }
           });
         } catch (error) {
           // Keep the previous values; the next "changed" retries. Surface the

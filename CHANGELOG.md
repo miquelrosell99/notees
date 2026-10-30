@@ -9,6 +9,38 @@ predating this file.
 
 ## 2026-10-30
 
+- **fix(web): the read-cache refresh goes delta — a structural gesture
+  re-serves only what changed, not ~240MB.** Measured on the full-scale
+  disposable workspace (59k nodes / 307k envelopes, browser probe on the
+  wire): one structural gesture (ghost-block create) re-ran 18.6k cached
+  read keys whose multiRead response was 237MB — 83% of it 11,072
+  `getEffectiveProperties` payloads — and structured-cloning that
+  worker→main cost the seconds every gesture took (indent ~1.8s, palette
+  create → open picker up to ~4s). Sync was never the bottleneck (worker
+  apply measured 8–32ms); push traffic only *correlated* by triggering more
+  of these mega-refreshes. New `ReadRevisions` (client-context): per-apply
+  revision stamps in five families — a subtree-row epoch per node (affected
+  + ancestors, +descendants for subtree ops), a subtree-shape epoch
+  (placement ops, with the pre-apply ancestor chain captured in
+  `enqueueLocal` so a move's vacated parent re-serves), and coarse
+  listing/classes/edges/features counters — plus oversized-walk and remote
+  fallbacks. `WorkerCore.multiRead` stamps every key and answers a
+  `READ_UNCHANGED` sentinel for unchanged ones (last-served stamp map,
+  bounded); `WorkerClient` keeps the cached value for sentinels. Stamps are
+  conservative by construction — over-broad re-serves, under-broad would be
+  stale — and a coverage test pins every `READ_METHODS` entry to an explicit
+  family (the global catch-all is a soundness escape hatch with a 5-method
+  allowlist). Two riding fixes the measurement forced: the push-completion
+  notification is gone (`onPush` → `notifyFromInfo` dirtied the whole cache
+  after every push — pure redundancy, pushing never changes local state);
+  and the revision-walk closures must not cache prepared statements across
+  calls (a snapshot restore swaps the underlying database — a cached
+  statement points at the discarded image and throws "Database closed").
+  Tests: `read-delta.test.ts` — 11 (stamp rules incl. old-parent soundness
+  and the oversized fallback, the READ_METHODS coverage guard, WorkerCore
+  integration over real sql.js, sentinel wire round-trip). Full gate green
+  (typecheck + 2634 web tests).
+
 - **feat(web): command palette home — Recently created → Recently linked →
   Random → Commands, and node rows carry their effective icon.** The
   empty-query home replaces the device-local Recent (MRU) section with two
