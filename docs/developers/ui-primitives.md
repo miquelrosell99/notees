@@ -114,9 +114,10 @@ on `grid auto/minmax(0,1fr)/auto`; the catalog input's own inline
 padding is stripped so the text rides the icon lane's trailing edge; `md`
 by default on full surfaces; `size="sm"` on compact chrome rows and
 anchored picker popovers — NodeSelector, the bind-property picker, and the
-template-list popup; inside an anchored picker panel the panel margin is
-the horizontal padding, so the placeholder joins the result-row label
-grid; at EVERY size the pill's block size is the input's button-height
+template-list popup; inside an anchored picker panel the field KEEPS its
+own inline padding — the panel margin is the outer air, never the icon's
+side-padding (zeroing it put the lens flush on the pill border; the
+command palette's md field is the pattern for icon breathing room); at EVERY size the pill's block size is the input's button-height
 token — the wrapper carries no block padding, the old
 `py-2` stacked on `h-button-md` and doubled the vertical air, and the
 command palette surfaced it as the last tall search box), `Input` (the boxed text field — the SelectTrigger register applied
