@@ -24,6 +24,7 @@ import type {
   CreatePropertySchemaInput,
   DeleteObjectOptions,
   EffectiveProperty,
+  PageSummary,
   QueryAggregateResult,
   QueryRunResult,
   SetClassPropertyInput,
@@ -174,6 +175,12 @@ export interface OutlinerReader {
   getBlockTree(nodeId: string, depth?: number): BlockTreeNode[];
   getDisplayName(id: string): string | null;
   listPages(): ClientNode[];
+  /**
+   * The lean page-listing read (PageSummary rows, title pre-flattened) —
+   * the listing consumers that never parse a pooled row's contentAst ride
+   * this; both client classes satisfy it.
+   */
+  listPageSummaries(): PageSummary[];
   /** Top-level pages only (parentless non-class) — shell hubs + export enumerator. */
   roots(): ClientNode[];
   listClasses(): ClientNode[];
@@ -314,7 +321,7 @@ export interface OutlinerContextValue {
    * full client surface (in-process or worker proxy).
    */
   capture: {
-    searchNodes(query: string): ClientNode[];
+    searchNodes(query: string): Array<ClientNode | PageSummary>;
     listClasses(): ClientNode[];
     displayName(id: string): string | null;
   };
@@ -772,7 +779,7 @@ export function useOutlinerValue(
         searchNodes: (query) => {
           const q = foldSearchText(query.trim().toLowerCase());
           const pool = [
-            ...client.listPages(),
+            ...client.listPageSummaries(),
             ...client.listClasses(),
             ...(q === "" ? [] : client.search(query)),
           ];

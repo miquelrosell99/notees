@@ -99,7 +99,8 @@ export function formatDateName(
  */
 export function isDatePageNode(node: {
   id: string;
-  name: string | null;
+  /** @deprecated Unused (title-is-content): the id/class tests cover it. */
+  name?: string | null;
   classIds?: readonly string[];
 }): boolean {
   if (parseDateNodeId(node.id) !== null) return true;

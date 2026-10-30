@@ -40,7 +40,7 @@ interface QuickAddModalProps {
   /** The workspace data surface the quick capture writes through. */
   client: Pick<
     WorkspaceClient | WorkerClient,
-    "applyOps" | "listPages" | "ensureDateChain" | "getNode" | "getDisplayName"
+    "applyOps" | "listPageSummaries" | "ensureDateChain" | "getNode" | "getDisplayName"
   >;
 }
 
@@ -119,10 +119,10 @@ export function QuickAddModal({ isOpen, onClose, client }: QuickAddModalProps) {
     let cancelled = false;
     if (quickAddDestination === "inbox") {
       // The name resolves through the fresh per-node read (scope-classed),
-      // not the pooled row: listPages is structure-classed and can lag a
-      // rename.
+      // not the pooled row: the summaries listing is structure-classed and
+      // can lag a rename.
       const inbox = client
-        .listPages()
+        .listPageSummaries()
         .find((p) => titleOf(client, p.id) === "Inbox");
       if (!cancelled) setDestinationPageUuid(inbox?.id ?? null);
     } else {

@@ -33,6 +33,7 @@ export type {
   DatetimeValueInput,
   EffectiveProperty,
   OperationFeedEntry,
+  PageSummary,
   PropertyDisplay,
   QueryAggregateResult,
   QueryRunResult,

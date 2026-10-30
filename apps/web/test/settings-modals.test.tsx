@@ -271,6 +271,7 @@ describe("entry points", () => {
     classIcons: () => new Map(),
     effectiveClassIcons: () => new Map(),
     listPages: () => [],
+    listPageSummaries: () => [],
     // The sidebar nav reads the feature surface for the Tasks hub.
     isFeatureEnabled: () => true,
     subscribe: () => () => {},

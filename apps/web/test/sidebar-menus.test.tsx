@@ -458,6 +458,22 @@ describe("sidebar row labels render as plain text", () => {
     return {
       listClasses: () => [],
       listPages: () => nodes,
+      // The favorites/recents pool rides the lean summaries read now; the
+      // title flattens the content like the real worker-side derivation.
+      listPageSummaries: () =>
+        nodes.map((node) => ({
+          id: node.id,
+          title: plainTextExcerpt(node.contentAst),
+          parentId: node.parentId,
+          isClass: node.isClass,
+          isEmbedded: node.isEmbedded,
+          classIds: node.classIds,
+          tagIds: node.tagIds,
+          icon: node.icon,
+          color: node.color,
+          createdAt: node.createdAt ?? "",
+          updatedAt: node.updatedAt ?? "",
+        })),
       effectiveClassIcons: () => new Map(),
       isFeatureEnabled: () => true,
       getNode: (id: string) => byId.get(id),

@@ -26,6 +26,7 @@ import {
   mapClassBindingRow,
   type ClassBinding,
   type ClientNode,
+  type PageSummary,
   type ParentRenderFacts,
   type ArchivedEntry,
   type TrashedEntry,
@@ -160,6 +161,48 @@ export class WorkspaceClientReads {
         )
         .all(this.ctx.workspaceId) as NodeRow[];
       return rows.map((row) => this.ctx.mapNodeCached(row));
+    });
+  }
+
+  /**
+   * The lean twin of listPages(): the SAME query and order, but each row
+   * maps to a PageSummary — the title pre-flattened server-side via the
+   * domain's deriveDisplayName, no contentAst on the wire. The per-row
+   * ClientNode construction rides the mapNodeCached identity cache (the
+   * parse cost is acceptable; the win is the transfer shape). Listing
+   * consumers that never read a pooled row's contentAst/name should prefer
+   * this over listPages().
+   */
+  listPageSummaries(): PageSummary[] {
+    return this.cachedListRead("listPageSummaryRows", () => {
+      const rows = this.ctx.store.database
+        .prepare(
+          `SELECT * FROM node
+         WHERE workspace_id = ? AND is_class = 0 AND (parent_id IS NULL OR is_embedded = 0) AND is_active = 1
+           AND (parent_id IS NOT NULL OR NOT EXISTS (
+             SELECT 1 FROM class_hierarchy ch
+             JOIN node c ON c.id = ch.ancestor_id
+             WHERE ch.class_id IN (SELECT value FROM json_each(node.class_ids))
+               AND c.parentless_role = 'block'))
+         ORDER BY COALESCE(name, id), id`,
+        )
+        .all(this.ctx.workspaceId) as NodeRow[];
+      return rows.map((row) => {
+        const node = this.ctx.mapNodeCached(row);
+        return {
+          id: node.id,
+          title: deriveDisplayName(node),
+          parentId: node.parentId,
+          isClass: node.isClass,
+          isEmbedded: node.isEmbedded,
+          classIds: node.classIds,
+          tagIds: node.tagIds,
+          icon: node.icon,
+          color: node.color,
+          createdAt: node.createdAt ?? "",
+          updatedAt: node.updatedAt ?? "",
+        };
+      });
     });
   }
 

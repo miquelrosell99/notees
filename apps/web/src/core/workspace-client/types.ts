@@ -144,6 +144,31 @@ export interface BlockTreeNode {
   children: BlockTreeNode[];
 }
 
+/**
+ * The lean page-listing row (the listing-transfer slimming read): every
+ * filter/sort field a page-picker or hub listing needs, with the title
+ * PRE-DERIVED server-side (the worker flattens the content to the display
+ * name — consumers never parse contentAst). Everything the full ClientNode
+ * carries that a listing row never reads (contentAst, name, description,
+ * cover/banner, listStyle, …) stays OFF the wire: at fleet scale the
+ * per-gesture listing transfer is the dominant payload, and summaries cut
+ * it from full nodes to ~a fifth of the bytes.
+ */
+export interface PageSummary {
+  id: string;
+  /** deriveDisplayName flattened server-side (title-is-content). */
+  title: string;
+  parentId: string | null;
+  isClass: boolean;
+  isEmbedded: boolean;
+  classIds: string[];
+  tagIds: string[];
+  icon: string | null;
+  color: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** The parent node's render facts for the parent-page condition — undefined when the node is parentless or the
  *  parent row is not at hand (the store's write-time invariant covers
  *  that case). */

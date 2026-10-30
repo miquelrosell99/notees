@@ -366,7 +366,7 @@ describe("CommandPalette Random section (#8)", () => {
 
   it("refresh does NOT re-query the worker (the same cached pool re-shuffles)", async () => {
     const client = await seedRandomWorld(8);
-    const listSpy = vi.spyOn(client, "listPages");
+    const listSpy = vi.spyOn(client, "listPageSummaries");
     renderPalette(client);
     await screen.findByText("Random");
     const callsAfterOpen = listSpy.mock.calls.length;
