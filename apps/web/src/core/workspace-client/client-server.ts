@@ -31,6 +31,37 @@ import type { ClientContext } from "./client-context.js";
 export class WorkspaceClientServer {
   constructor(private readonly ctx: ClientContext) {}
 
+  /**
+   * The operator API key is not a user — GET /api/me/prefs 401s it (the
+   * route's documented contract) and the prefs probe would fire a known-401
+   * on every boot (console noise, wasted request). Resolved lazily ONCE per
+   * client through GET /api/auth/me: the operator key answers 200 as its
+   * synthetic identity (`id: "operator"`), a user principal answers with
+   * their account row. Unknown/unreachable/legacy answers resolve "not
+   * operator" — the prefs probe then runs exactly as before.
+   */
+  private operatorKey: Promise<boolean> | null = null;
+
+  private isOperatorKey(): Promise<boolean> {
+    if (this.ctx.restServerUrl === null || this.ctx.restApiKey === null) {
+      return Promise.resolve(false);
+    }
+    this.operatorKey ??= (async () => {
+      try {
+        const response = await fetch(
+          `${this.ctx.restServerUrl!.replace(/\/$/, "")}/api/auth/me`,
+          { headers: { "X-API-Key": this.ctx.restApiKey! } },
+        );
+        if (!response.ok) return false;
+        const identity = (await response.json()) as { id?: unknown };
+        return identity.id === "operator";
+      } catch {
+        return false;
+      }
+    })();
+    return this.operatorKey;
+  }
+
   // --- assets (REST upload + op-log link) -------------------------------------
 
   private requireRest(): { serverUrl: string; apiKey: string } {
@@ -48,10 +79,16 @@ export class WorkspaceClientServer {
    * GET /api/me/prefs (session or API-key credential). On success the local
    * cache is refreshed so device-local readers (sidebar lists, palette
    * Recent) see the same source. Offline/unreachable (or a client without
-   * REST config): the cached copy answers, tagged `source: "local"`.
+   * REST config): the cached copy answers, tagged `source: "local"`. An
+   * operator-key credential skips the probe (the server 401s it by design)
+   * and answers from the cache directly.
    */
   async getPrefs(): Promise<UserPrefs & { source: UserPrefsSource }> {
-    if (this.ctx.restServerUrl !== null && this.ctx.restApiKey !== null) {
+    if (
+      this.ctx.restServerUrl !== null &&
+      this.ctx.restApiKey !== null &&
+      !(await this.isOperatorKey())
+    ) {
       try {
         const response = await fetch(`${this.ctx.restServerUrl.replace(/\/$/, "")}/api/me/prefs`, {
           headers: { "X-API-Key": this.ctx.restApiKey },
@@ -80,7 +117,9 @@ export class WorkspaceClientServer {
    * present cardsAlgorithm replaces the scalar).
    * The local cache updates first — optimistic and honest offline: when the
    * server cannot be reached the write persists device-locally and the next
-   * successful call syncs it. Resolves `source: "server" | "local"`.
+   * successful call syncs it. Resolves `source: "server" | "local"`. An
+   * operator-key credential never PUTs (no user owns the prefs server-side):
+   * the write stays device-local, `source: "local"`.
    */
   async patchPrefs(patch: PrefsPatch): Promise<UserPrefs & { source: UserPrefsSource }> {
     const merged: UserPrefs = {
@@ -93,7 +132,11 @@ export class WorkspaceClientServer {
     if (patch.cardsAlgorithm !== undefined) {
       writeDevicePrefScalar("cardsAlgorithm", patch.cardsAlgorithm);
     }
-    if (this.ctx.restServerUrl !== null && this.ctx.restApiKey !== null) {
+    if (
+      this.ctx.restServerUrl !== null &&
+      this.ctx.restApiKey !== null &&
+      !(await this.isOperatorKey())
+    ) {
       try {
         const response = await fetch(`${this.ctx.restServerUrl.replace(/\/$/, "")}/api/me/prefs`, {
           method: "PUT",
