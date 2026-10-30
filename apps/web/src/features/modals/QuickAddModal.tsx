@@ -40,7 +40,7 @@ interface QuickAddModalProps {
   /** The workspace data surface the quick capture writes through. */
   client: Pick<
     WorkspaceClient | WorkerClient,
-    "createObject" | "listPages" | "ensureDateChain" | "getNode" | "getDisplayName"
+    "applyOps" | "listPages" | "ensureDateChain" | "getNode" | "getDisplayName"
   >;
 }
 
@@ -59,7 +59,7 @@ export function QuickAddModal({ isOpen, onClose, client }: QuickAddModalProps) {
 
   const { draftBlocks, handleBlockChange, handleBlockKeyDown, createBlocks, isCreating, hasContent } =
     useQuickAdd(
-      { createObject: (partial) => client.createObject(partial) },
+      { applyOps: (ops, opts) => client.applyOps(ops, opts) },
       { onSuccess: onClose },
     );
 

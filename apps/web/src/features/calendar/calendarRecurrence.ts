@@ -23,6 +23,8 @@
  * later slice; this module is the semantic core the UI routes to.
  */
 
+import { uuidv7 } from "uuidv7";
+
 import {
   dayNodeId,
   exdatesOf,
@@ -34,7 +36,7 @@ import {
 } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
+import type { ClientNode, ClientWriteOp, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { addDaysIso, scheduledIsoOf } from "./calendarViewUtils.js";
 
@@ -126,7 +128,11 @@ function dateValueFor(iso: string): { nodeId: string } {
  * Copy `source` into a fresh node: content + classes + every authored
  * property value (multi-value slots per idx), EXCEPT the driving date
  * schema (the caller writes the new date). Children stay on the source —
- * an exception is the node's own row (the design ruling).
+ * an exception is the node's own row (the design ruling). The create +
+ * every setProperty ride ONE applyOps batch ("Undo edit occurrence") —
+ * the create's id is caller-assigned so the property ops anchor to it;
+ * the caller resolves the target date chain BEFORE calling (the date-ref
+ * contract stays outside the batch).
  */
 async function copyEventNode(
   client: AnyClient,
@@ -135,18 +141,40 @@ async function copyEventNode(
   dateValue: unknown,
   dateMetadata: Record<string, unknown> | undefined,
 ): Promise<string> {
-  const id = await client.createObject({
-    isEmbedded: source.isEmbedded,
-    ...(source.parentId !== null ? { parentId: source.parentId } : {}),
-    contentAst: source.contentAst,
-    classIds: source.classIds,
-  });
+  const id = uuidv7();
+  const ops: ClientWriteOp[] = [
+    {
+      kind: "create",
+      input: {
+        id,
+        isEmbedded: source.isEmbedded,
+        ...(source.parentId !== null ? { parentId: source.parentId } : {}),
+        contentAst: source.contentAst,
+        classIds: source.classIds,
+      },
+    },
+  ];
   for (const prop of client.getEffectiveProperties(source.id)) {
     if (prop.source !== "authored") continue;
     if (prop.propertySchemaId === dateSchemaId) continue;
-    await client.setProperty(id, prop.propertySchemaId, prop.value, prop.idx ?? 0, prop.metadata ?? undefined);
+    ops.push({
+      kind: "setProperty",
+      objectId: id,
+      propertySchemaId: prop.propertySchemaId,
+      value: prop.value,
+      idx: prop.idx ?? 0,
+      ...(prop.metadata !== null ? { metadata: prop.metadata } : {}),
+    });
   }
-  await client.setProperty(id, dateSchemaId, dateValue, 0, dateMetadata);
+  ops.push({
+    kind: "setProperty",
+    objectId: id,
+    propertySchemaId: dateSchemaId,
+    value: dateValue,
+    idx: 0,
+    ...(dateMetadata !== undefined ? { metadata: dateMetadata } : {}),
+  });
+  await client.applyOps(ops, { verb: "edit occurrence" });
   return id;
 }
 

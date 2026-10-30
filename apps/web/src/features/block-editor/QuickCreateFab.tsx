@@ -24,7 +24,7 @@ export function QuickCreateFab({
 }: {
   client: Pick<
     AnyClient,
-    "createObject" | "listPages" | "ensureDateChain" | "getNode" | "getDisplayName"
+    "applyOps" | "listPages" | "ensureDateChain" | "getNode" | "getDisplayName"
   >;
 }) {
   const [open, setOpen] = useState(false);

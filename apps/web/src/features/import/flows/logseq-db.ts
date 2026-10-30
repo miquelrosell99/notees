@@ -40,9 +40,9 @@ import type {
 } from "@/core/workspace-client/index.js";
 import {
   coerceImportValue,
+  composePropertyValueOps,
   createNodeWithId,
   matchOptionByLabel,
-  writePropertyValue,
   type CoerceResult,
 } from "../import-writes.js";
 
@@ -384,12 +384,16 @@ export async function runLogseqDbImport(
           }
           continue;
         }
-        // Per-value write isolation, the pass-1-create pattern: a store
-        // throw (shape/guard) lands in the failure list and the run
+        // Per-value write isolation, the pass-1-create pattern: each value's
+        // ops (carrier creates + the setProperty) ride ONE applyOps batch, so
+        // a store throw (shape/guard) lands in the failure list and the run
         // continues — one bad value must never abort a reconcile that has
         // already created hundreds of nodes.
         try {
-          await writePropertyValue(client, node.uuid, schema, coerced.value, multi ? i : 0);
+          await client.applyOps(
+            composePropertyValueOps(node.uuid, schema, coerced.value, multi ? i : 0),
+            { verb: "import" },
+          );
           wrote = true;
         } catch (error) {
           report.failures.push(

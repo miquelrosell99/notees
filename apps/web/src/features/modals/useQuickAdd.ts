@@ -13,6 +13,8 @@
 import { useState, useCallback } from "react";
 import { uuidv7 } from "uuidv7";
 
+import type { ClientWriteOp } from "@/core/workspace-client/index.js";
+
 export interface DraftBlock {
   nodeUuid: string;
   content: string;
@@ -47,11 +49,7 @@ export interface UseQuickAddReturn {
 }
 
 interface QuickAddWriter {
-  createObject(partial: {
-    isEmbedded?: boolean;
-    parentId?: string | null;
-    contentAst?: Array<{ type: "text"; text: string }>;
-  }): Promise<string>;
+  applyOps(ops: ClientWriteOp[], opts?: { verb?: string }): Promise<Array<string | undefined>>;
 }
 
 /**
@@ -117,14 +115,20 @@ export function useQuickAdd(
 
       setIsCreating(true);
       try {
-        // Create blocks sequentially, in draft order (a parented child
-        // defaults to the inline body — no render bit needed).
-        for (const block of nonEmptyBlocks) {
-          await client.createObject({
+        // ONE batch for the whole send: the draft ids are caller-assigned
+        // (uuidv7 minted at draft time) and the creates ride in draft order
+        // — each parented child defaults to the inline body and appends at
+        // the end, so consecutive blocks land in the same order the
+        // sequential awaited creates produced.
+        const ops: ClientWriteOp[] = nonEmptyBlocks.map((block) => ({
+          kind: "create",
+          input: {
+            id: block.nodeUuid,
             parentId: destinationPageId,
             contentAst: [{ type: "text", text: block.content.trim() }],
-          });
-        }
+          },
+        }));
+        await client.applyOps(ops, { verb: "create" });
         resetBlocks();
         onSuccess?.();
       } finally {

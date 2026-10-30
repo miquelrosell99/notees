@@ -18,10 +18,11 @@ import {
   normalizeMetadata,
   parseFrontmatter,
 } from "@notees/export";
+import { uuidv7 } from "uuidv7";
 
 import type { AnyClient } from "../../collection/types.js";
-import type { ClientPropertySchema } from "@/core/workspace-client/index.js";
-import { coerceImportValue, createNodeWithId, writePropertyValue } from "../import-writes.js";
+import type { ClientPropertySchema, ClientWriteOp } from "@/core/workspace-client/index.js";
+import { coerceImportValue, composePropertyValueOps } from "../import-writes.js";
 
 export interface ImportMarkdownFileInput {
   /** The file's text content. */
@@ -123,8 +124,16 @@ export async function importMarkdownFile(
     }
   }
 
+  // The whole per-node import composes as ONE ClientWriteOp[] — stub tag
+  // creates first (the node create's tagIds anchor to them), the node
+  // create, the icon/color update, every property write (text carriers get
+  // caller-assigned ids), the body block — submitted as a single
+  // `applyOps` batch (one undo entry, one worker RPC). Fail-loud throws
+  // (unknown class/tag) still precede any write.
+  const ops: ClientWriteOp[] = [];
+
   // Tags: resolved to existing nodes by uuid/name; an unknown tag name
-  // creates a stub page for it (the v1 `_resolve_tags` semantics).
+  // becomes a stub-page create op (the v1 `_resolve_tags` semantics).
   const tagIds: string[] = [];
   if (metadata.tags !== undefined && Array.isArray(metadata.tags)) {
     for (const entry of metadata.tags) {
@@ -136,7 +145,8 @@ export async function importMarkdownFile(
         if (found !== null) tagId = found;
       }
       if (tagId === null && name !== null) {
-        tagId = await createNodeWithId(client, { name, isEmbedded: false });
+        tagId = uuidv7();
+        ops.push({ kind: "create", input: { id: tagId, name, isEmbedded: false } });
       }
       if (tagId === null) {
         throw new Error(`Tag could not be resolved: ${JSON.stringify(entry)}`);
@@ -146,29 +156,39 @@ export async function importMarkdownFile(
   }
 
   const isPage = metadata.is_page === undefined ? true : Boolean(metadata.is_page);
-  const nodeId = await createNodeWithId(client, {
-    ...(id !== undefined ? { id } : {}),
-    name: title,
-    ...(classIds.length > 0 ? { classIds } : {}),
-    ...(tagIds.length > 0 ? { tagIds } : {}),
-    // v1 is_page=false → the Block role; a parentless embedded block.
-    ...(isPage ? { isEmbedded: false } : { isEmbedded: true }),
+  // Caller-assigned id: the body's create op anchors to it in the batch.
+  const nodeId = id ?? uuidv7();
+  ops.push({
+    kind: "create",
+    input: {
+      id: nodeId,
+      name: title,
+      ...(classIds.length > 0 ? { classIds } : {}),
+      ...(tagIds.length > 0 ? { tagIds } : {}),
+      // v1 is_page=false → the Block role; a parentless embedded block.
+      isEmbedded: !isPage,
+    },
   });
-  report.created.push({ id: nodeId, title });
 
   // Node fields (icon/color) ride object.update — createObject carries no
   // node fields, updateObject does (the UpdateObjectInput contract).
   const icon = metadata.icon !== undefined && metadata.icon !== null ? String(metadata.icon) : null;
   const color = metadata.color !== undefined && metadata.color !== null ? String(metadata.color) : null;
   if (icon !== null || color !== null) {
-    await client.updateObject(nodeId, {
-      ...(icon !== null ? { icon } : {}),
-      ...(color !== null ? { color } : {}),
+    ops.push({
+      kind: "update",
+      id: nodeId,
+      fields: {
+        ...(icon !== null ? { icon } : {}),
+        ...(color !== null ? { color } : {}),
+      },
     });
   }
 
   // Frontmatter properties → schemas matched by name; values coerced per
-  // schema type; un-preparable values warn and never abort (spec §2).
+  // schema type (datetime chains resolve BEFORE the batch — the
+  // ensureDateChain ids anchor the setProperty ops); un-preparable values
+  // warn and never abort (spec §2).
   if (
     metadata.properties !== undefined &&
     typeof metadata.properties === "object" &&
@@ -191,15 +211,18 @@ export async function importMarkdownFile(
         report.warnings.push(`Property "${rawName}": ${coerced.error} — value skipped`);
         continue;
       }
-      await writePropertyValue(client, nodeId, schema, coerced.value, 0);
+      ops.push(...composePropertyValueOps(nodeId, schema, coerced.value, 0));
     }
   }
 
   // The body appends as ONE child block, markdown-inline parsed.
   const bodyAst = markdownBlockAst(body);
   if (bodyAst.length > 0) {
-    await createNodeWithId(client, { parentId: nodeId, contentAst: bodyAst });
+    ops.push({ kind: "create", input: { parentId: nodeId, contentAst: bodyAst } });
   }
+
+  await client.applyOps(ops, { verb: "import" });
+  report.created.push({ id: nodeId, title });
 
   return report;
 }

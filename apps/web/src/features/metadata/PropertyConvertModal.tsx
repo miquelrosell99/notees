@@ -33,6 +33,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { uuidv7 } from "uuidv7";
 
 import { isValidDefaultForType } from "@notees/store";
 
@@ -40,6 +41,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type {
   ClientPropertyOption,
   ClientPropertySchema,
+  ClientWriteOp,
   EffectiveProperty,
   WorkspaceClient,
 } from "@/core/workspace-client/index.js";
@@ -256,7 +258,15 @@ export function PropertyConvertModal({
     setRunning(true);
     setError(null);
     try {
-      const createdId = await client.createPropertySchema({
+      // The new schema id is caller-minted (the create accepts a chosen id —
+      // the delete+recreate flow NEEDS a fresh id, and minting it here lets
+      // every later op anchor to it). The schema create itself stays an
+      // awaited call BEFORE the copy batch: propertySchema.create is not a
+      // ClientWriteOp kind, and the copies' apply-time validation (PG6)
+      // reads the schema row, so the create must be log-visible first.
+      const createdId = uuidv7();
+      await client.createPropertySchema({
+        id: createdId,
         name: schema.name,
         type: targetType,
         multi: targetMulti,
@@ -296,21 +306,48 @@ export function PropertyConvertModal({
           await client.updatePropertySchema(createdId, { defaultValue: schema.defaultValue });
         }
       }
-      // Copy mappable values at their slot idx; a PG6 validation failure
-      // lands in the dropped list with the applier's reason.
+      // Copy mappable values at their slot idx — ONE applyOps batch (one
+      // undo entry, one worker RPC). The per-entry try/catch this replaces
+      // recorded each apply-time PG6 failure and continued; the batch
+      // applies in order and aborts at the first failure, so the failure
+      // arm re-derives the exact landed prefix from the store. (Unreachable
+      // in the current flow: the R6 usage gate keeps plan.copied empty
+      // whenever the Convert button renders — this arm only matters if the
+      // with-values compatibility matrix ships.)
       let copied = 0;
       let dropped = plan.dropped.length;
-      for (const entry of plan.copied) {
-        try {
-          await client.setProperty(entry.nodeId, createdId, entry.value, entry.idx);
-          copied++;
-        } catch (err) {
-          dropped++;
-          plan.dropped.push({
-            nodeLabel: titleOf(client, entry.nodeId, { read: "fallback", empty: "untitled" }) ?? "Untitled",
-            preview: JSON.stringify(entry.value),
-            reason: err instanceof Error ? err.message : String(err),
-          });
+      const copyOps: ClientWriteOp[] = plan.copied.map((entry) => ({
+        kind: "setProperty",
+        objectId: entry.nodeId,
+        propertySchemaId: createdId,
+        value: entry.value,
+        idx: entry.idx,
+      }));
+      try {
+        await client.applyOps(copyOps, { verb: "convert property" });
+        copied = plan.copied.length;
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        for (const entry of plan.copied) {
+          const landed = client
+            .getEffectiveProperties(entry.nodeId)
+            .some(
+              (row) =>
+                row.propertySchemaId === createdId &&
+                row.source === "authored" &&
+                row.idx === entry.idx &&
+                JSON.stringify(row.value) === JSON.stringify(entry.value),
+            );
+          if (landed) {
+            copied++;
+          } else {
+            dropped++;
+            plan.dropped.push({
+              nodeLabel: titleOf(client, entry.nodeId, { read: "fallback", empty: "untitled" }) ?? "Untitled",
+              preview: JSON.stringify(entry.value),
+              reason,
+            });
+          }
         }
       }
       // Rebind every class that bound the old schema: create the new

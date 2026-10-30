@@ -81,8 +81,8 @@ import { withCandidateSpans } from "@/editor/capture.js";
 import { proseFromAst } from "@/editor/prose.js";
 import type {
   ClientNode,
+  ClientWriteOp,
   CreateObjectInput,
-  DeleteObjectOptions,
   UpdateObjectInput,
 } from "@/core/workspace-client/index.js";
 
@@ -146,7 +146,11 @@ export interface WhiteboardClient {
   subscribe(listener: () => void): () => void;
   createObject(partial: CreateObjectInput): Promise<string>;
   updateObject(id: string, fields: UpdateObjectInput): Promise<void>;
-  deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void>;
+  /**
+   * The batch-write primitive: the per-card deletes of one selection ride
+   * ONE undo batch ("Undo delete") and ONE worker RPC.
+   */
+  applyOps(ops: ClientWriteOp[], opts?: { verb?: string }): Promise<Array<string | undefined>>;
 }
 
 /** Default cap for the embedded mini-canvas (scroll priority for the page). */
@@ -610,7 +614,16 @@ export function WhiteboardCanvas({
       });
       for (const id of cardIds) {
         if (editingCardId === id) setEditingCardId(null);
-        void client.deleteObject(id);
+      }
+      // The per-card deletes batch as ONE undo entry + ONE worker RPC — the
+      // same fire-and-forget shape as the individual deletes it replaces
+      // (the selection clears immediately; a validation failure rejects the
+      // batch just as a failing deleteObject used to).
+      if (cardIds.length > 0) {
+        void client.applyOps(
+          cardIds.map((id): ClientWriteOp => ({ kind: "delete", id })),
+          { verb: "delete" },
+        );
       }
       if (labelEdit !== null && shapeIds.has(labelEdit.id)) setLabelEdit(null);
       setSelectedIds([]);
