@@ -4,6 +4,25 @@ The owner-parked calls, newest context first. Each entry records what is
 parked, the date, and what would un-park it. Referenced from AGENTS.md;
 the record of shipped work lives in `CHANGELOG.md`.
 
+## Payload-shape follow-ups — measured, parked as designed-not-built (2026-10-30)
+
+The op-lag follow-up's two payload-shape candidates were measured before
+building, and neither is the quick win the probe suggested:
+
+- **`listPages` per structural gesture (~5.6MB)**: ~25k rows × ~224B — the
+  clone cost is single-digit milliseconds. A lean summary type would touch a
+  dozen consumers to save ~3MB. Rejected as not worth it at this scale.
+- **`getEffectiveProperties` (~18KB per read; the boot-time bulk)**: the
+  weight is the VALUES themselves (authors lists, long text values), not
+  per-row overhead — `schema` block is ~300B. Shrinking it means lazy
+  property VALUES (render row shells, fetch values on visibility) — a
+  property-row rendering redesign, not a payload tweak.
+
+**Un-park condition**: workspace growth makes the measured costs dominate
+again (listings past ~100k rows, or boot transfer measurably slow on the
+owner's devices). The read-delta protocol (2026-10-30) already keeps every
+REFRESH cheap; these two would address first-serves only.
+
 ## Tauri desktop client — PARKED (owner, 2026-10-15)
 
 A Tauri client is not being built for now. The client map stays: web (TS),
