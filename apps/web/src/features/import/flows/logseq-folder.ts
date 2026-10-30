@@ -26,7 +26,7 @@ import {
 import { uuidv7 } from "uuidv7";
 
 import type { AnyClient } from "../../collection/types.js";
-import type { AssetUploadResult } from "@/core/workspace-client/index.js";
+import type { AssetUploadResult, ClientWriteOp } from "@/core/workspace-client/index.js";
 import { createNodeWithId, runImportTasks, type ImportTask } from "../import-writes.js";
 
 export interface LogseqFolderParsed {
@@ -339,7 +339,7 @@ export async function importLogseqFolder(
   }
 
   // --- blocks ---------------------------------------------------------------
-  // The whole tree is planned upfront with PRE-MINTED ids: every task knows
+  // The whole tree is planned upfront with PRE-MINTED ids: every block knows
   // its own id, its parent chain, and its afterId anchor, so the bounded
   // scheduler can run pages in parallel while each chain authors its
   // siblings in order. A task awaits its parent's readiness before writing
@@ -382,35 +382,84 @@ export async function importLogseqFolder(
     );
   }
 
-  const tasks: ImportTask[] = plan.map((entry) => ({
-    parentKey: entry.parentId,
+  // Sibling runs compose as batches: every id is pre-minted and the afterId
+  // anchors chain in sibling order, so a chunk of one parent's children
+  // applies as ONE applyOps call (one undo entry, one RPC per chunk
+  // instead of per block). One scheduler task per parent — the scheduler's
+  // per-parentKey sequential / cross-parent parallel contract is unchanged,
+  // and a child chain still awaits its parent's readiness exactly as the
+  // old per-block tasks did.
+  const BLOCK_BATCH = 8;
+  const siblingsByParent = new Map<string, PlannedBlock[]>();
+  for (const entry of plan) {
+    const group = siblingsByParent.get(entry.parentId);
+    if (group !== undefined) group.push(entry);
+    else siblingsByParent.set(entry.parentId, [entry]);
+  }
+
+  const tasks: ImportTask[] = [...siblingsByParent].map(([parentId, siblings]) => ({
+    parentKey: parentId,
     run: async () => {
       // Page parents predate the scheduler run; block parents resolve through
       // the readiness map (undefined = a page id = already created).
-      const parentOk = (await ready.get(entry.parentId)) ?? true;
-      if (parentOk === false) {
-        report.errors.push("Failed to create block: parent block failed");
-        readyResolve.get(entry.id)?.(false);
-        return;
-      }
-      try {
-        const ast = blockContentToContentAst(entry.block.content, pageMap, assetMap);
-        await createNodeWithId(client, {
-          id: entry.id,
-          parentId: entry.parentId,
-          ...(entry.afterId !== undefined ? { afterId: entry.afterId } : {}),
-          contentAst: ast,
-        });
+      const parentOk = (await ready.get(parentId)) ?? true;
+      const finish = (entry: PlannedBlock, ast: ContentAst): void => {
         report.blocksCreated += 1;
         report.linksCreated += countLinkTokens(ast);
         blocksDone += 1;
         notify(blocksDone, totalBlocks, `Created block ${blocksDone}/${totalBlocks}`);
         readyResolve.get(entry.id)?.(true);
-      } catch (error) {
-        report.errors.push(
-          `Failed to create block: ${error instanceof Error ? error.message : String(error)}`,
-        );
+      };
+      const markFailed = (entry: PlannedBlock, message: string): void => {
+        report.errors.push(`Failed to create block: ${message}`);
         readyResolve.get(entry.id)?.(false);
+      };
+      if (parentOk === false) {
+        for (const entry of siblings) markFailed(entry, "parent block failed");
+        return;
+      }
+      const createOp = (entry: PlannedBlock, ast: ContentAst): ClientWriteOp => ({
+        kind: "create",
+        input: {
+          id: entry.id,
+          parentId: entry.parentId,
+          ...(entry.afterId !== undefined ? { afterId: entry.afterId } : {}),
+          contentAst: ast,
+        },
+      });
+      // The per-block fallback after a mid-batch failure: ops before the
+      // throw already applied (skip those), each remaining block attempts
+      // individually — a broken afterId anchor fails its own entry and the
+      // chain continues, exactly as the old always-per-block loop reported.
+      const applyOne = async (entry: PlannedBlock, ast: ContentAst): Promise<void> => {
+        try {
+          if (client.getNodeRaw(entry.id) === undefined) {
+            await client.applyOps([createOp(entry, ast)], { verb: "import" });
+          }
+          finish(entry, ast);
+        } catch (error) {
+          markFailed(entry, error instanceof Error ? error.message : String(error));
+        }
+      };
+      for (let i = 0; i < siblings.length; i += BLOCK_BATCH) {
+        const chunk = siblings.slice(i, i + BLOCK_BATCH);
+        const composed = chunk.map((entry) => ({
+          entry,
+          ast: blockContentToContentAst(entry.block.content, pageMap, assetMap),
+        }));
+        try {
+          await client.applyOps(
+            composed.map(({ entry, ast }) => createOp(entry, ast)),
+            { verb: "import" },
+          );
+          for (const { entry, ast } of composed) finish(entry, ast);
+        } catch {
+          for (const { entry, ast } of composed) await applyOne(entry, ast);
+          for (const entry of siblings.slice(i + BLOCK_BATCH)) {
+            await applyOne(entry, blockContentToContentAst(entry.block.content, pageMap, assetMap));
+          }
+          return;
+        }
       }
     },
   }));

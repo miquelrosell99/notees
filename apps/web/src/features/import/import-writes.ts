@@ -12,9 +12,10 @@
  */
 
 import type { ContentAst } from "@notees/protocol";
+import { uuidv7 } from "uuidv7";
 
 import type { AnyClient } from "../collection/types.js";
-import type { ClientPropertySchema } from "@/core/workspace-client/index.js";
+import type { ClientPropertySchema, ClientWriteOp } from "@/core/workspace-client/index.js";
 
 /** Bare-uuid test for values that already are node ids (the types.ts constant,
  *  mirrored — the barrel keeps UUID_LIKE internal). */
@@ -162,41 +163,47 @@ export async function coerceImportValue(
 }
 
 /**
- * One ALREADY-COERCED value → the store. Text values ride the node-backed
- * carrier shape (a fresh carrier child per string — the table cell's
- * commit path); everything else writes in one property.set at the idx.
- * Multi arrays of non-text values write the canonical idx-0 array shape;
- * flows that need per-idx multi writes (Logseq DB cardinality-many) call
- * this once per value with their own idx.
+ * One ALREADY-COERCED value → batch ops (the `applyOps` primitive): the
+ * caller composes these into its gesture batch and applies them in ONE undo
+ * entry / ONE RPC. Text values ride the node-backed carrier shape (a fresh
+ * carrier child per string — the table cell's commit path); carrier ids are
+ * caller-assigned so the setProperty op can anchor to a carrier created
+ * earlier in the same batch. Multi arrays of non-text values write the
+ * canonical idx-0 array shape; flows that need per-idx multi writes (Logseq
+ * DB cardinality-many) call this once per value with their own idx.
  */
-export async function writePropertyValue(
-  client: AnyClient,
+export function composePropertyValueOps(
   nodeId: string,
   schema: ClientPropertySchema,
   value: unknown,
   idx: number,
-): Promise<void> {
+  newId: () => string = uuidv7,
+): ClientWriteOp[] {
   if (schema.type === "text" && !Array.isArray(value)) {
-    const carrier = await client.createObject({
-      parentId: nodeId,
-      contentAst: [{ type: "text", text: String(value) }],
-    });
-    await client.setProperty(nodeId, schema.id, { nodeId: carrier }, idx);
-    return;
+    const carrierId = newId();
+    return [
+      {
+        kind: "create",
+        input: { id: carrierId, parentId: nodeId, contentAst: [{ type: "text", text: String(value) }] },
+      },
+      { kind: "setProperty", objectId: nodeId, propertySchemaId: schema.id, value: { nodeId: carrierId }, idx },
+    ];
   }
   if (schema.type === "text" && Array.isArray(value)) {
+    const ops: ClientWriteOp[] = [];
     const refs: Array<{ nodeId: string }> = [];
     for (const part of value as unknown[]) {
-      const carrier = await client.createObject({
-        parentId: nodeId,
-        contentAst: [{ type: "text", text: String(part) }],
+      const carrierId = newId();
+      ops.push({
+        kind: "create",
+        input: { id: carrierId, parentId: nodeId, contentAst: [{ type: "text", text: String(part) }] },
       });
-      refs.push({ nodeId: carrier });
+      refs.push({ nodeId: carrierId });
     }
-    await client.setProperty(nodeId, schema.id, refs, idx);
-    return;
+    ops.push({ kind: "setProperty", objectId: nodeId, propertySchemaId: schema.id, value: refs, idx });
+    return ops;
   }
-  await client.setProperty(nodeId, schema.id, value, idx);
+  return [{ kind: "setProperty", objectId: nodeId, propertySchemaId: schema.id, value, idx }];
 }
 
 export interface ImportTask {

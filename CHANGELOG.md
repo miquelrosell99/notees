@@ -9,6 +9,35 @@ predating this file.
 
 ## 2026-10-30
 
+- **feat(web): the remaining batch-write migrations — tables, recurrence,
+  property conversion, whiteboard, quick-add, imports — one undo entry + one
+  RPC each (the `applyOps` follow-through).** Table grid: `createTable`
+  (container + row + cells), `addTableRow`, `addTableColumn` (one create per
+  row), `deleteTableColumn` — caller-assigned ids anchor the grid inside the
+  batch. Calendar recurrence: `copyEventNode`'s create + authored-property
+  writes batch as "edit occurrence"; `ensureDateChain` stays outside (it
+  resolves the date-node id the batch anchors to) and the series-node
+  exdate/until writes stay separate — recurrence semantics untouched.
+  Property conversion: the per-node value-copy loop batches ("convert
+  property"); the schema create keeps its own call (schema ops are not
+  `ClientWriteOp` kinds) with the new schema id pre-minted so the batch
+  anchors to it — and the copy loop's per-entry failure accounting is
+  preserved by re-deriving the landed prefix from the store on abort.
+  Whiteboard: multi-select delete is one "delete" batch (the layout commit
+  stays its own write). Quick-add: all drafts compose into one "create"
+  batch. Imports: `import-writes` gains `composePropertyValueOps` (the
+  batch-composable twin of the carrier loop, mirroring the sheet import);
+  the markdown-file flow applies each node as one "import" batch (date
+  chains pre-resolved, stub-tag creates pre-minted); logseq-db batches per
+  value (the BAD_NODE failure-isolation test pins per-value granularity);
+  logseq-folder batches sibling blocks in chunks of 8 per parent chain
+  inside the existing concurrency scheduler, degrading a failed chunk to
+  per-block batches so error reporting and the never-hang waiters hold.
+  Failure semantics: a batch aborts at the throwing op with the earlier ops
+  applied — matching the old per-op loops minus the round-trips. Gate:
+  typecheck clean; 2637 green (the one red ui-primitives SearchField test is
+  the committed picker-slice regression, red at clean HEAD, reported).
+
 - **feat(web): the generic `applyOps` batch-write primitive — every
   main-thread-driven multi-op gesture now rides ONE undo entry and ONE
   worker RPC.** The batch-write audit (commissioned with the op-lag
