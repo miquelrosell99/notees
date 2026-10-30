@@ -70,7 +70,7 @@ interface FixtureBinding {
 /**
  * The fixture workspace: the classes + schemas + binding rows of the
  * declared pin sets' neighborhoods, as authored BEFORE the declaration —
- * every binding row without the pinned flag, except meetingDate (already
+ * every binding row without the pinned flag, except location (already
  * converged by an earlier pass) and taskDeadline (no binding row at all —
  * the ensure authors it with the pin, so the script must skip it).
  */
@@ -109,7 +109,6 @@ function fixtureEnvelopes(): Envelope[] {
     // url is a GLOBAL seed schema (the seed-scope audit) — reachability for
     // web_page's own row holds without an extends edge.
     { property: "url", scope: null },
-    { property: "meetingDate", scope: MEETING_ID },
     { property: "location", scope: MEETING_ID },
     { property: "agenda", scope: MEETING_ID },
     ...TASK_FAMILY_SEED.map((entry) => ({ property: entry.property, scope: null })),
@@ -138,9 +137,8 @@ function fixtureEnvelopes(): Envelope[] {
     { classId: SOURCE_ID, property: "isbn" },
     { classId: SOURCE_ID, property: "publisher" },
     { classId: WEB_PAGE_ID, property: "url" },
-    // meetingDate ALREADY carries the pin (a converged row — never re-planned).
-    { classId: MEETING_ID, property: "meetingDate", pinned: true },
-    { classId: MEETING_ID, property: "location" },
+    // location ALREADY carries the pin (a converged row — never re-planned).
+    { classId: MEETING_ID, property: "location", pinned: true },
     { classId: MEETING_ID, property: "agenda" },
     { classId: TASK_ID, property: "taskStatus" },
     { classId: TASK_ID, property: "taskScheduled" },
@@ -217,10 +215,10 @@ describe("migrate-seed-pins.mts", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  it("derives the pin target set from the manifests: 11 rows, no duplicates", () => {
+  it("derives the pin target set from the manifests: 10 rows, no duplicates", () => {
     const targets = deriveSeedPinTargets();
-    expect(targets).toHaveLength(11);
-    expect(new Set(targets.map((t) => `${t.classId}/${t.propertySchemaId}`)).size).toBe(11);
+    expect(targets).toHaveLength(10);
+    expect(new Set(targets.map((t) => `${t.classId}/${t.propertySchemaId}`)).size).toBe(10);
     // url→web_page is NOT a target (only the source base row pins).
     expect(
       targets.some((t) => t.classId === WEB_PAGE_ID && t.propertySchemaId === SYSTEM_PROPERTY_UUIDS.url),
@@ -238,13 +236,12 @@ describe("migrate-seed-pins.mts", () => {
         `${SOURCE_ID}/${SYSTEM_PROPERTY_UUIDS.linkedAuthors}`,
         `${SOURCE_ID}/${SYSTEM_PROPERTY_UUIDS.publicationDate}`,
         `${SOURCE_ID}/${SYSTEM_PROPERTY_UUIDS.url}`,
-        `${MEETING_ID}/${SYSTEM_PROPERTY_UUIDS.location}`,
         `${TASK_ID}/${SYSTEM_PROPERTY_UUIDS.taskStatus}`,
         `${TASK_ID}/${SYSTEM_PROPERTY_UUIDS.taskScheduled}`,
       ].sort(),
     );
-    // The already-pinned meetingDate row is NOT re-planned…
-    expect(pairs).not.toContain(`${MEETING_ID}/${SYSTEM_PROPERTY_UUIDS.meetingDate}`);
+    // The already-pinned location row is NOT re-planned…
+    expect(pairs).not.toContain(`${MEETING_ID}/${SYSTEM_PROPERTY_UUIDS.location}`);
     // …and the missing taskDeadline row reports as skipped, not written.
     expect(plan.missing.map((t) => t.propertySchemaId)).toEqual([
       SYSTEM_PROPERTY_UUIDS.taskDeadline,
@@ -275,7 +272,7 @@ describe("migrate-seed-pins.mts", () => {
   it("--apply appends the pins, replays clean, and a second run plans nothing", () => {
     const apply = runScript(["--data-dir", dataDir, "--workspace", WORKSPACE, "--apply"]);
     expect(apply.status).toBe(0);
-    expect(apply.stdout).toContain("ingested 9 envelope(s)");
+    expect(apply.stdout).toContain("ingested 8 envelope(s)");
 
     // Fresh hydration (the shape every replica replays): clean + the flags
     // land on exactly the declared rows.
@@ -292,7 +289,6 @@ describe("migrate-seed-pins.mts", () => {
       ] as SystemPropertyName[]) {
         expect(pinnedOf(fresh, SOURCE_ID, property), `source → ${property}`).toBe(1);
       }
-      expect(pinnedOf(fresh, MEETING_ID, "meetingDate")).toBe(1);
       expect(pinnedOf(fresh, MEETING_ID, "location")).toBe(1);
       expect(pinnedOf(fresh, TASK_ID, "taskStatus")).toBe(1);
       expect(pinnedOf(fresh, TASK_ID, "taskScheduled")).toBe(1);

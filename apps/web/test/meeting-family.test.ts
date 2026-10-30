@@ -2,7 +2,8 @@
  * ensureMeetingFamily tests (owner reshape directive 2026-10-04:
  * plain seeds). `event` is the calendar family root (its single eventDate
  * date binding is the calendar-eligibility anchor); `meeting` extends it
- * with its own family (meetingDate/location/agenda). A fresh/offline
+ * with its own family (location/agenda — the date rides the inherited
+ * eventDate; the meetingDate duplicate retired 2026-10-30). A fresh/offline
  * workspace authors BOTH classes + schemas + bindings + the extends edge at
  * their reserved ids on first call; the call is a complete no-op once
  * present. The server-seed shape (same ids, key names, edge) is
@@ -179,11 +180,8 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     const meetingClass = client.getNodeRaw(MEETING_CLASS_ID);
     expect(meetingClass?.isClass).toBe(true);
     expect(deriveDisplayName(meetingClass!)).toBe("Meeting");
-    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.meetingDate)).toMatchObject({
-      name: "Meeting date",
-      type: "datetime",
-      scopeClassIds: [MEETING_CLASS_ID],
-    });
+    // The withdrawn meetingDate (…0003-…0007) is never authored.
+    expect(schemas.get("00000000-0000-0000-0003-000000000007")).toBeUndefined();
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.location)).toMatchObject({
       name: "Location",
       type: "text",
@@ -197,7 +195,8 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     // the reserved ids — the ensure's bound-check sees them and authors no
     // duplicate rows). The list renders in PIN TIERS — pinned first,
     // alphabetical by property name within each tier (the 2026-10-27 seed
-    // pin declaration: meetingDate/location pinned, agenda unpinned).
+    // pin declaration, amended by the meetingDate retirement: location
+    // pinned, agenda unpinned).
     const byTierThenName = (
       a: (typeof MEETING_FAMILY)[number],
       b: (typeof MEETING_FAMILY)[number],
@@ -264,19 +263,19 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
   it("does not overwrite pre-authored schemas (a workspace that renamed a schema keeps its name)", async () => {
     const client = await seedClient();
     await client.createPropertySchema({
-      id: SYSTEM_PROPERTY_UUIDS.meetingDate,
-      name: "When",
-      type: "datetime",
+      id: SYSTEM_PROPERTY_UUIDS.location,
+      name: "Where",
+      type: "text",
       scopeClassIds: [MEETING_CLASS_ID],
     });
-    await client.setClassProperty(MEETING_CLASS_ID, SYSTEM_PROPERTY_UUIDS.meetingDate, {});
+    await client.setClassProperty(MEETING_CLASS_ID, SYSTEM_PROPERTY_UUIDS.location, {});
 
     await ensureMeetingFamily(client);
 
     const schema = client
       .listPropertySchemas()
-      .find((entry) => entry.id === SYSTEM_PROPERTY_UUIDS.meetingDate);
-    expect(schema?.name).toBe("When");
+      .find((entry) => entry.id === SYSTEM_PROPERTY_UUIDS.location);
+    expect(schema?.name).toBe("Where");
   });
 
   it("makes BOTH families events-list members through their date bindings (Calendar breadth)", async () => {
@@ -290,7 +289,9 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
       iso: "2026-10-06",
     });
     const meetingId = await client.createObject({ isEmbedded: false, classIds: [MEETING_CLASS_ID] });
-    await client.setDatetimeProperty(meetingId, SYSTEM_PROPERTY_UUIDS.meetingDate, {
+    // The date rides the inherited eventDate (the withdrawn meetingDate
+    // duplicate dated meetings the same way).
+    await client.setDatetimeProperty(meetingId, SYSTEM_PROPERTY_UUIDS.eventDate, {
       iso: "2026-10-06",
     });
 
@@ -306,8 +307,9 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
 
     // A classed create → the driving date write (the calendar's create
     // registers — drag-create and the dblclick modal — share this shape).
+    // The date binds to the inherited eventDate.
     const id = await client.createObject({ isEmbedded: false, classIds: [MEETING_CLASS_ID] });
-    await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.meetingDate, { iso: "2026-10-06" });
+    await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.eventDate, { iso: "2026-10-06" });
 
     const classAndDate = client.runQueryAst({
       version: 1,
@@ -317,7 +319,7 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
         logic: "and",
         children: [
           { type: "class", classId: MEETING_CLASS_ID },
-          { type: "property", schemaId: SYSTEM_PROPERTY_UUIDS.meetingDate, op: "exists" },
+          { type: "property", schemaId: SYSTEM_PROPERTY_UUIDS.eventDate, op: "exists" },
         ],
       },
     });

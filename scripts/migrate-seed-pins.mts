@@ -1,8 +1,10 @@
 /**
- * Seed pin sets convergence (2026-10-27): the domain seed manifests DECLARE
+ * Seed pin sets convergence (2026-10-27, amended 2026-10-30 by the
+ * meetingDate retirement): the domain seed manifests DECLARE
  * binding-row pins now — the source base family (authors/citekey/doi/
- * linkedAuthors/publicationDate/url), the meeting family's meetingDate/
- * location, and the task family's taskStatus/taskScheduled/taskDeadline.
+ * linkedAuthors/publicationDate/url), the meeting family's location
+ * (meetingDate's pin retired with the property), and the task family's
+ * taskStatus/taskScheduled/taskDeadline.
  * Everything else seeds unpinned (eventDate/birthday, editors, isbn,
  * publisher, attachments, taskPriority/taskClosedDate/taskRecurrence, agenda,
  * the url→web_page extra row, every SYSTEM_SOURCE_CLASS_BINDINGS type-class

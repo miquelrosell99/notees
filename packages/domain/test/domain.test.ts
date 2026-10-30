@@ -110,7 +110,7 @@ describe("system seeds (ported)", () => {
     // `task` is task-local (the url→source precedent).
     expect(SYSTEM_PROPERTY_SPECS.project).toMatchObject({ bindTo: "task", global: true });
     // Every OTHER bound spec stays local (family-identity fields: the source
-    // bibliographic family, the meeting identity trio, eventDate,
+    // bibliographic family, the meeting identity pair, eventDate,
     // birthdayPerson, the person split, the asset/highlight fields).
     const flipped = new Set<SystemPropertyName>(["url", "project"]);
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
@@ -135,8 +135,8 @@ describe("system seeds (ported)", () => {
       "linkedAuthors",
       "publicationDate",
       "url",
-      // The meeting family (meetingDate/location; agenda stays unpinned).
-      "meetingDate",
+      // The meeting family (location; agenda stays unpinned — the withdrawn
+      // meetingDate took its pin with it 2026-10-30).
       "location",
     ]);
     const pinnedTaskFamily = new Set<SystemPropertyName>([
@@ -176,7 +176,7 @@ describe("system seeds (ported)", () => {
     }
   });
 
-  it("never reuses withdrawn ids (locator …0018; linkedAuthors …0025; cover class …0042; the `class` meta class …0001)", () => {
+  it("never reuses withdrawn ids (locator …0018; linkedAuthors …0025; meetingDate …0003-…0007; cover class …0042; the `class` meta class …0001)", () => {
     const allIds = [
       ...Object.values(SYSTEM_CLASS_UUIDS),
       ...Object.values(SYSTEM_PROPERTY_UUIDS),
@@ -184,6 +184,10 @@ describe("system seeds (ported)", () => {
     ];
     expect(allIds).not.toContain("00000000-0000-0000-0000-000000000018");
     expect(allIds).not.toContain("00000000-0000-0000-0000-000000000025");
+    // The meetingDate property withdrew 2026-10-30 (the meeting class
+    // inherits eventDate through the extends chain); the migration converges
+    // live logs. Never reuse.
+    expect(allIds).not.toContain("00000000-0000-0000-0003-000000000007");
     // (source-library roster): the `paper` class id is
     // withdrawn too — same trailing block, the class …-0001-… slot. Nodes
     // migrate to journal_article; never reuse.
@@ -599,18 +603,19 @@ describe("system seeds (ported)", () => {
     expect(SYSTEM_CLASS_EXTENDS.meeting).toEqual(["event"]);
     expect(SYSTEM_CLASS_EXTENDS.event).toBeUndefined();
     // The families continue the workflow-properties block (task family
-    // …001–…006; meeting …007–…009; event …010 — the pinned block rule
-    // above covers …0003-…).
-    expect(SYSTEM_PROPERTY_UUIDS.meetingDate).toBe("00000000-0000-0000-0003-000000000007");
+    // …001–…006; meeting …008–…009 — …007 (meetingDate) withdrew 2026-10-30;
+    // event …010 — the pinned block rule above covers …0003-…).
+    expect(SYSTEM_PROPERTY_UUIDS).not.toHaveProperty("meetingDate");
+    expect(SYSTEM_PROPERTY_SPECS).not.toHaveProperty("meetingDate");
     expect(SYSTEM_PROPERTY_UUIDS.location).toBe("00000000-0000-0000-0003-000000000008");
     expect(SYSTEM_PROPERTY_UUIDS.agenda).toBe("00000000-0000-0000-0003-000000000009");
     expect(SYSTEM_PROPERTY_UUIDS.eventDate).toBe("00000000-0000-0000-0003-000000000010");
     // Amended time-of-day law (2026-10-09): the date bindings are
     // datetime-typed — a value may carry a wall-clock time beside the
     // day-node anchor; full-day (no `time`) stays the default.
-    // Seed pin sets slice (2026-10-27): meetingDate/location pin, agenda stays
-    // unpinned (the full declared roster is gated by the pin-set test).
-    expect(SYSTEM_PROPERTY_SPECS.meetingDate).toEqual({ type: "datetime", bindTo: "meeting", pinned: true });
+    // Seed pin sets slice (2026-10-27, amended by the meetingDate retirement):
+    // location pins, agenda stays unpinned (the full declared roster is
+    // gated by the pin-set test).
     expect(SYSTEM_PROPERTY_SPECS.location).toEqual({ type: "text", bindTo: "meeting", pinned: true });
     expect(SYSTEM_PROPERTY_SPECS.agenda).toEqual({ type: "text", bindTo: "meeting" });
     expect(SYSTEM_PROPERTY_SPECS.eventDate).toEqual({ type: "datetime", bindTo: "event" });
