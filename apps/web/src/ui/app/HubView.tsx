@@ -183,7 +183,7 @@ export function HubView({
   // (a subpage classed whiteboard rides its parent's Pages zone, not the
   // Whiteboards hub). The Block role rides the parentlessRole rule —
   // block-role parentless nodes (assets included) stay out of the pages hub.
-  const allPages = client.listPages();
+  const allPages = client.listPageSummaries();
   const pages = client
     .roots()
     .filter((page) => rendersWithDocumentChrome(page, undefined, parentlessBlockResolverOf(client)));

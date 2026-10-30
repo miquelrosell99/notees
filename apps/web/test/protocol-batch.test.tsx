@@ -387,6 +387,7 @@ describe("feature chrome gates", () => {
       classIcons: () => new Map(),
       effectiveClassIcons: () => new Map(),
       listPages: () => [],
+      listPageSummaries: () => [],
       roots: () => [],
       search: () => [],
       getNode: () => undefined,

@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-30
 
+- **perf(web): `listPageSummaries` — the lean page-listing read; title-only
+  consumers stop shipping 25k content ASTs.** The payload audit's margin
+  item, built on the owner's call: `PageSummary` (id, server-flattened
+  `title`, parentId, role bits, class/tag ids, icon/color, timestamps — no
+  contentAst/name/description/cover/banner/listStyle) served by a new
+  cached read running the exact listPages query under its own memo key, so
+  the per-structural-gesture and boot transfers for title-pool consumers
+  drop structurally (~5.6MB → ~1MB at the owner's scale). Migrated: the
+  capture search pool, the Pages-hub section read, sidebar
+  favorites/recents (fresh scope-classed `getNode` still wins; summary
+  title is the cold fallback), the journal view's date index, both command
+  palette page pools, the create-with-uuid parent picker, the quick-add
+  Inbox resolution, and the calendar's marked-date collection. Left on
+  full `listPages()` where the pooled row genuinely feeds content readers:
+  the collection hub items, the node picker's cold-row fallback, and the
+  agenda rows (`titleOfNode` reads the pooled contentAst). Worker plumbing
+  + read-delta stamp (`listing` family) + the coverage guard come along;
+  test fakes updated. Tests: new `list-page-summaries.test.ts` (shape +
+  rename convergence + READ_UNCHANGED repeat) and the coverage guard; full
+  gate typecheck clean, 2640 green (the one red ui-primitives SearchField
+  test remains the picker-slice regression, red at clean HEAD).
+
 - **feat(web): the remaining batch-write migrations — tables, recurrence,
   property conversion, whiteboard, quick-add, imports — one undo entry + one
   RPC each (the `applyOps` follow-through).** Table grid: `createTable`

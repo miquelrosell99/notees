@@ -74,7 +74,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { SYSTEM_CLASS_UUIDS, chainNodeIds, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
+import type { ClientNode, PageSummary, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { UndoUiState } from "@/core/undo-journal.js";
 
 import { titleOf, titleOfNode, isDatePageNode, rawDateKeywordOf } from "../../ui/dateDisplay.js";
@@ -393,13 +393,15 @@ export function CommandPalette({
 
   const syncItems = useMemo<PaletteItem[]>(() => {
     const classes = classesCache;
-    const memberOfMatch = (node: ClientNode) =>
+    const memberOfMatch = (node: { classIds: string[] }) =>
       !hasMemberOf || node.classIds.some((id) => memberOfSet.has(id));
     // The Pages pool is role-filtered: block-role
     // standalone nodes (flagged classes — assets included) stay out of the
-    // page listings; the "blocks" chip finds them.
+    // page listings; the "blocks" chip finds them. The pool rides the lean
+    // summaries read: rows resolve through the scope-classed per-node reads
+    // (titleOf/effectiveNodeIcon), never the pooled row's contentAst.
     const pages = client
-      .listPages()
+      .listPageSummaries()
       .filter((page) => rendersWithDocumentChrome(page, undefined, parentlessBlockResolverOf(client)))
       .filter(memberOfMatch);
     const themeIsDark = document.documentElement.dataset.theme !== "light";
@@ -437,7 +439,7 @@ export function CommandPalette({
       // The home sections push rows DIRECTLY (no fuzzy pass): the empty
       // query matches everything, and addFuzzy's score-then-label re-sort
       // would destroy the recency orderings these sections exist to show.
-      const pushRows = (group: Group, pool: ClientNode[]) => {
+      const pushRows = (group: Group, pool: Array<PageSummary | ClientNode>) => {
         for (const node of pool) {
           items.push({
             key: `${group}:${node.id}`,
@@ -934,7 +936,7 @@ export function CommandPalette({
     // standalone nodes stay out of the page pool. Only the shuffled IDS are
     // state — the rows resolve per render (the randomRows memo).
     const pool = client
-      .listPages()
+      .listPageSummaries()
       .filter((page) => rendersWithDocumentChrome(page, undefined, parentlessBlockResolverOf(client)));
     randomPoolRef.current = pool.map((page) => page.id);
     setRandomIds(shuffledIds(randomPoolRef.current).slice(0, HOME_SECTION_COUNT));

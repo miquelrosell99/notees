@@ -218,6 +218,14 @@ export class WorkspaceClient {
     return this.reads.listPages();
   }
 
+  /**
+   * The lean page-listing read (PageSummary rows, title pre-flattened) —
+   * the same query as listPages() without the full-node wire shape.
+   */
+  listPageSummaries() {
+    return this.reads.listPageSummaries();
+  }
+
   roots() {
     return this.reads.roots();
   }

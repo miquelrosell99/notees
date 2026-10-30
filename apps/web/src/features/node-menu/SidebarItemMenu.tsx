@@ -14,10 +14,17 @@ import { copyToClipboard } from "../modals/clipboard.js";
 import { nodeLinkUrl } from "../../ui/nodeLink.js";
 import { renderStateLabel } from "../../ui/renderStateLabel.js";
 
+/** The row facts the menu reads: the render-state label + the id. Both the
+ * full ClientNode and the lean PageSummary listing row satisfy it (the
+ * favorites/recents pool rides listPageSummaries). */
+type MenuNode = Pick<ClientNode, "id" | "isClass" | "isEmbedded" | "parentId"> & {
+  classIds?: string[];
+};
+
 export interface SidebarItemMenuState {
   x: number;
   y: number;
-  node: ClientNode;
+  node: MenuNode;
   /** Which list the row belongs to — drives the "Remove from …" item. */
   list: "favorites" | "recents";
 }

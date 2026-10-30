@@ -107,11 +107,11 @@ export function JournalsView({
   const listRef = useRef<HTMLDivElement>(null);
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
 
-  /** Live day-classed pages by ISO (listPages filters `is_active = 1`). */
+  /** Live day-classed pages by ISO (the summaries listing filters `is_active = 1`). */
   const pagesByIso = useMemo(() => {
     const day = SYSTEM_CLASS_UUIDS.day;
     const map = new Map<string, { id: string }>();
-    for (const page of client.listPages()) {
+    for (const page of client.listPageSummaries()) {
       if (page.classIds.includes(day)) {
         const key = rawDateKeywordOf(page);
         if (key !== "") map.set(

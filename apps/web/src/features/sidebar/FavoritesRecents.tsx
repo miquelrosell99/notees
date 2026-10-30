@@ -30,7 +30,7 @@ import { useEffect, useState } from "react";
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
+import type { ClientNode, PageSummary, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { titleOfNode } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
@@ -60,8 +60,8 @@ function SortableFavoriteRow({
   onRowMenu,
   children,
 }: {
-  node: ClientNode;
-  onRowMenu: (event: React.MouseEvent<HTMLLIElement>, node: ClientNode) => void;
+  node: PageSummary | ClientNode;
+  onRowMenu: (event: React.MouseEvent<HTMLLIElement>, node: PageSummary | ClientNode) => void;
   children: React.ReactNode;
 }) {
   const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -118,7 +118,7 @@ export function FavoritesRecents({
   /** Right-click menu over a Favorites/Recents row. */
   const [rowMenu, setRowMenu] = useState<SidebarItemMenuState | null>(null);
   /** Delete confirmation target (lives here so it survives the menu closing). */
-  const [deleteTarget, setDeleteTarget] = useState<ClientNode | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SidebarItemMenuState["node"] | null>(null);
 
   const openRow = (id: string): void => {
     // Recents recording lives in App.openPage (the single navigation funnel —
@@ -136,16 +136,16 @@ export function FavoritesRecents({
   const classes = client.listClasses();
   const assetClassId =
     classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
-  const pages = client.listPages().filter((page) => !page.classIds.includes(assetClassId));
-  const byId = new Map<string, ClientNode>([...pages, ...classes].map((node) => [node.id, node]));
+  const pages = client.listPageSummaries().filter((page) => !page.classIds.includes(assetClassId));
+  const byId = new Map<string, PageSummary | ClientNode>([...pages, ...classes].map((node) => [node.id, node]));
   const iconsByClass = client.effectiveClassIcons();
-  const rowIconFor = (node: ClientNode): string | null => nodeIcon(node, iconsByClass);
+  const rowIconFor = (node: PageSummary | ClientNode): string | null => nodeIcon(node, iconsByClass);
   const favoritePages = favorites
     .map((id) => byId.get(id))
-    .filter((node): node is ClientNode => node !== undefined);
+    .filter((node): node is PageSummary | ClientNode => node !== undefined);
   const recentPages = recents
     .map((id) => byId.get(id))
-    .filter((node): node is ClientNode => node !== undefined)
+    .filter((node): node is PageSummary | ClientNode => node !== undefined)
     .slice(0, 12);
 
   /**
@@ -160,24 +160,33 @@ export function FavoritesRecents({
    * through the same helper's date branch; empty content falls back to the
    * untitled label.
    */
-  const renderRowLabel = (node: ClientNode) => {
+  const renderRowLabel = (node: PageSummary | ClientNode) => {
     // The plain-text chrome label: mentions, class
     // chips and marks fold into their words, markdown links reduce to their
     // label, nothing inside the label is clickable or styled — the row is
     // one button. Date pages keep the setting-aware name via the same
     // derivation; empty content falls back to the untitled label. The node
-    // is re-read fresh per row (the scope-classed getNode): the listPages
+    // is re-read fresh per row (the scope-classed getNode): the summaries
     // pool feeding `byId` is a structure-classed cached read, so a pooled
-    // row's own contentAst can be stale after a rename — the title never
-    // renders from the pool.
+    // row's own title can lag a rename — the title never renders from the
+    // pool. When the fresh read misses entirely (the row outlived the
+    // node), the summary's pre-flattened title is the honest fallback.
     const fresh = client.getNode(node.id);
-    const text = titleOfNode(fresh ?? node, {
-      flatten: "chrome",
-      resolveClassName: (classId) => client.getDisplayName(classId),
-      resolveMentionName: (targetId) => client.getDisplayName(targetId),
-      empty: "untitled",
-      isParentlessBlockClass: parentlessBlockResolverOf(client),
-    });
+    const text =
+      fresh !== undefined
+        ? titleOfNode(fresh, {
+            flatten: "chrome",
+            resolveClassName: (classId) => client.getDisplayName(classId),
+            resolveMentionName: (targetId) => client.getDisplayName(targetId),
+            empty: "untitled",
+            isParentlessBlockClass: parentlessBlockResolverOf(client),
+          })
+        : "title" in node && node.title !== ""
+          ? node.title
+          : titleOfNode(node, {
+              empty: "untitled",
+              isParentlessBlockClass: parentlessBlockResolverOf(client),
+            });
     return <span className="nt-side-item-label">{text}</span>;
   };
 
@@ -185,7 +194,7 @@ export function FavoritesRecents({
    * Row body — the item button + the star toggle, shared by every sidebar
    * row shape (plain, drag-sortable): the li wrapper alone differs.
    */
-  const rowBody = (node: ClientNode, icon?: string | null) => (
+  const rowBody = (node: PageSummary | ClientNode, icon?: string | null) => (
     <>
       <button
         type="button"
@@ -222,14 +231,14 @@ export function FavoritesRecents({
   /** The row menu claims right-clicks on the row itself. */
   const handleRowContextMenu = (
     event: React.MouseEvent<HTMLLIElement>,
-    node: ClientNode,
+    node: PageSummary | ClientNode,
     list: "favorites" | "recents",
   ) => {
     event.preventDefault();
     setRowMenu({ x: event.clientX, y: event.clientY, node, list });
   };
 
-  const renderRow = (node: ClientNode, icon?: string | null, list?: "favorites" | "recents") => (
+  const renderRow = (node: PageSummary | ClientNode, icon?: string | null, list?: "favorites" | "recents") => (
     <li
       key={node.id}
       className="nt-side-row"

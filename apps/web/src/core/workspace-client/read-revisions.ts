@@ -238,6 +238,7 @@ export class ReadRevisions {
         return `e:${this.edges}`;
       case "roots":
       case "listPages":
+      case "listPageSummaries":
       case "listTrashed":
       case "listArchived":
       case "listArchivedClasses":

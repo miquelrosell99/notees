@@ -16,7 +16,7 @@ import "./CreatePageWithUuidModal.css";
 
 type WorkspaceClientLike = Pick<
   import("@/core/workspace-client/index.js").WorkspaceClient | WorkerClient,
-  "listPages" | "createObject" | "getNodeRaw" | "getNode" | "getDisplayName"
+  "listPageSummaries" | "createObject" | "getNodeRaw" | "getNode" | "getDisplayName"
 >;
 
 export interface CreatePageWithUuidModalProps {
@@ -128,7 +128,10 @@ export function CreatePageWithUuidModal({
     [handleCreateAndOpen],
   );
 
-  const pages = client.listPages();
+  // The parent-page picker rides the lean summaries read: rows render via
+  // the fresh per-row titleOf read (scope-classed getNode), never the
+  // pooled row's contentAst.
+  const pages = client.listPageSummaries();
 
   return (
     <Modal

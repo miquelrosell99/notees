@@ -39,7 +39,7 @@ type AnyClient = WorkspaceClient | WorkerClient;
  */
 export function collectMarkedDates(client: AnyClient): Set<string> {
   const dates = new Set<string>();
-  for (const node of client.listPages()) {
+  for (const node of client.listPageSummaries()) {
     if (!node.classIds.includes(SYSTEM_CLASS_UUIDS.day)) continue;
     const parsed = parseDateNodeId(node.id);
     if (parsed !== null) {

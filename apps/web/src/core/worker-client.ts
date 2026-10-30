@@ -37,6 +37,7 @@ import type {
   DatetimeValueInput,
   EffectiveProperty,
   OperationFeedEntry,
+  PageSummary,
   QueryAggregateResult,
   QueryRunResult,
   ReferenceEntry,
@@ -143,6 +144,7 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   // The page listings: see the "structure" class above for why content
   // edits cannot reorder them and why title freshness survives.
   listPages: "structure",
+  listPageSummaries: "structure",
   roots: "structure",
   // External-id mappings (importer/sync plugins): externalRefsOf is keyed
   // by the node id — the applier's ChangeSummary carries the mapped node
@@ -508,6 +510,15 @@ export class WorkerClient {
 
   listPages(): ClientNode[] {
     return this.cachedRead<ClientNode[]>("listPages", [], []);
+  }
+
+  /**
+   * The lean page-listing read (PageSummary rows, title pre-flattened) —
+   * same invalidation class as listPages: a content edit cannot reorder
+   * the listing, and a pooled row's own title is never rendered.
+   */
+  listPageSummaries(): PageSummary[] {
+    return this.cachedRead<PageSummary[]>("listPageSummaries", [], []);
   }
 
   roots(): ClientNode[] {

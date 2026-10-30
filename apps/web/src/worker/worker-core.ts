@@ -62,6 +62,7 @@ import {
   type DeleteObjectOptions,
   type DatetimeValueInput,
   type EffectiveProperty,
+  type PageSummary,
   type PrefsPatch,
   type ReferenceEntry,
   type SetClassPropertyInput,
@@ -169,6 +170,7 @@ export const READ_METHODS: ReadonlySet<string> = new Set([
   "effectiveNodeColor",
   "getPage",
   "listPages",
+  "listPageSummaries",
   "roots",
   "listTrashed",
   "listArchived",
@@ -519,6 +521,10 @@ export class WorkerCore {
     return this.client.listPages();
   }
 
+  listPageSummaries(): PageSummary[] {
+    return this.client.listPageSummaries();
+  }
+
   roots(): ClientNode[] {
     return this.client.roots();
   }
@@ -785,6 +791,8 @@ export class WorkerCore {
         return this.getPage(args[0] as string);
       case "listPages":
         return this.listPages();
+      case "listPageSummaries":
+        return this.listPageSummaries();
       case "roots":
         return this.roots();
       case "listTrashed":
