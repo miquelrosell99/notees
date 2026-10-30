@@ -16,6 +16,7 @@
 import type { ContentAst } from "@notees/protocol";
 import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
+import type { ClientWriteOp } from "../../core/workspace-client/index.js";
 import { notificationStore } from "../../components/ui/kit/notificationStore.js";
 
 /** Class ids whose membership ×-removal is refused (the journal chain). */
@@ -112,6 +113,26 @@ export function dissolveClassLinksInAst(
 }
 
 /**
+ * The read+dissolve step shared by the single-node gesture and the batch
+ * planner: the content rewrite (if any `class_link` dissolved) or null.
+ */
+function dissolvedContentUpdate(
+  client: DissolveClient,
+  nodeId: string,
+  classId: string,
+): { contentAst: ContentAst } | null {
+  const node = client.getNode(nodeId);
+  if (node === undefined) return null;
+  const { ast, changed } = dissolveClassLinksInAst(node.contentAst, classId, (id) => {
+    const cached = client.getDisplayName?.(id);
+    if (cached !== undefined && cached !== null && cached !== "") return cached;
+    const target = client.getNode(id);
+    return target === undefined ? id : (deriveDisplayName(target) || id);
+  });
+  return changed > 0 ? { contentAst: ast as ContentAst } : null;
+}
+
+/**
  * The removal gesture: dissolve the node's inline links to the class, then
  * unassign it. No-op content-wise when the node references the class only
  * via the pill.
@@ -121,17 +142,31 @@ export async function removeClassDissolvingLinks(
   nodeId: string,
   classId: string,
 ): Promise<void> {
-  const node = client.getNode(nodeId);
-  if (node !== undefined) {
-    const { ast, changed } = dissolveClassLinksInAst(node.contentAst, classId, (id) => {
-      const cached = client.getDisplayName?.(id);
-      if (cached !== undefined && cached !== null && cached !== "") return cached;
-      const target = client.getNode(id);
-      return target === undefined ? id : (deriveDisplayName(target) || id);
-    });
-    if (changed > 0) {
-      await client.updateObject(nodeId, { contentAst: ast as ContentAst });
-    }
+  const update = dissolvedContentUpdate(client, nodeId, classId);
+  if (update !== null) {
+    await client.updateObject(nodeId, update);
   }
   await client.unassignClass(nodeId, classId);
+}
+
+/**
+ * The batch variant (the selection bar's bulk unassign): the SAME read +
+ * dissolve happens per node BEFORE any write, then the whole selection's
+ * ops ride one `applyOps` batch — the strip lands ahead of its unassign
+ * inside the batch (the applier's envelope-order law holds per node), and
+ * ONE undo entry restores every node. All reads must happen before the
+ * batch: op composition takes the pre-gesture state, never the cache.
+ */
+export function planRemoveClassDissolvingLinkOps(
+  client: DissolveClient,
+  nodeId: string,
+  classId: string,
+): ClientWriteOp[] {
+  const update = dissolvedContentUpdate(client, nodeId, classId);
+  const ops: ClientWriteOp[] = [];
+  if (update !== null) {
+    ops.push({ kind: "update", id: nodeId, fields: update });
+  }
+  ops.push({ kind: "unassignClass", id: nodeId, classId });
+  return ops;
 }

@@ -15,9 +15,10 @@
  * SOURCE — it lands immediately ahead of the block, so the block's
  * departure leaves the link holding its exact slot on every position) +
  * `object.move` to the workspace root + one `object.move` per reparented
- * child (afterId chaining, the merge-plan children precedent). Every
- * client converges by replay with zero applier changes; the wire stays
- * untouched.
+ * child (afterId chaining, the merge-plan children precedent). The whole
+ * plan submits as ONE `applyOps` batch (one undo entry, one worker RPC) —
+ * every client converges by replay with zero applier changes; the wire
+ * stays untouched.
  *
  * Guards fail loud BEFORE anything reaches the log: the node must exist,
  * be an inline block (a page or class converts nothing), and not be a
@@ -26,8 +27,9 @@
  */
 
 import { parseDateNodeId, rendersAsInlineBlock } from "@notees/domain";
+import { uuidv7 } from "uuidv7";
 
-import type { ClientNode, CreateObjectInput } from "./workspace-client/index.js";
+import type { ClientNode, ClientWriteOp } from "./workspace-client/index.js";
 import { parentlessBlockResolverOf } from "../ui/renderStateLabel.js";
 
 /** Read surface the gesture composes from (both client classes satisfy it). */
@@ -48,13 +50,11 @@ export interface ExtractReadSurface {
 
 /** Write surface the gesture submits through (the existing client op path). */
 export interface ExtractWriteSurface {
-  createObject(partial: CreateObjectInput): Promise<string>;
-  moveObject(
-    id: string,
-    parentId: string | null,
-    afterId?: string,
-    beforeId?: string,
-  ): Promise<void>;
+  /**
+   * The generic batch-write primitive: the whole composed plan rides ONE
+   * call — one undo-journal entry ("Undo extract"), one worker RPC.
+   */
+  applyOps(ops: ClientWriteOp[], opts?: { verb?: string }): Promise<Array<string | undefined>>;
 }
 
 export interface ExtractToPageOptions {
@@ -89,35 +89,50 @@ export async function extractBlockToPage(
   }
 
   // rendersAsInlineBlock guarantees a parent. ALL reads happen before ANY
-  // write: the write surface applies asynchronously and the child order
-  // must be the pre-gesture state the reparent plan is computed from.
-  // The children list comes through the FRESH read — a cached read here
-  // silently drops child moves (see ExtractReadSurface).
+  // write: the child order must be the pre-gesture state the reparent plan
+  // is computed from. The children list comes through the FRESH read — a
+  // cached read here silently drops child moves (see ExtractReadSurface).
   const parentId = node.parentId as string;
   const children = await reads.getChildrenFresh(nodeId);
 
-  const linkBlockId = await writes.createObject({
-    parentId,
-    contentAst: [{ type: "mention", targetNodeId: nodeId }],
-    // Anchor BEFORE the block itself: the applier's beforeId midpoint lands
-    // the link immediately ahead of the block on EVERY position (first,
-    // middle, last), and the block's own departure to the root leaves the
-    // link holding its exact slot. Anchoring against the source also beats
-    // sibling lookups — a stale cached children read can miss the block
-    // (index -1) or mis-order siblings, which appended the link at the end
-    // (the reported "link block lands last" bug). The source node is always
-    // present in the store.
-    beforeId: nodeId,
-  });
-  await writes.moveObject(nodeId, null);
+  // The link-block id is pre-minted at plan time: the whole gesture rides
+  // ONE applyOps batch, so the child moves anchor on a caller-assigned id
+  // the batch's create introduces first (anchors may reference ids created
+  // earlier in the batch). The create keeps its beforeId anchor AT THE
+  // SOURCE — the applier's beforeId midpoint lands the link immediately
+  // ahead of the block on EVERY position (first, middle, last), and the
+  // block's own departure to the root leaves the link holding its exact
+  // slot. Anchoring against the source also beats sibling lookups — a stale
+  // cached children read can miss the block (index -1) or mis-order
+  // siblings, which appended the link at the end (the reported "link block
+  // lands last" bug). The source node is always present in the store.
+  const linkBlockId = uuidv7();
+  const ops: ClientWriteOp[] = [
+    {
+      kind: "create",
+      input: {
+        id: linkBlockId,
+        parentId,
+        contentAst: [{ type: "mention", targetNodeId: nodeId }],
+        beforeId: nodeId,
+      },
+    },
+    { kind: "move", id: nodeId, parentId: null },
+  ];
   if (options.keepChildren !== true) {
     // afterId chaining preserves the child order (first appends, each
     // following sibling lands after the previously moved one).
     let prevChildId: string | undefined;
     for (const child of children) {
-      await writes.moveObject(child.id, linkBlockId, prevChildId);
+      ops.push({
+        kind: "move",
+        id: child.id,
+        parentId: linkBlockId,
+        ...(prevChildId !== undefined ? { afterId: prevChildId } : {}),
+      });
       prevChildId = child.id;
     }
   }
+  await writes.applyOps(ops, { verb: "extract" });
   return linkBlockId;
 }

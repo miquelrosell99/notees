@@ -1059,6 +1059,13 @@ export class UndoJournal {
   private redoStack: UndoEntry[] = [];
   private batchDepth = 0;
   private batchBuffer: Array<{ entry: UndoEntry; mode: UndoRecordMode }> = [];
+  /**
+   * The outermost open batch's label verb ("paste", "duplicate"): flush
+   * labels the merged entry from it instead of the first record's own verb.
+   * Nested batches keep the outermost verb; a null restore returns flush to
+   * the first-record rule.
+   */
+  private batchVerb: string | null = null;
 
   constructor(options: UndoJournalOptions) {
     this.capture = options.capture;
@@ -1140,15 +1147,20 @@ export class UndoJournal {
    * application). The undo/redo loops batch the inverse specs of one entry
    * so a multi-op gesture redos as one gesture, not N steps. Contiguous
    * same-mode records merge; records committed with a verb override keep
-   * the FIRST record's verb (they all share it in the loops).
+   * the FIRST record's verb (they all share it in the loops). `verb` labels
+   * the merged entry for the gesture ("Undo paste") — the outermost open
+   * batch's verb wins.
    */
-  batch(fn: () => void): void {
+  batch(fn: () => void, verb?: string): void {
+    const prevVerb = this.batchVerb;
+    if (prevVerb === null && verb !== undefined) this.batchVerb = verb;
     this.batchDepth += 1;
     try {
       fn();
     } finally {
       this.batchDepth -= 1;
       this.flushBatchBuffer();
+      this.batchVerb = prevVerb;
     }
   }
 
@@ -1159,13 +1171,16 @@ export class UndoJournal {
    * stays open across the awaits and the buffer flushes in the finally —
    * one journal entry for the whole gesture, exactly like batch().
    */
-  async batchAsync(fn: () => Promise<void>): Promise<void> {
+  async batchAsync(fn: () => Promise<void>, verb?: string): Promise<void> {
+    const prevVerb = this.batchVerb;
+    if (prevVerb === null && verb !== undefined) this.batchVerb = verb;
     this.batchDepth += 1;
     try {
       await fn();
     } finally {
       this.batchDepth -= 1;
       this.flushBatchBuffer();
+      this.batchVerb = prevVerb;
     }
   }
 
@@ -1175,10 +1190,13 @@ export class UndoJournal {
     const buffered = this.batchBuffer;
     this.batchBuffer = [];
     let run: Array<{ entry: UndoEntry; mode: UndoRecordMode }> = [];
+    // The batch verb labels the merged entry ("Undo paste"); without one the
+    // first record's own verb wins (the undo/redo loops' relabeling).
+    const verb = this.batchVerb ?? buffered[0]!.entry.verb;
     const flush = (): void => {
       if (run.length === 0) return;
       const merged: UndoEntry =
-        run.length === 1
+        run.length === 1 && this.batchVerb === null
           ? run[0]!.entry
           : {
               applySpecs: run.flatMap(({ entry }) => entry.applySpecs),
@@ -1186,7 +1204,7 @@ export class UndoJournal {
                 .slice()
                 .reverse()
                 .flatMap(({ entry }) => entry.inverseSpecs),
-              verb: run[0]!.entry.verb,
+              verb,
               at: run[run.length - 1]!.entry.at,
               coalesceKey: null,
             };

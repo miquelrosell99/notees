@@ -24,13 +24,12 @@
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
 import { HttpTransport, OfflineTransport } from "@notees/sync";
-import type { ContentAst, Envelope, OpPayload } from "@notees/protocol";
-import { Store, type GraphOptions } from "@notees/store";
+import type { ContentAst, Envelope, OpPayload } from "@notees/protocol";import { Store, type GraphOptions } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
 import type { WorkspaceFeature } from "@notees/protocol";
 import { CARD_PROPERTY_UUIDS, type CardSrsState, type SrsAlgorithm } from "@notees/domain";
 
-import type { WorkspaceClientOptions } from "./types.js";
+import type { ClientWriteOp, WorkspaceClientOptions } from "./types.js";
 import type { PrefsPatch } from "./prefs.js";
 import type {
   AssetUploadResult,
@@ -559,16 +558,14 @@ export class WorkspaceClient {
     return this.writes.createObject(partial);
   }
 
+  /** The generic batch-write primitive (one undo entry, one worker RPC). */
+  applyOps(ops: ClientWriteOp[], opts: { verb?: string } = {}) {
+    return this.writes.applyOps(ops, opts);
+  }
+
   /** The multiRead delta stamp for one cached-read key (read-revisions.ts). */
   readStamp(method: string, args: unknown[]): string {
     return this.ctx.readStamp(method, args);
-  }
-
-  pasteBlocks(
-    headUpdate: { id: string; contentAst: ContentAst },
-    creates: CreateObjectInput[],
-  ) {
-    return this.writes.pasteBlocks(headUpdate, creates);
   }
 
   updateObject(id: string, fields: UpdateObjectInput) {

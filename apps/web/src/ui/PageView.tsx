@@ -532,6 +532,7 @@ export function PageView({
     setFindOpen,
     findDocs,
     handleFindReplace,
+    handleFindReplaceAll,
   } = machinery;
 
   /**
@@ -1065,6 +1066,7 @@ export function PageView({
               blocks={findDocs}
               highlightRootRef={pageRootRef}
               onReplace={handleFindReplace}
+              onReplaceAll={handleFindReplaceAll}
               onClose={() => setFindOpen(false)}
             />
           )}

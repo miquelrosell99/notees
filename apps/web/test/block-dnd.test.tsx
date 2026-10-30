@@ -516,7 +516,10 @@ describe("block drag-and-drop", () => {
     }
     const [one, two, , four] = ids as [string, string, string, string];
     const { container } = renderPage(client, pageId);
-    const moveSpy = vi.spyOn(client, "moveObject");
+    // The stack drop composes its whole plan as ONE applyOps batch (the
+    // pass-through spy still applies for real — the order assertions below
+    // read the store).
+    const applySpy = vi.spyOn(client, "applyOps");
 
     // Ctrl+click "one" and "three" — the level-capped stack {one, three}.
     const contents = Array.from(container.querySelectorAll<HTMLElement>(".nt-block-content"));
@@ -560,10 +563,16 @@ describe("block drag-and-drop", () => {
     fireEvent.pointerUp(document, { clientX: x, clientY: y + 2, button: 0, pointerId: 1 });
     await flushMoves();
 
-    // one lands after four, three after one — internal order kept.
-    expect(moveSpy).toHaveBeenCalledTimes(2);
-    expect(moveSpy).toHaveBeenNthCalledWith(1, one, pageId, four);
-    expect(moveSpy).toHaveBeenNthCalledWith(2, ids[2], pageId, one);
+    // one lands after four, three after one — internal order kept, and the
+    // whole drop rides ONE "move" batch.
+    expect(applySpy).toHaveBeenCalledTimes(1);
+    expect(applySpy).toHaveBeenCalledWith(
+      [
+        { kind: "move", id: one, parentId: pageId, afterId: four },
+        { kind: "move", id: ids[2], parentId: pageId, afterId: one },
+      ],
+      { verb: "move" },
+    );
     expect(rootOrder(client, pageId)).toEqual([two, four, one, ids[2]]);
   });
 

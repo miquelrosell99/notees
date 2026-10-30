@@ -96,6 +96,7 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { MoveGuardError } from "@notees/store";
 
 import type { OutlinePositionMap } from "@/editor/outline.js";
+import type { ClientWriteOp } from "@/core/workspace-client/index.js";
 
 /** Pointer x at least this far into a row (from its left edge) = child intent. */
 export const CHILD_DROP_OFFSET_PX = 48;
@@ -561,6 +562,13 @@ export interface MoveExecutionClient extends ClientShape {
   ): { id: string; parentId: string | null; isClass: boolean; isEmbedded: boolean } | undefined;
   moveObject: (id: string, parentId: string | null, afterId?: string) => Promise<void>;
   updateObject: (id: string, patch: { isEmbedded: boolean }) => Promise<void>;
+  /** The batch-write primitive — the stack drop composes its whole plan as one call. */
+  applyOps: (ops: ClientWriteOp[], opts?: { verb?: string }) => Promise<Array<string | undefined>>;
+}
+
+/** One move op; the afterId key is present only when set (wire presence semantics). */
+function moveOp(id: string, parentId: string | null, afterId?: string): ClientWriteOp {
+  return { kind: "move", id, parentId, ...(afterId !== undefined ? { afterId } : {}) };
 }
 
 /**
@@ -796,46 +804,67 @@ function finishPlan(
 }
 
 /**
- * Issue a stack plan: each pending block moves to its intended placement,
- * chained on the stack's own order (block i lands after block i-1). The
- * first-slot reorder (afterId null) runs the three-phase swap from
- * executeMove, generalized to the stack: the whole stack moves after the
- * current first child in order, then the first child moves after the stack —
- * the stack ends up ahead of it, order kept.
+ * Compose a stack plan as move ops (the pure plan half of executeStackPlan):
+ * each pending block moves to its intended placement, chained on the stack's
+ * own order (block i lands after block i-1). The first-slot reorder
+ * (afterId null) runs the three-phase swap from executeMove, generalized to
+ * the stack: the whole stack moves after the current first child in order,
+ * then the first child moves after the stack — the stack ends up ahead of
+ * it, order kept. An empty array means the plan issues nothing.
+ */
+export function stackPlanOps(moves: readonly PlannedMove[]): ClientWriteOp[] {
+  if (moves.every((move) => move.alreadyThere)) return [];
+  const ops: ClientWriteOp[] = [];
+  const lead = moves[0]!;
+  if (lead.command.kind === "reorder" && lead.command.afterId === null) {
+    const firstId = lead.firstSlotSwapWith;
+    if (typeof firstId !== "string") return [];
+    ops.push(moveOp(lead.id, lead.command.parentId, firstId));
+    for (let index = 1; index < moves.length; index += 1) {
+      const move = moves[index]!;
+      if (move.command.kind === "reorder") {
+        ops.push(moveOp(move.id, move.command.parentId, moves[index - 1]!.id));
+      }
+    }
+    ops.push(moveOp(firstId, lead.command.parentId, moves[moves.length - 1]!.id));
+    return ops;
+  }
+  for (const move of moves) {
+    if (move.alreadyThere) continue;
+    if (move.command.kind === "child") {
+      ops.push(moveOp(move.id, move.command.parentId));
+    } else if (move.command.afterId !== null) {
+      ops.push(moveOp(move.id, move.command.parentId, move.command.afterId));
+    }
+  }
+  return ops;
+}
+
+/**
+ * Issue a stack plan: the composed ops apply one awaited move at a time
+ * through the callback (the unit-tested seam; the production stack drop
+ * rides executeStackZoneMove's single applyOps batch instead).
  */
 export async function executeStackPlan(
   moves: readonly PlannedMove[],
   moveObject: (id: string, parentId: string | null, afterId?: string) => Promise<void>,
 ): Promise<void> {
-  if (moves.every((move) => move.alreadyThere)) return;
-  const lead = moves[0]!;
-  if (lead.command.kind === "reorder" && lead.command.afterId === null) {
-    const firstId = lead.firstSlotSwapWith;
-    if (typeof firstId !== "string") return;
-    await moveObject(lead.id, lead.command.parentId, firstId);
-    for (let index = 1; index < moves.length; index += 1) {
-      const move = moves[index]!;
-      if (move.command.kind === "reorder") {
-        await moveObject(move.id, move.command.parentId, moves[index - 1]!.id);
-      }
-    }
-    await moveObject(firstId, lead.command.parentId, moves[moves.length - 1]!.id);
-    return;
-  }
-  for (const move of moves) {
-    if (move.alreadyThere) continue;
-    if (move.command.kind === "child") {
-      await moveObject(move.id, move.command.parentId);
-    } else if (move.command.afterId !== null) {
-      await moveObject(move.id, move.command.parentId, move.command.afterId);
+  for (const op of stackPlanOps(moves)) {
+    if (op.kind === "move") {
+      await moveObject(op.id, op.parentId, op.afterId);
     }
   }
 }
 
 /**
- * The zone executor for a stack drop: issue the plan through the surface's
- * client and flip every dragged block's present-as-main bit to the zone the
- * drop landed in (`dropZoneOf` — the same line decides for the whole stack).
+ * The zone executor for a stack drop: the WHOLE plan — every move in stack
+ * order (the afterId chaining is the correctness mechanism), then every
+ * dragged block's present-as-main flip to the zone the drop landed in
+ * (`dropZoneOf` — the same line decides for the whole stack) — composes as
+ * ONE op array and submits ONE `applyOps` batch (one undo entry "Undo move",
+ * one RPC on the worker client). The render-bit reads happen before the
+ * batch: a move never changes isEmbedded, so the pre-write read equals the
+ * post-move read this replaces.
  */
 export async function executeStackZoneMove(args: {
   line: DropLine;
@@ -843,16 +872,16 @@ export async function executeStackZoneMove(args: {
   client: MoveExecutionClient;
 }): Promise<void> {
   const { line, plan, client } = args;
-  const moveObject = (id: string, parentId: string | null, afterId?: string) =>
-    afterId === undefined ? client.moveObject(id, parentId) : client.moveObject(id, parentId, afterId);
-  await executeStackPlan(plan.moves, moveObject);
+  const ops = stackPlanOps(plan.moves);
   const zone = dropZoneOf(line, (id) => client.getNode(id));
   for (const move of plan.moves) {
     const dragged = client.getNode(move.id);
     if (dragged !== undefined && dragged.isEmbedded !== (zone === "body")) {
-      await client.updateObject(move.id, { isEmbedded: zone === "body" });
+      ops.push({ kind: "update", id: move.id, fields: { isEmbedded: zone === "body" } });
     }
   }
+  if (ops.length === 0) return;
+  await client.applyOps(ops, { verb: "move" });
 }
 
 // --- drag-session edge auto-scroll ------------------------------------------

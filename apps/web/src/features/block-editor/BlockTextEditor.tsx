@@ -233,7 +233,7 @@ import { mentionProse } from "@/editor/prose.js";
 import { applyMarkToRange, marksOnRange, removeMarkFromRange } from "@/editor/marks.js";
 import { withCandidateSpans } from "@/editor/capture.js";
 import { dissolveClassLinksInAst } from "../metadata/classRemoval.js";
-import type { ClientNode, CreateObjectInput } from "@/core/workspace-client/index.js";
+import type { ClientNode, CreateObjectInput, ClientWriteOp } from "@/core/workspace-client/index.js";
 
 import { VerbPopover } from "../../ui/VerbPopover.js";
 import { useOutliner } from "../../ui/outliner-context.js";
@@ -1811,11 +1811,18 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       });
     }
     // One write batch: the head update + every create journal as ONE undo
-    // entry and ride ONE worker RPC (the per-block awaited chain this
-    // replaced repainted the outline one block at a time).
+    // entry ("Undo paste") and ride ONE worker RPC (the per-block awaited
+    // chain this replaced repainted the outline one block at a time).
+    const ops: ClientWriteOp[] = [
+      { kind: "update", id: currentId, fields: { contentAst: headCommitted } },
+      ...creates.map((input) => ({ kind: "create" as const, input })),
+    ];
     void client
-      .pasteBlocks({ id: currentId, contentAst: headCommitted }, creates)
-      .then((ids) => requestFocus(ids[ids.length - 1]!, lastEntry.text.length));
+      .applyOps(ops, { verb: "paste" })
+      .then((ids) => {
+        const lastId = ids[ids.length - 1];
+        if (lastId !== undefined) requestFocus(lastId, lastEntry.text.length);
+      });
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {

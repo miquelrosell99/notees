@@ -5,9 +5,13 @@
  * marks update-rows; a "class" column assigns classes by name; a title
  * column names new nodes; every other header matches a property schema by
  * display name), previews rows × mapped columns with create/update counts,
- * then writes per row through the ordinary client op path —
- * setProperty/unsetProperty/assignClass on uuid rows, createObject +
- * classIds + properties on the rest.
+ * then composes the whole import as ONE `ClientWriteOp[]` — setProperty/
+ * unsetProperty/assignClass/update on uuid rows, create + classIds +
+ * properties on the rest — and submits it as a single
+ * `applyOps(ops, { verb: "import" })` batch (one undo entry, one worker
+ * RPC). Date chains are resolved via `ensureDateChain` BEFORE the batch;
+ * text carriers get caller-assigned ids so later ops in the same batch can
+ * anchor to them.
  *
  * Fail-loud per cell: a cell that cannot be coerced (bad number, unknown
  * select label, unresolvable node name, …) never guesses — it lands in the
@@ -22,6 +26,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { uuidv7 } from "uuidv7";
 import { parseCsvTable, parseXlsxTable, type TableMatrix } from "@notees/export";
 
 import { Modal } from "../../components/ui/kit/Modal.js";
@@ -29,7 +34,7 @@ import { Button } from "../../components/ui/kit/Button.js";
 import { FileDropZone } from "../../components/ui/kit/FileDropZone.js";
 import { titleOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../collection/types.js";
-import type { ClientPropertySchema } from "@/core/workspace-client/index.js";
+import type { ClientPropertySchema, ClientWriteOp } from "@/core/workspace-client/index.js";
 import "./ImportTableModal.css";
 
 /** How one header column maps onto the graph. */
@@ -345,7 +350,14 @@ export function ImportTableModal({ isOpen, onClose, client, titleHeader }: Impor
         .filter((prop) => prop.propertySchemaId === schemaId)
         .map((prop) => prop.idx);
 
-    const writeProperty = async (
+    /**
+     * Compose one cell's property write as batch ops (was an awaited
+     * write chain). Date chains are resolved BEFORE the batch — the
+     * ensureDateChain ids anchor the setProperty op. Text carriers get
+     * caller-assigned ids so the setProperty op can reference a carrier
+     * created earlier in the same batch.
+     */
+    const composeProperty = async (
       nodeId: string,
       colIndex: number,
       schema: ClientPropertySchema,
@@ -357,7 +369,7 @@ export function ImportTableModal({ isOpen, onClose, client, titleHeader }: Impor
       if (valueText === "") {
         // Empty clears the value (every held slot, paranoia included).
         for (const idx of heldSlots(nodeId, schema.id)) {
-          await client.unsetProperty(nodeId, schema.id, idx);
+          ops.push({ kind: "unsetProperty", objectId: nodeId, propertySchemaId: schema.id, idx });
         }
         return;
       }
@@ -368,42 +380,54 @@ export function ImportTableModal({ isOpen, onClose, client, titleHeader }: Impor
       }
       if (schema.type === "datetime") {
         // ISO day → the day-node chain (full-day point refs); multi dates
-        // ride the array shape.
+        // ride the array shape. The chain ids were resolved outside the
+        // batch (ensureDateChain is an async client call, not a
+        // ClientWriteOp).
         if (Array.isArray(coerced.value)) {
           const refs: Array<{ nodeId: string }> = [];
           for (const iso of coerced.value as string[]) {
             const { day } = await client.ensureDateChain(iso);
             refs.push({ nodeId: day });
           }
-          await client.setProperty(nodeId, schema.id, refs, 0);
+          ops.push({ kind: "setProperty", objectId: nodeId, propertySchemaId: schema.id, value: refs, idx: 0 });
           return;
         }
         const { day } = await client.ensureDateChain(coerced.value as string);
-        await client.setProperty(nodeId, schema.id, { nodeId: day }, 0);
+        ops.push({ kind: "setProperty", objectId: nodeId, propertySchemaId: schema.id, value: { nodeId: day }, idx: 0 });
         return;
       }
       if (schema.type === "text") {
         // Node-backed text values (PB2): a fresh carrier child per string —
         // single cells one ref, multi cells the ref array (the shape the
-        // table's display/export reads back).
+        // table's display/export reads back). Carrier ids are caller-
+        // assigned so the value op can anchor to them in the same batch.
         const parts = Array.isArray(coerced.value)
           ? (coerced.value as string[])
           : [coerced.value as string];
         const refs: Array<{ nodeId: string }> = [];
         for (const part of parts) {
-          const carrier = await client.createObject({
-            parentId: nodeId,
-            contentAst: [{ type: "text", text: part }],
+          const carrierId = uuidv7();
+          ops.push({
+            kind: "create",
+            input: { id: carrierId, parentId: nodeId, contentAst: [{ type: "text", text: part }] },
           });
-          refs.push({ nodeId: carrier });
+          refs.push({ nodeId: carrierId });
         }
-        await client.setProperty(nodeId, schema.id, Array.isArray(coerced.value) ? refs : refs[0], 0);
+        ops.push({
+          kind: "setProperty",
+          objectId: nodeId,
+          propertySchemaId: schema.id,
+          value: Array.isArray(coerced.value) ? refs : refs[0],
+          idx: 0,
+        });
         return;
       }
       // Scalars and the canonical multi array (selects, node refs, multi
       // text/url/email/number/boolean) write in one property.set at idx 0.
-      await client.setProperty(nodeId, schema.id, coerced.value, 0);
+      ops.push({ kind: "setProperty", objectId: nodeId, propertySchemaId: schema.id, value: coerced.value, idx: 0 });
     };
+
+    const ops: ClientWriteOp[] = [];
 
     for (const row of parsed.dataRows) {
       const cellAt = (index: number): string => (index >= 0 ? (row.cells[index] ?? "").trim() : "");
@@ -430,27 +454,43 @@ export function ImportTableModal({ isOpen, onClose, client, titleHeader }: Impor
           continue;
         }
         if (title !== "") {
-          await client.updateObject(uuid, { contentAst: [{ type: "text", text: title }] });
+          ops.push({
+            kind: "update",
+            id: uuid,
+            fields: { contentAst: [{ type: "text", text: title }] },
+          });
         }
         for (const classId of resolveClasses(classRaw, row.sheetRow)) {
-          await client.assignClass(uuid, classId);
+          ops.push({ kind: "assignClass", id: uuid, classId });
         }
         for (const { index, schema } of plan.propertyCols) {
-          await writeProperty(uuid, index, schema, cellAt(index), row.sheetRow);
+          await composeProperty(uuid, index, schema, cellAt(index), row.sheetRow);
         }
         updated += 1;
       } else {
         const classIds = resolveClasses(classRaw, row.sheetRow);
-        const id = await client.createObject({
-          ...(title !== "" ? { name: title } : {}),
-          ...(classIds.length > 0 ? { classIds } : {}),
+        // Caller-assigned id: the row's property ops anchor to it in the
+        // same batch (create-with-id, parents before children).
+        const id = uuidv7();
+        ops.push({
+          kind: "create",
+          input: {
+            id,
+            ...(title !== "" ? { name: title } : {}),
+            ...(classIds.length > 0 ? { classIds } : {}),
+          },
         });
         for (const { index, schema } of plan.propertyCols) {
-          await writeProperty(id, index, schema, cellAt(index), row.sheetRow);
+          await composeProperty(id, index, schema, cellAt(index), row.sheetRow);
         }
         created += 1;
       }
     }
+    // The whole import in ONE undo batch ("Undo import") and, on the
+    // worker client, ONE RPC. A mid-batch failure keeps the ops applied
+    // before it (same fail-loud contract as the old per-row awaited path)
+    // and aborts the rest, exactly as a throw mid-loop did.
+    await client.applyOps(ops, { verb: "import" });
     setBusy(false);
     setStep({ phase: "report", report: { created, updated, skipped, failures, ignoredHeaders } });
   };

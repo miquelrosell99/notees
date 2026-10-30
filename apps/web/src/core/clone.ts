@@ -39,6 +39,7 @@ import type { ContentAst } from "@notees/protocol";
 
 import type {
   ClientNode,
+  ClientWriteOp,
   CreateObjectInput,
   EffectiveProperty,
   UpdateObjectInput,
@@ -67,6 +68,15 @@ export interface CloneWriteSurface {
     metadata?: Record<string, unknown>,
   ): Promise<void>;
   assignProperty(objectId: string, propertySchemaId: string): Promise<void>;
+  /**
+   * The generic batch-write primitive: the whole composed clone applies in
+   * ONE undo-journal batch (one "Undo duplicate" entry) and, on the worker
+   * client, in ONE RPC.
+   */
+  applyOps(
+    ops: ClientWriteOp[],
+    opts?: { verb?: string },
+  ): Promise<Array<string | undefined>>;
 }
 
 export interface CloneCreatePayload {
@@ -479,38 +489,58 @@ export function composeTemplateGraft(
   return { ops, rootId: opts.objectId, idMap };
 }
 
-/** Submit composed ops through the existing client op path, in order. */
+/**
+ * Submit composed ops through the batch-write primitive: the whole clone
+ * applies in ONE undo-journal batch ("Undo duplicate"). Ops map 1:1 to
+ * ClientWriteOp kinds; the create input carries the same reconstruction as
+ * the per-op path, and the ordered apply resolves the sibling anchor chain
+ * (each afterId references an id created earlier in the same batch).
+ */
 export async function submitCloneOps(
   writes: CloneWriteSurface,
   ops: readonly CloneOp[],
 ): Promise<void> {
-  for (const op of ops) {
+  const mapped: ClientWriteOp[] = ops.map((op) => {
     if (op.opType === "object.create") {
       const p = op.payload;
-      await writes.createObject({
-        id: p.objectId,
-        ...(p.isEmbedded !== undefined ? { isEmbedded: p.isEmbedded } : {}),
-        ...(p.contentAst !== undefined ? { contentAst: p.contentAst } : {}),
-        ...(p.classIds !== undefined ? { classIds: p.classIds } : {}),
-        ...(p.tagIds !== undefined ? { tagIds: p.tagIds } : {}),
-        ...(p.parentId !== undefined ? { parentId: p.parentId } : {}),
-        ...(p.afterId !== undefined ? { afterId: p.afterId } : {}),
-        ...(p.beforeId !== undefined ? { beforeId: p.beforeId } : {}),
-      });
-    } else if (op.opType === "object.update") {
-      await writes.updateObject(op.payload.objectId, { contentAst: op.payload.contentAst });
-    } else if (op.opType === "property.assign") {
-      await writes.assignProperty(op.payload.objectId, op.payload.propertySchemaId);
-    } else {
-      await writes.setProperty(
-        op.payload.objectId,
-        op.payload.propertySchemaId,
-        op.payload.value,
-        op.payload.idx,
-        op.payload.metadata,
-      );
+      return {
+        kind: "create",
+        input: {
+          id: p.objectId,
+          ...(p.isEmbedded !== undefined ? { isEmbedded: p.isEmbedded } : {}),
+          ...(p.contentAst !== undefined ? { contentAst: p.contentAst } : {}),
+          ...(p.classIds !== undefined ? { classIds: p.classIds } : {}),
+          ...(p.tagIds !== undefined ? { tagIds: p.tagIds } : {}),
+          ...(p.parentId !== undefined ? { parentId: p.parentId } : {}),
+          ...(p.afterId !== undefined ? { afterId: p.afterId } : {}),
+          ...(p.beforeId !== undefined ? { beforeId: p.beforeId } : {}),
+        },
+      };
     }
-  }
+    if (op.opType === "object.update") {
+      return {
+        kind: "update",
+        id: op.payload.objectId,
+        fields: { contentAst: op.payload.contentAst },
+      };
+    }
+    if (op.opType === "property.assign") {
+      return {
+        kind: "assignProperty",
+        objectId: op.payload.objectId,
+        propertySchemaId: op.payload.propertySchemaId,
+      };
+    }
+    return {
+      kind: "setProperty",
+      objectId: op.payload.objectId,
+      propertySchemaId: op.payload.propertySchemaId,
+      value: op.payload.value,
+      idx: op.payload.idx,
+      ...(op.payload.metadata !== undefined ? { metadata: op.payload.metadata } : {}),
+    };
+  });
+  await writes.applyOps(mapped, { verb: "duplicate" });
 }
 
 export interface CloneIO {
