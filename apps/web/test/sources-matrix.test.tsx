@@ -49,6 +49,7 @@ import {
 } from "../src/features/sources/sourcesQuery.js";
 import { createComparison } from "../src/features/sources/comparison.js";
 import { SourcesMatrix } from "../src/features/sources/SourcesMatrix.js";
+import { notificationStore } from "../src/components/ui/kit/notificationStore.js";
 import { materializeWorkflow } from "../src/features/workflows/materialize.js";
 import { tabTitle } from "../src/ui/app/routing.js";
 
@@ -359,6 +360,19 @@ describe("comparisonTitleFor — titled from the matrix", () => {
       "Comparison — Paper A vs Paper B (+2 more)",
     );
   });
+
+  it("empty display names drop out of the naming; none named falls back to the count", () => {
+    // A source with an empty display name must not render as a bare
+    // " vs " gap in the title.
+    expect(comparisonTitleFor(["", "Paper B"])).toBe("Comparison — Paper B");
+    expect(comparisonTitleFor(["Paper A", " "])).toBe("Comparison — Paper A");
+    expect(comparisonTitleFor(["Paper A", "", "Paper C"])).toBe(
+      "Comparison — Paper A vs Paper C",
+    );
+    expect(comparisonTitleFor(["", "", ""])).toBe("Comparison — 3 sources");
+    // No sources at all keeps the bare title.
+    expect(comparisonTitleFor([])).toBe("Comparison");
+  });
 });
 
 // --- New comparison ---------------------------------------------------------------------
@@ -463,6 +477,28 @@ describe("SourcesMatrix — the mode view", () => {
     await vi.waitFor(() => expect(onOpenNode).toHaveBeenCalledTimes(1));
     const opened = onOpenNode.mock.calls[0]![0] as string;
     expect(client.getNode(opened)!.classIds).toContain(COMPARISON_CLASS_ID);
+  });
+
+  it("a failed New comparison surfaces the hub's toast — never a console-only failure", async () => {
+    const { client, items } = await seededClient(true);
+    // The write seam fails mid-author: the user must SEE the error, not
+    // lose the click to a console.warn line.
+    vi.spyOn(client, "createObject").mockRejectedValue(new Error("relay refused the batch"));
+    const query = parseSourcesQuery(`/sources?mode=matrix&ids=${items.a1},${items.a2}`);
+    render(
+      <SourcesMatrix client={client} query={query} onQueryChange={() => {}} onOpenNode={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "New comparison" }));
+    await vi.waitFor(() => {
+      const toast = notificationStore.notifications.find(
+        (n) => n.type === "error" && n.title === "Couldn't create the comparison",
+      );
+      expect(toast).not.toBeUndefined();
+      expect(toast!.message).toContain("relay refused the batch");
+    });
+    // The busy latch released: the button is live again for the retry.
+    expect(screen.getByRole("button", { name: "New comparison" })).not.toBeNull();
+    notificationStore.clearAll();
   });
 
   it("with the workflow absent it offers the one-click enable instead of an unclassed page", async () => {

@@ -131,6 +131,7 @@ function renderPage(client: WorkspaceClient, pageId: string) {
   return render(<NodeView client={client} nodeId={pageId} onOpenNode={vi.fn()} cornerMenu />);
 }
 
+/** The lint hint row, if rendered (fresh query per call). */
 function lintRow(container: HTMLElement): HTMLElement | null {
   return container.querySelector(".lint-hint-row");
 }
@@ -292,6 +293,44 @@ describe("the synthesis lint in the page header", () => {
     expect(lintRow(container)).toBeNull();
     expect(screen.queryByText(NO_EVIDENCE_MESSAGE)).toBeNull();
     expect(screen.queryByText(SINGLE_SOURCE_MESSAGE)).toBeNull();
+  });
+
+  it("the lint is main-surface chrome only: absent in the embedded, preview, and focus surfaces", async () => {
+    const client = await seedClient();
+    // The 0-arm carrier — the lint WOULD render on the main surface.
+    const synthesis = await createSynthesis(client, "Surface claim");
+
+    // The gate mirrors the codebase's main-surface predicate
+    // (`!embedded && !focusMode && !preview`): the hint row renders in
+    // none of the stacked surfaces. Focus mode is the device setting the
+    // App toggles (useDeviceSetting reads it on mount — set per render).
+    const embedded = render(
+      <NodeView client={client} nodeId={synthesis} onOpenNode={vi.fn()} cornerMenu embedded />,
+    );
+    expect(lintRow(embedded.container)).toBeNull();
+    embedded.unmount();
+
+    const preview = render(
+      <NodeView client={client} nodeId={synthesis} onOpenNode={vi.fn()} cornerMenu preview />,
+    );
+    expect(lintRow(preview.container)).toBeNull();
+    preview.unmount();
+
+    localStorage.setItem("notees.settings.focusMode", JSON.stringify(true));
+    try {
+      const focus = render(
+        <NodeView client={client} nodeId={synthesis} onOpenNode={vi.fn()} cornerMenu />,
+      );
+      expect(lintRow(focus.container)).toBeNull();
+      focus.unmount();
+    } finally {
+      localStorage.removeItem("notees.settings.focusMode");
+    }
+
+    // Sanity, same page: the main surface still carries the 0-arm hint.
+    const main = renderPage(client, synthesis);
+    expect(lintRow(main.container)).not.toBeNull();
+    expect(within(main.container).getByText(NO_EVIDENCE_MESSAGE)).toBeInTheDocument();
   });
 
   it("suggestion-only: the lint renders read-only — no client write method fires, no button in the row", async () => {

@@ -739,7 +739,7 @@ describe("crumb labels reduce markdown links", () => {
 });
 
 
-describe("date pages: no Unlinked mentions", () => {
+describe("date pages: no Unlinked mentions, no Forward path", () => {
   /** A plain source page whose block literally names the day (an unlinked
    *  match — the day title appears as plain text, never a mention). */
   async function seedLiteralDateMention(client: WorkspaceClient, dayName: string): Promise<void> {
@@ -770,6 +770,10 @@ describe("date pages: no Unlinked mentions", () => {
 
     expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Unlinked mentions/ })).toBeNull();
+    // The Forward path never mounts either (the date-page discovery ruling
+    // extends to the consumer walk — a journal surface carries no
+    // discovery sections).
+    expect(screen.queryByRole("button", { name: /Forward path/ })).toBeNull();
     expect(countSpy).not.toHaveBeenCalled();
   });
 

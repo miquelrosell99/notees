@@ -1283,6 +1283,16 @@ export class WorkerClient {
     };
   }
 
+  /**
+   * The session's current store revision (the last ChangeNotification's
+   * counter): the render-path memo key for reads that must re-derive per
+   * store change but not per unrelated re-render. Mirrors
+   * WorkspaceClient.revision.
+   */
+  get revision(): number {
+    return this.lastChange.revision;
+  }
+
   private notify(): void {
     // De-prioritize the refresh-driven render: the drain completes
     // on a worker message / macrotask where React would otherwise render

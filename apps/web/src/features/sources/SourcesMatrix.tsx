@@ -30,6 +30,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { AnyClient } from "../../ui/app/clients.js";
 import { Icon } from "../../ui/Icon.js";
 import { Button, Checkbox, EmptyState } from "../../components/ui/kit/index.js";
+import { notificationStore } from "../../components/ui/kit/notificationStore.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { downloadBlob } from "../modals/download.js";
 import { exportTimestamp } from "../export/exportSubtree.js";
@@ -113,7 +114,14 @@ export function SourcesMatrix({
       const id = await createComparison(client, ids);
       onOpenNode?.(id);
     } catch (error) {
+      // The honest failure surface (the hub's toast pattern): a failed
+      // comparison must not vanish with only a console line — the user
+      // sees the error and the picked set stays put for a retry.
       console.warn("[sources] new comparison failed:", error);
+      notificationStore.error(
+        "Couldn't create the comparison",
+        error instanceof Error ? error.message : String(error),
+      );
     } finally {
       setBusy(false);
     }

@@ -522,6 +522,16 @@ describe("block drag-and-drop", () => {
     const applySpy = vi.spyOn(client, "applyOps");
 
     // Ctrl+click "one" and "three" — the level-capped stack {one, three}.
+    // Settle first: dnd-kit defers its drag-end document-listener cleanup by
+    // 50ms (AbstractPointerSensor.detach), and the click stopPropagation
+    // capture listener it leaves on document until then eats EVERY click —
+    // under CPU-starved runs the timer hasn't fired by the time this test
+    // clicks, the selection never forms, and the grip drag degrades to the
+    // single row (the load-flake this pins down). The wait-for/settle
+    // pattern matches the keyboard-sensor test below.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    });
     const contents = Array.from(container.querySelectorAll<HTMLElement>(".nt-block-content"));
     fireEvent.click(contents[0]!, { ctrlKey: true });
     fireEvent.click(contents[2]!, { ctrlKey: true });

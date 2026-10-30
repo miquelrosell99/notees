@@ -141,6 +141,36 @@ describe("ForwardPathSection", () => {
     expect(hop2.style.paddingInlineStart).toBe("2em");
   });
 
+  it("a verb-mark whose nearest candidateSpan is an ALIAS of the anchor still hops (the alias roll-up)", async () => {
+    const client = await seedClient();
+    const sourceId = await createPage(client, "Source paper");
+    const aliasId = await createPage(client, "Paper alias");
+    await client.updateObject(aliasId, { aliasedNodeId: sourceId });
+    const planId = await createPage(client, "Plan P");
+    // The verb-mark's nearest candidate is the ALIAS id (candidateSpans are
+    // record-don't-resolve): the hop must roll the candidate up through the
+    // alias chain, the same terminal the mention family's
+    // resolved_target_id rides.
+    await client.updateObject(planId, {
+      contentAst: [
+        { type: "text", text: "Plan P informs " },
+        { type: "mention", targetNodeId: sourceId },
+        {
+          type: "typed_link",
+          verb: "informs",
+          text: "informs",
+          metadata: { candidateSpans: [aliasId] },
+        },
+      ],
+    });
+
+    render(<NodeView client={client} nodeId={sourceId} onOpenNode={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Forward path/ }));
+    const sec = section(/Forward path/);
+    expect(within(sec).getByRole("button", { name: /Plan P/ })).not.toBeNull();
+    expect(within(sec).getByText("via informs")).not.toBeNull();
+  });
+
   it("a row click navigates to the hop node", async () => {
     const client = await seedClient();
     const sourceId = await createPage(client, "Source paper");

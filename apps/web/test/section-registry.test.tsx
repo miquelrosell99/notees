@@ -95,7 +95,7 @@ describe("the section registry", () => {
     ]);
   });
 
-  it("the date variants omit the unlinked section — spec absence is the date-page ruling", async () => {
+  it("the date variants omit the discovery sections — spec absence is the date-page ruling", async () => {
     const client = await seedClient();
     const dayId = dayNodeId("2026-10-29");
     await client.createObject({
@@ -108,6 +108,8 @@ describe("the section registry", () => {
     const day = pageVariantOf(client, dayId);
     expect(day.variant).toBe("date-day");
     expect(day.dayIso).toBe("2026-10-29");
-    expect(keys(day.systemSections)).toEqual(["child-pages", "backlinks", "forward-path"]);
+    // Unlinked mentions AND the Forward path: a date page is a journal
+    // surface, not an idea node — it carries no discovery sections.
+    expect(keys(day.systemSections)).toEqual(["child-pages", "backlinks"]);
   });
 });
