@@ -8,7 +8,9 @@
  * the per-block list style (List style ›), the node color swatches
  * (Color › — the color edit without an icon requirement), export
  * (document-chrome nodes), the page banner upload (Add/Change
- * banner), remove pill (class/tag on an owner), delete.
+ * banner), move a class pill inline (Move inline — a class_link chip
+ * prepended to the owner's content, the pill's derived view hides it),
+ * remove pill (class/tag on an owner), delete.
  * Favorites toggle localStorage directly and broadcast so the sidebar
  * refreshes.
  *
@@ -155,6 +157,53 @@ function toggleFavorite(id: string): void {
     // Storage unavailable; the toggle just won't persist.
   }
   window.dispatchEvent(new Event("notees:favorites"));
+}
+
+/**
+ * "Move inline": prepend a class_link chip for `classId` to the owner's
+ * content. The classes pills are a DERIVED VIEW — once the content
+ * references the class, the pill hides automatically (the link IS the
+ * marker) — and the membership stays (the pill only renders for assigned
+ * classes, so no assign/unassign rides this gesture; it is the inverse of
+ * the chip menu's "Remove from inline"). The chip leads the content (the
+ * class-as-subject position), a separating space inserted when text
+ * follows; empty content becomes the chip alone. Idempotent: a content
+ * that already references the class is left untouched (undo interleavings
+ * can re-expose the pill row for an already-referenced class).
+ */
+async function moveClassInline(
+  client: Pick<MenuClient, "getNode" | "updateObject">,
+  ownerId: string,
+  classId: string,
+): Promise<void> {
+  const owner = client.getNode(ownerId);
+  if (owner === undefined) return;
+  const references = (tokens: readonly unknown[]): boolean =>
+    tokens.some((token) => {
+      if (token === null || typeof token !== "object") return false;
+      const t = token as Record<string, unknown>;
+      if (t.type === "class_link" && t.classId === classId) return true;
+      return Array.isArray(t.children) && references(t.children);
+    });
+  if (references(owner.contentAst)) return;
+  const chip = { type: "class_link", classId } as ContentAst[number];
+  const next = [...owner.contentAst];
+  if (next.length === 0) {
+    next.push(chip);
+  } else {
+    next.unshift(chip);
+    const first = next[1] as Record<string, unknown>;
+    if (first.type === "text" && typeof first.text === "string") {
+      // Merge the separator into the leading text run when it doesn't
+      // already start with whitespace.
+      if (!/^\s/.test(first.text)) {
+        next[1] = { ...first, text: ` ${first.text}` } as ContentAst[number];
+      }
+    } else {
+      next.splice(1, 0, { type: "text", text: " " } as ContentAst[number]);
+    }
+  }
+  await client.updateObject(ownerId, { contentAst: next });
 }
 
 export function NodeContextMenu({
@@ -581,6 +630,20 @@ export function NodeContextMenu({
   }
   if (ownerId !== undefined && ownerId !== node.id) {
     items.push({ id: "s1", label: "", separator: true });
+    // Class pill on an owner: "Move inline" prepends a class_link chip to
+    // the owner's content — the pill's derived view hides once the content
+    // references the class (the link IS the marker), the membership stays.
+    // The membership gate keeps the item off non-membership pill rows (the
+    // class view's EXTENDS pills share this menu): a class_link asserts
+    // instance-of, which is not what an extends edge means.
+    if (node.isClass === true && client.getNode(ownerId)?.classIds.includes(node.id) === true) {
+      items.push({
+        id: "move-inline",
+        label: "Move inline",
+        icon: "mdi-tag-arrow-right",
+        onClick: () => void moveClassInline(client, ownerId, node.id),
+      });
+    }
     items.push({
       id: "remove",
       label: "Remove from this node",

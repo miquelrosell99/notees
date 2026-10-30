@@ -9,6 +9,68 @@ predating this file.
 
 ## 2026-10-30
 
+- **feat(protocol,store,domain,web,server)!: the meetingDate property
+  retires — a meeting IS-A event and carries the inherited eventDate.** The
+  class-local "Meeting date" (…0003-000000000007, pinned) rendered next to
+  the inherited "Event date" on every meeting; the duplicate withdraws.
+  Seeds: the UUID stays burned (never-reuse marker), the spec/display-name
+  entries leave `SYSTEM_PROPERTY_SPECS`/`SYSTEM_PROPERTY_DISPLAY_NAMES`, the
+  pin roster amends to the meeting family's `location`, and the web ensure's
+  `MEETING_FAMILY` drops to location/agenda (offline-first self-heal no
+  longer re-creates the schema; `deploySystemClass` derives from the specs,
+  auto-updated). No wire change — `propertySchema.delete` already exists in
+  the catalog and every client applier (soft delete: `active = 0`, the row
+  retained so history still validates, list/picker surfaces filter it) — but
+  the op had no canonical fixture: **`property-schema-delete.json`** lands
+  now (create → bind → value → delete → post-delete write → unknown-id
+  delete), sha256-identical in the GTK + Flutter wire corpora (GTK pytest
+  green; Flutter verification pending — no SDK on this host), the
+  forty-eighth SCHEMA.md-gated fixture, pinned TS-side in the store suite
+  (soft delete keeps the row, values survive typed, list reads filter).
+  Live workspaces converge by the new **`scripts/migrate-meeting-date-retirement.mts`**
+  (Path A, the migrate-seed-pins shape): copy each meetingDate value verbatim
+  to the empty eventDate slot (`property.set`; an already-valued eventDate or
+  a multi-element node is REPORTED and kept — nothing is silently dropped),
+  remove the surviving values by positional `property.unset`, drop the
+  node-level declaration (`property.unassign` — TS-only state, ports no-op
+  it), unset the (meeting, meetingDate) binding, soft-delete the schema. The
+  op set stays inside the three-client intersection (assign/unassign/empty
+  are TS-only; the ports skip them with a warning); the built envelopes are
+  test-applied in order on a throwaway scratch store before ingest — a
+  rejected eventDate copy drops its removal too. Idempotent; dry-run
+  default; backup + read-back + fresh-replay verify. Lockstep gate for
+  --apply: confirm released GTK/Flutter versions parse `propertySchema.delete`.
+  Docs: SCHEMA.md (seed manifest + pin roster), migrations.md (new row +
+  seed-pins amendment), AGENTS.md (pin roster), the GTK pin-roster docstring.
+  Sibling-manifest check (law 10): GTK carries no meetingDate constant (one
+  docstring amended, committed with the fixture vendor); Flutter none.
+  Verification: domain 153, protocol 744, store 604 (incl. the new
+  per-adapter delete suite + the corpus replay), web meeting-family /
+  system-class-deploy-bindings / remap-reunion-evento 26, server
+  migrate-seed-pins 4 + the new migrate-meeting-date-retirement e2e 3.
+
+- **feat(web): Move inline — the class pill's right-click menu turns the
+  pill into an inline chip.** The pill↔chip conversion pair completes: the
+  chip menu's "Remove from inline" (chip → plain text, membership kept) now
+  has its inverse on the pill's context menu (the shared NodeContextMenu
+  every pill surface renders — page classes row, block-row classes column,
+  the "+N" popup): **Move inline** prepends a `class_link` token to the
+  owner's content — the chip leads (the class-as-subject position), a
+  separating space is merged into the leading text run when text follows,
+  empty content becomes the chip alone — and the pill's derived view hides
+  it automatically. The membership stays: the pill only renders for
+  assigned classes, so no assign/unassign rides the gesture, and the write
+  is one plain `object.update` (session-undo composes it). Two guards: the
+  item only renders when the owner actually carries the class in its
+  classIds — the class view's EXTENDS pills share this menu, and a
+  class_link there would falsely assert instance-of, not an extends edge —
+  and the write is idempotent (content already referencing the class is
+  left untouched; undo interleavings can re-expose the pill row). Date
+  nodes never reach it (their classes rows are locked read-only). Docs:
+  classes.md. Verification: web typecheck + 5 new tests in
+  move-inline.test.tsx (menu shape, prepend + membership kept, empty
+  content, idempotency, the non-membership/extends gate).
+
 - **refactor(web): the chip menu's removal rungs read in class terms — Remove
   from inline + Remove class.** The same-day follow-up to the Unlink/Remove
   slice: the chip's "Unlink" becomes **Remove from inline** (the chip turns
