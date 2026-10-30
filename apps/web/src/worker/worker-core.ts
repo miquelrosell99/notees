@@ -23,7 +23,9 @@
  *    emptyTrash / moveObject /
  *    setClassProperty / unsetClassProperty / createPropertySchema /
  *    setProperty / unsetProperty / attachAsset /
- *    setExternalRef / removeExternalRef / recordCardReview), the session undo journal
+ *    setExternalRef / removeExternalRef / recordCardReview /
+ *    applyWorkflowSteps — the workflow-toggle gesture, journaled as ONE
+ *    undo batch worker-side), the session undo journal
  *    (undoState / undo / redo), syncOnce, the realtime
  *    acceleration path (startRealtime / stopRealtime), status, exportBytes,
  *    stats, the per-user UI prefs reads/writes (getPrefs / patchPrefs), the
@@ -41,7 +43,7 @@
 import type { SqlJsStatic } from "sql.js";
 
 import type { ContentAst, OpPayload, WorkspaceFeature } from "@notees/protocol";
-import type { CardSrsState, SrsAlgorithm } from "@notees/domain";
+import type { CardSrsState, SrsAlgorithm, WorkflowOpStep } from "@notees/domain";
 
 import { Store, validateEnvelope, type StoreBackend } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
@@ -953,6 +955,8 @@ export class WorkerCore {
         return this.client.reviewCard(
           args[0] as { cardId: string; stateAfter: CardSrsState; algorithm: SrsAlgorithm },
         );
+      case "applyWorkflowSteps":
+        return this.client.applyWorkflowSteps(args[0] as WorkflowOpStep[]);
       case "ensureDateChain":
         return this.client.ensureDateChain(args[0] as string);
       case "setDatetimeProperty":

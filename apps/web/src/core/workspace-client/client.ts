@@ -27,7 +27,12 @@ import { HttpTransport, OfflineTransport } from "@notees/sync";
 import type { ContentAst, Envelope, OpPayload } from "@notees/protocol";import { Store, type GraphOptions } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
 import type { WorkspaceFeature } from "@notees/protocol";
-import { CARD_PROPERTY_UUIDS, type CardSrsState, type SrsAlgorithm } from "@notees/domain";
+import {
+  CARD_PROPERTY_UUIDS,
+  type CardSrsState,
+  type SrsAlgorithm,
+  type WorkflowOpStep,
+} from "@notees/domain";
 
 import type { ClientWriteOp, WorkspaceClientOptions } from "./types.js";
 import type { PrefsPatch } from "./prefs.js";
@@ -53,6 +58,11 @@ import { WorkspaceClientServer } from "./client-server.js";
 import { WorkspaceClientUndo, buildUndoCaptureSource } from "./client-undo.js";
 import { WorkspaceClientWrites } from "./client-writes.js";
 import { WorkspaceClientDates } from "./client-dates.js";
+import {
+  applyWorkflowStep,
+  stepConverged,
+  type WorkflowMaterializeResult,
+} from "../../features/workflows/materialize.js";
 
 export class WorkspaceClient {
   /** The shared infrastructure the domains delegate to. */
@@ -723,6 +733,33 @@ export class WorkspaceClient {
 
   emptyProperty(objectId: string, propertySchemaId: string) {
     return this.writes.emptyProperty(objectId, propertySchemaId);
+  }
+
+  /**
+   * The workflow-toggle gesture (research-tier2 slice 2b): the domain
+   * plan's steps applied as ONE undo-journal batch — one undo restores the
+   * whole toggle. Each step is existence-checked at APPLY time (the
+   * deploySystemClass idiom; a converged step writes nothing), and the
+   * batch lives INSIDE the client so the gesture survives the WorkerClient
+   * RPC boundary (one call, one journal entry — the reviewCard precedent).
+   * The step mapping + convergence checks are the web executor's
+   * (`features/workflows/materialize.ts`, D2: one definition, two
+   * executors).
+   */
+  async applyWorkflowSteps(steps: WorkflowOpStep[]): Promise<WorkflowMaterializeResult> {
+    let applied = 0;
+    let skipped = 0;
+    await this.ctx.undoJournal.batchAsync(async () => {
+      for (const step of steps) {
+        if (stepConverged(this, step)) {
+          skipped += 1;
+          continue;
+        }
+        await applyWorkflowStep(this, step);
+        applied += 1;
+      }
+    });
+    return { applied, skipped };
   }
 
   /** Append the card.review audit-history op (never journaled — see the writes domain). */

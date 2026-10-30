@@ -373,6 +373,56 @@ predating this file.
   (blank-line drop, two-level and four-space-step nesting with the caret
   landing in the last nested block, one-undo-restores-everything with the
   "Undo paste" label).
+- **feat(web,server): the workflows mechanism's web executor + Settings →
+  Workflows tab + `GET /api/features` (research-tier2 slice 2b).** The web
+  half of the D2 ruling (one definition, two executors — the CLI mirrors the
+  executor against its own write surface):
+  (1) `apps/web/src/features/workflows/materialize.ts` —
+  `materializeWorkflow(client, wfId, "enabled" | "disabled")` walks the
+  domain op plan and applies it with per-step existence checks at APPLY time
+  (the `deploySystemClass` idiom; a converged step writes nothing, user
+  renames/option edits are never clobbered — D1), each toggle riding ONE
+  undo-journal batch: the batch lives INSIDE the client (`WorkspaceClient
+  .applyWorkflowSteps` wraps `undoJournal.batchAsync`; the `WorkerClient`
+  ships the plan as ONE RPC journaled worker-side — the beginClassedCreate/
+  reviewCard boundary precedent, `worker-core` case included), so one undo
+  restores a whole toggle and a converged re-run journals nothing. The
+  installed-state probe is ONE anchor read (`workflowState`: absent =
+  Available / active = Installed / archived = Disabled); disable confirms
+  with the workflow's instance count (its own template nodes excluded — they
+  carry a class by design, not as user data), stating the F3 keep-data fact.
+  `client.createClass` gains the `description` opt (the wire payload always
+  carried it).
+  (2) Settings → **Workflows** tab (`WorkflowsSettingsSection`, kit chrome
+  only, the SourcesSettingsSection read/write precedent): one row per
+  `WORKFLOWS` entry with its powers list, the anchor-probe state badge, and
+  Enable/Disable (Re-enable after a disable).
+  (3) `GET /api/features` — the `workspace_feature` projection rows
+  (`{features: [{feature, enabled, settings}]}`; `settings: null` when the
+  winning payload carried none) for the CLI's `feature list`; absent row =
+  enabled (F2) documented on the route + in docs/api.md; registered in the
+  object-API group (scoped keys need `objects.read`), OpenAPI table entry +
+  scope mapping updated (the coverage test keeps the contract honest).
+  **Plan correction at executor bring-up (domain, pinned by test):** the
+  enable plan's graft steps write `[plan]`-scoped schemas onto the
+  writing-plan template, and scope eligibility is write-time fail-loud — an
+  unclassed template could never carry them. The plan now classes each
+  template root `[template, <bindTo>]` (the writing-plan template IS a
+  plan); `packages/domain` plan + tests, SCHEMA.md "Starter vocabulary",
+  docs/workflows/research-workflow.md aligned. New store regression test
+  `workflow-plan-apply.test.ts` pins that the enable AND disable plans
+  replay against a real store with zero failures (anchor archived; a
+  synthesis instance keeps its `class_ids`). **Browser fix (domain):**
+  `deriveUuid` now digests via `digest("hex")` — the web build aliases
+  `node:crypto` to a hex-only shim, so the bare `digest()` threw at runtime
+  in browsers (build-green had masked it; the web tests caught it). Tests:
+  web `workflows.test.tsx` +6 (idempotency, one journal entry per toggle,
+  rename survival, disable-keeps-instances + re-enable revival, the tab's
+  three anchor-probe states, the instance-count confirmation), server
+  `features-route.test.ts` +4 (row projection, settings-null, absent-means-
+  enabled, auth), store +2, domain 18 updated. GTK/Flutter/CLI untouched
+  (the CLI executor slice comes later, per the plan).
+
 - **feat(domain): the workflows mechanism's domain layer — `question`/`plan`
   everyday seeds + the `@notees/domain` workflow registry with the pure
   op-plan builder (research-tier2 slice 2).** (1) Two new everyday system

@@ -502,6 +502,7 @@ export class WorkspaceClientWrites {
       icon?: string;
       color?: string;
       id?: string;
+      description?: string;
       parentlessRole?: "page" | "block";
       displayTemplate?: string;
     },
@@ -516,6 +517,9 @@ export class WorkspaceClientWrites {
     };
     if (opts?.icon !== undefined) payload.icon = opts.icon;
     if (opts?.color !== undefined) payload.color = opts.color;
+    // The class-page subtitle (the wire payload has always carried it; the
+    // workflow materializer is the first client author to pass it).
+    if (opts?.description !== undefined) payload.description = opts.description;
     // The class-level parentlessRole render contract —
     // system authoring passes "block" for the flagged roster; user classes
     // omit it (the "page" default).

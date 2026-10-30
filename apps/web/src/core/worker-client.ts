@@ -16,7 +16,7 @@
 import { startTransition } from "react";
 
 import type { ContentAst, OpPayload, WorkspaceFeature } from "@notees/protocol";
-import type { CardSrsState, SrsAlgorithm } from "@notees/domain";
+import type { CardSrsState, SrsAlgorithm, WorkflowOpStep } from "@notees/domain";
 import type { GraphOptions, GraphTopology, MergePlanSummary } from "@notees/store";
 import type {
   ArchivedEntry,
@@ -889,6 +889,7 @@ export class WorkerClient {
       icon?: string;
       color?: string;
       id?: string;
+      description?: string;
       parentlessRole?: "page" | "block";
       displayTemplate?: string;
     },
@@ -997,6 +998,17 @@ export class WorkerClient {
   /** Clear every authored value of one property, keeping the assignment (property.empty). */
   async emptyProperty(objectId: string, propertySchemaId: string): Promise<void> {
     await this.call("emptyProperty", [objectId, propertySchemaId]);
+  }
+
+  /**
+   * The workflow-toggle gesture: the domain plan's steps applied as ONE
+   * undo-journal batch worker-side (worker-safe single RPC — the
+   * reviewCard precedent; the closure cannot cross the boundary).
+   * Existence-checked per step at apply time; resolves with the
+   * applied/skipped counts.
+   */
+  async applyWorkflowSteps(steps: WorkflowOpStep[]): Promise<{ applied: number; skipped: number }> {
+    return (await this.call("applyWorkflowSteps", [steps])) as { applied: number; skipped: number };
   }
 
   /** Append the card.review audit-history op (never journaled — the writes domain's contract). */

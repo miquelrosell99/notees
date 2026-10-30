@@ -32,6 +32,7 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call 
 | `POST /api/classes/:id/properties` | Bind a schema to a class (`class.property.set`: the active soft-unbind patch — the binding's only per-class mechanic; `required`/`defaultValue`/`sequence` retired) |
 | `DELETE /api/classes/:id/properties/:propertySchemaId` | Remove the binding (authored property values survive) |
 | `GET /api/properties/:id/values` | Values asserted for a property schema (each entry carries the value's `elementId`) |
+| `GET /api/features` | Workspace feature-toggle rows (`{features: [{feature, enabled, settings}]}` — the `workspace_feature` projection; `settings` is `null` when the winning payload carried none). An **absent row means enabled** (F2): untoggled features do not appear — the CLI's `feature list` defaults them to on |
 | `POST /api/assets` (multipart) · `GET /api/assets` · `GET /api/assets/:id` · `GET /api/assets/:id/info` | Upload (sniffed first; audio extension fallback aac/m4a/ogg/flac when sniffing is inconclusive), workspace asset index (newest first, `?limit=` 1–1000 default 100, with attached object ids), download, metadata |
 | `GET /api/workspaces/:id/export.zip?includeAssets=0|1` | Full-workspace Markdown zip — one file per top-level and child page, manifest, optional `assets/` folder |
 | `POST /api/workspaces/:id/clone` | Clone a workspace from its derived snapshot image (owner-only): a fresh envelope-empty workspace gets the source's nodes with every `workspace_id` rewritten — returns `{id, name, nodeCount}` |
