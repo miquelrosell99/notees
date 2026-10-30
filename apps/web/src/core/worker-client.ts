@@ -17,7 +17,7 @@ import { startTransition } from "react";
 
 import type { ContentAst, OpPayload, WorkspaceFeature } from "@notees/protocol";
 import type { CardSrsState, SrsAlgorithm, WorkflowOpStep } from "@notees/domain";
-import type { GraphOptions, GraphTopology, MergePlanSummary } from "@notees/store";
+import type { GraphOptions, GraphTopology, MergePlanSummary, PathRow } from "@notees/store";
 import type {
   ArchivedEntry,
   AssetInfo,
@@ -132,6 +132,12 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   getReferenceCount: "scope",
   getUnlinkedReferences: "scope",
   getUnlinkedReferenceCount: "scope",
+  // The forward-path walk: a hop can be authored ANYWHERE (a typed link
+  // whose candidateSpans newly include the node, an embed_ref on a far-away
+  // page) and neither produces an edge row targeting the node, so the
+  // edge-target inclusion invariant does not cover the discovery side —
+  // the conservative content-global class (the resolveAlias precedent).
+  getForwardPaths: "change",
   // Node-alias reads: a chain link ANYWHERE (args[0]'s chain is not an
   // ancestor relation of the affected set) may change the answer — the
   // conservative content-global class is the honest one.
@@ -752,6 +758,15 @@ export class WorkerClient {
 
   getUnlinkedReferenceCount(id: string): number {
     return this.cachedRead<number>("getUnlinkedReferenceCount", [id], 0);
+  }
+
+  /** The Forward path section's read — the directed consumer walk (lazy behind the first expand). */
+  getForwardPaths(id: string, depthCap?: number): PathRow[][] {
+    return this.cachedRead<PathRow[][]>(
+      "getForwardPaths",
+      depthCap !== undefined ? [id, depthCap] : [id],
+      [],
+    );
   }
 
   getChildPages(id: string): ClientNode[] {

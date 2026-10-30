@@ -163,13 +163,17 @@ const CLASS_SYSTEM_SECTIONS: VariantSectionSpec[] = sectionEntries(["extended-by
 /**
  * Every page's reference family — the self-gating system sections
  * (SystemSections.tsx), as a key list: Child pages, Backlinks, Unlinked
- * mentions, in render order. Placement is data (the S5 contract); the
- * sections own their hide-when-empty gates.
+ * mentions, then the Forward path (the outgoing/consumer direction — the
+ * first non-query custom-read section), in render order. Placement is data
+ * (the S5 contract); the sections own their hide-when-empty gates — the
+ * Forward path carries no eager count (its walk IS the read), so it renders
+ * collapsed and gates on nothing until the first expand.
  */
 const PAGE_SYSTEM_SECTIONS: VariantSectionSpec[] = sectionEntries([
   "child-pages",
   "backlinks",
   "unlinked-mentions",
+  "forward-path",
 ]);
 
 /**
