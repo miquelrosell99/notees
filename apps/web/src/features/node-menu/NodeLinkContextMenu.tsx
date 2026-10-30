@@ -9,12 +9,19 @@
  *   item renders only when the target token is a mention — external links
  *   (markdown spans in text tokens) never offer Edit here (they navigate;
  *   they are authored by the slash "Add URL" command / markdown pasting).
+ * - Unlink — replace the link with its visible text (the custom label when
+ *   one is set, otherwise the target's current display name). For a class
+ *   chip the class membership STAYS — the pill reappears in the classes row
+ *   (chips: rendered before the Convert item; mentions: in the removal
+ *   group).
  * - Convert to class chip / Convert to link — CLASS TARGETS ONLY: flips the
  *   token between the mention and class_link forms (the inline chip and the
  *   plain link render differently but reference the same class node; the
  *   one-off wording rides across as customLabel ↔ displayText).
- * - Remove link — unlink but keep the visible text (the custom label when
- *   one is set, otherwise the target's current display name).
+ * - Remove — CLASS CHIPS ONLY: unassign the class from the node AND dissolve
+ *   every inline class_link to it into plain text (the
+ *   removal-dissolution ruling — the applier refuses the unassign while the
+ *   content references the class). The journal classes refuse with a toast.
  * - Delete link — drop the mention token from the block entirely.
  *
  * Rendered with `companion` so the contentEditable blur handler treats focus
@@ -32,6 +39,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 
 import { ContextMenu } from "../../components/ui/kit/ContextMenu.js";
 import { LinkEditModalHost, useLinkEditModalOpener } from "../../ui/editor-popups/LinkEditModal.js";
+import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
 import { titleOf } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf, renderStateLabel } from "../../ui/renderStateLabel.js";
 
@@ -211,6 +219,8 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
   };
 
   const convert = convertAction();
+  const menuToken = request === null ? null : linkTokenAt(client, request);
+  const kind = menuToken?.kind === "class_link" ? ("chip" as const) : ("mention" as const);
 
   return (
     <>
@@ -219,6 +229,7 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
         <NodeLinkContextMenu
           state={request}
           client={client}
+          kind={kind}
           onClose={close}
           onOpen={(id) => {
             close();
@@ -232,7 +243,7 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
           convertLabel={convert?.label}
           // Edit is a NODE-link action: offered only when the
           // target token is still a mention. External links navigate — they
-          // are never edited (Remove/Delete stay available).
+          // are never edited (Unlink/Remove/Delete stay available).
           onEdit={
             mentionTokenAt(client, request) === null
               ? undefined
@@ -254,7 +265,7 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
                   });
                 }
           }
-          onRemove={() => {
+          onUnlink={() => {
             const node = client.getNode(request.blockId);
             const token = linkTokenAt(client, request);
             if (node === undefined || token === null) {
@@ -292,6 +303,18 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
               ], resolveClassName, resolveMentionName),
             );
           }}
+          // CLASS CHIPS ONLY — the full removal: unassign the class AND
+          // dissolve every inline class_link to it (the removal-dissolution
+          // ruling). The journal classes refuse with a toast, menu stays.
+          onRemoveClass={
+            menuToken !== null && menuToken.kind === "class_link"
+              ? () => {
+                  if (refuseClassRemoval(menuToken.classId)) return;
+                  close();
+                  void removeClassDissolvingLinks(client, request.blockId, menuToken.classId);
+                }
+              : undefined
+          }
           onDelete={() => {
             const node = client.getNode(request.blockId);
             if (node === undefined) {
@@ -322,6 +345,8 @@ interface NodeLinkContextMenuProps {
     getNode(id: string): ClientNode | undefined;
     effectiveClassParentlessBlock(classId: string): boolean;
   };
+  /** The token the menu stands on — drives Unlink/Remove placement. */
+  kind: "mention" | "chip";
   onClose(): void;
   onOpen(nodeId: string): void;
   onOpenInSidebar(nodeId: string): void;
@@ -331,20 +356,25 @@ interface NodeLinkContextMenuProps {
   onConvert?: (() => void) | undefined;
   /** The Convert item's direction label ("Convert to class chip" / "Convert to link"). */
   convertLabel?: string | undefined;
-  onRemove(): void;
+  /** Unlink: replace the link with its visible text (class chips keep the membership). */
+  onUnlink(): void;
+  /** CLASS CHIPS only — unassign the class and dissolve its inline chips. */
+  onRemoveClass?: (() => void) | undefined;
   onDelete(): void;
 }
 
 export function NodeLinkContextMenu({
   state,
   client,
+  kind,
   onClose,
   onOpen,
   onOpenInSidebar,
   onEdit,
   onConvert,
   convertLabel,
-  onRemove,
+  onUnlink,
+  onRemoveClass,
   onDelete,
 }: NodeLinkContextMenuProps) {
   const target = client.getNode(state.targetNodeId);
@@ -370,11 +400,16 @@ export function NodeLinkContextMenu({
           icon: "mdi-dock-right",
           onClick: () => onOpenInSidebar(state.targetNodeId),
         },
-        ...(onEdit !== undefined || onConvert !== undefined
+        ...(onEdit !== undefined || onConvert !== undefined || kind === "chip"
           ? [
               { id: "sep-edit", label: "", separator: true } as const,
               ...(onEdit !== undefined
                 ? [{ id: "edit", label: "Edit link…", icon: "mdi-pencil", onClick: onEdit } as const]
+                : []),
+              // The chip's Unlink rides before Convert ("remove from inline"):
+              // the chip goes back to plain text, the class membership stays.
+              ...(kind === "chip"
+                ? [{ id: "unlink", label: "Unlink", icon: "mdi-link-variant-off", onClick: onUnlink } as const]
                 : []),
               ...(onConvert !== undefined
                 ? [{ id: "convert", label: convertLabel ?? "Convert", icon: "mdi-swap-horizontal", onClick: onConvert } as const]
@@ -382,7 +417,17 @@ export function NodeLinkContextMenu({
             ]
           : []),
         { id: "sep-remove", label: "", separator: true },
-        { id: "remove", label: "Remove link", icon: "mdi-link-variant-off", onClick: onRemove },
+        ...(kind === "mention"
+          ? [{ id: "unlink", label: "Unlink", icon: "mdi-link-variant-off", onClick: onUnlink } as const]
+          : []),
+        ...(onRemoveClass !== undefined
+          ? [{
+              id: "remove",
+              label: "Remove",
+              icon: "mdi-close-circle-outline",
+              onClick: onRemoveClass,
+            } as const]
+          : []),
         {
           id: "delete",
           label: "Delete link",

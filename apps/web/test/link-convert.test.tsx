@@ -11,6 +11,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, waitFor, screen } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import type { ContentAst } from "@notees/protocol";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import {
@@ -120,5 +121,79 @@ describe("node-link menu — class-targeted conversion", () => {
     expect(screen.getByText("Edit link…")).not.toBeNull();
     expect(screen.queryByText("Convert to class chip")).toBeNull();
     expect(screen.queryByText("Convert to link")).toBeNull();
+  });
+});
+
+describe("node-link menu — class chip unlink / remove", () => {
+  async function seedChippedBlock(chipCount = 1) {
+    const client = await seedClient();
+    const classId = await client.createClass("Person");
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const chips = Array.from({ length: chipCount }, () => ({
+      type: "class_link",
+      classId,
+    })) as ContentAst;
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "meet " }, ...chips],
+    });
+    await client.assignClass(blockId, classId);
+    return { client, classId, pageId, blockId };
+  }
+
+  function renderHost(client: WorkspaceClient) {
+    return render(
+      <NodeLinkMenuHost client={client} openNode={() => {}} openInSidebar={() => {}}>
+        <div />
+      </NodeLinkMenuHost>,
+    );
+  }
+
+  it("offers Unlink before Convert to link, plus Remove (no Edit link…)", async () => {
+    const { client, classId, blockId } = await seedChippedBlock();
+    renderHost(client);
+    act(() => openNodeLinkMenu({ blockId, targetNodeId: classId, tokenIndex: 1, x: 0, y: 0 }));
+
+    const labels = screen
+      .getAllByRole("menuitem")
+      .map((el) => el.textContent);
+    expect(labels).toContain("Unlink");
+    expect(labels).toContain("Convert to link");
+    expect(labels).toContain("Remove");
+    expect(labels).toContain("Delete link");
+    expect(labels).not.toContain("Edit link…");
+    expect(labels.indexOf("Unlink")).toBeLessThan(labels.indexOf("Convert to link"));
+  });
+
+  it("Unlink turns the chip into plain text and KEEPS the class membership", async () => {
+    const { client, classId, blockId } = await seedChippedBlock();
+    renderHost(client);
+    act(() => openNodeLinkMenu({ blockId, targetNodeId: classId, tokenIndex: 1, x: 0, y: 0 }));
+
+    fireEvent.click(screen.getByText("Unlink"));
+    await waitFor(() => {
+      // The splice merges adjacent text runs ("meet " + "Person").
+      expect(client.getNode(blockId)!.contentAst).toEqual([
+        { type: "text", text: "meet Person" },
+      ]);
+    });
+    // The membership survives — the pill reappears in the classes row.
+    expect(client.getNode(blockId)!.classIds).toContain(classId);
+  });
+
+  it("Remove unassigns the class and dissolves EVERY inline chip to it", async () => {
+    const { client, classId, blockId } = await seedChippedBlock(2);
+    renderHost(client);
+    act(() => openNodeLinkMenu({ blockId, targetNodeId: classId, tokenIndex: 1, x: 0, y: 0 }));
+
+    fireEvent.click(screen.getByText("Remove"));
+    await waitFor(() => {
+      expect(client.getNode(blockId)!.contentAst).toEqual([
+        { type: "text", text: "meet " },
+        { type: "text", text: "Person" },
+        { type: "text", text: "Person" },
+      ]);
+    });
+    expect(client.getNode(blockId)!.classIds).not.toContain(classId);
   });
 });

@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-30
 
+- **feat(web): the node-link menu's class-chip rungs — Unlink and Remove
+  replace the old Remove link.** The inline class chip's right-click menu
+  previously offered a single "Remove link" that replaced the chip with plain
+  text while silently KEEPING the class assignment — the unexpected half of
+  the write (the pill reappeared in the classes row, so the gesture read as
+  "nothing happened"). The menu now carries the two removal rungs with
+  distinct names and writes: **Unlink** (class chips: rendered before the
+  Convert item) turns the chip back into plain text and keeps the class
+  assignment — the explicit "remove from inline"; **Remove** (class chips
+  only, in the removal group) unassigns the class from the block AND
+  dissolves every inline `class_link` to it into plain text, the same result
+  as the × on the class pill (reuses `removeClassDissolvingLinks`; the
+  journal classes refuse with a toast, menu stays open). Mentions keep the
+  old behavior under the new name: **Unlink** replaces the link with its
+  visible text, **Delete link** drops the token. Both render surfaces (the
+  edit-mode hit-test menu in BlockTextEditor and the read-mode
+  `NodeLinkMenuHost`) share the component and the contract; the editor's
+  chip Remove computes the dissolution over the live draft and lands the
+  unassign after the content commit (the applier refuses the unassign while
+  content references the class). `NodeLinkContextMenu` gains a `kind`
+  prop ("mention" | "chip") driving item placement. Docs: outliner.md's
+  right-click row, classes.md's link-form section. Verification: web
+  typecheck + 28 tests in node-link-gestures / link-convert (renamed
+  expectations + new chip-menu coverage: Unlink-before-Convert ordering,
+  membership kept on Unlink, full dissolve + unassign on Remove).
+
 - **perf(web): `getPropertyRowShells` — the cheap SHELLS read for bulk
   property enumerations; heavy values defer.** The first-serve half of the
   payload audit: the read-delta protocol made refetches cheap, but
