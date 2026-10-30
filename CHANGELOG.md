@@ -42,7 +42,8 @@ predating this file.
   the op had no canonical fixture: **`property-schema-delete.json`** lands
   now (create → bind → value → delete → post-delete write → unknown-id
   delete), sha256-identical in the GTK + Flutter wire corpora (GTK pytest
-  green; Flutter verification pending — no SDK on this host), the
+  green; Flutter's `fixtures_test` + `fixture_replay` suites verified
+  same-day with the 3.50.0-0.3.pre SDK — 103 tests green), the
   forty-eighth SCHEMA.md-gated fixture, pinned TS-side in the store suite
   (soft delete keeps the row, values survive typed, list reads filter).
   Live workspaces converge by the new **`scripts/migrate-meeting-date-retirement.mts`**
