@@ -4,14 +4,23 @@
  * with an autofocused SearchField and a fuzzy subsequence filter over the
  * section registry:
  *
- *  - Recent     device-local recents (empty query only — the Sidebar's
- *               `notees.recents` contract; no sync per the ruling)
+ *  - Recently created  the five newest document-chrome nodes by createdAt
+ *               (the home's first section)
+ *  - Recently linked  the five nodes with the most recent incoming mention
+ *               (edge recency), chrome-filtered — the pages the current
+ *               work keeps pointing at. Read through the cache-versioned
+ *               client read `recentLinkTargets`, so the rows converge as
+ *               the worker cache warms (the old effect-snapshot reads
+ *               dropped every row on a cold cache)
  *  - Random     five pages picked on open via Fisher–Yates over the
  *               already-loaded page list (asset-classed pages excluded); the
  *               group label carries a ghost refresh button that re-shuffles
  *               the SAME cached pool — deliberately no new worker query
  *               (the ruling: extra projections starve the palette on
- *               large workspaces). Empty query only; exempt from the
+ *               large workspaces). The pick is ids-only state; the display
+ *               rows resolve per render through the scope-classed reads, so
+ *               cold-cache convergence and post-pick deletions both land
+ *               without a re-open. Empty query only; exempt from the
  *               seen-ids dedupe like Commands (#8)
  *  - Date Pages date pages matching the query: formatted/raw keywords plus a
  *               parsed-date suggestion ("feb 14" → the deterministic date
@@ -28,7 +37,10 @@
  *
  * Section order: the search sections rank Classes, Properties, Pages,
  * Content (owner-mandated), then Date Pages and Commands; the empty-query
- * home keeps Recent → Random → Commands. The flatten step is a stable sort
+ * home keeps Recently created → Recently linked → Random → Commands.
+ * Node rows carry their EFFECTIVE icon (client.effectiveNodeIcon — own
+ * icon, else the first class-chain icon, else the render-state default),
+ * not just the node's own icon. The flatten step is a stable sort
  * on the mode-dependent group rank, so score order inside a group survives.
  *  - Commands   the action registry: New page, New class… (#14, where the
  *               host provides it), Add source… (the add-source dialog,
@@ -89,12 +101,10 @@ import "./CommandPalette.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
-/** The Sidebar's device-local recents key — same contract, read-only here. */
-const RECENTS_KEY = "notees.recents";
-/** The Random section's row count (the original section's slice size). */
-const RANDOM_PAGE_COUNT = 5;
+/** The home sections' row count (the old Random section's slice size). */
+const HOME_SECTION_COUNT = 5;
 
-type Group = "Recent" | "Random" | "Date Pages" | "Pages" | "Classes" | "Properties" | "Content" | "Commands";
+type Group = "Recently created" | "Recently linked" | "Random" | "Date Pages" | "Pages" | "Classes" | "Properties" | "Content" | "Commands";
 
 interface PaletteItem {
   key: string;
@@ -168,15 +178,6 @@ function containingPageLabel(client: AnyClient, node: ClientNode): string | null
   return null;
 }
 
-function readRecents(): string[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(RECENTS_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
 /**
  * Fisher–Yates over a copy (the shufflePages precedent, #8) — pure with
  * respect to the input so a refresh can re-shuffle the same cached pool.
@@ -191,27 +192,31 @@ function shuffledIds(ids: readonly string[]): string[] {
 }
 
 /**
- * The Random section's five rows (#8): a fresh Fisher–Yates pick over the
- * open-time pool, display data captured per pick (the handler closes over
- * the pick-time `onOpenNode`, exactly like the memo-built rows). Rows
- * resolve through `client.getNode` so a node deleted since the pick drops
- * out quietly.
+ * The Random section's display rows for the CURRENT pick (#8): ids only —
+ * the Fisher–Yates pick lives in the component's `randomIds` state, so a
+ * cache-version re-render never re-shuffles. Rows resolve through the
+ * scope-classed `client.getNode` AT CALL TIME: on the WorkerClient a cold
+ * id reads undefined on the first pass and the row materializes on the
+ * next cache-version bump (the old effect-snapshot dropped those rows for
+ * the whole open), and a node deleted since the pick drops out quietly.
+ * The icon rides the effective read (own icon → class-chain icon →
+ * render-state default), like every other node row.
  */
 function pickRandomRows(
   client: AnyClient,
-  pool: readonly string[],
+  pickedIds: readonly string[],
   onOpenNode: (nodeId: string) => void,
   onOpenInSidebar?: ((nodeId: string) => void) | undefined,
 ): PaletteItem[] {
   const rows: PaletteItem[] = [];
-  for (const id of shuffledIds(pool).slice(0, RANDOM_PAGE_COUNT)) {
+  for (const id of pickedIds) {
     const page = client.getNode(id);
     if (page === undefined) continue;
     rows.push({
       key: `random:${page.id}`,
       group: "Random",
       label: titleOfNode(page) || "Untitled",
-      icon: page.icon ?? "mdi-file-document-outline",
+      icon: client.effectiveNodeIcon(page) ?? "mdi-file-document-outline",
       keywords: rawDateKeywordOf(page),
       run: () => onOpenNode(page.id),
       peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar(page.id),
@@ -312,16 +317,18 @@ export function CommandPalette({
 }) {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const [recentIds, setRecentIds] = useState<string[]>(readRecents);
   /**
-   * Random section (#8): the five rows picked on open, plus the id pool they
-   * came from. The pool is captured once per open (the cached `listPages`
-   * read); refresh re-shuffles THAT list — deliberately no new worker query
-   * (the ruling: extra projections starve the palette on large
-   * workspaces). The rows are display data captured at pick time, so a
-   * refresh never re-runs the sync-sections memo.
+   * Random section (#8): the five PICKED IDS from the open-time pool, plus
+   * the pool they came from. The pool is captured once per open (the cached
+   * `listPages` read); refresh re-shuffles THAT list — deliberately no new
+   * worker query (the ruling: extra projections starve the palette on
+   * large workspaces). Only the ids are state: the display rows derive in
+   * a cache-versioned memo (pickRandomRows), so a cold-cache first pass
+   * converges when the worker's read cache lands instead of staying empty
+   * for the whole open (the old effect-snapshot bug), and a node deleted
+   * since the pick drops out without touching state.
    */
-  const [randomRows, setRandomRows] = useState<PaletteItem[]>([]);
+  const [randomIds, setRandomIds] = useState<string[]>([]);
   const randomPoolRef = useRef<readonly string[]>([]);
   /** Debounced FTS content group: tagged with the query they answer. */
   const [contentItems, setContentItems] = useState<Array<PaletteItem & { queryTag: string }>>([]);
@@ -348,14 +355,6 @@ export function CommandPalette({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onRequestOpen, onClose]);
-
-  // Device-local recents: refresh whenever any surface writes the list
-  // (same `notees:recents` broadcast contract as the Sidebar).
-  useEffect(() => {
-    const refresh = () => setRecentIds(readRecents());
-    window.addEventListener("notees:recents", refresh);
-    return () => window.removeEventListener("notees:recents", refresh);
-  }, []);
 
   // Query parsing: the `is_daily:` prefix scopes the palette to date pages;
   // a leading `/` enters filter mode (the slash text narrows the filter
@@ -394,8 +393,6 @@ export function CommandPalette({
 
   const syncItems = useMemo<PaletteItem[]>(() => {
     const classes = classesCache;
-    const assetClassId =
-      classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
     const memberOfMatch = (node: ClientNode) =>
       !hasMemberOf || node.classIds.some((id) => memberOfSet.has(id));
     // The Pages pool is role-filtered: block-role
@@ -437,23 +434,47 @@ export function CommandPalette({
     };
 
     if (home) {
-      const recentPool: Array<{ id: string; label: string; keywords: string; icon: string; run: () => void; peek?: (() => void) | undefined }> = [];
-      const seenRecent = new Set<string>();
-      for (const id of recentIds.slice(0, 8)) {
-        if (seenRecent.has(id)) continue;
-        seenRecent.add(id);
-        const node = client.getNode(id);
-        if (node === undefined || node.classIds.includes(assetClassId)) continue;
-        recentPool.push({
-          id: node.id,
-          label: titleOfNode(node) || "Untitled",
-          icon: node.icon ?? "mdi-file-document-outline",
-          keywords: rawDateKeywordOf(node),
-          run: () => onOpenNode(node.id),
-          peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(node.id),
-        });
-      }
-      addFuzzy("Recent", recentPool);
+      // The home sections push rows DIRECTLY (no fuzzy pass): the empty
+      // query matches everything, and addFuzzy's score-then-label re-sort
+      // would destroy the recency orderings these sections exist to show.
+      const pushRows = (group: Group, pool: ClientNode[]) => {
+        for (const node of pool) {
+          items.push({
+            key: `${group}:${node.id}`,
+            group,
+            label: titleOf(client, node.id) || "Untitled page",
+            icon: client.effectiveNodeIcon(node) ?? "mdi-file-document-outline",
+            keywords: rawDateKeywordOf(node),
+            run: () => onOpenNode(node.id),
+            peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(node.id),
+          });
+        }
+      };
+      // Recently created: the document-chrome pool by createdAt, newest
+      // first. The pooled row's createdAt rides the structure-classed
+      // listPages read — stable enough for a home ranking (a just-created
+      // page lands through the next cache-version bump).
+      pushRows(
+        "Recently created",
+        pages
+          .slice()
+          .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+          .slice(0, HOME_SECTION_COUNT),
+      );
+      // Recently linked: distinct mention-edge targets by the most recent
+      // incoming link (the store's recency read). Ids resolve through the
+      // scope-classed getNode, so a cold WorkerClient cache drops the row
+      // on the first pass and materializes on the cache-version bump this
+      // memo re-runs (deps ride classesCache). Chrome-filtered to main
+      // nodes; the flatten step's cross-group id dedupe skips a node the
+      // first section already claimed.
+      const linkedPool = client
+        .recentLinkTargets(HOME_SECTION_COUNT)
+        .map((target) => client.getNode(target.id))
+        .filter((node): node is ClientNode => node !== undefined)
+        .filter((node) => rendersWithDocumentChrome(node, undefined, parentlessBlockResolverOf(client)))
+        .slice(0, HOME_SECTION_COUNT);
+      pushRows("Recently linked", linkedPool);
     }
 
     if (!chip.commands && !chip.classes && !chip.blocks && (dailyOnly || text !== "")) {
@@ -518,7 +539,7 @@ export function CommandPalette({
           // Fresh per-row title read (scope-classed getNode) — the pool's
           // own contentAst can lag a rename (listPages is structure-classed).
           label: titleOf(client, page.id) || "Untitled page",
-          icon: page.icon ?? "mdi-file-document-outline",
+          icon: client.effectiveNodeIcon(page) ?? "mdi-file-document-outline",
           keywords: rawDateKeywordOf(page),
           run: () => onOpenNode(page.id),
           peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(page.id),
@@ -537,7 +558,9 @@ export function CommandPalette({
           return {
             id: cls.id,
             label: fresh || "Untitled class",
-            icon: cls.icon ?? "mdi-shape-outline",
+            // The class row rides the effective read too: an iconless class
+            // still shows its render-state default, not a hollow glyph slot.
+            icon: client.effectiveNodeIcon(cls) ?? "mdi-shape-outline",
             keywords: fresh ?? "",
             run: () => onOpenNode(cls.id),
             peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(cls.id),
@@ -572,7 +595,7 @@ export function CommandPalette({
           return {
             id: cls.id,
             label: fresh || "Untitled class",
-            icon: cls.icon ?? "mdi-shape-outline",
+            icon: client.effectiveNodeIcon(cls) ?? "mdi-shape-outline",
             keywords: fresh ?? "",
             run: () => onOpenNode(cls.id),
             peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(cls.id),
@@ -737,7 +760,7 @@ export function CommandPalette({
     return items;
     // cacheVersion rides through classesCache (the memo re-derives the
     // sections when the worker cache refreshes).
-  }, [client, classesCache, home, dailyOnly, text, chip, anyChip, hasMemberOf, memberOfSet, onOpenNode, onOpenInSidebar, onNewPage, onOpenClassCreate, onOpenAddSource, onOpenProperty, currentNodeId, onOpenMerge, onToggleCondensed, condensedActive, onSignOut, onClose, recentIds, undoState, onUndo, onRedo]);
+  }, [client, classesCache, home, dailyOnly, text, chip, anyChip, hasMemberOf, memberOfSet, onOpenNode, onOpenInSidebar, onNewPage, onOpenClassCreate, onOpenAddSource, onOpenProperty, currentNodeId, onOpenMerge, onToggleCondensed, condensedActive, onSignOut, onClose, undoState, onUndo, onRedo]);
 
   // --- `/` filter mode: the option list -------------------------------------
 
@@ -801,8 +824,8 @@ export function CommandPalette({
                 group: "Content" as const,
                 label: titleOfNode(node) || "Untitled",
                 icon: rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
-                  ? (node.icon ?? "mdi-file-document-outline")
-                  : "mdi-format-text",
+                  ? (client.effectiveNodeIcon(node) ?? "mdi-file-document-outline")
+                  : (client.effectiveNodeIcon(node) ?? "mdi-format-text"),
                 keywords: "",
                 meta: rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
                   ? (containingPageLabel(client, node) ?? undefined)
@@ -823,12 +846,25 @@ export function CommandPalette({
     return () => clearTimeout(timer);
   }, [open, dailyOnly, text, chip, hasMemberOf, memberOfSet, client, onOpenNode, onOpenInSidebar, cacheVersion]);
 
+  // --- Random display rows ---------------------------------------------------
+  // Derived, never snapshotted. The pick (ids) is state from the open/refresh
+  // gesture; the rows resolve here through the scope-classed per-id reads, so
+  // the first cold-cache pass renders nothing and CONVERGES on the
+  // cache-version bump this memo re-runs — the old effect-snapshot kept the
+  // section empty for the whole open (every getNode answered undefined on a
+  // cold WorkerClient cache and the dropped rows were never re-derived).
+  const randomRows = useMemo(
+    () => (home ? pickRandomRows(client, randomIds, onOpenNode, onOpenInSidebar) : []),
+    [client, randomIds, cacheVersion, home, onOpenNode, onOpenInSidebar],
+  );
+
   // Dedupe + flatten: the cross-group node-id dedupe, stale content pages
   // (answered query ≠ current) dropped, content ids already surfaced as
   // title/date matches skipped. A stable sort on the mode-dependent group
   // rank then orders the sections (score order inside a group survives):
   // search answers Classes → Properties → Pages → Content, then Date Pages
-  // and Commands; the empty-query home keeps Recent → Random → Commands.
+  // and Commands; the empty-query home keeps Recently created → Recently
+  // linked → Random → Commands.
   const filtered = useMemo(() => {
     const seenIds = new Set<string>();
     const out: PaletteItem[] = [];
@@ -850,7 +886,8 @@ export function CommandPalette({
     }
     const emptyQuery = home;
     const groupRank = (group: Group): number => {
-      if (emptyQuery) return group === "Recent" ? 0 : group === "Random" ? 1 : 2;
+      if (emptyQuery)
+        return group === "Recently created" ? 0 : group === "Recently linked" ? 1 : group === "Random" ? 2 : 3;
       switch (group) {
         case "Classes": return 0;
         case "Properties": return 1;
@@ -868,10 +905,10 @@ export function CommandPalette({
   const clampedActive = Math.min(activeIndex, Math.max(0, flatCount - 1));
 
   // Reset on open; keep the active row visible while arrowing. The Random
-  // pool is captured here too — the cached page list, asset-classed pages
-  // excluded (the same read the Pages section uses) — and the section's
-  // display rows are picked from it. The chips and the filter browse reset
-  // with the query.
+  // pool + pick are captured here too — the cached page list, asset-classed
+  // pages excluded (the same read the Pages section uses); the display rows
+  // derive from the ids in the memo above. The chips and the filter browse
+  // reset with the query.
   //
   // Deps deliberately EXCLUDE the callbacks: App hands this component fresh
   // inline arrow identities every render, and during a background catch-up
@@ -880,8 +917,6 @@ export function CommandPalette({
   // by the post-fix smoke: the fast boot left catch-up running through
   // the search step). The open-transition + client change are the only
   // moments that should reset the palette.
-  const onOpenNodeRef = useRef(onOpenNode);
-  onOpenNodeRef.current = onOpenNode;
   const wasOpenRef = useRef(false);
   useEffect(() => {
     if (!open) {
@@ -896,12 +931,13 @@ export function CommandPalette({
     setActiveFilters([]);
     setFilterBrowse("options");
     // The random walk is a PAGES surface: block-role
-    // standalone nodes stay out of the page pool.
+    // standalone nodes stay out of the page pool. Only the shuffled IDS are
+    // state — the rows resolve per render (the randomRows memo).
     const pool = client
       .listPages()
       .filter((page) => rendersWithDocumentChrome(page, undefined, parentlessBlockResolverOf(client)));
     randomPoolRef.current = pool.map((page) => page.id);
-    setRandomRows(pickRandomRows(client, randomPoolRef.current, onOpenNodeRef.current, onOpenInSidebar));
+    setRandomIds(shuffledIds(randomPoolRef.current).slice(0, HOME_SECTION_COUNT));
   }, [open, client]);
 
   useEffect(() => {
@@ -915,7 +951,7 @@ export function CommandPalette({
    * list, never a fresh worker query.
    */
   const refreshRandomPages = () => {
-    setRandomRows(pickRandomRows(client, randomPoolRef.current, onOpenNode, onOpenInSidebar));
+    setRandomIds(shuffledIds(randomPoolRef.current).slice(0, HOME_SECTION_COUNT));
   };
 
   if (!open) return null;

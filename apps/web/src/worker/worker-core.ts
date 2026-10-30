@@ -16,7 +16,7 @@
  *    / runQueryAst / runAggregateAst / getBacklinkCount / getChildPageCount / getDisplayName /
  *    getNode / getNodeRaw / getEffectiveProperties / getAssetInfo /
  *    getAnnotationsForAsset / listPropertySchemas / isFeatureEnabled /
- *    listFeatureRows / getFeatureInstanceCount /
+ *    listFeatureRows / getFeatureInstanceCount / recentLinkTargets /
  *    resolveExternalRef / externalRefsOf), the batched read surface
  *    (multiRead — one round-trip per cache refresh), the write
  *    surface (createObject / updateObject / deleteObject / restoreObject /
@@ -191,6 +191,7 @@ const READ_METHODS: ReadonlySet<string> = new Set([
   "resolveNodeByName",
   "getChildren",
   "getBacklinks",
+  "recentLinkTargets",
   "resolveAlias",
   "aliasNodesOf",
   "getLinkedReferences",
@@ -809,6 +810,8 @@ export class WorkerCore {
         return this.client.fetchNodeHistory(args[0] as string);
       case "getBacklinks":
         return this.getBacklinks(args[0] as string);
+      case "recentLinkTargets":
+        return this.client.recentLinkTargets(args[0] as number);
       case "resolveAlias":
         return this.client.resolveAlias(args[0] as string);
       case "aliasNodesOf":

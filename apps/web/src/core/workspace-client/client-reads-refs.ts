@@ -133,6 +133,18 @@ export class WorkspaceClientReadsRefs {
     return null;
   }
 
+  /**
+   * Recently linked targets (the palette home's "Recently linked" section):
+   * distinct mention-edge targets by most recent incoming link, newest
+   * first. Ids only — the caller resolves + role-filters through getNode
+   * (liveness, document chrome). Worker-cache class: "change" — any edge
+   * write may reorder the ranking.
+   */
+  recentLinkTargets(limit: number): Array<{ id: string; linkedAt: string | null }> {
+    const rows = this.ctx.store.recentLinkTargets(limit) as Array<Record<string, unknown>>;
+    return rows.map((row) => ({ id: String(row.id), linkedAt: (row.linked_at as string | null) ?? null }));
+  }
+
   /** Edges pointing at the node (mentions, typed links, property refs). */
   getBacklinks(id: string): ClientEdge[] {
     const rows = this.ctx.store.backlinks(id) as Array<Record<string, unknown>>;

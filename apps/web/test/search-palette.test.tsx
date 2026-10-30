@@ -2,11 +2,14 @@
  * Search & command palette wave — jsdom
  * over the in-process WorkspaceClient:
  *
- *  - CommandPalette sections: Recent (device-local recents, empty query
- *    only), Date Pages, Pages, Classes, Properties, Content, Commands
+ *  - CommandPalette sections: Recently created + Recently linked (the new
+ *    empty-query home, backed by the store's recentLinkTargets recency read),
+ *    Random, Date Pages, Pages, Classes, Properties, Content, Commands
  *    (the action registry, with the query-scoped typed create); search
  *    results rank Classes → Properties → Pages → Content, then Date Pages
- *    and Commands; the empty-query home keeps Recent → Random → Commands;
+ *    and Commands; the empty-query home keeps Recently created → Recently
+ *    linked → Random → Commands; node rows carry their EFFECTIVE icon
+ *    (own → class-chain → render-state default);
  *  - the Content group debounces the ranked FTS, renders match snippets, and
  *    labels block hits with their containing page;
  *  - the `is_daily:` prefix scopes the palette to the Date Pages section,
@@ -142,33 +145,94 @@ const typeInPalette = (text: string): void => {
   fireEvent.change(screen.getByLabelText("Command palette search"), { target: { value: text } });
 };
 
-describe("CommandPalette sections", () => {
-  it("empty query shows the device-local Recent section and the Commands registry", async () => {
-    const { client, garden } = await seedPaletteWorld();
-    localStorage.setItem("notees.recents", JSON.stringify([garden]));
+describe("CommandPalette home sections", () => {
+  it("empty query shows Recently created → Recently linked → Random → Commands (the device Recent section is gone)", async () => {
+    const client = await seedClient();
+    // An old page something links at, five newer pages, then the linking
+    // source — so Recently linked has a row the first section didn't claim.
+    const target = await client.createObject({ isEmbedded: false, name: "Old Target" });
+    for (let i = 0; i < 5; i += 1) {
+      await client.createObject({ isEmbedded: false, name: `Filler ${i + 1}` });
+    }
+    const source = await client.createObject({ isEmbedded: false, name: "Source" });
+    await client.updateObject(source, {
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: target }],
+    });
     renderPalette(client);
 
-    expect(await screen.findByText("Recent")).not.toBeNull();
-    // Garden is both a recent and (this run's) random pick — the Random
-    // section is exempt from the cross-group dedupe by design (#8).
-    expect(screen.getAllByText("Garden").length).toBeGreaterThan(0);
+    expect(await screen.findByText("Recently created")).not.toBeNull();
+    expect(screen.getByText("Recently linked")).not.toBeNull();
+    expect(screen.getByText("Random")).not.toBeNull();
     expect(screen.getByText("Commands")).not.toBeNull();
-    expect(screen.getByText("New page")).not.toBeNull();
-    expect(screen.getByText("Sign out")).not.toBeNull();
+    expect(screen.queryByText("Recent")).toBeNull();
+    // Group order on the home surface.
+    const labels = [...document.querySelectorAll(".nt-palette-group-label")].map(
+      (el) => el.textContent,
+    );
+    const rankOf = (label: string) => labels.indexOf(label);
+    expect(rankOf("Recently created")).toBeGreaterThanOrEqual(0);
+    expect(rankOf("Recently linked")).toBeGreaterThan(rankOf("Recently created"));
+    expect(rankOf("Random")).toBeGreaterThan(rankOf("Recently linked"));
+    expect(rankOf("Commands")).toBeGreaterThan(rankOf("Random"));
     // No query: the fuzzy title sections stay quiet.
     expect(screen.queryByText("Pages")).toBeNull();
   });
 
-  it("recents refresh live on the notees:recents broadcast", async () => {
-    const { client, garden } = await seedPaletteWorld();
+  it("Recently created ranks the chrome pages by createdAt, newest first", async () => {
+    const client = await seedClient();
+    await client.createObject({ isEmbedded: false, name: "Alpha" });
+    await client.createObject({ isEmbedded: false, name: "Beta" });
+    await client.createObject({ isEmbedded: false, name: "Gamma" });
     renderPalette(client);
-    expect(screen.queryByText("Recent")).toBeNull();
-    localStorage.setItem("notees.recents", JSON.stringify([garden]));
-    window.dispatchEvent(new Event("notees:recents"));
-    expect(await screen.findByText("Recent")).not.toBeNull();
-    expect(screen.getAllByText("Garden").length).toBeGreaterThan(0);
+
+    expect(await screen.findByText("Recently created")).not.toBeNull();
+    expect(labelsUnderGroup("Recently created")).toEqual(["Gamma", "Beta", "Alpha"]);
   });
 
+  it("the Recently linked section hides when nothing was ever linked (honest emptiness)", async () => {
+    const client = await seedClient();
+    await client.createObject({ isEmbedded: false, name: "Lonely Page" });
+    renderPalette(client);
+
+    expect(await screen.findByText("Recently created")).not.toBeNull();
+    expect(screen.queryByText("Recently linked")).toBeNull();
+  });
+
+  it("Recently linked surfaces the page a new mention points at — even one too old for Recently created", async () => {
+    const client = await seedClient();
+    const target = await client.createObject({ isEmbedded: false, name: "Linked Target" });
+    // Five newer pages push the target out of Recently created's five.
+    for (let i = 0; i < 5; i += 1) {
+      await client.createObject({ isEmbedded: false, name: `Filler ${i + 1}` });
+    }
+    const source = await client.createObject({ isEmbedded: false, name: "Source" });
+    await client.updateObject(source, {
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: target }],
+    });
+    renderPalette(client);
+
+    expect(await screen.findByText("Recently linked")).not.toBeNull();
+    expect(labelsUnderGroup("Recently linked")).toContain("Linked Target");
+    // The target is NOT in Recently created (the fillers are newer).
+    expect(labelsUnderGroup("Recently created")).not.toContain("Linked Target");
+  });
+
+  it("node rows show the EFFECTIVE icon: the class-chain icon when the node has none of its own", async () => {
+    const client = await seedClient();
+    const novelId = await createTitledClass(client, "Novel");
+    await client.updateObject(novelId, { icon: "mdi-book-open-variant" });
+    await client.createObject({ isEmbedded: false, name: "Dune", classIds: [novelId] });
+    renderPalette(client);
+
+    // Dune is the newest page — the first Recently created row (Random may
+    // pick it too; Random is dedupe-exempt, so scope to the first row).
+    const row = (await screen.findAllByText("Dune"))[0]?.closest(".nt-palette-item");
+    const href = row?.querySelector(".nt-palette-item-icon use")?.getAttribute("href");
+    expect(href).toBe("/mdi-sprite.svg#mdi-book-open-variant");
+  });
+});
+
+describe("CommandPalette sections", () => {
   it("typed creation: the Commands registry offers 'Create page \"<query>\"'", async () => {
     const { client } = await seedPaletteWorld();
     const { created } = renderPalette(client);
@@ -233,6 +297,22 @@ describe("CommandPalette sections", () => {
   });
 });
 
+/** Row labels under one group label, in row order (the home's section mix
+ *  varies, so tests scope by group, not by absolute row index). */
+function labelsUnderGroup(group: string): Array<string | null> {
+  const nodes = [...document.querySelectorAll(".nt-palette-group-label, .nt-palette-item-label")];
+  const start = nodes.findIndex(
+    (el) => el.classList.contains("nt-palette-group-label") && el.textContent === group,
+  );
+  if (start < 0) return [];
+  const out: Array<string | null> = [];
+  for (const el of nodes.slice(start + 1)) {
+    if (el.classList.contains("nt-palette-group-label")) break;
+    out.push(el.textContent);
+  }
+  return out;
+}
+
 describe("CommandPalette Random section (#8)", () => {
   /** A workspace of `count` plain pages, all eligible for the section. */
   async function seedRandomWorld(count: number): Promise<WorkspaceClient> {
@@ -246,24 +326,20 @@ describe("CommandPalette Random section (#8)", () => {
     return client;
   }
 
-  /** The first five palette row labels (the Random rows precede Commands). */
-  const firstLabels = (): Array<string | null> =>
-    [...document.querySelectorAll(".nt-palette-item-label")].map((el) => el.textContent).slice(0, 5);
-
   it("the empty query shows the Random section with five rows and a refresh button", async () => {
     const client = await seedRandomWorld(8);
     renderPalette(client);
 
     expect(await screen.findByText("Random")).not.toBeNull();
     expect(screen.getByLabelText("Refresh random pages")).not.toBeNull();
-    // Five random rows precede the Commands group (the command count is a
-    // moving registry — assert the section's five, not the total).
-    expect(firstLabels()).toHaveLength(5);
-    expect(firstLabels().every((label) => /^Page \d$/.test(label ?? ""))).toBe(true);
+    // The section owns exactly five rows (the command count is a moving
+    // registry — assert the section's five, not the total).
+    expect(labelsUnderGroup("Random")).toHaveLength(5);
+    expect(labelsUnderGroup("Random").every((label) => /^Page \d$/.test(label ?? ""))).toBe(true);
     expect(screen.getByText("Commands")).not.toBeNull();
   });
 
-  it("the Random section answers no query (empty-query only, like Recent)", async () => {
+  it("the Random section answers no query (empty-query only, like the home sections)", async () => {
     const client = await seedRandomWorld(8);
     renderPalette(client);
     await screen.findByText("Random");
@@ -280,12 +356,12 @@ describe("CommandPalette Random section (#8)", () => {
     const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
     renderPalette(client);
     await screen.findByText("Random");
-    expect(firstLabels()).toEqual(["Page 2", "Page 3", "Page 4", "Page 5", "Page 6"]);
+    expect(labelsUnderGroup("Random")).toEqual(["Page 2", "Page 3", "Page 4", "Page 5", "Page 6"]);
 
     // Math.random() === 0.99 makes every swap a no-op (identity order).
     randomSpy.mockReturnValue(0.99);
     fireEvent.click(screen.getByLabelText("Refresh random pages"));
-    expect(firstLabels()).toEqual(["Page 1", "Page 2", "Page 3", "Page 4", "Page 5"]);
+    expect(labelsUnderGroup("Random")).toEqual(["Page 1", "Page 2", "Page 3", "Page 4", "Page 5"]);
   });
 
   it("refresh does NOT re-query the worker (the same cached pool re-shuffles)", async () => {
@@ -557,7 +633,7 @@ describe("CommandPalette `/` filter mode", () => {
     expect(await screen.findByText("Commands", { selector: ".nt-palette-group-label" })).not.toBeNull();
     expect(document.querySelector(".filter-chips")?.textContent).toContain("Commands");
     expect(screen.queryByText("Pages")).toBeNull();
-    expect(screen.queryByText("Recent")).toBeNull();
+    expect(screen.queryByText("Recently created")).toBeNull();
     expect(screen.getByText("New page")).not.toBeNull();
   });
 
