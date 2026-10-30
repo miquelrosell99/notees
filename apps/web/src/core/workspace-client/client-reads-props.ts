@@ -30,6 +30,7 @@ import {
   type ClientNode,
   type ClientPropertyOption,
   type ClientPropertySchema,
+  type PropertyRowShell,
   type QueryAggregateResult,
   type QueryRunResult,
   type SearchPageResult,
@@ -95,6 +96,16 @@ export class WorkspaceClientReadsProps {
    */
   getEffectiveProperties(id: string): EffectiveProperty[] {
     return this.ctx.store.getEffectiveProperties(id);
+  }
+
+  /**
+   * The shell variant of the effective read (property-shells.ts): same rows,
+   * but HEAVY-typed values are deferred (`value: null` + `valueCount` +
+   * `deferred`) — the cheap read behind bulk surfaces that enumerate many
+   * nodes. Pure read over the local store.
+   */
+  getPropertyRowShells(id: string): PropertyRowShell[] {
+    return this.ctx.store.getPropertyRowShells(id);
   }
 
   /**

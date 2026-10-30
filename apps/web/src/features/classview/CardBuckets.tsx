@@ -63,13 +63,13 @@ export function partitionCardsIntoBuckets(
  * the task rows use; a point reads its day, a range its start day).
  */
 export function cardRowsOf(
-  client: Pick<AnyClient, "getEffectiveProperties">,
+  client: Pick<AnyClient, "getPropertyRowShells">,
   dueSchemaId: string,
   ids: readonly string[],
 ): CardBucketRow[] {
   return ids.map((id) => {
     const value = client
-      .getEffectiveProperties(id)
+      .getPropertyRowShells(id)
       .find((prop) => prop.propertySchemaId === dueSchemaId)?.value;
     return { id, due: scheduledIsoOf(value) };
   });

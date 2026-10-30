@@ -95,8 +95,9 @@ function taskGroupingProperty(client: AnyClient, members: ClientNode[]): string 
   const schemas = client.listPropertySchemas();
   const status = usableGroupingSchema(schemas, SYSTEM_PROPERTY_UUIDS.taskStatus);
   if (status !== undefined) return status.id;
+  // The shells read: only the schema ids are inspected here — no values.
   for (const member of members) {
-    for (const prop of client.getEffectiveProperties(member.id)) {
+    for (const prop of client.getPropertyRowShells(member.id)) {
       if (usableGroupingSchema(schemas, prop.propertySchemaId) !== undefined) {
         return prop.propertySchemaId;
       }

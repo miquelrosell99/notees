@@ -217,6 +217,7 @@ export class ReadRevisions {
       case "getPage":
         return `n:${id === null ? "" : (this.node.get(id) ?? 0)}:${this.nodeAll}`;
       case "getEffectiveProperties":
+      case "getPropertyRowShells":
         return `p:${id === null ? "" : (this.node.get(id) ?? 0)}:${this.classes}:${this.nodeAll}`;
       case "getChildren":
       case "getBlockTree":

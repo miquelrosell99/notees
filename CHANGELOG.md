@@ -9,6 +9,45 @@ predating this file.
 
 ## 2026-10-30
 
+- **perf(web): `getPropertyRowShells` — the cheap SHELLS read for bulk
+  property enumerations; heavy values defer.** The first-serve half of the
+  payload audit: the read-delta protocol made refetches cheap, but
+  first-serves still transferred ~130-196MB at the owner's scale because
+  every bulk surface (each outline BlockRow, the calendar enumerations, the
+  class buckets/hubs) seeded the full `getEffectiveProperties` read per node.
+  New store read (`packages/store` `property-shells.ts`): same effective
+  rows — identical identity/derivation fields (propertySchemaId, idx,
+  elementId, schema, metadata, source, boundBy, eligible, hideWhenEmpty,
+  display) and identical ordering — built by ONE shared row assembler in
+  effective.ts behind a value-mode flag (the full read's output is
+  byte-identical), but `value` ships only for LIGHT types
+  (`LIGHT_PROPERTY_VALUE_TYPES`: select, multi_select, boolean, number, date,
+  datetime — derived from the wire vocabulary; text/email/object/asset/image,
+  url, and any unknown type defer by the conservative membership default).
+  Heavy rows read `value: null` with the cardinality in `valueCount` and
+  `deferred: true` — the flag consumers branch on (`value: null` means
+  "withheld", never "empty"); assigned/bound empty rows are never deferred.
+  Worker plumbing: cached read + READ_METHODS + invoke passthrough +
+  read-delta stamp (the same `p:` family as getEffectiveProperties — shells
+  derive from the same state) + the coverage guard; OutlinerReader gains the
+  read. Migrated consumers (light facts only): BlockRow's display-position
+  chrome (select/multi_select/boolean pills + assigned/bound-empty buttons —
+  no path renders a heavy value inline), the PropertiesSection collapsed
+  count probe (the count classifies rows and never renders a value — rides
+  shells via an optional rows parameter on propertyGroupsOf; the expanded
+  table keeps the full read, mounted on expansion only), calendarRows (task
+  rows, the done-toggle's recurrence/status reads, the recurring/span
+  scans, drivingDateRowOf — all datetime/select), TaskBuckets, CardBuckets,
+  and the tasks-hub grouping probe. Left on the full read: clone/export,
+  textCarrier, property editors, cards, annotations, DayPageSections,
+  collection tables, and every per-few-nodes surface. Tests: new
+  `property-row-shells.test.ts` (light/heavy shape, bound-empty + eligibility
+  mirror, full-read parity, WorkerCore multiRead delta), a BlockRow chrome
+  test pinning the shells read (full read not consulted for block rows),
+  fake-client updates; targeted suites green (property shells, read-delta,
+  read-invalidation-guard, block-row/outline, calendar, buckets/hub, store
+  property corpus incl. fixture convergence) + apps/web typecheck clean.
+
 - **perf(web): `listPageSummaries` — the lean page-listing read; title-only
   consumers stop shipping 25k content ASTs.** The payload audit's margin
   item, built on the owner's call: `PageSummary` (id, server-flattened

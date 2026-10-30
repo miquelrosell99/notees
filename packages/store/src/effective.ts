@@ -42,6 +42,7 @@
  */
 
 import { isValidDefaultForType, visiblePropertyValueRows } from "./property-values.js";
+import { LIGHT_PROPERTY_VALUE_TYPES, type PropertyRowShell } from "./property-shells.js";
 import type { SqliteDB } from "./db.js";
 
 export interface EffectivePropertySchema {
@@ -151,6 +152,38 @@ const displayOf = (v: string | null): "panel" | "bullet" | "inline" | null =>
   v === "bullet" || v === "inline" ? v : null;
 
 export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveProperty[] {
+  return buildEffectiveRows(db, nodeId, "full");
+}
+
+/**
+ * The shell variant of the effective read (property-shells.ts): identical
+ * rows, but HEAVY-typed values are withheld (`value: null`, `deferred: true`,
+ * the cardinality in `valueCount`) so bulk surfaces never ship text bodies
+ * or node refs across the worker boundary. One shared row builder — the
+ * binding/derivation logic is not duplicated.
+ */
+export function getPropertyRowShells(db: SqliteDB, nodeId: string): PropertyRowShell[] {
+  return buildEffectiveRows(db, nodeId, "shell") as PropertyRowShell[];
+}
+
+/** The value projection mode: "full" ships every value; "shell" defers HEAVY types. */
+type RowValueMode = "full" | "shell";
+
+function isLightValueType(type: string | null | undefined): boolean {
+  return type != null && LIGHT_PROPERTY_VALUE_TYPES.has(type);
+}
+
+/**
+ * The single row-assembly path behind both reads. In shell mode each pushed
+ * row additionally carries `valueCount`/`deferred` (both set for every row —
+ * assigned/bound empty rows report `valueCount: 0, deferred: false`, a heavy
+ * row with a real value reports the count it withheld).
+ */
+function buildEffectiveRows(
+  db: SqliteDB,
+  nodeId: string,
+  mode: RowValueMode,
+): Array<EffectiveProperty & { valueCount?: number; deferred?: boolean }> {
   // 1. Authored rows through the PG5 visible-set derivation (property-values.ts):
   //    live rows minus slot tombstones minus element tombstones — the same
   //    rule the applier enforces on write.
@@ -348,6 +381,28 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
   const eligibleOf = (schemaId: string, schema: EffectivePropertySchema | null): boolean =>
     schema === null ? true : (eligibleBySchema.get(schemaId) ?? true);
 
+  /**
+   * The value projection per mode. Full mode ships the parsed value
+   * verbatim. Shell mode ships LIGHT-typed values identically and defers
+   * HEAVY ones (value null, the cardinality in valueCount, deferred true) —
+   * `valued` is false only where the row definitionally carries no value
+   * (assigned/bound empty rows): those are never deferred, so consumers can
+   * keep reading `value: null` as "empty" for them.
+   */
+  const projectValue = (
+    schema: EffectivePropertySchema | null,
+    parsed: unknown,
+    valued: boolean,
+  ): { value: unknown; valueCount?: number; deferred?: boolean } => {
+    if (mode === "full") return { value: parsed };
+    if (!isLightValueType(schema?.type)) {
+      return valued
+        ? { value: null, valueCount: parsed == null ? 0 : 1, deferred: true }
+        : { value: null, valueCount: 0, deferred: false };
+    }
+    return { value: parsed, valueCount: parsed == null ? 0 : 1, deferred: false };
+  };
+
   // 5. Merge: authored wins per (schema, idx, ELEMENT — PG5: rows at the same
   //    idx are distinct elements and all surface); a winning ACTIVE binding
   //    (PC4 — inactive rows never became candidates) with a default and NO
@@ -369,7 +424,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       idx: authored.idx,
       elementId: authored.id,
       schema,
-      value: parseJson(authored.value),
+      ...projectValue(schema, parseJson(authored.value), true),
       metadata: authored.metadata !== null ? (parseJson(authored.metadata) as Record<string, unknown>) : null,
       source: "authored",
       boundBy: winner?.classId ?? null,
@@ -406,7 +461,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       idx: 0,
       elementId: `default:${schemaId}:0`,
       schema: schema ?? null,
-      value: defaultValue,
+      ...projectValue(schema ?? null, defaultValue, true),
       metadata: null,
       source: "default",
       boundBy: classId,
@@ -435,7 +490,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       idx: 0,
       elementId: `assigned:${schemaId}`,
       schema,
-      value: null,
+      ...projectValue(schema, null, false),
       metadata: null,
       source: "assigned",
       // The class still supplies the property — the pin is the node's own,
@@ -473,7 +528,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       idx: 0,
       elementId: `bound:${schemaId}`,
       schema,
-      value: null,
+      ...projectValue(schema, null, false),
       metadata: null,
       source: "bound",
       boundBy: winner.classId,

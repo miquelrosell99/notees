@@ -290,6 +290,10 @@ export class WorkspaceClient {
     return this.readsProps.getEffectiveProperties(id);
   }
 
+  getPropertyRowShells(id: string) {
+    return this.readsProps.getPropertyRowShells(id);
+  }
+
   getPropertyReferences(schemaId: string) {
     return this.readsProps.getPropertyReferences(schemaId);
   }

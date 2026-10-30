@@ -25,6 +25,7 @@ import type {
   DeleteObjectOptions,
   EffectiveProperty,
   PageSummary,
+  PropertyRowShell,
   QueryAggregateResult,
   QueryRunResult,
   SetClassPropertyInput,
@@ -208,6 +209,12 @@ export interface OutlinerReader {
   getChildren(id: string): ClientNode[];
   /** Effective properties (export-on-query's frontmatter read). */
   getEffectiveProperties(id: string): EffectiveProperty[];
+  /**
+   * The shell read (effective-property rows with HEAVY values deferred) —
+   * the bulk chrome reads (the BlockRow display-position buttons). Same
+   * stamp family as getEffectiveProperties; both client classes satisfy it.
+   */
+  getPropertyRowShells(id: string): PropertyRowShell[];
   listPropertySchemas(): ClientPropertySchema[];
 }
 

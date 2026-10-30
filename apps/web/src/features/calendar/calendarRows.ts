@@ -60,7 +60,10 @@ export function taskRowFacts(
   statusSchema: ClientPropertySchema | undefined,
   id: string,
 ): TaskBucketRow {
-  const props = client.getEffectiveProperties(id);
+  // The shells read: taskStatus is a select, taskScheduled/taskDeadline are
+  // datetimes — all LIGHT, values present; the recurrence metadata rides
+  // along. The full read would ship every heavy property value of the task.
+  const props = client.getPropertyRowShells(id);
   const scheduledRow = props.find(
     (prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled,
   );
@@ -126,7 +129,7 @@ export async function setTaskDone(
 ): Promise<void> {
   if (iso !== undefined) {
     const scheduledRow = client
-      .getEffectiveProperties(id)
+      .getPropertyRowShells(id)
       .find((entry) => entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled);
     const repeats = scheduledRow !== undefined && recurrenceRuleOf(scheduledRow.metadata) !== null;
     if (repeats) {
@@ -148,7 +151,7 @@ export async function setTaskDone(
   const target = statusSchema.options.find((option) => option.label === targetLabel);
   if (target === undefined) return;
   const prop = client
-    .getEffectiveProperties(id)
+    .getPropertyRowShells(id)
     .find((entry) => entry.propertySchemaId === statusSchema.id);
   await client.setProperty(id, statusSchema.id, target.id, prop?.idx ?? 0);
 }
@@ -213,7 +216,7 @@ export function recurringRowsOf(client: AnyClient): RecurringRow[] {
   const rows: RecurringRow[] = [];
   for (const node of client.listPages()) {
     if (parseDateNodeId(node.id) !== null) continue;
-    for (const prop of client.getEffectiveProperties(node.id)) {
+    for (const prop of client.getPropertyRowShells(node.id)) {
       if (prop.source !== "authored") continue;
       if (prop.schema?.type !== "datetime") continue;
       const anchorIso = scheduledIsoOf(prop.value);
@@ -255,8 +258,10 @@ export interface DatedRow {
  * drag-move write both read through this (one effective-properties pass).
  */
 export function drivingDateRowOf(client: AnyClient, nodeId: string, iso: string) {
+  // The shells read: only "datetime" rows match below — LIGHT, value present
+  // (the drag-move write re-commits it verbatim).
   return client
-    .getEffectiveProperties(nodeId)
+    .getPropertyRowShells(nodeId)
     .find(
       (prop) =>
         prop.source === "authored" &&
@@ -293,7 +298,7 @@ export function spannedRowsOf(client: AnyClient): SpannedRow[] {
   const rows: SpannedRow[] = [];
   for (const node of client.listPages()) {
     if (parseDateNodeId(node.id) !== null) continue;
-    for (const prop of client.getEffectiveProperties(node.id)) {
+    for (const prop of client.getPropertyRowShells(node.id)) {
       if (prop.source !== "authored") continue;
       if (prop.schema?.type !== "datetime") continue;
       const startIso = scheduledIsoOf(prop.value);
