@@ -43,10 +43,11 @@
  *   caretRangeFromPoint → prose offset → token span) opens the
  *   NodeLinkContextMenu: Open / Open in sidebar navigate; Edit link… opens
  *   the page-level LinkEditModal (retarget + optional custom label);
- *   Unlink replaces the link with its visible text (a class chip keeps the
- *   membership — the pill reappears); a class chip's Remove unassigns the
- *   class AND dissolves every inline class_link to it; Delete link drops the
- *   token wholesale.
+ *   Unlink replaces a mention with its visible text; a class chip's
+ *   Remove from inline turns the chip into plain text and keeps the
+ *   membership (the pill reappears), Remove class unassigns the class AND
+ *   dissolves every inline class_link to it; Delete link drops the token
+ *   wholesale.
  * - `#`  tag: the same popup over pages; picking assigns the tag to the node
  *   (first-class tag_ids OR-set add) and consumes the trigger; the create row
  *   creates + assigns the page.
@@ -1614,7 +1615,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     applySplice(hit.menu.start, hit.menu.end, [{ type: "text", text: kept }], hit.menu.start + kept.length);
   };
 
-  /** "Remove" (CLASS CHIPS only): unassign the class AND dissolve every
+  /** "Remove class" (CLASS CHIPS only): unassign the class AND dissolve every
    *  inline class_link to it into plain text — the removal-dissolution
    *  ruling, one gesture, never a dangling reference. Computed over the
    *  DRAFT (applyTextEdit keeps unflushed typing); the unassign rides after

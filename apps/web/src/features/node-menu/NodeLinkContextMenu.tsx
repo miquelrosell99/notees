@@ -9,19 +9,20 @@
  *   item renders only when the target token is a mention — external links
  *   (markdown spans in text tokens) never offer Edit here (they navigate;
  *   they are authored by the slash "Add URL" command / markdown pasting).
- * - Unlink — replace the link with its visible text (the custom label when
- *   one is set, otherwise the target's current display name). For a class
- *   chip the class membership STAYS — the pill reappears in the classes row
- *   (chips: rendered before the Convert item; mentions: in the removal
- *   group).
+ * - Remove from inline — CLASS CHIPS ONLY, before Convert: turns the chip
+ *   back into plain text (the display text when set, else the class's
+ *   current name) and KEEPS the class assignment — the pill reappears in
+ *   the classes row.
  * - Convert to class chip / Convert to link — CLASS TARGETS ONLY: flips the
  *   token between the mention and class_link forms (the inline chip and the
  *   plain link render differently but reference the same class node; the
  *   one-off wording rides across as customLabel ↔ displayText).
- * - Remove — CLASS CHIPS ONLY: unassign the class from the node AND dissolve
- *   every inline class_link to it into plain text (the
+ * - Remove class — CLASS CHIPS ONLY: unassign the class from the node AND
+ *   dissolve every inline class_link to it into plain text (the
  *   removal-dissolution ruling — the applier refuses the unassign while the
  *   content references the class). The journal classes refuse with a toast.
+ * - Unlink — mentions: replace the link with its visible text (the custom
+ *   label when one is set, otherwise the target's current display name).
  * - Delete link — drop the mention token from the block entirely.
  *
  * Rendered with `companion` so the contentEditable blur handler treats focus
@@ -356,7 +357,9 @@ interface NodeLinkContextMenuProps {
   onConvert?: (() => void) | undefined;
   /** The Convert item's direction label ("Convert to class chip" / "Convert to link"). */
   convertLabel?: string | undefined;
-  /** Unlink: replace the link with its visible text (class chips keep the membership). */
+  /** Unlink: replace the link with its visible text (class chips wear
+   *  "Remove from inline" — the membership stays; this prop serves
+   *  mentions). */
   onUnlink(): void;
   /** CLASS CHIPS only — unassign the class and dissolve its inline chips. */
   onRemoveClass?: (() => void) | undefined;
@@ -406,10 +409,10 @@ export function NodeLinkContextMenu({
               ...(onEdit !== undefined
                 ? [{ id: "edit", label: "Edit link…", icon: "mdi-pencil", onClick: onEdit } as const]
                 : []),
-              // The chip's Unlink rides before Convert ("remove from inline"):
-              // the chip goes back to plain text, the class membership stays.
+              // The chip's "Remove from inline" rides before Convert: the
+              // chip goes back to plain text, the class membership stays.
               ...(kind === "chip"
-                ? [{ id: "unlink", label: "Unlink", icon: "mdi-link-variant-off", onClick: onUnlink } as const]
+                ? [{ id: "unlink", label: "Remove from inline", icon: "mdi-link-variant-off", onClick: onUnlink } as const]
                 : []),
               ...(onConvert !== undefined
                 ? [{ id: "convert", label: convertLabel ?? "Convert", icon: "mdi-swap-horizontal", onClick: onConvert } as const]
@@ -423,7 +426,7 @@ export function NodeLinkContextMenu({
         ...(onRemoveClass !== undefined
           ? [{
               id: "remove",
-              label: "Remove",
+              label: "Remove class",
               icon: "mdi-close-circle-outline",
               onClick: onRemoveClass,
             } as const]
