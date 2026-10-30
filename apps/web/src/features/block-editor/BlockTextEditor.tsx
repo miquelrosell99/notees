@@ -148,7 +148,10 @@
  *                  replacing the selection like the default paste; multi-
  *                  line plain text splits into sibling blocks at the caret
  *                  (the first pasted line joins the head, the last absorbs
- *                  the tail); any other text keeps the default plain-text
+ *                  the tail) with the source outline preserved — a line's
+ *                  leading whitespace nests it under the previous line,
+ *                  blank lines are dropped, never minted as empty blocks;
+ *                  any other text keeps the default plain-text
  *                  paste.
  * - `@` over a selection → open the node picker with the selected text as
  *                  the query; the pick replaces the selection with the link
@@ -230,7 +233,7 @@ import { mentionProse } from "@/editor/prose.js";
 import { applyMarkToRange, marksOnRange, removeMarkFromRange } from "@/editor/marks.js";
 import { withCandidateSpans } from "@/editor/capture.js";
 import { dissolveClassLinksInAst } from "../metadata/classRemoval.js";
-import type { ClientNode } from "@/core/workspace-client/index.js";
+import type { ClientNode, CreateObjectInput } from "@/core/workspace-client/index.js";
 
 import { VerbPopover } from "../../ui/VerbPopover.js";
 import { useOutliner } from "../../ui/outliner-context.js";
@@ -1665,13 +1668,18 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
    * Paste: a clipboard holding a node link (`<origin>/<uuid>` or a bare
    * uuid) that resolves in the local graph becomes a mention token spliced
    * at the caret/selection instead of the raw text; an unresolvable id
-   * pastes as raw text. Multi-line plain text splits at the caret into
-   * sibling blocks — the head keeps the text before the caret plus the
-   * first pasted line, each further line becomes its own block, and the
-   * last line absorbs the tail after the caret (the caret lands at the
-   * start of that tail). Everything else — single-line text, the title
-   * row, code blocks, text-property carrier values — keeps the
-   * contentEditable default (plain text through the normal draft flow).
+   * pastes as raw text. Multi-line plain text splits at the caret — the
+   * head keeps the text before the caret plus the first pasted line, each
+   * further line becomes its own block right after, and the last line
+   * absorbs the tail after the caret (the caret lands at the start of that
+   * tail). A line's leading whitespace sets its depth relative to the
+   * first pasted line: an indent that extends the previous line's nests
+   * under it, so the source outline survives the paste; blank lines (the
+   * source's paragraph separators) are dropped, never minted as empty
+   * blocks. The whole gesture is ONE write batch — one undo, one worker
+   * round-trip. Everything else — single-line text, the title row, code
+   * blocks, text-property carrier values — keeps the contentEditable
+   * default (plain text through the normal draft flow).
    * (Paste events carry no modifier state, so even Ctrl/Cmd+Shift+V takes
    * this path — a bare uuid as plain text is never the useful outcome.)
    */
@@ -1704,11 +1712,11 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       }
     }
     if (!text.includes("\n")) return; // single-line: the default plain-text paste
-    // Trailing blank lines are copy noise — a paste ending in "\n\n" must
-    // not mint trailing empty blocks.
-    const lines = text.split("\n");
-    while (lines.length > 1 && lines[lines.length - 1] === "") lines.pop();
-    if (lines.length < 2) return; // "only\n": one visual line — the default paste
+    // Blank lines are paragraph separators in the source text — copy noise
+    // for an outliner. Drop them wholesale (trailing AND interior): an
+    // interior blank line used to mint an empty block.
+    const lines = text.split("\n").filter((line) => line.trim() !== "");
+    if (lines.length < 2) return; // one visual line ("only\n", "\n\n") — the default paste
     // Structural no-splits: the title row (it IS the page — the header
     // contract never creates nodes from it), code blocks, and text-property
     // carrier values (their Enter semantics are value-local; a paste there
@@ -1730,37 +1738,84 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       timerRef.current = null;
     }
     dirtyRef.current = false;
-    const parentId = nodeRef.current.parentId;
+    const baseParentId = nodeRef.current.parentId;
     const draft = draftRef.current;
     const base = applyTextEdit(committedRef.current, draft, resolveClassName, resolveMentionName);
+    // Each line's leading whitespace is structure (see the depth stack
+    // below), not content — the first line's indent sets the base level.
+    const entries = lines.map((line) => {
+      const indent = /^[ \t]*/.exec(line)![0];
+      return { indent, text: line.slice(indent.length) };
+    });
     // Head: keep [0, caret) and replace the selection with the first line.
-    const head = spliceTokens(base, range.start, draft.length, astFromProse(lines[0]!, []), resolveClassName, resolveMentionName);
+    const head = spliceTokens(base, range.start, draft.length, astFromProse(entries[0]!.text, []), resolveClassName, resolveMentionName);
     // Tail: everything after the selection; it rides the LAST pasted line.
     const tail = spliceTokens(base, 0, range.end, [], resolveClassName, resolveMentionName);
     const headCommitted = withCandidateSpans(head);
     committedRef.current = headCommitted;
-    void client.updateObject(currentId, { contentAst: headCommitted });
-    const lastLine = lines[lines.length - 1]!;
+    const lastEntry = entries[entries.length - 1]!;
     // The last line PREPENDS to the tail (spliceTokens merges adjacent text
     // runs, so "Y" + "def" stores as one "Ydef" run).
-    const last = spliceTokens(tail, 0, 0, astFromProse(lastLine, []), resolveClassName, resolveMentionName);
-    const created: ContentAst[] = [
-      ...lines.slice(1, -1).map((line) => withCandidateSpans(astFromProse(line, []))),
-      withCandidateSpans(last),
+    const last = spliceTokens(tail, 0, 0, astFromProse(lastEntry.text, []), resolveClassName, resolveMentionName);
+    // Depth: a line whose indent EXTENDS the previous line's becomes its
+    // child; the base level (the first line's indent) stays sibling to the
+    // current block. The ancestor stack holds one entry per level above
+    // the base, innermost on top; the bottom entry is always the latest
+    // base-level line (the current block itself, for the first of them).
+    const creates: CreateObjectInput[] = [];
+    const stack: Array<{ indent: string; id: string }> = [
+      { indent: entries[0]!.indent, id: currentId },
     ];
-    // afterId chaining keeps fractional sibling order — the first create
-    // anchors after the current block, each next one after the previous
-    // (the pattern extractToPage uses for N sibling inserts).
-    let chain: Promise<string> = client.createObject({
-      parentId,
-      contentAst: created[0]!,
-      ...(parentId !== null ? { afterId: currentId } : {}),
-    });
-    for (const contentAst of created.slice(1)) {
-      chain = chain.then((prevId) => client.createObject({ parentId, contentAst, afterId: prevId }));
+    for (let i = 1; i < entries.length; i += 1) {
+      const entry = entries[i]!;
+      const id = uuidv7();
+      const top = () => stack[stack.length - 1]!;
+      // A line nests under the top only while its indent EXTENDS the
+      // top's; recomputed after every pop (the top changes as the stack
+      // unwinds).
+      const extendsTop = (): boolean =>
+        entry.indent.length > top().indent.length && entry.indent.startsWith(top().indent);
+      // Unwind levels the new line neither extends nor matches.
+      let lastPopped: { indent: string; id: string } | undefined;
+      while (stack.length > 1 && !extendsTop() && entry.indent !== top().indent) {
+        lastPopped = stack.pop();
+      }
+      let createParentId: string | null;
+      let afterId: string | undefined;
+      if (extendsTop()) {
+        // Child of the current top — or its next sibling when the unwind
+        // popped the previous child at this level (lastPopped).
+        createParentId = top().id;
+        afterId = lastPopped?.id;
+        stack.push({ indent: entry.indent, id });
+      } else if (stack.length > 1 && entry.indent === top().indent) {
+        // Sibling of the top line: same parent, anchored right after it.
+        createParentId = stack[stack.length - 2]!.id;
+        afterId = top().id;
+        stack[stack.length - 1] = { indent: entry.indent, id };
+      } else {
+        // Base level — sibling of the current block, after the previous
+        // base-level line.
+        createParentId = baseParentId;
+        afterId = top().id;
+        stack[0] = { indent: entry.indent, id };
+      }
+      // afterId chaining keeps fractional sibling order — and is only
+      // meaningful under a parent, so root-level creates drop it (same as
+      // the plain createObject path).
+      creates.push({
+        id,
+        parentId: createParentId,
+        contentAst: i === entries.length - 1 ? withCandidateSpans(last) : withCandidateSpans(astFromProse(entry.text, [])),
+        ...(createParentId !== null && afterId !== undefined ? { afterId } : {}),
+      });
     }
-    // Caret at the start of the tail, inside the last pasted line's block.
-    void chain.then((lastId) => requestFocus(lastId, lastLine.length));
+    // One write batch: the head update + every create journal as ONE undo
+    // entry and ride ONE worker RPC (the per-block awaited chain this
+    // replaced repainted the outline one block at a time).
+    void client
+      .pasteBlocks({ id: currentId, contentAst: headCommitted }, creates)
+      .then((ids) => requestFocus(ids[ids.length - 1]!, lastEntry.text.length));
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {

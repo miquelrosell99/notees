@@ -7,6 +7,37 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-30
+
+- **fix(web): multi-line paste — outline-preserving nesting, blank lines
+  dropped, one write batch.** Three reported defects of the multi-line
+  paste split, one root design each. (1) *Slow, one block at a time*: the
+  split chained one awaited `createObject` worker RPC per pasted line —
+  every line cost a round-trip and repainted the outline incrementally.
+  The gesture now rides ONE batch write — new `pasteBlocks` on the write
+  domain / `OutlinerClient` (the head block's content update + every
+  `object.create` inside one `undoJournal.batch`, parents-before-children
+  with caller-assigned ids so a child can anchor a node the same batch
+  creates) with one worker-RPC plumbing (`WorkerClient` + worker-core
+  case), mirroring the `beginClassedCreate` precedent — no new op type,
+  the wire untouched. (2) *Empty blocks on line breaks*: only trailing
+  blank lines were dropped; each interior blank line minted an empty
+  block. Blank lines are now dropped wholesale — the source's paragraph
+  separators are copy noise for an outliner. (3) *Flat outline*: every
+  line was created as a sibling of the current block. The handler now
+  parses each line's leading whitespace — an indent that extends the
+  previous line's nests under it; the first line's indent is the base
+  level (its equals stay siblings of the head block); sibling order
+  chains through `afterId` exactly as before. The whole paste also
+  journals as ONE undo entry ("Undo paste") — the per-block chain used to
+  need one undo per line. The retired "an empty middle line becomes an
+  empty block" behavior was codified in a test — it now pins the drop.
+  Docs: `docs/features/outliner.md` (the paste row), the editor's
+  contract comment + `handlePaste` docstring. Tests: the paste suite
+  (blank-line drop, two-level and four-space-step nesting with the caret
+  landing in the last nested block, one-undo-restores-everything with the
+  "Undo paste" label).
+
 ## 2026-10-29
 
 - **feat(web): the auto-citekey toggle retires — generation is always on
