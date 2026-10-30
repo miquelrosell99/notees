@@ -632,6 +632,40 @@ export interface DeleteObjectOptions {
 }
 
 /**
+ * One op in a batched gesture (the `applyOps` primitive): the discriminated
+ * union of the high-level write surface. Every multi-op gesture (paste,
+ * clone/template, bulk selection ops, drag stacks, imports) composes its
+ * plan as plain data and applies it in ONE undo-journal batch — one undo
+ * restores the whole gesture — and, on the worker client, in ONE RPC. Ops
+ * apply in order; placement anchors may reference ids created earlier in
+ * the same batch (caller-assigned ids, parents before children — the
+ * synchronous in-order apply resolves every anchor before it is read).
+ */
+export type ClientWriteOp =
+  | { kind: "create"; input: CreateObjectInput }
+  | { kind: "update"; id: string; fields: UpdateObjectInput }
+  | { kind: "move"; id: string; parentId: string | null; afterId?: string; beforeId?: string }
+  | { kind: "delete"; id: string; opts?: DeleteObjectOptions }
+  | { kind: "restore"; id: string }
+  | { kind: "setArchived"; id: string; active: boolean }
+  | {
+      kind: "setProperty";
+      objectId: string;
+      propertySchemaId: string;
+      value: unknown;
+      idx?: number;
+      metadata?: Record<string, unknown>;
+    }
+  | { kind: "unsetProperty"; objectId: string; propertySchemaId: string; idx?: number }
+  | { kind: "assignProperty"; objectId: string; propertySchemaId: string }
+  | { kind: "unassignProperty"; objectId: string; propertySchemaId: string }
+  | { kind: "emptyProperty"; objectId: string; propertySchemaId: string }
+  | { kind: "assignClass"; id: string; classId: string }
+  | { kind: "unassignClass"; id: string; classId: string }
+  | { kind: "assignTag"; id: string; tagId: string }
+  | { kind: "unassignTag"; id: string; tagId: string };
+
+/**
  * One row of the derived node_asset table (asset.attach op), as read by the
  * panel: the link between a node (usually an asset-class node referenced by a
  * node-typed property value) and its content-addressed file metadata.

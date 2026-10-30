@@ -19,7 +19,7 @@ import { dayNodeId } from "@notees/domain";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { extractBlockToPage } from "../src/core/extractToPage.js";
-import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client/index.js";
+import { WorkspaceClient, type ClientNode, type ClientWriteOp } from "../src/core/workspace-client/index.js";
 import { NodeContextMenu } from "../src/features/node-menu/NodeContextMenu.js";
 import { notificationStore } from "../src/components/ui/kit/notificationStore.js";
 
@@ -51,7 +51,7 @@ function nodeOf(partial: Partial<ClientNode> & { id: string }): ClientNode {
   };
 }
 
-/** Recording stub surfaces: reads from a fixed map, captures every write. */
+/** Recording stub surfaces: reads from a fixed map, captures every batch. */
 function stubSurfaces(entries: Map<string, ClientNode[]>) {
   const nodes = new Map<string, ClientNode>();
   for (const list of entries.values()) for (const n of list) nodes.set(n.id, n);
@@ -62,7 +62,7 @@ function stubSurfaces(entries: Map<string, ClientNode[]>) {
     afterId?: string | undefined;
     beforeId?: string | undefined;
   }> = [];
-  let nextId = 0;
+  const verbs: string[] = [];
   const reads = {
     getNode: (id: string) => nodes.get(id),
     getChildren: (id: string) => entries.get(id) ?? [],
@@ -71,22 +71,28 @@ function stubSurfaces(entries: Map<string, ClientNode[]>) {
     // it independently of the (possibly stale) cached read.
     getChildrenFresh: async (id: string) => entries.get(id) ?? [],
   };
+  // The gesture submits its whole plan through ONE applyOps batch; the
+  // recording derives the creates/moves arrays from the ops so the
+  // assertions keep speaking in op vocabulary.
   const writes = {
-    createObject: async (partial: Record<string, unknown>) => {
-      creates.push(partial);
-      nextId += 1;
-      return `link-${nextId}`;
-    },
-    moveObject: async (
-      id: string,
-      parentId: string | null,
-      afterId?: string | undefined,
-      beforeId?: string | undefined,
-    ) => {
-      moves.push({ id, parentId, afterId, beforeId });
+    applyOps: async (ops: ClientWriteOp[], opts?: { verb?: string }) => {
+      verbs.push(opts?.verb ?? "");
+      for (const op of ops) {
+        if (op.kind === "create") {
+          creates.push(op.input as Record<string, unknown>);
+        } else if (op.kind === "move") {
+          moves.push({
+            id: op.id,
+            parentId: op.parentId,
+            afterId: op.afterId,
+            beforeId: op.beforeId,
+          });
+        }
+      }
+      return ops.map((op) => (op.kind === "create" ? op.input.id : undefined));
     },
   };
-  return { reads, writes, creates, moves };
+  return { reads, writes, creates, moves, verbs };
 }
 
 describe("extractBlockToPage composition", () => {
@@ -97,7 +103,7 @@ describe("extractBlockToPage composition", () => {
     const b = nodeOf({ id: "b1", parentId: parent });
     const c1 = nodeOf({ id: "c1", parentId: "t1" });
     const c2 = nodeOf({ id: "c2", parentId: "t1" });
-    const { reads, writes, creates, moves } = stubSurfaces(
+    const { reads, writes, creates, moves, verbs } = stubSurfaces(
       new Map([
         [parent, [a, target, b]],
         ["t1", [c1, c2]],
@@ -106,9 +112,12 @@ describe("extractBlockToPage composition", () => {
 
     const linkId = await extractBlockToPage(reads, writes, "t1");
 
-    expect(linkId).toBe("link-1");
+    // The link-block id is pre-minted by the gesture and rides the create
+    // input (the batch's child moves anchor on it).
+    expect(linkId).toBe(creates[0]!.id);
     expect(creates).toEqual([
       {
+        id: linkId,
         parentId: "p1",
         contentAst: [{ type: "mention", targetNodeId: "t1" }],
         // Anchored AT THE SOURCE: the link lands immediately before the
@@ -120,9 +129,11 @@ describe("extractBlockToPage composition", () => {
     ]);
     expect(moves).toEqual([
       { id: "t1", parentId: null },
-      { id: "c1", parentId: "link-1", afterId: undefined, beforeId: undefined },
-      { id: "c2", parentId: "link-1", afterId: "c1", beforeId: undefined },
+      { id: "c1", parentId: linkId, afterId: undefined, beforeId: undefined },
+      { id: "c2", parentId: linkId, afterId: "c1", beforeId: undefined },
     ]);
+    // The whole gesture rides ONE batch.
+    expect(verbs).toEqual(["extract"]);
   });
 
   it("anchors beforeId the source itself on every position (first, middle, only child)", async () => {
@@ -171,10 +182,10 @@ describe("extractBlockToPage composition", () => {
     // Simulate the cold render cache: cached getChildren always [].
     reads.getChildren = () => [];
 
-    await extractBlockToPage(reads, writes, "t1", { keepChildren: false });
+    const linkId = await extractBlockToPage(reads, writes, "t1", { keepChildren: false });
 
     expect(moves.map((m) => m.id)).toEqual(["t1", "c1", "c2"]);
-    expect(moves.filter((m) => m.parentId === "link-1").map((m) => m.id)).toEqual(["c1", "c2"]);
+    expect(moves.filter((m) => m.parentId === linkId).map((m) => m.id)).toEqual(["c1", "c2"]);
   });
 
   it("fails loud for a parentless node and a date-chain node, writing nothing", async () => {
@@ -305,13 +316,12 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
     fireEvent.click(getByText("Extract without children"));
 
     await waitFor(() => expect(stub.moves.map((m) => m.id)).toEqual(["t1", "c1"]));
-    expect(stub.creates).toEqual([
-      {
-        parentId: "p1",
-        contentAst: [{ type: "mention", targetNodeId: "t1" }],
-        beforeId: "t1",
-      },
-    ]);
+    expect(stub.creates).toHaveLength(1);
+    expect(stub.creates[0]).toMatchObject({
+      parentId: "p1",
+      contentAst: [{ type: "mention", targetNodeId: "t1" }],
+      beforeId: "t1",
+    });
     expect(notificationStore.notifications.at(-1)?.title).toBe("Converted to page");
   });
 

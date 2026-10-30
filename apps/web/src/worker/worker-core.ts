@@ -56,6 +56,7 @@ import {
   type ClientEdge,
   type ClientNode,
   type ClientPropertySchema,
+  type ClientWriteOp,
   type CreateObjectInput,
   type CreatePropertySchemaInput,
   type DeleteObjectOptions,
@@ -948,10 +949,10 @@ export class WorkerCore {
         );
       case "createObject":
         return this.createObject(args[0] as CreateObjectInput);
-      case "pasteBlocks":
-        return this.client.pasteBlocks(
-          args[0] as { id: string; contentAst: ContentAst },
-          args[1] as CreateObjectInput[],
+      case "applyOps":
+        return this.client.applyOps(
+          args[0] as ClientWriteOp[],
+          (args[1] as { verb?: string } | undefined) ?? {},
         );
       case "updateObject":
         return this.updateObject(args[0] as string, args[1] as UpdateObjectInput);

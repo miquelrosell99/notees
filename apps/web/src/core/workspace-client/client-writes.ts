@@ -15,6 +15,7 @@ import type { ContentAst, OpPayload } from "@notees/protocol";
 
 import { UUID_LIKE } from "./types.js";
 import type {
+  ClientWriteOp,
   CreateObjectInput,
   CreatePropertySchemaInput,
   DeleteObjectOptions,
@@ -69,39 +70,87 @@ export class WorkspaceClientWrites {
   }
 
   /**
-   * The multi-line paste write: the head block's content update and every
-   * pasted block's `object.create` ride ONE undo-journal batch — one undo
-   * restores the pre-paste state (the merged entry reads "Undo paste").
-   * `creates` arrives in source-text order (parents before children) with
-   * caller-assigned ids (`CreateObjectInput.id`), so a child can anchor
-   * `parentId`/`afterId` at a node the same batch creates — the synchronous
-   * in-order apply resolves every anchor before it is referenced. The whole
-   * gesture is ONE worker RPC; the prior per-block awaited chain made a long
-   * paste repaint the outline one block at a time. Returns the created ids
-   * in plan order (the last one hosts the absorbed tail and takes the caret).
+   * The generic batch-write primitive behind every multi-op gesture (the
+   * multi-line paste, clone/template replay, bulk selection ops, drag
+   * stacks, imports): the composed ops apply inside ONE undo-journal batch
+   * — one undo restores the whole gesture, labeled `opts.verb` ("Undo
+   * paste") — and, on the worker client, ride ONE RPC. Ops apply in order;
+   * placement anchors may reference ids created earlier in the same batch
+   * (caller-assigned ids, parents before children — the synchronous
+   * in-order apply resolves every anchor before it is read). Returns the
+   * created node id per op (`undefined` for non-creates), in op order.
    */
-  async pasteBlocks(
-    headUpdate: { id: string; contentAst: ContentAst },
-    creates: CreateObjectInput[],
-  ): Promise<string[]> {
-    const ids = creates.map((input) => input.id ?? uuidv7());
-    this.ctx.undoJournal.batch(() => {
-      // Enqueued directly (not via updateObject) so the first record carries
-      // the gesture verb — the batch flush labels the merged entry from it.
-      this.ctx.enqueueLocal(
-        this.ctx.buildEnvelope(
-          "object.update",
-          { objectId: headUpdate.id, contentAst: headUpdate.contentAst },
-          [headUpdate.id],
-        ),
-        "normal",
-        "paste",
-      );
-      creates.forEach((input, index) => {
-        void this.createObject({ ...input, id: ids[index]! });
-      });
-    });
-    return ids;
+  async applyOps(
+    ops: ClientWriteOp[],
+    opts: { verb?: string } = {},
+  ): Promise<Array<string | undefined>> {
+    const created: Array<string | undefined> = [];
+    await this.ctx.undoJournal.batchAsync(async () => {
+      for (const op of ops) {
+        switch (op.kind) {
+          case "create":
+            created.push(await this.createObject(op.input));
+            break;
+          case "update":
+            await this.updateObject(op.id, op.fields);
+            created.push(undefined);
+            break;
+          case "move":
+            await this.moveObject(op.id, op.parentId, op.afterId, op.beforeId);
+            created.push(undefined);
+            break;
+          case "delete":
+            await this.deleteObject(op.id, op.opts);
+            created.push(undefined);
+            break;
+          case "restore":
+            await this.restoreObject(op.id);
+            created.push(undefined);
+            break;
+          case "setArchived":
+            await this.setArchived(op.id, op.active);
+            created.push(undefined);
+            break;
+          case "setProperty":
+            await this.setProperty(op.objectId, op.propertySchemaId, op.value, op.idx, op.metadata);
+            created.push(undefined);
+            break;
+          case "unsetProperty":
+            await this.unsetProperty(op.objectId, op.propertySchemaId, op.idx);
+            created.push(undefined);
+            break;
+          case "assignProperty":
+            await this.assignProperty(op.objectId, op.propertySchemaId);
+            created.push(undefined);
+            break;
+          case "unassignProperty":
+            await this.unassignProperty(op.objectId, op.propertySchemaId);
+            created.push(undefined);
+            break;
+          case "emptyProperty":
+            await this.emptyProperty(op.objectId, op.propertySchemaId);
+            created.push(undefined);
+            break;
+          case "assignClass":
+            await this.assignClass(op.id, op.classId);
+            created.push(undefined);
+            break;
+          case "unassignClass":
+            await this.unassignClass(op.id, op.classId);
+            created.push(undefined);
+            break;
+          case "assignTag":
+            await this.assignTag(op.id, op.tagId);
+            created.push(undefined);
+            break;
+          case "unassignTag":
+            await this.unassignTag(op.id, op.tagId);
+            created.push(undefined);
+            break;
+        }
+      }
+    }, opts.verb);
+    return created;
   }
 
   /** Update object fields (object.update; at least one field required). */

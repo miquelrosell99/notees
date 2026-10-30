@@ -29,12 +29,18 @@ interface FindReplaceWidgetProps {
   blocks: readonly { id: string; prose: string }[];
   /** Perform one replace write (the parent owns the workspace client). */
   onReplace: (blockId: string, start: number, end: number, text: string) => void;
+  /**
+   * Perform the whole replace-all as ONE batched write (the parent composes
+   * the update ops and submits one `applyOps` — one undo entry). The matches
+   * arrive sorted last-to-first so per-block offsets stay valid.
+   */
+  onReplaceAll: (matches: BlockMatch[], text: string) => void;
   /** The page root: matching blocks are highlighted inside it. */
   highlightRootRef: RefObject<HTMLElement | null>;
   onClose: () => void;
 }
 
-export function FindReplaceWidget({ blocks, onReplace, highlightRootRef, onClose }: FindReplaceWidgetProps) {
+export function FindReplaceWidget({ blocks, onReplace, onReplaceAll, highlightRootRef, onClose }: FindReplaceWidgetProps) {
   const [query, setQuery] = useState("");
   const [replaceText, setReplaceText] = useState("");
   const [matchIndex, setMatchIndex] = useState(0);
@@ -136,15 +142,15 @@ export function FindReplaceWidget({ blocks, onReplace, highlightRootRef, onClose
 
   const handleReplaceAll = useCallback(() => {
     if (matches.length === 0 || !replaceText) return;
-    // Sort last-to-first so offsets stay valid as each write lands (the
-    // archived widget grouped by editor and processed last-to-first).
+    // Sort last-to-first so offsets stay valid as the batch lands (the
+    // archived widget grouped by editor and processed last-to-first); the
+    // parent folds them into one update op per block and submits a single
+    // batched write.
     const sorted: BlockMatch[] = [...matches].sort((a, b) =>
       a.blockId !== b.blockId ? 0 : b.offset - a.offset,
     );
-    for (const match of sorted) {
-      onReplace(match.blockId, match.offset, match.offset + match.length, replaceText);
-    }
-  }, [matches, replaceText, onReplace]);
+    onReplaceAll(sorted, replaceText);
+  }, [matches, replaceText, onReplaceAll]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {

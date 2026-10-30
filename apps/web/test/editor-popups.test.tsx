@@ -12,7 +12,7 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
@@ -279,14 +279,17 @@ describe("find & replace widget", () => {
     ]);
     expect(within(widget).getByText("2/2")).toBeInTheDocument();
 
-    // Replace All clears the remaining matches.
+    // Replace All clears the remaining matches. The batch applies through
+    // an async applyOps — await the writes instead of asserting synchronously.
     fireEvent.click(within(widget).getByRole("button", { name: "Replace All" }));
-    expect(client.getNode(firstId)?.contentAst).toEqual([{ type: "text", text: "hi world" }]);
-    expect(client.getNode(secondId)?.contentAst).toEqual([
-      { type: "text", text: "say hi twice hi" },
-    ]);
-    expect(within(widget).getByText("0/0")).toBeInTheDocument();
-    expect(container.querySelectorAll(".find-replace-hit")).toHaveLength(0);
+    await waitFor(() => {
+      expect(client.getNode(firstId)?.contentAst).toEqual([{ type: "text", text: "hi world" }]);
+      expect(client.getNode(secondId)?.contentAst).toEqual([
+        { type: "text", text: "say hi twice hi" },
+      ]);
+    });
+    expect(await within(widget).findByText("0/0")).toBeInTheDocument();
+    await waitFor(() => expect(container.querySelectorAll(".find-replace-hit")).toHaveLength(0));
 
     // Escape closes and clears the highlight classes.
     fireEvent.keyDown(document, { key: "Escape" });

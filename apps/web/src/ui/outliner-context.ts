@@ -19,6 +19,7 @@ import type {
   ClassBinding,
   ClientNode,
   ClientPropertySchema,
+  ClientWriteOp,
   CreateObjectInput,
   CreatePropertySchemaInput,
   DeleteObjectOptions,
@@ -43,16 +44,13 @@ export interface OutlinerClient {
   effectiveClassParentlessBlock(classId: string): boolean;
   createObject(partial: CreateObjectInput): Promise<string>;
   /**
-   * The multi-line paste write: the head block's content update + every
-   * pasted block's create ride ONE undo-journal batch ("Undo paste") and,
-   * on the worker client, ONE RPC. `creates` carries caller-assigned ids in
-   * source-text order (parents before children) so a child can anchor at a
-   * node the same batch creates. Returns the created ids in plan order.
+   * The generic batch-write primitive: N composed ops ride ONE undo-journal
+   * batch (one undo restores the whole gesture, labeled `opts.verb`) and,
+   * on the worker client, ONE RPC. Ops apply in order; anchors may
+   * reference ids created earlier in the batch (parents before children).
+   * Returns the created node id per op (`undefined` for non-creates).
    */
-  pasteBlocks(
-    headUpdate: { id: string; contentAst: ContentAst },
-    creates: CreateObjectInput[],
-  ): Promise<string[]>;
+  applyOps(ops: ClientWriteOp[], opts?: { verb?: string }): Promise<Array<string | undefined>>;
   updateObject(id: string, fields: UpdateObjectInput): Promise<void>;
   deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void>;
   /**

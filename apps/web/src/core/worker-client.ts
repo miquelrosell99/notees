@@ -28,6 +28,7 @@ import type {
   ClientNode,
   ClientPropertySchema,
   ChangeNotification,
+  ClientWriteOp,
   ConflictHistoryEntry,
   CreateAnnotationInput,
   CreateObjectInput,
@@ -780,18 +781,18 @@ export class WorkerClient {
   }
 
   /**
-   * The multi-line paste gesture as ONE RPC: the head update + every pasted
-   * block create apply in one worker pass and journal as ONE undo entry —
-   * the per-block awaited chain this replaces repainted the outline one
-   * block at a time. `creates` carries caller-assigned ids, parents before
-   * children (see WorkspaceClientWrites.pasteBlocks). Returns the created
-   * ids in plan order.
+   * The generic batch-write gesture as ONE RPC: N composed ops apply in one
+   * worker pass and journal as ONE undo entry (labeled `opts.verb`) — the
+   * per-op awaited chains this replaces cost a round-trip each. Ops apply in
+   * order; placement anchors may reference ids created earlier in the batch
+   * (caller-assigned ids, parents before children). Returns the created node
+   * id per op (`undefined` for non-creates), in op order.
    */
-  async pasteBlocks(
-    headUpdate: { id: string; contentAst: ContentAst },
-    creates: CreateObjectInput[],
-  ): Promise<string[]> {
-    return (await this.call("pasteBlocks", [headUpdate, creates])) as string[];
+  async applyOps(
+    ops: ClientWriteOp[],
+    opts: { verb?: string } = {},
+  ): Promise<Array<string | undefined>> {
+    return (await this.call("applyOps", [ops, opts])) as Array<string | undefined>;
   }
 
   async updateObject(id: string, fields: UpdateObjectInput): Promise<void> {

@@ -8,7 +8,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import type { ClientNode } from "../src/core/workspace-client/index.js";
+import type {
+  ClientNode,
+  ClientWriteOp,
+} from "../src/core/workspace-client/index.js";
+import type { CloneWriteSurface } from "../src/core/clone.js";
 import { NodeContextMenu } from "../src/features/node-menu/NodeContextMenu.js";
 import { SharePageModal } from "../src/features/sharing/SharePageModal.js";
 import type { ShareEntry } from "../src/features/sharing/shareApi.js";
@@ -209,6 +213,26 @@ describe("NodeContextMenu Share… item", () => {
     effectiveClassIcons: () => new Map(),
     effectiveClassParentlessBlock: () => false,
     getDisplayName: () => null,
+    // The batch primitive the clone submit path uses: apply in order through
+    // this same stub (clone-bearing specs use the real client).
+    async applyOps(this: CloneWriteSurface, ops: ClientWriteOp[]) {
+      for (const op of ops) {
+        if (op.kind === "create") await this.createObject(op.input);
+        else if (op.kind === "update") await this.updateObject(op.id, op.fields);
+        else if (op.kind === "setProperty")
+          await this.setProperty(
+            op.objectId,
+            op.propertySchemaId,
+            op.value,
+            op.idx,
+            op.metadata,
+          );
+        else if (op.kind === "assignProperty")
+          await this.assignProperty(op.objectId, op.propertySchemaId);
+        else throw new Error(`applyOps: unsupported op kind ${(op as { kind: string }).kind}`);
+      }
+      return ops.map(() => undefined);
+    },
   };
 
   it("offers Share… for a page when a share target is wired, and fires onShare", () => {

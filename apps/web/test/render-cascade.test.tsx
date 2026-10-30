@@ -18,6 +18,8 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client/index.js";
+import type { ClientWriteOp } from "../src/core/workspace-client/index.js";
+import type { CloneWriteSurface } from "../src/core/clone.js";
 import { NodeView } from "../src/ui/App.js";
 import { NodeContextMenu } from "../src/features/node-menu/NodeContextMenu.js";
 import { writeViewModePref } from "../src/ui/viewPrefs.js";
@@ -231,6 +233,26 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
         effectiveClassIcons: () => new Map(),
         effectiveClassParentlessBlock: () => false,
         getDisplayName: () => null,
+        // The batch primitive the clone submit path uses: apply in order
+        // through this same stub (clone-bearing specs use the real client).
+        async applyOps(this: CloneWriteSurface, ops: ClientWriteOp[]) {
+          for (const op of ops) {
+            if (op.kind === "create") await this.createObject(op.input);
+            else if (op.kind === "update") await this.updateObject(op.id, op.fields);
+            else if (op.kind === "setProperty")
+              await this.setProperty(
+                op.objectId,
+                op.propertySchemaId,
+                op.value,
+                op.idx,
+                op.metadata,
+              );
+            else if (op.kind === "assignProperty")
+              await this.assignProperty(op.objectId, op.propertySchemaId);
+            else throw new Error(`applyOps: unsupported op kind ${(op as { kind: string }).kind}`);
+          }
+          return ops.map(() => undefined);
+        },
       },
     };
   }

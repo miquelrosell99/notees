@@ -25,11 +25,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { BlockTreeNode, WorkspaceClient } from "@/core/workspace-client/index.js";
+import type { BlockTreeNode, ClientWriteOp, WorkspaceClient } from "@/core/workspace-client/index.js";
 import { proseFromAst } from "@/editor/prose.js";
 
 import { ensureTemplateFamily } from "../features/templates/templateFamily.js";
-import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
+import { replaceRangeInAst, type BlockMatch } from "./editor-popups/block-find-replace.js";
 import { useOutlinerValue } from "./outliner-context.js";
 import { useBlockSelectionSurface } from "./use-block-selection.js";
 
@@ -65,6 +65,8 @@ export interface PageMachinery {
   setFindOpen: (open: boolean) => void;
   findDocs: { id: string; prose: string }[];
   handleFindReplace: (blockId: string, start: number, end: number, text: string) => void;
+  /** Replace every match in ONE batched write ("Undo replace"). */
+  handleFindReplaceAll: (matches: BlockMatch[], text: string) => void;
 }
 
 export function usePageMachinery({
@@ -107,6 +109,37 @@ export function usePageMachinery({
       void client.updateObject(blockId, {
         contentAst: replaceRangeInAst(block.contentAst, start, end, text),
       });
+    },
+    [client],
+  );
+
+  /**
+   * Replace-all: the widget's matches arrive sorted last-to-first (offsets
+   * stay valid within a block). Fold them per block into one update op —
+   * each range applies to the AST the previous replacement produced, the
+   * same chaining the old per-match fire-and-forget loop got from re-reading
+   * the node after every synchronous write — and submit the whole gesture
+   * as ONE `applyOps` batch (one undo entry, one worker RPC).
+   */
+  const handleFindReplaceAll = useCallback(
+    (matches: BlockMatch[], text: string) => {
+      const byBlock = new Map<string, BlockMatch[]>();
+      for (const match of matches) {
+        const list = byBlock.get(match.blockId);
+        if (list !== undefined) list.push(match);
+        else byBlock.set(match.blockId, [match]);
+      }
+      const ops: ClientWriteOp[] = [];
+      for (const [blockId, blockMatches] of byBlock) {
+        const block = client.getNode(blockId);
+        if (block === undefined) continue;
+        let contentAst = block.contentAst;
+        for (const match of blockMatches) {
+          contentAst = replaceRangeInAst(contentAst, match.offset, match.offset + match.length, text);
+        }
+        ops.push({ kind: "update", id: blockId, fields: { contentAst } });
+      }
+      if (ops.length > 0) void client.applyOps(ops, { verb: "replace" });
     },
     [client],
   );
@@ -195,5 +228,6 @@ export function usePageMachinery({
     setFindOpen,
     findDocs,
     handleFindReplace,
+    handleFindReplaceAll,
   };
 }

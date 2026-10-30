@@ -23,6 +23,7 @@ export type {
   ClientPropertyOption,
   ClientPropertySchema,
   ClientValidationRules,
+  ClientWriteOp,
   ConflictHistoryEntry,
   CreateAnnotationInput,
   CreateObjectInput,
