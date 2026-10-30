@@ -24,7 +24,7 @@
  *. One home, no duplication.
  */
 
-import { useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
@@ -305,13 +305,19 @@ export function PageHeaderChrome({
    * The synthesis-evidence lint (research-tier2 slice 4): SUGGESTION-ONLY
    * dashed chrome on synthesis-classed pages whose embedded evidence set is
    * empty or single-source. Main surface only (a trampoline/feed renders no
-   * lint), never in focus mode. The count is a synchronous read recomputed
-   * on each notification-driven re-render, like every other chrome row.
+   * lint), never in focus mode. The count is a synchronous subtree +
+   * parent-chain walk, memoized per store revision (the client's read stamp —
+   * the revision idiom) so chrome re-renders that race no store change
+   * (selection, popups, hover state) don't re-walk the tree.
    */
-  const synthesisEvidence =
-    !embedded && !focusMode && !preview && page.classIds.includes(SYNTHESIS_CLASS_ID)
-      ? synthesisEvidenceCount(client, pageId)
-      : null;
+  const synthesisEvidence = useMemo(
+    () =>
+      !embedded && !focusMode && !preview && page.classIds.includes(SYNTHESIS_CLASS_ID)
+        ? synthesisEvidenceCount(client, pageId)
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- page.classIds rides the revision: a class add/remove bumps it.
+    [client, client.revision, pageId, embedded, focusMode, preview],
+  );
 
   return (
     <>

@@ -10,8 +10,9 @@
  *    mention edge with the per-link transclusion flag (edge.is_embedded = 1);
  *  - mention — a mention edge without the flag;
  *  - typed_link — a typed-link mark whose FIRST candidateSpan (nearest
- *    mention target, record-don't-resolve) is the node; the row carries the
- *    verb.
+ *    mention target, record-don't-resolve) resolves to the node through the
+ *    alias chain (a candidate naming an alias of the node hops with the
+ *    verb); the row carries the verb.
  *
  * One path per simple chain, anchor row first ({kind: null} = terminal row),
  * depth-capped (default 3), cycle-safe (visited set per branch), live
@@ -178,6 +179,27 @@ describe("forwardPaths", () => {
     // …while the nearest candidate gets the verb.
     expect(compact(forwardPaths(store, PAGE_B))).toEqual([
       [`${PAGE_B}:typed_link:supports`, `${PAGE_C}:-:-`],
+    ]);
+  });
+
+  it("a typed link whose nearest candidate is an ALIAS of the anchor still hops with the verb (the alias roll-up)", () => {
+    // The alias node points at PAGE_A (the aliased_node_id wire field); the
+    // verb-mark's candidateSpans carry the RAW alias id (record-don't-
+    // resolve). The hop resolves the candidate through the alias chain —
+    // the same terminal the mention family's resolved_target_id rides.
+    const store = setup(
+      createPage(PAGE_A),
+      createPage(PAGE_B),
+      createPage(PAGE_D),
+      env("object.update", { objectId: PAGE_D, aliasedNodeId: PAGE_A }),
+      setContent(PAGE_B, [
+        { type: "text", text: "this supports " },
+        mention(PAGE_A),
+        typedLink("supports", "supports", [PAGE_D]),
+      ]),
+    );
+    expect(compact(forwardPaths(store, PAGE_A))).toEqual([
+      [`${PAGE_A}:typed_link:supports`, `${PAGE_B}:-:-`],
     ]);
   });
 

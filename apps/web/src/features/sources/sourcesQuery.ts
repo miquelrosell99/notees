@@ -736,13 +736,18 @@ export function matrixRows(client: MatrixReadSurface, ids: readonly string[]): M
 
 /**
  * The "New comparison" title, derived from the matrix itself: one source
- * names it, two read "A vs B", more append the "(+N more)" tail.
+ * names it, two read "A vs B", more append the "(+N more)" tail. Sources
+ * with empty display names drop out of the naming (an empty name would
+ * render as a bare " vs " gap); when none carry a name the title falls back
+ * to the count — "Comparison — N sources".
  */
 export function comparisonTitleFor(titles: readonly string[]): string {
   if (titles.length === 0) return "Comparison";
-  if (titles.length === 1) return `Comparison — ${titles[0]}`;
-  const base = `Comparison — ${titles[0]} vs ${titles[1]}`;
-  return titles.length > 2 ? `${base} (+${titles.length - 2} more)` : base;
+  const names = titles.filter((title) => title.trim() !== "");
+  if (names.length === 0) return `Comparison — ${titles.length} sources`;
+  if (names.length === 1) return `Comparison — ${names[0]}`;
+  const base = `Comparison — ${names[0]} vs ${names[1]}`;
+  return names.length > 2 ? `${base} (+${names.length - 2} more)` : base;
 }
 
 /**

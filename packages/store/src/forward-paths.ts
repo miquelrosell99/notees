@@ -20,7 +20,11 @@
  *                 alias-terminal mentions roll up);
  *  - typed_link — a typed-link mark whose FIRST candidateSpan (nearest
  *                 mention target, record-don't-resolve) is N; the row carries
- *                 the verb. Non-first candidates never hop: an unresolved
+ *                 the verb. The nearest candidate resolves through the alias
+ *                 chain (store.resolveAlias — the same terminal the mention
+ *                 family's resolved_target_id rolls up to), so a verb-mark
+ *                 whose nearest candidate is an alias of N still hops.
+ *                 Non-first candidates never hop: an unresolved
  *                 verb claiming every candidate would be noise.
  *
  * Bounds: one path per simple chain (DFS, visited set per branch — a→b→a
@@ -121,7 +125,9 @@ export function forwardPaths(store: Store, nodeId: string, opts?: { depthCap?: n
           nearest = null;
         }
       }
-      if (nearest !== id) continue;
+      // The candidate span is a raw token id (record-don't-resolve); the
+      // alias roll-up mirrors the mention family's resolved_target_id.
+      if (typeof nearest !== "string" || store.resolveAlias(nearest) !== id) continue;
       put({ to: row.source_id, kind: "typed_link", verb: row.verb });
     }
 

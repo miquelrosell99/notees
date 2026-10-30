@@ -160,6 +160,15 @@ export class WorkspaceClient {
     return this.ctx.subscribe(listener);
   }
 
+  /**
+   * The session's current store revision (the monotonic counter every
+   * ChangeNotification carries): the render-path memo key for reads that
+   * must re-derive per store change but not per unrelated re-render.
+   */
+  get revision(): number {
+    return this.ctx.revision;
+  }
+
   close(): void {
     this.ctx.close(() => this.syncDomain.stopRealtime());
   }

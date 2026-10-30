@@ -4,8 +4,9 @@
  * A quiet, non-blocking nudge rendered inside a surface's chrome when a
  * lint's condition holds (the synthesis-evidence lint is the first
  * carrier). The dashed border reads as "advisory, not enforcement": the
- * row carries NO action, NO dismiss, and NEVER writes — role="status" +
- * aria-live polite announce it to assistive tech without stealing focus.
+ * row carries NO action, NO dismiss, and NEVER writes — role="status"
+ * announces it to assistive tech (status IS a polite live region; an
+ * explicit aria-live would be redundant) without stealing focus.
  */
 
 import type { ReactNode } from "react";
@@ -24,7 +25,7 @@ export interface LintHintRowProps {
 
 export function LintHintRow({ children, icon = "mdi-lightbulb-outline", className }: LintHintRowProps) {
   return (
-    <div className={cn("lint-hint-row", className)} role="status" aria-live="polite">
+    <div className={cn("lint-hint-row", className)} role="status">
       <Icon path={icon} className="lint-hint-row__icon" />
       <span className="lint-hint-row__text">{children}</span>
     </div>

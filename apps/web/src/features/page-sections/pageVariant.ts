@@ -178,11 +178,16 @@ const PAGE_SYSTEM_SECTIONS: VariantSectionSpec[] = sectionEntries([
 
 /**
  * The date family's reference stack: the day/month/year pages' descriptor
- * OMITS the unlinked key — spec absence is the date-page ruling now. The
- * unlinked section (and its FTS count) never mounts there at all.
+ * OMITS the discovery keys — spec absence is the date-page ruling now. The
+ * unlinked section (and its FTS count) and the Forward path (the consumer
+ * walk) never mount there at all: a date page is a journal surface, not an
+ * idea node — it carries no discovery sections (the unlinked-mentions
+ * precedent, extended to the Forward path).
  */
 const DATE_SYSTEM_SECTIONS: VariantSectionSpec[] = sectionEntries(
-  PAGE_SYSTEM_SECTIONS.map((spec) => spec.key).filter((key) => key !== "unlinked-mentions"),
+  PAGE_SYSTEM_SECTIONS.map((spec) => spec.key).filter(
+    (key) => key !== "unlinked-mentions" && key !== "forward-path",
+  ),
 );
 
 /**

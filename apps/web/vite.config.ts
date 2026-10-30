@@ -45,9 +45,15 @@ export default defineConfig({
     // teardown races are environmental, so the gate ignores them.
     dangerouslyIgnoreUnhandledErrors: true,
     // CI-only flake mitigation: under the Actions runner's load the jsdom
-    // timing specs (block-dnd, capture, …) flake a different failure each
-    // run. Retry failed specs up to twice when CI is set; local runs stay
-    // single-attempt.
+    // timing specs (capture, …) flake a different failure each run. Retry
+    // failed specs up to twice when CI is set; local runs stay
+    // single-attempt. (block-dnd used to live on this list: its load-flake
+    // was root-fixed — dnd-kit defers its drag-end document-listener
+    // cleanup by 50 ms, and the leaked click stopPropagation ate the next
+    // test's clicks before its 50 ms timer fired; the selection-stack spec
+    // now settles that timer before clicking, proven over 20 loaded runs.
+    // The gate stays global — it has no per-file scope — until the
+    // remaining specs are root-fixed one by one.)
     retry: process.env.CI ? 2 : 0,
   },
 });

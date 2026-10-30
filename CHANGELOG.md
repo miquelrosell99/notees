@@ -9,6 +9,79 @@ predating this file.
 
 ## 2026-10-30
 
+- **fix(web,store,server): reviewed-minors batch — the block-dnd load-flake
+  root-caused, plus eight small fixes and their pins.** Nine items, one pass:
+
+  1. **block-dnd selection-stack flake — root cause found and fixed.** The
+     "dragging the grip of a selected row drags the whole stack" spec
+     intermittently read an EMPTY selection at drag start under CPU
+     starvation, degrading the stack drag to the single row (the ghost
+     showed the row title, not "N blocks"). The root cause is dnd-kit's
+     `AbstractPointerSensor.handleStart`: it registers a document-level
+     CAPTURE `click` → `stopPropagation` listener (deliberate — it suppresses
+     the click that follows a drag) and `detach()` removes it via
+     `setTimeout(removeAll, 50)`. Under load the 50 ms timer hasn't fired
+     when the NEXT test's ctrl+clicks dispatch, and the leaked stopper eats
+     every click before it reaches the React root — no application code runs
+     in that window, so the harness settles: the spec now drains that timer
+     (a 60 ms act-settle, the wait-for pattern the keyboard-sensor spec
+     already uses) before clicking. Proven over 20 `nice -n 19` loaded runs,
+     0 failures (the un-fixed file fails ~10–20% under the same load). The
+     CI-only vitest retry gate stays — it is global (vitest has no per-file
+     retry scope) and still covers the other timing specs (capture, …)
+     pending their own root fixes; the gate comment now records this.
+  2. **features-route order-robustness.** The absent-means-enabled spec
+     asserted the exact row list `["journal","sources"]`, depending on prior
+     tests' ingest; it now asserts the `events` row is absent and the two
+     seeded rows are present — no full-list equality.
+  3. **Synthesis-lint surface gate pinned.** The lint renders on the main
+     surface only (`!embedded && !focusMode && !preview` — verified the
+     implementation already gates correctly); a new spec renders the 0-arm
+     carrier in the embedded, preview, and focus-mode surfaces and asserts
+     the hint row is absent in each (plus the main-surface sanity).
+  4. **Matrix failure feedback.** `handleNewComparison`'s catch was
+     console.warn-only; a failed author now surfaces the hub's toast pattern
+     (`notificationStore.error("Couldn't create the comparison", message)`),
+     with the picked set left in place for a retry — pinned by a new spec
+     (mocked write seam → error toast carries the message, the busy latch
+     releases).
+  5. **Forward-path typed-link alias roll-up.** The verb-mark hop compared
+     the RAW `candidateSpans[0]` while the mention family rolls up via
+     `resolved_target_id`, so a verb-mark whose nearest candidate is an
+     alias yielded no `via <verb>` hop. The walker now resolves the nearest
+     candidate through the alias chain (`store.resolveAlias` — the same
+     terminal), pinned at both levels (store walker unit spec + web section
+     spec with a real alias node).
+  6. **LintHintRow aria-live redundancy.** `role="status"` already implies a
+     polite live region; the explicit `aria-live="polite"` is dropped (role
+     kept), docstring updated.
+  7. **`comparisonTitleFor` empty-name guard.** Sources with empty display
+     names rendered a bare " vs " gap ("Comparison —  vs "); empty names now
+     drop out of the naming and the all-empty case falls back to
+     "Comparison — N sources" — pinned by four new cases.
+  8. **Date pages exclude the Forward path.** The date family's section
+     stack now omits the `forward-path` key alongside `unlinked-mentions`
+     (the unlinked precedent extended: a journal surface carries no
+     discovery sections) — pinned on the day-page specs (absent there,
+     present on ordinary pages).
+  9. **Cheap memo for the lint walk.** `synthesisEvidenceCount` ran its
+     subtree + parent-chain walk on EVERY header render; it now rides a
+     `useMemo` keyed on the store revision — both clients expose their
+     current revision (`WorkspaceClient.revision`, `WorkerClient.revision`,
+     the counter every `ChangeNotification` already carries), so chrome
+     re-renders that race no store change no longer re-walk the tree. The
+     companion `matrixFields` memo was NOT taken: the picked-rows stamp it
+     needs doesn't exist on both client types, and the view's existing
+     `version`-keyed memo already covers non-subscription renders — a
+     same-granularity cache would be bespoke for no win.
+
+  Verification: the full workspace gate — `pnpm -r --workspace-concurrency=1
+  build` + `pnpm typecheck` + `pnpm test` all green (web 240 files / 2704
+  tests incl. every new pin; store forward-paths 14; server features-route
+  4), plus the item-1 loaded proof: 20/20 `nice -n 19` runs of
+  block-dnd.test.tsx green (the un-fixed file fails ~10–20% under the same
+  load).
+
 - **fix(web): the operator API key no longer probes `/api/me/prefs` — the
   known-401 on every operator-key boot is gone.** The per-user prefs route
   401s the operator key by design (routes-prefs' documented contract: "the
