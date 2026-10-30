@@ -27,7 +27,8 @@ import { applyEnvelope, validateEnvelope, type ChangeSummary } from "./appliers.
 import type { SnapshotStreamSource, SqliteDB, StoreBackend } from "./db.js";
 import { betterSqlite3Backend } from "./adapters/better-sqlite3.js";
 import { ALIAS_CHAIN_DEPTH_CAP } from "./edges.js";
-import { getEffectiveProperties, type EffectiveProperty } from "./effective.js";
+import { getEffectiveProperties, getPropertyRowShells, type EffectiveProperty } from "./effective.js";
+import type { PropertyRowShell } from "./property-shells.js";
 import { visiblePropertyValueRows } from "./property-values.js";
 import {
   dropSearchIndex,
@@ -740,6 +741,17 @@ export class Store {
    */
   getEffectiveProperties(nodeId: string): EffectiveProperty[] {
     return getEffectiveProperties(this.db, nodeId);
+  }
+
+  /**
+   * The shell variant of the effective read (property-shells.ts): same rows,
+   * but HEAVY-typed values are deferred (`value: null`, `valueCount` carries
+   * the cardinality, `deferred: true`) — the cheap read behind bulk
+   * surfaces that enumerate many nodes. Pure read — same merge algorithm as
+   * getEffectiveProperties, one shared row builder.
+   */
+  getPropertyRowShells(nodeId: string): PropertyRowShell[] {
+    return getPropertyRowShells(this.db, nodeId);
   }
 
   /**
