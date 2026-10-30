@@ -9,6 +9,39 @@ predating this file.
 
 ## 2026-10-30
 
+- **feat(web): the generic `applyOps` batch-write primitive — every
+  main-thread-driven multi-op gesture now rides ONE undo entry and ONE
+  worker RPC.** The batch-write audit (commissioned with the op-lag
+  follow-up) found the paste slice's pattern — N composed ops in one
+  `undoJournal.batch`, one worker round-trip — repeated across the app
+  wherever a gesture loops the write surface from the main thread. New
+  `ClientWriteOp` union (create/update/move/delete/restore/setArchived +
+  the property/class/tag carriers) and `applyOps` on both clients; the
+  journal's batch/batchAsync take a label verb ("Undo duplicate"). The
+  audit's worker-side-composed methods (`beginClassedCreate`,
+  `ensureDateChain`, `mergeNodes`) needed no change — they already apply
+  in one RPC internally. Migrated, one batch each: clone/template replay
+  (`submitCloneOps`, verb "duplicate" — every template instantiation and
+  the duplicate gesture), multi-select bulk ops (`SelectionBar`, verbs
+  matching the old labels; the bulk class-strip's link-dissolve reads move
+  into a plan-then-batch helper in classRemoval.ts), extract-to-page
+  (link create + root move + child chain, verb "extract"), multi-block
+  drag stacks (`block-dnd`, the placement plan + isEmbedded updates as one
+  "move" batch), table imports (`ImportTableModal`, the whole sheet as one
+  "import" — date chains still pre-resolve outside the batch and carrier
+  creates carry caller-assigned ids), and find-replace-all (one "replace"
+  batch through `usePageMachinery`). The multi-line paste's dedicated
+  `pasteBlocks` retires into the primitive (verb "paste"). Mid-gesture
+  failure semantics: the batch aborts at the throwing op with the earlier
+  ops applied — the old per-op loops behaved the same, minus the N-1
+  round-trips and the N undo entries. Tests: `apply-ops.test.ts` (3) +
+  the migrated suites (clone-engine, templates, block selection,
+  extract-to-page, block-dnd, import table, editor popups — mocks updated
+  for the new surface). Full gate: typecheck clean; 2637 green; the one
+  red test (`ui-primitives` SearchField sm-variant) is a committed
+  regression from the picker flush-lens slice at HEAD, verified failing
+  on a clean HEAD worktree without these changes.
+
 - **fix(web): the anchored picker's search pill keeps its side padding —
   the flush lens retires.** The `@`/`#`/`+` picker's search bar zeroed the
   sm SearchField's left padding (a ui-primitives pin that rode the panel
