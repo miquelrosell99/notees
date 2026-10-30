@@ -262,3 +262,19 @@ Never hardcode machine names, IPs, or tailnet names in code, templates, docs,
 or notes — write `<host>`, `<tailnet>`, `<lan-ip>`, `<tailscale-ip>`, or
 "the fleet host". Concrete values live only in gitignored host-local files
 (`.env`) and per-host operator config.
+
+## Gate economics + host memory discipline
+
+Scoped gates by default; the full gate (`pnpm install && pnpm typecheck &&
+pnpm test` from the root) is blocking at exactly three moments — pre-landing,
+after a rebase onto a moved main, and when the change touches
+protocol/store/query or a cross-package public API. Per-task loop:
+typecheck the changed packages, build the dists typecheck reads, run the
+covering test files; red-green rides those files. Canonical:
+`docs/developers/development.md` "Gate economics".
+
+Host discipline (15Gi host; two concurrent full gates OOM'd it 2026-10-30):
+one suite at a time, never parallel full gates; sequential dispatches whose
+gates overlap; batch same-shape work into one dispatch; cap workers under
+pressure (vitest `--maxWorkers=2`, pytest `-n 2`); a red that vanishes on an
+unloaded re-run is a load symptom — root-cause before retrying.

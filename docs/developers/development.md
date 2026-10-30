@@ -378,6 +378,33 @@ cleanup. `.playwright-mcp/` output dirs are gitignored.
 Run the whole gate exactly as CI would: `pnpm install && pnpm typecheck && pnpm test`
 from the repo root.
 
+## Gate economics — scoped by default, full at the blocking points
+
+The full gate is expensive (every package's suite, multi-GB RAM spike) and is
+the **blocking** gate at exactly three moments: **pre-landing** (before a
+branch merges to main), **after a rebase onto a moved main**, and when the
+change touches `packages/protocol` / `packages/store` / `packages/query` or a
+cross-package public API (the fixture-gate surfaces — anything a sibling
+client or another package compiles against). One full gate per slice is the
+norm.
+
+Every other run in the loop is **scoped**: typecheck the changed packages,
+build only the dists typecheck reads (the dev-condition rule), and run the
+test files that cover the change (`pnpm --filter <pkg> test -- <files>`).
+Red-green discipline rides those files — write the failing test, watch it
+fail, implement, watch it pass — and the full gate then certifies integration
+at the blocking point. It is not a per-edit loop.
+
+**Host memory discipline** (the 15Gi dev host — learned 2026-10-30, two
+concurrent full gates OOM'd the box mid-landing): one suite at a time, never
+parallel full gates; orchestration that dispatches subagents whose gates
+could overlap runs them **sequentially**, and batches same-shape work into
+one dispatch instead. Under memory pressure cap workers (vitest
+`--maxWorkers=2`, pytest `-n 2`) — a slower green beats an OOM'd red. And a
+failure that vanishes on an unloaded re-run is a load symptom, not a verdict:
+root-cause before retrying (the block-dnd lesson — memory pressure surfaces
+as timing flakes).
+
 ## 7. Code conventions
 
 Verified against `tsconfig.base.json`, the package manifests, and git history:

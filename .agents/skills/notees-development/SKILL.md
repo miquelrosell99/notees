@@ -89,9 +89,19 @@ summary here.
 
 ## Gate before declaring done
 
-```sh
-pnpm install && pnpm typecheck && pnpm test   # from repo root; all green = blocking gate
-```
+Two tiers (`docs/developers/development.md` "Gate economics"):
+
+- **Scoped (the per-task loop):** typecheck the changed packages, build the
+  dists typecheck reads, run the test files covering the change. Red-green
+  rides these files.
+- **Full (`pnpm install && pnpm typecheck && pnpm test` from the repo root):
+  blocking at pre-landing, after a rebase onto a moved main, and when the
+  change touches protocol/store/query or a cross-package public API.**
+
+Host memory discipline: one suite at a time — never parallel full gates on
+the 15Gi host (two concurrent gates OOM it); sequential dispatches whose
+gates overlap; cap workers (`--maxWorkers=2`) under pressure; a red that
+vanishes unloaded is a load symptom — root-cause before retrying.
 
 Green gate + changelog entry in → commit the slice (per-file staging,
 Conventional Commits) and `git push` to the current branch. Pushing is
