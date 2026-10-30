@@ -5,7 +5,9 @@
  * from the authenticated principal, never from client claims).
  */
 
-import { createHash, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
+
+import { deriveUuid } from "@notees/domain";
 
 import { isValidApiKeyShape } from "./config.js";
 
@@ -25,14 +27,11 @@ export function isProvisionedKeyShape(key: string): boolean {
   return isValidApiKeyShape(key);
 }
 
-/** Deterministic RFC 4122 uuid (version 5 layout) from arbitrary input. */
-export function deriveUuid(namespace: string): string {
-  const digest = createHash("sha256").update(namespace).digest();
-  digest[6] = (digest[6]! & 0x0f) | 0x50;
-  digest[8] = (digest[8]! & 0x3f) | 0x80;
-  const hex = digest.subarray(0, 16).toString("hex");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
-}
+/** Deterministic RFC 4122 uuid (version 5 layout) from arbitrary input.
+ *  The implementation lives in @notees/domain (packages/domain/src/ids.ts) —
+ *  one shared derivation for server, web (browser shim), and CLI; re-exported
+ *  here so existing server call sites keep working. */
+export { deriveUuid };
 
 /** The actor identity for the single API key (deterministic per key). */
 export function actorIdForKey(apiKey: string): string {
