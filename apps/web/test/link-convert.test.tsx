@@ -149,7 +149,7 @@ describe("node-link menu — class chip unlink / remove", () => {
     );
   }
 
-  it("offers Unlink before Convert to link, plus Remove (no Edit link…)", async () => {
+  it("offers Remove from inline before Convert to link, plus Remove class (no Edit link…)", async () => {
     const { client, classId, blockId } = await seedChippedBlock();
     renderHost(client);
     act(() => openNodeLinkMenu({ blockId, targetNodeId: classId, tokenIndex: 1, x: 0, y: 0 }));
@@ -157,20 +157,20 @@ describe("node-link menu — class chip unlink / remove", () => {
     const labels = screen
       .getAllByRole("menuitem")
       .map((el) => el.textContent);
-    expect(labels).toContain("Unlink");
+    expect(labels).toContain("Remove from inline");
     expect(labels).toContain("Convert to link");
-    expect(labels).toContain("Remove");
+    expect(labels).toContain("Remove class");
     expect(labels).toContain("Delete link");
     expect(labels).not.toContain("Edit link…");
-    expect(labels.indexOf("Unlink")).toBeLessThan(labels.indexOf("Convert to link"));
+    expect(labels.indexOf("Remove from inline")).toBeLessThan(labels.indexOf("Convert to link"));
   });
 
-  it("Unlink turns the chip into plain text and KEEPS the class membership", async () => {
+  it("Remove from inline turns the chip into plain text and KEEPS the class membership", async () => {
     const { client, classId, blockId } = await seedChippedBlock();
     renderHost(client);
     act(() => openNodeLinkMenu({ blockId, targetNodeId: classId, tokenIndex: 1, x: 0, y: 0 }));
 
-    fireEvent.click(screen.getByText("Unlink"));
+    fireEvent.click(screen.getByText("Remove from inline"));
     await waitFor(() => {
       // The splice merges adjacent text runs ("meet " + "Person").
       expect(client.getNode(blockId)!.contentAst).toEqual([
@@ -181,12 +181,12 @@ describe("node-link menu — class chip unlink / remove", () => {
     expect(client.getNode(blockId)!.classIds).toContain(classId);
   });
 
-  it("Remove unassigns the class and dissolves EVERY inline chip to it", async () => {
+  it("Remove class unassigns the class and dissolves EVERY inline chip to it", async () => {
     const { client, classId, blockId } = await seedChippedBlock(2);
     renderHost(client);
     act(() => openNodeLinkMenu({ blockId, targetNodeId: classId, tokenIndex: 1, x: 0, y: 0 }));
 
-    fireEvent.click(screen.getByText("Remove"));
+    fireEvent.click(screen.getByText("Remove class"));
     await waitFor(() => {
       expect(client.getNode(blockId)!.contentAst).toEqual([
         { type: "text", text: "meet " },
