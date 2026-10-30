@@ -266,7 +266,11 @@ describe("worker message protocol (handleMessage)", () => {
     const prefs = await send(ctx, "getPrefs", [], 2);
     expect(prefs.error).toBeUndefined();
     expect(prefs.result).toMatchObject({ source: "server" });
+    // The operator-key resolution (auth/me — the stub answers a prefs-shaped
+    // body with no operator id, so the prefs probe runs) then the prefs GET,
+    // both under the init credential.
     expect(calls).toEqual([
+      { url: "https://notees.example.com/api/auth/me", key: "nt_workerkey" },
       { url: "https://notees.example.com/api/me/prefs", key: "nt_workerkey" },
     ]);
     vi.unstubAllGlobals();

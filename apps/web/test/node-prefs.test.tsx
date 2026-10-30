@@ -77,13 +77,23 @@ async function seedClient(options: { serverUrl?: string; apiKey?: string } = {})
   return client;
 }
 
-/** fetch stub routing /api/me/prefs; `handler` answers GET/PUT. */
-function stubPrefsFetch(handler: (init: { method: string; body: string | undefined }) => unknown) {
+/** fetch stub routing /api/auth/me + /api/me/prefs; `handler` answers prefs GET/PUT. */
+function stubPrefsFetch(
+  handler: (init: { method: string; body: string | undefined }) => unknown,
+  options: { identity?: { id: string } } = {},
+) {
   const calls: Array<{ url: string; method: string; body: string | undefined }> = [];
   const mock = vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     const body = typeof init?.body === "string" ? init.body : undefined;
     calls.push({ url: String(url), method, body });
+    if (String(url).endsWith("/api/auth/me")) {
+      // The client's operator-key resolution: a user account row by default.
+      return new Response(JSON.stringify(options.identity ?? { id: "user-1" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
     const answer = handler({ method, body });
     if (answer instanceof Error) return new Response(answer.message, { status: 503 });
     return new Response(JSON.stringify(answer), {
@@ -123,9 +133,9 @@ describe("WorkspaceClient getPrefs/patchPrefs (HTTP layer)", () => {
     });
     const prefs = await client.patchPrefs({ favorites: [PAGE_ALPHA] });
     expect(prefs.source).toBe("server");
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.url).toBe(`${SERVER}/api/me/prefs`);
-    expect(JSON.parse(calls[0]!.body!)).toEqual({ favorites: [PAGE_ALPHA] });
+    const prefsCalls = calls.filter((call) => call.url === `${SERVER}/api/me/prefs`);
+    expect(prefsCalls).toHaveLength(1);
+    expect(JSON.parse(prefsCalls[0]!.body!)).toEqual({ favorites: [PAGE_ALPHA] });
     // The device cache followed the server answer.
     expect(JSON.parse(localStorage.getItem("notees.favorites")!)).toEqual([PAGE_ALPHA]);
   });
@@ -139,7 +149,8 @@ describe("WorkspaceClient getPrefs/patchPrefs (HTTP layer)", () => {
     const prefs = await client.patchPrefs({ cardsAlgorithm: "sm2" });
     expect(prefs.source).toBe("server");
     expect(prefs.cardsAlgorithm).toBe("sm2");
-    expect(JSON.parse(calls[0]!.body!)).toEqual({ cardsAlgorithm: "sm2" });
+    const prefsCalls = calls.filter((call) => call.url === `${SERVER}/api/me/prefs`);
+    expect(JSON.parse(prefsCalls[0]!.body!)).toEqual({ cardsAlgorithm: "sm2" });
     expect(localStorage.getItem("notees.prefs.cardsAlgorithm")).toBe("sm2");
   });
 
@@ -169,6 +180,41 @@ describe("WorkspaceClient getPrefs/patchPrefs (HTTP layer)", () => {
     const write = await client.patchPrefs({ favorites: [PAGE_ALPHA, PAGE_BETA] });
     expect(write.source).toBe("local");
     expect(JSON.parse(localStorage.getItem("notees.favorites")!)).toEqual([PAGE_ALPHA, PAGE_BETA]);
+  });
+
+  it("the operator API key never probes /api/me/prefs (the server 401s it by design): local answers, zero prefs calls", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: "operator-key" });
+    const calls = stubPrefsFetch(
+      () => ({ favorites: [PAGE_ALPHA], recents: [], updatedAt: 1 }),
+      { identity: { id: "operator" } },
+    );
+    localStorage.setItem("notees.favorites", JSON.stringify([PAGE_BETA]));
+    const read = await client.getPrefs();
+    expect(read).toEqual({
+      favorites: [PAGE_BETA],
+      recents: [],
+      cardsAlgorithm: "fsrs",
+      source: "local",
+    });
+    const write = await client.patchPrefs({ recents: [PAGE_ALPHA] });
+    expect(write.source).toBe("local");
+    expect(write.recents).toEqual([PAGE_ALPHA]);
+    // Exactly one request in total: the operator-key resolution (auth/me).
+    // No /api/me/prefs call — the known-401 probe is gone.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe(`${SERVER}/api/auth/me`);
+  });
+
+  it("the operator-key resolution is cached: repeated prefs reads resolve auth/me once", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: "operator-key" });
+    const calls = stubPrefsFetch(
+      () => ({ favorites: [], recents: [], updatedAt: 1 }),
+      { identity: { id: "operator" } },
+    );
+    await client.getPrefs();
+    await client.getPrefs();
+    await client.patchPrefs({ favorites: [PAGE_ALPHA] });
+    expect(calls.filter((call) => call.url.endsWith("/api/auth/me"))).toHaveLength(1);
   });
 });
 
