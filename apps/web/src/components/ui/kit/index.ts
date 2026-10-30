@@ -41,6 +41,9 @@ export type { BackendDownLockProps } from './BackendDownLock.js';
 
 export { InProcessStoreBanner } from './InProcessStoreBanner.js';
 
+export { LintHintRow } from './LintHintRow.js';
+export type { LintHintRowProps } from './LintHintRow.js';
+
 export { Card } from './Card.js';
 export type { CardProps, CardElevation, CardVariant, CardRadius } from './Card.js';
 

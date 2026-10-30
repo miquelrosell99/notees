@@ -39,9 +39,14 @@ import { BlockRow } from "./BlockRow.js";
 import { Icon } from "./Icon.js";
 import { AddPill } from "../components/ui/kit/AddPill.js";
 import { Button } from "../components/ui/kit/Button.js";
+import { LintHintRow } from "../components/ui/kit/LintHintRow.js";
 import { SurfaceTopBar } from "../components/ui/kit/SurfaceTopBar.js";
 import { TextField } from "../components/ui/kit/TextField.js";
 import { titleOf, titleOfNode } from "./dateDisplay.js";
+import {
+  SYNTHESIS_CLASS_ID,
+  synthesisEvidenceCount,
+} from "../features/research-lint/evidence.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -296,6 +301,18 @@ export function PageHeaderChrome({
    * for nothing. */
   const showActionsRow = headerIcon === null || description === null || !hasAliases;
 
+  /**
+   * The synthesis-evidence lint (research-tier2 slice 4): SUGGESTION-ONLY
+   * dashed chrome on synthesis-classed pages whose embedded evidence set is
+   * empty or single-source. Main surface only (a trampoline/feed renders no
+   * lint), never in focus mode. The count is a synchronous read recomputed
+   * on each notification-driven re-render, like every other chrome row.
+   */
+  const synthesisEvidence =
+    !embedded && !focusMode && !preview && page.classIds.includes(SYNTHESIS_CLASS_ID)
+      ? synthesisEvidenceCount(client, pageId)
+      : null;
+
   return (
     <>
       {bannerPossible && !focusMode && (
@@ -492,6 +509,17 @@ export function PageHeaderChrome({
             anchorEl={aliasButtonRef.current}
             onClose={() => setAliasPickerOpen(false)}
           />
+        )}
+        {/* The synthesis-evidence lint: a dashed, suggestion-only hint on
+            synthesis-classed pages whose evidence set is empty or rests on a
+            single source. No action, no dismiss — it points at the gap and
+            never blocks an edit. */}
+        {synthesisEvidence !== null && synthesisEvidence < 2 && (
+          <LintHintRow>
+            {synthesisEvidence === 0
+              ? "No embedded evidence — embed the source notes this synthesis rests on."
+              : "Single source — embed a second, contrasting source so the claim is tested."}
+          </LintHintRow>
         )}
         {/* Tags: navigational chips on the preview surface; the add/remove
             machinery (the picker + the unassign ×) stays main-surface-only. */}
