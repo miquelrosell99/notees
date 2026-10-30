@@ -48,9 +48,9 @@ Documentation for people — using the app, and developing or operating it. One 
 - **[Sharing](features/sharing.md)** — read-only public links, the Shares hub.
 - **Presenting** — the note is the deck: [features/pages.md](features/pages.md#presentation-mode--the-note-is-the-deck).
 
-**Methods**
+**Workflows**
 
-- **[The research workflow](features/research-workflow.md)** — a disciplined pipeline (inquiry → sources → notes → comparison → synthesis → writing plan) over the shipped machinery; conventions and checks, never enforcement. Distinct from [Workflows](features/workflows.md), the server-side automation feature.
+- **[The research workflow](workflows/research-workflow.md)** — a disciplined pipeline (project → sources → notes → comparison → synthesis → writing plan) over the shipped machinery; conventions and checks, never enforcement. Distinct from [Workflows](features/workflows.md), the server-side automation feature.
 
 **Power & automation**
 
