@@ -19,6 +19,7 @@ import type { ContentAst } from "@notees/protocol";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { ClassesRow } from "../src/features/metadata/ClassesRow.js";
+import { ExtendsRow } from "../src/features/classview/xtendsRow.js";
 import { NodeContextMenu } from "../src/features/node-menu/NodeContextMenu.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -178,5 +179,24 @@ describe("Move inline — the class pill's menu", () => {
       .getAllByRole("menuitem")
       .map((el) => el.textContent);
     expect(labels).not.toContain("Move inline");
+  });
+
+  it("an extends pill's 'Remove from this node' writes the EXTENDS relation, not a membership unassign", async () => {
+    const client = await seedClient();
+    const parentClassId = await client.createClass("Parent");
+    const childClassId = await client.createClass("Child");
+    await client.setClassExtends(childClassId, [parentClassId]);
+    // The production extends row (extendsCornerPills' class.setExtends remove).
+    const { container } = render(<ExtendsRow client={client} classId={childClassId} />);
+
+    rightClickPill(container);
+    fireEvent.click(menuItem("Remove from this node"));
+
+    await waitFor(() => {
+      expect(client.getClassParents(childClassId)).toEqual([]);
+    });
+    // The membership relation was never touched: no class_link assertion, no
+    // classIds row — the old fallback wrote a membership tombstone here.
+    expect(client.getNode(childClassId)!.classIds).not.toContain(parentClassId);
   });
 });

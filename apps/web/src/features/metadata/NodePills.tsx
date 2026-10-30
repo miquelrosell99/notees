@@ -649,6 +649,20 @@ export function NodePills({
         onChangeColor={(x, y) => {
           if (nodeMenu !== null) setColorMenu({ classId: nodeMenu.node.id, x, y });
         }}
+        // A relation-configured remove (the class view's EXTENDS row — the
+        // × already writes class.setExtends through it): the pill menu's
+        // "Remove from this node" must ride the SAME relation write, not
+        // fall through to the membership unassign (a class_link asserts
+        // instance-of, not an extends edge). Only the override bypasses
+        // the journal-class refusal — the default membership fallback
+        // keeps it (refuseClassRemoval gates inside the menu).
+        onRemoveFromOwner={
+          actions?.remove !== undefined
+            ? () => {
+                if (nodeMenu !== null) onRemove(nodeMenu.node.id);
+              }
+            : undefined
+        }
       />
     </>
   );

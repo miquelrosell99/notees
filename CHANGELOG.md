@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-30
 
+- **fix(web): the extends pill's "Remove from this node" writes the extends
+  relation, not a membership unassign.** The pill menu's remove fell through
+  to `removeClassDissolvingLinks` (a `class.unassign`) whenever the host
+  didn't pass an override — correct for membership pills, wrong for the
+  class view's EXTENDS row, which shares the same NodePills machinery: the
+  gesture wrote a pointless membership tombstone (or, worse, unassigned a
+  coincidental membership) while the extends edge it reads as removing
+  stood. `NodePills` now passes the relation-configured remove (the
+  extends row's `class.setExtends` replace, the ×'s own write) as
+  `onRemoveFromOwner` — the TagsRow pattern already in the menu — and the
+  menu applies the journal-class refusal only to the membership fallback:
+  that refusal is a membership rule and must not gate a non-membership
+  relation. Membership pills are unchanged (no override → same fallback,
+  same refusal). Verification: web typecheck + 41 tests across the five
+  menu suites (the 6 move-inline tests include the new regression: the
+  production ExtendsRow's menu remove empties `getClassParents` and never
+  touches classIds).
+
 - **feat(protocol,store,domain,web,server)!: the meetingDate property
   retires — a meeting IS-A event and carries the inherited eventDate.** The
   class-local "Meeting date" (…0003-000000000007, pinned) rendered next to

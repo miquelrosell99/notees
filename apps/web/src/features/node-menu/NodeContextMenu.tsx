@@ -230,7 +230,10 @@ export function NodeContextMenu({
   onPresent?: ((pageId: string) => void) | undefined;
   /** Present for class nodes: "Change color…" opens the swatch row. */
   onChangeColor?: ((x: number, y: number) => void) | undefined;
-  /** Overrides the "Remove from this node" action (tags use unassignTag). */
+  /** Overrides the "Remove from this node" action with the relation's OWN
+   *  write (TagsRow: unassignTag; NodePills' extends row: class.setExtends) —
+   *  bypasses the membership fallback AND its journal-class refusal, which
+   *  is a membership rule and must not gate a non-membership relation. */
   onRemoveFromOwner?: (() => void) | undefined;
   /** Called after a delete lands (host navigates: parent page / default view). */
   onDeleted?: ((node: ClientNode) => void) | undefined;
@@ -649,10 +652,17 @@ export function NodeContextMenu({
       label: "Remove from this node",
       icon: "mdi-close-circle-outline",
       onClick: () => {
+        if (onRemoveFromOwner !== undefined) {
+          // A relation override (TagsRow's tag unassign, NodePills'
+          // relation-configured remove — the extends row's class.setExtends):
+          // the relation's OWN write. The journal-class refusal below is a
+          // MEMBERSHIP rule — it must not gate a non-membership relation.
+          onRemoveFromOwner();
+          return;
+        }
         // System/journal classes refuse membership removal.
         if (refuseClassRemoval(node.id)) return;
-        if (onRemoveFromOwner !== undefined) onRemoveFromOwner();
-        else void removeClassDissolvingLinks(client, ownerId, node.id);
+        void removeClassDissolvingLinks(client, ownerId, node.id);
       },
     });
   }
