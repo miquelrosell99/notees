@@ -418,9 +418,10 @@ predating this file.
   plan tagged Research and carrying the three node-backed-text graft values
   on deterministic carrier blocks) + the has-template values on the `plan`/
   `comparison` class nodes (deterministic OR-Set element ids). Disable =
-  archive: one `object.update {active:false}` per materialized class +
-  template id (the anchor and the schemas stay; instances keep their
-  `class_ids`) — no uninstall. Tests: new `test/workflows.test.ts` (18
+  archive: one `object.update {active:false}` per materialized entity — the
+  anchor "Research" tag page FIRST (the installed-state probe reads it in one
+  object read: present + archived = disabled), then the classes + template
+  ids (the schemas stay; instances keep their `class_ids`) — no uninstall. Tests: new `test/workflows.test.ts` (18
   tests: id format + full literal snapshot, anchor derivation, seed-slot
   uniqueness + deploy-catalog parity, enable ordering, disable shape,
   pure-determinism, and wire-legality of every step against the protocol op
