@@ -237,8 +237,10 @@ describe("remap apply (through the script's ensure + plan + apply flow)", () => 
     expect(fx.client.getNodeRaw(fx.eventosMember)?.classIds).not.toContain(MEETING_CLASS_ID);
     expect(fx.client.getNodeRaw(fx.eventosMember)?.classIds).not.toContain(EVENT_CLASS_ID);
 
-    // The ensured family sits at the reserved ids: both classes, both date
-    // bindings, and the meeting→event extends edge.
+    // The ensured family sits at the reserved ids: both classes, the
+    // meeting→event extends edge, the event date binding, and the meeting
+    // family's own bindings (the date rides the inherited eventDate — the
+    // meetingDate duplicate retired 2026-10-30).
     expect(fx.client.getNodeRaw(EVENT_CLASS_ID)?.isClass).toBe(true);
     expect(fx.client.getNodeRaw(MEETING_CLASS_ID)?.isClass).toBe(true);
     expect(fx.client.getClassParents(MEETING_CLASS_ID)).toContain(EVENT_CLASS_ID);
@@ -247,7 +249,7 @@ describe("remap apply (through the script's ensure + plan + apply flow)", () => 
     ).toContain(SYSTEM_PROPERTY_UUIDS.eventDate);
     expect(
       fx.client.getClassBindings(MEETING_CLASS_ID).map((binding) => binding.propertySchemaId),
-    ).toContain(SYSTEM_PROPERTY_UUIDS.meetingDate);
+    ).toContain(SYSTEM_PROPERTY_UUIDS.location);
     expect(lines.join("\n")).toContain("done: 3 member(s) assigned, 0 failure(s)");
   });
 

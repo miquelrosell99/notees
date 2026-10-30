@@ -90,12 +90,6 @@ async function shapePreRulingMeetingWorkspace(client: WorkspaceClient): Promise<
   await client.createClass("Meeting", { id: MEETING_CLASS_ID });
   await client.setClassExtends(MEETING_CLASS_ID, [EVENT_CLASS_ID]);
   await client.createPropertySchema({
-    id: SYSTEM_PROPERTY_UUIDS.meetingDate,
-    name: "Meeting date",
-    type: "datetime",
-    scopeClassIds: [MEETING_CLASS_ID],
-  });
-  await client.createPropertySchema({
     id: SYSTEM_PROPERTY_UUIDS.location,
     name: "Location",
     type: "text",
@@ -117,13 +111,13 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
 
     // The fallback read makes the family LOOK configured — in PIN TIERS
     // (pinned first, alphabetical within each tier; the 2026-10-27 seed pin
-    // declaration pins meetingDate/location, agenda stays unpinned)…
+    // declaration pins location — meetingDate's pin retired with the
+    // property 2026-10-30 — and agenda stays unpinned)…
     const displayIds = client
       .getClassBindings(MEETING_CLASS_ID)
       .map((binding) => binding.propertySchemaId);
     expect(displayIds).toEqual([
       SYSTEM_PROPERTY_UUIDS.location,
-      SYSTEM_PROPERTY_UUIDS.meetingDate,
       SYSTEM_PROPERTY_UUIDS.agenda,
     ]);
     // …while the registry-only read sees nothing (the effective-properties
@@ -146,11 +140,10 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
 
     // The registry rows materialize — own rows for the whole family, in PIN
     // TIERS (pinned first, alphabetical within each tier — the deploy threads
-    // the spec pins): Location, Meeting date, then Agenda.
+    // the spec pins): Location, then Agenda.
     const registry = client.getRegistryBindings(MEETING_CLASS_ID);
     expect(registry.map((binding) => binding.propertySchemaId)).toEqual([
       SYSTEM_PROPERTY_UUIDS.location,
-      SYSTEM_PROPERTY_UUIDS.meetingDate,
       SYSTEM_PROPERTY_UUIDS.agenda,
     ]);
     // The event parent was deployed first: its eventDate row exists too.

@@ -7,8 +7,9 @@
  * events element lists event-family nodes dated into the scope days, and
  * the binding is the date-typed hook).
  * `meeting` IS-A event (SYSTEM_CLASS_EXTENDS): a meeting is an event with a
- * meeting-specific family on top (meetingDate — still whole-day per the
- * calendar law, no clock times — plus text location/agenda). `birthday` IS-A
+ * meeting-specific family on top (text location/agenda — the DATE rides the
+ * inherited eventDate; the class-local meetingDate duplicate retired
+ * 2026-10-30). `birthday` IS-A
  * event too: a person's birthday is an
  * event on the calendar — the date rides eventDate through the extends chain,
  * and the family is person-typed (birthdayPerson links the event TO the
@@ -124,17 +125,17 @@ export const BIRTHDAY_FAMILY: ReadonlyArray<{
  * ride SYSTEM_PROPERTY_DISPLAY_NAMES (normal wording), so an offline-first
  * workspace that self-heals converges name-for-name with a server-seeded
  * one (the system-names pass, 2026-10-05). The pinned set mirrors the seed
- * specs (2026-10-27): meetingDate/location pinned, agenda unpinned — the
- * flag rides NEW binding rows only; the ensures stay existence-only (an
- * existing row, pinned or not, is never re-patched).
+ * specs (2026-10-27, amended by the 2026-10-30 meetingDate retirement):
+ * location pinned, agenda unpinned — the flag rides NEW binding rows only;
+ * the ensures stay existence-only (an existing row, pinned or not, is never
+ * re-patched).
  */
 export const MEETING_FAMILY: ReadonlyArray<{
   id: string;
   name: string;
-  type: "datetime" | "text";
+  type: "text";
   pinned?: boolean;
 }> = [
-  { id: SYSTEM_PROPERTY_UUIDS.meetingDate, name: SYSTEM_PROPERTY_DISPLAY_NAMES.meetingDate, type: "datetime", pinned: true },
   { id: SYSTEM_PROPERTY_UUIDS.location, name: SYSTEM_PROPERTY_DISPLAY_NAMES.location, type: "text", pinned: true },
   { id: SYSTEM_PROPERTY_UUIDS.agenda, name: SYSTEM_PROPERTY_DISPLAY_NAMES.agenda, type: "text" },
 ];
