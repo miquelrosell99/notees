@@ -9,6 +9,26 @@ predating this file.
 
 ## 2026-10-30
 
+- **fix(web): the operator API key no longer probes `/api/me/prefs` — the
+  known-401 on every operator-key boot is gone.** The per-user prefs route
+  401s the operator key by design (routes-prefs' documented contract: "the
+  operator API key is not a user"), and the boot-time prefs load fired it on
+  every boot — console noise, a wasted request, and a permanent red entry in
+  the verify-min smoke's console-error pin. The client now resolves the
+  credential's grade lazily ONCE per client through `GET /api/auth/me` (the
+  operator answers 200 as its synthetic identity `id: "operator"`; a user
+  principal answers with their account row; unreachable/legacy answers
+  resolve "not operator" — the prefs probe then runs exactly as before):
+  operator-key sessions answer prefs from the device-local cache with
+  `source: "local"` and never touch `/api/me/prefs` (GET or PUT), sessions
+  and per-user keys are unchanged (one extra auth/me GET at first prefs
+  read, cached). Covers every entry path — resume, manual API-key submit,
+  in-process and worker stores — with a single code site in the REST domain.
+  Verification: web typecheck + the full web suite (23 node-prefs tests,
+  incl. two new pins: zero prefs calls under the operator identity, the
+  auth/me resolution cached across repeated reads) + `verify-min.mjs` →
+  `console errors: none`.
+
 - **fix(web): the extends pill's "Remove from this node" writes the extends
   relation, not a membership unassign.** The pill menu's remove fell through
   to `removeClassDissolvingLinks` (a `class.unassign`) whenever the host
