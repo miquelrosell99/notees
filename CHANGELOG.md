@@ -9,6 +9,15 @@ predating this file.
 
 ## 2026-11-02
 
+- **fix(scripts): import-zotero-rdf re-run idempotency for human dates.**
+  The planner's diff compared the node side's date read-back (ISO truncated
+  at the ref's precision — "2016-06") against the RDF side's verbatim
+  Zotero string ("June 2016"), so every newly-accepted human date conflicted
+  and re-wrote on every `--apply`. Datetime-typed pool keys
+  (`publicationDate`, `accessDate`) now compare through `parseRdfDate` on
+  BOTH sides — equal ISOs at the claimed precision plan nothing; genuinely
+  different dates still conflict and plan the set. Pins:
+  `apps/server/test/import-zotero-rdf-plan.test.ts` (g)/(h).
 - **feat(scripts): import-zotero-rdf parses Zotero human dates (month-name +
   MM/YYYY forms).** `parseRdfDate` gains two tiers between strict ISO and
   hand-resolution: full month name + year in English AND Spanish,
@@ -19,8 +28,8 @@ predating this file.
   (`01/2022`) → month precision with MM restricted to 01-12. Abbreviations
   and ambiguous two-slash all-numeric dates (`01/12/2025`) stay rejected —
   they land in the report's hand-resolution list, which now names the
-  accepted shapes. A real-library dry-run motivated this: ~140/1819 items
-  (7.7%) carried human `dc:date` values Zotero itself parses. Also: the
+  accepted shapes. A real-library dry-run motivated this: human `dc:date`
+  values Zotero itself parses were dropping into hand-resolution. Also: the
   script's documented invocation switches from `pnpm --filter … exec` to
   `pnpm --dir apps/server exec` — the filter form routes failures through
   pnpm 9's recursive-exec reporter, which printed a stray `undefined` line

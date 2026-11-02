@@ -245,6 +245,67 @@ describe("planImport", () => {
       },
     ]);
   });
+
+  it("(g) datetime equality at the claimed precision: human RDF date vs ISO node read-back → zero writes", () => {
+    // The node side reads back ISO truncated at the ref's precision
+    // ("2016-06", the valueTextOf parseDateNodeId spelling); the RDF side
+    // is verbatim Zotero ("June 2016"). Same date at the same precision
+    // must plan NOTHING — otherwise every re-run conflicts and re-writes.
+    const rdfItem = item({
+      uri: "http://zotero.org/users/1/items/DATE1",
+      itemType: "journalArticle",
+      title: "Human date article",
+      citationKey: "june2016",
+      fields: { publicationDate: "June 2016" },
+    });
+    const state = fakeReader({
+      byCitekey: new Map([["june2016", { nodeId: "node-d1", citekey: "june2016" }]]),
+      values: new Map([
+        ["node-d1", { citekey: "june2016", publicationDate: "2016-06" }],
+      ]),
+    });
+
+    const [entry] = planImport([rdfItem], state, { keepExisting: false });
+    expect(entry!.action).toBe("update");
+    expect(entry!.sets).toEqual({});
+    expect(entry!.conflicts).toEqual([]);
+
+    // The same pin across the new tiers: MM/YYYY and day + month name.
+    const variants = item({
+      ...rdfItem,
+      fields: { publicationDate: "01/2022" },
+      citationKey: "jan2022",
+    });
+    const stateVariants = fakeReader({
+      byCitekey: new Map([["jan2022", { nodeId: "node-d2", citekey: "jan2022" }]]),
+      values: new Map([["node-d2", { citekey: "jan2022", publicationDate: "2022-01" }]]),
+    });
+    const [mmyyyy] = planImport([variants], stateVariants, { keepExisting: false });
+    expect(mmyyyy!.sets).toEqual({});
+    expect(mmyyyy!.conflicts).toEqual([]);
+  });
+
+  it("(h) datetime keys with GENUINELY different dates still conflict and plan the set", () => {
+    const rdfItem = item({
+      uri: "http://zotero.org/users/1/items/DATE2",
+      itemType: "journalArticle",
+      title: "Human date article",
+      citationKey: "june2016",
+      fields: { publicationDate: "June 2016" },
+    });
+    const state = fakeReader({
+      byCitekey: new Map([["june2016", { nodeId: "node-d1", citekey: "june2016" }]]),
+      values: new Map([
+        ["node-d1", { citekey: "june2016", publicationDate: "2017-06" }],
+      ]),
+    });
+
+    const [entry] = planImport([rdfItem], state, { keepExisting: false });
+    expect(entry!.sets).toEqual({ publicationDate: "June 2016" });
+    expect(entry!.conflicts).toEqual([
+      { property: "publicationDate", nodeValue: "2017-06", rdfValue: "June 2016" },
+    ]);
+  });
 });
 
 export type { ImportPlanEntry };

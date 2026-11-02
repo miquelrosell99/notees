@@ -161,6 +161,25 @@ function normalizeFor(key: string, value: string): string {
   return collapsed;
 }
 
+/** Datetime-typed pool keys (the only datetime schemas in the source
+ *  family) — the diff compares these through parseRdfDate instead of
+ *  verbatim text (datetime equality at the claimed precision). */
+const DATETIME_POOL_KEYS: ReadonlySet<string> = new Set(["publicationDate", "accessDate"]);
+
+/** Datetime equality at the precision each side claims (the datetime-
+ *  equality pin): the node side reads back ISO truncated at the ref's
+ *  precision ("2016-06" — the valueTextOf parseDateNodeId spelling) while
+ *  the RDF side is verbatim Zotero ("June 2016"). Both parse through
+ *  parseRdfDate (the node side through the strict ISO tier); equal ISOs at
+ *  the same precision mean no write. An unparseable side is simply unequal
+ *  — the writer reports it under hand-resolution, never as a conflict
+ *  loop. */
+function datetimeEquals(nodeValue: string, rdfValue: string): boolean {
+  const nodeParsed = parseRdfDate(nodeValue);
+  const rdfParsed = parseRdfDate(rdfValue);
+  return nodeParsed !== null && rdfParsed !== null && nodeParsed.iso === rdfParsed.iso;
+}
+
 /** The RDF side of the diff: pool-key → value. `fields` is already
  *  pool-keyed; creators flatten under their role key with the "; " join
  *  (contributors/translators carry no pool property and are skipped);
@@ -243,7 +262,9 @@ export function planImport(
           entrySets[key] = rdfValue;
           continue;
         }
-        if (normalizeFor(key, nodeValue) === normalizeFor(key, rdfValue)) continue;
+        if (DATETIME_POOL_KEYS.has(key)) {
+          if (datetimeEquals(nodeValue, rdfValue)) continue;
+        } else if (normalizeFor(key, nodeValue) === normalizeFor(key, rdfValue)) continue;
         conflicts.push({ property: key, nodeValue, rdfValue });
         if (!opts.keepExisting) entrySets[key] = rdfValue;
       }
