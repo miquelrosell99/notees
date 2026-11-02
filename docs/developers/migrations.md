@@ -191,3 +191,12 @@ All scripts: **dry-run by default**, `--apply` to write, `--data-dir` +
 `--workspace` flags (the owner workspace id is the default). Run via
 `pnpm --filter @notees/server exec tsx ../../scripts/<name>.mts` from the repo
 root.
+
+Post-apply on a live stack: `docker compose restart notees-sync` (a full
+`stop` is not required — clients catch up throughout; the restart only
+forces the server's own derived caches to rehydrate). Verify **through the
+API**, never side-channel sqlite probes of `derived/*.db`: a live workspace
+store may be served from a snapshot-restore temp file with a stub at the
+derived path, WAL makes raw reads racy, and a malformed probe UUID returns
+honest-looking nulls (2026-11-02, the pmid migration: every layer had
+converged while a bad probe literal said otherwise).
