@@ -120,6 +120,59 @@
   gap: var(--spacing-1);
 }
 
+/* The inline Fetch row: the identifier field grows, the button sits at
+   the field's baseline (the action at its object). */
+.add-source-dialog__fetch-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-2);
+}
+
+.add-source-dialog__fetch-row .text-field,
+.add-source-dialog__fetch-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The duplicate pause: "Already in your library" with Open-existing /
+   Create-anyway — one click, never a silent duplicate. */
+.add-source-dialog__duplicate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.add-source-dialog__duplicate-text {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.add-source-dialog__duplicate-link {
+  border: none;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--md-sys-color-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-1);
+}
+
+.add-source-dialog__duplicate-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+}
+
 .add-source-dialog__preview-title {
   margin: 0;
   font-size: var(--font-size-md);

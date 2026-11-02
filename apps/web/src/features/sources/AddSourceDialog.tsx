@@ -1,21 +1,25 @@
 /**
- * AddSourceDialog — the add-source flow's small dialog, TWO STEPS since the
- * 2026-11-02 resolver slice: ONE input accepting a DOI, ISBN, PMID, ADS
- * bibcode, arXiv id/URL, plain URL, or a PDF file. Step one FETCHES: the
- * "Fetch" button resolves the input (or the picked PDF) and shows an inline
- * PREVIEW of the resolved record (title, authors, year, venue, the matched
- * identifiers, and the open-access PDF note when Unpaywall delivered one);
- * "Next" stays disabled until a fetch succeeded in this session and opens
- * the QuickCreateModal PREFILLED from the unified record (seeded staged
- * values keyed by property schema id — title, authors/editors as monoblock
- * text, year, DOI, ISBN, PMID, URL, publisher, the class's venue fields) —
- * one create completes the gesture. Editing the input (or swapping the
- * file) invalidates the fetched preview: Next greys out again until a fresh
- * fetch. On failure the error is inline and honest: nothing half-creates
- * (the create only ever runs on a fully resolved record), a 403
- * resolver_disabled points at the Sources settings, a 422
- * no_identifier_found says the PDF carried no DOI, and the "Add manually"
- * escape hatch lands in the same citation form.
+ * AddSourceDialog — the add-source flow's dialog, STREAMLINED since the
+ * 2026-11-02 direct-create ruling: ONE input accepting a DOI, ISBN, PMID,
+ * ADS bibcode, arXiv id/URL, plain URL, or a PDF file, with the FETCH
+ * button INLINE at the field — the action at its object: while no clean
+ * fetch is in hand it is the PRIMARY button; once fetched it demotes to a
+ * quiet re-fetch for edits and Create takes the lead. Fetch resolves the
+ * input (or the picked PDF) and shows an inline PREVIEW of the resolved
+ * record (title, authors, year, venue, the matched identifiers, the OA-PDF
+ * note); **Create adds the source DIRECTLY** — the same flush pipeline the
+ * create form runs (validation-before-writes, citation self-heal,
+ * auto-citekey, CAS upload, one undo batch) via the shared
+ * `flushClassedCreate`, no form in between; the app opens the new source.
+ * Editing the input (or swapping the file) invalidates the fetch: Create
+ * greys out again until a fresh Fetch. The resolved DOI/ISBN/PMID already
+ * on a live source pauses Create for one click — "Already in your library"
+ * with Open-existing / Create-anyway, never a silent duplicate. On failure
+ * the error is inline and honest: nothing half-creates (the create only
+ * ever runs on a fully resolved record), a 403 resolver_disabled points at
+ * the Sources settings, a 422 no_identifier_found says the PDF carried no
+ * DOI, and the "Add manually" escape hatch still opens the prefilled
+ * QuickCreateModal (the manual path's edit-before-create stays).
  *
  * Routing by input shape (features/sources/resolver.ts): doi/isbn/arxiv/
  * pmid/ads → GET /api/resolve; a plain URL → POST /api/resolve/pdf?url=
@@ -33,13 +37,12 @@
  * exactly as the other first-class dialogs (QuickCreateModal,
  * AssetUploadModal): the actions ride the Modal footer slot, the PDF pick
  * rides the drop zone with the AssetUploadModal selected-file row (the
- * document icon + name + category chip + size). The bare native file input
- * ("Examinar") retired with this composition pass.
+ * document icon + name + category chip + size).
  *
- * The dialog's second step IS the QuickCreateModal (the class-driven create
- * form, prefill prop), so the duplicate DOI/ISBN/PMID/citekey warning, the
- * archived-class auto-enable (un-archive + create + property writes in ONE
- * undo batch), and the auto-citekey all live in the one place.
+ * The create form (QuickCreateModal) remains the MANUAL path's surface —
+ * flushClassedCreate is the one pipeline both paths run, so the citation
+ * self-heal, the archived-class auto-enable (un-archive + create + property
+ * writes in ONE undo batch), and the auto-citekey live in the one place.
  */
 
 import { useEffect, useId, useRef, useState } from "react";
@@ -62,6 +65,12 @@ import {
   resolveSourceInput,
   type ResolvedSourceRecord,
 } from "./resolver.js";
+import {
+  displayNameOf,
+  findSourceByIdentifier,
+  flushClassedCreate,
+  stagedEntriesOfValues,
+} from "../modals/quickCreate.js";
 import "./AddSourceDialog.css";
 
 export interface AddSourceDialogProps {
@@ -160,7 +169,11 @@ export function AddSourceDialog({
   const [error, setError] = useState<string | null>(null);
   const [fetched, setFetched] = useState<FetchedState | null>(null);
   const [oaDismissed, setOaDismissed] = useState(false);
+  /** The manual path's prefilled form (the resolver path creates directly). */
   const [prefilled, setPrefilled] = useState<PrefilledState | null>(null);
+  /** The resolved identifiers already live in the library (Create pauses). */
+  const [duplicate, setDuplicate] = useState<ReturnType<typeof findSourceByIdentifier>>(null);
+  const [creating, setCreating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   /** The "PDF file" section label's id — the drop zone's aria-labelledby. */
   const pdfLabelId = useId();
@@ -175,6 +188,8 @@ export function AddSourceDialog({
     setFetched(null);
     setOaDismissed(false);
     setPrefilled(null);
+    setDuplicate(null);
+    setCreating(false);
     const timer = setTimeout(() => inputRef.current?.focus(), 50);
     return () => clearTimeout(timer);
   }, [isOpen, initialInput]);
@@ -296,17 +311,57 @@ export function AddSourceDialog({
     );
   }
 
-  const goNext = () => {
-    if (fetched === null) return;
-    setPrefilled({
-      classId: resolveClassId(fetched.record),
-      prefill: prefillOf(
-        fetched.record,
-        fetched.pdfFile,
-        oaDismissed ? null : (fetched.record.pdf?.url ?? null),
-      ),
-    });
+  // The resolver path creates the node DIRECTLY (the streamlining ruling:
+  // paste → Fetch → review the preview → Create → the app opens the new
+  // source). The prefilled QuickCreateModal stays only for the MANUAL path
+  // ("Add manually"), where the user edits before anything writes.
+  const createNow = async (allowDuplicate: boolean): Promise<void> => {
+    if (fetched === null || creating) return;
+    const record = fetched.record;
+    const prefill = prefillOf(record, fetched.pdfFile, oaDismissed ? null : (record.pdf?.url ?? null));
+    const classId = resolveClassId(record);
+    // The "Already in your library" guard the create form used to own: the
+    // resolved identifiers already live on a source → pause for one click
+    // (open the existing, or create anyway), never a silent duplicate.
+    if (!allowDuplicate) {
+      const hit = findSourceByIdentifier(client, {
+        doi: prefill.values[SYSTEM_PROPERTY_UUIDS.doi],
+        isbn: prefill.values[SYSTEM_PROPERTY_UUIDS.isbn],
+        pmid: prefill.values[SYSTEM_PROPERTY_UUIDS.pmid],
+      });
+      if (hit !== null) {
+        setDuplicate(hit);
+        return;
+      }
+    }
+    setDuplicate(null);
+    setCreating(true);
+    setError(null);
+    try {
+      const result = await flushClassedCreate(client, {
+        classId,
+        title: prefill.title,
+        entries: stagedEntriesOfValues(client, prefill.values),
+        prefill,
+      });
+      if (!result.ok) {
+        setError(result.error);
+        setCreating(false);
+        return;
+      }
+      onClose();
+      onCreated?.(result.id);
+    } catch {
+      setError("Failed to create. Please try again.");
+      setCreating(false);
+    }
   };
+
+  // The emphasis follows the flow: while no clean fetch is in hand, Fetch
+  // IS the dialog's primary action (it leads, inline at the field); once a
+  // fetch succeeded and the record is reviewable, Create takes the lead and
+  // Fetch demotes to a quiet re-fetch for edits.
+  const fetchIsPrimary = fetched === null;
 
   return (
     <Modal
@@ -316,24 +371,17 @@ export function AddSourceDialog({
       size="md"
       footer={
         <>
-          <Button variant="outline" onClick={onClose} disabled={busy}>
+          <Button variant="outline" onClick={onClose} disabled={busy || creating}>
             Cancel
           </Button>
           <Button
-            variant="outline"
-            onClick={() => void resolve()}
-            disabled={busy || (input.trim() === "" && file === null)}
-            loading={busy}
-          >
-            Fetch
-          </Button>
-          <Button
             variant="primary"
-            onClick={goNext}
-            disabled={busy || fetched === null}
-            title={fetched === null ? "Fetch first — Next opens the prefilled create form" : undefined}
+            onClick={() => void createNow(false)}
+            disabled={busy || creating || fetched === null}
+            loading={creating}
+            title={fetched === null ? "Fetch first — Create adds the source to your library and opens it" : undefined}
           >
-            Next
+            Create
           </Button>
         </>
       }
@@ -341,10 +389,10 @@ export function AddSourceDialog({
       <div className="add-source-dialog">
         <p className="add-source-dialog__hint">
           Paste a DOI, ISBN, PMID, ADS bibcode, arXiv id or URL, a PDF link, or drop a PDF
-          file — Fetch resolves the metadata and shows a preview; Next opens the prefilled
-          create form.
+          file — Fetch resolves the metadata and shows a preview; Create adds the source to
+          your library and opens it.
         </p>
-        <div className="add-source-dialog__field">
+        <div className="add-source-dialog__fetch-row">
           <TextField
             ref={inputRef}
             label="Identifier or link"
@@ -355,6 +403,7 @@ export function AddSourceDialog({
               // Any edit invalidates the fetched preview — Fetch again.
               setFetched(null);
               setOaDismissed(false);
+              setDuplicate(null);
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter") void resolve();
@@ -363,7 +412,45 @@ export function AddSourceDialog({
             autoComplete="off"
             disabled={busy}
           />
+          <Button
+            variant={fetchIsPrimary ? "primary" : "outline"}
+            onClick={() => void resolve()}
+            disabled={busy || (input.trim() === "" && file === null)}
+            loading={busy}
+          >
+            Fetch
+          </Button>
         </div>
+        {duplicate !== null && (
+          <div className="add-source-dialog__duplicate" role="alert">
+            <p className="add-source-dialog__duplicate-text">
+              Already in your library:&nbsp;
+              {onOpenNode !== undefined ? (
+                <button
+                  type="button"
+                  className="add-source-dialog__duplicate-link"
+                  onClick={() => {
+                    onClose();
+                    onOpenNode(duplicate.id);
+                  }}
+                >
+                  {displayNameOf(duplicate) || "Untitled"}
+                </button>
+              ) : (
+                <strong>{displayNameOf(duplicate) || "Untitled"}</strong>
+              )}
+              . Create it again anyway?
+            </p>
+            <div className="add-source-dialog__duplicate-actions">
+              <Button variant="outline" size="sm" onClick={() => setDuplicate(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" onClick={() => void createNow(true)}>
+                Create anyway
+              </Button>
+            </div>
+          </div>
+        )}
         {fetched !== null && (
           <div className="add-source-dialog__preview add-source-dialog__preview--card" role="status">
             <p className="add-source-dialog__preview-title">{fetched.record.title}</p>
@@ -422,6 +509,7 @@ export function AddSourceDialog({
             onClear={() => {
               setFile(null);
               setFetched(null);
+              setDuplicate(null);
             }}
             placeholder="Drop a PDF here"
             hint="or click to browse"
