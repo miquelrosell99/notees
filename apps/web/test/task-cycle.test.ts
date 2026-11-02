@@ -93,15 +93,21 @@ function statusValue(client: WorkspaceClient, id: string): unknown {
 }
 
 describe("cycleTaskState", () => {
-  it("not-a-task -> assigns the task class and sets Pending (first non-Backlog option)", async () => {
+  it("not-a-task -> assigns the task class; Pending is the schema default (derived, never authored)", async () => {
     const client = await seedClient();
     const id = await client.createObject({ contentAst: [{ type: "text", text: "Buy milk" }] });
+    const setProperty = vi.spyOn(client, "setProperty");
 
     await cycleTaskState(client, id);
 
     expect(client.getNode(id)?.classIds).toContain(SYSTEM_CLASS_UUIDS.task);
-    expect(statusValue(client, id)).toBe(statusOptionId(client, "Pending"));
-    // The family was self-healed on first status write.
+    expect(setProperty).not.toHaveBeenCalled();
+    // The family was self-healed on the assign; the Pending row is DERIVED
+    // (source "default") — nothing was written to the log.
+    const row = client
+      .getEffectiveProperties(id)
+      .find((entry) => entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus);
+    expect(row).toMatchObject({ value: statusOptionId(client, "Pending"), source: "default" });
     const status = client
       .listPropertySchemas()
       .find((s) => s.id === SYSTEM_PROPERTY_UUIDS.taskStatus);
@@ -113,6 +119,32 @@ describe("cycleTaskState", () => {
       "Done",
       "Cancelled",
     ]);
+    expect(status?.defaultValue).toBe(statusOptionId(client, "Pending"));
+  });
+
+  it("class removal drops the never-authored default; a changed status survives as an authored row", async () => {
+    const client = await seedClient();
+    const id = await client.createObject({ contentAst: [{ type: "text", text: "Buy milk" }] });
+    await cycleTaskState(client, id);
+
+    // Never touched: the class supplied the value, so it disappears with it.
+    await client.unassignClass(id, SYSTEM_CLASS_UUIDS.task);
+    expect(
+      client.getEffectiveProperties(id).find((r) => r.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus),
+    ).toBeUndefined();
+
+    // Changed once: the authored row survives, marked unbound.
+    await client.assignClass(id, SYSTEM_CLASS_UUIDS.task);
+    await client.setProperty(id, SYSTEM_PROPERTY_UUIDS.taskStatus, statusOptionId(client, "Doing"), 0);
+    await client.unassignClass(id, SYSTEM_CLASS_UUIDS.task);
+    const row = client
+      .getEffectiveProperties(id)
+      .find((r) => r.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus);
+    expect(row).toMatchObject({
+      value: statusOptionId(client, "Doing"),
+      source: "authored",
+      boundBy: null,
+    });
   });
 
   it("task with an open status -> sets Done by the stored option id (never a hardcoded designed UUID)", async () => {
