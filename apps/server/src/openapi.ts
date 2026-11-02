@@ -356,15 +356,15 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["validation_failed"],
   }],
   ["get", "/api/me/prefs", {
-    summary: "Per-user UI prefs: favorites + recents (server-side UI state, not op-log state)",
+    summary: "Per-user UI prefs: favorites + recents + the cards scheduler + the ADS API token (server-side UI state, not op-log state)",
     description:
-      "favorites/recents are UI preferences, so they live in the sync server's per-user prefs store, NOT the operation log (\"device state is never an op\" stands). Scoped to the authenticated principal (account session or per-user API key owner).",
+      "favorites/recents are UI preferences, so they live in the sync server's per-user prefs store, NOT the operation log (\"device state is never an op\" stands). The row also carries the caller's own ADS (Astrophysics Data System) API credential for bibcode metadata lookups — `adsApiToken` is null when unset, returned to the OWNING user only, and sent on to api.adsabs.harvard.edu alone (the resolver's egress contract). Scoped to the authenticated principal (account session or per-user API key owner).",
     tags: ["Account"],
   }],
   ["put", "/api/me/prefs", {
     summary: "Merge-patch per-user UI prefs (each present list replaces its column; order-preserving dedupe, then caps)",
     description:
-      "favorites ≤ 500 and recents ≤ 50 uuid-shaped node ids (validated after dedupe); at least one list required. Last write wins per list — the client owns ordering. No idempotency key: a retry replays the same full-list body harmlessly.",
+      "favorites ≤ 500 and recents ≤ 50 uuid-shaped node ids (validated after dedupe); a present cardsAlgorithm (\"sm2\" | \"fsrs\") replaces the scalar; a present adsApiToken (string ≤ 256 chars, or null/\"\" to clear) replaces the ADS credential column. At least one key required. Last write wins per list — the client owns ordering. No idempotency key: a retry replays the same full-list body harmlessly.",
     tags: ["Account"],
     requestBody: {
       type: "object",
@@ -372,6 +372,8 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
       properties: {
         favorites: { type: "array", items: objectIdField, description: "ordered starred node ids (cap 500)" },
         recents: { type: "array", items: objectIdField, description: "most-recent-first node ids (cap 50)" },
+        cardsAlgorithm: { type: "string", enum: ["sm2", "fsrs"], description: "the memorization-cards scheduler" },
+        adsApiToken: { type: ["string", "null"], description: "the ADS API credential (null/\"\" clears it)" },
       },
     },
     errors: ["validation_failed"],
@@ -713,9 +715,9 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["validation_failed"],
   }],
   ["get", "/api/resolve", {
-    summary: "Resolve a node id from its exact display name, OR source metadata from an identifier (DOI / ISBN / arXiv)",
+    summary: "Resolve a node id from its exact display name, OR source metadata from an identifier (DOI / ISBN / arXiv / PMID / ADS bibcode)",
     description:
-      "Two query modes on one route. `?name=` — case-insensitive exact-name match over the ranked FTS candidates (the one-round-trip counterpart of /search for name→id resolution; CLI `linked:`, query builders). 404 when no active node carries the exact name. `?doi=` / `?isbn=` / `?arxiv=` — exactly one required (400 otherwise): the server's metadata resolver fetches the record from Crossref / OpenLibrary / arXiv — the ONLY outbound egress the server ever makes, identifier-only (see the route module's privacy note) — and answers the unified record {classKey, title, authors[], editors[], fields{}, doi?, isbn?, url?, year?, publisher?}. Cached 24 h (server state). The workspace's `sources` settings can hard-off the egress: `resolverEnabled: false` → 403 resolver_disabled (absent = default ON). Provider failure/timeout → 502 resolver_unavailable; an unknown identifier → 404.",
+      "Two query modes on one route. `?name=` — case-insensitive exact-name match over the ranked FTS candidates (the one-round-trip counterpart of /search for name→id resolution; CLI `linked:`, query builders). 404 when no active node carries the exact name. `?doi=` / `?isbn=` / `?arxiv=` / `?pmid=` / `?ads=` — exactly one required (400 otherwise): the server's metadata resolver fetches the record from Crossref / OpenLibrary / arXiv / PubMed / ADS — the ONLY outbound egress the server ever makes, identifier-only (see the route module's privacy note) — and answers the unified record {classKey, title, authors[], editors[], fields{}, doi?, isbn?, pmid?, url?, year?, publisher?}. When the record carries a DOI, an Unpaywall lookup adds `pdf: { url }`, the open-access PDF link when one exists (never fails the resolve). Cached 24 h (server state). The workspace's `sources` settings can hard-off the egress: `resolverEnabled: false` → 403 resolver_disabled (absent = default ON). Provider failure/timeout → 502 resolver_unavailable; an unknown identifier → 404. The `?ads=` branch requires a USER principal (the operator key is not a user → 401) and reads the caller's own ADS API token from their per-user prefs (`GET/PUT /api/me/prefs` `adsApiToken`); no token → 422.",
     tags: ["Search & Query"],
     requiredScope: "search",
     query: {
@@ -723,6 +725,8 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
       doi: { description: "a DOI — Crossref lookup (metadata mode)", type: "string" },
       isbn: { description: "an ISBN — OpenLibrary lookup (metadata mode)", type: "string" },
       arxiv: { description: "an arXiv id — arXiv API lookup (metadata mode)", type: "string" },
+      pmid: { description: "a PubMed id — NCBI esummary lookup (metadata mode)", type: "string" },
+      ads: { description: "an ADS bibcode — authenticated ADS lookup (metadata mode; needs the user's adsApiToken pref)", type: "string" },
     },
     errors: ["validation_failed", "not_found", "resolver_disabled", "resolver_unavailable"],
   }],

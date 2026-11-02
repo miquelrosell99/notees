@@ -1,20 +1,33 @@
 /**
- * AddSourceDialog — the add-source flow's small dialog (* source-library slice 3 task 6): ONE input accepting a DOI, ISBN, arXiv
- * id/URL, plain URL, or a PDF file. On resolve success the QuickCreateModal
- * opens PREFILLED from the unified record (seeded staged values keyed by
- * property schema id — title, authors/editors as monoblock text, year,
- * DOI, ISBN, URL, publisher, the class's venue fields) — one create
- * completes the gesture. On failure the error is inline and honest: nothing
- * half-creates (the create only ever runs on a fully resolved record), a
- * 403 resolver_disabled points at the Sources settings, a 422
- * no_identifier_found says the PDF carried no DOI.
+ * AddSourceDialog — the add-source flow's small dialog, TWO STEPS since the
+ * 2026-11-02 resolver slice: ONE input accepting a DOI, ISBN, PMID, ADS
+ * bibcode, arXiv id/URL, plain URL, or a PDF file. Step one FETCHES: the
+ * "Fetch" button resolves the input (or the picked PDF) and shows an inline
+ * PREVIEW of the resolved record (title, authors, year, venue, the matched
+ * identifiers, and the open-access PDF note when Unpaywall delivered one);
+ * "Next" stays disabled until a fetch succeeded in this session and opens
+ * the QuickCreateModal PREFILLED from the unified record (seeded staged
+ * values keyed by property schema id — title, authors/editors as monoblock
+ * text, year, DOI, ISBN, PMID, URL, publisher, the class's venue fields) —
+ * one create completes the gesture. Editing the input (or swapping the
+ * file) invalidates the fetched preview: Next greys out again until a fresh
+ * fetch. On failure the error is inline and honest: nothing half-creates
+ * (the create only ever runs on a fully resolved record), a 403
+ * resolver_disabled points at the Sources settings, a 422
+ * no_identifier_found says the PDF carried no DOI, and the "Add manually"
+ * escape hatch lands in the same citation form.
  *
- * Routing by input shape (features/sources/resolver.ts): doi/isbn/arxiv →
- * GET /api/resolve; a plain URL → POST /api/resolve/pdf?url= (the owner's
- * PDF flow — the bytes stay server-side; the record's pdf:{url} becomes the
- * source's URL, never a CAS upload); a picked file → POST /api/resolve/pdf
- * multipart, and THAT file uploads to CAS + links on the created source
- * (the caller holds the bytes — the attach is real).
+ * Routing by input shape (features/sources/resolver.ts): doi/isbn/arxiv/
+ * pmid/ads → GET /api/resolve; a plain URL → POST /api/resolve/pdf?url=
+ * (the owner's PDF flow — the bytes stay server-side; the record's
+ * pdf:{url} becomes the source's URL, never a CAS upload); a picked file →
+ * POST /api/resolve/pdf multipart, and THAT file uploads to CAS + links on
+ * the created source (the caller holds the bytes — the attach is real).
+ * Records with a DOI may also answer pdf:{url} from the server's Unpaywall
+ * enrichment — the dialog shows the link in its PDF field as a removable
+ * chip; a picked file always wins over the fetched link, and a link-only
+ * intent keeps the honest create semantics: it lands on the source's URL
+ * property (the server never downloads publisher bytes for you).
  *
  * The dialog composes the fleet Modal's footer + the fleet FileDropZone
  * exactly as the other first-class dialogs (QuickCreateModal,
@@ -24,7 +37,7 @@
  * ("Examinar") retired with this composition pass.
  *
  * The dialog's second step IS the QuickCreateModal (the class-driven create
- * form, prefill prop), so the duplicate DOI/ISBN/citekey warning, the
+ * form, prefill prop), so the duplicate DOI/ISBN/PMID/citekey warning, the
  * archived-class auto-enable (un-archive + create + property writes in ONE
  * undo batch), and the auto-citekey all live in the one place.
  */
@@ -73,6 +86,11 @@ interface PrefilledState {
   prefill: QuickCreatePrefill;
 }
 
+interface FetchedState {
+  record: ResolvedSourceRecord;
+  pdfFile: File | null;
+}
+
 /** The record's own type picks the prefill class (the resolver knows the
  *  work's type better than any caller guess). */
 function resolveClassId(record: ResolvedSourceRecord): string {
@@ -83,7 +101,11 @@ function resolveClassId(record: ResolvedSourceRecord): string {
 }
 
 /** Map the unified record onto the modal's staged prefill (the pdf intent halves). */
-function prefillOf(record: ResolvedSourceRecord, pdfFile: File | null): QuickCreatePrefill {
+function prefillOf(
+  record: ResolvedSourceRecord,
+  pdfFile: File | null,
+  pdfUrlOverride: string | null,
+): QuickCreatePrefill {
   const values: Record<string, string> = {};
   const seed = (name: keyof typeof SYSTEM_PROPERTY_UUIDS, value: string | undefined): void => {
     if (value !== undefined && value.trim() !== "") values[SYSTEM_PROPERTY_UUIDS[name]] = value;
@@ -93,9 +115,13 @@ function prefillOf(record: ResolvedSourceRecord, pdfFile: File | null): QuickCre
   if (record.year !== undefined) seed("publicationDate", String(record.year));
   seed("doi", record.doi ?? undefined);
   seed("isbn", record.isbn ?? undefined);
+  seed("pmid", record.pmid ?? undefined);
   // The URL-mode PDF's direct link is the honest full-text URL — it wins
   // over the provider's landing page (the user pasted the PDF link).
-  seed("url", record.pdf?.url ?? record.url ?? undefined);
+  // pdfUrlOverride is the OA chip's effective state: the fetched link when
+  // shown, null when dismissed or absent — so a dismissed chip falls
+  // through to the provider's own url, never the OA link.
+  seed("url", pdfUrlOverride ?? record.url ?? undefined);
   seed("publisher", record.publisher ?? undefined);
   // The class's venue fields ride by pool property name (only names the
   // seed manifest knows map onto reserved schema ids; the modal's citation
@@ -112,6 +138,12 @@ function prefillOf(record: ResolvedSourceRecord, pdfFile: File | null): QuickCre
   };
 }
 
+/** The preview card's author line: up to three names, then "et al". */
+function authorLineOf(record: ResolvedSourceRecord): string {
+  const shown = record.authors.slice(0, 3).join(", ");
+  return record.authors.length > 3 ? `${shown}, et al` : shown;
+}
+
 export function AddSourceDialog({
   isOpen,
   onClose,
@@ -126,6 +158,8 @@ export function AddSourceDialog({
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fetched, setFetched] = useState<FetchedState | null>(null);
+  const [oaDismissed, setOaDismissed] = useState(false);
   const [prefilled, setPrefilled] = useState<PrefilledState | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   /** The "PDF file" section label's id — the drop zone's aria-labelledby. */
@@ -138,6 +172,8 @@ export function AddSourceDialog({
     setFile(null);
     setBusy(false);
     setError(null);
+    setFetched(null);
+    setOaDismissed(false);
     setPrefilled(null);
     const timer = setTimeout(() => inputRef.current?.focus(), 50);
     return () => clearTimeout(timer);
@@ -145,12 +181,17 @@ export function AddSourceDialog({
 
   const resolverEnabled = readSourceSettings(client).resolverEnabled;
 
+  // The OA link shown in the PDF field: the fetched record's Unpaywall pdf
+  // url, removable; a picked file supersedes it (the attach is real bytes).
+  const fetchedPdfUrl =
+    fetched !== null && !oaDismissed && file === null ? (fetched.record.pdf?.url ?? null) : null;
+
   const resolve = async () => {
     if (busy) return;
     setBusy(true);
     setError(null);
     // The local short-circuit: no fetch when the resolver is off — the
-    // honest error + the manual path (the Add button stays enabled).
+    // honest error + the manual path (the Add manually button stays enabled).
     if (!resolverEnabled) {
       setError(
         "The metadata resolver is turned off. Enable it in Workspace settings → Features → Sources, or add the source manually.",
@@ -161,11 +202,12 @@ export function AddSourceDialog({
     try {
       if (file !== null) {
         const record = await resolvePdfFile(serverUrl, credential, file, file.name);
-        setPrefilled({ classId: resolveClassId(record), prefill: prefillOf(record, file) });
+        setFetched({ record, pdfFile: file });
       } else {
         const record = await resolveSourceInput(serverUrl, credential, input);
-        setPrefilled({ classId: resolveClassId(record), prefill: prefillOf(record, null) });
+        setFetched({ record, pdfFile: null });
       }
+      setOaDismissed(false);
     } catch (caught) {
       if (caught instanceof ResolverRequestError && caught.code === "resolver_disabled") {
         setError(
@@ -206,6 +248,11 @@ export function AddSourceDialog({
           ...base,
           prefill: { ...base.prefill, values: { [SYSTEM_PROPERTY_UUIDS.isbn]: classified.value } },
         };
+      case "pmid":
+        return {
+          ...base,
+          prefill: { ...base.prefill, values: { [SYSTEM_PROPERTY_UUIDS.pmid]: classified.value } },
+        };
       case "arxiv":
         return {
           ...base,
@@ -214,6 +261,9 @@ export function AddSourceDialog({
             values: { [SYSTEM_PROPERTY_UUIDS.url]: `https://arxiv.org/abs/${classified.value}` },
           },
         };
+      case "ads":
+        // A bibcode has no source property — the manual form opens empty.
+        return base;
       case "url":
         // The weblink convention: the URL is the title.
         return {
@@ -227,8 +277,8 @@ export function AddSourceDialog({
     }
   };
 
-  // The second step is the prefilled QuickCreateModal (same dialog stack:
-  // close this shell first so the modal's overlay owns the surface).
+  // Step two is the prefilled QuickCreateModal (same dialog stack: close
+  // this shell first so the modal's overlay owns the surface).
   if (prefilled !== null) {
     return (
       <QuickCreateModal
@@ -246,6 +296,18 @@ export function AddSourceDialog({
     );
   }
 
+  const goNext = () => {
+    if (fetched === null) return;
+    setPrefilled({
+      classId: resolveClassId(fetched.record),
+      prefill: prefillOf(
+        fetched.record,
+        fetched.pdfFile,
+        oaDismissed ? null : (fetched.record.pdf?.url ?? null),
+      ),
+    });
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -258,20 +320,29 @@ export function AddSourceDialog({
             Cancel
           </Button>
           <Button
-            variant="primary"
+            variant="outline"
             onClick={() => void resolve()}
             disabled={busy || (input.trim() === "" && file === null)}
             loading={busy}
           >
-            Add
+            Fetch
+          </Button>
+          <Button
+            variant="primary"
+            onClick={goNext}
+            disabled={busy || fetched === null}
+            title={fetched === null ? "Fetch first — Next opens the prefilled create form" : undefined}
+          >
+            Next
           </Button>
         </>
       }
     >
       <div className="add-source-dialog">
         <p className="add-source-dialog__hint">
-          Paste a DOI, ISBN, arXiv id or URL, a PDF link, or drop a PDF file — the
-          metadata resolves and prefills the create form.
+          Paste a DOI, ISBN, PMID, ADS bibcode, arXiv id or URL, a PDF link, or drop a PDF
+          file — Fetch resolves the metadata and shows a preview; Next opens the prefilled
+          create form.
         </p>
         <div className="add-source-dialog__field">
           <TextField
@@ -281,17 +352,61 @@ export function AddSourceDialog({
             onChange={(event) => {
               setInput(event.target.value);
               setError(null);
+              // Any edit invalidates the fetched preview — Fetch again.
+              setFetched(null);
+              setOaDismissed(false);
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter") void resolve();
             }}
-            placeholder="10.… / 978-… / arXiv:… / https://…"
+            placeholder="10.… / 978-… / PMID / bibcode / arXiv:… / https://…"
             autoComplete="off"
             disabled={busy}
           />
         </div>
+        {fetched !== null && (
+          <div className="add-source-dialog__preview add-source-dialog__preview--card" role="status">
+            <p className="add-source-dialog__preview-title">{fetched.record.title}</p>
+            <p className="add-source-dialog__preview-meta">
+              {[
+                authorLineOf(fetched.record),
+                fetched.record.year !== undefined ? String(fetched.record.year) : "",
+                fetched.record.fields.publicationTitle ?? "",
+              ]
+                .filter((part) => part !== "")
+                .join(" · ")}
+            </p>
+            <p className="add-source-dialog__preview-ids">
+              {fetched.record.doi !== undefined && <span>DOI {fetched.record.doi}</span>}
+              {fetched.record.isbn !== undefined && <span>ISBN {fetched.record.isbn}</span>}
+              {fetched.record.pmid !== undefined && <span>PMID {fetched.record.pmid}</span>}
+            </p>
+          </div>
+        )}
         <div className="add-source-dialog__field">
           <span id={pdfLabelId} className="add-source-dialog__section-label">PDF file</span>
+          {fetchedPdfUrl !== null && (
+            <div className="add-source-dialog__preview">
+              <span className="add-source-dialog__doc-icon" aria-hidden="true">
+                <Icon path="mdi-link-variant" size={1.6} />
+              </span>
+              <span className="add-source-dialog__meta">
+                <span className="add-source-dialog__name">{fetchedPdfUrl}</span>
+                <span className="add-source-dialog__sub">
+                  <span className="add-source-dialog__chip">Open-access PDF</span>
+                  links on the source — drop a file below to attach the file instead
+                </span>
+              </span>
+              <button
+                type="button"
+                className="add-source-dialog__clear"
+                onClick={() => setOaDismissed(true)}
+                aria-label="Remove the fetched PDF link"
+              >
+                <Icon path="mdi-close" size={1} />
+              </button>
+            </div>
+          )}
           <FileDropZone
             file={file}
             accept="application/pdf,.pdf"
@@ -299,10 +414,15 @@ export function AddSourceDialog({
             onSelect={(picked) => {
               setFile(picked);
               setError(null);
-              // The file wins over the text input for one resolve gesture.
+              // The file wins over the text input AND invalidates the fetch.
               setInput("");
+              setFetched(null);
+              setOaDismissed(false);
             }}
-            onClear={() => setFile(null)}
+            onClear={() => {
+              setFile(null);
+              setFetched(null);
+            }}
             placeholder="Drop a PDF here"
             hint="or click to browse"
             icon={<Icon path="mdi-cloud-upload-outline" size={1.6} />}
@@ -328,7 +448,7 @@ export function AddSourceDialog({
         {!resolverEnabled && (
           <p className="add-source-dialog__note" role="status">
             The metadata resolver is turned off in Workspace settings → Features → Sources —
-            Add still works, offering the manual form.
+            Fetch still works, offering the manual form.
           </p>
         )}
         {error !== null && (

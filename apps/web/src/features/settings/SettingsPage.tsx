@@ -658,6 +658,85 @@ interface AccountSectionProps {
   onSignOut: () => void;
 }
 
+/**
+ * The ADS credential editor — a password-styled field over the per-user
+ * prefs channel (GET/PUT /api/me/prefs, the owner-bound column). The token
+ * is server-only: it never caches device-locally, the read happens once on
+ * mount, and a save rides straight to the server (the Account section holds
+ * server coordinates, like the API-keys card beside it).
+ */
+function AdsTokenCard({ serverUrl, token }: { serverUrl: string; token: string }) {
+  const [value, setValue] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${serverUrl.replace(/\/$/, "")}/api/me/prefs`, { headers: { "X-API-Key": token } })
+      .then(async (response) => {
+        if (!response.ok || cancelled) return;
+        const body = (await response.json()) as { adsApiToken?: unknown };
+        if (typeof body.adsApiToken === "string") setValue(body.adsApiToken);
+        setLoaded(true);
+      })
+      .catch(() => {
+        // Unreachable — the field stays empty; the next save sets it.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverUrl, token]);
+
+  const save = async () => {
+    if (busy) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await fetch(`${serverUrl.replace(/\/$/, "")}/api/me/prefs`, {
+        method: "PUT",
+        headers: { "X-API-Key": token, "content-type": "application/json" },
+        body: JSON.stringify({ adsApiToken: value }),
+      });
+      setNotice(response.ok ? "Saved." : "Could not save the token — try again.");
+    } catch {
+      setNotice("Could not reach the server — the token was not saved.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="settings-ads">
+      <TextField
+        label="ADS API token"
+        type="password"
+        value={value}
+        onChange={(event) => {
+          setValue(event.target.value);
+          setNotice(null);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") void save();
+        }}
+        placeholder={loaded ? "No token set" : "Loading…"}
+        autoComplete="off"
+        disabled={busy}
+      />
+      <div className="settings-ads__row">
+        <Button variant="outline" size="sm" onClick={() => void save()} disabled={busy} loading={busy}>
+          Save token
+        </Button>
+        {notice !== null && (
+          <p className="settings-ads__notice" role="status">
+            {notice}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AccountSection({ serverUrl, token, user, onSignOut }: AccountSectionProps) {
   return (
     <>
@@ -701,6 +780,19 @@ function AccountSection({ serverUrl, token, user, onSignOut }: AccountSectionPro
           <p className="settings-section__subtitle">
             Editing your profile is not available in this build.
           </p>
+        </Card>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section__title">ADS Token</h3>
+        <Card>
+          <p className="settings-section__description">
+            Add sources by ADS bibcode (Astrophysics Data System): the resolver sends
+            YOUR token to api.adsabs.harvard.edu — and nowhere else — when you look up a
+            bibcode. Get a free token at ui.adsabs.harvard.edu, under Account → API
+            token. Saving an empty field clears the stored token.
+          </p>
+          <AdsTokenCard serverUrl={serverUrl} token={token} />
         </Card>
       </div>
 

@@ -2,10 +2,13 @@
  * Per-user UI preferences — favorites & recents.
  *
  *  - GET /api/me/prefs   the authenticated account's prefs
- *                        ({favorites, recents, cardsAlgorithm, updatedAt});
+ *                        ({favorites, recents, cardsAlgorithm, adsApiToken,
+ *                        updatedAt});
  *  - PUT /api/me/prefs   merge-patch: each present list REPLACES its column
  *                        (the client owns ordering; last write wins per list),
- *                        a present cardsAlgorithm REPLACES the scalar.
+ *                        a present cardsAlgorithm REPLACES the scalar, a
+ *                        present adsApiToken (string, or null/"" to clear)
+ *                        REPLACES the ADS credential column.
  *
  * Why this is not in the operation log: the design law "device state is
  * never an op" stands. Favorites/recents and the cards scheduler choice are
@@ -31,6 +34,8 @@ import { requireUser } from "./routes-auth.js";
 
 export const MAX_FAVORITE_PREFS = 500;
 export const MAX_RECENT_PREFS = 50;
+/** The ADS token column's cap — ADS tokens are ~32 chars, headroom for rotation. */
+export const MAX_ADS_TOKEN_PREFS = 256;
 
 const idListSchema = (max: number, label: string) =>
   z
@@ -43,14 +48,19 @@ const putPrefsBodySchema = z
     favorites: idListSchema(MAX_FAVORITE_PREFS, "favorites").optional(),
     recents: idListSchema(MAX_RECENT_PREFS, "recents").optional(),
     cardsAlgorithm: z.enum(["sm2", "fsrs"]).optional(),
+    // The ADS API credential: a string sets/replaces it, null (or "") clears
+    // it. Owner-bound — the route requires a user principal and the column
+    // answers only to GET /me/prefs of the same account.
+    adsApiToken: z.string().max(MAX_ADS_TOKEN_PREFS, `adsApiToken exceeds the ${MAX_ADS_TOKEN_PREFS}-char cap`).nullable().optional(),
   })
   .strict()
   .refine(
     (body) =>
       body.favorites !== undefined ||
       body.recents !== undefined ||
-      body.cardsAlgorithm !== undefined,
-    { message: "at least one of favorites/recents/cardsAlgorithm is required" },
+      body.cardsAlgorithm !== undefined ||
+      body.adsApiToken !== undefined,
+    { message: "at least one of favorites/recents/cardsAlgorithm/adsApiToken is required" },
   );
 
 export function registerPrefsRoutes(app: FastifyInstance, ctx: ServerContext): void {

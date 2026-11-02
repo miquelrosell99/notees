@@ -81,6 +81,9 @@ describe("GET /api/resolve — metadata branch", () => {
     server = await makeTestServer();
     const fetchMock = stubFetch({
       "https://api.crossref.org/works/": () => jsonResponse({ message: CROSSREF_JOURNAL_WORK }),
+      // The Unpaywall enrichment rides every DOI-carrying resolve: no open-
+      // access location here, so the record answers WITHOUT a pdf block.
+      "https://api.unpaywall.org/v2/": () => jsonResponse({ best_oa_location: null }),
     });
 
     const res = await api("GET", "/api/resolve?doi=10.1000/xyz123");
@@ -107,8 +110,41 @@ describe("GET /api/resolve — metadata branch", () => {
       // base, not the class's own bindings.
       publisher: "Test Press",
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0]![0]).toBe("https://api.crossref.org/works/10.1000%2Fxyz123");
+    // The enrichment asks Unpaywall about the DOI alone, with the generic
+    // contact constant — no workspace content rides along. (The `@` travels
+    // literal in the query string — legal and unparsed by the stub.)
+    expect(fetchMock.mock.calls[1]![0]).toBe(
+      "https://api.unpaywall.org/v2/10.1000%2Fxyz123?email=notees-resolver@notees.local",
+    );
+  });
+
+  it("an Unpaywall open-access location adds pdf:{url} to the record", async () => {
+    server = await makeTestServer();
+    stubFetch({
+      "https://api.crossref.org/works/": () => jsonResponse({ message: CROSSREF_JOURNAL_WORK }),
+      "https://api.unpaywall.org/v2/": () =>
+        jsonResponse({
+          best_oa_location: { url_for_pdf: "https://oa.example.org/paper.pdf", url: "https://oa.example.org/paper" },
+        }),
+    });
+
+    const res = await api("GET", "/api/resolve?doi=10.1000/xyz123");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().pdf).toEqual({ url: "https://oa.example.org/paper.pdf" });
+  });
+
+  it("an Unpaywall failure NEVER fails the resolve (no pdf block, still 200)", async () => {
+    server = await makeTestServer();
+    stubFetch({
+      "https://api.crossref.org/works/": () => jsonResponse({ message: CROSSREF_JOURNAL_WORK }),
+      "https://api.unpaywall.org/v2/": () => new Response("boom", { status: 500 }),
+    });
+
+    const res = await api("GET", "/api/resolve?doi=10.1000/xyz123");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().pdf).toBeUndefined();
   });
 
   it("a provider 404 answers 404 not_found", async () => {
@@ -188,6 +224,7 @@ describe("GET /api/resolve — metadata branch", () => {
     server = await makeTestServer();
     const fetchMock = stubFetch({
       "https://api.crossref.org/works/": () => jsonResponse({ message: CROSSREF_JOURNAL_WORK }),
+      "https://api.unpaywall.org/v2/": () => jsonResponse({ best_oa_location: null }),
     });
 
     const first = await api("GET", "/api/resolve?doi=10.1000/xyz123");
@@ -196,7 +233,160 @@ describe("GET /api/resolve — metadata branch", () => {
     expect(first.statusCode).toBe(200);
     expect(second.statusCode).toBe(200);
     expect(second.json()).toEqual(first.json());
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Two fetches for the first resolve (Crossref + Unpaywall), ZERO more
+    // for the cached second.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("PubMed esummary resolves a PMID (supplement issue, DOI from articleids, OA pdf)", async () => {
+    server = await makeTestServer();
+    const fetchMock = stubFetch({
+      "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi": () =>
+        jsonResponse({
+          result: {
+            uids: ["25495683"],
+            "25495683": {
+              uid: "25495683",
+              title: "Peri-implant health and disease. A systematic review of current epidemiology",
+              authors: [{ name: "Derks J" }, { name: "Tomasi C" }],
+              fulljournalname: "Journal of Clinical Periodontology",
+              source: "J Clin Periodontol",
+              pubdate: "2015",
+              volume: "42",
+              issue: "Suppl 16",
+              pages: "S158-S171",
+              articleids: [
+                { idtype: "pubmed", value: "25495683" },
+                { idtype: "doi", value: "10.1111/jcpe.12321" },
+              ],
+            },
+          },
+        }),
+      "https://api.unpaywall.org/v2/": () =>
+        jsonResponse({
+          best_oa_location: { url_for_pdf: "https://oa.example.org/review.pdf" },
+        }),
+    });
+
+    const res = await api("GET", "/api/resolve?pmid=25495683");
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      classKey: "journal_article",
+      title: "Peri-implant health and disease. A systematic review of current epidemiology",
+      // "Derks J" inverts to the creator family format.
+      authors: ["Derks, J", "Tomasi, C"],
+      editors: [],
+      fields: {
+        publicationTitle: "Journal of Clinical Periodontology",
+        volume: "42",
+        issue: "Suppl 16",
+        pages: "S158-S171",
+      },
+      doi: "10.1111/jcpe.12321",
+      pmid: "25495683",
+      url: "https://pubmed.ncbi.nlm.nih.gov/25495683/",
+      year: 2015,
+      pdf: { url: "https://oa.example.org/review.pdf" },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]![0]).toContain("db=pubmed&id=25495683");
+    expect(fetchMock.mock.calls[0]![0]).toContain("retmode=json");
+  });
+
+  it("an unknown PMID answers 404 not_found", async () => {
+    server = await makeTestServer();
+    stubFetch({
+      // NCBI answers a 200 with NO entry for the id — the provider miss.
+      "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi": () =>
+        jsonResponse({ result: { uids: [] } }),
+    });
+
+    const res = await api("GET", "/api/resolve?pmid=25495683");
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error.code).toBe("not_found");
+  });
+
+  it("ADS bibcode: the operator key is not a user (401); a user without a token gets 422; a token resolves with the Authorization header", async () => {
+    server = await makeTestServer();
+    const fetchMock = stubFetch({
+      "https://api.adsabs.harvard.edu/v1/search/query": () =>
+        jsonResponse({
+          response: {
+            docs: [
+              {
+                title: ["Cosmic Test Results"],
+                author: ["Curie, M.", "Lovelace, A."],
+                pub_raw: "The Astrophysical Journal",
+                year: "2023",
+                volume: "7",
+                page: ["123-145"],
+                doi: ["10.1000/astro.1"],
+              },
+            ],
+          },
+        }),
+      "https://api.unpaywall.org/v2/": () => jsonResponse({ best_oa_location: null }),
+    });
+
+    // The operator key (the suite's default headers) is not a user.
+    const operator = await api("GET", "/api/resolve?ads=2023ApJ...7..123C");
+    expect(operator.statusCode).toBe(401);
+
+    // A user principal without a prefs token: an honest 422, no fetch.
+    const { hashPassword } = await import("../src/auth.js");
+    const user = server.ctx.auth.createUser({
+      email: "astro@example.com",
+      passwordHash: await hashPassword("astro-password-1"),
+    });
+    const session = server.ctx.auth.createSession(user.id).token;
+    const userHeaders = { authorization: `Bearer ${session}` };
+    const noToken = await server.app.inject({
+      method: "GET",
+      url: "/api/resolve?ads=2023ApJ...7..123C",
+      headers: userHeaders,
+    });
+    expect(noToken.statusCode).toBe(422);
+    expect(noToken.json().error.code).toBe("validation_failed");
+    expect(noToken.json().error.message).toContain("ADS API token");
+
+    // The user sets their token (the Settings → Account write path)…
+    const put = await server.app.inject({
+      method: "PUT",
+      url: "/api/me/prefs",
+      headers: { "content-type": "application/json", ...userHeaders },
+      payload: { adsApiToken: "ads-token-abc" },
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.json().adsApiToken).toBe("ads-token-abc");
+
+    // …and the lookup resolves, the token riding ONLY the ADS Authorization.
+    const res = await server.app.inject({
+      method: "GET",
+      url: "/api/resolve?ads=2023ApJ...7..123C",
+      headers: userHeaders,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      classKey: "journal_article",
+      title: "Cosmic Test Results",
+      authors: ["Curie, M.", "Lovelace, A."],
+      editors: [],
+      fields: {
+        publicationTitle: "The Astrophysical Journal",
+        volume: "7",
+        pages: "123-145",
+      },
+      doi: "10.1000/astro.1",
+      url: "https://ui.adsabs.harvard.edu/abs/2023APJ...7..123C",
+      year: 2023,
+    });
+    const adsCalls = fetchMock.mock.calls.filter((call) =>
+      String(call[0]).startsWith("https://api.adsabs.harvard.edu/"),
+    );
+    expect(adsCalls).toHaveLength(1);
+    expect((adsCalls[0]![1] as RequestInit).headers).toEqual({
+      Authorization: "Bearer ads-token-abc",
+    });
   });
 
   it("OpenLibrary ISBN resolves a book (one author fetch, binding-filtered fields)", async () => {

@@ -65,6 +65,7 @@ describe("GET /api/me/prefs", () => {
       favorites: [],
       recents: [],
       cardsAlgorithm: "fsrs",
+      adsApiToken: null,
       updatedAt: 0,
     });
   });
@@ -310,6 +311,7 @@ describe("PUT /api/me/prefs", () => {
       favorites: [],
       recents: [],
       cardsAlgorithm: "fsrs",
+      adsApiToken: null,
       updatedAt: 0,
     });
     const response = await server.app.inject({
@@ -343,16 +345,25 @@ describe("user_prefs cards_algorithm migration", () => {
       legacy.close();
 
       const migrated = new AuthStorage(dbPath);
-      // The ALTER backfilled the existing row to the fsrs default.
+      // The ALTER backfilled the existing row to the fsrs default; the
+      // additive ads_api_token column reads NULL on the legacy row.
       expect(migrated.getUserPrefs("user-a")).toEqual({
         favorites: [PAGE_A],
         recents: [],
         cardsAlgorithm: "fsrs",
+        adsApiToken: null,
         updatedAt: 100,
       });
-      // And the new column accepts the merge patch.
+      // And the new columns accept merge patches.
       expect(migrated.updateUserPrefs("user-a", { cardsAlgorithm: "sm2" }).cardsAlgorithm).toBe("sm2");
       expect(migrated.getUserPrefs("user-a").cardsAlgorithm).toBe("sm2");
+      expect(
+        migrated.updateUserPrefs("user-a", { adsApiToken: "token-1" }).adsApiToken,
+      ).toBe("token-1");
+      // null and "" both clear the credential column.
+      expect(migrated.updateUserPrefs("user-a", { adsApiToken: null }).adsApiToken).toBeNull();
+      expect(migrated.updateUserPrefs("user-a", { adsApiToken: "token-2" }).adsApiToken).toBe("token-2");
+      expect(migrated.updateUserPrefs("user-a", { adsApiToken: "" }).adsApiToken).toBeNull();
       migrated.close();
 
       // Idempotent: a second boot over the migrated file is a no-op.

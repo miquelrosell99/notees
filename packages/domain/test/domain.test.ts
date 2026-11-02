@@ -129,10 +129,14 @@ describe("system seeds (ported)", () => {
     // manifests.
     const pinnedSpecs = new Set<SystemPropertyName>([
       // The source base family (the SPECS-loop binding rows on `source`).
+      // AMENDED 2026-11-02: pmid joins the base family (the resolver's PMID
+      // support — a PubMed identifier is a first-class base identifier like
+      // doi); live workspaces converge by scripts/migrate-pmid-property.mts.
       "authors",
       "citekey",
       "doi",
       "linkedAuthors",
+      "pmid",
       "publicationDate",
       "url",
       // The meeting family (location; agenda stays unpinned — the withdrawn
@@ -484,11 +488,22 @@ describe("system seeds (ported)", () => {
       ["websiteTitle", "000000000053", text, "Website title"],
       ["websiteType", "000000000054", text, "Website type"],
       ["workType", "000000000055", text, "Type"],
+      // Late addition (2026-11-02, the resolver's PMID support): pmid is a
+      // BASE-family identifier like doi — real binding row on source + PINNED,
+      // NOT a bind:false pool field. It APPENDS at the next free slot (…056):
+      // the alphabetical fill order placed …033–…055 and the UUIDs are stable
+      // identity, never renumbered. Live workspaces converge by
+      // scripts/migrate-pmid-property.mts.
+      ["pmid", "000000000056", { type: "text", bindTo: "source", pinned: true }, "PMID"],
     ];
     // The manifest order is the alphabetical order (beyond the two pinned
-    // slots) — the suffix assignment stays deterministic forever.
+    // slots) — the suffix assignment stays deterministic forever. The late
+    // additions (pmid, …056) append at the tail and stand outside the
+    // alphabetical check.
+    const ALPHABET_EXEMPT: ReadonlySet<string> = new Set(["pmid"]);
     const keys = pool.map(([key]) => key);
-    expect(keys.slice(2)).toEqual([...keys.slice(2)].sort());
+    const alphabeticalKeys = keys.slice(2).filter((key) => !ALPHABET_EXEMPT.has(key));
+    expect(alphabeticalKeys).toEqual([...alphabeticalKeys].sort());
     const suffixes = pool.map(([, suffix]) => parseInt(suffix, 16));
     expect(suffixes.slice(1)).toEqual(suffixes.slice(0, -1).map((n) => n + 1));
     for (const [key, suffix, spec, display] of pool) {
@@ -512,9 +527,12 @@ describe("system seeds (ported)", () => {
     const base = new Set<SystemPropertyName>([
       "authors", "linkedAuthors", "editors", "doi", "isbn", "publicationDate",
       "publisher", "citekey", "url", "attachments",
+      // pmid joins the base family 2026-11-02 (the resolver's PMID support) —
+      // a real binding row on source, binding defaults true.
+      "pmid",
     ]);
-    // The …0006- block: linkedAuthors/editors (base, bind defaults true) are
-    // the ONLY exceptions — every other entry is bind:false + bindTo source
+    // The …0006- block: linkedAuthors/editors/pmid (base, bind defaults true)
+    // are the ONLY exceptions — every other entry is bind:false + bindTo source
     // + local scope (no global flag).
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
       if (spec === undefined) continue;
@@ -533,13 +551,14 @@ describe("system seeds (ported)", () => {
       expect(SYSTEM_PROPERTY_SPECS[name]?.bind, `${name} binds at source`).not.toBe(false);
       expect(SYSTEM_PROPERTY_SPECS[name]?.bindTo, `${name} stays scoped to source`).toBe("source");
     }
-    // …and the base in the …0006- block is exactly linkedAuthors + editors.
+    // …and the base in the …0006- block is exactly linkedAuthors + editors
+    // + pmid (pmid joined 2026-11-02).
     const blockBase = (Object.keys(SYSTEM_PROPERTY_UUIDS) as SystemPropertyName[]).filter(
       (name) =>
         SYSTEM_PROPERTY_UUIDS[name].startsWith("00000000-0000-0000-0006-") &&
         base.has(name),
     );
-    expect(blockBase.sort()).toEqual(["editors", "linkedAuthors"]);
+    expect(blockBase.sort()).toEqual(["editors", "linkedAuthors", "pmid"]);
   });
 
   it("templates seed (T2): has-template reserved, seeded at GLOBAL scope (M47 — no class-class host), targets the template class", () => {

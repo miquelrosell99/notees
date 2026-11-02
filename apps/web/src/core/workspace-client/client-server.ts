@@ -108,6 +108,8 @@ export class WorkspaceClientServer {
       favorites: readDevicePrefList("favorites"),
       recents: readDevicePrefList("recents"),
       cardsAlgorithm: readDevicePrefScalar("cardsAlgorithm"),
+      // Server-only by design — the ADS credential never caches device-locally.
+      adsApiToken: "",
       source: "local",
     };
   }
@@ -126,6 +128,8 @@ export class WorkspaceClientServer {
       favorites: patch.favorites ?? readDevicePrefList("favorites"),
       recents: patch.recents ?? readDevicePrefList("recents"),
       cardsAlgorithm: patch.cardsAlgorithm ?? readDevicePrefScalar("cardsAlgorithm"),
+      // The ADS credential rides the patch to the server only — never cached.
+      adsApiToken: patch.adsApiToken ?? "",
     };
     if (patch.favorites !== undefined) writeDevicePrefList("favorites", patch.favorites);
     if (patch.recents !== undefined) writeDevicePrefList("recents", patch.recents);

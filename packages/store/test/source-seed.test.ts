@@ -420,10 +420,12 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           `${name}: no class_property row on source`,
         ).toBeUndefined();
       }
-      // The shared base keeps its binding rows on source.
+      // The shared base keeps its binding rows on source (pmid joined the
+      // base family 2026-11-02 — the resolver's PMID support).
       const baseFamily: SystemPropertyName[] = [
         "authors", "linkedAuthors", "editors", "doi", "isbn",
         "publicationDate", "publisher", "citekey", "url", "attachments",
+        "pmid",
       ];
       for (const name of baseFamily) {
         expect(

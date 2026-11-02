@@ -615,6 +615,7 @@ export async function ensureCitationFamily(
     "editors",
     "doi",
     "isbn",
+    "pmid",
     "publicationDate",
     "publisher",
     "url",
@@ -681,8 +682,8 @@ export async function ensureCitationFamily(
 }
 
 /**
- * The citation draft read off the staged rows: the staged DOI/ISBN and the
- * effective citekey — the typed value when present, otherwise the
+ * The citation draft read off the staged rows: the staged DOI/ISBN/PMID and
+ * the effective citekey — the typed value when present, otherwise the
  * auto-generation (always on while the Sources feature is on; empty stays
  * empty: no data for the pattern tokens is not an error). The duplicate
  * warning and the flush share this, so what warns is exactly what would
@@ -692,7 +693,7 @@ export function citationDraftOf(
   client: AnyClient,
   entries: ReadonlyArray<{ row: StagedPropertyBinding; value: StagedPropertyValue }>,
   title: string,
-): { doi: string; isbn: string; citekey: string } {
+): { doi: string; isbn: string; pmid: string; citekey: string } {
   const textOf = (name: SystemPropertyName): string => {
     const entry = entries.find(
       (candidate) => candidate.row.binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[name],
@@ -718,7 +719,12 @@ export function citationDraftOf(
           },
           existingCitekeys(client),
         );
-  return { doi: textOf("doi").trim(), isbn: textOf("isbn").trim(), citekey: citekeyValue };
+  return {
+    doi: textOf("doi").trim(),
+    isbn: textOf("isbn").trim(),
+    pmid: textOf("pmid").trim(),
+    citekey: citekeyValue,
+  };
 }
 
 /**
@@ -848,27 +854,38 @@ export function generateCitekey(
 
 /**
  * The duplicate-warning scan: the LIVE source node already carrying the
- * given DOI (case-insensitive), ISBN (digit/X-normalized), or CITEKEY
- * (case-insensitive) — any of the three, first hit wins. The modal surfaces
- * it ("Already in your library") — the create stays allowed, the warning is
- * honest. Absent on hosts without the effective read. (The citekey coverage
- * is the 2026-10-26 owner addition — a manually typed citekey that collides
- * warns the same way a duplicate DOI does; auto-generated citekeys already
- * carry the collision suffix, so the warning fires for manual values.)
+ * given DOI (case-insensitive), ISBN (digit/X-normalized), PMID (digits-
+ * normalized), or CITEKEY (case-insensitive) — any of the four, first hit
+ * wins. The modal surfaces it ("Already in your library") — the create
+ * stays allowed, the warning is honest. Absent on hosts without the
+ * effective read. (The citekey coverage is the 2026-10-26 owner addition —
+ * a manually typed citekey that collides warns the same way a duplicate
+ * DOI does; auto-generated citekeys already carry the collision suffix, so
+ * the warning fires for manual values. PMID joined the scan with the
+ * resolver's PMID support.)
  */
 export function findSourceByIdentifier(
   client: AnyClient,
   identifier: {
     doi?: string | undefined;
     isbn?: string | undefined;
+    pmid?: string | undefined;
     citekey?: string | undefined;
   },
 ): ClientNode | null {
   if (client.getEffectiveProperties === undefined) return null;
   const doi = identifier.doi?.trim().toLowerCase();
   const isbn = identifier.isbn?.trim().replace(/[^0-9x]/gi, "").toUpperCase();
+  const pmid = identifier.pmid?.trim().replace(/\D/g, "");
   const citekey = identifier.citekey?.trim().toLowerCase();
-  if ((doi ?? "") === "" && (isbn ?? "") === "" && (citekey ?? "") === "") return null;
+  if (
+    (doi ?? "") === "" &&
+    (isbn ?? "") === "" &&
+    (pmid ?? "") === "" &&
+    (citekey ?? "") === ""
+  ) {
+    return null;
+  }
   for (const node of client.getClassMembers(SYSTEM_CLASS_UUIDS.source)) {
     for (const row of client.getEffectiveProperties(node.id)) {
       if (typeof row.value !== "string") continue;
@@ -887,6 +904,14 @@ export function findSourceByIdentifier(
         isbn !== "" &&
         row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.isbn &&
         value.replace(/[^0-9x]/gi, "").toUpperCase() === isbn
+      ) {
+        return node;
+      }
+      if (
+        pmid !== undefined &&
+        pmid !== "" &&
+        row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.pmid &&
+        value.replace(/\D/g, "") === pmid
       ) {
         return node;
       }
