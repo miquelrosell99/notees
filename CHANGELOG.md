@@ -7,6 +7,36 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-11-02
+
+- **feat(web): the journal's day entries wear the date header — weekday,
+  Today, and ISO week on every day page, and a "No page" flag on ghost
+  days.** The journal feed rendered each realized day as a plain embedded
+  title — the weekday line, the Today flag, and the ISO week number only
+  existed on the full day-page view. Now the day-page header register is one:
+  `DayPageHeader` (weekday + Today flags above the dateFormat-aware title,
+  the `Week N` flag after it) renders for embedded day pages too, with the
+  feed's "Open page" button trailing the title (same hover-reveal slot as
+  before, shift-click still peeks in the sidebar). The journal's ghost
+  entries hand-build no header anymore — they compose the same
+  `DayPageHeader` with the new muted **No page** flag (outline-variant
+  hairline pill, the tonal counterpart to the solid-primary Today marker),
+  skipped for trashed days; the ghost's mirrored day-class icon retired with
+  the hand-built register (the date header is the whole row on the full
+  day-page view too). `DayPageHeader` grew two optional props (`ghost`, the
+  unrealized marker; `trailing`, post-title chrome) — no other call site
+  changes.
+  - **Files**: `apps/web/src/features/calendar/DayPageHeader.tsx` (+ `.css`),
+    `apps/web/src/ui/PageChrome.tsx` (the day branch drops its `!embedded`
+    condition), `apps/web/src/features/calendar/JournalsView.tsx` (+ `.css`),
+    `docs/features/calendar.md` (the ghost register + date-header bullets).
+    Verified: `@notees/web` typecheck green, `test/calendar-routing.test.ts`
+    18/18 (the covering surface has no component specs of its own). The
+    scoped typecheck surfaced a stale-dist host state (domain/store dists
+    predating the workflows feature; `pnpm install` restored the
+    `@types/node` link the domain DTS build needs) — rebuilt, not part of
+    this slice.
+
 ## 2026-10-30
 
 - **docs(developers): gate economics + host memory discipline — the two-tier

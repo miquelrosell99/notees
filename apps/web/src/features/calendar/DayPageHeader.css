@@ -33,6 +33,20 @@
   padding: var(--spacing-micro) var(--spacing-2);
 }
 
+/* The ghost-day marker: the same pill shape as Today in the muted tonal
+   register (outline-variant hairline, on-surface-variant text) — a state
+   notice, not a celebration marker. */
+.day-page-header__ghost {
+  font: var(--font-label-small);
+  letter-spacing: var(--letter-spacing-label);
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--md-sys-color-on-surface-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-full);
+  padding: var(--spacing-micro) var(--spacing-2);
+}
+
 .day-page-header__title {
   display: flex;
   align-items: baseline;

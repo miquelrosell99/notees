@@ -5,10 +5,10 @@
  * 2026-10-29): every calendar day in the window renders an entry whether or
  * not the day node exists in the log yet. A REALIZED day (the node exists
  * and is live) renders its full embedded page view; an UNREALIZED day
- * renders a slim virtual entry — the realized entries' own embedded
- * header register (day-class icon + plain date title, directly under the
- * page cap) with the outliner's ghost add row and the same "Open page"
- * button the written entries wear. Two materialize paths (both
+ * renders a slim virtual entry — the realized entries' own embedded date
+ * header (the DayPageHeader: weekday + Today flags above the title, the
+ * week flag after it) with the ghost's own "No page" flag, the outliner's
+ * ghost add row and the same "Open page" button the written entries wear. Two materialize paths (both
  * journal-gated, both through `ensureDateChain`): the ghost realize —
  * the day's first real write, born with an empty block ready to type
  * into — and the Open-page navigate, which creates the day and opens the
@@ -30,9 +30,11 @@
  * materialization ever gates navigation (the old pendingJump machinery
  * died with the existence-gated model).
  *
- * Reloading re-centers on today. Each realized entry's date header is a
- * plain heading; the "Open page" button beside it opens that page in the
- * full page view.
+ * Reloading re-centers on today. Each realized entry renders its embedded
+ * day page — the date header (weekday + Today flags, the week flag) is the
+ * entry's own heading now, the same register the full day-page view wears;
+ * the "Open page" button beside the title opens that page in the full page
+ * view.
  *
  * The side panel: the mini-month navigator + the
  * events element (the calendar view's retired panel — the journal is the
@@ -48,12 +50,11 @@ import { SYSTEM_CLASS_UUIDS, dayNodeId } from "@notees/domain";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
 
 import { PageView } from "../../ui/PageView.js";
+import { DayPageHeader } from "./DayPageHeader.js";
 import { EventsPanel } from "./EventsPanel.js";
 import { MonthCalendar } from "./MonthCalendar.js";
 import { rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
-import { Icon } from "../../ui/Icon.js";
-import { definedNodeIcon } from "../../ui/iconFor.js";
 import { GhostRow } from "../../ui/GhostRow.js";
 import { addDaysIso, daysBetweenIsos, todayIsoLocal } from "./calendarViewUtils.js";
 import { Button } from "../../components/ui/kit/Button.js";
@@ -121,21 +122,6 @@ export function JournalsView({
       }
     }
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reads resolve through the client notification (version)
-  }, [client, version]);
-
-  /**
-   * The day class's effective icon — the placeholder icon renders EXACTLY
-   * what a realized day page's header resolves (definedNodeIcon over a
-   * synthetic day-classed node), so a user-edited day class icon flows to
-   * the ghost entries too; null (nothing defined anywhere) renders no icon
-   * span, the realized header's own register.
-   */
-  const dayClassIcon = useMemo(() => {
-    const classesById = new Map<string, string | null>(
-      client.listClasses().map((cls) => [cls.id, cls.icon]),
-    );
-    return definedNodeIcon({ icon: "", classIds: [SYSTEM_CLASS_UUIDS.day] }, classesById);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reads resolve through the client notification (version)
   }, [client, version]);
 
@@ -456,14 +442,13 @@ export function JournalsView({
                 <PageView client={client} pageId={entry.id} onOpenPage={onOpenPage} embedded />
               ) : (
                 /* The virtual entry mirrors the realized embedded register
-                   (PageChrome's compact branch): the header rides DIRECTLY
-                   under .nt-page — the journal zeroes the page padding
-                   (.journal-entry .nt-page), so the entry's chrome sits at
-                   the capped column's edge. The placeholder icon renders
-                   EXACTLY the realized day pages' icon (the day class's
-                   effective icon, resolved the same way — user edits flow
-                   through); nothing defined → no icon span, the realized
-                   header's own register. The add affordance IS the
+                   (PageChrome's day branch): the DayPageHeader — the
+                   weekday + Today flags above the dateFormat-aware title,
+                   the week flag after it — plus the ghost's own "No page"
+                   flag naming the unrealized state, riding DIRECTLY under
+                   .nt-page (the journal zeroes the page padding). The Open-
+                   page button trails the title (the same slot the realized
+                   embedded day pages wear). The add affordance IS the
                    outliner's GhostRow: the block gutter + "+ Add block"
                    the body rows wear, at the block left edge (the old
                    free-floating sentence read as stray text, not an
@@ -474,31 +459,23 @@ export function JournalsView({
                   <div className="page-header-section">
                     <header className="nt-page-header">
                       <div className="page-header__title-row">
-                        {dayClassIcon !== null && (
-                          <span className="page-icon-btn journal-virtual-icon" aria-hidden="true">
-                            <Icon path={dayClassIcon} size={1.4} className="page-icon-large" />
-                          </span>
-                        )}
                         <span className="nt-page-title-wrap">
-                          <span className="nt-page-title-embed">
-                            <span className="nt-page-title-embed__text">
-                              {displayTitleOf(entry.iso)}
-                            </span>
-                            {/* The realized entries' Open-page register
-                               (PageChrome's embedded branch) — navigating a
-                               ghost materializes the day and opens the full
-                               page view (the owner ruling). The hover
-                               reveal rides the existing title-row CSS. */}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              icon="mdi-arrow-right"
-                              aria-label="Open page"
-                              title="Open page"
-                              className="nt-page-title-embed__open"
-                              onClick={() => openDay(entry.iso)}
-                            />
-                          </span>
+                          <DayPageHeader
+                            iso={entry.iso}
+                            title={displayTitleOf(entry.iso)}
+                            ghost={!entry.trashed}
+                            trailing={
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                icon="mdi-arrow-right"
+                                aria-label="Open page"
+                                title="Open page"
+                                className="nt-page-title-embed__open"
+                                onClick={() => openDay(entry.iso)}
+                              />
+                            }
+                          />
                         </span>
                       </div>
                     </header>

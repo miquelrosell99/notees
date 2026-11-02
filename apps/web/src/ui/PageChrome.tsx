@@ -369,10 +369,16 @@ export function PageHeaderChrome({
           </div>
         )}
         <div className="page-header__title-row">
-          {dayIso !== null && !embedded ? (
-            /* Day pages: the header IS the date header — weekday + Today
-               flags above the (dateFormat-aware) title, the ISO week flag
-               after it. Right-click keeps the node context menu. */
+          {dayIso !== null ? (
+            /* Day pages: the header IS the date header in BOTH registers —
+               the main surface and the embedded feeds (the journal) — the
+               weekday + Today flags above the (dateFormat-aware) title, the
+               ISO week flag after it. The embedded register trails the
+               explicit "Open page" ghost button (the feed navigation —
+               navigating an unrealized day materializes it); the hover
+               reveal rides the existing title-wrap CSS. No page icon in
+               either register (the date header is the whole row).
+               Right-click keeps the node context menu. */
             <span
               className="nt-page-title-wrap"
               onContextMenu={(event) => {
@@ -380,7 +386,29 @@ export function PageHeaderChrome({
                 if (!preview) onHeaderMenu(event.clientX, event.clientY);
               }}
             >
-              <DayPageHeader iso={dayIso} title={titleOfNode(page, { template: "off" })} />
+              <DayPageHeader
+                iso={dayIso}
+                title={titleOfNode(page, { template: "off" })}
+                trailing={
+                  embedded ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon="mdi-arrow-right"
+                      aria-label="Open page"
+                      title="Open page"
+                      className="nt-page-title-embed__open"
+                      onClick={(event) => {
+                        if (event.shiftKey) {
+                          peekInSidebar(pageId);
+                          return;
+                        }
+                        onOpenPage?.(pageId);
+                      }}
+                    />
+                  ) : undefined
+                }
+              />
             </span>
           ) : (
             <>
