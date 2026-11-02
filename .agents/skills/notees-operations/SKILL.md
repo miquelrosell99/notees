@@ -64,3 +64,15 @@ self-locates the stack dir, API key, admin password, and workspace: env →
 `VERIFY-PASS`. Env overrides: `NOTEES_STACK_DIR`, `NOTEES_API`/`NOTEES_WEB`,
 `NOTEES_API_KEY` (+`_FILE`), `NOTEES_ADMIN_PASSWORD` (+`_FILE`),
 `NOTEES_ADMIN_EMAIL`, `NOTEES_WORKSPACE`, `NOTEES_VERIFY_OUT`.
+
+**After a Path A migration** (`scripts/migrate-*.mts --apply` against the
+live data dir): `docker compose restart notees-sync` so the server
+rehydrates its derived stores from the log (a full `stop` is NOT required —
+clients keep catching up throughout, and the envelope append is
+transactional; the restart only nudges the server's own cache, which is a
+wipe-rebuildable projection). **Verify through the API, never side-channel
+sqlite** — a live derived store may be served from a snapshot-restore temp
+file with a stub at the derived path, WAL state makes raw reads racy, and a
+hand-typed UUID with a missing group returns honest-looking nulls (learned
+2026-11-02: a malformed probe literal manufactured a false "migration
+didn't apply" scare while every layer had actually converged).
