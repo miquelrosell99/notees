@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(scripts): import-zotero-rdf parses Zotero human dates (month-name +
+  MM/YYYY forms).** `parseRdfDate` gains two tiers between strict ISO and
+  hand-resolution: full month name + year in English AND Spanish,
+  case-insensitive, optional comma (`June 2016`, `JUNE 2022`, `June, 2016`,
+  `enero 2020`) → month precision, and day + month name + year
+  (`14 June 2024`, `14 junio 2024`) → day precision — every candidate
+  real-calendar validated through `parseIsoDate`; plus numeric `MM/YYYY`
+  (`01/2022`) → month precision with MM restricted to 01-12. Abbreviations
+  and ambiguous two-slash all-numeric dates (`01/12/2025`) stay rejected —
+  they land in the report's hand-resolution list, which now names the
+  accepted shapes. A real-library dry-run motivated this: ~140/1819 items
+  (7.7%) carried human `dc:date` values Zotero itself parses. Also: the
+  script's documented invocation switches from `pnpm --filter … exec` to
+  `pnpm --dir apps/server exec` — the filter form routes failures through
+  pnpm 9's recursive-exec reporter, which printed a stray `undefined` line
+  after the error (e.g. the schema-absent state-read failure). New unit
+  pins: `apps/server/test/import-zotero-rdf-date.test.ts` (9 tests); the
+  e2e + planner suites stay green (19 focused tests, full server suite).
 - **feat(domain): full Zotero field alignment — the skip list is empty.**
   Every Zotero field now maps to a source property: 31 new pool schemas
   (…0006-…000000000057–…075 — the 117-schema bibliographic pool) with
