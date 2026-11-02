@@ -9,6 +9,17 @@ predating this file.
 
 ## 2026-11-02
 
+- **fix(scripts): anchor the strict ISO date tier; month-first accepts
+  EN+ES deliberately.** `parseRdfDate`'s strict ISO regex was not
+  end-anchored, so a year prefix with trailing garbage silently read as
+  year-only ("2022 (repr.)", "2023/09/07"). The tier now rejects any
+  trailing content; the accepted shapes are unchanged ("2022",
+  "2022-03", "2022-03-15" still parse at their precisions). Also a
+  wording correction on the month-first tier: the bilingual month table
+  makes ES month-first ("marzo 13 2013") parse alongside EN — deliberate,
+  harmless, unambiguous; comments and docs now say "EN or ES month names"
+  instead of "EN month-first". Pin:
+  `apps/server/test/import-zotero-rdf-date.test.ts`.
 - **feat(scripts): import-zotero-rdf parses owner-locale dates (DD/MM/YYYY,
   "de" long form, ranges, month-first).** `parseRdfDate` gains four
   owner-locale tiers (single-owner deployment, owner-locale Spanish — the
@@ -17,7 +28,8 @@ predating this file.
   validated (so `31/02/2024` is rejected, not clamped); day ranges
   `D-D Month YYYY` (EN or ES names) take the start day; the Spanish "de"
   long form with the second de optional (`28 de julio de 2023`, `28 de
-  julio 2023`); and EN month-first `Month D YYYY` (comma optional). The
+  julio 2023`); and month-first `Month D YYYY` (comma optional, EN or ES
+  month names). The
   two-part `MM/YYYY` tier is untouched — `01/2022` keeps month precision
   (two-part vs three-part). The hand-resolution hint now names the new
   accepted forms. Pin: `apps/server/test/import-zotero-rdf-date.test.ts`.

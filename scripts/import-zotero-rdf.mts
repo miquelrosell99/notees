@@ -588,14 +588,18 @@ const MONTH_NAME_TO_NUMBER: ReadonlyMap<string, number> = new Map(
 /** The precision an RDF date string claims — the coarsest shape present.
  *  Tiers, strictest first (Zotero exports `dc:date` verbatim, so real
  *  files carry human dates alongside the ISO shapes):
- *  1. strict ISO — `YYYY[-MM[-DD]]`;
+ *  1. strict ISO — `YYYY[-MM[-DD]]`, END-ANCHORED: a year prefix with
+ *     trailing garbage ("2022 (repr.)", "2023/09/07") rejects instead of
+ *     silently reading the year;
  *  2. full month name + year, case-insensitive, optional comma ("June 2016",
  *     "JUNE 2022", "June, 2016", "enero 2020") → month precision; day +
  *     month name + year ("14 June 2024", "14 junio 2024") → day precision;
  *     a day RANGE "D-D Month YYYY" (EN or ES names) takes the START day;
  *     the Spanish "de" long form ("28 de julio de 2023", second de
- *     optional) parses the same; EN month-first "March 13 2013"
- *     (comma optional) → day precision; every candidate is real-calendar
+ *     optional) parses the same; month-first "March 13 2013" (comma
+ *     optional) → day precision — EN or ES month names (the bilingual
+ *     table accepts "marzo 13 2013" too; harmless, unambiguous);
+ *     every candidate is real-calendar
  *     validated through parseIsoDate;
  *  3. numeric MM/YYYY ("01/2022") → month precision, MM 01-12 (two-part
  *     only — never swallowed by tier 4);
@@ -609,7 +613,7 @@ const MONTH_NAME_TO_NUMBER: ReadonlyMap<string, number> = new Map(
  *  garbage — returns null and lands in the hand-resolution list. */
 export function parseRdfDate(value: string): { iso: string; precision: "year" | "month" | "day" } | null {
   const text = value.trim();
-  const strict = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?/.exec(text);
+  const strict = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(text);
   if (strict !== null) {
     const [, year, month, day] = strict;
     const iso =
@@ -626,7 +630,7 @@ export function parseRdfDate(value: string): { iso: string; precision: "year" | 
     return { iso, precision: day !== undefined ? "day" : month !== undefined ? "month" : "year" };
   }
   // "D Month YYYY", "D-D Month YYYY" (range → start day), the Spanish "de"
-  // long form (second de optional), and EN month-first "Month D YYYY".
+  // long form (second de optional). Month-first is a separate tier below.
   const named = /^(?:(\d{1,2})\s*(?:-\s*(\d{1,2})\s*)?(?:de\s+)?)?([a-z]+),?\s+(?:de\s+)?(\d{4})$/i.exec(text);
   if (named !== null) {
     const startDay = named[1] === undefined ? undefined : Number(named[1]);
@@ -642,7 +646,9 @@ export function parseRdfDate(value: string): { iso: string; precision: "year" | 
       return { iso, precision: startDay !== undefined ? "day" : "month" };
     }
   }
-  // EN month-first "Month D YYYY" / "Month D, YYYY" → day precision.
+  // Month-first "Month D YYYY" / "Month D, YYYY" → day precision. EN or
+  // ES month names both accept (the bilingual table makes ES month-first
+  // parse too — deliberate, harmless, unambiguous).
   const monthFirst = /^([a-z]+)\s+(\d{1,2}),?\s+(\d{4})$/i.exec(text);
   if (monthFirst !== null) {
     const month = MONTH_NAME_TO_NUMBER.get(monthFirst[1]!.toLowerCase());
