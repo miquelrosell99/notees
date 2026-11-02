@@ -9,6 +9,57 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(web): the unified multi-source merge modal — any non-class node,
+  live dry-run preview, both store modes, palette + context-menu entries.**
+  The node-merge UI generalized from the single fixed-source,
+  pages-only-target, in-process-only dialog into ONE multi-source merge
+  modal (the MergeDuplicatesModal precedent): sources ride a pill-row
+  NodeSelector (`searchMode="all"` + Main/Blocks scope tabs, so blocks
+  merge and are legal targets — a block target relocates its standalone
+  children under the nearest page-role ancestor), `initialSourceIds`
+  pre-seeds the row with missing/trashed/class ids dropped; the target
+  picker is the same all-mode candidate set anchored at the target field,
+  and each picker `canAdd`-excludes the other side so a source can never
+  be its own target. While ≥1 source and the target are picked, a live
+  dry-run aggregates the per-source plans into the count line ("N children
+  moved · …"), a guard failure flips the line into the error and blocks
+  the Merge button, and the danger confirmation names the sources (capped)
+  and the target. Applying merges every source sequentially — each trashed,
+  children/classes/properties/links remapped into the target, one undo
+  batch per source — then ONE pull in worker mode. The store planner is
+  untouched (`planMerge` needed zero changes): the new `mergeClient` seams
+  pick the leg from the client instance (in-process `planMergeSummary` /
+  `mergeNodes`; worker `mergeNodesRemote` `?dryRun=true` for the preview),
+  and the summary/error text folds into the shared `mergeSummary` module,
+  which `MergeDuplicatesModal` now rides too (its behavior and tests
+  unchanged — the zero-total line reads generically: "Nothing to move —
+  the sources merge away as-is."). Entries: the command palette gains a
+  general **Merge nodes…** row (no current node needed, offered in both
+  store modes — the old `storeMode === "in-process"` gate was the
+  worker-mode gap) alongside the existing **Merge current page into…** row
+  (mergeable-current-node gating kept), and the node context menu gains
+  **Merge into…** on every non-class node. Requests route through the new
+  app-level `MergeHost` (the AddSourceHost queue idiom — module-level
+  listeners + pending drain, no props threaded through the menu's six
+  hosts); `AppModals` dropped the `mergeOpen`/`storeMode` merge wiring.
+  Docs: `docs/features/pages.md` (the "Merging nodes" section), the
+  `undo.md` merge mention (per-source undo steps, new anchor).
+  - **Files**: `apps/web/src/features/modals/MergeNodesModal.tsx` (the
+    rewrite) + `MergeNodesModal.css`, new `apps/web/src/features/modals/
+    mergeSummary.ts`, `mergeClient.ts`, `mergeHost.tsx`,
+    `MergeDuplicatesModal.tsx` (refactored onto the shared modules),
+    `CommandPalette.tsx` (the general row), `NodeContextMenu.tsx` (the
+    Merge into… entry), `ui/app/AppModals.tsx` + `ui/App.tsx` (the host
+    wiring, the dropped `storeMode`/`mergeOpen` pass-through). Tests:
+    `apps/web/test/merge-nodes.test.tsx` — rewritten to the new props
+    shape; 14 tests (pre-seed + aggregated dry-run + merge-every-source
+    through the confirmation, pill-row add/remove with cross-exclusions,
+    invalid-seed dropping, the apply-guard error line, the worker-mode
+    remote+dry-run+single-pull legs, the palette rows' gating, the
+    context-menu entry incl. the host-queue round trip); the planner/
+    client and `merge-duplicates-modal.test.tsx` suites pass untouched
+    (7 tests). Typecheck green.
+
 - **feat(server,web,domain): the source resolver grows PMID + ADS bibcodes,
   an Unpaywall open-access-PDF step, and a two-step Add Source dialog.**
   **Resolver** (`apps/server/src/resolve-source.ts`): two new providers on

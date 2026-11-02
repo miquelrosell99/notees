@@ -12,12 +12,14 @@
  * move, classes/tags/properties/links remap or copy into empty slots, the
  * losers trash LAST).
  *
- * Wiring per client mode: the in-process WorkspaceClient plans + applies
- * locally (`planMergeSummary` for the preview, `mergeNodes` for the merge —
- * one undo batch per loser); the worker client rides the server merge
- * route (`mergeNodesRemote` — `?dryRun=true` for the preview) and pulls
- * afterwards so the local projection catches up. Guard failures surface
- * as an error line and the modal stays open (the MergeNodesModal pattern).
+ * Wiring per client mode rides the shared mergeClient seams (the same
+ * ones MergeNodesModal uses): the in-process WorkspaceClient plans +
+ * applies locally (`planMergeSummary` for the preview, `mergeNodes` for
+ * the merge — one undo batch per loser); the worker client rides the
+ * server merge route (`mergeNodesRemote` — `?dryRun=true` for the preview)
+ * and pulls afterwards so the local projection catches up. Guard failures
+ * surface as an error line and the modal stays open (the MergeNodesModal
+ * pattern). The summary line + error text come from mergeSummary.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MergePlanSummary } from "@notees/store";
@@ -27,8 +29,9 @@ import { Button } from "../../components/ui/kit/Button.js";
 import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
 import { Dropdown } from "../../components/ui/kit/Dropdown.js";
 import type { AnyClient } from "../../ui/app/clients.js";
-import { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { SourceDuplicateGroup } from "../sources/duplicates.js";
+import { summarizeMerge, summaryLineOf, mergeErrorMessage } from "./mergeSummary.js";
+import { previewMerge, applyMerge, pullIfRemote } from "./mergeClient.js";
 import "./MergeDuplicatesModal.css";
 
 export interface MergeDuplicatesModalProps {
@@ -42,41 +45,6 @@ export interface MergeDuplicatesModalProps {
   onClose: () => void;
   /** Callback when the merge completed; the host refreshes the view. */
   onMerged: () => void;
-}
-
-/** The MergePlanSummary keys with their singular/plural display labels. */
-const SUMMARY_LABELS: readonly (readonly [keyof MergePlanSummary, string, string])[] = [
-  ["childrenMoved", "child moved", "children moved"],
-  ["classesRemapped", "class remapped", "classes remapped"],
-  ["tagsRemapped", "tag remapped", "tags remapped"],
-  ["propertiesCopied", "property copied", "properties copied"],
-  ["propertiesSkipped", "property skipped", "properties skipped"],
-  ["contentLinksRewritten", "content link rewritten", "content links rewritten"],
-  ["propertyValuesRewritten", "property value rewritten", "property values rewritten"],
-  ["standaloneChildrenRelocated", "block relocated", "blocks relocated"],
-  ["aliasesRepointed", "alias repointed", "aliases repointed"],
-  ["collectionsRemapped", "collection remapped", "collections remapped"],
-  ["fieldsCopied", "field copied", "fields copied"],
-];
-
-function zeroSummary(): MergePlanSummary {
-  return {
-    childrenMoved: 0,
-    classesRemapped: 0,
-    tagsRemapped: 0,
-    propertiesCopied: 0,
-    propertiesSkipped: 0,
-    contentLinksRewritten: 0,
-    propertyValuesRewritten: 0,
-    standaloneChildrenRelocated: 0,
-    aliasesRepointed: 0,
-    collectionsRemapped: 0,
-    fieldsCopied: 0,
-  };
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : "Merge failed. Please try again.";
 }
 
 export function MergeDuplicatesModal({
@@ -113,8 +81,9 @@ export function MergeDuplicatesModal({
 
   // The dry-run summary: per loser, the plan against the picked target —
   // local planner in-process, the server's ?dryRun=true route in worker
-  // mode — aggregated into one count set. A guard failure here means the
-  // merge WOULD fail: it surfaces as the error line and blocks confirm.
+  // mode (mergeClient's seams) — aggregated into one count set. A guard
+  // failure here means the merge WOULD fail: it surfaces as the error line
+  // and blocks confirm.
   useEffect(() => {
     if (!isOpen || targetId === null) return;
     let cancelled = false;
@@ -122,17 +91,13 @@ export function MergeDuplicatesModal({
     setSummaryError(null);
     void (async () => {
       try {
-        const total = zeroSummary();
+        const summaries: MergePlanSummary[] = [];
         for (const loser of group.members.filter((member) => member.id !== targetId)) {
-          const one =
-            client instanceof WorkspaceClient
-              ? client.planMergeSummary(loser.id, targetId)
-              : await client.mergeNodesRemote(loser.id, targetId, true);
-          for (const [key] of SUMMARY_LABELS) total[key] += one[key];
+          summaries.push(await previewMerge(client, loser.id, targetId));
         }
-        if (!cancelled) setSummary(total);
+        if (!cancelled) setSummary(summarizeMerge(summaries));
       } catch (err: unknown) {
-        if (!cancelled) setSummaryError(errorMessage(err));
+        if (!cancelled) setSummaryError(mergeErrorMessage(err));
       }
     })();
     return () => {
@@ -152,38 +117,25 @@ export function MergeDuplicatesModal({
     setError(null);
     try {
       for (const loser of losers) {
-        if (client instanceof WorkspaceClient) {
-          // One undo-journal batch per loser (the planner's contract).
-          await client.mergeNodes(loser.id, targetId);
-        } else {
-          await client.mergeNodesRemote(loser.id, targetId, false);
-        }
+        await applyMerge(client, loser.id, targetId);
       }
-      if (!(client instanceof WorkspaceClient)) {
-        // The route wrote server-side; pull so the local projection (and
-        // the duplicates view over it) catches up.
-        await client.pull();
-      }
+      // The route wrote server-side in worker mode; pull so the local
+      // projection (and the duplicates view over it) catches up.
+      await pullIfRemote(client);
       onMerged();
       handleClose();
     } catch (err: unknown) {
       // The guard and any apply/transport failure surface here and the
       // modal stays open — back out of the confirmation to the merge
       // dialog with the error line (the MergeNodesModal pattern).
-      setError(errorMessage(err));
+      setError(mergeErrorMessage(err));
       setConfirmOpen(false);
     } finally {
       setIsMerging(false);
     }
   }, [targetId, losers, client, onMerged, handleClose]);
 
-  const summaryText =
-    summary !== null
-      ? (SUMMARY_LABELS.filter(([key]) => summary[key] > 0)
-          .map(([key, singular, plural]) => `${summary[key]} ${summary[key] === 1 ? singular : plural}`)
-          .join(" · ") ||
-        "Nothing to move — the other copies merge away as-is.")
-      : null;
+  const summaryText = summary !== null ? summaryLineOf(summary) : null;
 
   return (
     <>
