@@ -444,4 +444,58 @@ describe("import-zotero-rdf.mts (CLI end-to-end)", () => {
     expect(second.stdout).toContain("nothing to apply");
     expect(countFresh()).toBe(before);
   });
+
+  it("importing a SECOND file verifies against only the new envelopes and lands the changed value", () => {
+    const first = runScript([
+      "--data-dir", dataDir,
+      "--workspace", WORKSPACE,
+      "--file", rdfFile,
+      "--apply",
+    ]);
+    expect(first.status).toBe(0);
+    expect(first.stdout).toContain("ingested 12 envelope(s)");
+
+    // A follow-up export where node A's language flipped en → es: one
+    // conflict, RDF wins — exactly one envelope on the second import. The
+    // verify read-back must count ONLY this run's envelopes (a cumulative
+    // device count would mismatch 1 against 12 + 1 and fail after a
+    // successful ingest).
+    const secondFile = join(dataDir, "followup.rdf");
+    writeFileSync(
+      secondFile,
+      `<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns:z="http://www.zotero.org/namespaces/export#"
+ xmlns:dc="http://purl.org/dc/elements/1.1/"
+ xmlns:bib="http://purl.org/net/biblio#">
+ <bib:Article rdf:about="http://zotero.org/users/1/items/AAAA">
+  <z:itemType>journalArticle</z:itemType>
+  <dc:title>Safety risk management for medical devices</dc:title>
+  <z:citationKey>elahi2022</z:citationKey>
+  <z:language>es</z:language>
+ </bib:Article>
+</rdf:RDF>
+`,
+      "utf8",
+    );
+
+    const second = runScript([
+      "--data-dir", dataDir,
+      "--workspace", WORKSPACE,
+      "--file", secondFile,
+      "--apply",
+    ]);
+    expect(second.status).toBe(0);
+    expect(second.stdout).toContain("ingested 1 envelope(s)");
+    expect(second.stdout).toContain("verify:");
+
+    const fresh = Store.open(betterSqlite3Backend(":memory:"));
+    try {
+      hydrate(relay, fresh);
+      expect(textsOf(fresh, NODE_A, "language")).toEqual(["es"]);
+    } finally {
+      fresh.close();
+    }
+  });
 });
