@@ -9,6 +9,14 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(scripts): import-zotero-rdf parses PubMed year-first dates
+  (YYYY Mon [D]).** The live library's hand-resolution tail turned out to
+  be PubMed/MEDLINE catalog dates that the pre-anchor parser silently
+  read as year prefixes. `parseRdfDate` gains a tier for `YYYY Mon` →
+  month and `YYYY Mon D` → day precision, with exactly 3-letter English
+  abbreviations (case-insensitive; "Sept" and longer reject) and
+  real-calendar validation. The hand-resolution hint names the new form.
+  Pin: `apps/server/test/import-zotero-rdf-date.test.ts`.
 - **fix(scripts): import-zotero-rdf sanitizes decorated dates (wrappers,
   trailing period, circa) before parsing.** End-anchoring the strict ISO
   tier (previous entry) regressed real library data: hundreds of catalog
