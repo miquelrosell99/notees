@@ -585,6 +585,15 @@ const MONTH_NAME_TO_NUMBER: ReadonlyMap<string, number> = new Map(
   ).flatMap((names) => names.map((name, index) => [name, index + 1] as const)),
 );
 
+/** 3-letter English month abbreviations (PubMed/MEDLINE `YYYY Mon [D]`).
+ *  Exactly three letters — "Sept" is out of scope on purpose (a minimal,
+ *  unambiguous surface). Keyed lowercase. */
+const MONTH_ABBR_TO_NUMBER: ReadonlyMap<string, number> = new Map(
+  (["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"] as const).map(
+    (abbr, index) => [abbr, index + 1] as const,
+  ),
+);
+
 /** The precision an RDF date string claims — the coarsest shape present.
  *  A SANITATION PRE-PASS runs before all tiers (idempotent — the strips
  *  never re-introduce each other, and the loop runs until stable):
@@ -613,16 +622,20 @@ const MONTH_NAME_TO_NUMBER: ReadonlyMap<string, number> = new Map(
  *     table accepts "marzo 13 2013" too; harmless, unambiguous);
  *     every candidate is real-calendar
  *     validated through parseIsoDate;
- *  3. numeric MM/YYYY ("01/2022") → month precision, MM 01-12 (two-part
- *     only — never swallowed by tier 4);
- *  4. all-numeric three-part DD/MM/YYYY or DD-MM-YYYY → day precision.
+ *  3. PubMed/MEDLINE year-first "YYYY Mon [D]" — exactly 3-letter English
+ *     abbreviations, case-insensitive ("2023 Sep" → month, "2024 Dec 11"
+ *     → day; "Sept" and longer reject), real-calendar validated;
+ *  4. numeric MM/YYYY ("01/2022") → month precision, MM 01-12 (two-part
+ *     only — never swallowed by tier 5);
+ *  5. all-numeric three-part DD/MM/YYYY or DD-MM-YYYY → day precision.
  *     OWNER-LOCALE RULING (single-owner deployment, explicit): two-separator
  *     all-numeric dates are day-first Spanish, NOT US month-first — so
  *     "07/09/2023" is 7 September 2023 and "01/12/2025" is 1 December 2025;
  *     single-digit days ("8/05/2015") parse; real-calendar validated
  *     ("31/02/2024" is rejected, not clamped).
- *  Everything else — abbreviations, bare ranges without month/year,
- *  garbage — returns null and lands in the hand-resolution list. */
+ *  Everything else — abbreviations outside the PubMed tier, bare ranges
+ *  without month/year, garbage — returns null and lands in the
+ *  hand-resolution list. */
 export function parseRdfDate(value: string): { iso: string; precision: "year" | "month" | "day" } | null {
   let text = value.trim();
   // Sanitation pre-pass — documented in the header. Loop until stable so
@@ -689,6 +702,23 @@ export function parseRdfDate(value: string): { iso: string; precision: "year" | 
         return null;
       }
       return { iso, precision: "day" };
+    }
+  }
+  // PubMed/MEDLINE year-first "YYYY Mon [D]" — exactly 3-letter English
+  // abbreviations, case-insensitive; calendar-validated. ("Sept" is 4
+  // letters: no tier claims it.)
+  const pubmed = /^(\d{4})\s+([a-z]{3})(?:\s+(\d{1,2}))?$/i.exec(text);
+  if (pubmed !== null) {
+    const month = MONTH_ABBR_TO_NUMBER.get(pubmed[2]!.toLowerCase());
+    if (month !== undefined) {
+      const day = pubmed[3];
+      const iso = `${pubmed[1]}-${String(month).padStart(2, "0")}-${String(day ?? 1).padStart(2, "0")}`;
+      try {
+        parseIsoDate(iso);
+      } catch {
+        return null;
+      }
+      return { iso, precision: day !== undefined ? "day" : "month" };
     }
   }
   const slash = /^(\d{1,2})\/(\d{4})$/.exec(text);
@@ -1025,7 +1055,7 @@ function printReport(
       `  ~ #${unparsed.index} ${plan[unparsed.index]!.item.title}: ${unparsed.key} — needs hand-resolution: ` +
         `unparsable date ${JSON.stringify(unparsed.value)} ` +
         `(want YYYY[-MM[-DD]], "Month YYYY", "D Month YYYY", "D-D Month YYYY", ` +
-        `"D de mes de YYYY", "Month D YYYY", DD/MM/YYYY or MM/YYYY)`,
+        `"D de mes de YYYY", "Month D YYYY", YYYY Mon [D], DD/MM/YYYY or MM/YYYY)`,
     );
   }
 

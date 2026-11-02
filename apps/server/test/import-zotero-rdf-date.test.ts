@@ -30,7 +30,9 @@
  *    2023"); Spanish "de" long form with the second de optional
  *    ("28 de julio de 2023", "28 de julio 2023"); month-first
  *    ("March 13 2013", "March 13, 2013") — EN or ES month names, both
- *    deliberate;
+ *    deliberate; PubMed/MEDLINE year-first "YYYY Mon [D]" with exactly
+ *    3-letter English abbreviations ("2023 Sep" → month, "2024 Dec 11" →
+ *    day; "2023 Sept" rejects), real-calendar validated;
  *  - STILL rejected for hand-resolution: ambiguous shapes stay out
  *    ("31/02/2024" is not a real date), empty, garbage.
  */
@@ -65,6 +67,19 @@ describe("parseRdfDate", () => {
     expect(parseRdfDate("C2022")).toEqual({ iso: "2022-01-01", precision: "year" });
     expect(parseRdfDate("ca. 2022")).toEqual({ iso: "2022-01-01", precision: "year" });
     expect(parseRdfDate("ca 2022")).toEqual({ iso: "2022-01-01", precision: "year" });
+  });
+
+  it("parses PubMed year-first 'YYYY Mon [D]' at month/day precision", () => {
+    expect(parseRdfDate("2023 Sep")).toEqual({ iso: "2023-09-01", precision: "month" });
+    expect(parseRdfDate("2022 Aug")).toEqual({ iso: "2022-08-01", precision: "month" });
+    expect(parseRdfDate("2023 SEP")).toEqual({ iso: "2023-09-01", precision: "month" });
+    expect(parseRdfDate("2024 Dec 11")).toEqual({ iso: "2024-12-11", precision: "day" });
+  });
+
+  it("keeps the PubMed tier minimal: exactly 3-letter abbreviations", () => {
+    expect(parseRdfDate("2023 Sept")).toBeNull(); // 4 letters — out of scope.
+    expect(parseRdfDate("2023 Se")).toBeNull(); // 2 letters — out of scope.
+    expect(parseRdfDate("2023 Sep 31")).toBeNull(); // September has 30 days.
   });
 
   it("accepts full English month name + year, case-insensitive", () => {
