@@ -21,8 +21,7 @@ predating this file.
   `node-result-item__crumbs`); no change there. Also corrected a stale
   `Dropdown.css` comment that pointed at a nonexistent `SelectTrigger.css`
   (the trigger chrome is Tailwind-only in the TSX). **Verification:** web
-  typecheck clean apart from a pre-existing `collapsed-count.test.tsx`
-  literal-type error at HEAD (untouched by this slice); link-convert,
+  typecheck clean; link-convert,
   broken-link-create, node-link-label suites green (18 tests); deployed
   stack visually verified — the Edit Link target clips with "…".
 
@@ -41,6 +40,50 @@ predating this file.
   **Verification:** web suite green (property-bound-empty +
   text-property-blocks updated to the realize-click interaction); typecheck
   clean; css-token-drift green.
+
+- **feat(core+web): the task Status "Pending" is a class-supplied derived
+  default — removing the task class drops an unchanged status, a changed one
+  survives.** The owner's rule: a property value the class supplied and the
+  user never changed must disappear with the class; a value the user picked
+  must stay. The op-log-native answer: the class-supplied value is never
+  written at all. The seeded Status schema (…0003-000000000001) carries
+  `defaultValue` = the Pending option id (…0004-000000000009) — assigning the
+  task class derives "Pending" at read time (`source: "default"`, dimmed),
+  and `class.unassign` drops it with nothing to clean; the first user change
+  authors a real row that survives unassign marked unbound (the pre-existing
+  class-removal law, now exercised end-to-end for the flagship case). The
+  audit for other implied-initial-value authoring found exactly one — this —
+  so the slice is the whole scope. **Seeds + applier ensure** (packages/domain
+  `TASK_FAMILY_SEED`, packages/store `ensureTaskFamilyRows` now writes the
+  JSON-encoded `default_value` column); **read-side hardening**: a
+  select/multi_select default whose value is no longer among the schema's
+  options (option deleted after the default was written) derives nothing —
+  in `effective.ts` AND the query compiler's derived CTE, so the query
+  language and the effective read agree; write-time validation stays
+  type-only, so drifted workspaces never fail loud. **Web**: `ensureTaskFamily`
+  authors the default on creation and converges it in the every-launch
+  upgrade pass; the task cycle's assign arm dropped its Pending write (the
+  class alone suffices — a renamed-Pending workspace still shows its pending
+  option, the default rides the id); the calendar reopen path keeps its
+  write — reopening a Done task must shadow the authored Done row. **Live
+  workspaces** converge by `scripts/migrate-task-status-default.mts` (Path A:
+  `propertySchema.update {defaultValue}` per drifted schema +
+  `property.unset {idx: 0}` per authored Pending row the derived default now
+  covers — dry-run default, scratch-store plan, applier-simulation gate,
+  idempotent; e2e at `apps/server/test/migrate-task-status-default.test.ts`).
+  **Accepted side effects:** every task-class node (including `/checkbox`
+  tasks that never had a status) now reads/queries/exports as "Pending"
+  (semantic widening — the intended model), exports gain `Status: Pending`,
+  and authored-only surfaces (property references/usage counts) no longer
+  list never-authored Pending values. **Sibling check (same slice, no
+  lockstep gate — `defaultValue` is an existing payload key):** the GTK +
+  Flutter seed manifests carry the same default and their task-cycle arms
+  match; the CLI rides its vendor pin (its own release cycle).
+  **Verification:** store 1100 green (new: derived-default membership, the
+  unassign drop/authored-survive pair, the ensure column), query 279 green
+  (new: deleted-option default derives nothing), web task-cycle + task-family
+  22 green (the assign arm authors no `property.set`; class-removal pair);
+  migration e2e green; typecheck clean.
 
 - **feat(web): text property values render as block rows — scalars included.**
   The legacy plain-string cell (the shape freshly authored values carry —

@@ -62,7 +62,14 @@ function expandProperties(): void {
 
 /** Seed priority-bound Task + Project classes (Task applied first by callers). */
 async function seedPriorityClasses(client: WorkspaceClient) {
-  const schemaId = await client.createPropertySchema({ name: "priority", type: "select" });
+  // An email-typed schema: a string-typed SCALAR row (select-without-options
+  // used to render here, but a select default must now name one of the
+  // schema's options — the read-side option-membership rule — and optioned
+  // selects render the chips control). The tests exercise the
+  // effective-values read model (derived default, shadowing, unassign
+  // survival) through the scalar editor; select-control mechanics have
+  // their own coverage.
+  const schemaId = await client.createPropertySchema({ name: "priority", type: "email" });
   const taskId = await client.createClass("Task");
   const projectId = await client.createClass("Project");
   // WORKAROUND(store applier): class.create's contentAst never lands in the

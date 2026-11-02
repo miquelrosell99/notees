@@ -147,6 +147,10 @@ export async function setTaskDone(
     }
   }
   if (statusSchema === undefined || statusSchema.options === null) return;
+  // Reopen (done=false) MUST author Pending: it shadows either an authored
+  // Done row or the schema's derived default — without the write a completed
+  // task would still read Done. The write lands at the existing row's idx
+  // (a derived default reads idx 0), so the address is right on both arms.
   const targetLabel = done ? ("Done" as const) : TASK_DEFAULT_STATUS;
   const target = statusSchema.options.find((option) => option.label === targetLabel);
   if (target === undefined) return;

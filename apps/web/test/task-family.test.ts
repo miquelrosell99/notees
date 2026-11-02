@@ -253,11 +253,11 @@ describe("ensureTaskFamily", () => {
     expect(status.display).toBe("bullet");
   });
 
-  it("moves the status value display to the schema when still panel-level", async () => {
+  it("moves the status value display to the schema when still panel-level, and converges the Pending default", async () => {
     const client = await seedClient();
     // Fully converged styles, but the display never moved off the panel
-    // default — ONE upgrade write sets it (options untouched → display-only
-    // patch).
+    // default and the schema predates the Pending default — ONE upgrade
+    // write carries both keys.
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.taskStatus,
       name: "Status",
@@ -275,7 +275,9 @@ describe("ensureTaskFamily", () => {
 
     await ensureTaskFamily(client);
 
-    expect(spy.mock.calls.map(([, fields]) => fields)).toEqual([{ display: "bullet" }]);
+    expect(spy.mock.calls.map(([, fields]) => fields)).toEqual([
+      { display: "bullet", defaultValue: TASK_STATUS_OPTION_UUIDS.pending },
+    ]);
     const status = client
       .listPropertySchemas()
       .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus)!;

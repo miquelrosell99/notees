@@ -95,6 +95,9 @@ const TASK_FAMILY: Array<{
   targetClassFilter?: Array<keyof typeof SYSTEM_CLASS_UUIDS>;
   /** The schema-level hide-when-empty contract (the `project` relation). */
   hideWhenEmpty?: boolean;
+  /** The schema-level default (TASK_FAMILY_SEED.defaultValue; the Status
+   *  Pending option id — the class supplies it, never materialized). */
+  defaultValue?: string;
 }> = [
   {
     id: SYSTEM_PROPERTY_UUIDS.taskStatus,
@@ -108,6 +111,7 @@ const TASK_FAMILY: Array<{
         color: option.color,
       })),
     pinned: true,
+    defaultValue: TASK_STATUS_OPTION_UUIDS.pending,
   },
   {
     id: SYSTEM_PROPERTY_UUIDS.taskScheduled,
@@ -214,6 +218,7 @@ export async function ensureTaskFamily(client: TaskFamilyClient): Promise<void> 
             ? { targetClassFilter: spec.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
             : {}),
           ...(spec.hideWhenEmpty !== undefined ? { hideWhenEmpty: spec.hideWhenEmpty } : {}),
+          ...(spec.defaultValue !== undefined ? { defaultValue: spec.defaultValue } : {}),
         });
       }
     }
@@ -229,20 +234,24 @@ export async function ensureTaskFamily(client: TaskFamilyClient): Promise<void> 
   }
   // Upgrade pass: restyle the status options with the designed
   // circle icons/colors (stored ids preserved — authored values reference
-  // them) and move the value display to the property schema (render
+  // them), move the value display to the property schema (render
   // contracts are property-level — "bullet" = the status rides
-  // the block bullet). ONE updatePropertySchema carries both keys when
-  // either needs writing; runs on every call, a read-only no-op once
-  // converged.
+  // the block bullet), and converge the schema-level Pending default (the
+  // class supplies it at read time — nothing is ever materialized, so
+  // class removal drops an unchanged status without a compensating write).
+  // ONE updatePropertySchema carries the keys when any need writing; runs on
+  // every call, a read-only no-op once converged.
   const status = client
     .listPropertySchemas()
     .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus);
   if (status !== undefined) {
     const restyled = status.options != null ? styleTaskStatusOptions(status.options) : null;
     const display = status.display ?? null;
+    const defaultValue = status.defaultValue ?? null;
     const patch: Parameters<TaskFamilyClient["updatePropertySchema"]>[1] = {};
     if (restyled !== null) patch.options = restyled;
     if (display === null || display === "panel") patch.display = "bullet";
+    if (defaultValue === null) patch.defaultValue = TASK_STATUS_OPTION_UUIDS.pending;
     if (Object.keys(patch).length > 0) {
       await client.updatePropertySchema(status.id, patch);
     }

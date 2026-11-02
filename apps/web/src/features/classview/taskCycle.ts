@@ -2,12 +2,15 @@
  * taskCycle — the Cmd/Ctrl+Enter task-state toggle
  * (useTaskActions parity): a Roam/Logseq-style three-state cycle
  *
- *   not a task  ->  task + Pending  ->  task + Done  ->  not a task
+ *   not a task  ->  task (Pending derived)  ->  task + Done  ->  not a task
  *
  * bound to the chord in BlockTextEditor (the mod+Enter branch). The class and
  * the status property are kept in sync on every transition, mirroring the
  * `/checkbox` slash command: a block is never left with a status but no
- * class, or a class but a dead status pointer.
+ * class, or a class but a dead status pointer. The Pending status on the
+ * assign arm is NOT authored — the Status schema's default derives it at
+ * read time while the task class binds it, so removing the class drops an
+ * unchanged status without a compensating write.
  *
  * Write paths are the canonical client surface: `assignClass`/`unassignClass`
  * (OR-set membership), `setProperty`/`unsetProperty` (the status option id at
@@ -104,11 +107,14 @@ export async function cycleTaskState(client: CycleClient, id: string): Promise<v
   };
 
   if (!node.classIds.includes(taskClassId)) {
-    // not a task -> task + Pending: author the family (no-op once present),
-    // then class + status like `/checkbox` does.
+    // not a task -> task: author the family (no-op once present), then the
+    // class alone — the Status schema's Pending default derives at read time
+    // (never materialized, the /checkbox parity), so an unchanged status
+    // disappears with the class instead of surviving as an orphaned authored
+    // row. A renamed-Pending workspace still shows its pending option: the
+    // derived default rides the option id, not the label.
     await ensureTaskFamily(client);
     await client.assignClass(id, taskClassId);
-    await writeStatus(TASK_DEFAULT_STATUS);
     return;
   }
 

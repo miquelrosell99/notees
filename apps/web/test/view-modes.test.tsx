@@ -656,7 +656,9 @@ describe("cards board (property-dimension groupBy)", () => {
     }
     expect(within(column(optionId("Backlog"))).getByText("Task Backlog")).not.toBeNull();
     expect(within(column(optionId("Done"))).getByText("Task Done")).not.toBeNull();
-    expect(within(column("__none__")).getByText("Task Unset")).not.toBeNull();
+    // The never-set task derives the class-supplied Pending default (the
+    // schema-level defaultValue) — it groups under Pending, not None.
+    expect(within(column(optionId("Pending"))).getByText("Task Unset")).not.toBeNull();
     // Empty columns still render as drop targets.
     expect(within(column(optionId("Doing"))).getByText("0")).not.toBeNull();
 
@@ -665,12 +667,15 @@ describe("cards board (property-dimension groupBy)", () => {
     await applyCardGroupDrop(client, unscheduled, schemaId, optionId("Doing"), undefined);
     await flushWrites();
     expect(within(column(optionId("Doing"))).getByText("Task Unset")).not.toBeNull();
-    expect(within(column("__none__")).queryByText("Task Unset")).toBeNull();
+    expect(within(column(optionId("Pending"))).queryByText("Task Unset")).toBeNull();
 
-    // Drop on None clears the value again.
+    // Drop on None clears the authored value — the class-supplied Pending
+    // default resurfaces, so the task returns to the Pending column (a
+    // classed task's status is never truly empty).
     await applyCardGroupDrop(client, unscheduled, schemaId, null, 0);
     await flushWrites();
-    expect(within(column("__none__")).getByText("Task Unset")).not.toBeNull();
+    expect(within(column(optionId("Pending"))).getByText("Task Unset")).not.toBeNull();
+    expect(within(column("__none__")).queryByText("Task Unset")).toBeNull();
   });
 
   it("the tasks hub cards mode rides the authored task family; hubs without a grouping select render the flat grid", async () => {

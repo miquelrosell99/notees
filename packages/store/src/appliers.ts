@@ -3032,8 +3032,8 @@ function ensureTaskFamilyRows(db: StoreDatabase, env: Envelope): void {
     db.prepare(
       `INSERT OR IGNORE INTO property_schema
          (id, workspace_id, name, type, multi, icon, scope_class_ids, options, target_class_filter,
-          date_precision, date_qualified, display, active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 0, NULL, ?, ?, NULL, NULL, NULL, ?, 1, ?, ?)`,
+          date_precision, date_qualified, display, active, created_at, updated_at, default_value)
+       VALUES (?, ?, ?, ?, 0, NULL, ?, ?, NULL, NULL, NULL, ?, 1, ?, ?, ?)`,
     ).run(
       schemaId,
       env.workspaceId,
@@ -3048,6 +3048,9 @@ function ensureTaskFamilyRows(db: StoreDatabase, env: Envelope): void {
       entry.display ?? null,
       env.timestamp,
       env.timestamp,
+      // The column stores JSON (the propertySchema.create/update appliers
+      // stringify) — the ensure must match or reads parse the raw string.
+      entry.defaultValue !== undefined ? JSON.stringify(entry.defaultValue) : null,
     );
     db.prepare(
       `INSERT OR IGNORE INTO class_property
