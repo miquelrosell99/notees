@@ -23,7 +23,15 @@ predating this file.
   validation before anything is ingested, idempotent on envelope id, the
   server's stores converge before the response; `GET /api/admin/convergence`
   reports the handle watermark, pending skips, and whether specific
-  envelope ids are applied. **(2) The self-heal sweep**
+  envelope ids are applied. **(2a) The hydrate wedge fix**
+  (`apps/server/src/workspace-store.ts`): hydration restored a snapshot
+  ONLY when it covered the whole log — a snapshot one envelope behind the
+  head (the normal live case) triggered a full from-zero replay that
+  blocked the event loop for 20+ minutes on a 308k-envelope workspace
+  (API dead, healthchecks failing). An empty store now restores the latest
+  snapshot unconditionally and replays only the tail from `up_to_seq` —
+  hasApplied already made the overlap harmless; seconds instead of
+  minutes. **(2b) The self-heal sweep**
   (`apps/server/src/workspace-store.ts`): `WorkspaceManager` now tracks a
   per-handle `lastSeq` watermark and pages the log from it on a 20 s
   interval (plus `sweepNow` for manual/tests) — a direct external append
