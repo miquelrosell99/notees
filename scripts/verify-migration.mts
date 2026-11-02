@@ -16,6 +16,13 @@
  * converged). The convergence endpoint answers from the server's own
  * connection — the same read path every route serves from.
  *
+ * The endpoint caps an `envelopeIds` param at 100 ids (a protective bound;
+ * routes-admin.ts) — a bigger batch would have its tail silently dropped
+ * (false "unapplied" FAILs) or the URL grow past the header limit (HTTP 431
+ * on a 7k-id import batch). So the check PAGES: ≤100 ids per request, the
+ * per-page `envelopes` maps merged before the accounting. Batches of ≤100
+ * ids issue exactly one request, byte-identical to the unpaged shape.
+ *
  * Usage (from the repo root; the tsx binary lives in apps/server):
  *   pnpm --filter @notees/server exec tsx ../../scripts/verify-migration.mts \
  *     --data-dir /etc/periphery/stacks/notees/config/notees/sync \
@@ -69,7 +76,7 @@ function operatorKeyOf(options: CliOptions): string {
   }
 }
 
-interface ConvergenceResponse {
+export interface ConvergenceResponse {
   hydrated: boolean;
   lastSeq: number;
   latestSeq: number;
@@ -78,7 +85,44 @@ interface ConvergenceResponse {
   envelopes: Record<string, boolean>;
 }
 
-async function convergenceOf(
+/**
+ * The server's per-request cap on `envelopeIds` (routes-admin.ts slices to
+ * 100 — a protective bound against giant query strings). The client pages
+ * below it.
+ */
+export const CONVERGENCE_ID_PAGE = 100;
+
+/**
+ * Split an envelope-id list into server-sized pages. An empty list yields
+ * one empty page — the probe request still runs (it reads the handle
+ * watermark, no envelopeIds param), matching the unpaged shape.
+ */
+export function pageEnvelopeIds(envelopeIds: string[], pageSize = CONVERGENCE_ID_PAGE): string[][] {
+  const pages: string[][] = [];
+  for (let offset = 0; offset < Math.max(envelopeIds.length, 1); offset += pageSize) {
+    pages.push(envelopeIds.slice(offset, offset + pageSize));
+  }
+  return pages;
+}
+
+/**
+ * Merge per-page convergence responses into one: the `envelopes` maps union
+ * (ids never repeat across pages), the scalar fields come from the LAST
+ * page — every page answers the same workspace handle, so hydrated /
+ * lastSeq / latestSeq / pending are identical across pages and appliedCount
+ * is the handle-wide stat, not a per-page sum. A single page passes through
+ * unchanged.
+ */
+export function mergeConvergenceResponses(responses: ConvergenceResponse[]): ConvergenceResponse {
+  const last = responses[responses.length - 1]!;
+  const envelopes: Record<string, boolean> = {};
+  for (const response of responses) {
+    Object.assign(envelopes, response.envelopes);
+  }
+  return { ...last, envelopes };
+}
+
+async function convergencePage(
   options: CliOptions,
   workspaceId: string,
   envelopeIds: string[],
@@ -94,6 +138,18 @@ async function convergenceOf(
     );
   }
   return (await response.json()) as ConvergenceResponse;
+}
+
+async function convergenceOf(
+  options: CliOptions,
+  workspaceId: string,
+  envelopeIds: string[],
+): Promise<ConvergenceResponse> {
+  const responses: ConvergenceResponse[] = [];
+  for (const page of pageEnvelopeIds(envelopeIds)) {
+    responses.push(await convergencePage(options, workspaceId, page));
+  }
+  return mergeConvergenceResponses(responses);
 }
 
 async function main(): Promise<void> {

@@ -211,7 +211,12 @@ those exact ids are applied — never probe `derived/*.db` with raw sqlite: a
 live store may be served from a snapshot-restore temp file with a stub at
 the derived path, WAL makes side reads racy, and a mistyped UUID literal
 returns honest-looking nulls (all three burned the 2026-11-02 pmid
-post-check while every layer had actually converged). The server's
+post-check while every layer had actually converged). The endpoint caps
+`envelopeIds` at 100 ids per request (a protective bound) — the script pages
+the check, ≤100 ids per request with the per-page `envelopes` maps merged
+before the accounting, so a big batch neither drops its tail (false
+"unapplied" FAILs) nor outgrows the URL (HTTP 431 on a 7k-id import). The
+server's
 `WorkspaceManager` self-heal sweep (20 s interval + `sweepNow`) converges
 open derived handles after a DIRECT external append, so even the legacy
 apply mode needs at most a restart nudge, never a cache wipe.
