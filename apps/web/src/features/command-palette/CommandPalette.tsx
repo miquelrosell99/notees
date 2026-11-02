@@ -45,7 +45,9 @@
  *  - Commands   the action registry: New page, New class… (#14, where the
  *               host provides it), Add source… (the add-source dialog,
  *               where the host provides it — offline hides the row), a
- *               typed "Create page …" row, Merge current
+ *               typed "Create page …" row, Merge nodes… (the general
+ *               multi-source merge dialog, where the host provides it — no
+ *               current node needed), Merge current
  *               page into… (where the host provides it and the current node
  *               is a mergeable page), Focus mode (#12), Condensed: enter /
  *               exit (the condensed layer, where the host provides it and a
@@ -245,6 +247,7 @@ export function CommandPalette({
   onOpenAddSource = undefined,
   currentNodeId = undefined,
   onOpenMerge = undefined,
+  onOpenMergeGeneral = undefined,
   condensedActive = undefined,
   onToggleCondensed = undefined,
   onOpenSearch = undefined,
@@ -288,6 +291,12 @@ export function CommandPalette({
   currentNodeId?: string | undefined;
   /** Open the merge-into modal for `currentNodeId` — a contribution point. */
   onOpenMerge?: (() => void) | undefined;
+  /**
+   * Open the GENERAL multi-source merge dialog (any non-class node — no
+   * current node required) — a contribution point, like the class create.
+   * The row appears only where the host provides it.
+   */
+  onOpenMergeGeneral?: (() => void) | undefined;
   /**
    * The condensed layer: the "Condensed: enter/exit" row
    * appears only where the host provides this and an eligible page is open
@@ -651,6 +660,17 @@ export function CommandPalette({
           keywords: "import logseq markdown dump restore sqlite workspace",
           run: () => requestImport(),
         },
+        ...(onOpenMergeGeneral !== undefined
+          ? [
+              {
+                key: "merge-general",
+                label: "Merge nodes…",
+                icon: "mdiMerge",
+                keywords: "merge combine absorb nodes into",
+                run: () => onOpenMergeGeneral(),
+              },
+            ]
+          : []),
         ...(onOpenMerge !== undefined && currentNodeId !== undefined
           ? (() => {
               const current = client.getNode(currentNodeId);
@@ -762,7 +782,7 @@ export function CommandPalette({
     return items;
     // cacheVersion rides through classesCache (the memo re-derives the
     // sections when the worker cache refreshes).
-  }, [client, classesCache, home, dailyOnly, text, chip, anyChip, hasMemberOf, memberOfSet, onOpenNode, onOpenInSidebar, onNewPage, onOpenClassCreate, onOpenAddSource, onOpenProperty, currentNodeId, onOpenMerge, onToggleCondensed, condensedActive, onSignOut, onClose, undoState, onUndo, onRedo]);
+  }, [client, classesCache, home, dailyOnly, text, chip, anyChip, hasMemberOf, memberOfSet, onOpenNode, onOpenInSidebar, onNewPage, onOpenClassCreate, onOpenAddSource, onOpenProperty, currentNodeId, onOpenMerge, onOpenMergeGeneral, onToggleCondensed, condensedActive, onSignOut, onClose, undoState, onUndo, onRedo]);
 
   // --- `/` filter mode: the option list -------------------------------------
 

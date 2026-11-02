@@ -250,9 +250,8 @@ export function App() {
   const [classCreateOpen, setClassCreateOpen] = useState(false);
   /** The palette's Properties section: the picked schema's PropertyView. */
   const [propertyViewFor, setPropertyViewFor] = useState<string | null>(null);
-  /** The palette's "Merge current page into…" command (in-process store only —
-   *  the planner reads the local SQLite database directly). */
-  const [mergeOpen, setMergeOpen] = useState(false);
+  // The palette's merge commands ride the merge modal's app-level host
+  // (requestMerge in features/modals/mergeHost) — no shell state here.
   const { undoUi, setUndoUi, undoUiRef, scheduleUndoRefresh, runUndo, runRedo } =
     useUndoChrome(clientRef);
   /** Top-bar calendar popup (the popup needs the client, so it renders here). */
@@ -972,9 +971,6 @@ export function App() {
         propertyViewFor={propertyViewFor}
         setPropertyViewFor={setPropertyViewFor}
         selectedPageId={selectedPageId}
-        storeMode={storeMode}
-        mergeOpen={mergeOpen}
-        setMergeOpen={setMergeOpen}
         condensedActive={condensedActive}
         setCondensedPref={setCondensedPref}
         openSearchPage={openSearchPage}

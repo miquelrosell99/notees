@@ -6,7 +6,9 @@
  * (the Convert to page › submenu: keep under the parent vs extract to root,
  * children staying or following), move a main child back to the content,
  * the per-block list style (List style ›), the node color swatches
- * (Color › — the color edit without an icon requirement), export
+ * (Color › — the color edit without an icon requirement), merge into
+ * another node (Merge into… — the unified multi-source merge dialog through
+ * the app-level mergeHost queue, non-class nodes only), export
  * (document-chrome nodes), the page banner upload (Add/Change
  * banner), move a class pill inline (Move inline — a class_link chip
  * prepended to the owner's content, the pill's derived view hides it),
@@ -47,6 +49,7 @@ import { clipboardMarkdown } from "../export/exportSubtree.js";
 import { ColorPickerRow } from "../pickers/ColorPickerRow.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
 import { makeCard } from "../cards/makeCard.js";
+import { requestMerge } from "../modals/mergeHost.js";
 import { headingAstOf, headingConversionOf, plainTextAstOf } from "../block-editor/headingConvert.js";
 import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
 import { ContextMenu, type ContextMenuItem } from "../../components/ui/kit/ContextMenu.js";
@@ -424,6 +427,20 @@ export function NodeContextMenu({
       label: "Move to content",
       icon: "mdi-format-indent-decrease",
       onClick: () => void client.updateObject(node.id, { isEmbedded: true }),
+    });
+  }
+  // Merge into…: the unified multi-source merge dialog (the app-level
+  // mergeHost queue — the menu fires and closes, the host mounts the modal
+  // pre-seeded with this node). Any non-class node merges: pages and
+  // blocks alike (a block target relocates standalone children under the
+  // nearest page-role ancestor — the planner's leg). Classes refuse at the
+  // guard, so the row stays off them.
+  if (!node.isClass) {
+    items.push({
+      id: "merge-into",
+      label: "Merge into…",
+      icon: "mdiMerge",
+      onClick: () => requestMerge(node.id),
     });
   }
   // Heading conversion (the v1 "Convert to heading"

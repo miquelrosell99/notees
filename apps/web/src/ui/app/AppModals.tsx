@@ -4,19 +4,20 @@
  * add, class create, merge, property view), the S1 property-create host
  * (the /property slash command, Ctrl/Cmd+Alt+P, the verb create-and-bind),
  * plus the mobile quick-create FAB and the presentation deck. Pure
- * composition: every behavior arrives via props from App.
+ * composition: every behavior arrives via props from App. The unified
+ * merge modal rides its own app-level host (MergeHost): the palette's
+ * merge rows and the node context menu's "Merge into…" request it through
+ * the module-level queue, in both store modes.
  */
 
 import type { Dispatch, SetStateAction } from "react";
 
-import { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { UndoUiState } from "@/core/undo-journal.js";
 import type { AnyClient } from "./clients.js";
-import type { StoreMode } from "./storeMode.js";
 import { CommandPalette } from "../../features/command-palette/CommandPalette.js";
 import { QuickAddModal } from "../../features/modals/QuickAddModal.js";
 import { ClassCreateModal } from "../../features/modals/ClassCreateModal.js";
-import { MergeNodesModal } from "../../features/modals/MergeNodesModal.js";
+import { MergeHost, requestMerge } from "../../features/modals/mergeHost.js";
 import { PropertyView } from "../../features/metadata/PropertyView.js";
 import { PropertyCreateHost } from "../../features/metadata/PropertyCreateHost.js";
 import { QuickCreateFab } from "../../features/block-editor/QuickCreateFab.js";
@@ -37,9 +38,6 @@ export interface AppModalsProps {
   propertyViewFor: string | null;
   setPropertyViewFor: Dispatch<SetStateAction<string | null>>;
   selectedPageId: string | null;
-  storeMode: StoreMode;
-  mergeOpen: boolean;
-  setMergeOpen: Dispatch<SetStateAction<boolean>>;
   condensedActive: boolean;
   setCondensedPref: (value: boolean) => void;
   openSearchPage: (query?: string) => void;
@@ -72,9 +70,6 @@ export function AppModals(props: AppModalsProps) {
     propertyViewFor,
     setPropertyViewFor,
     selectedPageId,
-    storeMode,
-    mergeOpen,
-    setMergeOpen,
     condensedActive,
     setCondensedPref,
     openSearchPage,
@@ -107,7 +102,8 @@ export function AppModals(props: AppModalsProps) {
         }
         onOpenProperty={(schemaId) => setPropertyViewFor(schemaId)}
         currentNodeId={selectedPageId ?? undefined}
-        onOpenMerge={storeMode === "in-process" ? () => setMergeOpen(true) : undefined}
+        onOpenMerge={() => requestMerge(selectedPageId ?? undefined)}
+        onOpenMergeGeneral={() => requestMerge()}
         condensedActive={condensedActive}
         onToggleCondensed={
           selectedPageId !== null ? () => setCondensedPref(!condensedActive) : undefined
@@ -130,18 +126,11 @@ export function AppModals(props: AppModalsProps) {
           onCreated={(id) => openPage(id)}
         />
       )}
-      {mergeOpen && selectedPageId !== null && client instanceof WorkspaceClient && (
-        <MergeNodesModal
-          isOpen
-          client={client}
-          sourceId={selectedPageId}
-          onClose={() => setMergeOpen(false)}
-          onMerged={(targetId) => {
-            setMergeOpen(false);
-            openPage(targetId);
-          }}
-        />
-      )}
+      {/* The unified merge modal's app-level host: the palette's merge rows
+          and the node context menu's "Merge into…" request the modal through
+          the module-level queue; both store modes ride it (the host holds the
+          mode-picked client). Post-merge the host navigates to the target. */}
+      <MergeHost client={client} onOpenNode={openPage} />
       {propertyViewFor !== null && (
         <PropertyView
           client={client}
