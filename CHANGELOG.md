@@ -9,6 +9,13 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(web): the collapsed-block count pill reads "+N".** The additive
+  plus disambiguates the bare number from the app's numbered-list markers
+  (`1.` / `a.` / `i.` render in the same bullet position on list-styled
+  blocks) and reads as "N more inside" at a glance; the tooltip keeps the
+  words ("N blocks inside"). Verified: collapsed-count tests updated and
+  green, live probe PROBE-PASS, verify-min VERIFY-PASS.
+
 - **fix(web): vertical alignment of the collapsed-block count pill.** The
   24px pill centered with `align-self: center` read ~3px low against the
   16px text baseline (the row rides `align-items: baseline`, so the text
