@@ -193,9 +193,13 @@ export function SelectTrigger({
         )}
       >
         <span className="select-trigger__content flex w-full items-center justify-between gap-1">
-          {/* Main content area */}
-          <span className="select-trigger__value flex min-w-0 flex-1 items-center gap-1">
-            {children}
+          {/* Main content area — the label clips with an ellipsis when the
+              selection text outgrows the trigger (long node titles), never
+              wrapping or scrolling horizontally. */}
+          <span className="select-trigger__value flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+            <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+              {children}
+            </span>
           </span>
 
           {/* Chevron icon */}

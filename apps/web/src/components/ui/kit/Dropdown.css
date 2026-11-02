@@ -1,7 +1,8 @@
 /**
  * Dropdown Component Styles
  * 
- * Note: Trigger styles now in SelectTrigger.css
+ * Note: trigger chrome lives as Tailwind classes in SelectTrigger.tsx
+ * (no co-located CSS sheet).
  */
 
 

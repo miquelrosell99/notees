@@ -9,6 +9,38 @@ predating this file.
 
 ## 2026-11-02
 
+- **fix(web): kit SelectTrigger labels clip long titles with an ellipsis.**
+  The trigger's value span had `min-w-0` but no overflow rule, so a long
+  node title (the Edit Link modal's target line, any node-picker trigger)
+  outgrew the control and read as a hard cut against the panel edge. The
+  kit `SelectTrigger` now wraps the label in a truncating span
+  (`overflow-hidden text-ellipsis whitespace-nowrap`, the chevron kept
+  `shrink-0`) — every consumer (LinkEditModal, kit Dropdown, class
+  multi-pick) inherits the clip. The picker dropdown rows already clipped
+  (`node-selector__item-name` / `__option-name` /
+  `node-result-item__crumbs`); no change there. Also corrected a stale
+  `Dropdown.css` comment that pointed at a nonexistent `SelectTrigger.css`
+  (the trigger chrome is Tailwind-only in the TSX). **Verification:** web
+  typecheck clean apart from a pre-existing `collapsed-count.test.tsx`
+  literal-type error at HEAD (untouched by this slice); link-convert,
+  broken-link-create, node-link-label suites green (18 tests); deployed
+  stack visually verified — the Edit Link target clips with "…".
+
+- **feat(web): empty text properties render a muted "Empty" block row — the
+  dark field chrome is gone.** The empty-state cells of `TextPropertyRow`
+  (bound-but-empty, assigned-empty, no-rows, and the default-sourced
+  scalar-empty-string shape the citekey seed carries) used to render a
+  full-width "Type something" input with a dark background; they now render
+  the SAME block-row shape as values — bullet + a muted italic "Empty"
+  placeholder in place of the content. The click mints an empty carrier
+  block and opens the block editor (the established mint pattern); walking
+  away without typing leaves the auto-unset pass to reclaim the slot. The
+  citekey default-empty row keeps the regenerate button as the row's
+  trailing action. ReadOnly and dead-reference recovery cells unchanged.
+  **Verification:** web suite green (property-bound-empty + text-property-blocks
+  updated to the click-to-mint interaction); typecheck clean; css-token-drift
+  green.
+
 - **feat(web): text property values render as block rows — scalars included.**
   The legacy plain-string cell (the shape freshly authored values carry —
   the resolver's direct create writes scalars) used to render as a boxed
