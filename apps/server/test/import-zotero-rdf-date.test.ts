@@ -15,8 +15,16 @@
  *    ("31 June 2024" has no June 31st — rejected);
  *  - numeric MM/YYYY ("01/2022", "4/1997") → month precision, MM must be
  *    01-12 ("13/2022" rejected);
- *  - STILL rejected for hand-resolution: two-slash all-numeric dates
- *    ("01/12/2025" — ambiguous DD/MM vs MM/DD), empty, garbage.
+ *  - owner-locale tiers (single-owner deployment, owner-locale Spanish —
+ *    the rulings are explicit, not inferred): all-numeric three-part
+ *    DD/MM/YYYY and DD-MM-YYYY at day precision ("07/09/2023",
+ *    "12-06-2023", single-digit days like "8/05/2015"), real-calendar
+ *    validated; day ranges "D-D Month YYYY" take the start day ("2-6 July
+ *    2023"); Spanish "de" long form with the second de optional
+ *    ("28 de julio de 2023", "28 de julio 2023"); EN month-first
+ *    ("March 13 2013", "March 13, 2013");
+ *  - STILL rejected for hand-resolution: ambiguous shapes stay out
+ *    ("31/02/2024" is not a real date), empty, garbage.
  */
 
 import { describe, expect, it } from "vitest";
@@ -71,8 +79,43 @@ describe("parseRdfDate", () => {
     expect(parseRdfDate("00/2022")).toBeNull();
   });
 
+  it("parses owner-locale all-numeric DD/MM/YYYY at day precision", () => {
+    expect(parseRdfDate("07/09/2023")).toEqual({ iso: "2023-09-07", precision: "day" });
+    expect(parseRdfDate("15/02/2023")).toEqual({ iso: "2023-02-15", precision: "day" });
+    expect(parseRdfDate("11/03/2020")).toEqual({ iso: "2020-03-11", precision: "day" });
+    expect(parseRdfDate("22/05/2024")).toEqual({ iso: "2024-05-22", precision: "day" });
+    expect(parseRdfDate("8/05/2015")).toEqual({ iso: "2015-05-08", precision: "day" });
+    expect(parseRdfDate("01/12/2025")).toEqual({ iso: "2025-12-01", precision: "day" });
+  });
+
+  it("parses owner-locale all-numeric DD-MM-YYYY at day precision", () => {
+    expect(parseRdfDate("12-06-2023")).toEqual({ iso: "2023-06-12", precision: "day" });
+  });
+
+  it("calendar-validates the all-numeric tier and keeps MM/YYYY at month", () => {
+    expect(parseRdfDate("31/02/2024")).toBeNull(); // February has no 31st.
+    expect(parseRdfDate("01/2022")).toEqual({ iso: "2022-01-01", precision: "month" });
+    expect(parseRdfDate("13/2022")).toBeNull(); // two-part MM/YYYY, MM 13 — rejected, not day 13.
+  });
+
+  it("parses day ranges 'D-D Month YYYY' at the start day", () => {
+    expect(parseRdfDate("2-6 July 2023")).toEqual({ iso: "2023-07-02", precision: "day" });
+    expect(parseRdfDate("2-6 julio 2023")).toEqual({ iso: "2023-07-02", precision: "day" });
+  });
+
+  it("parses the Spanish 'de' long form, second de optional, case-insensitive", () => {
+    expect(parseRdfDate("28 de julio de 2023")).toEqual({ iso: "2023-07-28", precision: "day" });
+    expect(parseRdfDate("28 de julio 2023")).toEqual({ iso: "2023-07-28", precision: "day" });
+    expect(parseRdfDate("18 de diciembre de 2023")).toEqual({ iso: "2023-12-18", precision: "day" });
+    expect(parseRdfDate("28 DE JULIO DE 2023")).toEqual({ iso: "2023-07-28", precision: "day" });
+  });
+
+  it("parses EN month-first 'Month D YYYY' at day precision", () => {
+    expect(parseRdfDate("March 13 2013")).toEqual({ iso: "2013-03-13", precision: "day" });
+    expect(parseRdfDate("March 13, 2013")).toEqual({ iso: "2013-03-13", precision: "day" });
+  });
+
   it("still rejects the hand-resolution shapes", () => {
-    expect(parseRdfDate("01/12/2025")).toBeNull(); // two-slash all-numeric — ambiguous.
     expect(parseRdfDate("2016-13-01")).toBeNull(); // invalid month in the ISO tier.
     expect(parseRdfDate("")).toBeNull();
     expect(parseRdfDate("not a date")).toBeNull();

@@ -586,17 +586,27 @@ const MONTH_NAME_TO_NUMBER: ReadonlyMap<string, number> = new Map(
 );
 
 /** The precision an RDF date string claims — the coarsest shape present.
- *  Three tiers, strictest first (Zotero exports `dc:date` verbatim, so real
+ *  Tiers, strictest first (Zotero exports `dc:date` verbatim, so real
  *  files carry human dates alongside the ISO shapes):
  *  1. strict ISO — `YYYY[-MM[-DD]]`;
  *  2. full month name + year, case-insensitive, optional comma ("June 2016",
  *     "JUNE 2022", "June, 2016", "enero 2020") → month precision; day +
  *     month name + year ("14 June 2024", "14 junio 2024") → day precision;
- *     every candidate is real-calendar validated through parseIsoDate;
- *  3. numeric MM/YYYY ("01/2022") → month precision, MM 01-12.
- *  Everything else — two-slash all-numeric dates ("01/12/2025", ambiguous
- *  DD/MM vs MM/DD), abbreviations, garbage — returns null and lands in the
- *  hand-resolution list. */
+ *     a day RANGE "D-D Month YYYY" (EN or ES names) takes the START day;
+ *     the Spanish "de" long form ("28 de julio de 2023", second de
+ *     optional) parses the same; EN month-first "March 13 2013"
+ *     (comma optional) → day precision; every candidate is real-calendar
+ *     validated through parseIsoDate;
+ *  3. numeric MM/YYYY ("01/2022") → month precision, MM 01-12 (two-part
+ *     only — never swallowed by tier 4);
+ *  4. all-numeric three-part DD/MM/YYYY or DD-MM-YYYY → day precision.
+ *     OWNER-LOCALE RULING (single-owner deployment, explicit): two-separator
+ *     all-numeric dates are day-first Spanish, NOT US month-first — so
+ *     "07/09/2023" is 7 September 2023 and "01/12/2025" is 1 December 2025;
+ *     single-digit days ("8/05/2015") parse; real-calendar validated
+ *     ("31/02/2024" is rejected, not clamped).
+ *  Everything else — abbreviations, bare ranges without month/year,
+ *  garbage — returns null and lands in the hand-resolution list. */
 export function parseRdfDate(value: string): { iso: string; precision: "year" | "month" | "day" } | null {
   const text = value.trim();
   const strict = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?/.exec(text);
@@ -615,18 +625,35 @@ export function parseRdfDate(value: string): { iso: string; precision: "year" | 
     }
     return { iso, precision: day !== undefined ? "day" : month !== undefined ? "month" : "year" };
   }
-  const named = /^(?:(\d{1,2})\s+)?([a-z]+),?\s+(\d{4})$/i.exec(text);
+  // "D Month YYYY", "D-D Month YYYY" (range → start day), the Spanish "de"
+  // long form (second de optional), and EN month-first "Month D YYYY".
+  const named = /^(?:(\d{1,2})\s*(?:-\s*(\d{1,2})\s*)?(?:de\s+)?)?([a-z]+),?\s+(?:de\s+)?(\d{4})$/i.exec(text);
   if (named !== null) {
-    const day = named[1] === undefined ? undefined : Number(named[1]);
-    const month = MONTH_NAME_TO_NUMBER.get(named[2]!.toLowerCase());
-    if (month !== undefined) {
-      const iso = `${named[3]}-${String(month).padStart(2, "0")}-${String(day ?? 1).padStart(2, "0")}`;
+    const startDay = named[1] === undefined ? undefined : Number(named[1]);
+    const endDay = named[2] === undefined ? undefined : Number(named[2]);
+    const month = MONTH_NAME_TO_NUMBER.get(named[3]!.toLowerCase());
+    if (month !== undefined && (endDay === undefined || endDay >= (startDay ?? 1))) {
+      const iso = `${named[4]}-${String(month).padStart(2, "0")}-${String(startDay ?? 1).padStart(2, "0")}`;
       try {
         parseIsoDate(iso);
       } catch {
         return null;
       }
-      return { iso, precision: day !== undefined ? "day" : "month" };
+      return { iso, precision: startDay !== undefined ? "day" : "month" };
+    }
+  }
+  // EN month-first "Month D YYYY" / "Month D, YYYY" → day precision.
+  const monthFirst = /^([a-z]+)\s+(\d{1,2}),?\s+(\d{4})$/i.exec(text);
+  if (monthFirst !== null) {
+    const month = MONTH_NAME_TO_NUMBER.get(monthFirst[1]!.toLowerCase());
+    if (month !== undefined) {
+      const iso = `${monthFirst[3]}-${String(month).padStart(2, "0")}-${monthFirst[2]!.padStart(2, "0")}`;
+      try {
+        parseIsoDate(iso);
+      } catch {
+        return null;
+      }
+      return { iso, precision: "day" };
     }
   }
   const slash = /^(\d{1,2})\/(\d{4})$/.exec(text);
@@ -641,6 +668,19 @@ export function parseRdfDate(value: string): { iso: string; precision: "year" | 
       }
       return { iso, precision: "month" };
     }
+  }
+  // Owner-locale ruling: three-part all-numeric is day-first DD/MM/YYYY
+  // ("/" or "-"), never month-first. Two-part stays in the MM/YYYY tier
+  // above, so "01/2022" keeps month precision.
+  const numericDay = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(text);
+  if (numericDay !== null) {
+    const iso = `${numericDay[3]}-${numericDay[2].padStart(2, "0")}-${numericDay[1].padStart(2, "0")}`;
+    try {
+      parseIsoDate(iso);
+    } catch {
+      return null;
+    }
+    return { iso, precision: "day" };
   }
   return null;
 }
@@ -949,7 +989,8 @@ function printReport(
     console.log(
       `  ~ #${unparsed.index} ${plan[unparsed.index]!.item.title}: ${unparsed.key} — needs hand-resolution: ` +
         `unparsable date ${JSON.stringify(unparsed.value)} ` +
-        `(want YYYY[-MM[-DD]], "Month YYYY", "D Month YYYY" or MM/YYYY)`,
+        `(want YYYY[-MM[-DD]], "Month YYYY", "D Month YYYY", "D-D Month YYYY", ` +
+        `"D de mes de YYYY", "Month D YYYY", DD/MM/YYYY or MM/YYYY)`,
     );
   }
 
