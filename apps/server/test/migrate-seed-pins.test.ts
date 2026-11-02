@@ -215,11 +215,21 @@ describe("migrate-seed-pins.mts", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  it("derives the pin target set from the manifests: 11 rows, no duplicates", () => {
+  it("derives the pin target set from the manifests: 12 rows, no duplicates", () => {
+    // The pinned roster: DECLARED 2026-10-27 (the source base family, the
+    // meeting family's location, the task family's status/scheduled/deadline),
+    // AMENDED 2026-11-02 for pmid (the resolver's PMID support) and — the full
+    // Zotero alignment, same pass — for pmcid (a PubMed Central identifier is
+    // a first-class base identifier the same way; it rides the source base
+    // like pmid, never the per-class table).
     const targets = deriveSeedPinTargets();
-    expect(targets).toHaveLength(11);
-    expect(new Set(targets.map((t) => `${t.classId}/${t.propertySchemaId}`)).size).toBe(11);
-    // url→web_page is NOT a target (only the source base row pins).
+    expect(targets).toHaveLength(12);
+    expect(new Set(targets.map((t) => `${t.classId}/${t.propertySchemaId}`)).size).toBe(12);
+    // The base-family identifiers pin on `source` only…
+    expect(
+      targets.some((t) => t.classId === SOURCE_ID && t.propertySchemaId === SYSTEM_PROPERTY_UUIDS.pmcid),
+    ).toBe(true);
+    // …and url→web_page is NOT a target (only the source base row pins).
     expect(
       targets.some((t) => t.classId === WEB_PAGE_ID && t.propertySchemaId === SYSTEM_PROPERTY_UUIDS.url),
     ).toBe(false);
@@ -245,9 +255,13 @@ describe("migrate-seed-pins.mts", () => {
     // …and the missing rows report as skipped, not written: taskDeadline as
     // before, and pmid — the fixture predates the PMID property, whose schema
     // + binding + pin land together via scripts/migrate-pmid-property.mts
-    // (the pins script only flips EXISTING rows).
+    // (the pins script only flips EXISTING rows). pmcid joins the same
+    // missing list (the 2026-11-02 full-alignment slice pins it onto the base
+    // family alongside pmid): its schema + binding + pin land together via
+    // scripts/migrate-zotero-full-alignment.mts.
     expect(plan.missing.map((t) => t.propertySchemaId)).toEqual([
       SYSTEM_PROPERTY_UUIDS.pmid,
+      SYSTEM_PROPERTY_UUIDS.pmcid,
       SYSTEM_PROPERTY_UUIDS.taskDeadline,
     ]);
 
@@ -303,8 +317,12 @@ describe("migrate-seed-pins.mts", () => {
       expect(pinnedOf(fresh, WEB_PAGE_ID, "url")).toBe(0);
       expect(pinnedOf(fresh, MEETING_ID, "agenda")).toBe(0);
       expect(pinnedOf(fresh, TASK_ID, "taskPriority")).toBe(0);
-      // The missing row is still missing — the ensure authors it, not the script.
+      // The missing rows are still missing — the ensure authors taskDeadline,
+      // and the pmcid schema + binding + pin land together via
+      // scripts/migrate-zotero-full-alignment.mts (the pins script only flips
+      // EXISTING rows; the fixture predates both migrations' properties).
       expect(pinnedOf(fresh, TASK_ID, "taskDeadline")).toBeUndefined();
+      expect(pinnedOf(fresh, SOURCE_ID, "pmcid")).toBeUndefined();
     } finally {
       fresh.close();
     }
