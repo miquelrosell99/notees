@@ -723,6 +723,45 @@ export const SYSTEM_PROPERTY_UUIDS = {
   // are stable identity and never renumber. Live workspaces converge by
   // scripts/migrate-pmid-property.mts.
   pmid: "00000000-0000-0000-0006-000000000056",
+  // Tail block (2026-11-02, full Zotero field alignment): the 31 remaining
+  // Zotero fields append at …057–…075, after pmid — a late addition APPENDS
+  // at the next free slot; the UUIDs are stable identity and never renumber.
+  // pmcid mirrors pmid exactly (base family, pinned — one deliberate
+  // deviation from strict Zotero scoping, the owner precedent 2026-11-02);
+  // the other 30 are bind:false pool fields whose per-class binding rows ride
+  // SYSTEM_SOURCE_CLASS_BINDINGS. Live workspaces converge by
+  // scripts/migrate-zotero-full-alignment.mts.
+  pmcid: "00000000-0000-0000-0006-000000000057",
+  journalAbbreviation: "00000000-0000-0000-0006-000000000058",
+  seriesText: "00000000-0000-0000-0006-000000000059",
+  libraryCatalog: "00000000-0000-0000-0006-00000000005a",
+  originalDate: "00000000-0000-0000-0006-00000000005b",
+  originalPublisher: "00000000-0000-0000-0006-00000000005c",
+  originalPlace: "00000000-0000-0000-0006-00000000005d",
+  conferenceName: "00000000-0000-0000-0006-00000000005e",
+  presentationType: "00000000-0000-0000-0006-00000000005f",
+  sessionTitle: "00000000-0000-0000-0006-000000000060",
+  dictionaryTitle: "00000000-0000-0000-0006-000000000061",
+  encyclopediaTitle: "00000000-0000-0000-0006-000000000062",
+  manuscriptType: "00000000-0000-0000-0006-000000000063",
+  mapType: "00000000-0000-0000-0006-000000000064",
+  organization: "00000000-0000-0000-0006-000000000065",
+  billNumber: "00000000-0000-0000-0006-000000000066",
+  subject: "00000000-0000-0000-0006-000000000067",
+  country: "00000000-0000-0000-0006-000000000068",
+  audioFileType: "00000000-0000-0000-0006-000000000069",
+  archiveID: "00000000-0000-0000-0006-00000000006a",
+  partNumber: "00000000-0000-0000-0006-00000000006b",
+  partTitle: "00000000-0000-0000-0006-00000000006c",
+  audioRecordingFormat: "00000000-0000-0000-0006-00000000006d",
+  videoRecordingFormat: "00000000-0000-0000-0006-00000000006e",
+  caseName: "00000000-0000-0000-0006-00000000006f",
+  court: "00000000-0000-0000-0006-000000000070",
+  docketNumber: "00000000-0000-0000-0006-000000000071",
+  reporter: "00000000-0000-0000-0006-000000000072",
+  reporterVolume: "00000000-0000-0000-0006-000000000073",
+  firstPage: "00000000-0000-0000-0006-000000000074",
+  dateDecided: "00000000-0000-0000-0006-000000000075",
 } as const;
 
 export type SystemPropertyName = keyof typeof SYSTEM_PROPERTY_UUIDS;
@@ -810,7 +849,12 @@ export interface SystemPropertySpec {
    * resolver's PMID support pins `pmid` onto the source base family (a PubMed
    * identifier is a first-class base identifier like doi); live workspaces
    * converge by scripts/migrate-pmid-property.mts (the schema + binding + pin
-   * land in one pass there).
+   * land in one pass there). AMENDED 2026-11-02 (the full Zotero alignment,
+   * same pass): `pmcid` pins onto the base family alongside pmid — a PubMed
+   * Central identifier is a first-class base identifier the same way (one
+   * deliberate deviation from strict Zotero scoping: Zotero scopes PMID/PMCID
+   * to journalArticle only); live workspaces converge by
+   * scripts/migrate-zotero-full-alignment.mts.
    */
   pinned?: boolean;
   targetClassFilter?: SystemClassName[];
@@ -1068,6 +1112,41 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   websiteTitle: { type: "text", bindTo: "source", bind: false },
   websiteType: { type: "text", bindTo: "source", bind: false },
   workType: { type: "text", bindTo: "source", bind: false },
+  // Tail block (2026-11-02, full Zotero field alignment): the 31 remaining
+  // Zotero fields append at …057–…075 (see the UUID map comment). pmcid
+  // mirrors pmid exactly — a BASE-family identifier, pinned, NOT a bind:false
+  // pool field; the other 30 stay bind:false pool fields scoped [source].
+  pmcid: { type: "text", bindTo: "source", pinned: true },
+  journalAbbreviation: { type: "text", bindTo: "source", bind: false },
+  seriesText: { type: "text", bindTo: "source", bind: false },
+  libraryCatalog: { type: "text", bindTo: "source", bind: false },
+  originalDate: { type: "text", bindTo: "source", bind: false },
+  originalPublisher: { type: "text", bindTo: "source", bind: false },
+  originalPlace: { type: "text", bindTo: "source", bind: false },
+  conferenceName: { type: "text", bindTo: "source", bind: false },
+  presentationType: { type: "text", bindTo: "source", bind: false },
+  sessionTitle: { type: "text", bindTo: "source", bind: false },
+  dictionaryTitle: { type: "text", bindTo: "source", bind: false },
+  encyclopediaTitle: { type: "text", bindTo: "source", bind: false },
+  manuscriptType: { type: "text", bindTo: "source", bind: false },
+  mapType: { type: "text", bindTo: "source", bind: false },
+  organization: { type: "text", bindTo: "source", bind: false },
+  billNumber: { type: "text", bindTo: "source", bind: false },
+  subject: { type: "text", bindTo: "source", bind: false },
+  country: { type: "text", bindTo: "source", bind: false },
+  audioFileType: { type: "text", bindTo: "source", bind: false },
+  archiveID: { type: "text", bindTo: "source", bind: false },
+  partNumber: { type: "text", bindTo: "source", bind: false },
+  partTitle: { type: "text", bindTo: "source", bind: false },
+  audioRecordingFormat: { type: "text", bindTo: "source", bind: false },
+  videoRecordingFormat: { type: "text", bindTo: "source", bind: false },
+  caseName: { type: "text", bindTo: "source", bind: false },
+  court: { type: "text", bindTo: "source", bind: false },
+  docketNumber: { type: "text", bindTo: "source", bind: false },
+  reporter: { type: "text", bindTo: "source", bind: false },
+  reporterVolume: { type: "text", bindTo: "source", bind: false },
+  firstPage: { type: "text", bindTo: "source", bind: false },
+  dateDecided: { type: "text", bindTo: "source", bind: false },
 };
 
 /**
@@ -1215,6 +1294,39 @@ export const SYSTEM_PROPERTY_DISPLAY_NAMES: Record<SystemPropertyName, string> =
   websiteTitle: "Website title",
   websiteType: "Website type",
   workType: "Type",
+  // Tail block (2026-11-02, full Zotero field alignment — the 31 keys at
+  // …057–…075; acronyms uppercase per the display-name law).
+  pmcid: "PMCID",
+  journalAbbreviation: "Journal abbreviation",
+  seriesText: "Series text",
+  libraryCatalog: "Library catalog",
+  originalDate: "Original date",
+  originalPublisher: "Original publisher",
+  originalPlace: "Original place",
+  conferenceName: "Conference name",
+  presentationType: "Presentation type",
+  sessionTitle: "Session title",
+  dictionaryTitle: "Dictionary title",
+  encyclopediaTitle: "Encyclopedia title",
+  manuscriptType: "Manuscript type",
+  mapType: "Map type",
+  organization: "Organization",
+  billNumber: "Bill number",
+  subject: "Subject",
+  country: "Country",
+  audioFileType: "Audio file type",
+  archiveID: "Archive ID",
+  partNumber: "Part number",
+  partTitle: "Part title",
+  audioRecordingFormat: "Audio recording format",
+  videoRecordingFormat: "Video recording format",
+  caseName: "Case name",
+  court: "Court",
+  docketNumber: "Docket number",
+  reporter: "Reporter",
+  reporterVolume: "Reporter volume",
+  firstPage: "First page",
+  dateDecided: "Date decided",
 };
 
 /** The schema name a seed/self-heal authors for `name` (display wording). */

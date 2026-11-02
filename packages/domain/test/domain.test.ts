@@ -132,10 +132,13 @@ describe("system seeds (ported)", () => {
       // AMENDED 2026-11-02: pmid joins the base family (the resolver's PMID
       // support — a PubMed identifier is a first-class base identifier like
       // doi); live workspaces converge by scripts/migrate-pmid-property.mts.
+      // AMENDED 2026-11-02 (full Zotero alignment, same pass): pmcid pins
+      // alongside pmid the same way.
       "authors",
       "citekey",
       "doi",
       "linkedAuthors",
+      "pmcid",
       "pmid",
       "publicationDate",
       "url",
@@ -495,12 +498,82 @@ describe("system seeds (ported)", () => {
       // identity, never renumbered. Live workspaces converge by
       // scripts/migrate-pmid-property.mts.
       ["pmid", "000000000056", { type: "text", bindTo: "source", pinned: true }, "PMID"],
+      // Tail block (2026-11-02, full Zotero field alignment): the 31 remaining
+      // Zotero fields append at …057–…075, after pmid — the UUIDs are stable
+      // identity, never renumbered. pmcid mirrors pmid exactly (base family,
+      // pinned); every other row is a bind:false pool field whose per-class
+      // binding rows ride SYSTEM_SOURCE_CLASS_BINDINGS. Live workspaces
+      // converge by scripts/migrate-zotero-full-alignment.mts.
+      ["pmcid", "000000000057", { type: "text", bindTo: "source", pinned: true }, "PMCID"],
+      ["journalAbbreviation", "000000000058", text, "Journal abbreviation"],
+      ["seriesText", "000000000059", text, "Series text"],
+      ["libraryCatalog", "00000000005a", text, "Library catalog"],
+      ["originalDate", "00000000005b", text, "Original date"],
+      ["originalPublisher", "00000000005c", text, "Original publisher"],
+      ["originalPlace", "00000000005d", text, "Original place"],
+      ["conferenceName", "00000000005e", text, "Conference name"],
+      ["presentationType", "00000000005f", text, "Presentation type"],
+      ["sessionTitle", "000000000060", text, "Session title"],
+      ["dictionaryTitle", "000000000061", text, "Dictionary title"],
+      ["encyclopediaTitle", "000000000062", text, "Encyclopedia title"],
+      ["manuscriptType", "000000000063", text, "Manuscript type"],
+      ["mapType", "000000000064", text, "Map type"],
+      ["organization", "000000000065", text, "Organization"],
+      ["billNumber", "000000000066", text, "Bill number"],
+      ["subject", "000000000067", text, "Subject"],
+      ["country", "000000000068", text, "Country"],
+      ["audioFileType", "000000000069", text, "Audio file type"],
+      ["archiveID", "00000000006a", text, "Archive ID"],
+      ["partNumber", "00000000006b", text, "Part number"],
+      ["partTitle", "00000000006c", text, "Part title"],
+      ["audioRecordingFormat", "00000000006d", text, "Audio recording format"],
+      ["videoRecordingFormat", "00000000006e", text, "Video recording format"],
+      ["caseName", "00000000006f", text, "Case name"],
+      ["court", "000000000070", text, "Court"],
+      ["docketNumber", "000000000071", text, "Docket number"],
+      ["reporter", "000000000072", text, "Reporter"],
+      ["reporterVolume", "000000000073", text, "Reporter volume"],
+      ["firstPage", "000000000074", text, "First page"],
+      ["dateDecided", "000000000075", text, "Date decided"],
     ];
     // The manifest order is the alphabetical order (beyond the two pinned
     // slots) — the suffix assignment stays deterministic forever. The late
-    // additions (pmid, …056) append at the tail and stand outside the
-    // alphabetical check.
-    const ALPHABET_EXEMPT: ReadonlySet<string> = new Set(["pmid"]);
+    // additions (pmid …056; the 31-row Zotero tail block …057–…075) append at
+    // the tail and stand outside the alphabetical check.
+    const ALPHABET_EXEMPT: ReadonlySet<string> = new Set([
+      "pmid",
+      "pmcid",
+      "journalAbbreviation",
+      "seriesText",
+      "libraryCatalog",
+      "originalDate",
+      "originalPublisher",
+      "originalPlace",
+      "conferenceName",
+      "presentationType",
+      "sessionTitle",
+      "dictionaryTitle",
+      "encyclopediaTitle",
+      "manuscriptType",
+      "mapType",
+      "organization",
+      "billNumber",
+      "subject",
+      "country",
+      "audioFileType",
+      "archiveID",
+      "partNumber",
+      "partTitle",
+      "audioRecordingFormat",
+      "videoRecordingFormat",
+      "caseName",
+      "court",
+      "docketNumber",
+      "reporter",
+      "reporterVolume",
+      "firstPage",
+      "dateDecided",
+    ]);
     const keys = pool.map(([key]) => key);
     const alphabeticalKeys = keys.slice(2).filter((key) => !ALPHABET_EXEMPT.has(key));
     expect(alphabeticalKeys).toEqual([...alphabeticalKeys].sort());
@@ -528,12 +601,15 @@ describe("system seeds (ported)", () => {
       "authors", "linkedAuthors", "editors", "doi", "isbn", "publicationDate",
       "publisher", "citekey", "url", "attachments",
       // pmid joins the base family 2026-11-02 (the resolver's PMID support) —
-      // a real binding row on source, binding defaults true.
+      // a real binding row on source, binding defaults true. pmcid joins the
+      // same day (full Zotero alignment) — a PubMed Central identifier is a
+      // first-class base identifier like pmid/doi, pinned the same way.
       "pmid",
+      "pmcid",
     ]);
-    // The …0006- block: linkedAuthors/editors/pmid (base, bind defaults true)
-    // are the ONLY exceptions — every other entry is bind:false + bindTo source
-    // + local scope (no global flag).
+    // The …0006- block: linkedAuthors/editors/pmid/pmcid (base, bind defaults
+    // true) are the ONLY exceptions — every other entry is bind:false + bindTo
+    // source + local scope (no global flag).
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
       if (spec === undefined) continue;
       const id = SYSTEM_PROPERTY_UUIDS[name as SystemPropertyName];
@@ -552,13 +628,13 @@ describe("system seeds (ported)", () => {
       expect(SYSTEM_PROPERTY_SPECS[name]?.bindTo, `${name} stays scoped to source`).toBe("source");
     }
     // …and the base in the …0006- block is exactly linkedAuthors + editors
-    // + pmid (pmid joined 2026-11-02).
+    // + pmid + pmcid (both joined 2026-11-02).
     const blockBase = (Object.keys(SYSTEM_PROPERTY_UUIDS) as SystemPropertyName[]).filter(
       (name) =>
         SYSTEM_PROPERTY_UUIDS[name].startsWith("00000000-0000-0000-0006-") &&
         base.has(name),
     );
-    expect(blockBase.sort()).toEqual(["editors", "linkedAuthors", "pmid"]);
+    expect(blockBase.sort()).toEqual(["editors", "linkedAuthors", "pmcid", "pmid"]);
   });
 
   it("templates seed (T2): has-template reserved, seeded at GLOBAL scope (M47 — no class-class host), targets the template class", () => {
