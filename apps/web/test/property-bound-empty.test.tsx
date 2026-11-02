@@ -58,10 +58,14 @@ describe("bound-but-empty rows — the virtual property shows", () => {
 
     const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
     await flushWrites();
-    // The empty scalar cell renders (the row the bound-empty pass used to
-    // skip), and the from-class hint rides the label.
-    const cell = container.querySelector<HTMLInputElement>('input[aria-label="Property URL"]');
-    expect(cell).not.toBeNull();
+    // The empty state renders the platform ghost row (the muted "+ Add
+    // block" affordance, no dark field chrome), and the from-class hint
+    // rides the label.
+    const ghost = container.querySelector<HTMLElement>(".nt-property-ghost");
+    expect(ghost).not.toBeNull();
+    const add = ghost!.querySelector<HTMLButtonElement>(".nt-ghost-row__add");
+    expect(add).not.toBeNull();
+    expect(add!.textContent).toBe("+ Add block");
     expect(container.querySelector('[data-property-schema-id] .nt-property-hint')).not.toBeNull();
     const row = client.getEffectiveProperties(pageId).find((r) => r.propertySchemaId === schemaId);
     expect(row).toMatchObject({ source: "bound", value: null, boundBy: classId });
@@ -107,7 +111,7 @@ describe("bound-but-empty rows — the virtual property shows", () => {
     expect(hint).toBeNull();
   });
 
-  it("typing into the cell authors the value — the bound row shadows into authored", async () => {
+  it("clicking the ghost row mints the carrier and authors the value — the bound row shadows into authored", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "URL", type: "text" });
@@ -117,14 +121,19 @@ describe("bound-but-empty rows — the virtual property shows", () => {
 
     const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
     await flushWrites();
-    const cell = container.querySelector<HTMLInputElement>('input[aria-label="Property URL"]')!;
-    fireEvent.change(cell, { target: { value: "https://x.org" } });
-    fireEvent.blur(cell);
+    const add = container.querySelector<HTMLButtonElement>(".nt-ghost-row__add")!;
+    expect(add.textContent).toBe("+ Add block");
+    // A real click focuses the button — inside the row — so the auto-unset
+    // pass keeps the freshly minted empty carrier (the Add-pill precedent).
+    act(() => {
+      add.focus();
+    });
+    fireEvent.click(add);
     await flushWrites();
     await flushWrites();
 
-    // Text is node-backed: the typed string lands on a minted carrier block
-    // ({nodeId} value), not a raw string.
+    // Text is node-backed: the click minted a carrier block ({nodeId} value),
+    // not a raw string — the bound-empty row shadows into authored.
     const rows = client.getEffectiveProperties(pageId).filter((r) => r.propertySchemaId === schemaId);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ source: "authored", boundBy: classId });

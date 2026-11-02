@@ -308,6 +308,25 @@ button.nt-property-value:focus-visible {
   cursor: text;
 }
 
+/* The empty-state cell rides the platform ghost row (ui/GhostRow): the row
+   grows to the value width, the optional trailing affordance (the citekey
+   regenerate) sits at its right edge. */
+.nt-property-ghost {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.nt-property-ghost .nt-ghost-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.nt-property-ghost .nt-property-value-field__action {
+  position: static;
+  flex-shrink: 0;
+}
+
 /* The scalar block row stays aligned with the carrier collection's rows:
    the block chrome keeps its own metrics; only the content's end padding
    clears the trailing in-row affordance (the citekey regenerate). */

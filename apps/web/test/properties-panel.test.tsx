@@ -527,7 +527,7 @@ describe("dead carrier in the value cell", () => {
     expect(screen.queryByLabelText("Property Description")).toBeNull();
   });
 
-  it("a bound-but-empty text property renders the full-width 'Type something' placeholder; typing authors the first carrier", async () => {
+  it("a bound-but-empty text property renders the ghost row (the panel integration)", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "Blurb", type: "text" });
     const classId = await client.createClass("Thing");
@@ -537,17 +537,17 @@ describe("dead carrier in the value cell", () => {
 
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
-    // The empty value cell still spans the row — the
-    // muted placeholder names it empty instead of leaving a void.
-    const input = screen.getByPlaceholderText("Type something") as HTMLInputElement;
-    expect(input.className).toContain("nt-property-value");
-
-    fireEvent.blur(input, { target: { value: "first words" } });
-    await flushWrites();
-    const effective = client.getEffectiveProperties(pageId);
-    expect(effective).toHaveLength(1);
-    const ref = (effective[0]!.value as { nodeId: string }).nodeId;
-    expect(client.getNode(ref)?.contentAst).toEqual([{ type: "text", text: "first words" }]);
+    // The empty value cell wears the platform ghost row (the same muted
+    // "+ Add block" affordance the outliner trails) — scoped to the text
+    // property row (the page body trails its own ghost). The realize WRITE
+    // rides the same mint path the text-property-blocks suite covers — the
+    // PageView host's block editor opens in an overlay, so focus leaves the
+    // row and the auto-unset pass reclaims an untyped carrier by design.
+    const ghost = document.querySelector<HTMLButtonElement>(
+      ".nt-property-text .nt-ghost-row__add",
+    );
+    expect(ghost).not.toBeNull();
+    expect(ghost!.textContent).toContain("Add block");
   });
 });
 
