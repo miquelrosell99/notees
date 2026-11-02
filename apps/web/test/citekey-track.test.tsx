@@ -352,12 +352,20 @@ describe("the citekey pin button (TextPropertyRow)", () => {
     const sourceId = await seedLovelaceSource(client);
 
     const { container } = render(<PropertiesTable client={client} nodeId={sourceId} />);
-    const cell = rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey).querySelector<HTMLInputElement>(
-      'input.nt-property-value[placeholder="Type something"]',
+    // The empty citekey cell wears the ghost row now: realizing it (the
+    // hand-authored path) mints the carrier THROUGH the row's property.set,
+    // which carries the manual-edit pin metadata — the auto-pin semantics,
+    // unchanged by the interaction switch.
+    const ghost = rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey).querySelector<HTMLButtonElement>(
+      ".nt-ghost-row__add",
     );
-    expect(cell).not.toBeNull();
-    fireEvent.change(cell!, { target: { value: "handwritten" } });
-    fireEvent.blur(cell!);
+    expect(ghost).not.toBeNull();
+    // A real click focuses the button — inside the row — so the auto-unset
+    // pass keeps the freshly minted empty carrier (the Add-pill precedent).
+    act(() => {
+      ghost!.focus();
+    });
+    fireEvent.click(ghost!);
     await flushWrites();
     await flushWrites();
 

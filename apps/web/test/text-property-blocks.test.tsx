@@ -346,7 +346,7 @@ describe("the '+ Add property' assignment (unbound text)", () => {
     );
   }
 
-  it("a text add ASSIGNS the schema without a value — the row renders the empty cell", async () => {
+  it("a text add ASSIGNS the schema without a value — the row renders the ghost row", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
@@ -360,12 +360,16 @@ describe("the '+ Add property' assignment (unbound text)", () => {
     const assigned = assignedRows(client, pageId, schemaId);
     expect(assigned).toHaveLength(1);
     expect(assigned[0]!.value).toBeNull();
-    // The empty cell reads as a field, awaiting the first value.
-    const cell = container.querySelector<HTMLInputElement>('.nt-property-textcell input[placeholder="Type something"]');
-    expect(cell).not.toBeNull();
+    // The empty state is the platform ghost row (the muted "+ Add block"
+    // affordance), awaiting the first click.
+    const ghost = container.querySelector<HTMLElement>(".nt-property-textcell .nt-property-ghost");
+    expect(ghost).not.toBeNull();
+    const add = ghost!.querySelector<HTMLButtonElement>(".nt-ghost-row__add");
+    expect(add).not.toBeNull();
+    expect(add!.textContent).toBe("+ Add block");
   });
 
-  it("typing into the empty cell authors the first carrier — the value lands later", async () => {
+  it("clicking the ghost row authors the first carrier — the value lands", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
@@ -373,13 +377,20 @@ describe("the '+ Add property' assignment (unbound text)", () => {
     const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);
     await addViaPanel(container, () => rerender(<PropertiesTable client={client} nodeId={pageId} />), "Summary");
 
-    const cell = container.querySelector<HTMLInputElement>('.nt-property-textcell input[placeholder="Type something"]')!;
-    fireEvent.change(cell, { target: { value: "the first line" } });
-    fireEvent.blur(cell);
+    // A real click focuses the button — inside the row — so the auto-unset
+    // pass keeps the freshly minted empty carrier (the Add-pill precedent).
+    const add = container.querySelector<HTMLButtonElement>(".nt-property-textcell .nt-ghost-row__add")!;
+    act(() => {
+      add.focus();
+    });
+    fireEvent.click(add);
     await flushWrites();
     await flushWrites();
-    rerender(<PropertiesTable client={client} nodeId={pageId} />);
 
+    // The row carries its own store subscription — the mint reflects without
+    // a host rerender. (Forcing one here would remount the just-opened block
+    // editor, drop focus from the row, and let the auto-unset pass reclaim
+    // the still-empty carrier.)
     const rows = authoredTextRows(client, pageId, schemaId);
     expect(rows).toHaveLength(1);
     const carrier = (rows[0]!.value as { nodeId: string }).nodeId;
@@ -388,7 +399,7 @@ describe("the '+ Add property' assignment (unbound text)", () => {
     expect(assignedRows(client, pageId, schemaId)).toHaveLength(0);
   });
 
-  it("leaving the empty cell empty keeps the assignment — no fabricated value", async () => {
+  it("walking away from the minted-but-empty carrier reclaims the slot — the assignment stands, no fabricated value", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
@@ -396,13 +407,31 @@ describe("the '+ Add property' assignment (unbound text)", () => {
     const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);
     await addViaPanel(container, () => rerender(<PropertiesTable client={client} nodeId={pageId} />), "Summary");
 
-    const cell = container.querySelector<HTMLInputElement>('.nt-property-textcell input[placeholder="Type something"]')!;
-    fireEvent.change(cell, { target: { value: "" } });
-    fireEvent.blur(cell);
+    // Without a click nothing authors — the declaration alone stands.
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+    expect(assignedRows(client, pageId, schemaId)).toHaveLength(1);
+
+    // Clicking the ghost row mints an EMPTY carrier — the block editor opens
+    // on it and the row holds focus, so the value survives…
+    const add = container.querySelector<HTMLButtonElement>(".nt-property-textcell .nt-ghost-row__add")!;
+    act(() => {
+      add.focus();
+    });
+    fireEvent.click(add);
+    await flushWrites();
+    await flushWrites();
+    expect(authoredTextRows(client, pageId, schemaId)).toHaveLength(1);
+
+    // …but walking away without typing lets the auto-unset pass reclaim the
+    // slot (unset + trash): the assignment stands, no fabricated value.
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    act(() => {
+      outside.focus();
+    });
     await flushWrites();
     await flushWrites();
 
-    // The declaration stands; nothing was authored.
     expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
     expect(assignedRows(client, pageId, schemaId)).toHaveLength(1);
   });
@@ -419,10 +448,11 @@ describe("the '+ Add property' assignment (unbound text)", () => {
     await addViaPanel(container, () => rerender(<PropertiesTable client={client} nodeId={pageId} />), "Summary");
 
     // Still no value anywhere — the bound-empty row renders (via the
-    // assignment or the binding, either way the cell awaits the first value).
+    // assignment or the binding, either way the ghost row awaits the first
+    // click).
     expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
-    const cell = container.querySelector<HTMLInputElement>('.nt-property-textcell input[placeholder="Type something"]');
-    expect(cell).not.toBeNull();
+    const ghost = container.querySelector<HTMLElement>(".nt-property-textcell .nt-property-ghost");
+    expect(ghost).not.toBeNull();
   });
 });
 
@@ -470,7 +500,7 @@ describe("citekey row: the empty-default placeholder + the regenerate affordance
     return row;
   }
 
-  it("a default-sourced scalar-empty row renders the 'Type something' cell (the citekey seed shape)", async () => {
+  it("a default-sourced scalar-empty row renders the ghost row (the citekey seed shape)", async () => {
     const client = await seedClient();
     await seedSourceFamily(client);
     const sourceId = await client.createObject({
@@ -480,26 +510,30 @@ describe("citekey row: the empty-default placeholder + the regenerate affordance
     });
 
     const { container } = render(<PropertiesTable client={client} nodeId={sourceId} />);
-    // Today the legacy scalar branch renders an empty plain-text cell —
-    // the fix renders the SAME full-width placeholder cell a
-    // bound-but-empty row rides (first edit still mints the carrier).
-    const cell = rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey).querySelector<HTMLInputElement>(
-      'input.nt-property-value[placeholder="Type something"]',
-    );
-    expect(cell).not.toBeNull();
-    // The first edit authors the carrier through the same path as the
+    // An empty default is an empty field: the SAME platform ghost row a
+    // bound-but-empty row rides (the muted "+ Add block" affordance, no
+    // dark field chrome).
+    const citekeyRow = rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey);
+    const ghost = citekeyRow.querySelector<HTMLElement>(".nt-property-ghost");
+    expect(ghost).not.toBeNull();
+    const add = ghost!.querySelector<HTMLButtonElement>(".nt-ghost-row__add");
+    expect(add).not.toBeNull();
+    expect(add!.textContent).toBe("+ Add block");
+    // The first click still mints the carrier through the same path as the
     // bound-but-empty cell: the value lands as the carrier {nodeId} ref.
-    fireEvent.change(cell!, { target: { value: "handwritten" } });
-    fireEvent.blur(cell!);
+    act(() => {
+      add!.focus();
+    });
+    fireEvent.click(add!);
     await flushWrites();
     await flushWrites();
     const rows = authoredTextRows(client, sourceId, SYSTEM_PROPERTY_UUIDS.citekey);
     expect(rows).toHaveLength(1);
     const carrier = client.getNode((rows[0]!.value as { nodeId: string }).nodeId);
-    expect(carrier?.contentAst[0]).toMatchObject({ text: "handwritten" });
+    expect(carrier).toBeDefined();
   });
 
-  it("the regenerate button renders inside the citekey field of a source node — and nowhere else", async () => {
+  it("the regenerate button renders as the ghost row's trailing action on a source node — and nowhere else", async () => {
     const client = await seedClient();
     await seedSourceFamily(client);
     const sourceId = await client.createObject({
@@ -514,9 +548,9 @@ describe("citekey row: the empty-default placeholder + the regenerate affordance
       'button[aria-label="Regenerate citekey"]',
     );
     expect(button).not.toBeNull();
-    // The affordance rides INSIDE the field cell (the searchbox clear-x
-    // trailing pattern).
-    expect(button!.closest(".nt-property-value-field")).not.toBeNull();
+    // The affordance rides the ghost row as its TRAILING action (the
+    // searchbox clear-x pattern — still at the field's right edge).
+    expect(button!.closest(".nt-property-ghost")).not.toBeNull();
     // The authors row (also a text row on the same node) carries none.
     expect(
       rowOf(container, SYSTEM_PROPERTY_UUIDS.authors).querySelector(

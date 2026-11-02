@@ -26,20 +26,21 @@ predating this file.
   broken-link-create, node-link-label suites green (18 tests); deployed
   stack visually verified — the Edit Link target clips with "…".
 
-- **feat(web): empty text properties render a muted "Empty" block row — the
-  dark field chrome is gone.** The empty-state cells of `TextPropertyRow`
+- **feat(web): empty text properties wear the ghost row — the dark field
+  chrome is gone.** The empty-state cells of `TextPropertyRow`
   (bound-but-empty, assigned-empty, no-rows, and the default-sourced
   scalar-empty-string shape the citekey seed carries) used to render a
   full-width "Type something" input with a dark background; they now render
-  the SAME block-row shape as values — bullet + a muted italic "Empty"
-  placeholder in place of the content. The click mints an empty carrier
-  block and opens the block editor (the established mint pattern); walking
-  away without typing leaves the auto-unset pass to reclaim the slot. The
-  citekey default-empty row keeps the regenerate button as the row's
-  trailing action. ReadOnly and dead-reference recovery cells unchanged.
-  **Verification:** web suite green (property-bound-empty + text-property-blocks
-  updated to the click-to-mint interaction); typecheck clean; css-token-drift
-  green.
+  the platform **GhostRow** (`apps/web/src/ui/GhostRow` — the same muted
+  "+ Add block" affordance the outliner trails; the ruling: the ghost is
+  the sole add affordance everywhere). The realize click mints an empty
+  carrier block and opens the block editor on it; walking away without
+  typing leaves the auto-unset pass to reclaim the slot. The citekey
+  default-empty row keeps the regenerate button as the row's trailing
+  action. ReadOnly and dead-reference recovery cells unchanged.
+  **Verification:** web suite green (property-bound-empty +
+  text-property-blocks updated to the realize-click interaction); typecheck
+  clean; css-token-drift green.
 
 - **feat(web): text property values render as block rows — scalars included.**
   The legacy plain-string cell (the shape freshly authored values carry —

@@ -29,8 +29,10 @@
  * string, wiring the value to it and opening the block editor (the
  * established create-carrier pattern, no new op), from then on the value
  * IS a block: children render indented under it. A bound-but-empty row
- * renders the full-width "Type something" placeholder input so the empty
- * value cell still reads as a field; typing authors the first carrier.
+ * renders the platform GHOST ROW (ui/GhostRow — the same muted "+ Add
+ * block" affordance the outliner trails; the 2026-11-02 ruling: the ghost
+ * is the sole add affordance everywhere, never a field) — the realize
+ * click mints the first carrier and opens the block editor.
  *
  * Auto-unset: an authored value whose carrier has no
  * content and no child blocks is unset automatically — a dead ref whose
@@ -42,14 +44,15 @@
  * Add/Enter just minted an empty value the user may be about to type into)
  * — and unsetting trashes the carrier — "Unset deletes the carrier".
  *
- * Assigned-empty rows: the row renders the same full-width "Type something" cell as a
- * bound-but-empty row; first edit mints the carrier block and authors the
- * {nodeId} value, exactly the Add-pill path.
+ * Assigned-empty rows: the row renders the same ghost row as a
+ * bound-but-empty row; the realize click mints the carrier block and
+ * authors the {nodeId} value, exactly the Add-pill path.
  *
  * A default-sourced row whose value is the SCALAR EMPTY STRING (the citekey
- * seed's `defaultValue: ""`) renders the SAME placeholder cell — an empty
- * default is an empty field, not a value; the first edit still mints the
- * carrier (semantics unchanged).
+ * seed's `defaultValue: ""`) renders the SAME ghost row — an empty default
+ * is an empty field, not a value; the realize click still mints the
+ * carrier (semantics unchanged), and the citekey regenerate affordance
+ * rides the row's right edge as before.
  *
  * Citekey regeneration: the citekey row of a source-LINEAGE node (the
  * class-lineage keying quick-create uses, never a hardcoded node set)
@@ -79,6 +82,7 @@ import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 import { NodeCollection, type NodeCollectionItem } from "../collection/index.js";
 import type { AnyClient } from "../collection/types.js";
 import { carrierStateOf } from "./carrierState.js";
+import { GhostRow } from "../../ui/GhostRow.js";
 import { isCitationFamilyClass } from "../modals/quickCreate.js";
 import { citekeyRegenerationFor } from "../sources/citekeyRegenerate.js";
 import {
@@ -478,6 +482,22 @@ export function TextPropertyRow({
     }
   };
 
+  /**
+   * The empty-state cell: the platform GHOST ROW (ui/GhostRow — the same
+   * muted "+ Add block" affordance the outliner trails) — the 2026-11-02
+   * ruling: empty text properties wear the ghost idiom, not a field. The
+   * realize click mints an EMPTY carrier and opens the block editor on it
+   * (the fresh-carrier effect); walking away without typing leaves the
+   * auto-unset pass to reclaim the slot. An optional trailing affordance
+   * (the citekey regenerate) rides the row's right edge.
+   */
+  const emptyCell = (key: string, idx: number, trailing?: ReactNode): ReactNode => (
+    <div key={key} className="nt-property-ghost">
+      <GhostRow parentId={nodeId} onRealize={() => void mintCarrierFor("", idx)} />
+      {trailing ?? null}
+    </div>
+  );
+
   return (
     <li
       ref={setRowRef}
@@ -551,26 +571,7 @@ export function TextPropertyRow({
                   />
                 );
               }
-              return (
-                <input
-                  key={row.elementId}
-                  type="text"
-                  className="nt-property-value"
-                  placeholder="Type something"
-                  aria-label={`Property ${label}`}
-                  onBlur={(event) => {
-                    const text = event.target.value;
-                    if (text.trim() === "") return;
-                    void (async () => {
-                      const carrierId = await client.createObject({
-                        parentId: nodeId,
-                        contentAst: [{ type: "text", text }],
-                      });
-                      await client.setProperty(nodeId, propertySchemaId, { nodeId: carrierId }, 0, manualEditMetadata);
-                    })();
-                  }}
-                />
-              );
+              return emptyCell(row.elementId, 0);
             }
             // Legacy scalar string (a plain-string value that is not a
             // carrier ref — the retired `url` type's shape, pre-carrier text
@@ -596,30 +597,12 @@ export function TextPropertyRow({
               }
               // A default-sourced SCALAR EMPTY STRING (the citekey seed's
               // `defaultValue: ""`) is an empty FIELD, not a value: it
-              // renders the SAME full-width "Type something" placeholder
-              // cell as a bound-but-empty row. The first edit still mints
-              // the carrier (the established mint-on-edit semantics,
-              // unchanged).
+              // renders the SAME "Empty" placeholder block row as a
+              // bound-but-empty row. The click still mints the carrier (the
+              // established mint-on-edit semantics, unchanged); the citekey
+              // regenerate affordance rides the row's right edge.
               if (scalarText === "" && row.source === "default") {
-                return (
-                  <span
-                    key={`${propertySchemaId}:${row.idx}`}
-                    className="nt-property-value-field"
-                  >
-                    <input
-                      type="text"
-                      className="nt-property-value"
-                      placeholder="Type something"
-                      aria-label={`Property ${label}`}
-                      onBlur={(event) => {
-                        const text = event.target.value;
-                        if (text.trim() === "") return;
-                        void mintCarrierFor(text, row.idx);
-                      }}
-                    />
-                    {citekeyRegenButton(row.idx)}
-                  </span>
-                );
+                return emptyCell(`${propertySchemaId}:${row.idx}`, row.idx, citekeyRegenButton(row.idx));
               }
               // The scalar rides a BLOCK ROW — the same bullet + content
               // shape the carrier rows render (every text value reads as a
@@ -692,26 +675,10 @@ export function TextPropertyRow({
             );
           })}
           {ordered.length === 0 && readOnly ? null : ordered.length === 0 && (
-            // The empty cell still spans the full value width — the muted placeholder names the field empty;
-            // typing authors the first carrier block, like the Add pill but
-            // with the text riding in directly.
-            <input
-              type="text"
-              className="nt-property-value"
-              placeholder="Type something"
-              aria-label={`Property ${label}`}
-              onBlur={(event) => {
-                const text = event.target.value;
-                if (text.trim() === "") return;
-                void (async () => {
-                  const carrierId = await client.createObject({
-                    parentId: nodeId,
-                    contentAst: [{ type: "text", text }],
-                  });
-                  await client.setProperty(nodeId, propertySchemaId, { nodeId: carrierId }, 0);
-                })();
-              }}
-            />
+            // No declaration and no values: the same "Empty" placeholder
+            // block row — the click mints the first carrier and opens the
+            // block editor (the Add pill rides beside it for multi rows).
+            emptyCell("empty", 0)
           )}
           {!readOnly && multi && ordered.length > 0 && (
             <AddPill
