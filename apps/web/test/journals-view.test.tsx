@@ -199,25 +199,23 @@ describe("JournalsView", () => {
     const anchor = container.querySelector("[data-anchor='true']");
     expect(anchor?.getAttribute("data-journal-id")).toBe(dayNodeId(today));
     expect(anchor?.classList.contains("journal-entry--virtual")).toBe(true);
-    // The virtual entry rides the realized entries' own register: directly
-    // under .nt-page (the journal zeroes the page padding — the panelled
+    // The virtual entry rides the realized entries' own date header (the
+    // DayPageHeader: the weekday + Today flags above the title, the week
+    // flag after it) with the ghost's own "No page" flag, directly under
+    // .nt-page (the journal zeroes the page padding — the panelled
     // layout's .nt-nodeview-body cap would add one spacing-6 too many),
-    // the embed title, and the outliner's ghost row as the add affordance.
-    // The placeholder icon renders exactly when a realized day page's
-    // header would (the day class's effective icon — the same
-    // definedNodeIcon resolution; this spec's bootstrap seeds no class
-    // icons, so both render none).
+    // and the outliner's ghost row as the add affordance.
     expect(anchor?.querySelector(":scope > .nt-page")).not.toBeNull();
     expect(anchor?.querySelector(".nt-nodeview-body")).toBeNull();
-    expect(anchor?.querySelector(".day-page-header")).toBeNull();
+    const header = anchor?.querySelector(".day-page-header");
+    expect(header).not.toBeNull();
+    // Today is the anchor: the Today flag rides the flags line with the
+    // ghost's own "No page" flag; the weekday + week flags are the shared
+    // date-header register.
+    expect(header?.querySelector(".day-page-header__today")).not.toBeNull();
+    expect(header?.querySelector(".day-page-header__ghost")?.textContent).toBe("No page");
+    expect(header?.querySelector(".day-page-header__week")).not.toBeNull();
     expect(anchor?.querySelector(".nt-ghost-row")).not.toBeNull();
-    const dayClassIcon = client
-      .listClasses()
-      .find((c) => c.id === SYSTEM_CLASS_UUIDS.day)?.icon;
-    const iconRendered = anchor?.querySelector(".journal-virtual-icon") !== null;
-    expect(iconRendered).toBe(
-      dayClassIcon !== null && dayClassIcon !== undefined && dayClassIcon !== "",
-    );
   });
 
   it("realized future pages render above the today anchor", async () => {
@@ -319,6 +317,16 @@ describe("JournalsView", () => {
     const { container } = render(<JournalsView client={client} onOpenPage={vi.fn()} />);
     await screen.findByText("Journal");
     const panel = container.querySelector(".journals-panel") as HTMLElement;
+    // The grid opens on today's month; near a month start the -N day
+    // target crosses into the previous month — step the grid back first
+    // so the suite is calendar-date independent.
+    if (target.slice(0, 7) !== today.slice(0, 7)) {
+      fireEvent.click(
+        within(panel.querySelector(".month-calendar") as HTMLElement).getByRole("button", {
+          name: "Previous period",
+        }),
+      );
+    }
     const dayButton = Array.from(panel.querySelectorAll(".calendar-day")).find(
       (el) => el.textContent?.trim() === String(Number(target.slice(8))),
     ) as HTMLElement;
@@ -342,6 +350,16 @@ describe("JournalsView", () => {
     const { container } = render(<JournalsView client={client} onOpenPage={vi.fn()} />);
     await screen.findByText("Journal");
     const panel = container.querySelector(".journals-panel") as HTMLElement;
+    // The grid opens on today's month; near a month start the -N day
+    // target crosses into the previous month — step the grid back first
+    // so the suite is calendar-date independent.
+    if (target.slice(0, 7) !== today.slice(0, 7)) {
+      fireEvent.click(
+        within(panel.querySelector(".month-calendar") as HTMLElement).getByRole("button", {
+          name: "Previous period",
+        }),
+      );
+    }
     const dayButton = Array.from(panel.querySelectorAll(".calendar-day")).find(
       (el) => el.textContent?.trim() === String(Number(target.slice(8))),
     ) as HTMLElement;
@@ -438,8 +456,10 @@ describe("JournalsView", () => {
 
     const onOpenPage = vi.fn();
     const { container } = render(<JournalsView client={client} onOpenPage={onOpenPage} />);
-    // The feed title is a plain heading; navigation rides the button.
-    expect(container.querySelector(".nt-page-title-embed__text")).not.toBeNull();
+    // The realized entry wears the date header (the weekday flag above the
+    // title, the week flag after it); navigation rides the explicit button.
+    expect(container.querySelector(".day-page-header__weekday")).not.toBeNull();
+    expect(container.querySelector(".day-page-header__week")).not.toBeNull();
     const open = screen.getByRole("button", { name: "Open page" });
     fireEvent.click(open);
     expect(onOpenPage).toHaveBeenCalledWith(dayNodeId(today));
@@ -456,6 +476,25 @@ describe("JournalsView", () => {
       return anchor;
     });
     fireEvent.click(within(entry).getByRole("button", { name: "Add block" }));
+    await vi.waitFor(() => {
+      expect(client.getNode(dayNodeId(today))).toBeDefined();
+      expect(client.getChildren(dayNodeId(today))).toHaveLength(1);
+    });
+  });
+
+  it("the ghost affordances are not journal-gated — the route is the only chokepoint", async () => {
+    const client = await seedClient();
+    await client.setFeatureEnabled("journal", false);
+    const today = todayIso();
+
+    const { container } = render(<JournalsView client={client} onOpenPage={vi.fn()} />);
+    const anchor = container.querySelector("[data-anchor='true']") as HTMLElement;
+    expect(anchor?.getAttribute("data-journal-id")).toBe(dayNodeId(today));
+    expect(anchor?.classList.contains("journal-entry--virtual")).toBe(true);
+    // The ghost add row renders with the feature off and the click still
+    // realizes: the journal toggle gates the SURFACE at the route (the App
+    // guard), never a mounted view's own affordances.
+    fireEvent.click(within(anchor).getByRole("button", { name: "Add block" }));
     await vi.waitFor(() => {
       expect(client.getNode(dayNodeId(today))).toBeDefined();
       expect(client.getChildren(dayNodeId(today))).toHaveLength(1);
