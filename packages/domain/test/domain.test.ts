@@ -969,7 +969,7 @@ describe("SYSTEM_SOURCE_CLASS_BINDINGS (source-library slice 1, task 5; skip lis
   const expected: Record<string, readonly string[]> = {
     artwork: ["abstract", "accessDate", "archive", "archiveLocation", "artworkMedium", "artworkSize", "callNumber", "eventPlace", "extra", "language", "libraryCatalog", "rights", "shortTitle"],
     audio_recording: ["abstract", "accessDate", "archive", "archiveLocation", "audioRecordingFormat", "callNumber", "extra", "label", "language", "libraryCatalog", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "volume"],
-    bill: ["abstract", "accessDate", "billNumber", "code", "codePages", "codeVolume", "extra", "history", "language", "legislativeBody", "libraryCatalog", "rights", "section", "session", "shortTitle"],
+    bill: ["abstract", "accessDate", "billNumber", "code", "codePages", "codeVolume", "extra", "history", "language", "legislativeBody", "rights", "section", "session", "shortTitle"],
     blog_post: ["abstract", "accessDate", "blogTitle", "extra", "issn", "language", "rights", "shortTitle", "websiteType"],
     book: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "format", "issn", "language", "libraryCatalog", "numPages", "numberOfVolumes", "originalDate", "originalPlace", "originalPublisher", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
     book_section: ["abstract", "accessDate", "archive", "archiveLocation", "bookTitle", "callNumber", "edition", "extra", "format", "issn", "language", "libraryCatalog", "numberOfVolumes", "originalDate", "originalPlace", "originalPublisher", "pages", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
@@ -1002,8 +1002,8 @@ describe("SYSTEM_SOURCE_CLASS_BINDINGS (source-library slice 1, task 5; skip lis
     standard: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "committee", "edition", "extra", "language", "libraryCatalog", "numPages", "number", "organization", "partNumber", "partTitle", "place", "rights", "shortTitle", "status", "versionNumber", "workType"],
     statute: ["abstract", "accessDate", "code", "codeNumber", "dateEnacted", "extra", "history", "language", "nameOfAct", "pages", "publicLawNumber", "rights", "section", "session", "shortTitle"],
     thesis: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "issn", "language", "libraryCatalog", "numPages", "place", "rights", "series", "seriesNumber", "shortTitle", "thesisType", "university"],
-    tv_broadcast: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "libraryCatalog", "network", "place", "programTitle", "rights", "runningTime", "shortTitle"],
-    tv_series: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "libraryCatalog", "network", "place", "programTitle", "rights", "runningTime", "shortTitle"],
+    tv_broadcast: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "libraryCatalog", "network", "place", "programTitle", "rights", "runningTime", "shortTitle", "videoRecordingFormat"],
+    tv_series: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "libraryCatalog", "network", "place", "programTitle", "rights", "runningTime", "shortTitle", "videoRecordingFormat"],
     video_recording: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "language", "libraryCatalog", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "studio", "videoRecordingFormat", "volume"],
     web_page: ["abstract", "accessDate", "extra", "language", "place", "rights", "shortTitle", "websiteTitle", "websiteType"],
   };
@@ -1028,43 +1028,103 @@ describe("SYSTEM_SOURCE_CLASS_BINDINGS (source-library slice 1, task 5; skip lis
     }
   });
 
-  it("no class lists a field its Zotero type does not have (spot types, raw schema field lists)", () => {
-    // Raw `itemTypes[].fields` lists, hand-copied from the Zotero schema
-    // snapshot for the drift-prone spot types (renames applied at the check,
-    // so abstract/workType/issn look up abstractNote/type/ISSN).
+  it("no class lists a field its Zotero type does not have (EVERY class, raw schema v45 field lists)", () => {
+    // Raw `itemTypes[].fields` lists for ALL 37 citable Zotero types +
+    // `case`, copied verbatim from `zotero/zotero-schema` v45 (the
+    // derivation snapshot; the 12 previous hand-copied spot lists matched
+    // v45 exactly). Full coverage — not a spot sample — so a binding can
+    // never reference a field its Zotero type lacks (renames applied at
+    // the check, so abstract/workType/issn look up abstractNote/type/ISSN).
     const rawZoteroFields: Record<string, readonly string[]> = {
-      journalArticle: ["title", "abstractNote", "publicationTitle", "publisher", "place", "date", "volume", "issue", "section", "partNumber", "partTitle", "pages", "series", "seriesTitle", "seriesText", "journalAbbreviation", "DOI", "citationKey", "url", "accessDate", "PMID", "PMCID", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
-      film: ["title", "abstractNote", "distributor", "place", "date", "genre", "videoRecordingFormat", "runningTime", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
-      patent: ["title", "abstractNote", "place", "country", "assignee", "issuingAuthority", "patentNumber", "filingDate", "pages", "applicationNumber", "priorityNumbers", "issueDate", "priorityDate", "references", "legalStatus", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
-      standard: ["title", "abstractNote", "organization", "committee", "type", "number", "versionNumber", "edition", "status", "date", "publisher", "place", "partNumber", "partTitle", "ISBN", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "numPages", "language", "libraryCatalog", "callNumber", "rights", "extra"],
-      webpage: ["title", "abstractNote", "websiteTitle", "websiteType", "date", "publisher", "place", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
-      book: ["title", "abstractNote", "series", "seriesNumber", "volume", "numberOfVolumes", "edition", "date", "publisher", "place", "originalDate", "originalPublisher", "originalPlace", "format", "numPages", "ISBN", "DOI", "citationKey", "url", "accessDate", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
-      thesis: ["title", "abstractNote", "thesisType", "university", "place", "date", "series", "seriesNumber", "numPages", "DOI", "ISBN", "citationKey", "url", "accessDate", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
-      document: ["title", "abstractNote", "type", "date", "publisher", "place", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
-      // Zotero's legal-case type — no Notees class; its fields ride the
-      // `document` fallback (full-alignment slice, 2026-11-02).
-      case: ["title", "caseName", "abstractNote", "court", "dateDecided", "docketNumber", "firstPage", "history", "reporter", "reporterVolume", "language", "url", "accessDate", "shortTitle", "rights", "extra", "citationKey"],
+      artwork: ["title", "abstractNote", "artworkMedium", "artworkSize", "date", "eventPlace", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
       audioRecording: ["title", "abstractNote", "audioRecordingFormat", "seriesTitle", "volume", "numberOfVolumes", "label", "place", "date", "runningTime", "ISBN", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
-      tvBroadcast: ["title", "abstractNote", "programTitle", "episodeNumber", "videoRecordingFormat", "network", "place", "date", "runningTime", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      bill: ["title", "abstractNote", "billNumber", "code", "codeVolume", "section", "codePages", "legislativeBody", "session", "history", "date", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
+      blogPost: ["title", "abstractNote", "blogTitle", "websiteType", "date", "DOI", "citationKey", "url", "accessDate", "ISSN", "shortTitle", "language", "rights", "extra"],
+      book: ["title", "abstractNote", "series", "seriesNumber", "volume", "numberOfVolumes", "edition", "date", "publisher", "place", "originalDate", "originalPublisher", "originalPlace", "format", "numPages", "ISBN", "DOI", "citationKey", "url", "accessDate", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      bookSection: ["title", "abstractNote", "bookTitle", "series", "seriesNumber", "volume", "numberOfVolumes", "edition", "date", "publisher", "place", "originalDate", "originalPublisher", "originalPlace", "format", "pages", "ISBN", "DOI", "citationKey", "url", "accessDate", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      // Zotero's legal-case type — no Notees class; its fields ride the
+      // `document` fallback (full-alignment slice, 2026-11-02). v45 case
+      // carries no `title` (caseName is the title).
+      case: ["caseName", "abstractNote", "court", "dateDecided", "docketNumber", "reporter", "reporterVolume", "firstPage", "history", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
+      computerProgram: ["title", "abstractNote", "seriesTitle", "versionNumber", "date", "system", "company", "place", "programmingLanguage", "rights", "citationKey", "url", "accessDate", "DOI", "ISBN", "archive", "archiveLocation", "libraryCatalog", "callNumber", "shortTitle", "extra"],
       conferencePaper: ["title", "abstractNote", "proceedingsTitle", "conferenceName", "publisher", "place", "date", "eventPlace", "volume", "issue", "numberOfVolumes", "pages", "series", "seriesNumber", "DOI", "ISBN", "citationKey", "url", "accessDate", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      dataset: ["title", "abstractNote", "identifier", "type", "versionNumber", "date", "repository", "repositoryLocation", "format", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      dictionaryEntry: ["title", "abstractNote", "dictionaryTitle", "series", "seriesNumber", "volume", "numberOfVolumes", "edition", "date", "publisher", "place", "pages", "ISBN", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      document: ["title", "abstractNote", "type", "date", "publisher", "place", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      email: ["subject", "abstractNote", "date", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
+      encyclopediaArticle: ["title", "abstractNote", "encyclopediaTitle", "series", "seriesNumber", "volume", "numberOfVolumes", "edition", "date", "publisher", "place", "pages", "ISBN", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      film: ["title", "abstractNote", "distributor", "place", "date", "genre", "videoRecordingFormat", "runningTime", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      forumPost: ["title", "abstractNote", "forumTitle", "postType", "date", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
+      hearing: ["title", "abstractNote", "committee", "publisher", "numberOfVolumes", "documentNumber", "pages", "legislativeBody", "session", "history", "date", "place", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
+      instantMessage: ["title", "abstractNote", "date", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
+      interview: ["title", "abstractNote", "interviewMedium", "date", "publisher", "place", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      journalArticle: ["title", "abstractNote", "publicationTitle", "publisher", "place", "date", "volume", "issue", "section", "partNumber", "partTitle", "pages", "series", "seriesTitle", "seriesText", "journalAbbreviation", "DOI", "citationKey", "url", "accessDate", "PMID", "PMCID", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      letter: ["title", "abstractNote", "letterType", "date", "eventPlace", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      magazineArticle: ["title", "abstractNote", "publicationTitle", "publisher", "place", "date", "volume", "issue", "pages", "ISSN", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      manuscript: ["title", "abstractNote", "manuscriptType", "institution", "place", "date", "numPages", "number", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      map: ["title", "abstractNote", "mapType", "scale", "seriesTitle", "edition", "publisher", "place", "date", "DOI", "ISBN", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      newspaperArticle: ["title", "abstractNote", "publicationTitle", "publisher", "place", "date", "volume", "issue", "edition", "section", "pages", "ISSN", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      patent: ["title", "abstractNote", "place", "country", "assignee", "issuingAuthority", "patentNumber", "filingDate", "pages", "applicationNumber", "priorityNumbers", "issueDate", "priorityDate", "references", "legalStatus", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
+      podcast: ["title", "abstractNote", "seriesTitle", "episodeNumber", "audioFileType", "date", "publisher", "place", "runningTime", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
+      preprint: ["title", "abstractNote", "genre", "repository", "archiveID", "place", "date", "series", "seriesNumber", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
       presentation: ["title", "abstractNote", "presentationType", "date", "meetingName", "place", "series", "sessionTitle", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
+      radioBroadcast: ["title", "abstractNote", "programTitle", "episodeNumber", "audioRecordingFormat", "network", "place", "date", "runningTime", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      report: ["title", "abstractNote", "reportNumber", "reportType", "institution", "place", "date", "seriesTitle", "seriesNumber", "pages", "DOI", "ISBN", "citationKey", "url", "accessDate", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      standard: ["title", "abstractNote", "organization", "committee", "type", "number", "versionNumber", "edition", "status", "date", "publisher", "place", "partNumber", "partTitle", "ISBN", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "numPages", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      statute: ["nameOfAct", "abstractNote", "code", "codeNumber", "publicLawNumber", "dateEnacted", "pages", "section", "session", "history", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
+      thesis: ["title", "abstractNote", "thesisType", "university", "place", "date", "series", "seriesNumber", "numPages", "DOI", "ISBN", "citationKey", "url", "accessDate", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      tvBroadcast: ["title", "abstractNote", "programTitle", "episodeNumber", "videoRecordingFormat", "network", "place", "date", "runningTime", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      videoRecording: ["title", "abstractNote", "videoRecordingFormat", "seriesTitle", "volume", "numberOfVolumes", "studio", "place", "date", "runningTime", "ISBN", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      webpage: ["title", "abstractNote", "websiteTitle", "websiteType", "date", "publisher", "place", "DOI", "citationKey", "url", "accessDate", "shortTitle", "language", "rights", "extra"],
     };
     const RENAMED: Record<string, string> = { abstract: "abstractNote", workType: "type", issn: "ISSN" };
-    // The class → the Zotero type(s) backing it (the judgment-call kept
-    // classes map onto their counterparts; conference is the union).
+    // EVERY class → the Zotero type(s) backing it (1:1 via
+    // ZOTERO_ITEM_TYPE_TO_CLASS; the judgment-call kept classes map onto
+    // their counterparts: song ← audioRecording, tv_series ← tvBroadcast,
+    // conference ← the conferencePaper + presentation union, and
+    // document additionally carries `case`'s legal fields).
     const SPOT: Record<string, readonly string[]> = {
-      journal_article: ["journalArticle"],
-      film: ["film"],
-      patent: ["patent"],
-      standard: ["standard"],
-      web_page: ["webpage"],
+      audio_recording: ["audioRecording"],
+      artwork: ["artwork"],
+      bill: ["bill"],
+      blog_post: ["blogPost"],
       book: ["book"],
-      thesis: ["thesis"],
-      document: ["document", "case"],
-      song: ["audioRecording"],
-      tv_series: ["tvBroadcast"],
+      book_section: ["bookSection"],
+      computer_program: ["computerProgram"],
       conference: ["conferencePaper", "presentation"],
+      conference_paper: ["conferencePaper"],
+      dataset: ["dataset"],
+      dictionary_entry: ["dictionaryEntry"],
+      document: ["document", "case"],
+      email: ["email"],
+      encyclopedia_article: ["encyclopediaArticle"],
+      film: ["film"],
+      forum_post: ["forumPost"],
+      hearing: ["hearing"],
+      instant_message: ["instantMessage"],
+      interview: ["interview"],
+      journal_article: ["journalArticle"],
+      letter: ["letter"],
+      magazine_article: ["magazineArticle"],
+      manuscript: ["manuscript"],
+      map: ["map"],
+      newspaper_article: ["newspaperArticle"],
+      patent: ["patent"],
+      podcast: ["podcast"],
+      preprint: ["preprint"],
+      presentation: ["presentation"],
+      radio_broadcast: ["radioBroadcast"],
+      report: ["report"],
+      song: ["audioRecording"],
+      standard: ["standard"],
+      statute: ["statute"],
+      thesis: ["thesis"],
+      tv_broadcast: ["tvBroadcast"],
+      tv_series: ["tvBroadcast"],
+      video_recording: ["videoRecording"],
+      web_page: ["webpage"],
     };
+    expect(Object.keys(SPOT).sort()).toEqual(Object.keys(expected).sort());
     for (const [cls, types] of Object.entries(SPOT)) {
       const raw = new Set(types.flatMap((t) => rawZoteroFields[t]));
       for (const f of expected[cls]!) {
