@@ -1,21 +1,26 @@
 /**
  * The add-source resolver client — the web side of the server's metadata
  * resolver (apps/server/src/resolve-source.ts): GET /api/resolve?doi=|isbn=|
- * arxiv= and POST /api/resolve/pdf (multipart upload or ?url=). Pure fetch
- * plumbing, no React — the AddSourceDialog and the paste-URL picker row
- * compose it.
+ * arxiv=|pmid=|ads= and POST /api/resolve/pdf (multipart upload or ?url=).
+ * Pure fetch plumbing, no React — the AddSourceDialog and the paste-URL
+ * picker row compose it.
  *
  * The unified record answers verbatim: {classKey, title, authors[], editors[],
- * fields{}, doi?, isbn?, url?, year?, publisher?} — the ?url= PDF mode adds
- * pdf:{url} (the attach intent: the direct full-text link; the bytes never
- * reach the client, so the create flow links the URL, never a CAS upload).
+ * fields{}, doi?, isbn?, pmid?, url?, year?, publisher?} — the ?url= PDF mode
+ * adds pdf:{url} (the attach intent: the direct full-text link; the bytes
+ * never reach the client, so the create flow links the URL, never a CAS
+ * upload). Records whose identifier resolution produced a DOI may also carry
+ * pdf:{url} from the Unpaywall enrichment — the open-access PDF link the
+ * dialog shows in its PDF field.
  *
  * Input classification (one input accepts everything): an arXiv id/URL, a
- * DOI (bare or a doi.org URL), an ISBN (10/13, hyphens tolerated), or a
- * plain http(s) URL (treated as a PDF link — the server's ?url= flow) — a
- * File never classifies; the dialog routes file inputs to the multipart
- * path directly. Unrecognized text answers null (the caller shows the
- * honest empty/error state).
+ * DOI (bare or a doi.org URL), a PMID ("PMID: …", a pubmed.ncbi.nlm.nih.gov
+ * URL, or a bare ≤8-digit number — never ISBN-shaped), an ADS bibcode (bare
+ * 19-char or an adsabs.harvard.edu/abs URL), an ISBN (10/13, hyphens
+ * tolerated), or a plain http(s) URL (treated as a PDF link — the server's
+ * ?url= flow) — a File never classifies; the dialog routes file inputs to
+ * the multipart path directly. Unrecognized text answers null (the caller
+ * shows the honest empty/error state).
  *
  * The pinned error taxonomy (errors.ts) maps onto ResolverRequestError.code:
  * resolver_disabled (403 — the sources settings turned the egress off),
@@ -38,6 +43,7 @@ export interface ResolvedSourceRecord {
   fields: Record<string, string>;
   doi?: string;
   isbn?: string;
+  pmid?: string;
   url?: string;
   year?: number;
   publisher?: string;
@@ -70,16 +76,27 @@ export type ClassifiedSourceInput =
   | { kind: "doi"; value: string }
   | { kind: "isbn"; value: string }
   | { kind: "arxiv"; value: string }
+  | { kind: "pmid"; value: string }
+  | { kind: "ads"; value: string }
   | { kind: "url"; url: string };
 
 const ARXIV_INPUT = /(?:^arxiv:|arxiv\.org\/(?:abs|pdf)\/)([a-z.-]*\/?\d{4}[\d.]*|\d{4}\.\d{4,5})(?:v\d+)?(?:\.pdf)?$/i;
 const DOI_INPUT = /^(?:https?:\/\/(?:dx\.)?doi\.org\/)?(10\.\d{4,9}\/\S+)$/i;
+const PMID_PREFIXED = /^(?:pmid|pubmed)[:\s]+(\d{1,8})$/i;
+const PMID_URL = /(?:pubmed\.ncbi\.nlm\.nih\.gov\/|ncbi\.nlm\.nih\.gov\/pubmed\/)(\d{1,8})/i;
+const ADS_URL = /(?:ui\.)?adsabs\.harvard\.edu\/(?:abs|link_gateway)\/([^\s/?#]+)/i;
+/** The canonical 19-char bibcode shape (the Zotero translator pattern):
+ *  year + journal abbrev + volume + page + author initial. */
+const ADS_BIBCODE = /^\d{4}[A-Za-z&.]{5}[\w.]{4}[\w.]{5}[\w.]$/u;
 const URL_INPUT = /^https?:\/\/\S+$/i;
 
 /**
  * Classify one pasted string: arXiv id/URL → arxiv; a DOI (bare or a
- * doi.org URL) → doi; an ISBN (10/13 digits + X, separators tolerated) →
- * isbn; a plain http(s) URL → url (the PDF-link flow). Anything else null.
+ * doi.org URL) → doi; a PMID (explicit "PMID:"/"pubmed:" prefix, a PubMed
+ * URL, or a bare ≤8-digit number — 8 digits can never be an ISBN) → pmid;
+ * an ADS bibcode (bare 19-char or an adsabs URL) → ads; an ISBN (10/13
+ * digits + X, separators tolerated) → isbn; a plain http(s) URL → url (the
+ * PDF-link flow). Anything else null.
  */
 export function classifySourceInput(raw: string): ClassifiedSourceInput | null {
   const text = raw.trim();
@@ -88,6 +105,16 @@ export function classifySourceInput(raw: string): ClassifiedSourceInput | null {
   if (arxiv !== null) return { kind: "arxiv", value: arxiv[1]! };
   const doi = DOI_INPUT.exec(text);
   if (doi !== null) return { kind: "doi", value: doi[1]!.replace(/[.,;)\]}]+$/u, "") };
+  const pmidPrefixed = PMID_PREFIXED.exec(text);
+  if (pmidPrefixed !== null) return { kind: "pmid", value: pmidPrefixed[1]! };
+  const pmidUrl = PMID_URL.exec(text);
+  if (pmidUrl !== null) return { kind: "pmid", value: pmidUrl[1]! };
+  const adsUrl = ADS_URL.exec(text);
+  if (adsUrl !== null) return { kind: "ads", value: adsUrl[1]! };
+  if (ADS_BIBCODE.test(text)) return { kind: "ads", value: text };
+  // Bare short numbers are PubMed ids (current PMIDs are ≤8 digits and an
+  // 8-digit number is never ISBN-shaped); 9+/10/13-digit shapes stay ISBN.
+  if (/^\d{1,8}$/.test(text)) return { kind: "pmid", value: text };
   const isbnish = text.replace(/[- ]/g, "");
   if (/^(\d{9}[\dX]|\d{13})$/i.test(isbnish)) return { kind: "isbn", value: text };
   if (URL_INPUT.test(text)) return { kind: "url", url: text };
@@ -138,6 +165,7 @@ function normalizeRecord(body: unknown): ResolvedSourceRecord {
     ),
     ...(typeof record.doi === "string" ? { doi: record.doi } : {}),
     ...(typeof record.isbn === "string" ? { isbn: record.isbn } : {}),
+    ...(typeof record.pmid === "string" ? { pmid: record.pmid } : {}),
     ...(typeof record.url === "string" ? { url: record.url } : {}),
     ...(typeof record.year === "number" && Number.isFinite(record.year) ? { year: record.year } : {}),
     ...(typeof record.publisher === "string" ? { publisher: record.publisher } : {}),
@@ -193,10 +221,11 @@ async function requestRecord(
 }
 
 /**
- * Resolve one text input end to end: doi/isbn/arxiv ride GET /api/resolve;
- * a plain URL rides POST /api/resolve/pdf?url= (the server's PDF flow — the
- * DOI printed in the fetched bytes resolves the metadata). Unrecognized
- * text fails loud (null classification → a plain Error the dialog phrases).
+ * Resolve one text input end to end: doi/isbn/arxiv/pmid/ads ride GET
+ * /api/resolve; a plain URL rides POST /api/resolve/pdf?url= (the server's
+ * PDF flow — the DOI printed in the fetched bytes resolves the metadata).
+ * Unrecognized text fails loud (null classification → a plain Error the
+ * dialog phrases).
  */
 export async function resolveSourceInput(
   serverUrl: string,
@@ -207,7 +236,7 @@ export async function resolveSourceInput(
   if (classified === null) {
     throw new ResolverRequestError(
       "validation_failed",
-      "not a DOI, ISBN, arXiv id, or URL — paste one of those (or pick a PDF file)",
+      "not a DOI, ISBN, PMID, ADS bibcode, arXiv id, or URL — paste one of those (or pick a PDF file)",
     );
   }
   switch (classified.kind) {
@@ -228,6 +257,18 @@ export async function resolveSourceInput(
         serverUrl,
         credential,
         `/resolve?arxiv=${encodeURIComponent(classified.value)}`,
+      );
+    case "pmid":
+      return requestRecord(
+        serverUrl,
+        credential,
+        `/resolve?pmid=${encodeURIComponent(classified.value)}`,
+      );
+    case "ads":
+      return requestRecord(
+        serverUrl,
+        credential,
+        `/resolve?ads=${encodeURIComponent(classified.value)}`,
       );
     case "url":
       return requestRecord(serverUrl, credential, `/resolve/pdf?url=${encodeURIComponent(classified.url)}`, {

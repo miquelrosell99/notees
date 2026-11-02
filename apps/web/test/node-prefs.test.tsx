@@ -112,17 +112,27 @@ function stubPrefsFetch(
 describe("WorkspaceClient getPrefs/patchPrefs (HTTP layer)", () => {
   it("getPrefs returns the server copy and refreshes the device cache", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
-    stubPrefsFetch(() => ({ favorites: [PAGE_ALPHA], recents: [PAGE_BETA, PAGE_ALPHA], updatedAt: 1 }));
+    stubPrefsFetch(() => ({
+      favorites: [PAGE_ALPHA],
+      recents: [PAGE_BETA, PAGE_ALPHA],
+      adsApiToken: "ads-secret-token",
+      updatedAt: 1,
+    }));
     const prefs = await client.getPrefs();
     expect(prefs).toEqual({
       favorites: [PAGE_ALPHA],
       recents: [PAGE_BETA, PAGE_ALPHA],
       cardsAlgorithm: "fsrs",
+      // Server-only by design: it round-trips through getPrefs but never
+      // lands in the device-local cache.
+      adsApiToken: "ads-secret-token",
       source: "server",
     });
     expect(JSON.parse(localStorage.getItem("notees.favorites")!)).toEqual([PAGE_ALPHA]);
     expect(JSON.parse(localStorage.getItem("notees.recents")!)).toEqual([PAGE_BETA, PAGE_ALPHA]);
     expect(localStorage.getItem("notees.prefs.cardsAlgorithm")).toBe("fsrs");
+    // The ADS token is server-only — no device cache key exists for it.
+    expect(localStorage.getItem("notees.prefs.adsApiToken")).toBeNull();
   });
 
   it("patchPrefs PUTs the merge patch and returns the server answer", async () => {
@@ -138,6 +148,22 @@ describe("WorkspaceClient getPrefs/patchPrefs (HTTP layer)", () => {
     expect(JSON.parse(prefsCalls[0]!.body!)).toEqual({ favorites: [PAGE_ALPHA] });
     // The device cache followed the server answer.
     expect(JSON.parse(localStorage.getItem("notees.favorites")!)).toEqual([PAGE_ALPHA]);
+  });
+
+  it("patchPrefs sends a provided adsApiToken in the PUT body and returns it merged", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    const calls = stubPrefsFetch(({ method, body }) => {
+      expect(method).toBe("PUT");
+      return { ...(body !== undefined ? JSON.parse(body) : {}), updatedAt: 2 };
+    });
+    const prefs = await client.patchPrefs({ adsApiToken: "ads-secret-token" });
+    expect(prefs.source).toBe("server");
+    expect(prefs.adsApiToken).toBe("ads-secret-token");
+    const prefsCalls = calls.filter((call) => call.url === `${SERVER}/api/me/prefs`);
+    expect(prefsCalls).toHaveLength(1);
+    expect(JSON.parse(prefsCalls[0]!.body!)).toEqual({ adsApiToken: "ads-secret-token" });
+    // Server-only: the token never lands in the device-local cache.
+    expect(localStorage.getItem("notees.prefs.adsApiToken")).toBeNull();
   });
 
   it("patchPrefs carries cardsAlgorithm to the server and the device key", async () => {
@@ -163,6 +189,8 @@ describe("WorkspaceClient getPrefs/patchPrefs (HTTP layer)", () => {
       favorites: [PAGE_ALPHA],
       recents: [],
       cardsAlgorithm: "fsrs",
+      // The offline fallback never carries the server-only ADS token.
+      adsApiToken: "",
       source: "local",
     });
     const write = await client.patchPrefs({ recents: [PAGE_BETA] });
@@ -194,6 +222,7 @@ describe("WorkspaceClient getPrefs/patchPrefs (HTTP layer)", () => {
       favorites: [PAGE_BETA],
       recents: [],
       cardsAlgorithm: "fsrs",
+      adsApiToken: "",
       source: "local",
     });
     const write = await client.patchPrefs({ recents: [PAGE_ALPHA] });
@@ -241,6 +270,7 @@ type FakePrefs = {
   favorites: string[];
   recents: string[];
   cardsAlgorithm: CardsAlgorithm;
+  adsApiToken: string;
   source: "server" | "local";
   updatedAt?: number;
 };
@@ -252,7 +282,13 @@ function fakeClient(overrides: {
   return {
     getPrefs:
       overrides.getPrefs ??
-      (async () => ({ favorites: [], recents: [], cardsAlgorithm: "fsrs", source: "local" as const })),
+      (async () => ({
+        favorites: [],
+        recents: [],
+        cardsAlgorithm: "fsrs",
+        adsApiToken: "",
+        source: "local" as const,
+      })),
     patchPrefs:
       overrides.patchPrefs ??
       (async (patch: unknown) => ({ ...((patch as object) ?? {}), source: "local" as const }) as FakePrefs),
@@ -268,6 +304,7 @@ describe("nodePrefs store", () => {
         favorites: [PAGE_ALPHA],
         recents: [PAGE_ALPHA],
         cardsAlgorithm: "fsrs",
+        adsApiToken: "",
         source: "server",
       }),
       patchPrefs: async (patch) => {

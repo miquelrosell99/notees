@@ -27,6 +27,13 @@ export interface UserPrefs {
   recents: string[];
   /** The memorization-cards scheduler ("sm2" | "fsrs", default "fsrs"). */
   cardsAlgorithm: CardsAlgorithm;
+  /**
+   * The ADS API credential for bibcode metadata lookups ("" when unset). A
+   * SERVER-ONLY pref by design — it never caches device-locally (unlike the
+   * lists/scalars above): the resolve route reads the owner-bound column and
+   * sends it to ADS alone, and an offline client simply sees no token.
+   */
+  adsApiToken: string;
 }
 
 /** The spaced-repetition scheduler for the memorization-cards surface. */
@@ -43,6 +50,8 @@ export interface PrefsPatch {
   favorites?: string[];
   recents?: string[];
   cardsAlgorithm?: CardsAlgorithm;
+  /** A string sets/replaces the ADS credential; "" clears it (null over REST). */
+  adsApiToken?: string;
 }
 
 /** The server's recents cap (favorites cap 500 — a UI never gets near it). */
@@ -121,13 +130,20 @@ export function writeDevicePrefScalar(
 
 /** Server body → UserPrefs; a malformed answer is a loud error, never half-read. */
 export function normalizeUserPrefs(body: unknown): UserPrefs {
-  const value = body as { favorites?: unknown; recents?: unknown; cardsAlgorithm?: unknown };
+  const value = body as {
+    favorites?: unknown;
+    recents?: unknown;
+    cardsAlgorithm?: unknown;
+    adsApiToken?: unknown;
+  };
   const asIds = (input: unknown): string[] =>
     Array.isArray(input) ? input.filter((entry): entry is string => typeof entry === "string") : [];
   return {
     favorites: asIds(value?.favorites),
     recents: asIds(value?.recents),
     cardsAlgorithm: value?.cardsAlgorithm === "sm2" ? "sm2" : "fsrs",
+    // Older servers answer without the column — the honest read is "no token".
+    adsApiToken: typeof value?.adsApiToken === "string" ? value.adsApiToken : "",
   };
 }
 

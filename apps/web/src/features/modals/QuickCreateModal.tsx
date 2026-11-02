@@ -11,8 +11,8 @@
  * The citation-family behaviors key off the class LINEAGE, not hardcoded
  * field sets: auto-citekey fills an empty staged citekey from the settings
  * pattern whenever the Sources feature is on (no generation toggle — the
- * owner ruling 2026-10-29), and a staged DOI, ISBN, or CITEKEY already on a
- * live source surfaces the
+ * owner ruling 2026-10-29), and a staged DOI, ISBN, PMID, or CITEKEY
+ * already on a live source surfaces the
  * "Already in your library" warning (citekey coverage added 2026-10-26) —
  * and an exact title match (a live class member whose flattened title equals
  * the staged title, trim-only compare) surfaces the same non-blocking
@@ -173,9 +173,9 @@ export function QuickCreateModal({
   const entriesOf = (): Array<{ row: StagedPropertyBinding; value: StagedPropertyValue }> =>
     rows.map((row) => ({ row, value: valueOf(row) }));
 
-  // The duplicate warning: the staged (or auto-generated) DOI/ISBN/citekey
-  // already on a live source. The draft re-derives per staged edit; the
-  // family scan itself re-runs only when one of the three identifiers
+  // The duplicate warning: the staged (or auto-generated) DOI/ISBN/PMID/
+  // citekey already on a live source. The draft re-derives per staged edit;
+  // the family scan itself re-runs only when one of the identifiers
   // actually changes (the scan walks the source family).
   const draft = useMemo(
     () =>
@@ -187,13 +187,14 @@ export function QuickCreateModal({
   );
   const doiText = draft?.doi ?? "";
   const isbnText = draft?.isbn ?? "";
+  const pmidText = draft?.pmid ?? "";
   const citekeyText = draft?.citekey ?? "";
   const duplicate = useMemo(
     () =>
-      doiText === "" && isbnText === "" && citekeyText === ""
+      doiText === "" && isbnText === "" && pmidText === "" && citekeyText === ""
         ? null
-        : findSourceByIdentifier(client, { doi: doiText, isbn: isbnText, citekey: citekeyText }),
-    [client, doiText, isbnText, citekeyText],
+        : findSourceByIdentifier(client, { doi: doiText, isbn: isbnText, pmid: pmidText, citekey: citekeyText }),
+    [client, doiText, isbnText, pmidText, citekeyText],
   );
   // The exact-title duplicate: a live class member whose
   // flattened title equals the staged title exactly (trimmed, case-sensitive).
