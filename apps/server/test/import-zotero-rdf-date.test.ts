@@ -6,7 +6,9 @@
  * carry human dates the strict ISO tier rejected (~8% of one real library).
  * Rules pinned here:
  *  - strict ISO unchanged: "2022" / "2022-03" / "2022-03-15" at their
- *    precisions; invalid calendars ("2016-13-01") still rejected;
+ *    precisions; invalid calendars ("2016-13-01") still rejected; the tier
+ *    is end-anchored — trailing garbage ("2022-03-15foo", "2022 (repr.)",
+ *    "2023/09/07") rejects instead of silently reading a year prefix;
  *  - full month name + year, case-insensitive, optional comma ("June 2016",
  *    "JUNE 2022", "June, 2016") → month precision; English AND Spanish full
  *    names (the owner's library is ES/EN); abbreviations stay rejected;
@@ -21,8 +23,9 @@
  *    "12-06-2023", single-digit days like "8/05/2015"), real-calendar
  *    validated; day ranges "D-D Month YYYY" take the start day ("2-6 July
  *    2023"); Spanish "de" long form with the second de optional
- *    ("28 de julio de 2023", "28 de julio 2023"); EN month-first
- *    ("March 13 2013", "March 13, 2013");
+ *    ("28 de julio de 2023", "28 de julio 2023"); month-first
+ *    ("March 13 2013", "March 13, 2013") — EN or ES month names, both
+ *    deliberate;
  *  - STILL rejected for hand-resolution: ambiguous shapes stay out
  *    ("31/02/2024" is not a real date), empty, garbage.
  */
@@ -36,6 +39,12 @@ describe("parseRdfDate", () => {
     expect(parseRdfDate("2022")).toEqual({ iso: "2022-01-01", precision: "year" });
     expect(parseRdfDate("2022-03")).toEqual({ iso: "2022-03-01", precision: "month" });
     expect(parseRdfDate("2022-03-15")).toEqual({ iso: "2022-03-15", precision: "day" });
+  });
+
+  it("rejects strict ISO prefixes with trailing garbage (end-anchored)", () => {
+    expect(parseRdfDate("2023/09/07")).toBeNull(); // YYYY/MM/DD slashes — no tier claims this.
+    expect(parseRdfDate("2022-03-15foo")).toBeNull();
+    expect(parseRdfDate("2022 (repr.)")).toBeNull(); // a year prefix is not a year.
   });
 
   it("accepts full English month name + year, case-insensitive", () => {
@@ -110,9 +119,10 @@ describe("parseRdfDate", () => {
     expect(parseRdfDate("28 DE JULIO DE 2023")).toEqual({ iso: "2023-07-28", precision: "day" });
   });
 
-  it("parses EN month-first 'Month D YYYY' at day precision", () => {
+  it("parses month-first 'Month D YYYY' (EN or ES month names) at day precision", () => {
     expect(parseRdfDate("March 13 2013")).toEqual({ iso: "2013-03-13", precision: "day" });
     expect(parseRdfDate("March 13, 2013")).toEqual({ iso: "2013-03-13", precision: "day" });
+    expect(parseRdfDate("marzo 13 2013")).toEqual({ iso: "2013-03-13", precision: "day" });
   });
 
   it("still rejects the hand-resolution shapes", () => {
