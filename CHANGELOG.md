@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(scripts): import-zotero-rdf clears the date long tail (datetimes,
+  non-padded ISO, YYYY/M[/D], month ranges).** `parseRdfDate` gains four
+  closing tiers for the last census bucket of hand-resolved shapes: ISO
+  datetimes ("2023-10-05 18:10:23", "2025-08-15T11:49:34+00:00" — the
+  time part strips, the time itself must be real and the tier stays
+  end-anchored); non-padded strict ISO month/day ("2010-2-24", "2025-8",
+  zero-padded in the iso); year-first slashes ("2012/1", "2012/1/24" —
+  4-digit-first, disjoint from the day-first DD/MM/YYYY tier, which
+  deliberately reclaims the previously rejected "2023/09/07" as
+  year-first 2023-09-07); and year-first month ranges ("2023 Mar-Apr" →
+  start month 2023-03, "2023 Dec-Jan" rejected like the day-range
+  start-after-end ruling). The hand-resolution hint names all of them.
+  Pin: `apps/server/test/import-zotero-rdf-date.test.ts`.
 - **feat(scripts): import-zotero-rdf parses PubMed year-first dates
   (YYYY Mon [D]).** The live library's hand-resolution tail turned out to
   be PubMed/MEDLINE catalog dates that the pre-anchor parser silently
