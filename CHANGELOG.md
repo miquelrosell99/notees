@@ -9,6 +9,16 @@ predating this file.
 
 ## 2026-11-02
 
+- **fix(scripts): verify-migration pages the convergence envelope-id check.**
+  `GET /api/admin/convergence` caps `envelopeIds` at 100 ids per request (a
+  protective bound), but verify-migration sent a whole migration batch as one
+  param — a 102-envelope batch false-FAILed 100/102 while the tail was applied,
+  and a 7,009-id import batch hit HTTP 431. The script now chunks the id list
+  into ≤100-id pages, issues one request per page, and merges the per-page
+  `envelopes` maps before the accounting; batches ≤100 stay byte-identical.
+  Pin: `apps/server/test/verify-migration.test.ts` (8 tests — a fully-applied
+  250-envelope batch reports 250/250 PASS; pre-fix the capped tail read
+  unapplied).
 - **fix(scripts): import-zotero-rdf re-run idempotency for human dates.**
   The planner's diff compared the node side's date read-back (ISO truncated
   at the ref's precision — "2016-06") against the RDF side's verbatim
