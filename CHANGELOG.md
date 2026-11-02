@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(web): text property values render as block rows — scalars included.**
+  The legacy plain-string cell (the shape freshly authored values carry —
+  the resolver's direct create writes scalars) used to render as a boxed
+  field that turned into a block only after a click minted the carrier;
+  `TextPropertyRow` now renders that scalar AS A BLOCK ROW — the same
+  bullet + content shape the carrier rows ride (`nt-block` classes, the
+  content reset to plain text), so every text value reads as a block from
+  the start, single-value rows included; the first click still mints the
+  carrier (the established pattern) and from then on the value IS a block
+  with its children rendered indented under it (the locked collection's
+  tree). The empty/placeholder and dead-reference fallback cells are
+  unchanged. **Verification:** web suite green (text-property-blocks,
+  block-metadata updated to the block-row assertion, property
+  bound-empty/drop/edit, css-token-drift); typecheck clean.
+
 - **feat(web): the add-source flow streamlined to paste → Fetch → preview →
   Create, an inline duplicate guard, and an OA-PDF Fetch on attachments.**
   **Direct create (the streamlining ruling):** the resolver path no longer

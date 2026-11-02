@@ -102,11 +102,12 @@ describe("BlockRow metadata section", () => {
     expect(header.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(header);
     expect(section!.textContent).toContain("status");
-    // A legacy bare-string value renders inline as plain text (mint-on-edit:
-    // the first click converts the string to a carrier block) — no boxed
-    // input.
-    const scalar = section!.querySelector(".nt-property-scalar");
+    // A legacy bare-string value renders AS A BLOCK ROW now (the same
+    // bullet + content shape the carrier rows ride — mint-on-edit: the
+    // first click converts the string to a carrier block) — no boxed input.
+    const scalar = section!.querySelector(".nt-property-scalar-block");
     expect(scalar?.textContent).toContain("done");
+    expect(scalar?.querySelector(".nt-bullet-dot")).not.toBeNull();
     expect(section!.querySelector("input")).toBeNull();
   });
 
