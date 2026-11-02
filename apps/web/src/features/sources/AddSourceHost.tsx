@@ -28,6 +28,7 @@ import type { AnyClient } from "../modals/quickCreate.js";
 import { readSourceSettings } from "../modals/quickCreate.js";
 import { classifySourceInput } from "./resolver.js";
 import { AddSourceDialog } from "./AddSourceDialog.js";
+import { registerResolveCoordinates } from "./resolveCoordinates.js";
 
 export interface AddSourceRequest {
   /** A pasted identifier/link the dialog prefills its input with. */
@@ -79,6 +80,14 @@ export function AddSourceHost({
       listeners.delete(listener);
     };
   }, []);
+
+  // The resolver coordinates, consumed by ad-hoc resolve surfaces (the
+  // OA-PDF Fetch button on a source's attachments row) without prop
+  // threading; offline (null) hides those affordances.
+  useEffect(() => {
+    registerResolveCoordinates(serverUrl === null ? null : { serverUrl, credential });
+    return () => registerResolveCoordinates(null);
+  }, [serverUrl, credential]);
 
   if (request === null) return null;
 

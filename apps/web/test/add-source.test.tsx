@@ -1,12 +1,15 @@
 /**
  * Add-source tests: the resolver client's input classification + request
- * plumbing (mocked fetch), the AddSourceDialog two-step flow (Fetch →
- * inline preview → Next → prefilled QuickCreateModal → one create), the
- * open-access PDF link row (removable; a picked file supersedes it), the error paths (422 no_identifier_found,
- * 403 resolver_disabled, 404, network), the PDF multipart path (mocked
- * server + the CAS upload attach), and the app-level host routing (a bare
- * URL with the resolver off creates a plain web_page weblink; an identifier
- * opens the dialog with the settings note).
+ * plumbing (mocked fetch), the AddSourceDialog direct-create flow (inline
+ * Fetch → preview → Create writes the source node straight to the workspace —
+ * no form in between; the manual path keeps the QuickCreateModal), the inline
+ * "Already in your library" duplicate pause (Create anyway / Cancel /
+ * open-existing), the open-access PDF link row (removable; a picked file
+ * supersedes it), the error paths (422 no_identifier_found, 403
+ * resolver_disabled, 404, network), the PDF multipart path (mocked server +
+ * the CAS upload attach), and the app-level host routing (a bare URL with the
+ * resolver off creates a plain web_page weblink; an identifier opens the
+ * dialog with the settings note).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -142,8 +145,9 @@ function pickPdf(dialog: HTMLElement, file: File): void {
 }
 
 /**
- * The two-step flow's first-step assertion: the successful fetch renders the
- * inline preview card (role="status"); the primary "Next" only enables then.
+ * The direct-create flow's first-step assertion: the successful fetch renders
+ * the inline preview card (role="status"); the primary "Create" only enables
+ * then.
  */
 async function previewCardOf(dialog: HTMLElement): Promise<HTMLElement> {
   await waitFor(() => {
@@ -154,12 +158,19 @@ async function previewCardOf(dialog: HTMLElement): Promise<HTMLElement> {
   return card;
 }
 
-/** The two-step flow: Fetch resolves, the preview lands, Next opens the form. */
-async function fetchAndNext(dialog: HTMLElement): Promise<HTMLElement> {
+/** The direct-create flow: Fetch resolves, the preview lands, Create writes the node. */
+async function fetchAndCreate(dialog: HTMLElement): Promise<HTMLElement> {
   fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
   const card = await previewCardOf(dialog);
-  fireEvent.click(within(dialog).getByRole("button", { name: /^next$/i }));
+  fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
   return card;
+}
+
+/** The footer primary (Create) — disabled until a fetch succeeded. */
+function createButtonOf(host: HTMLElement): HTMLButtonElement {
+  const footer = host.querySelector(".modal__footer");
+  expect(footer).not.toBeNull();
+  return within(footer as HTMLElement).getByRole("button", { name: /^create$/i }) as HTMLButtonElement;
 }
 
 describe("classifySourceInput", () => {
@@ -275,22 +286,31 @@ describe("AddSourceDialog", () => {
     expect(within(preview).getByText("Document")).toBeTruthy();
     within(dialog).getByRole("button", { name: /remove file/i });
 
-    // …and the actions ride the fleet Modal's footer slot (the two-step
-    // flow: Cancel · Fetch · Next; Next stays disabled until a fetch lands).
-    const footer = dialog.querySelector(".modal__footer");
-    expect(footer).not.toBeNull();
-    expect(within(footer as HTMLElement).getByRole("button", { name: /^fetch$/i })).toBeTruthy();
-    const next = within(footer as HTMLElement).getByRole("button", { name: /^next$/i }) as HTMLButtonElement;
-    expect(next.disabled).toBe(true);
+    // …and the actions split: the footer carries Cancel · Create (Create
+    // disabled until a fetch lands — no Fetch, no Next in the footer); Fetch
+    // lives INLINE in the field's row, PRIMARY while no fetch is in hand.
+    const create = createButtonOf(dialog);
+    expect(create.disabled).toBe(true);
+    const footer = dialog.querySelector(".modal__footer") as HTMLElement;
+    expect(within(footer).queryByRole("button", { name: /^fetch$/i })).toBeNull();
+    expect(within(footer).queryByRole("button", { name: /^next$/i })).toBeNull();
+    const fetchRow = dialog.querySelector(".add-source-dialog__fetch-row") as HTMLElement;
+    expect(fetchRow).not.toBeNull();
+    const fetch = within(fetchRow).getByRole("button", { name: /^fetch$/i }) as HTMLButtonElement;
+    expect(fetch.classList.contains("bg-primary")).toBe(true);
   });
 
-  it("the resolved record's own classKey picks the prefill form (the class lock retired, round 4)", async () => {
+  it("the resolved record's own classKey creates the node directly (the class lock retired, round 4)", async () => {
     const client = await seedClient();
     await seedFamilies(client);
+    // The server-seeded state: the citation schemas exist, so the staged
+    // entries carry the real types (publicationDate → the date chain).
+    await ensureCitationFamily(client);
     stubFetch((url) => {
       if (url.includes("/api/resolve?doi=")) return jsonResponse(200, DOI_RECORD);
       return undefined;
     });
+    const created: string[] = [];
     render(
       <AddSourceDialog
         isOpen
@@ -298,7 +318,7 @@ describe("AddSourceDialog", () => {
         serverUrl="http://resolver.test"
         credential="test-key"
         onClose={() => {}}
-        onCreated={() => {}}
+        onCreated={(id) => created.push(id)}
       />,
     );
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
@@ -306,8 +326,8 @@ describe("AddSourceDialog", () => {
       target: { value: "10.1000/xyz" },
     });
 
-    // Step one: Fetch resolves and the preview card lands (title, the
-    // authors · year · venue meta line, the DOI identifier line)…
+    // Fetch resolves and the preview card lands (title, the authors · year ·
+    // venue meta line, the DOI identifier line)…
     fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
     const card = await previewCardOf(dialog);
     expect(within(card).getByText("On the Analytical Engine")).not.toBeNull();
@@ -315,19 +335,63 @@ describe("AddSourceDialog", () => {
       within(card).getByText(/lovelace, ada, turing, alan · 1843 · the example journal/i),
     ).not.toBeNull();
     expect(within(card).getByText(/doi 10\.1000\/xyz/i)).not.toBeNull();
-    fireEvent.click(within(dialog).getByRole("button", { name: /^next$/i }));
 
-    // The record resolves to a journal_article — the second step is THAT
-    // form (no caller lock since round 4; the resolver knows the type).
-    const form = await screen.findByRole("dialog", { name: /new journal_article/i });
-    expect((within(form).getByLabelText("Title") as HTMLInputElement).value).toBe(
-      "On the Analytical Engine",
-    );
+    // …and Create writes the node DIRECTLY — the record resolves to a
+    // journal_article, no form in between (the resolver knows the type).
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    await waitFor(() => expect(created.length).toBe(1));
+    const node = client.getNode(created[0]!);
+    expect(node?.classIds).toContain(SYSTEM_CLASS_UUIDS.journal_article);
+    expect(deriveDisplayName(node!)).toBe("On the Analytical Engine");
   });
 
-  it("resolves a DOI and prefills the create form (all four field families)", async () => {
+  it("creates the source directly on a FRESH workspace too (the flush re-derives the staged kinds after the citation self-heal)", async () => {
     const client = await seedClient();
     await seedFamilies(client);
+    // NO ensureCitationFamily pre-call: the workspace carries no citation
+    // property schemas yet — the direct create must self-heal them and the
+    // staged publicationDate (text at stage time) must land as a DATE value.
+    const fetchMock = stubFetch((url) => {
+      if (url.includes("/api/resolve?doi=")) return jsonResponse(200, DOI_RECORD);
+      return undefined;
+    });
+    const created: string[] = [];
+    render(
+      <AddSourceDialog
+        isOpen
+        client={client}
+        serverUrl="http://resolver.test"
+        credential="test-key"
+        onClose={() => {}}
+        onCreated={(id) => created.push(id)}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: /add source/i });
+    fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
+      target: { value: "10.1000/xyz" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
+    await previewCardOf(dialog);
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    await waitFor(() => expect(created.length).toBe(1));
+    expect(fetchMock).not.toBeNull();
+    // The year landed as a DATE-chain reference, not a raw string (the
+    // re-kind worked) — and the citation schemas self-healed on the way.
+    const effective = client.getEffectiveProperties!(created[0]!);
+    const yearRow = effective.find(
+      (row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.publicationDate,
+    );
+    expect(yearRow).toBeDefined();
+    expect(yearRow!.source).toBe("authored");
+    expect(client.listPropertySchemas().some((s) => s.id === SYSTEM_PROPERTY_UUIDS.pmid)).toBe(true);
+  });
+
+  it("resolves a DOI and creates the source directly with all four field families", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    // Pre-author the citation schemas (the server-seeded state): the staged
+    // entries then carry the real types (publicationDate → the date chain).
+    await ensureCitationFamily(client);
     const fetchMock = stubFetch((url) => {
       if (url.includes("/api/resolve?doi=")) return jsonResponse(200, DOI_RECORD);
       return undefined;
@@ -356,46 +420,33 @@ describe("AddSourceDialog", () => {
       ),
     );
     await previewCardOf(dialog);
-    fireEvent.click(within(dialog).getByRole("button", { name: /^next$/i }));
-
-    // The prefilled modal: class from classKey, monoblock authors, venue
-    // fields by display name, year, DOI, URL, publisher.
-    const form = await screen.findByRole("dialog", { name: /new journal_article/i });
-    expect((within(form).getByLabelText("Title") as HTMLInputElement).value).toBe(
-      "On the Analytical Engine",
-    );
-    expect((within(form).getByLabelText("Authors") as HTMLInputElement).value).toBe(
-      "Lovelace, Ada; Turing, Alan",
-    );
-    expect((within(form).getByLabelText("Editors") as HTMLInputElement).value).toBe("Babbage, Charles");
-    expect((within(form).getByLabelText("Publication date") as HTMLInputElement).value).toBe("1843");
-    expect((within(form).getByLabelText("DOI") as HTMLInputElement).value).toBe("10.1000/xyz");
-    expect((within(form).getByLabelText("URL") as HTMLInputElement).value).toBe(
-      "https://example.test/paper",
-    );
-    expect((within(form).getByLabelText("Publisher") as HTMLInputElement).value).toBe("Acme Press");
-    expect((within(form).getByLabelText("Publication title") as HTMLInputElement).value).toBe(
-      "The Example Journal",
-    );
-    expect((within(form).getByLabelText("Volume") as HTMLInputElement).value).toBe("7");
-    expect((within(form).getByLabelText("Issue") as HTMLInputElement).value).toBe("3");
-
-    fireEvent.click(within(form).getByRole("button", { name: /^create$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
     await waitFor(() => expect(created.length).toBe(1));
+
+    // The direct create: class from classKey, monoblock authors, venue fields
+    // by display name, year (the date chain), DOI, URL, publisher.
+    const node = client.getNode(created[0]!);
+    expect(node?.classIds).toContain(SYSTEM_CLASS_UUIDS.journal_article);
     const rows = client.getEffectiveProperties(created[0]!);
     const valueOf = (schemaId: string) =>
       rows.filter((row) => row.propertySchemaId === schemaId).map((row) => row.value);
     expect(valueOf(SYSTEM_PROPERTY_UUIDS.authors)).toEqual(["Lovelace, Ada", "Turing, Alan"]);
     expect(valueOf(SYSTEM_PROPERTY_UUIDS.editors)).toEqual(["Babbage, Charles"]);
     expect(valueOf(SYSTEM_PROPERTY_UUIDS.doi)).toEqual(["10.1000/xyz"]);
+    expect(valueOf(SYSTEM_PROPERTY_UUIDS.url)).toEqual(["https://example.test/paper"]);
     expect(valueOf(SYSTEM_PROPERTY_UUIDS.publisher)).toEqual(["Acme Press"]);
     expect(valueOf(SYSTEM_PROPERTY_UUIDS.publicationTitle)).toEqual(["The Example Journal"]);
+    expect(valueOf(SYSTEM_PROPERTY_UUIDS.volume)).toEqual(["7"]);
+    expect(valueOf(SYSTEM_PROPERTY_UUIDS.issue)).toEqual(["3"]);
+    // The year staged value resolves through the date chain to a node ref.
+    const date = rows.find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.publicationDate);
+    expect(date?.value).toHaveProperty("nodeId");
   });
 
-  it("resolves an ISBN to the book flow and shows the duplicate warning for an existing ISBN", async () => {
+  it("resolves an ISBN, pauses Create on the duplicate warning, and Create anyway writes the book", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    // An existing source with the same ISBN: the duplicate warning appears.
+    // An existing source with the same ISBN: Create pauses for one click.
     await ensureCitationFamily(client);
     const existing = await client.createObject({
       isEmbedded: false,
@@ -407,6 +458,7 @@ describe("AddSourceDialog", () => {
       if (url.includes("/api/resolve?isbn=")) return jsonResponse(200, BOOK_RECORD);
       return undefined;
     });
+    const created: string[] = [];
     render(
       <AddSourceDialog
         isOpen
@@ -414,22 +466,38 @@ describe("AddSourceDialog", () => {
         serverUrl="http://resolver.test"
         credential="test-key"
         onClose={() => {}}
+        onCreated={(id) => created.push(id)}
       />,
     );
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
     fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
       target: { value: "978-0-123456-78-9" },
     });
-    await fetchAndNext(dialog);
-    const form = await screen.findByRole("dialog", { name: /new book/i });
-    expect(within(form).getByText(/already in your library/i)).not.toBeNull();
-    expect((within(form).getByLabelText("ISBN") as HTMLInputElement).value).toBe("9780123456789");
-    expect((within(form).getByLabelText("Number of pages") as HTMLInputElement).value).toBe("123");
+    await fetchAndCreate(dialog);
+
+    // The inline duplicate pause: the create did NOT run yet.
+    const duplicate = dialog.querySelector(".add-source-dialog__duplicate") as HTMLElement;
+    expect(duplicate).not.toBeNull();
+    expect(duplicate.getAttribute("role")).toBe("alert");
+    expect(within(duplicate).getByText(/already in your library/i)).not.toBeNull();
+    expect(created.length).toBe(0);
+
+    // Create anyway proceeds — the book lands with its ISBN + venue fields.
+    fireEvent.click(within(duplicate).getByRole("button", { name: /create anyway/i }));
+    await waitFor(() => expect(created.length).toBe(1));
+    const node = client.getNode(created[0]!);
+    expect(node?.classIds).toContain(SYSTEM_CLASS_UUIDS.book);
+    const rows = client.getEffectiveProperties(created[0]!);
+    const valueOf = (schemaId: string) =>
+      rows.filter((row) => row.propertySchemaId === schemaId).map((row) => row.value);
+    expect(valueOf(SYSTEM_PROPERTY_UUIDS.isbn)).toEqual(["9780123456789"]);
+    expect(valueOf(SYSTEM_PROPERTY_UUIDS.numPages)).toEqual(["123"]);
   });
 
   it("resolves a plain URL through the ?url= PDF flow and links the direct PDF URL", async () => {
     const client = await seedClient();
     await seedFamilies(client);
+    await ensureCitationFamily(client);
     const fetchMock = stubFetch((url, init) => {
       if (url.includes("/api/resolve/pdf?url=")) {
         expect(init?.method).toBe("POST");
@@ -459,14 +527,10 @@ describe("AddSourceDialog", () => {
       ).toBe(true),
     );
     await previewCardOf(dialog);
-    fireEvent.click(within(dialog).getByRole("button", { name: /^next$/i }));
-    const form = await screen.findByRole("dialog", { name: /new journal_article/i });
-    // The pdf:{url} intent is the honest full-text link.
-    expect((within(form).getByLabelText("URL") as HTMLInputElement).value).toBe(
-      "https://example.test/paper.pdf",
-    );
-    fireEvent.click(within(form).getByRole("button", { name: /^create$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
     await waitFor(() => expect(created.length).toBe(1));
+    // The pdf:{url} intent is the honest full-text link — it lands on the
+    // created source's URL property (never a CAS upload).
     const rows = client.getEffectiveProperties(created[0]!);
     const url = rows.find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.url);
     expect(url?.value).toBe("https://example.test/paper.pdf");
@@ -475,6 +539,7 @@ describe("AddSourceDialog", () => {
   it("uploads a picked PDF to the resolver, then attaches it to the created source via CAS", async () => {
     const client = await seedClient();
     await seedFamilies(client);
+    await ensureCitationFamily(client);
     const fetchMock = stubFetch((url) => {
       if (url.includes("/api/resolve/pdf") && !url.includes("?url=")) {
         return jsonResponse(200, DOI_RECORD);
@@ -506,8 +571,8 @@ describe("AddSourceDialog", () => {
     pickPdf(dialog, file);
     fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
     await previewCardOf(dialog);
-    fireEvent.click(within(dialog).getByRole("button", { name: /^next$/i }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: /add source/i })).toBeNull());
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    await waitFor(() => expect(created.length).toBe(1));
 
     // The multipart resolve ran with the file's FormData.
     const resolveCall = fetchMock.mock.calls.find((call) =>
@@ -516,11 +581,8 @@ describe("AddSourceDialog", () => {
     expect(resolveCall).not.toBeUndefined();
     expect(resolveCall![1]?.body).toBeInstanceOf(FormData);
 
-    const form = await screen.findByRole("dialog", { name: /new journal_article/i });
-    fireEvent.click(within(form).getByRole("button", { name: /^create$/i }));
-    await waitFor(() => expect(created.length).toBe(1));
-    // The CAS upload (POST /api/assets) rides the create, then the
-    // attachment links on the source (the asset.attach projection).
+    // The CAS upload (POST /api/assets) rode the create, then the attachment
+    // linked on the source (the asset.attach projection).
     await waitFor(() =>
       expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/api/assets"))).toBe(
         true,
@@ -534,6 +596,7 @@ describe("AddSourceDialog", () => {
   it("a failed CAS upload creates no half-source (the upload runs before the create)", async () => {
     const client = await seedClient();
     await seedFamilies(client);
+    await ensureCitationFamily(client);
     stubFetch((url) => {
       if (url.includes("/api/resolve/pdf") && !url.includes("?url=")) {
         return jsonResponse(200, DOI_RECORD);
@@ -561,11 +624,9 @@ describe("AddSourceDialog", () => {
     pickPdf(dialog, file);
     fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
     await previewCardOf(dialog);
-    fireEvent.click(within(dialog).getByRole("button", { name: /^next$/i }));
-    const form = await screen.findByRole("dialog", { name: /new journal_article/i });
-    fireEvent.click(within(form).getByRole("button", { name: /^create$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
 
-    // The create reports the failure inline…
+    // The create reports the failure inline (the dialog stays open)…
     await screen.findByText(/failed to create/i);
     // …and NO half-source exists: the upload precedes the create.
     expect(created.length).toBe(0);
@@ -598,9 +659,8 @@ describe("AddSourceDialog", () => {
     });
     fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
     await screen.findByText(/carried no extractable doi/i);
-    // No half-create: the workspace gained nothing (Next never enabled).
-    const next = within(dialog).getByRole("button", { name: /^next$/i }) as HTMLButtonElement;
-    expect(next.disabled).toBe(true);
+    // No half-create: the workspace gained nothing (Create never enabled).
+    expect(createButtonOf(dialog).disabled).toBe(true);
     expect(client.getClassMembers(SYSTEM_CLASS_UUIDS.source).length).toBe(0);
   });
 
@@ -709,7 +769,7 @@ describe("AddSourceDialog", () => {
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
     expect(within(dialog).getByText(/resolver is turned off/i)).not.toBeNull();
     // Fetch is NOT resolver-gated (only empty-gated): with something to act
-    // on, Fetch fails honestly and offers the manual form (Next stays off).
+    // on, Fetch fails honestly and offers the manual form (Create stays off).
     fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
       target: { value: "https://example.test/some-page" },
     });
@@ -752,7 +812,7 @@ describe("AddSourceDialog", () => {
     expect((within(form).getByLabelText("DOI") as HTMLInputElement).value).toBe("10.1000/xyz");
   });
 
-  it("two-step flow: Next stays disabled until a fetch succeeds, and editing the input invalidates it", async () => {
+  it("Create stays disabled until a fetch succeeds, editing the input invalidates it, and Fetch demotes from primary to outline", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     stubFetch((url) => {
@@ -770,36 +830,43 @@ describe("AddSourceDialog", () => {
     );
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
     const field = within(dialog).getByLabelText("Identifier or link");
-    const next = () => within(dialog).getByRole("button", { name: /^next$/i }) as HTMLButtonElement;
+    const fetchRow = dialog.querySelector(".add-source-dialog__fetch-row") as HTMLElement;
+    const fetchOf = () => within(fetchRow).getByRole("button", { name: /^fetch$/i }) as HTMLButtonElement;
 
-    // Nothing fetched yet — Next is disabled.
+    // No fetch in hand — Fetch is the PRIMARY action; Create is disabled.
     fireEvent.change(field, { target: { value: "10.1000/xyz" } });
-    expect(next().disabled).toBe(true);
-    fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
+    expect(fetchOf().classList.contains("bg-primary")).toBe(true);
+    expect(createButtonOf(dialog).disabled).toBe(true);
+    fireEvent.click(fetchOf());
     await previewCardOf(dialog);
-    expect(next().disabled).toBe(false);
 
-    // Any edit invalidates the fetched preview — Next greys out again.
+    // Fetched — Fetch demotes to outline; Create takes the lead.
+    expect(fetchOf().classList.contains("bg-surface-container-low")).toBe(true);
+    expect(createButtonOf(dialog).disabled).toBe(false);
+
+    // Any edit invalidates the fetched preview — Create greys out again.
     fireEvent.change(field, { target: { value: "10.1000/xyz edited" } });
     expect(dialog.querySelector(".add-source-dialog__preview--card")).toBeNull();
-    expect(next().disabled).toBe(true);
+    expect(createButtonOf(dialog).disabled).toBe(true);
 
     // A fresh fetch re-enables it.
     fireEvent.change(field, { target: { value: "10.1000/xyz" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
+    fireEvent.click(fetchOf());
     await previewCardOf(dialog);
-    expect(next().disabled).toBe(false);
+    expect(createButtonOf(dialog).disabled).toBe(false);
   });
 
-  it("the Unpaywall open-access PDF link shows as a removable row; clearing it keeps the url out of the seeded form", async () => {
+  it("the Unpaywall open-access PDF link shows as a removable row; clearing it keeps the url off the created source", async () => {
     const client = await seedClient();
     await seedFamilies(client);
+    await ensureCitationFamily(client);
     stubFetch((url) => {
       if (url.includes("/api/resolve?doi=")) {
         return jsonResponse(200, { ...DOI_RECORD, pdf: { url: "https://oa.test/paper.pdf" } });
       }
       return undefined;
     });
+    const created: string[] = [];
     render(
       <AddSourceDialog
         isOpen
@@ -807,6 +874,7 @@ describe("AddSourceDialog", () => {
         serverUrl="http://resolver.test"
         credential="test-key"
         onClose={() => {}}
+        onCreated={(id) => created.push(id)}
       />,
     );
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
@@ -822,24 +890,27 @@ describe("AddSourceDialog", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /remove the fetched pdf link/i }));
     expect(within(dialog).queryByText("Open-access PDF")).toBeNull();
 
-    // A dismissed chip keeps the OA link OUT of the seeded form: the URL
+    // A dismissed chip keeps the OA link OFF the created source: the URL
     // property seeds from the provider's own url, never the OA pdf link.
-    fireEvent.click(within(dialog).getByRole("button", { name: /^next$/i }));
-    const form = await screen.findByRole("dialog", { name: /new journal_article/i });
-    expect((within(form).getByLabelText("URL") as HTMLInputElement).value).toBe(
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    await waitFor(() => expect(created.length).toBe(1));
+    const rows = client.getEffectiveProperties(created[0]!);
+    expect(rows.find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.url)?.value).toBe(
       "https://example.test/paper",
     );
   });
 
-  it("an uncleared OA link seeds the create form's URL with the open-access PDF url", async () => {
+  it("an uncleared OA link lands on the created source's URL property as the open-access PDF url", async () => {
     const client = await seedClient();
     await seedFamilies(client);
+    await ensureCitationFamily(client);
     stubFetch((url) => {
       if (url.includes("/api/resolve?doi=")) {
         return jsonResponse(200, { ...DOI_RECORD, pdf: { url: "https://oa.test/paper.pdf" } });
       }
       return undefined;
     });
+    const created: string[] = [];
     render(
       <AddSourceDialog
         isOpen
@@ -847,15 +918,19 @@ describe("AddSourceDialog", () => {
         serverUrl="http://resolver.test"
         credential="test-key"
         onClose={() => {}}
+        onCreated={(id) => created.push(id)}
       />,
     );
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
     fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
       target: { value: "10.1000/xyz" },
     });
-    await fetchAndNext(dialog);
-    const form = await screen.findByRole("dialog", { name: /new journal_article/i });
-    expect((within(form).getByLabelText("URL") as HTMLInputElement).value).toBe(
+    fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
+    await previewCardOf(dialog);
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    await waitFor(() => expect(created.length).toBe(1));
+    const rows = client.getEffectiveProperties(created[0]!);
+    expect(rows.find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.url)?.value).toBe(
       "https://oa.test/paper.pdf",
     );
   });
@@ -863,6 +938,7 @@ describe("AddSourceDialog", () => {
   it("a picked file supersedes the fetched OA link (the link row hides, the file rides the create)", async () => {
     const client = await seedClient();
     await seedFamilies(client);
+    await ensureCitationFamily(client);
     const fetchMock = stubFetch((url) => {
       if (url.includes("/api/resolve/pdf") && !url.includes("?url=")) {
         return jsonResponse(200, { ...DOI_RECORD, pdf: { url: "https://oa.test/paper.pdf" } });
@@ -901,9 +977,7 @@ describe("AddSourceDialog", () => {
     expect(within(dialog).queryByText("Open-access PDF")).toBeNull();
     expect(within(dialog).getAllByText("paper.pdf").length).toBeGreaterThan(0);
 
-    fireEvent.click(within(dialog).getByRole("button", { name: /^next$/i }));
-    const form = await screen.findByRole("dialog", { name: /new journal_article/i });
-    fireEvent.click(within(form).getByRole("button", { name: /^create$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
     await waitFor(() => expect(created.length).toBe(1));
     // The real bytes attach via CAS — the OA url was never the intent.
     await waitFor(() =>
@@ -914,7 +988,7 @@ describe("AddSourceDialog", () => {
     expect(client.getAssetInfo(created[0]!)?.originalName).toBe("paper.pdf");
   });
 
-  it("resolves a PMID and warns 'Already in your library' for an existing pmid property", async () => {
+  it("resolves a PMID and pauses Create on the inline 'Already in your library' alert; Create anyway writes the article", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     await ensureCitationFamily(client);
@@ -928,6 +1002,7 @@ describe("AddSourceDialog", () => {
       if (url.includes("/api/resolve?pmid=")) return jsonResponse(200, PMID_RECORD);
       return undefined;
     });
+    const created: string[] = [];
     render(
       <AddSourceDialog
         isOpen
@@ -935,6 +1010,7 @@ describe("AddSourceDialog", () => {
         serverUrl="http://resolver.test"
         credential="test-key"
         onClose={() => {}}
+        onCreated={(id) => created.push(id)}
       />,
     );
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
@@ -944,10 +1020,79 @@ describe("AddSourceDialog", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
     const card = await previewCardOf(dialog);
     expect(within(card).getByText(/pmid 25495683/i)).not.toBeNull();
-    fireEvent.click(within(dialog).getByRole("button", { name: /^next$/i }));
-    const form = await screen.findByRole("dialog", { name: /new journal_article/i });
-    expect(within(form).getByText(/already in your library/i)).not.toBeNull();
-    expect((within(form).getByLabelText("PMID") as HTMLInputElement).value).toBe("25495683");
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+
+    // The inline pause: the alert names the match, nothing created yet.
+    const duplicate = dialog.querySelector(".add-source-dialog__duplicate") as HTMLElement;
+    expect(duplicate.getAttribute("role")).toBe("alert");
+    expect(within(duplicate).getByText(/already in your library/i)).not.toBeNull();
+    expect(created.length).toBe(0);
+
+    // Create anyway proceeds — the article lands with its PMID.
+    fireEvent.click(within(duplicate).getByRole("button", { name: /create anyway/i }));
+    await waitFor(() => expect(created.length).toBe(1));
+    const rows = client.getEffectiveProperties(created[0]!);
+    expect(
+      rows.find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.pmid)?.value,
+    ).toBe("25495683");
+  });
+
+  it("the duplicate pause's Cancel dismisses without creating, and the open-existing link calls onOpenNode", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    await ensureCitationFamily(client);
+    const existing = await client.createObject({
+      isEmbedded: false,
+      name: "The same paper",
+      classIds: [SYSTEM_CLASS_UUIDS.journal_article],
+    });
+    await client.setProperty(existing, SYSTEM_PROPERTY_UUIDS.doi, "10.1000/xyz", 0);
+    stubFetch((url) => {
+      if (url.includes("/api/resolve?doi=")) return jsonResponse(200, DOI_RECORD);
+      return undefined;
+    });
+    const created: string[] = [];
+    const opened: string[] = [];
+    let closed = 0;
+    render(
+      <AddSourceDialog
+        isOpen
+        client={client}
+        serverUrl="http://resolver.test"
+        credential="test-key"
+        onClose={() => {
+          closed += 1;
+        }}
+        onCreated={(id) => created.push(id)}
+        onOpenNode={(id) => opened.push(id)}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: /add source/i });
+    fireEvent.change(within(dialog).getByLabelText("Identifier or link"), {
+      target: { value: "10.1000/xyz" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
+    await previewCardOf(dialog);
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+
+    // The pause names the existing source as an OPEN link (onOpenNode given)…
+    const duplicate = dialog.querySelector(".add-source-dialog__duplicate") as HTMLElement;
+    const openLink = within(duplicate).getByRole("button", { name: /the same paper/i });
+    // …and Cancel dismisses the pause — no create, dialog stays open.
+    fireEvent.click(within(duplicate).getByRole("button", { name: /^cancel$/i }));
+    expect(dialog.querySelector(".add-source-dialog__duplicate")).toBeNull();
+    expect(created.length).toBe(0);
+    expect(closed).toBe(0);
+
+    // A fresh Create re-pauses; the open link closes the dialog and routes
+    // the existing node to onOpenNode.
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    const repaused = dialog.querySelector(".add-source-dialog__duplicate") as HTMLElement;
+    expect(repaused).not.toBeNull();
+    fireEvent.click(within(repaused).getByRole("button", { name: /the same paper/i }));
+    expect(closed).toBe(1);
+    expect(opened).toEqual([existing]);
+    expect(created.length).toBe(0);
   });
 });
 

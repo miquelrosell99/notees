@@ -28,6 +28,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
+import { registerResolveCoordinates } from "../src/features/sources/resolveCoordinates.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -53,6 +54,7 @@ const clients: WorkspaceClient[] = [];
 
 afterEach(() => {
   while (clients.length > 0) clients.pop()!.close();
+  registerResolveCoordinates(null);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -570,5 +572,229 @@ describe("Asset attachments (the asset property row)", () => {
     expect(screen.queryByText("Grace Hopper")).toBeNull();
     expect(screen.queryByText("Upload file…")).toBeNull();
     expect(screen.queryByLabelText("Upload mentor")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The OA-PDF Fetch button (the attachments row's third action)
+// ---------------------------------------------------------------------------
+
+const OA_PDF_URL = "https://oa.test/paper.pdf";
+
+/** A resolver record whose Unpaywall enrichment carries the OA pdf link. */
+function oaRecord() {
+  return {
+    classKey: "journal_article",
+    title: "The Paper",
+    authors: ["Author, Some"],
+    editors: [],
+    fields: {},
+    doi: "10.1000/xyz",
+    pdf: { url: OA_PDF_URL },
+  };
+}
+
+/** Author the doi text schema (the seed relay carries only attachments). */
+async function authorDoiSchema(client: WorkspaceClient): Promise<void> {
+  await client.createPropertySchema({
+    id: SYSTEM_PROPERTY_UUIDS.doi,
+    name: "doi",
+    type: "text",
+    scopeClassIds: [SOURCE_CLASS],
+  });
+}
+
+/**
+ * Fetch stub for the OA flow: the resolver route answers the record, the OA
+ * URL answers bytes, the asset store answers the upload body — anything else
+ * (the header star's prefs GET) answers an inert "{}".
+ */
+function stubOaFetch(record: Record<string, unknown> = oaRecord()) {
+  const calls: Array<{ url: string; method: string }> = [];
+  const mock = vi.fn(async (url: string, init?: RequestInit) => {
+    const method = init?.method ?? "GET";
+    calls.push({ url: String(url), method });
+    if (String(url).includes("/api/resolve?")) {
+      return new Response(JSON.stringify(record), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (String(url) === OA_PDF_URL) {
+      const download = new Response("pdf-bytes", { status: 200 });
+      // jsdom/Node realm mismatch: Response.blob()'s Blob fails the CAS
+      // upload's FormData brand check — hand back the global Blob explicitly.
+      download.blob = async () => new Blob(["pdf-bytes"], { type: "application/pdf" });
+      return download;
+    }
+    if (String(url) === `${SERVER}/api/assets`) {
+      return new Response(JSON.stringify(uploadBody()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+  });
+  vi.stubGlobal("fetch", mock);
+  return calls;
+}
+
+describe("OA-PDF Fetch (the attachments row's third button)", () => {
+  it("renders the Fetch button only on a source's attachments row, with coordinates registered", async () => {
+    const client = await seedClient({ rest: true });
+    const sourceId = await createSource(client, "The Book");
+
+    // Offline (no coordinates registered): the gate stays shut.
+    const first = render(<PageView client={client} pageId={sourceId} />);
+    const row = attachmentsRow();
+    expect(within(row).getByRole("button", { name: "Upload" })).not.toBeNull();
+    expect(within(row).getByRole("button", { name: "Link" })).not.toBeNull();
+    expect(within(row).queryByRole("button", { name: "Fetch" })).toBeNull();
+    first.unmount();
+
+    // Online: the host's coordinates registration opens the gate (re-render).
+    registerResolveCoordinates({ serverUrl: SERVER, credential: API_KEY });
+    render(<PageView client={client} pageId={sourceId} />);
+    const onlineRow = attachmentsRow();
+    expect(within(onlineRow).getByRole("button", { name: "Fetch" })).not.toBeNull();
+  });
+
+  it("hides Fetch for a non-source node's asset row and when the resolver is off", async () => {
+    const client = await seedClient({ rest: true });
+    // A non-source class with its own multi asset property: Upload/Link ride,
+    // the Fetch gate stays shut (the node carries no citation-family class).
+    const holderClass = await client.createClass("holder");
+    const holderSchema = await client.createPropertySchema({
+      name: "files",
+      type: "asset",
+      multi: true,
+    });
+    await client.setClassProperty(holderClass, holderSchema, {});
+    const holderId = await client.createObject({ isEmbedded: false, name: "Holder" });
+    await client.assignClass(holderId, holderClass);
+    // A source with the resolver OFF: the row renders, Fetch does not.
+    const sourceId = await createSource(client, "The Book");
+    await client.setFeatureSettings("sources", { resolverEnabled: false });
+    registerResolveCoordinates({ serverUrl: SERVER, credential: API_KEY });
+
+    const holderView = render(<PageView client={client} pageId={holderId} />);
+    expandProperties();
+    const holderRow = within(holderView.container)
+      .getByText("files")
+      .closest(".nt-props-sidebar__prop, .nt-property-asset") as HTMLElement;
+    expect(within(holderRow).getByRole("button", { name: "Upload" })).not.toBeNull();
+    expect(within(holderRow).queryByRole("button", { name: "Fetch" })).toBeNull();
+    holderView.unmount();
+
+    const sourceView = render(<PageView client={client} pageId={sourceId} />);
+    const sourceRow = within(sourceView.container)
+      .getByText("attachments")
+      .closest(".nt-props-sidebar__prop, .nt-property-asset") as HTMLElement;
+    expect(within(sourceRow).getByRole("button", { name: "Upload" })).not.toBeNull();
+    expect(within(sourceRow).queryByRole("button", { name: "Fetch" })).toBeNull();
+  });
+
+  it("Fetch resolves the source's DOI, downloads the OA pdf, and links the new asset", async () => {
+    const client = await seedClient({ rest: true });
+    await authorDoiSchema(client);
+    const sourceId = await createSource(client, "The Book");
+    await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.doi, "10.1000/xyz", 0);
+    const calls = stubOaFetch();
+    registerResolveCoordinates({ serverUrl: SERVER, credential: API_KEY });
+
+    render(<PageView client={client} pageId={sourceId} />);
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Fetch" }));
+
+    // The list row lands once the whole chain (resolve → download → CAS
+    // upload → asset node → attach → property write) completes.
+    await screen.findByRole("button", { name: "paper.pdf" });
+    // The resolver rode the registered coordinates; the OA bytes downloaded.
+    expect(calls.some((call) => call.url.includes("/api/resolve?doi="))).toBe(true);
+    expect(calls.some((call) => call.url === OA_PDF_URL)).toBe(true);
+    // CAS upload → asset node → attach → the property value links it.
+    const effective = client
+      .getEffectiveProperties(sourceId)
+      .filter((row) => row.propertySchemaId === ATTACHMENTS && row.source === "authored");
+    expect(effective).toHaveLength(1);
+    const assetNodeId = (effective[0]!.value as { nodeId: string }).nodeId;
+    const assetNode = client.getNode(assetNodeId)!;
+    expect(assetNode.classIds).toContain(ASSET_CLASS);
+    expect(deriveDisplayName(assetNode)).toBe("paper.pdf");
+    expect(client.getAssetInfo(assetNodeId)).toEqual(
+      expect.objectContaining({ assetId: ASSET_ID_A, originalName: "paper.pdf" }),
+    );
+  });
+
+  it("prefers the PMID over the ISBN when the source carries both", async () => {
+    const client = await seedClient({ rest: true });
+    await authorDoiSchema(client);
+    const pmidSchema = await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.pmid,
+      name: "pmid",
+      type: "text",
+      scopeClassIds: [SOURCE_CLASS],
+    });
+    const isbnSchema = await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.isbn,
+      name: "isbn",
+      type: "text",
+      scopeClassIds: [SOURCE_CLASS],
+    });
+    const sourceId = await createSource(client, "The Book");
+    await client.setProperty(sourceId, pmidSchema, "25495683", 0);
+    await client.setProperty(sourceId, isbnSchema, "9780123456789", 0);
+    const calls = stubOaFetch();
+    registerResolveCoordinates({ serverUrl: SERVER, credential: API_KEY });
+
+    render(<PageView client={client} pageId={sourceId} />);
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Fetch" }));
+    await flushWrites();
+
+    expect(calls.some((call) => call.url.includes("/api/resolve?pmid=25495683"))).toBe(true);
+    expect(calls.some((call) => call.url.includes("/api/resolve?isbn="))).toBe(false);
+  });
+
+  it("a source with no identifiers fails with the honest error, no writes", async () => {
+    const client = await seedClient({ rest: true });
+    const sourceId = await createSource(client, "The Book");
+    const calls = stubOaFetch();
+    registerResolveCoordinates({ serverUrl: SERVER, credential: API_KEY });
+
+    render(<PageView client={client} pageId={sourceId} />);
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Fetch" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("no DOI, PMID, or ISBN");
+    expect(calls.some((call) => call.url.includes("/api/resolve?"))).toBe(false);
+    expect(
+      client
+        .getEffectiveProperties(sourceId)
+        .filter((row) => row.propertySchemaId === ATTACHMENTS && row.source === "authored"),
+    ).toEqual([]);
+  });
+
+  it("a record without an OA pdf fails with the honest error, no writes", async () => {
+    const client = await seedClient({ rest: true });
+    await authorDoiSchema(client);
+    const sourceId = await createSource(client, "The Book");
+    await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.doi, "10.1000/xyz", 0);
+    const record = oaRecord() as Record<string, unknown>;
+    delete record.pdf;
+    const calls = stubOaFetch(record);
+    registerResolveCoordinates({ serverUrl: SERVER, credential: API_KEY });
+
+    render(<PageView client={client} pageId={sourceId} />);
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Fetch" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("No open-access PDF found");
+    // The resolve ran; the download + upload did not.
+    expect(calls.some((call) => call.url.includes("/api/resolve?"))).toBe(true);
+    expect(calls.some((call) => call.url === OA_PDF_URL)).toBe(false);
+    expect(
+      client
+        .getEffectiveProperties(sourceId)
+        .filter((row) => row.propertySchemaId === ATTACHMENTS && row.source === "authored"),
+    ).toEqual([]);
   });
 });

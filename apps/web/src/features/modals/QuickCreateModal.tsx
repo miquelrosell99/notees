@@ -50,6 +50,7 @@ import {
   ensureCitationFamily,
   findClassMemberByTitle,
   findSourceByIdentifier,
+  flushClassedCreate,
   isArchivedClass,
   isCitationFamilyClass,
   parseStagedDateText,
@@ -207,61 +208,21 @@ export function QuickCreateModal({
   );
 
   const handleCreate = async () => {
-    const trimmedTitle = title.trim();
-    if (trimmedTitle === "") {
-      setError("Title is required.");
-      return;
-    }
-    // Validate the staged date/number rows BEFORE anything writes — an
-    // honest error, cancel-grade (no half-created node).
-    for (const { row, value } of entriesOf()) {
-      if (value.kind === "date" && value.text.trim() !== "" && parseStagedDateText(value.text) === null) {
-        setError(`${labelOf(row)} must be a date (YYYY, YYYY-MM, or YYYY-MM-DD).`);
-        return;
-      }
-      if (
-        value.kind === "number" &&
-        value.text.trim() !== "" &&
-        !Number.isFinite(Number(value.text.trim()))
-      ) {
-        setError(`${labelOf(row)} must be a number.`);
-        return;
-      }
-    }
-
     setIsCreating(true);
     setError(null);
     try {
-      if (citationFamily) {
-        // The venue schemas/bindings a prefill carries self-heal before the
-        // flush (the read-synthesis covered the form; the writes need real
-        // rows).
-        await ensureCitationFamily(
-          client,
-          prefill !== undefined ? venueKeysOfPrefill(prefill) : [],
-          classId,
-        );
-      }
-      const entries = entriesOf();
-      if (citationFamily && draft !== null && draft.citekey !== "") {
-        // Auto-citekey: the empty staged citekey rides the generated value
-        // (the draft — pattern render + the deterministic collision suffix).
-        const citekeyId = SYSTEM_PROPERTY_UUIDS.citekey;
-        const citekeyEntry = entries.find(
-          (entry) => entry.row.binding.propertySchemaId === citekeyId,
-        );
-        if (citekeyEntry !== undefined && stagedTextOf(citekeyEntry.value).trim() === "") {
-          citekeyEntry.value = { kind: "text", text: draft.citekey };
-        }
-      }
-      const id = await createClassedObject(client, {
-        title: trimmedTitle,
+      const result = await flushClassedCreate(client, {
         classId,
-        values: entries,
-        attachPdf: prefill?.pdf ?? null,
-        unarchiveArchivedClass: true,
+        title,
+        entries: entriesOf(),
+        prefill,
       });
-      onCreated(id);
+      if (!result.ok) {
+        setError(result.error);
+        setIsCreating(false);
+        return;
+      }
+      onCreated(result.id);
       onClose();
     } catch {
       setError("Failed to create. Please try again.");

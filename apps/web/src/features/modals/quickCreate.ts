@@ -592,6 +592,131 @@ export async function createClassedObject(
 }
 
 /**
+ * Build staged create entries from a flat prefill value map (property
+ * schema id → seed text) — the headless counterpart of the modal's staged
+ * rows, for callers that create straight from a resolver record without
+ * opening the form (the add-source dialog's direct create). The staged kind
+ * derives from the schema's type; schemas the client doesn't know yet read
+ * as text (the citation ensure authors them before the flush).
+ */
+export function stagedEntriesOfValues(
+  client: AnyClient,
+  values: Record<string, string>,
+): Array<{ row: StagedPropertyBinding; value: StagedPropertyValue }> {
+  const schemas = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
+  return Object.entries(values).map(([schemaId, text]) => {
+    const schema = schemas.get(schemaId) ?? null;
+    const type = schema?.type ?? "text";
+    const kind = type === "datetime" ? "date" : type === "number" ? "number" : "text";
+    return {
+      row: {
+        binding: {
+          propertySchemaId: schemaId,
+          name: schema?.name ?? schemaId,
+          type,
+        } as ClassBinding,
+        schema,
+      },
+      value: { kind, text } as StagedPropertyValue,
+    };
+  });
+}
+
+/**
+ * The shared classed-create flush — the QuickCreateModal's Create and the
+ * add-source dialog's direct create run the SAME pipeline: title/date/number
+ * validation BEFORE anything writes (an honest error, cancel-grade), the
+ * citation-family self-heal, the auto-citekey fill (an empty staged citekey
+ * rides the generated draft), then `createClassedObject` (CAS upload first,
+ * one undo batch). Returns `{ok: false, error}` for validation failures and
+ * THROWS for write failures (callers map to their surface's message).
+ */
+export async function flushClassedCreate(
+  client: AnyClient,
+  input: {
+    classId: string;
+    title: string;
+    entries: ReadonlyArray<{ row: StagedPropertyBinding; value: StagedPropertyValue }>;
+    prefill?: { values: Record<string, string>; pdf?: { file: Blob; filename: string } | null } | undefined;
+  },
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const trimmedTitle = input.title.trim();
+  if (trimmedTitle === "") {
+    return { ok: false, error: "Title is required." };
+  }
+  // Validate the staged date/number rows BEFORE anything writes — an
+  // honest error, cancel-grade (no half-created node).
+  for (const { row, value } of input.entries) {
+    const label = row.schema?.name ?? row.binding.name;
+    if (value.kind === "date" && value.text.trim() !== "" && parseStagedDateText(value.text) === null) {
+      return { ok: false, error: `${label} must be a date (YYYY, YYYY-MM, or YYYY-MM-DD).` };
+    }
+    if (
+      value.kind === "number" &&
+      value.text.trim() !== "" &&
+      !Number.isFinite(Number(value.text.trim()))
+    ) {
+      return { ok: false, error: `${label} must be a number.` };
+    }
+  }
+  const citationFamily = isCitationFamilyClass(client, input.classId);
+  if (citationFamily) {
+    // The venue schemas/bindings a prefill carries self-heal before the
+    // flush (the read-synthesis covered the form; the writes need real rows).
+    await ensureCitationFamily(
+      client,
+      input.prefill !== undefined ? venueKeysOfPrefill(input.prefill) : [],
+      input.classId,
+    );
+  }
+  const entries = input.entries.map((entry) => ({ row: entry.row, value: entry.value }));
+  // Re-derive the scalar staged kinds against the POST-ensure schema set:
+  // a caller that staged entries before the self-heal (the add-source
+  // dialog's direct create on a fresh/offline workspace) typed unknown
+  // schemas as text — publicationDate must stage as a DATE once the
+  // datetime schema is real, or the property write fails loud.
+  {
+    const schemas = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
+    for (const entry of entries) {
+      const schema = schemas.get(entry.row.binding.propertySchemaId);
+      if (schema === undefined) continue;
+      const kind =
+        schema.type === "datetime" ? "date" : schema.type === "number" ? "number" : "text";
+      if (
+        entry.value.kind !== kind &&
+        (entry.value.kind === "text" || entry.value.kind === "date" || entry.value.kind === "number")
+      ) {
+        const text =
+          entry.value.kind === "boolean" ? "" : (entry.value.text as string | undefined) ?? "";
+        entry.value = { kind, text } as StagedPropertyValue;
+      }
+    }
+  }
+  if (citationFamily) {
+    // Auto-citekey: the empty staged citekey rides the generated value
+    // (the draft — pattern render + the deterministic collision suffix).
+    const draft = citationDraftOf(client, entries, trimmedTitle);
+    if (draft.citekey !== "") {
+      const citekeyId = SYSTEM_PROPERTY_UUIDS.citekey;
+      const citekeyEntry = entries.find(
+        (entry) => entry.row.binding.propertySchemaId === citekeyId,
+      );
+      if (citekeyEntry !== undefined && stagedTextOf(citekeyEntry.value).trim() === "") {
+        citekeyEntry.value = { kind: "text", text: draft.citekey };
+      }
+    }
+  }
+  const id = await createClassedObject(client, {
+    title: trimmedTitle,
+    classId: input.classId,
+    values: entries,
+    attachPdf: input.prefill?.pdf ?? null,
+    unarchiveArchivedClass: true,
+  });
+  return { ok: true, id };
+}
+
+/**
  * Author the citation property schemas + class bindings the quick-create
  * writes need, when missing; a complete no-op once present (the
  * ensureTaskFamily idiom — fresh/offline workspaces self-heal; server-seeded
