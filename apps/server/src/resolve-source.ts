@@ -100,6 +100,9 @@ export interface SourceMetadataRecord {
   isbn?: string;
   /** The PubMed identifier (the PMID provider's own record). */
   pmid?: string;
+  /** The PubMed Central identifier (the PMID provider's own record; NCBI
+   *  includes the "PMC" prefix, e.g. "PMC4321079" — passed through verbatim). */
+  pmcid?: string;
   url?: string;
   year?: number;
   /** The publishing house (Crossref `publisher` / OpenLibrary `publishers[0]`). */
@@ -295,6 +298,7 @@ function buildRecord(input: {
   doi?: string | undefined;
   isbn?: string | undefined;
   pmid?: string | undefined;
+  pmcid?: string | undefined;
   url?: string | undefined;
   year?: number | undefined;
   publisher?: string | undefined;
@@ -315,6 +319,7 @@ function buildRecord(input: {
   if (input.doi !== undefined) record.doi = input.doi;
   if (input.isbn !== undefined) record.isbn = input.isbn;
   if (input.pmid !== undefined) record.pmid = input.pmid;
+  if (input.pmcid !== undefined) record.pmcid = input.pmcid;
   if (input.url !== undefined) record.url = input.url;
   if (input.year !== undefined) record.year = input.year;
   if (input.publisher !== undefined) record.publisher = input.publisher;
@@ -618,17 +623,21 @@ async function resolvePmid(
         .filter((name): name is string => name !== undefined)
         .map(pubmedAuthorName)
     : [];
-  const doi = Array.isArray(entry.articleids)
-    ? (() => {
-        for (const id of entry.articleids as Array<{ idtype?: unknown; value?: unknown }>) {
-          if (id.idtype === "doi") {
-            const value = str(id.value);
-            if (value !== undefined) return value;
-          }
-        }
-        return undefined;
-      })()
-    : undefined;
+  const ids = Array.isArray(entry.articleids)
+    ? (entry.articleids as Array<{ idtype?: unknown; value?: unknown }>)
+    : [];
+  const articleId = (idtype: string): string | undefined => {
+    for (const id of ids) {
+      if (id.idtype === idtype) {
+        const value = str(id.value);
+        if (value !== undefined) return value;
+      }
+    }
+    return undefined;
+  };
+  const doi = articleId("doi");
+  // NCBI includes the "PMC" prefix (e.g. "PMC4321079") — passed through verbatim.
+  const pmcid = articleId("pmc");
   return buildRecord({
     classKey: ZOTERO_ITEM_TYPE_TO_CLASS.journalArticle,
     title: collapseWhitespace(title),
@@ -642,6 +651,7 @@ async function resolvePmid(
     },
     doi,
     pmid: normalized,
+    pmcid,
     url: `https://pubmed.ncbi.nlm.nih.gov/${normalized}/`,
     year: yearFromDateString(entry.pubdate),
   });

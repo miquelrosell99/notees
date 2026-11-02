@@ -258,6 +258,7 @@ describe("GET /api/resolve — metadata branch", () => {
               articleids: [
                 { idtype: "pubmed", value: "25495683" },
                 { idtype: "doi", value: "10.1111/jcpe.12321" },
+                { idtype: "pmc", value: "PMC4321079" },
               ],
             },
           },
@@ -284,6 +285,7 @@ describe("GET /api/resolve — metadata branch", () => {
       },
       doi: "10.1111/jcpe.12321",
       pmid: "25495683",
+      pmcid: "PMC4321079",
       url: "https://pubmed.ncbi.nlm.nih.gov/25495683/",
       year: 2015,
       pdf: { url: "https://oa.example.org/review.pdf" },
@@ -291,6 +293,31 @@ describe("GET /api/resolve — metadata branch", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0]![0]).toContain("db=pubmed&id=25495683");
     expect(fetchMock.mock.calls[0]![0]).toContain("retmode=json");
+  });
+
+  it("PubMed esummary without a pmc articleid resolves with no pmcid key", async () => {
+    server = await makeTestServer();
+    stubFetch({
+      "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi": () =>
+        jsonResponse({
+          result: {
+            uids: ["25495683"],
+            "25495683": {
+              uid: "25495683",
+              title: "A review without a PMC deposit",
+              fulljournalname: "Journal of Clinical Periodontology",
+              pubdate: "2015",
+              articleids: [{ idtype: "pubmed", value: "25495683" }],
+            },
+          },
+        }),
+    });
+
+    const res = await api("GET", "/api/resolve?pmid=25495683");
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.pmid).toBe("25495683");
+    expect("pmcid" in body).toBe(false);
   });
 
   it("an unknown PMID answers 404 not_found", async () => {
