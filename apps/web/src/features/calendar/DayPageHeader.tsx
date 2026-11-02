@@ -8,6 +8,8 @@
  * ensureDateChain pattern) by the CALLER's onNavigateDay seam.
  */
 
+import type { ReactNode } from "react";
+
 import { Button } from "../../components/ui/kit/Button.js";
 import {
   addDaysIso,
@@ -60,17 +62,38 @@ export function DayStepper({ iso, onNavigateDay }: { iso: string; onNavigateDay:
 
 import "./DayPageHeader.css";
 
-export function DayPageHeader({ iso, title }: { iso: string; title: string }) {
+export function DayPageHeader({
+  iso,
+  title,
+  /**
+   * The unrealized marker (the journal's ghost days): the muted "No page"
+   * flag rides the flags line after Today — the day is a permanent address
+   * with no page behind it yet. Never on a realized day page.
+   */
+  ghost = false,
+  /**
+   * Trailing chrome after the week flag (the embedded feed's "Open page"
+   * button) — the main-surface header passes none.
+   */
+  trailing = undefined,
+}: {
+  iso: string;
+  title: string;
+  ghost?: boolean;
+  trailing?: ReactNode;
+}) {
   const isToday = iso === todayIsoLocal();
   return (
     <div className="day-page-header">
       <div className="day-page-header__flags">
         <span className="day-page-header__weekday">{weekdayLabel(iso)}</span>
         {isToday && <span className="day-page-header__today">Today</span>}
+        {ghost && <span className="day-page-header__ghost">No page</span>}
       </div>
       <h1 className="nt-page-title day-page-header__title">
         {title}
         <span className="day-page-header__week">Week {isoWeekNumber(iso)}</span>
+        {trailing}
       </h1>
     </div>
   );
