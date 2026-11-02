@@ -192,11 +192,24 @@ All scripts: **dry-run by default**, `--apply` to write, `--data-dir` +
 `pnpm --filter @notees/server exec tsx ../../scripts/<name>.mts` from the repo
 root.
 
-Post-apply on a live stack: `docker compose restart notees-sync` (a full
-`stop` is not required — clients catch up throughout; the restart only
-forces the server's own derived caches to rehydrate). Verify **through the
-API**, never side-channel sqlite probes of `derived/*.db`: a live workspace
-store may be served from a snapshot-restore temp file with a stub at the
-derived path, WAL makes raw reads racy, and a malformed probe UUID returns
-honest-looking nulls (2026-11-02, the pmid migration: every layer had
-converged while a bad probe literal said otherwise).
+**The live-stack apply path (recommended since 2026-11-02):**
+`--apply --server http://localhost:8377` posts the batch to the sync
+server's `POST /api/admin/append` (operator key from `api_key.txt` beside
+`--data-dir`) — the ONE write path (relay ingest + derived apply), so the
+server's own stores converge before the response: no restart, no
+derived-cache wipe, no side-channel `relay.db` writes under a running
+server. `migrate-pmid-property.mts` carries the reference implementation
+(`appendViaServer`); new migrations copy the shape. The direct
+`RelayStorage.ingest` mode stays for stopped/offline servers.
+
+**Post-apply verification — `scripts/verify-migration.mts`**: reads the
+migration's envelopes from the log (read-only; `--device <DEVICE>` names the
+batch) and asks the RUNNING SERVER via `GET /api/admin/convergence` whether
+those exact ids are applied — never probe `derived/*.db` with raw sqlite: a
+live store may be served from a snapshot-restore temp file with a stub at
+the derived path, WAL makes side reads racy, and a mistyped UUID literal
+returns honest-looking nulls (all three burned the 2026-11-02 pmid
+post-check while every layer had actually converged). The server's
+`WorkspaceManager` self-heal sweep (20 s interval + `sweepNow`) converges
+open derived handles after a DIRECT external append, so even the legacy
+apply mode needs at most a restart nudge, never a cache wipe.

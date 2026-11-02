@@ -361,6 +361,35 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
       "favorites/recents are UI preferences, so they live in the sync server's per-user prefs store, NOT the operation log (\"device state is never an op\" stands). The row also carries the caller's own ADS (Astrophysics Data System) API credential for bibcode metadata lookups — `adsApiToken` is null when unset, returned to the OWNING user only, and sent on to api.adsabs.harvard.edu alone (the resolver's egress contract). Scoped to the authenticated principal (account session or per-user API key owner).",
     tags: ["Account"],
   }],
+  ["post", "/api/admin/append", {
+    summary: "OPERATOR: apply pre-built migration envelopes through the server (Path A appends, idempotent)",
+    description:
+      "The apply-through-server migration path: `scripts/migrate-*.mts --apply --server <url>` builds and protocol-validates its envelopes, then posts them here instead of writing relay.db directly. Runs through the one write path (relay ingest, then derived apply), so the server's own stores converge before the response — no restart, no derived-cache wipe. Whole batch is validated before anything is ingested; duplicate ids are ignored (idempotent re-runs answer an empty savedIds). OPERATOR API KEY ONLY — user sessions and per-user keys get 403.",
+    tags: ["Admin"],
+    requiredScope: "admin",
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["workspaceId", "envelopes"],
+      properties: {
+        workspaceId: { type: "string", format: "uuid" },
+        envelopes: { type: "array", items: { type: "object" }, description: "the migration's envelopes (1..10000), each validated through the envelope + payload schemas" },
+      },
+    },
+    errors: ["validation_failed", "forbidden", "unauthenticated"],
+  }],
+  ["get", "/api/admin/convergence", {
+    summary: "OPERATOR: per-workspace convergence state + whether specific envelope ids are applied",
+    description:
+      "The honest post-migration check THROUGH the server's own read path: how far the open derived handle has applied the log ({hydrated, lastSeq, latestSeq, pending, appliedCount}) and, per comma-separated `envelopeIds`, whether each is applied. Never probe derived/*.db with raw sqlite — snapshot-restore temp files, WAL raciness, and mistyped UUIDs all masquerade as \"not converged\" (2026-11-02). OPERATOR API KEY ONLY.",
+    tags: ["Admin"],
+    requiredScope: "admin",
+    query: {
+      workspaceId: { description: "the workspace", type: "string", required: true },
+      envelopeIds: { description: "comma-separated envelope ids to check (a migration's batch)", type: "string" },
+    },
+    errors: ["validation_failed", "forbidden", "unauthenticated"],
+  }],
   ["put", "/api/me/prefs", {
     summary: "Merge-patch per-user UI prefs (each present list replaces its column; order-preserving dedupe, then caps)",
     description:

@@ -9,6 +9,36 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(server,operations): apply-through-server migrations, the
+  self-heal sweep, and an API-level migration verify.** The 2026-11-02 pmid
+  migration post-check burned hours on false "not converged" readings —
+  every layer had actually converged — because the only verification
+  available was raw sqlite probes of `derived/*.db`, which lie (a live
+  store may be served from a snapshot-restore temp file with a stub at the
+  derived path; WAL makes side reads racy; a mistyped UUID returns
+  honest-looking nulls). Three fixes ship together. **(1) Admin surface**
+  (`apps/server/src/routes-admin.ts`, OPERATOR KEY ONLY): `POST
+  /api/admin/append` applies pre-built migration batches through the ONE
+  write path (relay ingest + derived apply) — whole-batch protocol
+  validation before anything is ingested, idempotent on envelope id, the
+  server's stores converge before the response; `GET /api/admin/convergence`
+  reports the handle watermark, pending skips, and whether specific
+  envelope ids are applied. **(2) The self-heal sweep**
+  (`apps/server/src/workspace-store.ts`): `WorkspaceManager` now tracks a
+  per-handle `lastSeq` watermark and pages the log from it on a 20 s
+  interval (plus `sweepNow` for manual/tests) — a direct external append
+  (the legacy Path A script idiom writing relay.db under a running server)
+  converges open derived handles between boots, restart-free. **(3) The
+  migration tooling**: `scripts/migrate-pmid-property.mts` gains the
+  `--apply --server <url>` template (operator key from `api_key.txt`;
+  `appendViaServer` — future migrations copy the shape), and the new
+  `scripts/verify-migration.mts --device <DEVICE> [--all]` is the honest
+  post-migration check through the server's own read path. Docs:
+  migrations.md's tail, the operations skill. **Verification:** server 361
+  passed (incl. the new `apps/server/test/admin.test.ts` — operator auth,
+  batch validation, idempotency, derived-converged-before-response, and the
+  external-append sweep test); migration e2e green; full gate + smoke.
+
 - **feat(web): the unified multi-source merge modal — any non-class node,
   live dry-run preview, both store modes, palette + context-menu entries.**
   The node-merge UI generalized from the single fixed-source,

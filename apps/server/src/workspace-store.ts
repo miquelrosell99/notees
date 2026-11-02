@@ -51,6 +51,17 @@ interface WorkspaceHandle {
   hydrated: boolean;
   /** Envelopes skipped during replay (not yet applicable). */
   pending: number;
+  /**
+   * The highest relay seq this handle has applied (or confirmed present).
+   * The self-heal sweep pages the log from here — an external Path A
+   * migration append (a script writing relay.db directly, the documented
+   * migrate-*.mts shape) never touches the running process, so an
+   * already-open handle would otherwise never learn about the tail until
+   * the next boot. The sweep reconciles open handles between boots.
+   */
+  lastSeq: number;
+  /** The self-heal sweep timer (cleared on close/drop). */
+  sweepTimer?: NodeJS.Timeout;
 }
 
 export interface ApplyOutcome {
@@ -58,6 +69,14 @@ export interface ApplyOutcome {
   seqs: Record<string, number>;
   summaries: ChangeSummary[];
 }
+
+/**
+ * Default self-heal sweep cadence per open workspace handle. Deliberately
+ * slow: the sweep exists to converge external appends (Path A migration
+ * scripts, a hand-applied fix), which are rare — seconds of lag behind the
+ * log is irrelevant next to restart-free convergence.
+ */
+export const SWEEP_INTERVAL_MS = 20_000;
 
 /**
  * Snapshot-image refusal (clone/import). `status` is the HTTP status the
@@ -110,6 +129,7 @@ export class WorkspaceManager {
   constructor(
     private readonly relay: RelayStorage,
     private readonly derivedDir: string,
+    private readonly sweepIntervalMs: number = SWEEP_INTERVAL_MS,
   ) {}
 
   private handle(workspaceId: string): WorkspaceHandle {
@@ -121,14 +141,70 @@ export class WorkspaceManager {
       queue: Promise.resolve(),
       hydrated: false,
       pending: 0,
+      lastSeq: 0,
     };
     this.handles.set(workspaceId, handle);
     this.hydrate(handle, workspaceId);
+    this.startSweep(workspaceId, handle);
     return handle;
   }
 
   private pathFor(workspaceId: string): string {
     return join(this.derivedDir, `${workspaceId}.db`);
+  }
+
+  /**
+   * The self-heal sweep: page the relay log from the handle's lastSeq and
+   * apply every envelope the derived store has not seen — the exact replay
+   * semantics hydration uses (StoreError skips count as pending and are
+   * retried on the next pass), so an external append (a Path A migration
+   * script writing relay.db while the server runs, the migrate-*.mts idiom)
+   * converges the open handle within one interval, no restart needed.
+   * Serialized on the workspace queue against writers.
+   */
+  private startSweep(workspaceId: string, handle: WorkspaceHandle): void {
+    if (this.sweepIntervalMs <= 0) return;
+    const timer = setInterval(() => {
+      const task = handle.queue.then(() => {
+        if (!handle.hydrated) return;
+        this.replaySince(handle, workspaceId, handle.lastSeq);
+      });
+      handle.queue = task.catch(() => undefined);
+      void task.catch(() => undefined);
+    }, this.sweepIntervalMs);
+    timer.unref();
+    handle.sweepTimer = timer;
+  }
+
+  /**
+   * Apply every log envelope after `afterSeq` the store has not applied,
+   * updating lastSeq/pending. Pages through catchUp (O(delta) per sweep —
+   * an allEnvelopes scan per tick would reread a million-row log every
+   * interval). StoreError skips count as pending, never poison the pass.
+   */
+  private replaySince(handle: WorkspaceHandle, workspaceId: string, afterSeq: number): void {
+    let cursor = afterSeq;
+    let pending = 0;
+    for (;;) {
+      const page = this.relay.catchUp(workspaceId, cursor, 10_000);
+      for (const envelope of page.envelopes) {
+        if (handle.store.hasApplied(envelope.id)) continue;
+        if (isEncryptedPayload(envelope.payload)) continue;
+        try {
+          handle.store.apply(envelope);
+        } catch (error) {
+          if (error instanceof StoreError) {
+            pending += 1;
+            continue;
+          }
+          throw error;
+        }
+      }
+      if (!page.hasMore || page.nextAfterSeq === null) break;
+      cursor = page.nextAfterSeq;
+    }
+    handle.lastSeq = Math.max(handle.lastSeq, this.relay.latestSeq(workspaceId));
+    handle.pending = pending;
   }
 
   private hydrate(handle: WorkspaceHandle, workspaceId: string): void {
@@ -165,6 +241,7 @@ export class WorkspaceManager {
     }
     handle.pending = pending;
     handle.hydrated = true;
+    handle.lastSeq = maxSeq;
     this.ensureSnapshotAfterReplay(workspaceId, handle);
   }
 
@@ -225,7 +302,49 @@ export class WorkspaceManager {
       return { savedIds, seqs, summaries: [] };
     }
     const summaries = handle.store.applyMany(fresh);
+    handle.lastSeq = Math.max(handle.lastSeq, this.relay.latestSeq(workspaceId));
     return { savedIds, seqs, summaries };
+  }
+
+  /**
+   * Run the self-heal sweep for one workspace NOW (the interval's manual
+   * counterpart — admin tooling and tests call this rather than waiting).
+   * Serialized on the workspace queue. Returns the post-sweep watermark.
+   */
+  sweepNow(workspaceId: string): Promise<{ lastSeq: number; pending: number }> {
+    const handle = this.handle(workspaceId);
+    const task = handle.queue.then(() => {
+      this.replaySince(handle, workspaceId, handle.lastSeq);
+      return { lastSeq: handle.lastSeq, pending: handle.pending };
+    });
+    handle.queue = task.catch(() => ({ lastSeq: 0, pending: 0 }));
+    return task;
+  }
+
+  /**
+   * The convergence snapshot the admin surface reports: how far the open
+   * handle has applied the log, and how many envelopes are pending skips.
+   * Read-only (no sweep trigger — sweepNow is the explicit nudge).
+   */
+  convergence(workspaceId: string): {
+    hydrated: boolean;
+    lastSeq: number;
+    latestSeq: number;
+    pending: number;
+    appliedCount: number;
+  } {
+    const handle = this.handle(workspaceId);
+    return {
+      hydrated: handle.hydrated,
+      lastSeq: handle.lastSeq,
+      latestSeq: this.relay.latestSeq(workspaceId),
+      pending: handle.pending,
+      appliedCount: (
+        handle.store.database.prepare("SELECT COUNT(*) AS n FROM applied_envelope").get() as {
+          n: number;
+        }
+      ).n,
+    };
   }
 
   /** Read access: the (hydrated) store for a workspace. */
@@ -241,6 +360,7 @@ export class WorkspaceManager {
   async drop(workspaceId: string): Promise<void> {
     const handle = this.handles.get(workspaceId);
     if (handle !== undefined) {
+      if (handle.sweepTimer !== undefined) clearInterval(handle.sweepTimer);
       await handle.queue.catch(() => undefined);
       handle.store.close();
       this.handles.delete(workspaceId);
@@ -386,6 +506,7 @@ export class WorkspaceManager {
 
   async close(): Promise<void> {
     for (const handle of this.handles.values()) {
+      if (handle.sweepTimer !== undefined) clearInterval(handle.sweepTimer);
       await handle.queue.catch(() => undefined);
       handle.store.close();
     }

@@ -66,13 +66,18 @@ self-locates the stack dir, API key, admin password, and workspace: env →
 `NOTEES_ADMIN_EMAIL`, `NOTEES_WORKSPACE`, `NOTEES_VERIFY_OUT`.
 
 **After a Path A migration** (`scripts/migrate-*.mts --apply` against the
-live data dir): `docker compose restart notees-sync` so the server
-rehydrates its derived stores from the log (a full `stop` is NOT required —
-clients keep catching up throughout, and the envelope append is
-transactional; the restart only nudges the server's own cache, which is a
-wipe-rebuildable projection). **Verify through the API, never side-channel
-sqlite** — a live derived store may be served from a snapshot-restore temp
-file with a stub at the derived path, WAL state makes raw reads racy, and a
-hand-typed UUID with a missing group returns honest-looking nulls (learned
-2026-11-02: a malformed probe literal manufactured a false "migration
-didn't apply" scare while every layer had actually converged).
+live data dir): prefer the live-stack path — `--apply --server
+http://localhost:8377` applies through `POST /api/admin/append` (operator
+key from `api_key.txt` beside `--data-dir`), the ONE write path, so the
+server's derived stores converge before the response — no restart, no
+cache wipe. A direct `RelayStorage.ingest` append (stopped/offline server)
+converges open handles via the server's self-heal sweep (20 s) or one
+`docker compose restart notees-sync` nudge. **Verify with
+`scripts/verify-migration.mts --device <DEVICE> [--all]`** — it asks the
+running server through `GET /api/admin/convergence`; never side-channel
+sqlite probes of `derived/*.db` — a live store may be served from a
+snapshot-restore temp file with a stub at the derived path, WAL state
+makes raw reads racy, and a hand-typed UUID with a missing group returns
+honest-looking nulls (learned 2026-11-02: a malformed probe literal
+manufactured a false "migration didn't apply" scare while every layer had
+actually converged).

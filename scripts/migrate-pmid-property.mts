@@ -43,11 +43,20 @@
  * store applying the tail since the snapshot (zero StoreError throws, the
  * schema + pinned binding rows present).
  *
+ * THE LIVE-STACK PATH (recommended): `--apply --server http://localhost:8377`
+ * posts the batch to the sync server's `POST /api/admin/append` (operator
+ * key from `<data-dir>/api_key.txt`, or `--api-key`) — the ONE write path
+ * (relay ingest + derived apply), so the server's own stores converge
+ * before the response: no restart, no derived-cache wipe, no side-channel
+ * relay.db writes under a running server. Idempotent either way.
+ *
  * Usage (from the repo root; the tsx binary lives in apps/server):
  *   pnpm --filter @notees/server exec tsx ../../scripts/migrate-pmid-property.mts \
- *     --data-dir /etc/periphery/stacks/notees/config/notees/sync [--workspace <uuid> | --all] [--apply]
+ *     --data-dir /etc/periphery/stacks/notees/config/notees/sync [--workspace <uuid> | --all] [--apply] \
+ *     [--server http://localhost:8377] [--api-key <operator key>]
  */
 
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -82,6 +91,9 @@ interface CliOptions {
   workspace: string;
   all: boolean;
   apply: boolean;
+  /** The live-stack path: apply through POST /api/admin/append. */
+  server: string | null;
+  apiKey: string | null;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -94,12 +106,54 @@ function parseArgs(argv: string[]): CliOptions {
     workspace: value("--workspace") ?? DEFAULT_WORKSPACE,
     all: argv.includes("--all"),
     apply: argv.includes("--apply"),
+    server: value("--server") ?? null,
+    apiKey: value("--api-key") ?? null,
   };
 }
 
 /** Every workspace id the relay log carries. */
 function listWorkspaces(relay: RelayStorage): string[] {
   return relay.listWorkspaceIds();
+}
+
+/**
+ * The operator credential for the --server path: --api-key wins, else the
+ * stack's api_key.txt beside the data dir (the deploy layout).
+ */
+function operatorKeyOf(options: CliOptions): string {
+  if (options.apiKey !== null) return options.apiKey;
+  try {
+    return readFileSync(join(options.dataDir, "api_key.txt"), "utf8").trim();
+  } catch {
+    throw new Error(
+      "--server needs the operator key: pass --api-key or keep api_key.txt beside --data-dir",
+    );
+  }
+}
+
+/**
+ * Apply one workspace's batch through the running server (the one write
+ * path). Answers the saved ids — an empty list means the batch was already
+ * applied (idempotent re-run); the server's derived stores converge before
+ * the response, so no restart or cache wipe follows.
+ */
+async function appendViaServer(
+  options: CliOptions,
+  workspaceId: string,
+  envelopes: Envelope[],
+): Promise<{ savedIds: string[]; pending: number }> {
+  const base = options.server!.replace(/\/$/, "");
+  const response = await fetch(`${base}/api/admin/append`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "X-API-Key": operatorKeyOf(options) },
+    body: JSON.stringify({ workspaceId, envelopes }),
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`POST /api/admin/append answered ${response.status}: ${body}`);
+  }
+  const result = (await response.json()) as { savedIds: string[]; pending: number };
+  return { savedIds: result.savedIds, pending: result.pending };
 }
 
 // --- scratch derived store ----------------------------------------------------
@@ -327,7 +381,8 @@ function verify(
 
 // --- main ---------------------------------------------------------------------
 
-function migrateWorkspace(relay: RelayStorage, workspaceId: string, apply: boolean): void {
+async function migrateWorkspace(relay: RelayStorage, options: CliOptions, workspaceId: string): Promise<void> {
+  const apply = options.apply;
   const snapshot = relay.latestSnapshot(workspaceId);
   const snapshotSeq = snapshot?.up_to_seq ?? 0;
   const latestSeq = relay.latestSeq(workspaceId);
@@ -382,6 +437,20 @@ function migrateWorkspace(relay: RelayStorage, workspaceId: string, apply: boole
     return;
   }
 
+  if (options.server !== null) {
+    // The live-stack path: the server is the writer (relay ingest + derived
+    // apply in one step). An empty savedIds is the idempotent re-run case —
+    // the batch is already applied, not an error.
+    const { savedIds, pending } = await appendViaServer(options, workspaceId, envelopes);
+    console.log(
+      savedIds.length === 0
+        ? "  already applied on the server (idempotent re-run) — nothing to append."
+        : `  applied ${savedIds.length} envelope(s) through the server (pending skips: ${pending}). ` +
+            "The server's derived stores converged before the response — no restart needed.",
+    );
+    return;
+  }
+
   const { savedIds } = relay.ingest(envelopes);
   if (savedIds.length !== envelopes.length) {
     throw new Error(`ingest saved ${savedIds.length}/${envelopes.length} envelopes (duplicate ids?)`);
@@ -391,7 +460,7 @@ function migrateWorkspace(relay: RelayStorage, workspaceId: string, apply: boole
   verify(relay, workspaceId, envelopes.length);
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const relay = new RelayStorage(
     join(options.dataDir, "relay.db"),
@@ -402,15 +471,17 @@ function main(): void {
     const workspaces = options.all ? listWorkspaces(relay) : [options.workspace];
     console.log(
       `pmid property seed: ${workspaces.length} workspace(s) ` +
-        `(${options.apply ? "--apply" : "dry run"})`,
+        `(${options.apply ? "--apply" : "dry run"}${options.server !== null ? ` via ${options.server}` : ""})`,
     );
     for (const workspaceId of workspaces) {
-      migrateWorkspace(relay, workspaceId, options.apply);
+      await migrateWorkspace(relay, options, workspaceId);
     }
-    if (options.apply) {
+    if (options.apply && options.server === null) {
       console.log(
         "\ndone. The appended envelopes flow to every device through ordinary catch-up — " +
-          "no restart or epoch bump needed (Path A append, not a log rewrite).",
+          "no restart or epoch bump needed (Path A append, not a log rewrite). " +
+          "The server's own derived caches converge on its next open (a restart nudge) or " +
+          "via the self-heal sweep; --server applies through the server and skips even that.",
       );
     }
   } finally {
@@ -423,10 +494,8 @@ export { buildEnvelopes, planPmid, type PmidPlan };
 const invokedDirectly =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) {
-  try {
-    main();
-  } catch (error) {
+  main().catch((error: unknown) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
-  }
+  });
 }
