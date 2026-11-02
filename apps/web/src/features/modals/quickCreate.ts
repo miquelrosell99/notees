@@ -686,9 +686,7 @@ export async function flushClassedCreate(
         entry.value.kind !== kind &&
         (entry.value.kind === "text" || entry.value.kind === "date" || entry.value.kind === "number")
       ) {
-        const text =
-          entry.value.kind === "boolean" ? "" : (entry.value.text as string | undefined) ?? "";
-        entry.value = { kind, text } as StagedPropertyValue;
+        entry.value = { kind, text: entry.value.text } as StagedPropertyValue;
       }
     }
   }

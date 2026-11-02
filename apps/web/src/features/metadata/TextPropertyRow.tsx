@@ -21,11 +21,14 @@
  * Values that don't resolve to a carrier block keep two fallback
  * cells: a DEAD reference (a uuid that no longer resolves) renders EMPTY and
  * re-authors a fresh carrier through the minimal text input; a legacy
- * SCALAR STRING (the retired `url` type's shape, pre-carrier text values)
- * renders inline as plain text — bare URLs linkify through the
- * markdownLinks grammar — and the first edit mints a carrier block carrying
- * the string, wiring the value to it and opening the block editor (the
- * established create-carrier pattern, no new op). A bound-but-empty row
+ * SCALAR STRING (the resolver/create flow's shape for freshly authored
+ * values, pre-carrier text values) renders AS A BLOCK ROW — the same
+ * bullet + content shape the carrier rows ride, so every text value reads
+ * as a block (single-value rows included) — bare URLs linkify through the
+ * markdownLinks grammar; the first edit mints a carrier block carrying the
+ * string, wiring the value to it and opening the block editor (the
+ * established create-carrier pattern, no new op), from then on the value
+ * IS a block: children render indented under it. A bound-but-empty row
  * renders the full-width "Type something" placeholder input so the empty
  * value cell still reads as a field; typing authors the first carrier.
  *
@@ -618,18 +621,36 @@ export function TextPropertyRow({
                   </span>
                 );
               }
+              // The scalar rides a BLOCK ROW — the same bullet + content
+              // shape the carrier rows render (every text value reads as a
+              // block, single-value rows included); the click mints the
+              // carrier (the established pattern) and the fresh-carrier
+              // effect opens the block editor on it.
               return (
-                <span key={`${propertySchemaId}:${row.idx}`} className="nt-property-value-field">
-                  <button
-                    type="button"
-                    className="nt-property-value nt-property-scalar"
-                    aria-label={`Edit property ${label}`}
-                    onClick={() => void mintCarrierFor(scalarText, row.idx)}
-                  >
-                    <InlineTokens tokens={scalarTokens} />
-                  </button>
-                  {citekeyRegenButton(row.idx)}
-                </span>
+                <div
+                  key={`${propertySchemaId}:${row.idx}`}
+                  className="nt-block nt-property-scalar-block"
+                  data-block-id={`scalar:${propertySchemaId}:${row.idx}`}
+                >
+                  <div className="nt-block-row">
+                    <span
+                      className="nt-bullet"
+                      title={`Edit ${label}`}
+                      onClick={() => void mintCarrierFor(scalarText, row.idx)}
+                    >
+                      <span className="nt-bullet-dot" aria-hidden="true" />
+                    </span>
+                    <button
+                      type="button"
+                      className="nt-block-content nt-property-scalar-content"
+                      aria-label={`Edit property ${label}`}
+                      onClick={() => void mintCarrierFor(scalarText, row.idx)}
+                    >
+                      <InlineTokens tokens={scalarTokens} />
+                    </button>
+                    {citekeyRegenButton(row.idx)}
+                  </div>
+                </div>
               );
             }
             if (readOnly) {
