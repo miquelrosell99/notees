@@ -9,6 +9,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render } from "@testing-library/react";
+import { useEffect, useState } from "react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import {
@@ -287,7 +288,7 @@ describe("auto-unset of contentless text values", () => {
     expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
   });
 
-  it("the Add pill's fresh empty carrier survives while the row holds focus", async () => {
+  it("the trailing ghost's fresh empty carrier survives while the row holds focus", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
@@ -295,22 +296,102 @@ describe("auto-unset of contentless text values", () => {
     await client.setProperty(pageId, schemaId, { nodeId: carrierA }, 0);
 
     const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
-    // TextPropertyRow's Add pill (a direct child of the textcell — buttons
-    // inside the carrier rows are block chrome).
-    const addButton = container.querySelector<HTMLButtonElement>(
-      ".nt-property-text .nt-property-textcell > button.pill--add",
+    // The multi row trails the platform realize ghost (the empty-state cell's
+    // twin — never an AddPill), scoped to the row's textcell.
+    const ghost = container.querySelector<HTMLElement>(
+      ".nt-property-text .nt-property-textcell > .nt-property-ghost",
     );
-    expect(addButton).not.toBeNull();
+    expect(ghost).not.toBeNull();
+    const realize = ghost!.querySelector<HTMLButtonElement>(".nt-ghost-row__add");
+    expect(realize).not.toBeNull();
+    expect(realize!.textContent).toBe("+ Add block");
+    // The retired AddPill rode as a direct child of the textcell; the ghost
+    // replaced it (the row-end add-CLASS pill is block chrome, untouched).
+    expect(container.querySelector(".nt-property-textcell > button.pill--add")).toBeNull();
     // A real click focuses the button — inside the row — so the pass must
     // not unset the empty value the click is about to mint.
     act(() => {
-      addButton!.focus();
+      realize!.focus();
     });
-    fireEvent.click(addButton!);
+    fireEvent.click(realize!);
     await flushWrites();
     await flushWrites();
 
     expect(authoredTextRows(client, pageId, schemaId).length).toBe(2);
+    // The minted carrier is the fresh value; the DOM catches up on the
+    // subscribed host's re-render (this host table carries no subscription
+    // of its own — the established idiom in this file).
+  });
+
+  it("realizing the trailing ghost lands the caret in the new carrier's editor (subscribed host)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
+    const carrierA = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "first" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrierA }, 0);
+
+    // The PageView/NodeView hosts subscribe and re-render the panel on store
+    // changes; probe that contract so the fresh-carrier hand-off is asserted
+    // end to end.
+    function SubscribingHost() {
+      const [, bump] = useState(0);
+      useEffect(() => client.subscribe(() => bump((v) => v + 1)), [client]);
+      return <PropertiesTable client={client} nodeId={pageId} />;
+    }
+    const { container } = render(<SubscribingHost />);
+    const realize = container.querySelector<HTMLButtonElement>(".nt-property-textcell .nt-ghost-row__add")!;
+    act(() => {
+      realize.focus();
+    });
+    fireEvent.click(realize);
+    await flushWrites();
+    await flushWrites();
+
+    // The realize minted the value AND opened the block editor on it (the
+    // fresh-carrier effect — the Enter/Add caret contract).
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(2);
+    expect(container.querySelector(".nt-property-textcell .nt-block--editing")).not.toBeNull();
+  });
+
+  it("no trailing ghost on single-value rows, empty multi rows, or read-only", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const singleSchema = await client.createPropertySchema({ name: "Summary", type: "text" });
+    const multiSchema = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
+    const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "one value" }] });
+    const carrierB = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "valued" }] });
+    await client.setProperty(pageId, singleSchema, { nodeId: carrier }, 0);
+    await client.setProperty(pageId, multiSchema, { nodeId: carrierB }, 0);
+
+    const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    const ghostsOf = (schemaId: string) => {
+      const row = [...container.querySelectorAll<HTMLElement>("li.nt-property-text")].find((li) =>
+        li.querySelector(`[data-property-schema-id="${schemaId}"]`),
+      );
+      if (row === undefined) throw new Error(`no row for ${schemaId}`);
+      return [...(row.querySelector(":scope > .nt-property-textcell") as HTMLElement).children].filter((el) =>
+        el.classList.contains("nt-property-ghost"),
+      ).length;
+    };
+    // The valued multi row trails exactly one ghost; the single-value row
+    // trails none (its empty state owns the cell's own ghost).
+    expect(ghostsOf(multiSchema)).toBe(1);
+    expect(ghostsOf(singleSchema)).toBe(0);
+
+    // Read-only: the valued multi row trails none at all.
+    rerender(<PropertiesTable client={client} nodeId={pageId} readOnly />);
+    await flushWrites();
+    expect(ghostsOf(multiSchema)).toBe(0);
+
+    // An EMPTY multi row (assigned, no values) shows only the cell's own
+    // realize ghost — no trailing duplicate.
+    rerender(<PropertiesTable client={client} nodeId={pageId} />);
+    await client.unsetProperty(pageId, multiSchema, 0);
+    await client.assignProperty(pageId, multiSchema);
+    await flushWrites();
+    rerender(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+    expect(ghostsOf(multiSchema)).toBe(1);
   });
 });
 
