@@ -228,6 +228,40 @@
   background-color: color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent);
 }
 
+/* ── Collapsed descendant-count pill ──────────────────────────────────────
+   Hidden at rest (the resting trail stays clean), revealed on ROW hover
+   only: the wrapper clips from zero to content width while fading and
+   sliding in from the bullet, so the pill reads as growing out of the
+   bullet and the collapsed row's text is pushed right by the reveal.
+   The badge's own min-width would defeat the clip from the inside, so
+   the wrapper — not the Badge — carries the animation. The baseline
+   strut + -2px lift mirror .nt-block-bullet-props (an icon-only flex box
+   has no text baseline; same optical correction as the bullet). The
+   reduced-motion snap rides the global app.css media query. */
+.nt-block-collapsed-count {
+  display: inline-flex;
+  overflow: hidden;
+  max-inline-size: 0;
+  opacity: 0;
+  transform: translateX(-4px) translateY(-2px);
+  transition:
+    max-inline-size var(--motion-duration-short) var(--motion-easing-standard),
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-block-collapsed-count::before {
+  content: "";
+  width: 0;
+  height: 6px;
+}
+
+.nt-block-row:hover .nt-block-collapsed-count {
+  max-inline-size: 6ch;
+  opacity: 1;
+  transform: translateX(0) translateY(-2px);
+}
+
 /* Class-icon bullets mirror the dot feedback. */
 .nt-bullet-icon {
   display: inline-flex;
