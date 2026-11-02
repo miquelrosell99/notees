@@ -28,7 +28,11 @@
  * markdownLinks grammar; the first edit mints a carrier block carrying the
  * string, wiring the value to it and opening the block editor (the
  * established create-carrier pattern, no new op), from then on the value
- * IS a block: children render indented under it. A bound-but-empty row
+ * IS a block: children render indented under it. The scalar row's
+ * RIGHT-CLICK mints WITHOUT the editor hand-off and opens the node context
+ * menu ON the minted carrier (the scalar isn't a node yet — the menu
+ * gesture materializes it first, the ghost-realize precedent); carrier
+ * rows render BlockRow, whose own grip menu covers them. A bound-but-empty row
  * renders the platform GHOST ROW (ui/GhostRow — the same muted "+ Add
  * block" affordance the outliner trails; the 2026-11-02 ruling: the ghost
  * is the sole add affordance everywhere, never a field) — the realize
@@ -83,6 +87,7 @@ import { NodeCollection, type NodeCollectionItem } from "../collection/index.js"
 import type { AnyClient } from "../collection/types.js";
 import { carrierStateOf } from "./carrierState.js";
 import { GhostRow } from "../../ui/GhostRow.js";
+import { NodeContextMenu } from "../node-menu/NodeContextMenu.js";
 import { isCitationFamilyClass } from "../modals/quickCreate.js";
 import { citekeyRegenerationFor } from "../sources/citekeyRegenerate.js";
 import {
@@ -465,10 +470,15 @@ export function TextPropertyRow({
    * Mint-on-edit for a legacy scalar string: the established create-carrier
    * pattern (object.create + property.set with the {nodeId} ref — the Add
    * pill and the dead-cell re-author ride the same two ops), the string
-   * becoming the carrier's content; the fresh-carrier effect then opens the
-   * block editor on it.
+   * becoming the carrier's content. `editor: false` skips the fresh-carrier
+   * editor hand-off (the context-menu path opens the NODE MENU on the minted
+   * carrier instead).
    */
-  const mintCarrierFor = async (text: string, idx: number): Promise<void> => {
+  const mintCarrierFor = async (
+    text: string,
+    idx: number,
+    opts: { editor?: boolean } = {},
+  ): Promise<string | null> => {
     setAddError(null);
     try {
       const carrierId = await client.createObject({
@@ -476,10 +486,28 @@ export function TextPropertyRow({
         contentAst: [{ type: "text", text }],
       });
       await client.setProperty(nodeId, propertySchemaId, { nodeId: carrierId }, idx, manualEditMetadata);
-      setFreshCarrierId(carrierId);
+      if (opts.editor !== false) setFreshCarrierId(carrierId);
+      return carrierId;
     } catch (error) {
       setAddError(error instanceof Error ? error.message : String(error));
+      return null;
     }
+  };
+
+  /**
+   * The scalar row's right-click: mint the carrier WITHOUT the editor
+   * hand-off, then open the node context menu ON the minted carrier — the
+   * scalar isn't a node yet, so the menu gesture materializes it first (the
+   * ghost-realize precedent), and from then on the row renders the real
+   * BlockRow whose own grip menu works.
+   */
+  const [scalarMenu, setScalarMenu] = useState<{ x: number; y: number; carrierId: string } | null>(
+    null,
+  );
+  const mintForMenu = async (text: string, idx: number, x: number, y: number): Promise<void> => {
+    if (readOnly) return;
+    const carrierId = await mintCarrierFor(text, idx, { editor: false });
+    if (carrierId !== null) setScalarMenu({ x, y, carrierId });
   };
 
   /**
@@ -608,14 +636,21 @@ export function TextPropertyRow({
               // shape the carrier rows render (every text value reads as a
               // block, single-value rows included); the click mints the
               // carrier (the established pattern) and the fresh-carrier
-              // effect opens the block editor on it.
+              // effect opens the block editor on it; the right-click mints
+              // and opens the NODE CONTEXT MENU on it (the scalar isn't a
+              // node yet — the menu gesture materializes it first).
+              const menuFor = (event: React.MouseEvent): void => {
+                event.preventDefault();
+                event.stopPropagation();
+                void mintForMenu(scalarText, row.idx, event.clientX, event.clientY);
+              };
               return (
                 <div
                   key={`${propertySchemaId}:${row.idx}`}
                   className="nt-block nt-property-scalar-block"
                   data-block-id={`scalar:${propertySchemaId}:${row.idx}`}
                 >
-                  <div className="nt-block-row">
+                  <div className="nt-block-row" onContextMenu={menuFor}>
                     <span
                       className="nt-bullet"
                       title={`Edit ${label}`}
@@ -628,6 +663,7 @@ export function TextPropertyRow({
                       className="nt-block-content nt-property-scalar-content"
                       aria-label={`Edit property ${label}`}
                       onClick={() => void mintCarrierFor(scalarText, row.idx)}
+                      onContextMenu={menuFor}
                     >
                       <InlineTokens tokens={scalarTokens} />
                     </button>
@@ -688,6 +724,22 @@ export function TextPropertyRow({
             />
           )}
         </CarrierEnterContext.Provider>
+        {scalarMenu !== null &&
+          (() => {
+            const node = client.getNode(scalarMenu.carrierId);
+            if (node === undefined) return null;
+            return (
+              <NodeContextMenu
+                state={{ x: scalarMenu.x, y: scalarMenu.y, node, isPage: false }}
+                client={client}
+                onClose={() => setScalarMenu(null)}
+                onOpenNode={(id) => {
+                  setScalarMenu(null);
+                  onOpenPage?.(id);
+                }}
+              />
+            );
+          })()}
         {addError !== null && (
           <p role="alert" className="nt-picker-error">
             {addError}
