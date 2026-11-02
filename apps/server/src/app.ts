@@ -25,6 +25,7 @@ import type { ServerConfig } from "./config.js";
 import { ServerContext } from "./context.js";
 import { AppError, errorBody, type ErrorCode } from "./errors.js";
 import { registerAssetRoutes } from "./assets.js";
+import { registerAdminRoutes } from "./routes-admin.js";
 import { registerIdempotencyHooks } from "./idempotency.js";
 import { registerAuthRoutes, resolvePrincipal } from "./routes-auth.js";
 import { registerFeatureRoutes } from "./routes-features.js";
@@ -235,6 +236,17 @@ export async function buildServer(
     { prefix: "/api" },
   );
   registerPublicShareRoute(app, ctx);
+
+  // Operator-key maintenance surface: migration appends through the one
+  // write path (instant derived convergence) and per-workspace convergence
+  // reads. Operator ONLY — the routes enforce the principal kind themselves
+  // (requireOperator inside routes-admin), stricter than requireAdmin.
+  await app.register(
+    async (api) => {
+      registerAdminRoutes(api, ctx);
+    },
+    { prefix: "/api" },
+  );
 
   // Workflow rules (issue #13): server-side "when X on nodes matching Y, do Z"
   // — coordination state on relay.db (the prefs/shares/plugins ruling); the
