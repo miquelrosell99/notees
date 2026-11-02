@@ -67,8 +67,9 @@ export interface ZoteroRdfParseResult {
  * The vocab: Zotero-RDF term → Notees pool key. Source terms per Zotero's
  * RDF export translator (zotero/translators RDF.js); every entry observed in
  * the owner's export. Direct scalar text elements only — dc:title,
- * dc:publisher, dc:identifier, the creator Seqs, dcterms:isPartOf, and
- * link:link are structural and parsed by dedicated walkers below.
+ * dc:publisher, dc:identifier, dc:subject (the dcterms:LCC call-number
+ * shape), dc:relation, the creator Seqs, dcterms:isPartOf, and link:link are
+ * structural and parsed by dedicated walkers below.
  */
 const VOCAB: Record<string, string> = {
   // Dublin Core

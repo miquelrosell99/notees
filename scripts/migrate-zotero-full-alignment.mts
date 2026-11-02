@@ -419,13 +419,11 @@ function planAlignment(store: Store): AlignmentPlan {
       baseState !== null && (!baseState.bound || (entry.pinnedBase && !baseState.pinned));
     const classesNeedingRows = classStates.filter((s) => !s.bound);
 
-    // Scope arms. A missing schema creates at the seed scope ([source]); a
-    // stored global scope admits everyone; a stored class-local list that
-    // excludes source converges to [source] FIRST when rows need it.
-    // The scope the bindings are gated against — exactly what will be STORED
-    // after this ingest: a missing schema creates at the seed's [source]; a
-    // stored global scope admits everyone; the converge arm rewrites a
-    // blocking class-local list to [source] first.
+    // Scope arms — the scope the bindings are gated against is exactly what
+    // will be STORED after this ingest: a missing schema creates at the
+    // seed's [source]; a stored global scope admits everyone; the converge
+    // arm rewrites a blocking class-local list to [source] FIRST when rows
+    // need it.
     const storedBlocksClass = (classId: string): boolean =>
       storedScope !== null && !scopeAdmits(ancestorsOf, storedScope, classId);
     const closureReachesSeed = (classId: string): boolean =>

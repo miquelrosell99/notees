@@ -52,8 +52,10 @@
  * Zotero-type system class (class membership has no dedicated op — the
  * classIds OR-Set carrier is the assignment) and the title as its
  * contentAst (title-is-content) — followed by one `property.set` per
- * `sets` entry; `update`/`adopt` ride the `property.set`s alone. A
- * multi-value schema whose node already carries rows is emptied first
+ * `sets` entry (a multi-value text field's "; "-joined value splits into
+ * ONE ROW PER NAME at idx 0..n-1 — the sources contract is one name per
+ * value); `update`/`adopt` ride the `property.set`s alone. A multi-value
+ * schema whose node already carries rows is emptied first
  * (`property.empty` — a replace, never an accumulate). Datetime-typed
  * fields (publicationDate, accessDate) resolve through the deterministic
  * date chain: the year(/month/day) node is created when absent (the
@@ -65,7 +67,8 @@
  * write path) or ingests into the relay directly, then verifies: the new
  * envelopes read back protocol-valid and a FRESH scratch store applies
  * the tail clean. Idempotent: a second run plans zero envelopes for
- * converged values (Review Focus 4).
+ * converged values (Review Focus 4) — date refs compare as ISO truncated
+ * at the ref's precision, the spelling the RDF side arrives in.
  *
  * Usage (from the repo root; the tsx binary lives in apps/server):
  *   pnpm --filter @notees/server exec tsx ../../scripts/import-zotero-rdf.mts \
@@ -87,7 +90,6 @@ import {
   type Envelope,
 } from "../packages/protocol/src/index.ts";
 import {
-  dateNodeDisplayLabel,
   dateNodeId,
   dateNodeLabel,
   dayNodeId,
@@ -422,8 +424,9 @@ function normalizeCitekey(value: string): string {
 }
 
 /** A stored property value flattened to its comparison text: strings as-is,
- *  {nodeId} refs to the target's display name (date refs to their display
- *  label — "2022"), ranges as their two side labels. */
+ *  {nodeId} refs to the target's display name (date refs to ISO truncated at
+ *  the ref's precision — "2022" / "2022-03" / "2022-03-15", the spelling the
+ *  RDF side arrives in), ranges as their two side labels. */
 function valueTextOf(store: Store, raw: unknown): string {
   if (typeof raw === "string") return raw;
   if (raw === null || typeof raw !== "object") return "";
@@ -431,7 +434,16 @@ function valueTextOf(store: Store, raw: unknown): string {
   const ref = typeof record.nodeId === "string" ? record.nodeId : null;
   if (ref !== null) {
     const parsed = parseDateNodeId(ref);
-    if (parsed !== null) return dateNodeDisplayLabel(parsed, parsed.precision);
+    if (parsed !== null) {
+      const year = String(parsed.year).padStart(4, "0");
+      const month = String(parsed.month).padStart(2, "0");
+      const day = String(parsed.day).padStart(2, "0");
+      return parsed.precision === "year"
+        ? year
+        : parsed.precision === "month"
+          ? `${year}-${month}`
+          : `${year}-${month}-${day}`;
+    }
     const row = store.database.prepare("SELECT content FROM node WHERE id = ?").get(ref) as
       | { content: string }
       | undefined;
@@ -462,7 +474,12 @@ function valueTextOf(store: Store, raw: unknown): string {
 export function buildStateReader(store: Store): ImportStateReader {
   const valuesOf = (nodeId: string): Record<string, string> => {
     const byKey = new Map<string, string[]>();
-    for (const row of visiblePropertyValueRows(store.database, nodeId)) {
+    // Slot order — the "; " join must read idx 0..n-1 (the display order
+    // every sources surface uses) or a re-run's comparison could scramble.
+    const rows = visiblePropertyValueRows(store.database, nodeId).sort(
+      (a, b) => a.idx - b.idx || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    );
+    for (const row of rows) {
       const key = POOL_KEY_OF_SCHEMA.get(row.property_schema_id);
       if (key === undefined) continue;
       let text: string;
@@ -558,8 +575,9 @@ function parseRdfDate(value: string): { iso: string; precision: "year" | "month"
  *    the quickCreate draft-create precedent; classIds carry the Zotero-type
  *    system class, the OR-Set membership carrier is the assignment; the
  *    title rides the contentAst, title-is-content) + one property.set per
- *    sets entry;
- *  - `update`/`adopt` — one property.set per sets entry.
+ *    sets entry (a multi-value text field's joined value splits into one
+ *    row per name);
+ *  - `update`/`adopt` — one property.set per sets entry (same split).
  * Multi-value schemas whose node already carries rows are emptied first
  * (a replace, never an accumulate). Datetime values resolve through the
  * deterministic date chain, creating the missing chain nodes (the
@@ -700,6 +718,22 @@ export function buildImportEnvelopes(
         envelopes.push(
           stamp("property.empty", { objectId, propertySchemaId: schemaId }, affected),
         );
+      }
+      if (shape.multi && typeof wireValue === "string") {
+        // The sources contract is ONE NAME PER VALUE: the planner's "; "-
+        // joined form splits back into per-name rows at idx 0..n-1 (the
+        // parser produced the join — names ride "Family, Given"). The re-run
+        // comparison joins the rows with "; " again, so idempotency holds.
+        const names = wireValue
+          .split(";")
+          .map((name) => name.trim())
+          .filter((name) => name !== "");
+        names.forEach((name, idx) => {
+          envelopes.push(
+            stamp("property.set", { objectId, propertySchemaId: schemaId, value: name, idx }, affected),
+          );
+        });
+        continue;
       }
       envelopes.push(
         stamp("property.set", { objectId, propertySchemaId: schemaId, value: wireValue, idx: 0 }, affected),

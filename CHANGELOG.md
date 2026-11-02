@@ -24,11 +24,14 @@ predating this file.
   manifest). Live workspaces converge by
   `scripts/migrate-zotero-full-alignment.mts` (Path A — the batch table is
   derived from the domain manifests, appended envelopes, dry-run default,
-  the live-stack `--apply --server` path), and the CLI gains
-  `notees import zotero-rdf` (`scripts/zotero-rdf-parser.mts` +
-  `scripts/import-zotero-rdf.mts`): a Zotero RDF export reconciles
-  citekey-keyed — update/adopt/create, Notees-wins fills only, idempotent,
-  `--dry-run` first. **Client lockstep check (law 10):** the GTK + Flutter
+  the live-stack `--apply --server` path), and the repo ships the Zotero RDF
+  importer as scripts — `scripts/zotero-rdf-parser.mts` (the parser) +
+  `scripts/import-zotero-rdf.mts` (the planner + dry-run/apply CLI, run via
+  `pnpm --filter @notees/server exec tsx ../../scripts/import-zotero-rdf.mts`):
+  a Zotero RDF export reconciles citekey-keyed — update/adopt/create,
+  conflicts RDF-wins by default (`--keep-existing` keeps node values),
+  idempotent, dry-run BY DEFAULT (`--apply` writes; there is no `--dry-run`
+  flag). **Client lockstep check (law 10):** the GTK + Flutter
   repos were grepped for the bibliographic pool slice — neither client
   carries it (class UUIDs + extends only), so the new schemas and binding
   rows converge through the log; no client code change. **Verification:**
