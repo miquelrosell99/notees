@@ -32,7 +32,13 @@
  *    ("March 13 2013", "March 13, 2013") — EN or ES month names, both
  *    deliberate; PubMed/MEDLINE year-first "YYYY Mon [D]" with exactly
  *    3-letter English abbreviations ("2023 Sep" → month, "2024 Dec 11" →
- *    day; "2023 Sept" rejects), real-calendar validated;
+ *    day; "2023 Sept" rejects), real-calendar validated; year-first month
+ *    ranges "YYYY Mon-Mon" take the start month ("2023 Mar-Apr" →
+ *    2023-03; "2023 Dec-Jan" rejects like the day-range ruling); ISO
+ *    datetimes ("2023-10-05 18:10:23", "2025-08-15T11:49:34+00:00")
+ *    strip the time part and parse the leading date; non-padded ISO
+ *    ("2010-2-24", "2025-8") and year-first slashes ("2012/1", "2012/1/24")
+ *    zero-pad into the iso;
  *  - STILL rejected for hand-resolution: ambiguous shapes stay out
  *    ("31/02/2024" is not a real date), empty, garbage.
  */
@@ -49,10 +55,15 @@ describe("parseRdfDate", () => {
   });
 
   it("rejects strict ISO prefixes with trailing garbage (end-anchored)", () => {
-    expect(parseRdfDate("2023/09/07")).toBeNull(); // YYYY/MM/DD slashes — no tier claims this.
     expect(parseRdfDate("2022-03-15foo")).toBeNull();
     expect(parseRdfDate("2022 (repr.)")).toBeNull(); // infix garbage — a year prefix is not a year.
     expect(parseRdfDate("2022-03-15 (print)")).toBeNull(); // same, at day precision.
+  });
+
+  it("parses 4-digit-first slash dates as year-first (the YYYY/M[/D] tier)", () => {
+    // Formerly rejected ("no tier claimed this") — now deliberately claimed:
+    // a 4-digit-first three-part slash date is unambiguously year-first.
+    expect(parseRdfDate("2023/09/07")).toEqual({ iso: "2023-09-07", precision: "day" });
   });
 
   it("sanitizes decorated dates before the tiers", () => {
@@ -80,6 +91,39 @@ describe("parseRdfDate", () => {
     expect(parseRdfDate("2023 Sept")).toBeNull(); // 4 letters — out of scope.
     expect(parseRdfDate("2023 Se")).toBeNull(); // 2 letters — out of scope.
     expect(parseRdfDate("2023 Sep 31")).toBeNull(); // September has 30 days.
+  });
+
+  it("parses ISO datetimes at the leading date's precision", () => {
+    expect(parseRdfDate("2023-10-05 18:10:23")).toEqual({ iso: "2023-10-05", precision: "day" });
+    expect(parseRdfDate("2025-08-15T11:49:34+00:00")).toEqual({ iso: "2025-08-15", precision: "day" });
+    expect(parseRdfDate("2023-10-05T18:10Z")).toEqual({ iso: "2023-10-05", precision: "day" });
+  });
+
+  it("rejects datetimes with an invalid time or date part", () => {
+    expect(parseRdfDate("2023-10-05 25:99:99")).toBeNull(); // no such time.
+    expect(parseRdfDate("2023-10-05 xyz")).toBeNull(); // junk after the date.
+    expect(parseRdfDate("2023-13-05 18:10:23")).toBeNull(); // invalid month in the date part.
+  });
+
+  it("accepts non-padded strict ISO month/day, zero-padded in the iso", () => {
+    expect(parseRdfDate("2010-2-24")).toEqual({ iso: "2010-02-24", precision: "day" });
+    expect(parseRdfDate("2025-8")).toEqual({ iso: "2025-08-01", precision: "month" });
+    expect(parseRdfDate("2010-13-24")).toBeNull(); // calendar-validated.
+  });
+
+  it("accepts year-first slash YYYY/M and YYYY/M/D", () => {
+    expect(parseRdfDate("2012/1")).toEqual({ iso: "2012-01-01", precision: "month" });
+    expect(parseRdfDate("2012/1/24")).toEqual({ iso: "2012-01-24", precision: "day" });
+    expect(parseRdfDate("2012/13")).toBeNull(); // MM must be 01-12.
+    expect(parseRdfDate("2012/1/32")).toBeNull(); // calendar-validated.
+  });
+
+  it("parses year-first month ranges at the start month", () => {
+    expect(parseRdfDate("2023 Mar-Apr")).toEqual({ iso: "2023-03-01", precision: "month" });
+    expect(parseRdfDate("2021 Oct-Dec")).toEqual({ iso: "2021-10-01", precision: "month" });
+    expect(parseRdfDate("2023 Jan-Mar")).toEqual({ iso: "2023-01-01", precision: "month" });
+    expect(parseRdfDate("2023 MAR-APR")).toEqual({ iso: "2023-03-01", precision: "month" });
+    expect(parseRdfDate("2023 Dec-Jan")).toBeNull(); // range folds the year — start > end, like the day-range ruling.
   });
 
   it("accepts full English month name + year, case-insensitive", () => {

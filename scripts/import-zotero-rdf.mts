@@ -609,9 +609,15 @@ const MONTH_ABBR_TO_NUMBER: ReadonlyMap<string, number> = new Map(
  *  tier demotes every decorated date to hand-resolution.
  *  Tiers, strictest first (Zotero exports `dc:date` verbatim, so real
  *  files carry human dates alongside the ISO shapes):
- *  1. strict ISO — `YYYY[-MM[-DD]]`, END-ANCHORED: a year prefix with
- *     trailing garbage ("2022 (repr.)", "2023/09/07") rejects instead of
- *     silently reading the year;
+ *  0. ISO datetime — `YYYY-M[-D]` + `T`/space + `hh:mm[:ss]` (optional
+ *     fraction, `Z` or `±hh:mm` offset): the time part strips and the
+ *     leading date parses at its own precision; the time must be real
+ *     (hh 00-23, mm/ss 00-59) and the tier is end-anchored, so
+ *     "2023-10-05 xyz" and "2023-10-05 25:99:99" reject;
+ *  1. strict ISO — `YYYY[-M[-D]]`, 1-2 digit month/day zero-padded in the
+ *     iso ("2010-2-24" → day, "2025-8" → month), END-ANCHORED: a year
+ *     prefix with trailing garbage ("2022 (repr.)", "2023/09/07") rejects
+ *     instead of silently reading the year;
  *  2. full month name + year, case-insensitive, optional comma ("June 2016",
  *     "JUNE 2022", "June, 2016", "enero 2020") → month precision; day +
  *     month name + year ("14 June 2024", "14 junio 2024") → day precision;
@@ -624,16 +630,21 @@ const MONTH_ABBR_TO_NUMBER: ReadonlyMap<string, number> = new Map(
  *     validated through parseIsoDate;
  *  3. PubMed/MEDLINE year-first "YYYY Mon [D]" — exactly 3-letter English
  *     abbreviations, case-insensitive ("2023 Sep" → month, "2024 Dec 11"
- *     → day; "Sept" and longer reject), real-calendar validated;
+ *     → day; "Sept" and longer reject), real-calendar validated; and the
+ *     year-first month RANGE "YYYY Mon-Mon" → the START month ("2023
+ *     Mar-Apr" → 2023-03), rejecting a range that folds the year
+ *     ("2023 Dec-Jan" — start > end, same as the day-range ruling);
  *  4. numeric MM/YYYY ("01/2022") → month precision, MM 01-12 (two-part
- *     only — never swallowed by tier 5);
- *  5. all-numeric three-part DD/MM/YYYY or DD-MM-YYYY → day precision.
+ *     only — never swallowed by tier 6);
+ *  5. year-first slash "YYYY/M[/D]" (non-padded) → month / day precision;
+ *     the 4-digit-first shape keeps it disjoint from the day-first tier;
+ *  6. all-numeric three-part DD/MM/YYYY or DD-MM-YYYY → day precision.
  *     OWNER-LOCALE RULING (single-owner deployment, explicit): two-separator
  *     all-numeric dates are day-first Spanish, NOT US month-first — so
  *     "07/09/2023" is 7 September 2023 and "01/12/2025" is 1 December 2025;
  *     single-digit days ("8/05/2015") parse; real-calendar validated
  *     ("31/02/2024" is rejected, not clamped).
- *  Everything else — abbreviations outside the PubMed tier, bare ranges
+ *  Everything else — abbreviations outside the PubMed tiers, bare ranges
  *  without month/year, garbage — returns null and lands in the
  *  hand-resolution list. */
 export function parseRdfDate(value: string): { iso: string; precision: "year" | "month" | "day" } | null {
@@ -655,15 +666,35 @@ export function parseRdfDate(value: string): { iso: string; precision: "year" | 
     text = text.replace(/^c(?:a\.?)?\s*(?=\d)/i, "");
     if (text === before) break;
   }
-  const strict = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(text);
+  // ISO datetime — "2023-10-05 18:10:23", "2025-08-15T11:49:34+00:00":
+  // the time part (T or space + hh:mm[:ss], optional fraction/offset/Z)
+  // is stripped and the leading date parses at its own precision. The
+  // time must be a real time (hh 00-23, mm/ss 00-59) and the regex is
+  // end-anchored, so junk after the time rejects.
+  const datetime = /^(\d{4}-\d{1,2}(?:-\d{1,2})?)[T ](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/.exec(text);
+  if (datetime !== null) {
+    const [, datePart, hour, minute, second] = datetime;
+    if (Number(hour) <= 23 && Number(minute) <= 59 && (second === undefined || Number(second) <= 59)) {
+      const isoParts = datePart!.split("-");
+      const iso = `${isoParts[0]}-${(isoParts[1] ?? "1").padStart(2, "0")}-${(isoParts[2] ?? "1").padStart(2, "0")}`;
+      try {
+        parseIsoDate(iso);
+      } catch {
+        return null;
+      }
+      return { iso, precision: isoParts[2] !== undefined ? "day" : isoParts[1] !== undefined ? "month" : "year" };
+    }
+    return null;
+  }
+  const strict = /^(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?$/.exec(text);
   if (strict !== null) {
     const [, year, month, day] = strict;
     const iso =
       month === undefined
         ? `${year}-01-01`
         : day === undefined
-          ? `${year}-${month}-01`
-          : `${year}-${month}-${day}`;
+          ? `${year}-${month.padStart(2, "0")}-01`
+          : `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
     try {
       parseIsoDate(iso);
     } catch {
@@ -720,6 +751,36 @@ export function parseRdfDate(value: string): { iso: string; precision: "year" | 
       }
       return { iso, precision: day !== undefined ? "day" : "month" };
     }
+  }
+  // Year-first month RANGE "YYYY Mon-Mon" (3-letter EN abbreviations) →
+  // the START month (same ruling as the "D-D Month YYYY" day range); a
+  // range that folds the year (start > end) rejects.
+  const monthRange = /^(\d{4})\s+([a-z]{3})\s*-\s*([a-z]{3})$/i.exec(text);
+  if (monthRange !== null) {
+    const start = MONTH_ABBR_TO_NUMBER.get(monthRange[2]!.toLowerCase());
+    const end = MONTH_ABBR_TO_NUMBER.get(monthRange[3]!.toLowerCase());
+    if (start !== undefined && end !== undefined && start <= end) {
+      const iso = `${monthRange[1]}-${String(start).padStart(2, "0")}-01`;
+      try {
+        parseIsoDate(iso);
+      } catch {
+        return null;
+      }
+      return { iso, precision: "month" };
+    }
+    return null;
+  }
+  // Year-first slash "YYYY/M" / "YYYY/M/D" (non-padded) → month / day.
+  // The 4-digit-first shape keeps it disjoint from the day-first tier 6.
+  const yearSlash = /^(\d{4})\/(\d{1,2})(?:\/(\d{1,2}))?$/.exec(text);
+  if (yearSlash !== null) {
+    const iso = `${yearSlash[1]}-${yearSlash[2]!.padStart(2, "0")}-${(yearSlash[3] ?? "1").padStart(2, "0")}`;
+    try {
+      parseIsoDate(iso);
+    } catch {
+      return null;
+    }
+    return { iso, precision: yearSlash[3] !== undefined ? "day" : "month" };
   }
   const slash = /^(\d{1,2})\/(\d{4})$/.exec(text);
   if (slash !== null) {
@@ -1054,8 +1115,8 @@ function printReport(
     console.log(
       `  ~ #${unparsed.index} ${plan[unparsed.index]!.item.title}: ${unparsed.key} — needs hand-resolution: ` +
         `unparsable date ${JSON.stringify(unparsed.value)} ` +
-        `(want YYYY[-MM[-DD]], "Month YYYY", "D Month YYYY", "D-D Month YYYY", ` +
-        `"D de mes de YYYY", "Month D YYYY", YYYY Mon [D], DD/MM/YYYY or MM/YYYY)`,
+        `(want YYYY[-M[-D]] (optionally + time), "Month YYYY", "D Month YYYY", "D-D Month YYYY", ` +
+        `"D de mes de YYYY", "Month D YYYY", YYYY Mon [D] / YYYY Mon-Mon, YYYY/M[/D], DD/MM/YYYY or MM/YYYY)`,
     );
   }
 
