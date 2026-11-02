@@ -215,10 +215,10 @@ describe("migrate-seed-pins.mts", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  it("derives the pin target set from the manifests: 10 rows, no duplicates", () => {
+  it("derives the pin target set from the manifests: 11 rows, no duplicates", () => {
     const targets = deriveSeedPinTargets();
-    expect(targets).toHaveLength(10);
-    expect(new Set(targets.map((t) => `${t.classId}/${t.propertySchemaId}`)).size).toBe(10);
+    expect(targets).toHaveLength(11);
+    expect(new Set(targets.map((t) => `${t.classId}/${t.propertySchemaId}`)).size).toBe(11);
     // url→web_page is NOT a target (only the source base row pins).
     expect(
       targets.some((t) => t.classId === WEB_PAGE_ID && t.propertySchemaId === SYSTEM_PROPERTY_UUIDS.url),
@@ -242,8 +242,12 @@ describe("migrate-seed-pins.mts", () => {
     );
     // The already-pinned location row is NOT re-planned…
     expect(pairs).not.toContain(`${MEETING_ID}/${SYSTEM_PROPERTY_UUIDS.location}`);
-    // …and the missing taskDeadline row reports as skipped, not written.
+    // …and the missing rows report as skipped, not written: taskDeadline as
+    // before, and pmid — the fixture predates the PMID property, whose schema
+    // + binding + pin land together via scripts/migrate-pmid-property.mts
+    // (the pins script only flips EXISTING rows).
     expect(plan.missing.map((t) => t.propertySchemaId)).toEqual([
+      SYSTEM_PROPERTY_UUIDS.pmid,
       SYSTEM_PROPERTY_UUIDS.taskDeadline,
     ]);
 

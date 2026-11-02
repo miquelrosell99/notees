@@ -9,6 +9,44 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(server,web,domain): the source resolver grows PMID + ADS bibcodes,
+  an Unpaywall open-access-PDF step, and a two-step Add Source dialog.**
+  **Resolver** (`apps/server/src/resolve-source.ts`): two new providers on
+  `GET /api/resolve` — PubMed by PMID (one NCBI esummary GET, JSON; authors
+  map from NCBI's family-first convention, the DOI comes from `articleids`,
+  supplement issues ride as plain volume/issue strings) and ADS by bibcode
+  (one authenticated Solr GET; the caller's own API token rides the
+  Authorization header to ADS alone — the egress contract's one deliberate
+  exception; no token → 422 pointing at Settings, a rejected token → an
+  honest 502). After any resolve with a DOI, a Unpaywall lookup adds
+  `pdf: {url}` when an open-access PDF exists — its failure never fails the
+  resolve. **Seeds** (`packages/domain/src/seeds.ts`): the source base
+  family gains `pmid` (…0006-…056, text, scoped `[source]`, PINNED — the
+  2026-10-27 roster amendment); live workspaces converge by
+  `scripts/migrate-pmid-property.mts` (Path A append; e2e at
+  `apps/server/test/migrate-pmid-property.test.ts`). **Client prefs**: the
+  per-user prefs row gains `adsApiToken` (`user_prefs.ads_api_token`,
+  additive column; owner-read, never device-cached) with a password-styled
+  editor at Settings → Account. **Web** (`AddSourceDialog`): the dialog is
+  two-step — **Fetch** resolves and shows an inline preview (title,
+  authors · year · venue, the matched identifiers), **Next** stays greyed
+  until a fetch succeeded and opens the prefilled create form; editing the
+  input invalidates the fetch. The classifier accepts `PMID:` prefixes,
+  PubMed URLs, bare ≤8-digit numbers (never ISBN-shaped), bare 19-char
+  bibcodes, and adsabs abs URLs. A fetched open-access PDF link appears in
+  the PDF field as a removable chip (a picked file wins; link-only keeps
+  the honest semantics — it lands on the source's `url` property, the
+  server never downloads publisher bytes). The duplicate "Already in your
+  library" warning gains PMID. **Docs**: `docs/api.md`, the sources feature
+  doc, the migrations register, AGENTS.md's pinned roster. **Client
+  alignment check ran**: GTK's manifest carries only the task-family
+  property UUIDs and Flutter's the base/task/card/project slice — neither
+  carries the bibliographic pool, so no port code change; the rows converge
+  through the log. **Verification:** domain 171 passed; server 356 passed
+  (incl. the new PMID/ADS/Unpaywall resolve cases, the prefs column
+  migration, the pmid migration e2e, the updated pins-count pins); web
+  add-source/node-prefs/quick-create suites green + web typecheck clean.
+
 - **refactor(web): the journal toggle gates the surface at the route, not
   the view's affordances.** The journal feature flag's protocol semantics
   ("gates the journal SURFACES — the journal nav view, Today-page

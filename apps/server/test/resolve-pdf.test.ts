@@ -157,6 +157,8 @@ describe("POST /api/resolve/pdf", () => {
     server = await makeTestServer();
     const fetchMock = stubFetch({
       "https://api.crossref.org/works/": () => jsonResponse({ message: CROSSREF_WORK }),
+      // The Unpaywall enrichment rides the DOI resolve; no OA location here.
+      "https://api.unpaywall.org/v2/": () => jsonResponse({ best_oa_location: null }),
     });
 
     const res = await uploadPdf(makePdfWithText("doi:10.1000/xyz123"));
@@ -183,7 +185,8 @@ describe("POST /api/resolve/pdf", () => {
     expect(res.json().publisher).toBe("Test Press");
     // Upload mode: no source URL, so no attach intent block.
     expect(res.json().pdf).toBeUndefined();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Crossref + the Unpaywall enrichment.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0]![0]).toBe("https://api.crossref.org/works/10.1000%2Fxyz123");
   });
 
@@ -200,6 +203,7 @@ describe("POST /api/resolve/pdf", () => {
           },
         }),
       "https://api.crossref.org/works/": () => jsonResponse({ message: CROSSREF_WORK }),
+      "https://api.unpaywall.org/v2/": () => jsonResponse({ best_oa_location: null }),
     });
 
     const res = await api("POST", "/api/resolve/pdf?url=https%3A%2F%2Fexample.org%2Fpaper.pdf");
@@ -210,7 +214,8 @@ describe("POST /api/resolve/pdf", () => {
       publisher: "Test Press",
       pdf: { url: "https://example.org/paper.pdf" },
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // The PDF fetch, Crossref, and the Unpaywall enrichment.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0]![0]).toBe("https://example.org/paper.pdf");
     expect(fetchMock.mock.calls[1]![0]).toBe("https://api.crossref.org/works/10.1000%2Fxyz123");
   });

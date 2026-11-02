@@ -715,6 +715,14 @@ export const SYSTEM_PROPERTY_UUIDS = {
   websiteTitle: "00000000-0000-0000-0006-000000000053",
   websiteType: "00000000-0000-0000-0006-000000000054",
   workType: "00000000-0000-0000-0006-000000000055",
+  // PubMed identifier (the resolver PMID support slice, 2026-11-02): a
+  // base-family identifier like doi/isbn — seeded scoped to `source` with a
+  // real binding row on the family base AND PINNED (the 2026-10-27 roster
+  // amendment). The alphabetical fill order placed the pool keys place…workType
+  // at …033–…055; a late addition APPENDS at the next free slot — the UUIDs
+  // are stable identity and never renumber. Live workspaces converge by
+  // scripts/migrate-pmid-property.mts.
+  pmid: "00000000-0000-0000-0006-000000000056",
 } as const;
 
 export type SystemPropertyName = keyof typeof SYSTEM_PROPERTY_UUIDS;
@@ -798,7 +806,11 @@ export interface SystemPropertySpec {
    * meeting family's location (meetingDate's pin retired with the property
    * 2026-10-30), and the task family's taskStatus/taskScheduled/taskDeadline
    * (TASK_FAMILY_SEED) — everything else seeds unpinned. Live workspaces
-   * converge by scripts/migrate-seed-pins.mts.
+   * converge by scripts/migrate-seed-pins.mts. AMENDED 2026-11-02: the
+   * resolver's PMID support pins `pmid` onto the source base family (a PubMed
+   * identifier is a first-class base identifier like doi); live workspaces
+   * converge by scripts/migrate-pmid-property.mts (the schema + binding + pin
+   * land in one pass there).
    */
   pinned?: boolean;
   targetClassFilter?: SystemClassName[];
@@ -1017,6 +1029,11 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   pages: { type: "text", bindTo: "source", bind: false },
   patentNumber: { type: "text", bindTo: "source", bind: false },
   place: { type: "text", bindTo: "source", bind: false },
+  // pmid — the PubMed identifier (2026-11-02): a BASE-family identifier like
+  // doi/isbn, NOT a bind:false pool field — the default bind emits the
+  // class_property row on `source` and the pin amends the 2026-10-27 roster.
+  // Slotted …0006-…056 (the next free pool slot — see the UUID map comment).
+  pmid: { type: "text", bindTo: "source", pinned: true },
   postType: { type: "text", bindTo: "source", bind: false },
   priorityDate: { type: "text", bindTo: "source", bind: false },
   priorityNumbers: { type: "text", bindTo: "source", bind: false },
@@ -1165,6 +1182,7 @@ export const SYSTEM_PROPERTY_DISPLAY_NAMES: Record<SystemPropertyName, string> =
   pages: "Pages",
   patentNumber: "Patent number",
   place: "Place",
+  pmid: "PMID",
   postType: "Post type",
   priorityDate: "Priority date",
   priorityNumbers: "Priority numbers",

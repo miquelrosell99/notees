@@ -221,12 +221,17 @@ CREATE INDEX IF NOT EXISTS idx_api_key_user ON api_key (user_id);
 -- JSON column per list, order-preserving; the server validates uuid shapes
 -- and caps (routes-prefs.ts). cards_algorithm is the spaced-repetition
 -- scheduler choice for the memorization-cards surface ("sm2" | "fsrs",
--- default "fsrs").
+-- default "fsrs"). ads_api_token is the caller's own ADS (Astrophysics Data
+-- System) API credential for bibcode metadata lookups — NULL when unset;
+-- it is returned to the OWNING user only (GET /me/prefs is user-bound) and
+-- sent on to api.adsabs.harvard.edu alone (the resolver's egress contract,
+-- resolve-source.ts).
 CREATE TABLE IF NOT EXISTS user_prefs (
     user_id TEXT PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
     favorites TEXT NOT NULL DEFAULT '[]',
     recents TEXT NOT NULL DEFAULT '[]',
     cards_algorithm TEXT NOT NULL DEFAULT 'fsrs',
+    ads_api_token TEXT,
     updated_at INTEGER NOT NULL
 );
 
@@ -438,6 +443,9 @@ export class AuthStorage {
     );
     if (!prefColumns.has("cards_algorithm")) {
       this.db.exec("ALTER TABLE user_prefs ADD COLUMN cards_algorithm TEXT NOT NULL DEFAULT 'fsrs'");
+    }
+    if (!prefColumns.has("ads_api_token")) {
+      this.db.exec("ALTER TABLE user_prefs ADD COLUMN ads_api_token TEXT");
     }
     // One-time migration from the retired per-user section_view table: copy rows into node_view dropping user_id and
     // view_mode, keeping the earliest row on a (node, section, name)
@@ -821,20 +829,23 @@ export class AuthStorage {
     favorites: string[];
     recents: string[];
     cardsAlgorithm: "sm2" | "fsrs";
+    /** The ADS API credential (NULL when unset); owner-read, ADS-bound only. */
+    adsApiToken: string | null;
     updatedAt: number;
   } {
     const row = this.db
-      .prepare("SELECT favorites, recents, cards_algorithm, updated_at FROM user_prefs WHERE user_id = ?")
+      .prepare("SELECT favorites, recents, cards_algorithm, ads_api_token, updated_at FROM user_prefs WHERE user_id = ?")
       .get(userId) as
-      | { favorites: string; recents: string; cards_algorithm: string; updated_at: number }
+      | { favorites: string; recents: string; cards_algorithm: string; ads_api_token: string | null; updated_at: number }
       | undefined;
     if (row === undefined) {
-      return { favorites: [], recents: [], cardsAlgorithm: "fsrs", updatedAt: 0 };
+      return { favorites: [], recents: [], cardsAlgorithm: "fsrs", adsApiToken: null, updatedAt: 0 };
     }
     return {
       favorites: parseIdList(row.favorites),
       recents: parseIdList(row.recents),
       cardsAlgorithm: row.cards_algorithm === "sm2" ? "sm2" : "fsrs",
+      adsApiToken: row.ads_api_token,
       updatedAt: row.updated_at,
     };
   }
@@ -842,8 +853,9 @@ export class AuthStorage {
   /**
    * Merge-patch the account's prefs: a provided list REPLACES its column
    * wholesale (the client is the ordering authority; last write wins per
-   * list); a provided cardsAlgorithm replaces the scalar. Upserts the row;
-   * validation/caps happen in routes-prefs.ts.
+   * list); a provided cardsAlgorithm replaces the scalar; a provided
+   * adsApiToken (or null/"" — both clear) replaces the credential column.
+   * Upserts the row; validation/caps happen in routes-prefs.ts.
    */
   updateUserPrefs(
     userId: string,
@@ -851,25 +863,35 @@ export class AuthStorage {
       favorites?: string[] | undefined;
       recents?: string[] | undefined;
       cardsAlgorithm?: "sm2" | "fsrs" | undefined;
+      adsApiToken?: string | null | undefined;
     },
-  ): { favorites: string[]; recents: string[]; cardsAlgorithm: "sm2" | "fsrs"; updatedAt: number } {
+  ): {
+    favorites: string[];
+    recents: string[];
+    cardsAlgorithm: "sm2" | "fsrs";
+    adsApiToken: string | null;
+    updatedAt: number;
+  } {
     const current = this.getUserPrefs(userId);
     const favorites = patch.favorites ?? current.favorites;
     const recents = patch.recents ?? current.recents;
     const cardsAlgorithm = patch.cardsAlgorithm ?? current.cardsAlgorithm;
+    const adsApiToken =
+      patch.adsApiToken === undefined ? current.adsApiToken : patch.adsApiToken === "" ? null : patch.adsApiToken;
     const updatedAt = Date.now();
     this.db
       .prepare(
-        `INSERT INTO user_prefs (user_id, favorites, recents, cards_algorithm, updated_at)
-         VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO user_prefs (user_id, favorites, recents, cards_algorithm, ads_api_token, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT (user_id) DO UPDATE SET
            favorites = excluded.favorites,
            recents = excluded.recents,
            cards_algorithm = excluded.cards_algorithm,
+           ads_api_token = excluded.ads_api_token,
            updated_at = excluded.updated_at`,
       )
-      .run(userId, JSON.stringify(favorites), JSON.stringify(recents), cardsAlgorithm, updatedAt);
-    return { favorites, recents, cardsAlgorithm, updatedAt };
+      .run(userId, JSON.stringify(favorites), JSON.stringify(recents), cardsAlgorithm, adsApiToken, updatedAt);
+    return { favorites, recents, cardsAlgorithm, adsApiToken, updatedAt };
   }
 
   // --- node-scoped hosted views (custom tabs — the prefs channel) --------------

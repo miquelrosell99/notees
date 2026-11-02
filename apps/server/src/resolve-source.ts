@@ -1,6 +1,7 @@
 /**
  * THE METADATA RESOLVER — the source-library resolver behind
- * GET /api/resolve?doi=…|?isbn=…|?arxiv=… (slices 3–6 task 3) and
+ * GET /api/resolve?doi=…|?isbn=…|?arxiv=…|?pmid=…|?ads=… (slices 3–6 task 3,
+ * the PMID + ADS providers added 2026-11-02) and
  * POST /api/resolve/pdf (task 4 — the owner's PDF flow), the server's
  * FIRST (and, so far, only) outbound network egress.
  *
@@ -9,9 +10,13 @@
  * caller asks the resolver to look up an identifier, exactly ONE thing leaves
  * the server: the queried identifier itself, embedded in the URL path/query
  * the metadata provider expects. There is no request body and no identifying
- * header beyond what a plain GET carries. Workspace content — titles, notes,
- * properties, anything — NEVER rides along. The three providers below are
- * the complete METADATA egress list. The one additional egress is the task-4
+ * header beyond what a plain GET carries — ONE deliberate exception: the ADS
+ * provider requires per-user authentication, so the calling user's own ADS
+ * API token (their per-user pref, relay.db coordination state) rides the
+ * Authorization header to api.adsabs.harvard.edu and nowhere else. Workspace
+ * content — titles, notes, properties, anything — NEVER rides along. The
+ * metadata providers below are the complete METADATA egress list. The one
+ * additional egress is the task-4
  * PDF flow: when a caller passes `?url=`, the server fetches that ONE PDF
  * itself — http(s) only, loopback/private/link-local literals refused (SSRF
  * guard), 25MB cap, same timeout (see resolvePdfSource below); the metadata
@@ -20,12 +25,22 @@
  *  - Crossref    https://api.crossref.org/works/{doi}          (DOI)
  *  - OpenLibrary https://openlibrary.org/isbn/{isbn}.json      (ISBN)
  *  - arXiv       http://export.arxiv.org/api/query?id_list={id} (arXiv id)
+ *  - PubMed      https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi
+ *                ?db=pubmed&id={pmid}&retmode=json             (PMID)
+ *  - ADS         https://api.adsabs.harvard.edu/v1/search/query?q=bibcode:…
+ *                (ADS bibcode — the caller's own API token rides the
+ *                Authorization header; see the egress note above)
+ *  - Unpaywall   https://api.unpaywall.org/v2/{doi}?email=…    (open-access
+ *                PDF enrichment — only ever sees the resolved DOI and the
+ *                generic notees-resolver contact constant, never workspace
+ *                content; a failure degrades to "no prefilled PDF", never a
+ *                failed resolve)
  *
  * Responses are normalized into ONE record shape (the task-4 create flow and
  * the task-6 web client consume it verbatim):
  *
- *    { classKey, title, authors[], editors[], fields{}, doi?, isbn?, url?,
- *      year?, publisher? }
+ *    { classKey, title, authors[], editors[], fields{}, doi?, isbn?, pmid?,
+ *      url?, year?, publisher? }
  *
  *  - classKey  the system class via ZOTERO_ITEM_TYPE_TO_CLASS — the provider's
  *              item type maps to a Zotero citable type first, then the
@@ -83,6 +98,8 @@ export interface SourceMetadataRecord {
   fields: Record<string, string>;
   doi?: string;
   isbn?: string;
+  /** The PubMed identifier (the PMID provider's own record). */
+  pmid?: string;
   url?: string;
   year?: number;
   /** The publishing house (Crossref `publisher` / OpenLibrary `publishers[0]`). */
@@ -148,12 +165,14 @@ export class ResolveCache {
 
 // --- identifier normalization ------------------------------------------------
 
-type IdentifierKind = "doi" | "isbn" | "arxiv";
+type IdentifierKind = "doi" | "isbn" | "arxiv" | "pmid" | "ads";
 
 /**
  * The cache key's identity half: DOIs case-fold (and a pasted doi.org URL
  * unwraps to the bare DOI); ISBNs keep digits + X only; arXiv ids drop the
- * `arXiv:` prefix and the `vN` version suffix (versions are one work).
+ * `arXiv:` prefix and the `vN` version suffix (versions are one work);
+ * PMIDs keep digits only; ADS bibcodes case-fold (the canonical form is
+ * uppercase).
  */
 export function normalizeIdentifier(kind: IdentifierKind, raw: string): string {
   const trimmed = raw.trim();
@@ -166,6 +185,10 @@ export function normalizeIdentifier(kind: IdentifierKind, raw: string): string {
       return trimmed.replace(/[^0-9Xx]/g, "").toUpperCase();
     case "arxiv":
       return trimmed.replace(/^arxiv:/i, "").replace(/v\d+$/, "").toLowerCase();
+    case "pmid":
+      return trimmed.replace(/\D/g, "");
+    case "ads":
+      return trimmed.toUpperCase();
   }
 }
 
@@ -232,6 +255,21 @@ function invertFullName(name: string): string {
   return `${cleaned.slice(at + 1)}, ${cleaned.slice(0, at)}`;
 }
 
+/**
+ * "Family, Given" from a PubMed esummary author name — NCBI's convention is
+ * FAMILY FIRST plus trailing initials ("Derks J", "van der Meer JJW"), the
+ * opposite shape of invertFullName's "Given Family" input. The family is
+ * everything before the LAST space when the final token reads as initials
+ * (1–5 letters, dots/hyphens tolerated); anything else falls back to the
+ * name unchanged.
+ */
+function pubmedAuthorName(name: string): string {
+  const cleaned = collapseWhitespace(name);
+  const match = /^(.*?)\s+([A-Za-z][A-Za-z.-]{0,5})$/.exec(cleaned);
+  if (match === null || match[1] === "") return cleaned;
+  return `${match[1]}, ${match[2]}`;
+}
+
 function yearFromDateParts(value: unknown): number | undefined {
   if (typeof value !== "object" || value === null) return undefined;
   const parts = (value as { "date-parts"?: unknown })["date-parts"];
@@ -256,6 +294,7 @@ function buildRecord(input: {
   candidates: Record<string, string | undefined>;
   doi?: string | undefined;
   isbn?: string | undefined;
+  pmid?: string | undefined;
   url?: string | undefined;
   year?: number | undefined;
   publisher?: string | undefined;
@@ -275,6 +314,7 @@ function buildRecord(input: {
   };
   if (input.doi !== undefined) record.doi = input.doi;
   if (input.isbn !== undefined) record.isbn = input.isbn;
+  if (input.pmid !== undefined) record.pmid = input.pmid;
   if (input.url !== undefined) record.url = input.url;
   if (input.year !== undefined) record.year = input.year;
   if (input.publisher !== undefined) record.publisher = input.publisher;
@@ -520,6 +560,228 @@ async function resolveArxiv(
   });
 }
 
+// --- PubMed (PMID, esummary JSON) ------------------------------------------------
+
+const NCBI_ESUMMARY = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi";
+
+interface PubmedSummaryEntry {
+  uid?: unknown;
+  title?: unknown;
+  authors?: unknown;
+  source?: unknown;
+  fulljournalname?: unknown;
+  pubdate?: unknown;
+  volume?: unknown;
+  issue?: unknown;
+  pages?: unknown;
+  articleids?: unknown;
+}
+
+/**
+ * PubMed by PMID: ONE esummary GET, JSON (no XML parse). Authors arrive in
+ * NCBI's FAMILY-FIRST convention ("Derks J") and map to the creator family
+ * format ("Derks, J" — pubmedAuthorName); the journal rides fulljournalname
+ * (falling back to the MEDLINE abbreviation);
+ * volume/issue/pages arrive as plain strings — supplements like
+ * "42 Suppl 16:S158-S171" are an ordinary volume+issue+pages triple; the DOI
+ * is picked out of articleids. NCBI's unauthenticated rate budget (3 req/s)
+ * is a non-issue for a single-user resolver and the 24 h cache absorbs
+ * repeats — no API-key config. An unknown PMID answers a 200 with no entry
+ * for the id (or an error field) → null (404 not_found downstream).
+ */
+async function resolvePmid(
+  pmid: string,
+  timeoutMs: number,
+): Promise<SourceMetadataRecord | null> {
+  const normalized = normalizeIdentifier("pmid", pmid);
+  const res = await fetchProvider(
+    `${NCBI_ESUMMARY}?db=pubmed&id=${encodeURIComponent(normalized)}&retmode=json`,
+    timeoutMs,
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw providerError("PubMed", res.status);
+  let body: { result?: Record<string, unknown> };
+  try {
+    body = (await res.json()) as { result?: Record<string, unknown> };
+  } catch {
+    throw new AppError(502, "resolver_unavailable", "PubMed returned an unparsable payload");
+  }
+  const entry = body.result?.[normalized] as PubmedSummaryEntry | undefined;
+  if (entry === undefined || typeof entry !== "object") return null;
+  const title = str(entry.title);
+  if (title === undefined) {
+    throw new AppError(502, "resolver_unavailable", "PubMed summary carried no title");
+  }
+  const authors = Array.isArray(entry.authors)
+    ? (entry.authors as Array<{ name?: unknown }>)
+        .map((author) => str(author.name))
+        .filter((name): name is string => name !== undefined)
+        .map(pubmedAuthorName)
+    : [];
+  const doi = Array.isArray(entry.articleids)
+    ? (() => {
+        for (const id of entry.articleids as Array<{ idtype?: unknown; value?: unknown }>) {
+          if (id.idtype === "doi") {
+            const value = str(id.value);
+            if (value !== undefined) return value;
+          }
+        }
+        return undefined;
+      })()
+    : undefined;
+  return buildRecord({
+    classKey: ZOTERO_ITEM_TYPE_TO_CLASS.journalArticle,
+    title: collapseWhitespace(title),
+    authors,
+    editors: [],
+    candidates: {
+      publicationTitle: str(entry.fulljournalname) ?? str(entry.source),
+      volume: str(entry.volume),
+      issue: str(entry.issue),
+      pages: str(entry.pages),
+    },
+    doi,
+    pmid: normalized,
+    url: `https://pubmed.ncbi.nlm.nih.gov/${normalized}/`,
+    year: yearFromDateString(entry.pubdate),
+  });
+}
+
+// --- ADS (bibcode, authenticated Solr search) -------------------------------------
+
+const ADS_SEARCH = "https://api.adsabs.harvard.edu/v1/search/query";
+
+interface AdsDocument {
+  title?: unknown;
+  author?: unknown;
+  pub?: unknown;
+  pub_raw?: unknown;
+  year?: unknown;
+  volume?: unknown;
+  page?: unknown;
+  doi?: unknown;
+  abstract?: unknown;
+}
+
+/**
+ * ADS by bibcode: ONE Solr search GET (q=bibcode:"…", rows 1), the caller's
+ * own API token on the Authorization header — the one egress exception, see
+ * the header contract. Authors already arrive "Family, G." (the creator
+ * family format — no inversion). A 403 means the token was rejected (check
+ * it in Settings → Account); a 200 with no docs means the bibcode is unknown
+ * → null (404 downstream). The record's URL is the ADS abstract page.
+ */
+async function resolveAds(
+  bibcode: string,
+  apiToken: string,
+  timeoutMs: number,
+): Promise<SourceMetadataRecord | null> {
+  const normalized = normalizeIdentifier("ads", bibcode);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(
+      `${ADS_SEARCH}?q=${encodeURIComponent(`bibcode:"${normalized}"`)}` +
+        `&fl=title,author,pub,pub_raw,year,volume,page,doi,abstract&rows=1`,
+      { signal: controller.signal, headers: { Authorization: `Bearer ${apiToken}` } },
+    );
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new AppError(502, "resolver_unavailable", `metadata provider timed out (${ADS_SEARCH})`);
+    }
+    throw new AppError(
+      502,
+      "resolver_unavailable",
+      `metadata provider unreachable (${error instanceof Error ? error.message : String(error)})`,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+  if (res.status === 404) return null;
+  if (res.status === 403) {
+    throw new AppError(
+      502,
+      "resolver_unavailable",
+      "ADS rejected the API token (403) — check the token in Settings → Account",
+    );
+  }
+  if (!res.ok) throw providerError("ADS", res.status);
+  let body: { response?: { docs?: unknown } };
+  try {
+    body = (await res.json()) as { response?: { docs?: unknown } };
+  } catch {
+    throw new AppError(502, "resolver_unavailable", "ADS returned an unparsable payload");
+  }
+  const doc = Array.isArray(body.response?.docs) ? (body.response.docs[0] as AdsDocument | undefined) : undefined;
+  if (doc === undefined || typeof doc !== "object") return null;
+  const title = firstString(doc.title);
+  if (title === undefined) {
+    throw new AppError(502, "resolver_unavailable", "ADS document carried no title");
+  }
+  const authors = Array.isArray(doc.author)
+    ? (doc.author as unknown[]).filter((name): name is string => typeof name === "string")
+    : [];
+  const yearValue = typeof doc.year === "string" || typeof doc.year === "number" ? Number(doc.year) : NaN;
+  return buildRecord({
+    classKey: ZOTERO_ITEM_TYPE_TO_CLASS.journalArticle,
+    title: collapseWhitespace(title),
+    authors,
+    editors: [],
+    candidates: {
+      publicationTitle: str(doc.pub_raw) ?? str(doc.pub),
+      volume: str(doc.volume),
+      pages: firstString(doc.page),
+      abstract: str(doc.abstract),
+    },
+    doi: firstString(doc.doi),
+    url: `https://ui.adsabs.harvard.edu/abs/${normalized}`,
+    year: Number.isFinite(yearValue) ? yearValue : undefined,
+  });
+}
+
+// --- Unpaywall (open-access PDF enrichment) ----------------------------------------
+
+const UNPAYWALL_API = "https://api.unpaywall.org/v2";
+/** The generic contact constant Unpaywall's API requires — no personal data. */
+const UNPAYWALL_EMAIL = "notees-resolver@notees.local";
+
+/**
+ * Best-effort open-access PDF link for a resolved record: ONE Unpaywall GET
+ * keyed on the record's DOI; `best_oa_location.url_for_pdf` (falling back to
+ * the landing page) becomes the attach intent the create form shows in its
+ * PDF field. NEVER fails the resolve — a non-2xx, unparsable body, or absent
+ * OA location simply leaves the record without a pdf.url. Only called when a
+ * DOI exists (PubMed supplies it from articleids; ADS from its own index).
+ */
+async function enrichOpenAccessPdf(
+  record: PdfResolveResult,
+  timeoutMs: number,
+): Promise<void> {
+  if (record.doi === undefined) return;
+  let res: Response;
+  try {
+    res = await fetchProvider(
+      `${UNPAYWALL_API}/${encodeURIComponent(record.doi)}?email=${UNPAYWALL_EMAIL}`,
+      timeoutMs,
+    );
+  } catch {
+    return;
+  }
+  if (!res.ok) return;
+  try {
+    const body = (await res.json()) as {
+      best_oa_location?: { url_for_pdf?: unknown; url?: unknown } | null;
+    };
+    const location = body.best_oa_location;
+    if (location === null || location === undefined) return;
+    const pdfUrl = str(location.url_for_pdf) ?? str(location.url);
+    if (pdfUrl !== undefined) record.pdf = { url: pdfUrl };
+  } catch {
+    // An unparsable Unpaywall body degrades to no prefilled PDF.
+  }
+}
+
 // --- the route entry ------------------------------------------------------------
 
 /**
@@ -539,28 +801,41 @@ export function assertResolverEnabled(ctx: ServerContext, workspaceId: string): 
 
 /**
  * Resolve one metadata identifier to the unified record. Exactly one of
- * doi/isbn/arxiv (400 otherwise — the route only delegates here when at least
- * one is present, so this is the two-or-more guard). The pref gate runs
- * before the cache: a hard-off resolver answers 403 even for cached records.
- * Provider misses answer 404; provider failures/timeouts answer 502.
+ * doi/isbn/arxiv/pmid/ads (400 otherwise — the route only delegates here when
+ * at least one is present, so this is the two-or-more guard). The pref gate
+ * runs before the cache: a hard-off resolver answers 403 even for cached
+ * records. The ADS provider needs the calling user's own API token (their
+ * per-user pref, read by the route) — an ads lookup without one is a 422,
+ * never a silent skip. After a successful resolve with a DOI, the Unpaywall
+ * enrichment adds the open-access PDF link when one exists (never fails the
+ * resolve). Provider misses answer 404; provider failures/timeouts answer 502.
  */
 export async function resolveSourceMetadata(
   ctx: ServerContext,
   workspaceId: string,
-  params: { doi?: string | undefined; isbn?: string | undefined; arxiv?: string | undefined },
+  params: {
+    doi?: string | undefined;
+    isbn?: string | undefined;
+    arxiv?: string | undefined;
+    pmid?: string | undefined;
+    ads?: string | undefined;
+  },
+  options: { adsApiToken?: string | undefined } = {},
 ): Promise<SourceMetadataRecord> {
   const present = (
     [
       ["doi", params.doi],
       ["isbn", params.isbn],
       ["arxiv", params.arxiv],
+      ["pmid", params.pmid],
+      ["ads", params.ads],
     ] as Array<[IdentifierKind, string | undefined]>
   ).filter((entry): entry is [IdentifierKind, string] => entry[1] !== undefined);
   if (present.length !== 1) {
     throw new AppError(
       400,
       "validation_failed",
-      "exactly one of ?doi=, ?isbn=, or ?arxiv= is required",
+      "exactly one of ?doi=, ?isbn=, ?arxiv=, ?pmid=, or ?ads= is required",
     );
   }
   const [kind, raw] = present[0]!;
@@ -571,16 +846,29 @@ export async function resolveSourceMetadata(
   const cached = ctx.resolverCache.get(key);
   if (cached !== null) return cached;
 
+  if (kind === "ads" && (options.adsApiToken ?? "") === "") {
+    throw new AppError(
+      422,
+      "validation_failed",
+      "an ADS API token is required for bibcode lookups — add yours in Settings → Account",
+    );
+  }
+
   const timeoutMs = ctx.config.resolverTimeoutMs;
   const record =
     kind === "doi"
       ? await resolveDoi(raw, timeoutMs)
       : kind === "isbn"
         ? await resolveIsbn(raw, timeoutMs)
-        : await resolveArxiv(raw, timeoutMs);
+        : kind === "arxiv"
+          ? await resolveArxiv(raw, timeoutMs)
+          : kind === "pmid"
+            ? await resolvePmid(raw, timeoutMs)
+            : await resolveAds(raw, options.adsApiToken!, timeoutMs);
   if (record === null) {
     throw new AppError(404, "not_found", `no metadata found for ${kind} "${raw}"`);
   }
+  await enrichOpenAccessPdf(record, timeoutMs);
   ctx.resolverCache.set(key, record);
   return record;
 }
