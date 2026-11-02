@@ -950,58 +950,61 @@ describe("displayTemplate placeholder parsing and validation", () => {
   });
 });
 
-describe("SYSTEM_SOURCE_CLASS_BINDINGS (source-library slice 1, task 5)", () => {
+describe("SYSTEM_SOURCE_CLASS_BINDINGS (source-library slice 1, task 5; skip list emptied 2026-11-02)", () => {
   // The FULL expected per-class binding table — mechanically derived from
   // `zotero/zotero-schema`'s itemTypes field lists (the task-snapshot JSON):
   // every Zotero field maps to its pool key (abstractNote→abstract,
   // type→workType, ISSN→issn), minus `title` (title-is-content), `citationKey`,
   // and the source-base family riding SYSTEM_PROPERTY_SPECS bindTo (authors/
   // linkedAuthors/editors/doi/isbn/publicationDate/publisher/citekey/url/
-  // attachments), intersected with the task-4 pool; fields with no pool
-  // property are skipped (full list: source-class-bindings.ts). This object
-  // IS the spec's data — a Zotero schema update forces a conscious decision
-  // here. Judgment calls (kept classes without an exact Zotero counterpart):
-  // song ← audioRecording, tv_series ← tvBroadcast, conference ← the
-  // conferencePaper + presentation union.
+  // attachments/pmid/pmcid) — after the 2026-11-02 full-alignment slice
+  // NOTHING else is skipped: the 31 pool properties added in that slice bind
+  // every remaining Zotero field, the legal-case set (caseName/court/
+  // docketNumber/reporter/reporterVolume/firstPage/dateDecided) riding
+  // `document`, Zotero's `case` fallback. This object IS the spec's data — a
+  // Zotero schema update forces a conscious decision here. Judgment calls
+  // (kept classes without an exact Zotero counterpart): song ← audioRecording,
+  // tv_series ← tvBroadcast, conference ← the conferencePaper + presentation
+  // union.
   const expected: Record<string, readonly string[]> = {
-    artwork: ["abstract", "accessDate", "archive", "archiveLocation", "artworkMedium", "artworkSize", "callNumber", "eventPlace", "extra", "language", "rights", "shortTitle"],
-    audio_recording: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "label", "language", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "volume"],
-    bill: ["abstract", "accessDate", "code", "codePages", "codeVolume", "extra", "history", "language", "legislativeBody", "rights", "section", "session", "shortTitle"],
+    artwork: ["abstract", "accessDate", "archive", "archiveLocation", "artworkMedium", "artworkSize", "callNumber", "eventPlace", "extra", "language", "libraryCatalog", "rights", "shortTitle"],
+    audio_recording: ["abstract", "accessDate", "archive", "archiveLocation", "audioRecordingFormat", "callNumber", "extra", "label", "language", "libraryCatalog", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "volume"],
+    bill: ["abstract", "accessDate", "billNumber", "code", "codePages", "codeVolume", "extra", "history", "language", "legislativeBody", "libraryCatalog", "rights", "section", "session", "shortTitle"],
     blog_post: ["abstract", "accessDate", "blogTitle", "extra", "issn", "language", "rights", "shortTitle", "websiteType"],
-    book: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "format", "issn", "language", "numPages", "numberOfVolumes", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
-    book_section: ["abstract", "accessDate", "archive", "archiveLocation", "bookTitle", "callNumber", "edition", "extra", "format", "issn", "language", "numberOfVolumes", "pages", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
-    computer_program: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "company", "extra", "place", "programmingLanguage", "rights", "seriesTitle", "shortTitle", "system", "versionNumber"],
-    conference: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "eventPlace", "extra", "issn", "issue", "language", "meetingName", "numberOfVolumes", "pages", "place", "proceedingsTitle", "rights", "series", "seriesNumber", "shortTitle", "volume"],
-    conference_paper: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "eventPlace", "extra", "issn", "issue", "language", "numberOfVolumes", "pages", "place", "proceedingsTitle", "rights", "series", "seriesNumber", "shortTitle", "volume"],
-    dataset: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "format", "identifier", "language", "repository", "repositoryLocation", "rights", "shortTitle", "versionNumber", "workType"],
-    dictionary_entry: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "language", "numberOfVolumes", "pages", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
-    document: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "language", "place", "rights", "shortTitle", "workType"],
-    email: ["abstract", "accessDate", "extra", "language", "rights", "shortTitle"],
-    encyclopedia_article: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "language", "numberOfVolumes", "pages", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
-    film: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "distributor", "extra", "genre", "language", "place", "rights", "runningTime", "shortTitle"],
+    book: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "format", "issn", "language", "libraryCatalog", "numPages", "numberOfVolumes", "originalDate", "originalPlace", "originalPublisher", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
+    book_section: ["abstract", "accessDate", "archive", "archiveLocation", "bookTitle", "callNumber", "edition", "extra", "format", "issn", "language", "libraryCatalog", "numberOfVolumes", "originalDate", "originalPlace", "originalPublisher", "pages", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
+    computer_program: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "company", "extra", "libraryCatalog", "place", "programmingLanguage", "rights", "seriesTitle", "shortTitle", "system", "versionNumber"],
+    conference: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "conferenceName", "eventPlace", "extra", "issn", "issue", "language", "libraryCatalog", "meetingName", "numberOfVolumes", "pages", "place", "presentationType", "proceedingsTitle", "rights", "series", "seriesNumber", "sessionTitle", "shortTitle", "volume"],
+    conference_paper: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "conferenceName", "eventPlace", "extra", "issn", "issue", "language", "libraryCatalog", "numberOfVolumes", "pages", "place", "proceedingsTitle", "rights", "series", "seriesNumber", "shortTitle", "volume"],
+    dataset: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "format", "identifier", "language", "libraryCatalog", "repository", "repositoryLocation", "rights", "shortTitle", "versionNumber", "workType"],
+    dictionary_entry: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "dictionaryTitle", "edition", "extra", "language", "libraryCatalog", "numberOfVolumes", "pages", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
+    document: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "caseName", "court", "dateDecided", "docketNumber", "extra", "firstPage", "language", "libraryCatalog", "place", "reporter", "reporterVolume", "rights", "shortTitle", "workType"],
+    email: ["abstract", "accessDate", "extra", "language", "rights", "shortTitle", "subject"],
+    encyclopedia_article: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "encyclopediaTitle", "extra", "language", "libraryCatalog", "numberOfVolumes", "pages", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
+    film: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "distributor", "extra", "genre", "language", "libraryCatalog", "place", "rights", "runningTime", "shortTitle", "videoRecordingFormat"],
     forum_post: ["abstract", "accessDate", "extra", "forumTitle", "language", "postType", "rights", "shortTitle"],
     hearing: ["abstract", "accessDate", "committee", "documentNumber", "extra", "history", "language", "legislativeBody", "numberOfVolumes", "pages", "place", "rights", "session", "shortTitle"],
     instant_message: ["abstract", "accessDate", "extra", "language", "rights", "shortTitle"],
-    interview: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "interviewMedium", "language", "place", "rights", "shortTitle"],
-    journal_article: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "issn", "issue", "language", "pages", "place", "publicationTitle", "rights", "section", "series", "seriesTitle", "shortTitle", "volume"],
-    letter: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "eventPlace", "extra", "language", "letterType", "rights", "shortTitle"],
-    magazine_article: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "issn", "issue", "language", "pages", "place", "publicationTitle", "rights", "shortTitle", "volume"],
-    manuscript: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "institution", "language", "numPages", "number", "place", "rights", "shortTitle"],
-    map: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "language", "place", "rights", "scale", "seriesTitle", "shortTitle"],
-    newspaper_article: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "issn", "issue", "language", "pages", "place", "publicationTitle", "rights", "section", "shortTitle", "volume"],
-    patent: ["abstract", "accessDate", "applicationNumber", "assignee", "extra", "filingDate", "issueDate", "issuingAuthority", "language", "legalStatus", "pages", "patentNumber", "place", "priorityDate", "priorityNumbers", "references", "rights", "shortTitle"],
-    podcast: ["abstract", "accessDate", "episodeNumber", "extra", "language", "place", "rights", "runningTime", "seriesTitle", "shortTitle"],
-    preprint: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "genre", "language", "place", "repository", "rights", "series", "seriesNumber", "shortTitle"],
-    presentation: ["abstract", "accessDate", "extra", "language", "meetingName", "place", "rights", "series", "shortTitle"],
-    radio_broadcast: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "network", "place", "programTitle", "rights", "runningTime", "shortTitle"],
-    report: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "institution", "issn", "language", "pages", "place", "reportNumber", "reportType", "rights", "seriesNumber", "seriesTitle", "shortTitle"],
-    song: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "label", "language", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "volume"],
-    standard: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "committee", "edition", "extra", "language", "numPages", "number", "place", "rights", "shortTitle", "status", "versionNumber", "workType"],
+    interview: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "interviewMedium", "language", "libraryCatalog", "place", "rights", "shortTitle"],
+    journal_article: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "issn", "issue", "journalAbbreviation", "language", "libraryCatalog", "pages", "partNumber", "partTitle", "place", "publicationTitle", "rights", "section", "series", "seriesText", "seriesTitle", "shortTitle", "volume"],
+    letter: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "eventPlace", "extra", "language", "letterType", "libraryCatalog", "rights", "shortTitle"],
+    magazine_article: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "issn", "issue", "language", "libraryCatalog", "pages", "place", "publicationTitle", "rights", "shortTitle", "volume"],
+    manuscript: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "institution", "language", "libraryCatalog", "manuscriptType", "numPages", "number", "place", "rights", "shortTitle"],
+    map: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "language", "libraryCatalog", "mapType", "place", "rights", "scale", "seriesTitle", "shortTitle"],
+    newspaper_article: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "issn", "issue", "language", "libraryCatalog", "pages", "place", "publicationTitle", "rights", "section", "shortTitle", "volume"],
+    patent: ["abstract", "accessDate", "applicationNumber", "assignee", "country", "extra", "filingDate", "issueDate", "issuingAuthority", "language", "legalStatus", "pages", "patentNumber", "place", "priorityDate", "priorityNumbers", "references", "rights", "shortTitle"],
+    podcast: ["abstract", "accessDate", "audioFileType", "episodeNumber", "extra", "language", "place", "rights", "runningTime", "seriesTitle", "shortTitle"],
+    preprint: ["abstract", "accessDate", "archive", "archiveID", "archiveLocation", "callNumber", "extra", "genre", "language", "libraryCatalog", "place", "repository", "rights", "series", "seriesNumber", "shortTitle"],
+    presentation: ["abstract", "accessDate", "extra", "language", "meetingName", "place", "presentationType", "rights", "series", "sessionTitle", "shortTitle"],
+    radio_broadcast: ["abstract", "accessDate", "archive", "archiveLocation", "audioRecordingFormat", "callNumber", "episodeNumber", "extra", "language", "libraryCatalog", "network", "place", "programTitle", "rights", "runningTime", "shortTitle"],
+    report: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "institution", "issn", "language", "libraryCatalog", "pages", "place", "reportNumber", "reportType", "rights", "seriesNumber", "seriesTitle", "shortTitle"],
+    song: ["abstract", "accessDate", "archive", "archiveLocation", "audioRecordingFormat", "callNumber", "extra", "label", "language", "libraryCatalog", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "volume"],
+    standard: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "committee", "edition", "extra", "language", "libraryCatalog", "numPages", "number", "organization", "partNumber", "partTitle", "place", "rights", "shortTitle", "status", "versionNumber", "workType"],
     statute: ["abstract", "accessDate", "code", "codeNumber", "dateEnacted", "extra", "history", "language", "nameOfAct", "pages", "publicLawNumber", "rights", "section", "session", "shortTitle"],
-    thesis: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "issn", "language", "numPages", "place", "rights", "series", "seriesNumber", "shortTitle", "thesisType", "university"],
-    tv_broadcast: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "network", "place", "programTitle", "rights", "runningTime", "shortTitle"],
-    tv_series: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "network", "place", "programTitle", "rights", "runningTime", "shortTitle"],
-    video_recording: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "language", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "studio", "volume"],
+    thesis: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "issn", "language", "libraryCatalog", "numPages", "place", "rights", "series", "seriesNumber", "shortTitle", "thesisType", "university"],
+    tv_broadcast: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "libraryCatalog", "network", "place", "programTitle", "rights", "runningTime", "shortTitle"],
+    tv_series: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "libraryCatalog", "network", "place", "programTitle", "rights", "runningTime", "shortTitle"],
+    video_recording: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "language", "libraryCatalog", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "studio", "videoRecordingFormat", "volume"],
     web_page: ["abstract", "accessDate", "extra", "language", "place", "rights", "shortTitle", "websiteTitle", "websiteType"],
   };
 
@@ -1038,6 +1041,9 @@ describe("SYSTEM_SOURCE_CLASS_BINDINGS (source-library slice 1, task 5)", () => 
       book: ["title", "abstractNote", "series", "seriesNumber", "volume", "numberOfVolumes", "edition", "date", "publisher", "place", "originalDate", "originalPublisher", "originalPlace", "format", "numPages", "ISBN", "DOI", "citationKey", "url", "accessDate", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
       thesis: ["title", "abstractNote", "thesisType", "university", "place", "date", "series", "seriesNumber", "numPages", "DOI", "ISBN", "citationKey", "url", "accessDate", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
       document: ["title", "abstractNote", "type", "date", "publisher", "place", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
+      // Zotero's legal-case type — no Notees class; its fields ride the
+      // `document` fallback (full-alignment slice, 2026-11-02).
+      case: ["title", "caseName", "abstractNote", "court", "dateDecided", "docketNumber", "firstPage", "history", "reporter", "reporterVolume", "language", "url", "accessDate", "shortTitle", "rights", "extra", "citationKey"],
       audioRecording: ["title", "abstractNote", "audioRecordingFormat", "seriesTitle", "volume", "numberOfVolumes", "label", "place", "date", "runningTime", "ISBN", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
       tvBroadcast: ["title", "abstractNote", "programTitle", "episodeNumber", "videoRecordingFormat", "network", "place", "date", "runningTime", "DOI", "citationKey", "url", "accessDate", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
       conferencePaper: ["title", "abstractNote", "proceedingsTitle", "conferenceName", "publisher", "place", "date", "eventPlace", "volume", "issue", "numberOfVolumes", "pages", "series", "seriesNumber", "DOI", "ISBN", "citationKey", "url", "accessDate", "ISSN", "archive", "archiveLocation", "shortTitle", "language", "libraryCatalog", "callNumber", "rights", "extra"],
@@ -1054,7 +1060,7 @@ describe("SYSTEM_SOURCE_CLASS_BINDINGS (source-library slice 1, task 5)", () => 
       web_page: ["webpage"],
       book: ["book"],
       thesis: ["thesis"],
-      document: ["document"],
+      document: ["document", "case"],
       song: ["audioRecording"],
       tv_series: ["tvBroadcast"],
       conference: ["conferencePaper", "presentation"],

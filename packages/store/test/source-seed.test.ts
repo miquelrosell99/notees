@@ -420,12 +420,12 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           `${name}: no class_property row on source`,
         ).toBeUndefined();
       }
-      // The shared base keeps its binding rows on source (pmid joined the
-      // base family 2026-11-02 — the resolver's PMID support).
+      // The shared base keeps its binding rows on source (pmid + pmcid joined
+      // the base family 2026-11-02 — the resolver's PMID/PMCID support).
       const baseFamily: SystemPropertyName[] = [
         "authors", "linkedAuthors", "editors", "doi", "isbn",
         "publicationDate", "publisher", "citekey", "url", "attachments",
-        "pmid",
+        "pmid", "pmcid",
       ];
       for (const name of baseFamily) {
         expect(
@@ -467,12 +467,14 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // bookTitle is a bind:false pool field bound ONLY on the book family —
       // it must not leak onto the journal through the source base.
       expect(journal).not.toContain(SYSTEM_PROPERTY_UUIDS.bookTitle);
-      // The case orphans have no pool schema at all: no
-      // "Docket number" schema exists anywhere in the seed.
+      // The case orphans joined the pool in the 2026-11-02 full-alignment
+      // slice: the "Docket number" schema now exists, bound on `document`
+      // only — the journal must not resolve it.
       const docket = store.database
         .prepare("SELECT id FROM property_schema WHERE name = ?")
         .get("Docket number");
-      expect(docket).toBeUndefined();
+      expect(docket).toBeDefined();
+      expect(journal).not.toContain(SYSTEM_PROPERTY_UUIDS.docketNumber);
 
       // A song: its Zotero audioRecording set carries volume but NOT the
       // journal's issue/pages/publicationTitle.
