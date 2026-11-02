@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(scripts): import-zotero-rdf parses owner-locale dates (DD/MM/YYYY,
+  "de" long form, ranges, month-first).** `parseRdfDate` gains four
+  owner-locale tiers (single-owner deployment, owner-locale Spanish — the
+  locale assumption is explicit in the function header): all-numeric
+  three-part `DD/MM/YYYY` and `DD-MM-YYYY` at day precision, real-calendar
+  validated (so `31/02/2024` is rejected, not clamped); day ranges
+  `D-D Month YYYY` (EN or ES names) take the start day; the Spanish "de"
+  long form with the second de optional (`28 de julio de 2023`, `28 de
+  julio 2023`); and EN month-first `Month D YYYY` (comma optional). The
+  two-part `MM/YYYY` tier is untouched — `01/2022` keeps month precision
+  (two-part vs three-part). The hand-resolution hint now names the new
+  accepted forms. Pin: `apps/server/test/import-zotero-rdf-date.test.ts`.
 - **fix(scripts): verify-migration pages the convergence envelope-id check.**
   `GET /api/admin/convergence` caps `envelopeIds` at 100 ids per request (a
   protective bound), but verify-migration sent a whole migration batch as one
