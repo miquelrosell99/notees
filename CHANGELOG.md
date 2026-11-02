@@ -9,6 +9,13 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(web): the bullet is the multi/single text-property discriminator.**
+  Value rows are uniform between multi and single rows except the bullet:
+  multi-value rows show it (a value list reads as blocks), single-value
+  rows keep it hidden — a `nt-property-text--multi`/`--single` modifier on
+  the row scopes the existing hide rule to single only. **Verification:**
+  web property suites + css-token-drift green; full suite in the landing run.
+
 - **feat(web): uniform value-row chrome in the properties cell, a stable
   rest→edit swap, and the trailing ghost replaces Add.** The multi-value
   text rows rendered data-dependent chrome (backlink badge, collapse rail,
