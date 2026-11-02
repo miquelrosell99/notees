@@ -7,8 +7,13 @@
  * Rules pinned here:
  *  - strict ISO unchanged: "2022" / "2022-03" / "2022-03-15" at their
  *    precisions; invalid calendars ("2016-13-01") still rejected; the tier
- *    is end-anchored — trailing garbage ("2022-03-15foo", "2022 (repr.)",
- *    "2023/09/07") rejects instead of silently reading a year prefix;
+ *    is end-anchored — trailing garbage ("2022-03-15foo", "2023/09/07")
+ *    rejects instead of silently reading a year prefix; bibliographic
+ *    DECORATIONS are not garbage: a sanitation pre-pass (whitespace, one
+ *    trailing period — twice for "2022.." — trailing comma, whole-string
+ *    "(...)" / "[...]" wrappers, leading circa markers "c2022" / "ca. 2022")
+ *    strips them before the tiers, so "2022.", "(2022)", "June 2016." parse
+ *    while infix garbage ("2022 (repr.)") stays null;
  *  - full month name + year, case-insensitive, optional comma ("June 2016",
  *    "JUNE 2022", "June, 2016") → month precision; English AND Spanish full
  *    names (the owner's library is ES/EN); abbreviations stay rejected;
@@ -44,7 +49,22 @@ describe("parseRdfDate", () => {
   it("rejects strict ISO prefixes with trailing garbage (end-anchored)", () => {
     expect(parseRdfDate("2023/09/07")).toBeNull(); // YYYY/MM/DD slashes — no tier claims this.
     expect(parseRdfDate("2022-03-15foo")).toBeNull();
-    expect(parseRdfDate("2022 (repr.)")).toBeNull(); // a year prefix is not a year.
+    expect(parseRdfDate("2022 (repr.)")).toBeNull(); // infix garbage — a year prefix is not a year.
+    expect(parseRdfDate("2022-03-15 (print)")).toBeNull(); // same, at day precision.
+  });
+
+  it("sanitizes decorated dates before the tiers", () => {
+    // Trailing period (once, twice), whole-string wrappers, circa markers.
+    expect(parseRdfDate("2022.")).toEqual({ iso: "2022-01-01", precision: "year" });
+    expect(parseRdfDate("2022..")).toEqual({ iso: "2022-01-01", precision: "year" });
+    expect(parseRdfDate("(2022)")).toEqual({ iso: "2022-01-01", precision: "year" });
+    expect(parseRdfDate("[2022]")).toEqual({ iso: "2022-01-01", precision: "year" });
+    expect(parseRdfDate("June 2016.")).toEqual({ iso: "2016-06-01", precision: "month" });
+    expect(parseRdfDate("(June 2016)")).toEqual({ iso: "2016-06-01", precision: "month" });
+    expect(parseRdfDate("c2022")).toEqual({ iso: "2022-01-01", precision: "year" });
+    expect(parseRdfDate("C2022")).toEqual({ iso: "2022-01-01", precision: "year" });
+    expect(parseRdfDate("ca. 2022")).toEqual({ iso: "2022-01-01", precision: "year" });
+    expect(parseRdfDate("ca 2022")).toEqual({ iso: "2022-01-01", precision: "year" });
   });
 
   it("accepts full English month name + year, case-insensitive", () => {

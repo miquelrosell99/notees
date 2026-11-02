@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-11-02
 
+- **fix(scripts): import-zotero-rdf sanitizes decorated dates (wrappers,
+  trailing period, circa) before parsing.** End-anchoring the strict ISO
+  tier (previous entry) regressed real library data: hundreds of catalog
+  dates carry bibliographic decorations verbatim and silently demoted to
+  hand-resolution. `parseRdfDate` now runs an idempotent sanitation
+  pre-pass before all tiers — trim; one trailing period (twice, so
+  "2022.." collapses) and one trailing comma; balanced "(...)" / "[...]"
+  wrappers only when the whole string is wrapped ("(June 2016)" parses,
+  infix "2022 (repr.)" stays null); leading circa markers ("c2022",
+  "ca. 2022") stripped with the rest's precision kept. No write-path
+  change — unparsable still writes nothing. Pin:
+  `apps/server/test/import-zotero-rdf-date.test.ts`.
 - **fix(scripts): anchor the strict ISO date tier; month-first accepts
   EN+ES deliberately.** `parseRdfDate`'s strict ISO regex was not
   end-anchored, so a year prefix with trailing garbage silently read as
