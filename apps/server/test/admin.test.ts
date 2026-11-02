@@ -21,6 +21,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { newEnvelope, type Envelope } from "@notees/protocol";
+import { Store } from "@notees/store";
+import { betterSqlite3Backend } from "../../../packages/store/src/adapters/better-sqlite3.ts";
 
 import {
   closeTestServer,
@@ -164,6 +166,62 @@ describe("POST /api/admin/append", () => {
       payload: { workspaceId: WORKSPACE, envelopes: migrationBatch() },
     });
     expect(anonymous.statusCode).toBe(401);
+  });
+});
+
+describe("hydration with a partial-coverage snapshot", () => {
+  it("restores the snapshot and replays only the tail — no whole-log replay (the 2026-11-02 wedge fix)", async () => {
+    const WS = "4b7d1a00-2222-4000-8000-000000000004";
+    // A six-envelope client history appended DIRECTLY to the relay (the
+    // manager never sees these — the workspace handle is opened later).
+    const history = Array.from({ length: 6 }, (_, index) =>
+      testEnvelope({
+        workspaceId: WS,
+        opType: "propertySchema.create",
+        payload: {
+          propertySchemaId: `01920000-0000-7000-8000-0000000000${String(index + 10).padStart(2, "0")}`,
+          name: `Probe ${index}`,
+          type: "text",
+        },
+      }),
+    );
+    const relay = new RelayStorage(
+      join(server!.dataDir, "relay.db"),
+      join(server!.dataDir, "snapshots"),
+    );
+    try {
+      const { seqs } = relay.ingest(history);
+      // A client snapshot covering only the FIRST FOUR envelopes (the live
+      // case: a client uploaded at a seq behind the log head).
+      const scratch = Store.open(betterSqlite3Backend(":memory:"));
+      for (const env of history.slice(0, 4)) scratch.apply(env);
+      const bytes = scratch.snapshot();
+      scratch.close();
+      relay.saveSnapshot(
+        WS,
+        "01920000-0000-7000-8000-0000000000f0",
+        relay.maxHlc(WS),
+        seqs[history[3]!.id]!,
+        Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes),
+      );
+    } finally {
+      relay.close();
+    }
+
+    // Opening the handle must converge: restore (4) + tail replay (2) —
+    // not a six-envelope-from-zero replay, and not a snapshot-coverage
+    // gate skip that would replay the whole log either.
+    const convergence = await admin(
+      "GET",
+      `/api/admin/convergence?workspaceId=${WS}&envelopeIds=${history[5]!.id}`,
+    );
+    expect(convergence.statusCode).toBe(200);
+    expect(convergence.json().envelopes[history[5]!.id]).toBe(true);
+    // All six schemas present in the server's derived store.
+    const store = server!.ctx.workspaces.storeFor(WS);
+    expect(
+      (store.database.prepare("SELECT COUNT(*) n FROM property_schema").get() as { n: number }).n,
+    ).toBe(6);
   });
 });
 

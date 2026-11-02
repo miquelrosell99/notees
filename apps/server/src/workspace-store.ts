@@ -214,34 +214,28 @@ export class WorkspaceManager {
         .get() as { n: number }
     ).n;
     const snapshot = this.relay.latestSnapshot(workspaceId);
-    const maxSeq = this.relay.latestSeq(workspaceId);
-    if (appliedCount === 0 && snapshot !== null && snapshot.up_to_seq >= maxSeq) {
+    // Restore the latest snapshot whenever the store is EMPTY — even when
+    // the log has moved PAST it. The tail replay below starts at the
+    // snapshot's up_to_seq and hasApplied makes any overlap harmless, so a
+    // partial-coverage snapshot still saves the full log replay: a 308k-
+    // envelope hydrate blocked the event loop for 20+ minutes on a live-
+    // scale workspace (2026-11-02) where restore+tail took seconds. The
+    // strict up_to_seq >= maxSeq gate only protected against double-
+    // applying envelopes the restore already carries — the replay skips
+    // them by id, so the gate bought nothing the idempotency didn't.
+    let afterSeq = 0;
+    if (appliedCount === 0 && snapshot !== null) {
       const bytes = this.relay.readSnapshotData(snapshot.id);
       if (bytes !== null && bytes.length > 0) {
         handle.store.restore(bytes);
+        afterSeq = snapshot.up_to_seq;
       }
     }
-    // Replay remaining log envelopes; applyMany-style idempotency (applied_envelope)
-    // makes the overlap with a restored snapshot harmless. The E2EE slot
-    // ({"$e": …}) rides the log but is not applicable to derived state.
-    const log = this.relay.allEnvelopes(workspaceId);
-    let pending = 0;
-    for (const envelope of log) {
-      if (handle.store.hasApplied(envelope.id)) continue;
-      if (isEncryptedPayload(envelope.payload)) continue;
-      try {
-        handle.store.apply(envelope);
-      } catch (error) {
-        if (error instanceof StoreError) {
-          pending += 1;
-          continue;
-        }
-        throw error;
-      }
-    }
-    handle.pending = pending;
+    // The E2EE slot ({"$e": …}) rides the log but is not applicable to
+    // derived state. StoreError skips count as pending and retry on the
+    // next pass (an envelope whose parent has not arrived yet).
+    this.replaySince(handle, workspaceId, afterSeq);
     handle.hydrated = true;
-    handle.lastSeq = maxSeq;
     this.ensureSnapshotAfterReplay(workspaceId, handle);
   }
 
