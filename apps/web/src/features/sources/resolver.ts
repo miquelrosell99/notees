@@ -6,7 +6,7 @@
  * picker row compose it.
  *
  * The unified record answers verbatim: {classKey, title, authors[], editors[],
- * fields{}, doi?, isbn?, pmid?, url?, year?, publisher?} — the ?url= PDF mode
+ * fields{}, doi?, isbn?, pmid?, pmcid?, url?, year?, publisher?} — the ?url= PDF mode
  * adds pdf:{url} (the attach intent: the direct full-text link; the bytes
  * never reach the client, so the create flow links the URL, never a CAS
  * upload). Records whose identifier resolution produced a DOI may also carry
@@ -44,6 +44,8 @@ export interface ResolvedSourceRecord {
   doi?: string;
   isbn?: string;
   pmid?: string;
+  /** The PubMed Central identifier ("PMC" prefix included, verbatim). */
+  pmcid?: string;
   url?: string;
   year?: number;
   publisher?: string;
@@ -166,6 +168,7 @@ function normalizeRecord(body: unknown): ResolvedSourceRecord {
     ...(typeof record.doi === "string" ? { doi: record.doi } : {}),
     ...(typeof record.isbn === "string" ? { isbn: record.isbn } : {}),
     ...(typeof record.pmid === "string" ? { pmid: record.pmid } : {}),
+    ...(typeof record.pmcid === "string" ? { pmcid: record.pmcid } : {}),
     ...(typeof record.url === "string" ? { url: record.url } : {}),
     ...(typeof record.year === "number" && Number.isFinite(record.year) ? { year: record.year } : {}),
     ...(typeof record.publisher === "string" ? { publisher: record.publisher } : {}),

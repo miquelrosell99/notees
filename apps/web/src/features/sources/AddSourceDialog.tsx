@@ -125,6 +125,7 @@ function prefillOf(
   seed("doi", record.doi ?? undefined);
   seed("isbn", record.isbn ?? undefined);
   seed("pmid", record.pmid ?? undefined);
+  seed("pmcid", record.pmcid ?? undefined);
   // The URL-mode PDF's direct link is the honest full-text URL — it wins
   // over the provider's landing page (the user pasted the PDF link).
   // pdfUrlOverride is the OA chip's effective state: the fetched link when
@@ -467,6 +468,7 @@ export function AddSourceDialog({
               {fetched.record.doi !== undefined && <span>DOI {fetched.record.doi}</span>}
               {fetched.record.isbn !== undefined && <span>ISBN {fetched.record.isbn}</span>}
               {fetched.record.pmid !== undefined && <span>PMID {fetched.record.pmid}</span>}
+              {fetched.record.pmcid !== undefined && <span>PMCID {fetched.record.pmcid}</span>}
             </p>
           </div>
         )}

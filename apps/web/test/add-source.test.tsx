@@ -108,6 +108,7 @@ const PMID_RECORD = {
   editors: [],
   fields: { publicationTitle: "The Medical Journal" },
   pmid: "25495683",
+  pmcid: "PMC4321079",
   year: 2015,
 };
 
@@ -1020,6 +1021,7 @@ describe("AddSourceDialog", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
     const card = await previewCardOf(dialog);
     expect(within(card).getByText(/pmid 25495683/i)).not.toBeNull();
+    expect(within(card).getByText(/pmcid pmc4321079/i)).not.toBeNull();
     fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
 
     // The inline pause: the alert names the match, nothing created yet.
@@ -1028,13 +1030,16 @@ describe("AddSourceDialog", () => {
     expect(within(duplicate).getByText(/already in your library/i)).not.toBeNull();
     expect(created.length).toBe(0);
 
-    // Create anyway proceeds — the article lands with its PMID.
+    // Create anyway proceeds — the article lands with its PMID and PMCID.
     fireEvent.click(within(duplicate).getByRole("button", { name: /create anyway/i }));
     await waitFor(() => expect(created.length).toBe(1));
     const rows = client.getEffectiveProperties(created[0]!);
     expect(
       rows.find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.pmid)?.value,
     ).toBe("25495683");
+    expect(
+      rows.find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.pmcid)?.value,
+    ).toBe("PMC4321079");
   });
 
   it("the duplicate pause's Cancel dismisses without creating, and the open-existing link calls onOpenNode", async () => {
