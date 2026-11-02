@@ -968,7 +968,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
             title={`${collapsedDescendantCount} block${collapsedDescendantCount === 1 ? "" : "s"} inside`}
           >
             <Badge size="xs" variant="secondary">
-              {collapsedDescendantCount}
+              +{collapsedDescendantCount}
             </Badge>
           </span>
         )}

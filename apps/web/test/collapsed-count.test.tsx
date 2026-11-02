@@ -64,9 +64,10 @@ describe("collapsed descendant count", () => {
     fireEvent.click(screen.getAllByLabelText("Collapse block")[0]);
 
     // A hides B, C and D — three recursive blocks, not two direct children.
+    // The pill reads "+N" (additive: N MORE inside), tooltip names the count.
     const pill = container.querySelector(".nt-block-collapsed-count");
     expect(pill).not.toBeNull();
-    expect(pill!.textContent).toBe("3");
+    expect(pill!.textContent).toBe("+3");
     expect(pill!.getAttribute("title")).toBe("3 blocks inside");
     expect(container.querySelectorAll(".nt-block-collapsed-count")).toHaveLength(1);
     // The hidden subtree's rows (and their own chevrons) unmounted with the
@@ -89,7 +90,7 @@ describe("collapsed descendant count", () => {
 
     const pill = container.querySelector(".nt-block-collapsed-count");
     expect(pill).not.toBeNull();
-    expect(pill!.textContent).toBe("1");
+    expect(pill!.textContent).toBe("+1");
     expect(pill!.getAttribute("title")).toBe("1 block inside");
   });
 });
