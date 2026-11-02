@@ -9,6 +9,29 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(web): hover-revealed descendant-count pill on collapsed
+  blocks.** A collapsed block with children now answers "what's hiding
+  under here?" without expanding it: hovering the row slides a small
+  count pill out of the bullet (inline, between the bullet and the
+  text — never in the chevron gutter or over the indent rails),
+  carrying the TOTAL RECURSIVE count of blocks hidden under the fold
+  (walked once per subtree change, memoized at the row — no wire,
+  store, or protocol change) with a tooltip naming it ("N blocks
+  inside"). Hidden at rest — the resting trail stays clean per the
+  gutter idiom; the reveal clips the wrapper from zero to content
+  width (the Badge's own min-width would defeat the clip from the
+  inside), fading and sliding in from the bullet on the standard
+  motion tokens, with the reduced-motion snap riding the global
+  app.css media query. The pill composes the kit `Badge` (xs,
+  secondary); the wrapper owns the animation, the tooltip, and the
+  same baseline strut + optical lift the property icon groups ride.
+  `apps/web/src/ui/BlockRow.tsx`, `apps/web/src/ui/BlockRow.css`;
+  `docs/features/outliner.md` Collapse ruling updated. Verified: web
+  typecheck + build green, the full web suite (242 files / 2725
+  tests) green including the new `apps/web/test/collapsed-count.test.tsx`
+  (recursive-vs-direct count, singular/plural tooltip, pill absent
+  while expanded, subtree rows unmounted under a fold).
+
 - **feat(server,operations): apply-through-server migrations, the
   self-heal sweep, and an API-level migration verify.** The 2026-11-02 pmid
   migration post-check burned hours on false "not converged" readings —

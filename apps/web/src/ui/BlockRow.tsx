@@ -153,6 +153,14 @@ import { deriveListMarker } from "./listStyle.js";
  *  collapsed properties panel below omits them (no duplicated value read). */
 const ROW_DISPLAY_POSITIONS = ["bullet", "inline"] as const;
 
+/** Total recursive descendants of a block-tree level — the count hidden
+ *  under a collapse (walked once per subtree change, memoized at the row). */
+function countDescendants(nodes: BlockTreeNode[]): number {
+  let total = 0;
+  for (const child of nodes) total += 1 + countDescendants(child.children);
+  return total;
+}
+
 interface BlockRowProps {
   tree: BlockTreeNode;
   client: WorkspaceClient | WorkerClient;
@@ -335,6 +343,13 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
   const backlinkCount = hideBacklinks ? 0 : client.getBacklinkCount(node.id);
   const [backlinksExpanded, setBacklinksExpanded] = useState(false);
   const isCollapsed = collapsed.has(node.id);
+  // The collapsed descendant count (the hover-revealed pill after the
+  // bullet): the full recursive subtree walk, memoized on the children
+  // reference — recomputed only when the subtree actually changes.
+  const collapsedDescendantCount = useMemo(
+    () => (isCollapsed && children.length > 0 ? countDescendants(children) : 0),
+    [isCollapsed, children],
+  );
   // The classes column's own lock: date-chain nodes carry their precision's
   // system class and nothing else (SCHEMA.md "Datetime"), so their pills
   // render static everywhere — otherwise the column is mutable on EVERY
@@ -941,6 +956,22 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
             )}
           </span>
         </span>
+        {/* Collapsed descendant count: hidden at rest, slides out of the
+           bullet on ROW hover (BlockRow.css — the wrapper clips from zero
+           to content width, so the reveal pushes the row's text right like
+           the pill grows out of the bullet). The wrapper owns the tooltip
+           and the reveal; the pill itself is the kit Badge (its min-width
+           would defeat the wrapper's max-width clip from the inside). */}
+        {isCollapsed && children.length > 0 && (
+          <span
+            className="nt-block-collapsed-count"
+            title={`${collapsedDescendantCount} block${collapsedDescendantCount === 1 ? "" : "s"} inside`}
+          >
+            <Badge size="xs" variant="secondary">
+              {collapsedDescendantCount}
+            </Badge>
+          </span>
+        )}
         {/* The value-display buttons: the bullet group
             hugs the bullet element, the inline group hugs the content.
             Siblings of the grip and content — never inside .nt-block-content
