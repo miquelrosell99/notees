@@ -60,7 +60,7 @@ export const SYSTEM_SOURCE_CLASS_BINDINGS: Partial<
 > = {
   audio_recording: ["abstract", "accessDate", "archive", "archiveLocation", "audioRecordingFormat", "callNumber", "extra", "label", "language", "libraryCatalog", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "volume"],
   artwork: ["abstract", "accessDate", "archive", "archiveLocation", "artworkMedium", "artworkSize", "callNumber", "eventPlace", "extra", "language", "libraryCatalog", "rights", "shortTitle"],
-  bill: ["abstract", "accessDate", "billNumber", "code", "codePages", "codeVolume", "extra", "history", "language", "legislativeBody", "libraryCatalog", "rights", "section", "session", "shortTitle"],
+  bill: ["abstract", "accessDate", "billNumber", "code", "codePages", "codeVolume", "extra", "history", "language", "legislativeBody", "rights", "section", "session", "shortTitle"],
   blog_post: ["abstract", "accessDate", "blogTitle", "extra", "issn", "language", "rights", "shortTitle", "websiteType"],
   book: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "edition", "extra", "format", "issn", "language", "libraryCatalog", "numPages", "numberOfVolumes", "originalDate", "originalPlace", "originalPublisher", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
   book_section: ["abstract", "accessDate", "archive", "archiveLocation", "bookTitle", "callNumber", "edition", "extra", "format", "issn", "language", "libraryCatalog", "numberOfVolumes", "originalDate", "originalPlace", "originalPublisher", "pages", "place", "rights", "series", "seriesNumber", "shortTitle", "volume"],
@@ -96,9 +96,9 @@ export const SYSTEM_SOURCE_CLASS_BINDINGS: Partial<
   standard: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "committee", "edition", "extra", "language", "libraryCatalog", "numPages", "number", "organization", "partNumber", "partTitle", "place", "rights", "shortTitle", "status", "versionNumber", "workType"],
   statute: ["abstract", "accessDate", "code", "codeNumber", "dateEnacted", "extra", "history", "language", "nameOfAct", "pages", "publicLawNumber", "rights", "section", "session", "shortTitle"],
   thesis: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "issn", "language", "libraryCatalog", "numPages", "place", "rights", "series", "seriesNumber", "shortTitle", "thesisType", "university"],
-  tv_broadcast: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "libraryCatalog", "network", "place", "programTitle", "rights", "runningTime", "shortTitle"],
+  tv_broadcast: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "libraryCatalog", "network", "place", "programTitle", "rights", "runningTime", "shortTitle", "videoRecordingFormat"],
   // ← tvBroadcast (see the header note).
-  tv_series: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "libraryCatalog", "network", "place", "programTitle", "rights", "runningTime", "shortTitle"],
+  tv_series: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "episodeNumber", "extra", "language", "libraryCatalog", "network", "place", "programTitle", "rights", "runningTime", "shortTitle", "videoRecordingFormat"],
   video_recording: ["abstract", "accessDate", "archive", "archiveLocation", "callNumber", "extra", "language", "libraryCatalog", "numberOfVolumes", "place", "rights", "runningTime", "seriesTitle", "shortTitle", "studio", "videoRecordingFormat", "volume"],
   web_page: ["abstract", "accessDate", "extra", "language", "place", "rights", "shortTitle", "websiteTitle", "websiteType"],
 };
