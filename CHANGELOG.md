@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(domain): full Zotero field alignment — the skip list is empty.**
+  Every Zotero field now maps to a source property: 31 new pool schemas
+  (…0006-…000000000057–…075 — the 117-schema bibliographic pool) with
+  `pmcid` pinned onto the source base family alongside `pmid` (the
+  resolver's PubMed support extracts PMCIDs server- and client-side), and
+  the per-class binding table (`SYSTEM_SOURCE_CLASS_BINDINGS`) now binds
+  each of the 39 type-classes' COMPLETE Zotero field set — the only
+  unmapped fields remain the title (title-is-content), the citation key
+  (`Citekey`), and the fields the base family already carries. Two
+  corrections rode the bindings pass: tv binds `videoRecordingFormat`
+  (not the audio format), and bill drops `libraryCatalog` (no such Zotero
+  field — never invent one; a full-schema spot check now guards the
+  manifest). Live workspaces converge by
+  `scripts/migrate-zotero-full-alignment.mts` (Path A — the batch table is
+  derived from the domain manifests, appended envelopes, dry-run default,
+  the live-stack `--apply --server` path), and the CLI gains
+  `notees import zotero-rdf` (`scripts/zotero-rdf-parser.mts` +
+  `scripts/import-zotero-rdf.mts`): a Zotero RDF export reconciles
+  citekey-keyed — update/adopt/create, Notees-wins fills only, idempotent,
+  `--dry-run` first. **Client lockstep check (law 10):** the GTK + Flutter
+  repos were grepped for the bibliographic pool slice — neither client
+  carries it (class UUIDs + extends only), so the new schemas and binding
+  rows converge through the log; no client code change. **Verification:**
+  domain 171 passed (9 files); server 395 passed (43 files, incl. the
+  migrate-zotero-full-alignment + seed-pins e2e); store 1100 passed
+  (20 files); web 2736 passed (242 files).
+
 - **feat(web): the bullet is the multi/single text-property discriminator.**
   Value rows are uniform between multi and single rows except the bullet:
   multi-value rows show it (a value list reads as blocks), single-value
