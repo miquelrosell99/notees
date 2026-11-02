@@ -12,6 +12,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import type { ContentAst } from "@notees/protocol";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
@@ -43,7 +44,7 @@ async function seedClient(): Promise<WorkspaceClient> {
   return client;
 }
 
-const text = (t: string) => [{ type: "text", text: t }];
+const text = (t: string): ContentAst => [{ type: "text", text: t }];
 
 describe("collapsed descendant count", () => {
   it("counts the total recursive blocks hidden under a collapsed block", async () => {
@@ -61,7 +62,7 @@ describe("collapsed descendant count", () => {
 
     // Two collapsible blocks in this seed (A and B) — two chevrons. A is
     // the first row in document order.
-    fireEvent.click(screen.getAllByLabelText("Collapse block")[0]);
+    fireEvent.click(screen.getAllByLabelText("Collapse block")[0]!);
 
     // A hides B, C and D — three recursive blocks, not two direct children.
     // The pill reads "+N" (additive: N MORE inside), tooltip names the count.
