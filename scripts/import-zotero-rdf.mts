@@ -586,6 +586,18 @@ const MONTH_NAME_TO_NUMBER: ReadonlyMap<string, number> = new Map(
 );
 
 /** The precision an RDF date string claims — the coarsest shape present.
+ *  A SANITATION PRE-PASS runs before all tiers (idempotent — the strips
+ *  never re-introduce each other, and the loop runs until stable):
+ *  trim whitespace; strip ONE trailing period (twice, so "2022.." →
+ *  "2022") and one trailing comma; strip balanced surrounding wrappers
+ *  when the WHOLE string is wrapped — "(2022)" → "2022", "[2022]" →
+ *  "2022", "(June 2016)" → "June 2016" (INFIX wrappers never strip:
+ *  "2022 (repr.)" stays unparsable); strip a leading circa marker
+ *  ("c2022", "C2022", "ca. 2022", "ca 2022") and parse the rest — the
+ *  rest's precision is kept ("ca. 2022" → year, "ca. 2022-03-15" → day).
+ *  Zotero's `dc:date` carries these decorations verbatim from real
+ *  library catalogs; without the pre-pass the end-anchored strict ISO
+ *  tier demotes every decorated date to hand-resolution.
  *  Tiers, strictest first (Zotero exports `dc:date` verbatim, so real
  *  files carry human dates alongside the ISO shapes):
  *  1. strict ISO — `YYYY[-MM[-DD]]`, END-ANCHORED: a year prefix with
@@ -612,7 +624,24 @@ const MONTH_NAME_TO_NUMBER: ReadonlyMap<string, number> = new Map(
  *  Everything else — abbreviations, bare ranges without month/year,
  *  garbage — returns null and lands in the hand-resolution list. */
 export function parseRdfDate(value: string): { iso: string; precision: "year" | "month" | "day" } | null {
-  const text = value.trim();
+  let text = value.trim();
+  // Sanitation pre-pass — documented in the header. Loop until stable so
+  // composed decorations ("(2022).") collapse; bounded, idempotent.
+  for (let pass = 0; pass < 4; pass++) {
+    const before = text;
+    // One trailing period (a second pass collapses "2022.."), one comma.
+    if (text.endsWith(".") || text.endsWith(",")) text = text.slice(0, -1).trim();
+    // Whole-string wrappers only — never infix.
+    if (
+      text.length > 2 &&
+      ((text.startsWith("(") && text.endsWith(")")) || (text.startsWith("[") && text.endsWith("]")))
+    ) {
+      text = text.slice(1, -1).trim();
+    }
+    // Leading circa marker, only when a digit follows ("c2022", "ca. 2022").
+    text = text.replace(/^c(?:a\.?)?\s*(?=\d)/i, "");
+    if (text === before) break;
+  }
   const strict = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(text);
   if (strict !== null) {
     const [, year, month, day] = strict;
