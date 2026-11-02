@@ -8,8 +8,8 @@
  * renders a slim virtual entry — the realized entries' own embedded date
  * header (the DayPageHeader: weekday + Today flags above the title, the
  * week flag after it) with the ghost's own "No page" flag, the outliner's
- * ghost add row and the same "Open page" button the written entries wear. Two materialize paths (both
- * journal-gated, both through `ensureDateChain`): the ghost realize —
+ * ghost add row and the same "Open page" button the written entries wear.
+ * Two materialize paths (both through `ensureDateChain`): the ghost realize —
  * the day's first real write, born with an empty block ready to type
  * into — and the Open-page navigate, which creates the day and opens the
  * full page view (the owner ruling: navigating a ghost day realizes it).
@@ -322,10 +322,11 @@ export function JournalsView({
    * the chain (creating the node, or restoring a pre-lock trashed one) and
    * add the day's first empty block, so the entry swaps to the full
    * editable page view with a row ready to type into (the ghost's own
-   * contract — the click IS the add). Behind the journal feature gate.
+   * contract — the click IS the add). Not feature-gated: the journal
+   * toggle gates the SURFACE at the route (the App guard), so a mounted
+   * view's affordances always work.
    */
   const startDay = (iso: string): void => {
-    if (!client.isFeatureEnabled("journal")) return;
     void client
       .ensureDateChain(iso)
       .then(({ day }) => client.createObject({ parentId: day, contentAst: [] }))
@@ -335,10 +336,10 @@ export function JournalsView({
   /**
    * The virtual entry's "Open page" navigate: materialize the chain (the
    * owner ruling — navigating a ghost day creates it) and open the full
-   * page view. Behind the journal feature gate like the ghost realize.
+   * page view. Ungated like the ghost realize — the route guard is the
+   * single journal-toggle chokepoint.
    */
   const openDay = (iso: string): void => {
-    if (!client.isFeatureEnabled("journal")) return;
     void client
       .ensureDateChain(iso)
       .then(({ day }) => onOpenPage(day))
@@ -480,9 +481,7 @@ export function JournalsView({
                       </div>
                     </header>
                   </div>
-                  {client.isFeatureEnabled("journal") && (
-                    <GhostRow parentId={entry.id} onRealize={() => startDay(entry.iso)} />
-                  )}
+                  <GhostRow parentId={entry.id} onRealize={() => startDay(entry.iso)} />
                 </div>
               )}
             </article>

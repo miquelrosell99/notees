@@ -9,6 +9,43 @@ predating this file.
 
 ## 2026-11-02
 
+- **refactor(web): the journal toggle gates the surface at the route, not
+  the view's affordances.** The journal feature flag's protocol semantics
+  ("gates the journal SURFACES — the journal nav view, Today-page
+  management/auto-creation") were implemented at the wrong layer: the
+  journal view's ghost add row, ghost realize, and Open-page navigate each
+  carried their own `isFeatureEnabled("journal")` check, so a mounted view
+  showed visibly present, silently dead controls — while the `/journal`
+  route itself resolved with the flag off (a stale deep link or the boot
+  default opened the half-disabled surface). One chokepoint now: an App
+  guard effect redirects journal nav to the Pages hub with the URL
+  **replaced** (never pushed — a disabled surface leaves no history entry;
+  the nav stack's current slot follows, the navigateCalendar replace
+  precedent), covering boot deep links, back/forward landings, the boot
+  default (`initialNav`'s journal fallback), and live toggles
+  (`pagesVersion` in the deps re-fires the guard on the toggle's
+  notification). The sidebar already hid the Journal/Today rows; the
+  workspace-switch landing's Today materialize gained the same gate the
+  sidebar/palette path had. `JournalsView` dropped all three in-view
+  checks — a mounted view's affordances always work. Calendar untouched
+  (its own surface; the journal flag names the date classes always-on, not
+  the calendar).
+  - **Files**: `apps/web/src/ui/App.tsx` (the guard effect + the
+    `openWorkspaceLanding` Today gate), `apps/web/src/features/calendar/JournalsView.tsx`,
+    `docs/feature-status.md` (the toggle row's semantics). Tests:
+    `apps/web/test/journals-view.test.tsx` — two assertions from the
+    earlier same-day date-header slice were stale (the virtual entry's old
+    icon-parity register, the realized entry's plain-title assertion;
+    that slice's scoped gate ran the wrong test files — the full gate
+    would have caught them) and now pin the DayPageHeader register; a new
+    test pins the ungating (ghost row renders and realizes with the
+    journal feature off). Two mini-month tests repaired: they assumed
+    `today - N` shares today's month, so they failed on the 1st–5th of any
+    month (today is the 2nd) — the grid now steps to the previous period
+    when the target crosses the boundary. Verified: `@notees/web`
+    typecheck green, journals-view suite 20 green, routing
+    suites green.
+
 - **feat(web): the journal's day entries wear the date header — weekday,
   Today, and ISO week on every day page, and a "No page" flag on ghost
   days.** The journal feed rendered each realized day as a plain embedded

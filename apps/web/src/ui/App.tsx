@@ -573,7 +573,11 @@ export function App() {
       setSourcesQuery(DEFAULT_SOURCES_QUERY);
       pushNav(path, { nav });
     };
-    if (view === "today" && live !== null) {
+    // The journal toggle gates Today-page management (the protocol's own
+    // words for the journal feature): with it off the Today landing falls
+    // through to the Pages hub — no chain auto-creation (the AppBody
+    // sidebar/palette guard's precedent).
+    if (view === "today" && live !== null && live.isFeatureEnabled("journal")) {
       const now = new Date();
       const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
         now.getDate(),
@@ -610,6 +614,35 @@ export function App() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  /**
+   * The journal feature flag gates the journal SURFACE (protocol: the
+   * journal entry gates "the journal SURFACES — the journal nav view,
+   * Today-page management/auto-creation"), so with the flag off the
+   * /journal route does not resolve: the fallback is the Pages hub and the
+   * URL is REPLACED, never pushed — a disabled surface leaves no history
+   * entry — with the nav stack's current slot following the replaced URL
+   * (the navigateCalendar replace precedent). The guard is the SINGLE
+   * chokepoint: in-app navigation can't produce journal (the sidebar hides
+   * the row), so this covers the remaining entries — a boot deep link, a
+   * back/forward landing, and the boot default (initialNav falls back to
+   * journal when no device defaultView is set — a bare-/ boot rewrites
+   * twice, /journal then /pages, before sync settles). pagesVersion in the
+   * deps re-fires the guard on a live toggle (a setFeatureEnabled write
+   * rides the client notification): disabling the journal with the feed
+   * open leaves it for the currently-mounted session only until the next
+   * navigation.
+   */
+  useEffect(() => {
+    if (activeNav !== "journal" || client === null || client.isFeatureEnabled("journal")) return;
+    setActiveNav("pages");
+    const url = pathForNav("pages");
+    window.history.replaceState({ node: null, nav: "pages" }, "", url);
+    setNavStack((stack) => ({
+      ...stack,
+      entries: stack.entries.map((entry, i) => (i === stack.index ? url : entry)),
+    }));
+  }, [activeNav, client, pagesVersion]);
 
   // Appearance (theme / OLED / accent) is device-local; apply it to <html>
   // on boot (index.html already applied it pre-paint) and re-apply when the
