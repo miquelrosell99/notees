@@ -1,45 +1,117 @@
 /**
- * The Zotero RDF bulk importer — PLANNER portion.
+ * The Zotero RDF bulk importer (2026-11-02, the Zotero-full-alignment
+ * slice): a Zotero library export becomes citekey-keyed upsert envelopes
+ * on the workspace's op log — the sources library converges by APPENDED
+ * envelopes (migrations.md Path A), never by editing the relay log.
  *
- * Pure matching: parsed RDF items (zotero-rdf-parser.mts) against the
- * workspace's existing source state, producing the write plan Task 7's CLI
- * half consumes verbatim. Nothing here touches argv, the filesystem, or a
- * Store — the CLI wires the reader adapter (its nodeValues half reads the
- * matched node's current pool values from the scratch projection;
- * multi-value properties ride as "; "-joined strings, the
- * sourcesQuery.ts authorsText convention).
+ * Two halves:
  *
- * Match order per item (the duplicates.ts / citekeyTrack.ts semantics):
- *  1. citationKey exact hit → `update`;
- *  2. else DOI hit (case-insensitive) → `adopt` — the Zotero citationKey
- *     rides into `sets` under the citekey key;
- *  3. else ISBN hit (digit/X-normalized) → `adopt`, same;
- *  4. else `create` (also: nothing to match on — no citationKey AND no
- *     doi/isbn — still plans as a create).
- * A doi/isbn match on a node carrying a DIFFERENT citekey reports the
- * old-vs-new pair in `conflicts` — never silently merged (Review Focus 3).
+ *  PLANNER (pure): parsed RDF items (zotero-rdf-parser.mts) matched against
+ *  the workspace's existing source state, producing the write plan the CLI
+ *  consumes verbatim. Match order per item (the duplicates.ts /
+ *  citekeyTrack.ts semantics):
+ *   1. citationKey exact hit → `update`;
+ *   2. else DOI hit (case-insensitive) → `adopt` — the Zotero citationKey
+ *      rides into `sets` under the citekey key;
+ *   3. else ISBN hit (digit/X-normalized) → `adopt`, same;
+ *   4. else `create` (also: nothing to match on — no citationKey AND no
+ *      doi/isbn — still plans as a create).
+ *  A doi/isbn match on a node carrying a DIFFERENT citekey reports the
+ *  old-vs-new pair in `conflicts` — never silently merged (Review Focus 3).
+ *  Value comparison: whitespace collapsed on both sides before equality;
+ *  DOI case-insensitive, ISBN stripped to digits+X (uppercase); creators/
+ *  editors compare as their "; "-joined strings. Equal values are removed
+ *  from `sets` (log-growth hygiene — a re-run plans empty sets); differing
+ *  values become `conflicts` entries — `keepExisting: true` drops them from
+ *  `sets` (only empty fields fill), `false` keeps them (RDF wins).
+ *  Same-file duplicate citationKeys: Zotero guarantees unique keys, a
+ *  hand-edited file may not — every occurrence after the first is flagged
+ *  `duplicateOf` plus a conflict entry; the CLI skips flagged entries.
  *
- * Value comparison: whitespace collapsed on both sides before equality;
- * DOI case-insensitive, ISBN stripped to digits+X (uppercase) — the
- * identifier precedents; creators/editors compare as their "; "-joined
- * strings. Equal values are removed from `sets` (log-growth hygiene — a
- * re-run plans empty sets); differing values become `conflicts` entries —
- * `keepExisting: true` drops them from `sets` (only empty fields fill),
- * `false` keeps them (RDF wins).
+ *  CLI: argv (--file/--workspace/--data-dir/--server/--api-key/--apply/
+ *  --keep-existing), the reader adapter over a scratch derived Store
+ *  (latest snapshot + log tail — the sync server's hydration shape), the
+ *  envelope writer and the report. DRY RUN BY DEFAULT: the report prints
+ *  the per-entry action summary, the per-field conflict table, the
+ *  skipped duplicates, the needs-hand-resolution list and the
+ *  attachment/collection counts, and writes nothing.
  *
- * Same-file duplicate citationKeys: Zotero guarantees unique keys, a
- * hand-edited file may not. Every occurrence after the first is flagged
- * `duplicateOf` (the plan index of the first entry) plus a conflict entry —
- * the plan never silently double-creates; the CLI skips flagged entries
- * on apply.
+ * The reader adapter (`buildStateReader`): the source family walks
+ * `classMembers(source)` (extends-aware, active-only — the same family
+ * read the web engine keys on); identifier equality rides the
+ * duplicates.ts normalizations (citekey trim+lowercase, doi
+ * trim+lowercase, isbn digits+X uppercase). `nodeValues` returns the
+ * matched node's pool-key → value map with multi-value rows "; "-joined
+ * (the sourcesQuery.ts authorsText convention); {nodeId} carrier values
+ * flatten to the target's display name, date refs to their display label
+ * ("2022") — the form the RDF-side string compares against.
+ *
+ * The envelope writer (`buildImportEnvelopes`): `create` rides ONE
+ * `object.create` — a parentless standalone node (isEmbedded false, the
+ * quickCreate.ts draft-create precedent) with `classIds` carrying the
+ * Zotero-type system class (class membership has no dedicated op — the
+ * classIds OR-Set carrier is the assignment) and the title as its
+ * contentAst (title-is-content) — followed by one `property.set` per
+ * `sets` entry; `update`/`adopt` ride the `property.set`s alone. A
+ * multi-value schema whose node already carries rows is emptied first
+ * (`property.empty` — a replace, never an accumulate). Datetime-typed
+ * fields (publicationDate, accessDate) resolve through the deterministic
+ * date chain: the year(/month/day) node is created when absent (the
+ * client-dates.ts ensure shape — compact labels, locked parents/classes)
+ * and the value rides a {nodeId} ref at the precision the RDF date
+ * claims; an unparseable date is reported under needs-hand-resolution,
+ * never written. Every envelope is zod-validated before insert; --apply
+ * posts batched to the running server's POST /api/admin/append (the one
+ * write path) or ingests into the relay directly, then verifies: the new
+ * envelopes read back protocol-valid and a FRESH scratch store applies
+ * the tail clean. Idempotent: a second run plans zero envelopes for
+ * converged values (Review Focus 4).
+ *
+ * Usage (from the repo root; the tsx binary lives in apps/server):
+ *   pnpm --filter @notees/server exec tsx ../../scripts/import-zotero-rdf.mts \
+ *     --file "Mi biblioteca.rdf" --workspace <uuid> \
+ *     [--data-dir config/notees/sync | --server http://localhost:8377 [--api-key …]] \
+ *     [--apply] [--keep-existing]
  */
 
+import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
 import {
+  envelopeSchema,
+  newEnvelope,
+  payloadSchemaFor,
+  type ContentAst,
+  type Envelope,
+} from "../packages/protocol/src/index.ts";
+import {
+  dateNodeDisplayLabel,
+  dateNodeId,
+  dateNodeLabel,
+  dayNodeId,
+  deriveDisplayName,
+  monthNodeId,
+  parseDateNodeId,
+  parseIsoDate,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
+  yearNodeId,
   ZOTERO_ITEM_TYPE_TO_CLASS,
+  type SystemClassName,
   type ZoteroItemType,
 } from "../packages/domain/src/index.ts";
+import { Store, visiblePropertyValueRows } from "../packages/store/src/index.ts";
+import { betterSqlite3Backend } from "../packages/store/src/adapters/better-sqlite3.ts";
 
-import type { ZoteroRdfItem } from "./zotero-rdf-parser.mts";
+import { RelayStorage } from "../apps/server/src/relay-storage.ts";
+
+import {
+  parseZoteroRdf,
+  type ZoteroRdfItem,
+  type ZoteroRdfParseResult,
+} from "./zotero-rdf-parser.mts";
 
 /** The workspace-state read the planner matches against (Task 7 wires it
  *  over a scratch Store). Match methods return the node's identity fields;
@@ -195,4 +267,697 @@ export function planImport(
   }
 
   return plan;
+}
+
+// --- CLI ----------------------------------------------------------------------
+
+const ACTOR = "01920000-0000-7000-8000-0000000000a8";
+const DEVICE = "import-zotero-rdf";
+const CLIENT = "import-zotero-rdf";
+
+/** The server's append ceiling (relay MAX_BATCH_ENVELOPES). */
+const SERVER_BATCH = 500;
+
+interface CliOptions {
+  file: string;
+  workspace: string;
+  dataDir: string;
+  apply: boolean;
+  keepExisting: boolean;
+  /** The live-stack path: apply through POST /api/admin/append. */
+  server: string | null;
+  apiKey: string | null;
+}
+
+function parseArgs(argv: string[]): CliOptions {
+  const value = (name: string): string | undefined => {
+    const index = argv.indexOf(name);
+    return index >= 0 ? argv[index + 1] : undefined;
+  };
+  const file = value("--file");
+  const workspace = value("--workspace");
+  if (file === undefined || file === "") {
+    throw new Error("usage: import-zotero-rdf.mts --file <rdf> --workspace <uuid> " +
+      "[--data-dir … | --server http://localhost:8377 [--api-key …]] [--apply] [--keep-existing]");
+  }
+  if (workspace === undefined || workspace === "") {
+    throw new Error("--workspace <uuid> is required (the import is one workspace at a time)");
+  }
+  return {
+    file,
+    workspace,
+    dataDir: value("--data-dir") ?? "config/notees/sync",
+    apply: argv.includes("--apply"),
+    keepExisting: argv.includes("--keep-existing"),
+    server: value("--server") ?? null,
+    apiKey: value("--api-key") ?? null,
+  };
+}
+
+/** A local uuidv7 (the graph-loadtest-seed precedent — uuidv7 is not
+ *  resolvable from scripts/, it lives in the packages' node_modules). */
+function uuidv7(now = Date.now()): string {
+  const b = randomBytes(16);
+  const t = BigInt(now);
+  for (let i = 5; i >= 0; i--) b[i] = Number((t >> BigInt((5 - i) * 8)) & 0xffn);
+  b[6] = (b[6]! & 0x0f) | 0x70;
+  b[8] = (b[8]! & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+/**
+ * The operator credential for the --server path: --api-key wins, else the
+ * stack's api_key.txt beside the data dir (the deploy layout).
+ */
+function operatorKeyOf(options: CliOptions): string {
+  if (options.apiKey !== null) return options.apiKey;
+  try {
+    return readFileSync(join(options.dataDir, "api_key.txt"), "utf8").trim();
+  } catch {
+    throw new Error(
+      "--server needs the operator key: pass --api-key or keep api_key.txt beside --data-dir",
+    );
+  }
+}
+
+/**
+ * Apply one batch through the running server (the one write path). Answers
+ * the saved ids — an empty list means the batch was already applied
+ * (idempotent re-run); the server's derived stores converge before the
+ * response, so no restart or cache wipe follows.
+ */
+async function appendViaServer(
+  options: CliOptions,
+  workspaceId: string,
+  envelopes: Envelope[],
+): Promise<{ savedIds: string[]; pending: number }> {
+  const base = options.server!.replace(/\/$/, "");
+  const response = await fetch(`${base}/api/admin/append`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "X-API-Key": operatorKeyOf(options) },
+    body: JSON.stringify({ workspaceId, envelopes }),
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`POST /api/admin/append answered ${response.status}: ${body}`);
+  }
+  const result = (await response.json()) as { savedIds: string[]; pending: number };
+  return { savedIds: result.savedIds, pending: result.pending };
+}
+
+// --- scratch derived store ----------------------------------------------------
+
+/**
+ * Restore the workspace's latest snapshot into a fresh in-memory store and
+ * apply every log envelope after it (the hydration shape the sync server
+ * uses). Throws on any StoreError — a tail that cannot apply must block the
+ * import, not be planned against.
+ */
+function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
+  const store = Store.open(betterSqlite3Backend(":memory:"));
+  const snapshot = relay.latestSnapshot(workspaceId);
+  let afterSeq = 0;
+  if (snapshot !== null) {
+    const bytes = relay.readSnapshotData(snapshot.id);
+    if (bytes === null) throw new Error(`snapshot ${snapshot.id} has no bytes on disk`);
+    store.restore(new Uint8Array(bytes));
+    afterSeq = snapshot.up_to_seq;
+  }
+  let cursor = afterSeq;
+  for (;;) {
+    const page = relay.catchUp(workspaceId, cursor, 10_000);
+    for (const envelope of page.envelopes) {
+      try {
+        store.apply(envelope);
+      } catch (error) {
+        store.close();
+        const detail = error instanceof Error ? error.message : String(error);
+        throw new Error(`tail apply failed at seq > ${cursor}: ${detail}`);
+      }
+    }
+    if (!page.hasMore || page.nextAfterSeq === null) break;
+    cursor = page.nextAfterSeq;
+  }
+  return store;
+}
+
+// --- the reader adapter ---------------------------------------------------------
+
+/** schemaId → pool key, for the system bibliographic pool only. */
+const POOL_KEY_OF_SCHEMA = new Map<string, string>(
+  Object.entries(SYSTEM_PROPERTY_UUIDS).map(([key, id]) => [id, key]),
+);
+
+/** The duplicates.ts identifier normalizations, verbatim. */
+function normalizeIdentifier(prop: "doi" | "isbn", value: string): string {
+  const collapsed = value.replace(/\s+/g, " ").trim();
+  return prop === "doi"
+    ? collapsed.toLowerCase()
+    : collapsed.replace(/[^0-9x]/gi, "").toUpperCase();
+}
+
+function normalizeCitekey(value: string): string {
+  return value.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** A stored property value flattened to its comparison text: strings as-is,
+ *  {nodeId} refs to the target's display name (date refs to their display
+ *  label — "2022"), ranges as their two side labels. */
+function valueTextOf(store: Store, raw: unknown): string {
+  if (typeof raw === "string") return raw;
+  if (raw === null || typeof raw !== "object") return "";
+  const record = raw as Record<string, unknown>;
+  const ref = typeof record.nodeId === "string" ? record.nodeId : null;
+  if (ref !== null) {
+    const parsed = parseDateNodeId(ref);
+    if (parsed !== null) return dateNodeDisplayLabel(parsed, parsed.precision);
+    const row = store.database.prepare("SELECT content FROM node WHERE id = ?").get(ref) as
+      | { content: string }
+      | undefined;
+    if (row === undefined) return "";
+    try {
+      const contentAst = JSON.parse(row.content) as ContentAst;
+      return deriveDisplayName({ id: ref, contentAst });
+    } catch {
+      return "";
+    }
+  }
+  if ("start" in record || "end" in record) {
+    const sides = [record.start, record.end]
+      .filter((side) => side !== null && side !== undefined)
+      .map((side) => valueTextOf(store, side))
+      .filter((side) => side !== "");
+    return sides.join(" – ");
+  }
+  return "";
+}
+
+/**
+ * The ImportStateReader over a scratch derived Store: the source family is
+ * `classMembers(source)` (extends-aware, active-only — the same read the
+ * web engine keys on); the index is built eagerly so `nodeValues` never
+ * touches the store after construction.
+ */
+export function buildStateReader(store: Store): ImportStateReader {
+  const valuesOf = (nodeId: string): Record<string, string> => {
+    const byKey = new Map<string, string[]>();
+    for (const row of visiblePropertyValueRows(store.database, nodeId)) {
+      const key = POOL_KEY_OF_SCHEMA.get(row.property_schema_id);
+      if (key === undefined) continue;
+      let text: string;
+      try {
+        text = valueTextOf(store, JSON.parse(row.value) as unknown);
+      } catch {
+        continue;
+      }
+      if (text.trim() === "") continue;
+      const list = byKey.get(key) ?? [];
+      list.push(text);
+      byKey.set(key, list);
+    }
+    const values: Record<string, string> = {};
+    for (const [key, list] of byKey) values[key] = list.join("; ");
+    return values;
+  };
+
+  const members = store
+    .classMembers(SYSTEM_CLASS_UUIDS.source)
+    .filter((row) => row.is_class === 0)
+    .map((row) => ({ nodeId: row.id, values: valuesOf(row.id) }));
+
+  return {
+    findSourceByCitekey(key) {
+      const wanted = normalizeCitekey(key);
+      if (wanted === "") return null;
+      for (const member of members) {
+        const citekey = member.values.citekey ?? "";
+        if (citekey !== "" && normalizeCitekey(citekey) === wanted) {
+          return {
+            nodeId: member.nodeId,
+            citekey,
+            ...(member.values.doi !== undefined ? { doi: member.values.doi } : {}),
+            ...(member.values.isbn !== undefined ? { isbn: member.values.isbn } : {}),
+          };
+        }
+      }
+      return null;
+    },
+    findSourceByIdentifier(prop, value) {
+      const wanted = normalizeIdentifier(prop, value);
+      if (wanted === "") return null;
+      for (const member of members) {
+        const hit = member.values[prop];
+        if (hit !== undefined && hit !== "" && normalizeIdentifier(prop, hit) === wanted) {
+          return { nodeId: member.nodeId, citekey: member.values.citekey ?? "" };
+        }
+      }
+      return null;
+    },
+    nodeValues(nodeId) {
+      return members.find((member) => member.nodeId === nodeId)?.values ?? {};
+    },
+  };
+}
+
+// --- the envelope writer ----------------------------------------------------------
+
+interface SchemaShape {
+  type: string;
+  multi: boolean;
+}
+
+export interface ImportEnvelopeBuild {
+  envelopes: Envelope[];
+  /** Datetime fields whose RDF value did not parse — reported, never written. */
+  unparsedDates: Array<{ index: number; key: string; value: string }>;
+}
+
+/** The precision an RDF date string claims — the coarsest shape present. */
+function parseRdfDate(value: string): { iso: string; precision: "year" | "month" | "day" } | null {
+  const match = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?/.exec(value.trim());
+  if (match === null) return null;
+  const [, year, month, day] = match;
+  const iso =
+    month === undefined
+      ? `${year}-01-01`
+      : day === undefined
+        ? `${year}-${month}-01`
+        : `${year}-${month}-${day}`;
+  try {
+    parseIsoDate(iso);
+  } catch {
+    return null;
+  }
+  return { iso, precision: day !== undefined ? "day" : month !== undefined ? "month" : "year" };
+}
+
+/**
+ * The write plan as envelopes, one ingest:
+ *  - `create` — object.create (parentless standalone node, isEmbedded false —
+ *    the quickCreate draft-create precedent; classIds carry the Zotero-type
+ *    system class, the OR-Set membership carrier is the assignment; the
+ *    title rides the contentAst, title-is-content) + one property.set per
+ *    sets entry;
+ *  - `update`/`adopt` — one property.set per sets entry.
+ * Multi-value schemas whose node already carries rows are emptied first
+ * (a replace, never an accumulate). Datetime values resolve through the
+ * deterministic date chain, creating the missing chain nodes (the
+ * client-dates.ts ensure shape).
+ */
+export function buildImportEnvelopes(
+  workspaceId: string,
+  plan: ImportPlanEntry[],
+  store: Store,
+): ImportEnvelopeBuild {
+  const physical = Date.now();
+  const envelopes: Envelope[] = [];
+  const unparsedDates: ImportEnvelopeBuild["unparsedDates"] = [];
+  let logical = 0;
+  const stamp = (opType: string, payload: Record<string, unknown>, affected: string[]): Envelope =>
+    newEnvelope({
+      workspaceId,
+      actorId: ACTOR,
+      deviceId: DEVICE,
+      client: CLIENT,
+      hlc: { physical, logical: logical++ },
+      affectedNodeIds: affected,
+      opType,
+      payload,
+    });
+
+  const schemaShapes = new Map<string, SchemaShape | undefined>();
+  const shapeOf = (schemaId: string): SchemaShape | undefined => {
+    if (!schemaShapes.has(schemaId)) {
+      const row = store.database
+        .prepare("SELECT type, multi FROM property_schema WHERE id = ?")
+        .get(schemaId) as { type: string; multi: number } | undefined;
+      schemaShapes.set(
+        schemaId,
+        row === undefined ? undefined : { type: row.type, multi: row.multi === 1 },
+      );
+    }
+    return schemaShapes.get(schemaId);
+  };
+
+  const nodeExists = (nodeId: string): boolean =>
+    store.database.prepare("SELECT 1 FROM node WHERE id = ?").get(nodeId) !== undefined;
+  const hasValueRows = (nodeId: string, schemaId: string): boolean =>
+    visiblePropertyValueRows(store.database, nodeId).some(
+      (row) => row.property_schema_id === schemaId,
+    );
+
+  /** Chain nodes emitted by THIS build — two items sharing a year mint it once. */
+  const mintedChain = new Set<string>();
+  const ensureChainNode = (
+    id: string,
+    parentId: string | null,
+    classKey: "year" | "month" | "day",
+    iso: string,
+  ): void => {
+    if (mintedChain.has(id) || nodeExists(id)) return;
+    mintedChain.add(id);
+    const parts = parseIsoDate(iso);
+    envelopes.push(
+      stamp(
+        "object.create",
+        {
+          objectId: id,
+          isEmbedded: false,
+          ...(parentId === null ? { parentId: null } : { parentId }),
+          classIds: [SYSTEM_CLASS_UUIDS[classKey]],
+          contentAst: [{ type: "text", text: dateNodeLabel(parts, classKey) }],
+        },
+        [id],
+      ),
+    );
+  };
+
+  for (const [index, entry] of plan.entries()) {
+    if (entry.duplicateOf !== undefined) continue; // same-file duplicate — skipped on apply.
+    const objectId =
+      entry.action === "create"
+        ? uuidv7(physical)
+        : entry.nodeId!;
+    const affected = [objectId];
+
+    if (entry.action === "create") {
+      envelopes.push(
+        stamp(
+          "object.create",
+          {
+            objectId,
+            isEmbedded: false,
+            classIds: [SYSTEM_CLASS_UUIDS[entry.classKey as SystemClassName]],
+            contentAst: [{ type: "text", text: entry.item.title }],
+          },
+          affected,
+        ),
+      );
+    }
+
+    for (const [key, value] of Object.entries(entry.sets)) {
+      const schemaId = SYSTEM_PROPERTY_UUIDS[key as keyof typeof SYSTEM_PROPERTY_UUIDS];
+      if (schemaId === undefined) {
+        throw new Error(`entry #${index}: the RDF field "${key}" has no system property schema`);
+      }
+      const shape = shapeOf(schemaId);
+      if (shape === undefined) {
+        throw new Error(
+          `entry #${index}: the ${key} schema (${schemaId}) is absent from this workspace — ` +
+            "seed/ensure it (a fresh workspace's next open self-heals; the pool converges by " +
+            "scripts/migrate-zotero-full-alignment.mts) before importing",
+        );
+      }
+      if (shape.multi && entry.action !== "create" && hasValueRows(objectId, schemaId)) {
+        // A changed multi-value field REPLACES the node's rows (the joined
+        // string rides one positional set) — never accumulates beside them.
+        envelopes.push(
+          stamp("property.empty", { objectId, propertySchemaId: schemaId }, affected),
+        );
+      }
+      if (shape.type === "datetime") {
+        const parsed = parseRdfDate(value);
+        if (parsed === null) {
+          unparsedDates.push({ index, key, value });
+          continue;
+        }
+        ensureChainNode(yearNodeId(parsed.iso), null, "year", parsed.iso);
+        if (parsed.precision === "month" || parsed.precision === "day") {
+          ensureChainNode(monthNodeId(parsed.iso), yearNodeId(parsed.iso), "month", parsed.iso);
+        }
+        if (parsed.precision === "day") {
+          ensureChainNode(
+            dayNodeId(parsed.iso),
+            monthNodeId(parsed.iso),
+            "day",
+            parsed.iso,
+          );
+        }
+        envelopes.push(
+          stamp(
+            "property.set",
+            { objectId, propertySchemaId: schemaId, value: { nodeId: dateNodeId(parsed.iso, parsed.precision) }, idx: 0 },
+            affected,
+          ),
+        );
+        continue;
+      }
+      envelopes.push(
+        stamp("property.set", { objectId, propertySchemaId: schemaId, value, idx: 0 }, affected),
+      );
+    }
+  }
+
+  return { envelopes, unparsedDates };
+}
+
+/**
+ * The protocol gate: every envelope must satisfy the envelope schema AND its
+ * per-op payload schema. Anything invalid aborts BEFORE anything is inserted.
+ */
+function validateEnvelopes(envelopes: Envelope[]): void {
+  const failures: string[] = [];
+  for (const envelope of envelopes) {
+    const envResult = envelopeSchema.safeParse(envelope);
+    if (!envResult.success) {
+      failures.push(`${envelope.opType} ${envelope.id}: envelope invalid — ${envResult.error.message}`);
+      continue;
+    }
+    const schema = payloadSchemaFor(envelope.opType);
+    if (schema === undefined) {
+      failures.push(`${envelope.opType} ${envelope.id}: no payload schema registered`);
+      continue;
+    }
+    const payloadResult = schema.safeParse(envelope.payload);
+    if (!payloadResult.success) {
+      failures.push(`${envelope.opType} ${envelope.id}: payload invalid — ${payloadResult.error.message}`);
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(
+      `refusing to insert: ${failures.length} invalid envelope(s):\n  ${failures.join("\n  ")}`,
+    );
+  }
+}
+
+// --- the report -------------------------------------------------------------------
+
+/** Adopts whose Zotero citationKey will NOT land: keepExisting dropped the
+ *  write (a genuine old-vs-new pair rides the conflicts), or the node
+ *  already carries the key modulo case (the normalizer treats both as equal,
+ *  so neither sets nor conflicts carry it). The operator must reconcile
+ *  these by hand — the whole point of an adopt is the key. */
+function handResolutionsOf(
+  plan: ImportPlanEntry[],
+  reader: ImportStateReader,
+): Array<{ index: number; title: string; nodeCitekey: string; rdfCitekey: string; reason: string }> {
+  const out: Array<{ index: number; title: string; nodeCitekey: string; rdfCitekey: string; reason: string }> = [];
+  for (const [index, entry] of plan.entries()) {
+    if (entry.action !== "adopt") continue;
+    const rdfKey = entry.item.citationKey;
+    if (rdfKey === undefined || rdfKey === "") continue;
+    if (entry.sets.citekey !== undefined) continue; // the write rides the plan.
+    const nodeCitekey = reader.nodeValues(entry.nodeId!).citekey ?? "";
+    if (nodeCitekey === "") continue; // empty → the fill rides sets (checked above).
+    const reason =
+      nodeCitekey.toLowerCase() === rdfKey.toLowerCase()
+        ? "case-only difference — the node already carries the key"
+        : "dropped by --keep-existing";
+    out.push({ index, title: entry.item.title, nodeCitekey, rdfCitekey: rdfKey, reason });
+  }
+  return out;
+}
+
+function printReport(
+  parsed: ZoteroRdfParseResult,
+  plan: ImportPlanEntry[],
+  options: CliOptions,
+  envelopeCount: number,
+  unparsedDates: ImportEnvelopeBuild["unparsedDates"],
+  handResolutions: ReturnType<typeof handResolutionsOf>,
+): void {
+  console.log(
+    `import plan — ${parsed.items.length} item(s), ${parsed.attachments} attachment(s), ` +
+      `${parsed.collections} collection(s) — ` +
+      `${options.apply ? "--apply" : "dry run"}${options.keepExisting ? " --keep-existing" : ""} ` +
+      `(${options.server ?? options.dataDir})`,
+  );
+
+  let creates = 0;
+  let updates = 0;
+  let adopts = 0;
+  let skipped = 0;
+  for (const [index, entry] of plan.entries()) {
+    const title = entry.item.title === "" ? "(untitled)" : entry.item.title;
+    if (entry.duplicateOf !== undefined) {
+      skipped += 1;
+      console.log(
+        `  [skip]   #${index} ${JSON.stringify(title)} — same-file duplicate of entry #${entry.duplicateOf} (citekey ${entry.item.citationKey ?? ""})`,
+      );
+      continue;
+    }
+    const writes = Object.keys(entry.sets).length;
+    if (entry.action === "create") {
+      creates += 1;
+      console.log(
+        `  [create] #${index} ${JSON.stringify(title)} → ${entry.classKey} — ` +
+          `${writes} field write(s), node minted`,
+      );
+    } else {
+      if (entry.action === "update") updates += 1;
+      else adopts += 1;
+      console.log(
+        `  [${entry.action}]  #${index} ${JSON.stringify(title)} → ${entry.nodeId} — ` +
+          `${writes} field write(s)`,
+      );
+    }
+  }
+
+  let conflictCount = 0;
+  for (const [index, entry] of plan.entries()) {
+    for (const conflict of entry.conflicts) {
+      // The same-file duplicate pseudo-conflict is reported on the skip line.
+      if (conflict.property === "citationKey" && conflict.nodeValue === "(earlier item in this file)") {
+        continue;
+      }
+      conflictCount += 1;
+      console.log(
+        `  ! #${index} ${entry.item.title}: ${conflict.property} — node=${JSON.stringify(conflict.nodeValue)} ` +
+          `rdf=${JSON.stringify(conflict.rdfValue)} → ${options.keepExisting ? "kept existing" : "RDF wins"}`,
+      );
+    }
+  }
+  if (conflictCount === 0) console.log("  conflicts: none — every differing field is listed above when present.");
+
+  for (const hand of handResolutions) {
+    console.log(
+      `  ~ #${hand.index} ${JSON.stringify(hand.title)} — needs hand-resolution: the adopt's citationKey ` +
+        `was not written (node carries ${JSON.stringify(hand.nodeCitekey)}, RDF ${JSON.stringify(hand.rdfCitekey)} ` +
+        `— ${hand.reason})`,
+    );
+  }
+  for (const unparsed of unparsedDates) {
+    console.log(
+      `  ~ #${unparsed.index} ${plan[unparsed.index]!.item.title}: ${unparsed.key} — needs hand-resolution: ` +
+        `unparsable date ${JSON.stringify(unparsed.value)} (want YYYY[-MM[-DD]])`,
+    );
+  }
+
+  console.log(
+    `  summary: ${creates} create(s), ${updates} update(s), ${adopts} adopt(s), ` +
+      `${skipped} skipped duplicate(s), ${conflictCount} conflicted field(s), ` +
+      `${handResolutions.length + unparsedDates.length} needing hand-resolution.`,
+  );
+  console.log(`${envelopeCount} envelope(s) built and protocol-validated.`);
+}
+
+// --- verification -----------------------------------------------------------------
+
+/**
+ * Post-insert verification, straight from the persisted log: the new
+ * envelopes read back (count + protocol validation) and a FRESH scratch
+ * store applies the tail INCLUDING them — zero StoreError throws.
+ */
+function verify(relay: RelayStorage, workspaceId: string, expectedCount: number): void {
+  const rows = relay
+    .allEnvelopes(workspaceId)
+    .filter((envelope) => envelope.deviceId === DEVICE);
+  if (rows.length !== expectedCount) {
+    throw new Error(`read-back mismatch: expected ${expectedCount} new envelopes, found ${rows.length}`);
+  }
+  for (const envelope of rows) {
+    const stored = envelopeSchema.parse(envelope);
+    const schema = payloadSchemaFor(stored.opType);
+    if (schema === undefined || !schema.safeParse(stored.payload).success) {
+      throw new Error(`read-back envelope ${stored.id} (${stored.opType}) fails protocol validation`);
+    }
+  }
+  const fresh = buildScratchStore(relay, workspaceId);
+  fresh.close();
+  console.log(
+    `verify: ${rows.length} new envelope(s) read back and protocol-valid; the tail applies clean through a fresh hydration.`,
+  );
+}
+
+// --- main ---------------------------------------------------------------------------
+
+async function main(): Promise<void> {
+  const options = parseArgs(process.argv.slice(2));
+  const xml = readFileSync(options.file, "utf8");
+  const parsed = parseZoteroRdf(xml);
+
+  const relay = new RelayStorage(
+    join(options.dataDir, "relay.db"),
+    join(options.dataDir, "snapshots"),
+  );
+  try {
+    console.log(
+      `\nworkspace ${options.workspace}: log seq ${relay.latestSeq(options.workspace)} ` +
+        `— import ${options.file}`,
+    );
+    const store = buildScratchStore(relay, options.workspace);
+    let reader: ImportStateReader;
+    let plan: ImportPlanEntry[];
+    let build: ImportEnvelopeBuild;
+    let handResolutions: ReturnType<typeof handResolutionsOf>;
+    try {
+      reader = buildStateReader(store);
+      plan = planImport(parsed.items, reader, { keepExisting: options.keepExisting });
+      build = buildImportEnvelopes(options.workspace, plan, store);
+      validateEnvelopes(build.envelopes);
+      handResolutions = handResolutionsOf(plan, reader);
+    } finally {
+      store.close();
+    }
+
+    printReport(parsed, plan, options, build.envelopes.length, build.unparsedDates, handResolutions);
+
+    if (!options.apply) {
+      console.log("dry run — re-run with --apply to append these envelopes to the relay log.");
+      return;
+    }
+    if (build.envelopes.length === 0) {
+      console.log("nothing to apply — every planned value already converged (idempotent re-run).");
+      return;
+    }
+
+    if (options.server !== null) {
+      let saved = 0;
+      let pending = 0;
+      for (let at = 0; at < build.envelopes.length; at += SERVER_BATCH) {
+        const result = await appendViaServer(
+          options,
+          options.workspace,
+          build.envelopes.slice(at, at + SERVER_BATCH),
+        );
+        saved += result.savedIds.length;
+        pending = result.pending;
+      }
+      console.log(
+        `applied ${saved} envelope(s) through ${options.server} in ` +
+          `${Math.ceil(build.envelopes.length / SERVER_BATCH)} batch(es) (pending skips: ${pending}). ` +
+          "The server's derived stores converged before the response — no restart needed.",
+      );
+      return;
+    }
+
+    const { savedIds } = relay.ingest(build.envelopes);
+    if (savedIds.length !== build.envelopes.length) {
+      throw new Error(`ingest saved ${savedIds.length}/${build.envelopes.length} envelopes (duplicate ids?)`);
+    }
+    console.log(`ingested ${savedIds.length} envelope(s) into the relay log.`);
+    verify(relay, options.workspace, build.envelopes.length);
+  } finally {
+    relay.close();
+  }
+}
+
+const invokedDirectly =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (invokedDirectly) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
 }
