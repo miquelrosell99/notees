@@ -336,6 +336,16 @@ button.nt-property-value:focus-visible {
   align-self: center;
 }
 
+/* The property value's MAIN (root) block hides its bullet — the row IS the
+   value, not an outliner citizen (no zoom/collapse semantics); the scalar
+   row's bullet hides the same way. Nested CHILDREN keep theirs (the
+   collapse affordance). */
+.nt-property-textcell .nt-block-tree > .outline-tree-row > .nt-block > .nt-block-row .nt-bullet,
+.nt-property-scalar-block > .nt-block-row > .nt-block-grip .nt-bullet,
+.nt-property-scalar-block > .nt-block-row > .nt-bullet {
+  display: none;
+}
+
 /* The trailing in-field affordance (the citekey regenerate button): the
    wrapper is the field's positioning context; the button rides at the
    right edge INSIDE the field (the searchbox clear-x pattern); the cell's

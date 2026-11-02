@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(web): the scalar property row's context menu + hidden root
+  bullets.** The node context menu was unreachable from the scalar value
+  row (the plain-string shape freshly authored values carry): the
+  right-click now mints the carrier WITHOUT the editor hand-off and opens
+  `NodeContextMenu` ON the minted carrier (the scalar isn't a node yet —
+  the menu gesture materializes it first, the ghost-realize precedent;
+  carrier rows already rode BlockRow's grip menu). And the property
+  value's MAIN (root) block hides its bullet — the row IS the value, not an
+  outliner citizen; nested children keep theirs (the collapse
+  affordance). e2e at `apps/web/test/property-scalar-menu.test.tsx`.
+  **Verification:** web suite green; typecheck clean; css-token-drift
+  green.
+
 - **fix(web): kit SelectTrigger labels clip long titles with an ellipsis.**
   The trigger's value span had `min-w-0` but no overflow rule, so a long
   node title (the Edit Link modal's target line, any node-picker trigger)
