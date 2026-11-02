@@ -234,12 +234,16 @@
    sliding in from the bullet, so the pill reads as growing out of the
    bullet and the collapsed row's text is pushed right by the reveal.
    The badge's own min-width would defeat the clip from the inside, so
-   the wrapper — not the Badge — carries the animation. The baseline
-   strut + -2px lift mirror .nt-block-bullet-props (an icon-only flex box
-   has no text baseline; same optical correction as the bullet). The
-   reduced-motion snap rides the global app.css media query. */
+   the wrapper — not the Badge — carries the animation. The row rides
+   align-items: baseline, which bottoms-out a fixed-height icon box, so
+   the pill opts out with align-self: center and then takes the grip
+   register's -2px optical lift (measured: the 24px badge centered reads
+   ~3px low against the 16px text baseline — the lift lands it on the
+   bullet dot's center). The reduced-motion snap rides the global
+   app.css media query. */
 .nt-block-collapsed-count {
   display: inline-flex;
+  align-self: center;
   overflow: hidden;
   max-inline-size: 0;
   opacity: 0;
@@ -248,12 +252,6 @@
     max-inline-size var(--motion-duration-short) var(--motion-easing-standard),
     opacity var(--motion-duration-short) var(--motion-easing-standard),
     transform var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.nt-block-collapsed-count::before {
-  content: "";
-  width: 0;
-  height: 6px;
 }
 
 .nt-block-row:hover .nt-block-collapsed-count {

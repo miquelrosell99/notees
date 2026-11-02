@@ -9,6 +9,17 @@ predating this file.
 
 ## 2026-11-02
 
+- **fix(web): vertical alignment of the collapsed-block count pill.** The
+  24px pill centered with `align-self: center` read ~3px low against the
+  16px text baseline (the row rides `align-items: baseline`, so the text
+  sits on the baseline, not the line center). It now takes the grip
+  register's -2px optical lift after centering — measured live at 1px
+  from the bullet dot's center, on the text's own visual center. The
+  first pass's baseline-strut approach retired: a fixed-height box in a
+  baseline row takes center + lift, no strut. Verified: live measurement
+  probe (dot↔badge delta 1px), the hover-reveal probe still PROBE-PASS,
+  css-token-drift + collapsed-count tests green.
+
 - **feat(web): hover-revealed descendant-count pill on collapsed
   blocks.** A collapsed block with children now answers "what's hiding
   under here?" without expanding it: hovering the row slides a small
@@ -24,7 +35,7 @@ predating this file.
   motion tokens, with the reduced-motion snap riding the global
   app.css media query. The pill composes the kit `Badge` (xs,
   secondary); the wrapper owns the animation, the tooltip, and the
-  same baseline strut + optical lift the property icon groups ride.
+  row's optical-lift alignment (see the alignment fix below).
   `apps/web/src/ui/BlockRow.tsx`, `apps/web/src/ui/BlockRow.css`;
   `docs/features/outliner.md` Collapse ruling updated. Verified: web
   typecheck + build green, the full web suite (242 files / 2725
