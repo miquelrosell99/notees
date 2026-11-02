@@ -336,13 +336,12 @@ button.nt-property-value:focus-visible {
   align-self: center;
 }
 
-/* The property value's MAIN (root) block hides its bullet — the row IS the
-   value, not an outliner citizen (no zoom/collapse semantics); the scalar
-   row's bullet hides the same way. Nested CHILDREN keep theirs (the
-   collapse affordance). */
-.nt-property-textcell .nt-block-tree > .outline-tree-row > .nt-block > .nt-block-row .nt-bullet,
-.nt-property-scalar-block > .nt-block-row > .nt-block-grip .nt-bullet,
-.nt-property-scalar-block > .nt-block-row > .nt-bullet {
+/* The SINGLE-value property row hides its value bullets — one value is not
+   a list, the bullet is noise (the 2026-11-02 ruling, refined: the bullet
+   is the MULTI-value discriminator, shown there). Nested children keep
+   theirs (the collapse affordance) in both. */
+.nt-property-text--single .nt-block-tree > .outline-tree-row > .nt-block > .nt-block-row .nt-bullet,
+.nt-property-text--single .nt-property-scalar-block > .nt-block-row > .nt-bullet {
   display: none;
 }
 

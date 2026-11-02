@@ -555,6 +555,10 @@ export function TextPropertyRow({
         (allDefault
           ? `nt-property nt-property-default nt-property-text node-metadata-row${rowClassName}`
           : `nt-property nt-property-text node-metadata-row${rowClassName}`) +
+        // The bullet IS the multi-value discriminator (the owner's ruling:
+        // multi rows show it, single rows hide it) — everything else is
+        // uniform between the two.
+        (multi ? " nt-property-text--multi" : " nt-property-text--single") +
         (dropVerdict !== "noop" ? " nt-property--droppable" : "") +
         (propertyDrop.isOver && dropVerdict !== "noop" ? " nt-property--drop-over" : "") +
         (dragBlockId !== null && propertyDrop.enabled && dropVerdict === "noop"
