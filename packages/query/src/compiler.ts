@@ -1052,6 +1052,14 @@ class Compiler {
         `    JOIN property_schema ps ON ps.id = cp.property_schema_id\n` +
         `    WHERE cms.present = 1 AND cp.property_schema_id = ${bindingSchemaId} AND cp.active = 1\n` +
         `      AND ps.default_value IS NOT NULL\n` +
+        // Read-side option membership (the effective.ts rule): a select-typed
+        // default whose value is no longer among the schema's options
+        // (option deleted after the default was written) derives nothing.
+        `      AND (ps.type NOT IN ('select', 'multi_select')\n` +
+        `        OR EXISTS (\n` +
+        `          SELECT 1 FROM json_each(ps.options) je\n` +
+        `          WHERE json_extract(je.value, '$.id') = json_extract(ps.default_value, '$')\n` +
+        `        ))\n` +
         `  ) wb\n` +
         `  WHERE wb.rn = 1\n` +
         `    AND NOT EXISTS (\n` +

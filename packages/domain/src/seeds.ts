@@ -1328,6 +1328,8 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
   display?: "panel" | "bullet" | "inline";
   /** The binding row's tier flag (see SystemPropertySpec.pinned). */
   pinned?: boolean;
+  /** Schema-level default (option id for select types; see SystemPropertySpec.defaultValue). */
+  defaultValue?: string;
 }> = [
   {
     property: "taskStatus",
@@ -1343,6 +1345,7 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
     ],
     display: "bullet",
     pinned: true,
+    defaultValue: TASK_STATUS_OPTION_UUIDS.pending,
   },
   { property: "taskScheduled", name: "Scheduled", type: "datetime", pinned: true },
   { property: "taskDeadline", name: "Deadline", type: "datetime", pinned: true },

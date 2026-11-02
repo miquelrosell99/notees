@@ -146,6 +146,21 @@ function parseJsonArray(raw: string | null): string[] | null {
   }
 }
 
+/** Parse a stored options column (JSON array of {id, ...} objects) defensively. */
+function parseOptions(raw: string | null): ReadonlyArray<{ id: string }> {
+  if (raw === null) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (v): v is { id: string } =>
+        typeof v === "object" && v !== null && typeof (v as { id?: unknown }).id === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
 const flag = (v: number | null): boolean | null => (v === null || v === undefined ? null : v === 1);
 /** Sanitize the stored position (NULL/unknown = the "panel" default). */
 const displayOf = (v: string | null): "panel" | "bullet" | "inline" | null =>
@@ -301,6 +316,8 @@ function buildEffectiveRows(
   const schemas = new Map<string, EffectivePropertySchema>();
   /** The schema's stored default (parsed JSON; undefined = no default). */
   const schemaDefault = new Map<string, unknown>();
+  /** The schema's options (parsed; used by the derived-default membership check). */
+  const schemaOptions = new Map<string, ReadonlyArray<{ id: string }>>();
   if (schemaIds.size > 0) {
     const placeholders = [...schemaIds].map(() => "?").join(",");
     const rows = db
@@ -308,7 +325,7 @@ function buildEffectiveRows(
         `SELECT id, name, type, multi, icon, scope_class_ids, validation_rules,
                 date_precision, date_qualified,
                 number_pad, number_decimals, number_rounding,
-                display, hide_when_empty, default_value
+                display, hide_when_empty, default_value, options
          FROM property_schema WHERE id IN (${placeholders})`,
       )
       .all(...schemaIds) as Array<{
@@ -327,9 +344,11 @@ function buildEffectiveRows(
       display: string | null;
       hide_when_empty: number | null;
       default_value: string | null;
+      options: string;
     }>;
     for (const row of rows) {
       if (row.default_value !== null) schemaDefault.set(row.id, parseJson(row.default_value));
+      schemaOptions.set(row.id, parseOptions(row.options));
       schemas.set(row.id, {
         id: row.id,
         name: row.name,
@@ -455,6 +474,17 @@ function buildEffectiveRows(
     // the type) yields no default rather than a wrong-typed value.
     const schema = schemaForEligibility;
     if (schema && !isValidDefaultForType(schema.type, defaultValue)) continue;
+    // Read-side option membership: a select-typed default whose value is no
+    // longer among the schema's options (option deleted after the default
+    // was written) yields no default rather than a dangling option id.
+    if (
+      schema !== null &&
+      (schema.type === "select" || schema.type === "multi_select") &&
+      typeof defaultValue === "string" &&
+      !(schemaOptions.get(schemaId) ?? []).some((option) => option.id === defaultValue)
+    ) {
+      continue;
+    }
     if (shadowedDefaultSchemas.has(schemaId)) continue; // authored at idx 0 shadows the default
     push(`${schemaId}:0:default`, {
       propertySchemaId: schemaId,

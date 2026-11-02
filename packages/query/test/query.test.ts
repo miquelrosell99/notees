@@ -817,6 +817,35 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       ).toEqual([]);
     });
 
+    it("a select default whose option was deleted derives nothing (queries agree with the effective read)", () => {
+      const store = worldStore();
+      // Drop the 'medium' option: the schema default dangles — the derived
+      // arm must not match it (the effective.ts option-membership rule).
+      store.apply(
+        env(
+          "propertySchema.update",
+          {
+            propertySchemaId: PRIORITY,
+            options: [
+              { id: "low", label: "low" },
+              { id: "high", label: "high" },
+            ],
+          },
+          T0 + 22 * STEP,
+        ),
+      );
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "medium" }])).ids,
+      ).toEqual([]);
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "exists" }])).ids,
+      ).toEqual([LONE]);
+      // Authored values still match.
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "low" }])).ids,
+      ).toEqual([LONE]);
+    });
+
     it("contains matches substrings of effective values; neq negates membership", () => {
       const store = worldStore();
       expect(

@@ -1287,6 +1287,75 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(priorityOf()).toEqual([]);
     });
 
+    it("select defaults derive only while the default is among the schema's options", () => {
+      const store = makeStore();
+      makeClass(store, TASK, "Task", 1727200011000);
+      store.apply(
+        env(
+          "propertySchema.create",
+          {
+            propertySchemaId: PRIORITY,
+            name: "priority",
+            type: "select",
+            options: [
+              { id: "opt-a", label: "A" },
+              { id: "opt-b", label: "B" },
+            ],
+          },
+          1727200011010,
+        ),
+      );
+      store.apply(env("class.property.set", { classId: TASK, propertySchemaId: PRIORITY }, 1727200011020));
+      store.apply(env("propertySchema.update", { propertySchemaId: PRIORITY, defaultValue: "opt-a" }, 1727200011030));
+      store.apply(env("object.create", { objectId: ITEM, classIds: [TASK] }, 1727200011040));
+      expect(store.getEffectiveProperties(ITEM)).toEqual([
+        expect.objectContaining({ value: "opt-a", source: "default", boundBy: TASK }),
+      ]);
+      // Deleting the option the default points at: no dangling id — the
+      // default stops deriving and the bound-empty row takes the slot.
+      store.apply(
+        env("propertySchema.update", { propertySchemaId: PRIORITY, options: [{ id: "opt-b", label: "B" }] }, 1727200011050),
+      );
+      expect(store.getEffectiveProperties(ITEM)).toEqual([
+        expect.objectContaining({ propertySchemaId: PRIORITY, value: null, source: "bound", boundBy: TASK }),
+      ]);
+    });
+
+    it("class removal drops the class-supplied default; an authored non-default value survives", () => {
+      const store = makeStore();
+      makeClass(store, TASK, "Task", 1727200011000);
+      store.apply(
+        env(
+          "propertySchema.create",
+          {
+            propertySchemaId: PRIORITY,
+            name: "priority",
+            type: "select",
+            options: [
+              { id: "opt-a", label: "A" },
+              { id: "opt-b", label: "B" },
+            ],
+          },
+          1727200011010,
+        ),
+      );
+      store.apply(env("class.property.set", { classId: TASK, propertySchemaId: PRIORITY }, 1727200011020));
+      store.apply(env("propertySchema.update", { propertySchemaId: PRIORITY, defaultValue: "opt-a" }, 1727200011030));
+      store.apply(env("object.create", { objectId: ITEM, classIds: [TASK] }, 1727200011040));
+
+      // Never touched: nothing was ever stored — unassign drops the default.
+      store.apply(env("class.unassign", { objectId: ITEM, classId: TASK }, 1727200011050));
+      expect(store.getEffectiveProperties(ITEM)).toEqual([]);
+
+      // Changed to a non-default value: the authored row survives unassign.
+      store.apply(env("object.create", { objectId: ITEM, classIds: [TASK] }, 1727200011060));
+      store.apply(env("property.set", { objectId: ITEM, propertySchemaId: PRIORITY, value: "opt-b", idx: 0 }, 1727200011070));
+      store.apply(env("class.unassign", { objectId: ITEM, classId: TASK }, 1727200011080));
+      expect(store.getEffectiveProperties(ITEM)).toEqual([
+        expect.objectContaining({ value: "opt-b", source: "authored", boundBy: null }),
+      ]);
+    });
+
     it("aggregates the union of bindings across ALL of the node's classes", () => {
       const store = makeStore();
       makeSchema(store, EFFORT, "effort", 1727200011000);
@@ -3519,6 +3588,13 @@ for (const adapter of adapters) {
         .prepare("SELECT display FROM property_schema WHERE id = ?")
         .get("00000000-0000-0000-0003-000000000001") as { display: string | null };
       expect(statusSchema.display).toBe("bullet");
+      // The Status SCHEMA carries the Pending default (schema-level): a
+      // task-class node derives it at read time — the class supplies the
+      // value, so class removal drops it without a compensating write.
+      const statusDefault = store.database
+        .prepare("SELECT default_value FROM property_schema WHERE id = ?")
+        .get("00000000-0000-0000-0003-000000000001") as { default_value: string | null };
+      expect(statusDefault.default_value).toBe('"00000000-0000-0000-0004-000000000009"');
       const bindingColumns = (
         store.database.prepare("PRAGMA table_info(class_property)").all() as Array<{ name: string }>
       ).map((c) => c.name);
