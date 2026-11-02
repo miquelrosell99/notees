@@ -669,13 +669,13 @@ export function buildImportEnvelopes(
             "scripts/migrate-zotero-full-alignment.mts) before importing",
         );
       }
-      if (shape.multi && entry.action !== "create" && hasValueRows(objectId, schemaId)) {
-        // A changed multi-value field REPLACES the node's rows (the joined
-        // string rides one positional set) — never accumulates beside them.
-        envelopes.push(
-          stamp("property.empty", { objectId, propertySchemaId: schemaId }, affected),
-        );
-      }
+      // A changed multi-value field REPLACES the node's rows (the joined
+      // string rides one positional set) — never accumulates beside them.
+      // The empty rides AFTER the value is settled (an unparsable datetime
+      // skips the whole write — it must not emit an empty alone).
+      const replaceMultiRows =
+        shape.multi && entry.action !== "create" && hasValueRows(objectId, schemaId);
+      let wireValue: unknown = value;
       if (shape.type === "datetime") {
         const parsed = parseRdfDate(value);
         if (parsed === null) {
@@ -694,17 +694,15 @@ export function buildImportEnvelopes(
             parsed.iso,
           );
         }
+        wireValue = { nodeId: dateNodeId(parsed.iso, parsed.precision) };
+      }
+      if (replaceMultiRows) {
         envelopes.push(
-          stamp(
-            "property.set",
-            { objectId, propertySchemaId: schemaId, value: { nodeId: dateNodeId(parsed.iso, parsed.precision) }, idx: 0 },
-            affected,
-          ),
+          stamp("property.empty", { objectId, propertySchemaId: schemaId }, affected),
         );
-        continue;
       }
       envelopes.push(
-        stamp("property.set", { objectId, propertySchemaId: schemaId, value, idx: 0 }, affected),
+        stamp("property.set", { objectId, propertySchemaId: schemaId, value: wireValue, idx: 0 }, affected),
       );
     }
   }
@@ -855,14 +853,28 @@ function printReport(
 // --- verification -----------------------------------------------------------------
 
 /**
- * Post-insert verification, straight from the persisted log: the new
- * envelopes read back (count + protocol validation) and a FRESH scratch
- * store applies the tail INCLUDING them — zero StoreError throws.
+ * Post-insert verification, straight from the persisted log: the envelopes
+ * THIS run appended (seq > the seq before the ingest — a repeat import must
+ * not count the previous run's envelopes) read back (count + protocol
+ * validation) and a FRESH scratch store applies the tail INCLUDING them —
+ * zero StoreError throws.
  */
-function verify(relay: RelayStorage, workspaceId: string, expectedCount: number): void {
-  const rows = relay
-    .allEnvelopes(workspaceId)
-    .filter((envelope) => envelope.deviceId === DEVICE);
+function verify(
+  relay: RelayStorage,
+  workspaceId: string,
+  expectedCount: number,
+  afterSeq: number,
+): void {
+  const rows: Envelope[] = [];
+  let cursor = afterSeq;
+  for (;;) {
+    const page = relay.catchUp(workspaceId, cursor, 10_000);
+    for (const envelope of page.envelopes) {
+      if (envelope.deviceId === DEVICE) rows.push(envelope);
+    }
+    if (!page.hasMore || page.nextAfterSeq === null) break;
+    cursor = page.nextAfterSeq;
+  }
   if (rows.length !== expectedCount) {
     throw new Error(`read-back mismatch: expected ${expectedCount} new envelopes, found ${rows.length}`);
   }
@@ -942,12 +954,13 @@ async function main(): Promise<void> {
       return;
     }
 
+    const seqBefore = relay.latestSeq(options.workspace);
     const { savedIds } = relay.ingest(build.envelopes);
     if (savedIds.length !== build.envelopes.length) {
       throw new Error(`ingest saved ${savedIds.length}/${build.envelopes.length} envelopes (duplicate ids?)`);
     }
     console.log(`ingested ${savedIds.length} envelope(s) into the relay log.`);
-    verify(relay, options.workspace, build.envelopes.length);
+    verify(relay, options.workspace, build.envelopes.length, seqBefore);
   } finally {
     relay.close();
   }
