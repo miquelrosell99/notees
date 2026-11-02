@@ -70,8 +70,11 @@
  * converged values (Review Focus 4) — date refs compare as ISO truncated
  * at the ref's precision, the spelling the RDF side arrives in.
  *
- * Usage (from the repo root; the tsx binary lives in apps/server):
- *   pnpm --filter @notees/server exec tsx ../../scripts/import-zotero-rdf.mts \
+ * Usage (from the repo root; the tsx binary lives in apps/server —
+ * --dir, NOT --filter: the filter form runs through pnpm 9's recursive-exec
+ * reporter, which prints a stray `undefined` line when the command fails,
+ * e.g. on the schema-absent state-read error):
+ *   pnpm --dir apps/server exec tsx ../../scripts/import-zotero-rdf.mts \
  *     --file "Mi biblioteca.rdf" --workspace <uuid> \
  *     [--data-dir config/notees/sync | --server http://localhost:8377 [--api-key …]] \
  *     [--apply] [--keep-existing]
@@ -550,23 +553,75 @@ export interface ImportEnvelopeBuild {
   unparsedDates: Array<{ index: number; key: string; value: string }>;
 }
 
-/** The precision an RDF date string claims — the coarsest shape present. */
-function parseRdfDate(value: string): { iso: string; precision: "year" | "month" | "day" } | null {
-  const match = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?/.exec(value.trim());
-  if (match === null) return null;
-  const [, year, month, day] = match;
-  const iso =
-    month === undefined
-      ? `${year}-01-01`
-      : day === undefined
-        ? `${year}-${month}-01`
-        : `${year}-${month}-${day}`;
-  try {
-    parseIsoDate(iso);
-  } catch {
-    return null;
+/** Full month names, English + Spanish (the owner's Zotero library is
+ *  ES/EN). Keyed lowercase; the parse tier lowercases the candidate. */
+const MONTH_NAME_TO_NUMBER: ReadonlyMap<string, number> = new Map(
+  (
+    [
+      ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"],
+      ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"],
+    ] as const
+  ).flatMap((names) => names.map((name, index) => [name, index + 1] as const)),
+);
+
+/** The precision an RDF date string claims — the coarsest shape present.
+ *  Three tiers, strictest first (Zotero exports `dc:date` verbatim, so real
+ *  files carry human dates alongside the ISO shapes):
+ *  1. strict ISO — `YYYY[-MM[-DD]]`;
+ *  2. full month name + year, case-insensitive, optional comma ("June 2016",
+ *     "JUNE 2022", "June, 2016", "enero 2020") → month precision; day +
+ *     month name + year ("14 June 2024", "14 junio 2024") → day precision;
+ *     every candidate is real-calendar validated through parseIsoDate;
+ *  3. numeric MM/YYYY ("01/2022") → month precision, MM 01-12.
+ *  Everything else — two-slash all-numeric dates ("01/12/2025", ambiguous
+ *  DD/MM vs MM/DD), abbreviations, garbage — returns null and lands in the
+ *  hand-resolution list. */
+export function parseRdfDate(value: string): { iso: string; precision: "year" | "month" | "day" } | null {
+  const text = value.trim();
+  const strict = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?/.exec(text);
+  if (strict !== null) {
+    const [, year, month, day] = strict;
+    const iso =
+      month === undefined
+        ? `${year}-01-01`
+        : day === undefined
+          ? `${year}-${month}-01`
+          : `${year}-${month}-${day}`;
+    try {
+      parseIsoDate(iso);
+    } catch {
+      return null;
+    }
+    return { iso, precision: day !== undefined ? "day" : month !== undefined ? "month" : "year" };
   }
-  return { iso, precision: day !== undefined ? "day" : month !== undefined ? "month" : "year" };
+  const named = /^(?:(\d{1,2})\s+)?([a-z]+),?\s+(\d{4})$/i.exec(text);
+  if (named !== null) {
+    const day = named[1] === undefined ? undefined : Number(named[1]);
+    const month = MONTH_NAME_TO_NUMBER.get(named[2]!.toLowerCase());
+    if (month !== undefined) {
+      const iso = `${named[3]}-${String(month).padStart(2, "0")}-${String(day ?? 1).padStart(2, "0")}`;
+      try {
+        parseIsoDate(iso);
+      } catch {
+        return null;
+      }
+      return { iso, precision: day !== undefined ? "day" : "month" };
+    }
+  }
+  const slash = /^(\d{1,2})\/(\d{4})$/.exec(text);
+  if (slash !== null) {
+    const month = Number(slash[1]);
+    if (month >= 1 && month <= 12) {
+      const iso = `${slash[2]}-${String(month).padStart(2, "0")}-01`;
+      try {
+        parseIsoDate(iso);
+      } catch {
+        return null;
+      }
+      return { iso, precision: "month" };
+    }
+  }
+  return null;
 }
 
 /**
@@ -872,7 +927,8 @@ function printReport(
   for (const unparsed of unparsedDates) {
     console.log(
       `  ~ #${unparsed.index} ${plan[unparsed.index]!.item.title}: ${unparsed.key} — needs hand-resolution: ` +
-        `unparsable date ${JSON.stringify(unparsed.value)} (want YYYY[-MM[-DD]])`,
+        `unparsable date ${JSON.stringify(unparsed.value)} ` +
+        `(want YYYY[-MM[-DD]], "Month YYYY", "D Month YYYY" or MM/YYYY)`,
     );
   }
 
