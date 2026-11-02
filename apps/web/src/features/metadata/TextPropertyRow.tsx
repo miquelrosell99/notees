@@ -11,6 +11,11 @@
  * root row hosted in its own per-carrier outliner context — the same editing
  * context the standalone subtree renderer used to host, so bullet navigation,
  * collapse, and the keyboard gestures behave exactly as they did there.
+ * The value rows wear ONE chrome — the list-projection idiom
+ * (`hideBacklinkCount`/`hideProperties`/`hideTags`, the hubs' precedent):
+ * per-row backlink/property/tag chrome is data-dependent noise on a value,
+ * so every root reads the same bullet-less block row (the root bullet hides
+ * in MetadataSection.css) and only nested children keep theirs.
  *
  * Enter semantics ride the CarrierEnterContext (see textCarrier.ts):
  *  - multi-value: Enter on a value creates a SIBLING block registered as the
@@ -50,7 +55,13 @@
  *
  * Assigned-empty rows: the row renders the same ghost row as a
  * bound-but-empty row; the realize click mints the carrier block and
- * authors the {nodeId} value, exactly the Add-pill path.
+ * authors the {nodeId} value.
+ *
+ * The trailing realize ghost: a multi-value row with values trails the
+ * platform ghost (the empty-state cell's twin — the ghost is the sole add
+ * affordance, never an AddPill): one click mints an empty carrier at the
+ * next idx and opens the block editor on it (the fresh-carrier effect).
+ * Single-value rows trail none — their empty state owns the cell's ghost.
  *
  * A default-sourced row whose value is the SCALAR EMPTY STRING (the citekey
  * seed's `defaultValue: ""`) renders the SAME ghost row — an empty default
@@ -97,7 +108,6 @@ import {
 } from "../sources/citekeyTrack.js";
 import { citekeyTextOf } from "../sources/citekeyValue.js";
 import { InlineTokens } from "../../ui/InlineTokens.js";
-import { AddPill } from "../../components/ui/kit/AddPill.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { CarrierEnterContext, type CarrierInfo } from "../../ui/textCarrier.js";
 import { DragSourcesContext } from "../../ui/block-dnd.js";
@@ -209,7 +219,6 @@ export function TextPropertyRow({
   const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
   const classSourced = rows.some((row) => row.boundBy !== null) || classBound;
   const [addError, setAddError] = useState<string | null>(null);
-  const addButtonRef = useRef<HTMLButtonElement | null>(null);
 
   // The standalone subtree renderer carried its own subscription per carrier
   // root so the cell stays live even outside a subscribing host; the row
@@ -461,6 +470,9 @@ export function TextPropertyRow({
         contentAst: [{ type: "text", text: "" }],
       });
       await client.setProperty(nodeId, propertySchemaId, { nodeId: carrier }, nextIdx, manualEditMetadata);
+      // The realize hand-off (the ghost contract): the fresh-carrier effect
+      // opens the block editor on the minted value, like Enter/Add today.
+      setFreshCarrierId(carrier);
     } catch (error) {
       setAddError(error instanceof Error ? error.message : String(error));
     }
@@ -573,6 +585,13 @@ export function TextPropertyRow({
               items={carrierItems}
               tree
               showBreadcrumbs={false}
+              // Value rows wear ONE chrome: the list-projection idiom (the
+              // hubs' precedent) — per-row backlink/property/tag chrome is
+              // data-dependent noise on a value, so every root reads the
+              // same bullet-less block row and only children keep theirs.
+              hideBacklinkCount
+              hideProperties
+              hideTags
               {...(readOnly ? { readOnly: true } : { editable: true })}
               renderItem={(item, row) => (
                 <CarrierRowHost client={client} item={item} onOpenPage={onOpenPage} onOpenInSidebar={onOpenInSidebar}>
@@ -711,17 +730,20 @@ export function TextPropertyRow({
             );
           })}
           {ordered.length === 0 && readOnly ? null : ordered.length === 0 && (
-            // No declaration and no values: the same "Empty" placeholder
-            // block row — the click mints the first carrier and opens the
-            // block editor (the Add pill rides beside it for multi rows).
+            // No declaration and no values: the same ghost row — the click
+            // mints the first carrier and opens the block editor on it.
             emptyCell("empty", 0)
           )}
-          {!readOnly && multi && ordered.length > 0 && (
-            <AddPill
-              ref={addButtonRef}
-              label="Add"
-              onClick={() => void addValue()}
-            />
+          {!readOnly && multi && ordered.some((row) => row.value !== null) && (
+            // The trailing realize ghost — the platform idiom, the empty-state
+            // cell's twin (no AddPill): one click mints an empty carrier at
+            // the next idx and opens the block editor on it (the fresh-carrier
+            // effect). Only once VALUES exist — an empty row's own ghost
+            // covers the realize; single-value rows trail none (their empty
+            // state owns the cell's ghost).
+            <div className="nt-property-ghost">
+              <GhostRow parentId={nodeId} onRealize={() => void addValue()} />
+            </div>
           )}
         </CarrierEnterContext.Provider>
         {scalarMenu !== null &&

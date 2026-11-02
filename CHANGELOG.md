@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(web): uniform value-row chrome in the properties cell, a stable
+  rest→edit swap, and the trailing ghost replaces Add.** The multi-value
+  text rows rendered data-dependent chrome (backlink badge, collapse rail,
+  classes column, nested Properties section — heavy on carriers with
+  children, bare lines on plain ones); the locked collection now passes
+  the hubs' projection flags (`hideBacklinkCount`/`hideProperties`/
+  `hideTags`) so every value root reads the same bullet-less block row.
+  The rest→edit content shift is fixed with a cell-scoped rule: the
+  editable inherits the wrapper's exact text metrics and contributes no
+  box of its own — a pure content exchange inside the stable content box
+  (shared editor CSS untouched). The trailing **+ Add** pill retires in
+  favor of the platform GhostRow (realize mints the carrier and hands the
+  caret to its editor; none on single-value/empty/read-only rows).
+  **Verification:** web 2739 passed (244 files); typecheck clean.
+
 - **feat(web): the scalar property row's context menu + hidden root
   bullets.** The node context menu was unreachable from the scalar value
   row (the plain-string shape freshly authored values carry): the
