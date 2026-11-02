@@ -9,6 +9,37 @@ predating this file.
 
 ## 2026-11-02
 
+- **feat(web): the add-source flow streamlined to paste → Fetch → preview →
+  Create, an inline duplicate guard, and an OA-PDF Fetch on attachments.**
+  **Direct create (the streamlining ruling):** the resolver path no longer
+  opens the prefilled create form — **Create** runs the SAME flush pipeline
+  the form runs (validation-before-writes, citation self-heal, auto-citekey,
+  CAS upload, one undo batch) via the new shared `flushClassedCreate`
+  (`apps/web/src/features/modals/quickCreate.ts`, now the one pipeline both
+  paths run — the modal's Create uses it too) and the app opens the new
+  source. The QuickCreateModal survives as the MANUAL path's surface ("Add
+  manually"). A real bug the test rework exposed: on a fresh/offline
+  workspace the direct create staged `publicationDate` as text before the
+  self-heal authored the datetime schema — the flush now re-derives the
+  scalar staged kinds against the POST-ensure schema set (e2e: the
+  fresh-workspace direct-create test). **Inline Fetch:** the Fetch button
+  moved from the footer to the identifier field's row — the action at its
+  object; primary while a fetch is needed, demoting to outline once the
+  preview is in hand and Create takes the lead; the footer is Cancel ·
+  Create. **Inline duplicate guard:** a resolved DOI/ISBN/PMID already in
+  the library pauses Create with an "Already in your library" row
+  (Open-existing / Create-anyway / Cancel) — never a silent duplicate; the
+  create form's old warning lives here now. **OA-PDF Fetch on attachments:**
+  a source node's `attachments` row gains a third ghost button beside
+  Upload/Link — resolves the node's DOI/PMID/ISBN through the metadata
+  resolver, follows the Unpaywall open-access link, downloads the bytes
+  browser-side, CAS-uploads, and links the PDF (honest errors: no
+  identifier, no OA location, refused download); the resolver coordinates
+  ride a new `resolveCoordinates` seam registered by AddSourceHost (no prop
+  threading). **Verification:** web suite green (add-source 32 incl. the
+  fresh-workspace regression, quick-create 39, asset-attachments 21 incl.
+  the new Fetch suite); typecheck clean on touched files; smoke.
+
 - **feat(web): the collapsed-block count pill reads "+N".** The additive
   plus disambiguates the bare number from the app's numbered-list markers
   (`1.` / `a.` / `i.` render in the same bullet position on list-styled
