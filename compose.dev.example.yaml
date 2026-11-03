@@ -52,6 +52,9 @@ services:
       # Point this dev web UI at THIS stack's sync (the :8377 guess would
       # find prod).
       - NOTEES_SERVER_URL=${NOTEES_SERVER_URL:-http://localhost:8379}
+      # Optional E2EE opt-in (default OFF): enables client-side workspace
+      # encryption keying. Keep off until all your clients support E2EE.
+      - NOTEES_E2EE=${NOTEES_E2EE:-}
     depends_on:
       notees-sync:
         condition: service_healthy
