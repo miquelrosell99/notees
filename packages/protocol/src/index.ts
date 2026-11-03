@@ -6,3 +6,4 @@ export * from "./op-catalog.js";
 export * from "./query-ast.js";
 export * from "./content-mark.js";
 export * from "./plugin-manifest.js";
+export * from "./crypto.js";
