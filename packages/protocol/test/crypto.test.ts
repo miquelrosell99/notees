@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createCipheriv, createHmac, scrypt as scryptCallback } from "node:crypto";
+import { promisify } from "node:util";
 import { newEnvelope } from "../src/envelope.js";
 import {
   b64uDecode,
@@ -19,7 +21,10 @@ import {
   unwrapMasterKey,
   unwrapWorkspaceKey,
   wrapWorkspaceKey,
+  type KdfRecord,
 } from "../src/crypto.js";
+
+const nodeScrypt = promisify(scryptCallback);
 
 describe("b64u", () => {
   it("round-trips and uses unpadded url-safe alphabet", () => {
@@ -138,5 +143,54 @@ describe("byte encryption (snapshots)", () => {
     const raw = await exportWorkspaceKey(key);
     expect(raw.length).toBe(32);
     expect([...(await exportWorkspaceKey(await importWorkspaceKey(raw)))]).toEqual([...raw]);
+  });
+});
+
+describe("server-format interop (golden vector)", () => {
+  it("unwraps a KdfRecord built exactly as apps/server/src/auth.ts createKdfRecord", async () => {
+    // Server side — the shipped createKdfRecord formulas (apps/server/src/auth.ts),
+    // with fixed bytes where the server draws randomBytes, so the vector is
+    // deterministic. maxmem is required, not optional (N=131072/r=8 exceeds
+    // OpenSSL's default cap).
+    const password = "golden horse battery";
+    const salt = Uint8Array.from({ length: 16 }, (_, i) => i + 1);
+    const iv = Uint8Array.from({ length: 12 }, (_, i) => 0xa0 + i);
+    const masterBytes = Uint8Array.from({ length: 32 }, (_, i) => 0x50 + i);
+    const derived = await nodeScrypt(password, salt, 32, {
+      N: 131072,
+      r: 8,
+      p: 1,
+      maxmem: 256 * 1024 * 1024,
+    });
+    const cipher = createCipheriv("aes-256-gcm", derived, iv);
+    const ct = Buffer.concat([cipher.update(Buffer.from(masterBytes)), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    const record: KdfRecord = {
+      algorithm: "scrypt",
+      N: 131072,
+      r: 8,
+      p: 1,
+      salt: b64uEncode(salt),
+      wrappedMasterKey: b64uEncode(Buffer.concat([iv, tag, ct])),
+      keyVerifier: b64uEncode(createHmac("sha256", derived).update("notees-key-check").digest()),
+    };
+
+    // Client side: the TS unwrap opens the server-built record.
+    const masterKey = await unwrapMasterKey(password, record);
+
+    // The unwrapped key opens a blob the server sealed with the master key:
+    // node:crypto produces ct and tag apart; WebCrypto's seal layout is ct ‖ tag.
+    const blobIv = Uint8Array.from({ length: 12 }, (_, i) => 0xc0 + i);
+    const blobCipher = createCipheriv("aes-256-gcm", Buffer.from(masterBytes), Buffer.from(blobIv));
+    const blobCt = Buffer.concat([blobCipher.update("hello notees", "utf8"), blobCipher.final()]);
+    const opened = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: blobIv },
+      masterKey,
+      Buffer.concat([blobCt, blobCipher.getAuthTag()]),
+    );
+    expect(new TextDecoder().decode(opened)).toBe("hello notees");
+
+    // Wrong password fails at the verifier, before any unwrap.
+    await expect(unwrapMasterKey("wrong password", record)).rejects.toThrow(/verifier|password/i);
   });
 });

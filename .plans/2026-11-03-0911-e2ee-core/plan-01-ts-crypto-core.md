@@ -635,7 +635,7 @@ import {
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
-const NODE = "0192a000-0000-7000-8000-0000000000e2"; // dedicated ids — no other fixture touches 0e2/0e3
+const NODE = "0192a000-0000-7000-8000-0000000000fc"; // dedicated ids — fa/fb/fc are free (the 0e0–0e3 range belongs to object-restore.json, and 0e1 also to class-extends-system-lock.json)
 const keyBytes = new Uint8Array(32).fill(0x5a);
 const key = await importWorkspaceKey(keyBytes);
 
@@ -652,11 +652,11 @@ function env(id, physical, opType, affected, payload) {
 
 const envelopes = [
   await encryptEnvelope(key, env(
-    "0192a000-0000-7000-8000-0000000000e0", 1727200000000, "object.create", [NODE],
+    "0192a000-0000-7000-8000-0000000000fa", 1727200000000, "object.create", [NODE],
     { objectId: NODE, contentAst: [{ type: "text", text: "Encrypted fixture page" }], isEmbedded: false, classIds: [] },
   )),
   await encryptEnvelope(key, env(
-    "0192a000-0000-7000-8000-0000000000e1", 1727200001000, "object.update", [NODE],
+    "0192a000-0000-7000-8000-0000000000fb", 1727200001000, "object.update", [NODE],
     { objectId: NODE, icon: "book" },
   )),
 ];

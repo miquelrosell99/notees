@@ -1,5 +1,5 @@
 {
-  "comment": "Encrypted-payload fixture (E2EE core): payloads carry the $e slot; `crypto.workspaceKey` (b64u 32 bytes, public test key) opens them. AAD = `${envelope.id}.${envelope.workspaceId}`. GTK/Flutter ports must replay this byte-identical: decrypt each envelope, apply the plaintext payloads. Decrypted payloads MUST validate against payloadSchemaFor(opType) — the gate asserts it.",
+  "comment": "Encrypted-payload fixture (E2EE core): payloads carry the $e slot; `crypto.workspaceKey` (b64u 32 bytes, public test key) opens them. AAD = `${envelope.id}.${envelope.workspaceId}`. GTK/Flutter ports must replay this byte-identical: decrypt each envelope, apply the plaintext payloads. Decrypted payloads MUST validate against payloadSchemaFor(opType) — the gate asserts it. Slot layout: `iv` is the base64url of the 12-byte GCM nonce; `ct` is the base64url of `tag(16) || ct` (tag FIRST — unlike wrapped keys, which are `iv || tag || ct`); the plaintext payload is the UTF-8 JSON of the payload object; the GCM additional authenticated data (AAD) is `${envelope.id}.${envelope.workspaceId}`.",
   "crypto": {
     "version": 1,
     "aad": "envelope.id.envelope.workspaceId",
