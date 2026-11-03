@@ -29,7 +29,7 @@
  * quick text leads until the user picks a sort).
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { AnyClient, CollectionGroup, NodeCollectionItem, NodeCollectionProps, ViewMode } from "./index.js";
 import { NodeCollection } from "./index.js";
@@ -45,6 +45,7 @@ import {
 } from "./filterQuery.js";
 import { NodeViewSection, type NodeViewSectionAction } from "../page-sections/NodeViewSection.js";
 import { ViewChromeSlot } from "./viewChrome.js";
+import { OutlinerContext } from "../../ui/outliner-context.js";
 import { useSectionData, type SectionCtx, type SectionRowFilter } from "./useSectionData.js";
 import "./CollectionSection.css";
 
@@ -141,6 +142,12 @@ export function CollectionSection({
 }: CollectionSectionProps) {
   const [expanded, setExpanded] = useState(!defaultCollapsed);
   const [filterQuery, setFilterQuery] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
+  /**
+   * The SELF anchor: the page this section renders on (the OutlinerContext
+   * root — PageView provides it; absent on host-less renders, where the
+   * builder does not offer the Self mode and no Self condition evaluates).
+   */
+  const outlinerRoot = useContext(OutlinerContext)?.rootId;
   // Hosts observe the transient query (the live sort-flip) — one setter
   // paths both the state and the report.
   const handleFilterChange = (query: FilterQuery) => {
@@ -171,6 +178,7 @@ export function CollectionSection({
     read,
     query,
     filter,
+    ...(outlinerRoot !== undefined ? { selfNodeId: outlinerRoot } : {}),
     ...(refreshKey !== undefined ? { refreshKey } : {}),
   });
   const resolvedCount = count ?? total ?? undefined;
@@ -226,6 +234,7 @@ export function CollectionSection({
           config={filterConfig}
           matchCount={rows === null ? null : rows.length}
           totalCount={count ?? total}
+          {...(outlinerRoot !== undefined ? { selfNodeId: outlinerRoot } : {})}
         />
       )}
       {toolbarContent !== undefined && (
@@ -255,6 +264,7 @@ export function CollectionSection({
                       config={filterConfig}
                       matchCount={rows.length}
                       totalCount={count ?? total}
+                      {...(outlinerRoot !== undefined ? { selfNodeId: outlinerRoot } : {})}
                       {...(hostedControlled
                         ? {
                             viewSaver: {

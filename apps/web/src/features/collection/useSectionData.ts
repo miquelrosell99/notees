@@ -101,6 +101,13 @@ export interface UseSectionDataOptions<T> {
    * the resolution signature, so a filter change re-runs no query.
    */
   filter?: (T extends readonly (infer Row)[] ? SectionRowFilter<Row> : never) | undefined;
+  /**
+   * The hosting page for the structured filter's `*Self` conditions — the
+   * page the section renders on. Absent only when no Self condition can be
+   * authored (a host-less surface); a Self leaf evaluated without it fails
+   * loud at the compiler.
+   */
+  selfNodeId?: string | undefined;
   /** Cheap synchronous client/derived read strategy. */
   read?: ((ctx: SectionCtx) => T) | undefined;
   /** Structured-query strategy (self-bounding: range ASTs, row caps). */
@@ -159,6 +166,7 @@ export function useSectionData<T>({
   active = true,
   refreshKey,
   filter,
+  selfNodeId,
   read,
   query,
 }: UseSectionDataOptions<T>): SectionData<T> {
@@ -242,7 +250,7 @@ export function useSectionData<T>({
     [needsProbe, pool, filter],
   );
   const probeSignature = needsProbe
-    ? `${JSON.stringify(filterPlan!.ast)}|${probeRows.map((item) => item.node.id).join(",")}|${version}`
+    ? `${JSON.stringify(filterPlan!.ast)}|${probeRows.map((item) => item.node.id).join(",")}|${version}|${selfNodeId ?? ""}`
     : "";
   const [probedIds, setProbedIds] = useState<{
     key: string;
@@ -252,7 +260,7 @@ export function useSectionData<T>({
   useEffect(() => {
     if (!needsProbe || filterPlan === null || probeSignature === "") return;
     let cancelled = false;
-    resolveSectionViewProbed(client, { items: probeRows, groups: undefined }, filterPlan)
+    resolveSectionViewProbed(client, { items: probeRows, groups: undefined }, filterPlan, selfNodeId)
       .then((result) => {
         if (!cancelled) {
           setProbedIds({
@@ -268,7 +276,7 @@ export function useSectionData<T>({
     return () => {
       cancelled = true;
     };
-    // The signature carries the AST + rows + version identity.
+    // The signature carries the AST + rows + version + host identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, needsProbe, probeSignature]);
 

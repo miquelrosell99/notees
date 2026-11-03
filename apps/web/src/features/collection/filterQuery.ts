@@ -208,9 +208,10 @@ export function filterQueryToGroup(query: FilterQuery): Group | null {
 /**
  * The block FAMILIES (the v1 FILTER_TYPE_OPTIONS as single-word types — the
  * operator column carries the is/is-not/contains/etc variation). "Links"
- * and "Parent" are the node-target families: static (a picked node) or
- * dynamic (a nested query defining the target set), the mode switch
- * toggling between them. "Page" / "Parent path" / "Root" (* the Odoo operator-set slice) are the classed-CONTAINER families: they test
+ * and "Parent" are the node-target families: Manual (picked nodes), Query
+ * (a nested query defining the target set), or Self (the page hosting the
+ * query) — the mode switch picks between them. "Page" / "Parent path" /
+ * "Root" (* the Odoo operator-set slice) are the classed-CONTAINER families: they test
  * the class of the row's containing page / some strict ancestor / the
  * workspace-root ancestor — e.g. "blocks whose page is not classed as Day"
  * drops the journal-day groups from a backlinks section.
@@ -258,14 +259,14 @@ export const FILTER_KIND_OPTIONS: readonly FilterKindOption[] = [
   { value: "content", label: "Content", icon: "mdi mdi-text-box-outline", description: "Filter by text content" },
   { value: "property", label: "Property", icon: "mdi mdi-code-braces", description: "Filter by property value" },
   { value: "tags", label: "Tags", icon: "mdi mdi-tag-multiple-outline", description: "Filter by assigned tags (any page)" },
-  { value: "links", label: "Links", icon: "mdi mdi-link-variant", description: "Nodes that link to a node or a nested query" },
-  { value: "referencePath", label: "Reference path", icon: "mdi mdi-link-plus", description: "The node or its ancestors reference these nodes — or the node sits inside them" },
-  { value: "parent", label: "Parent", icon: "mdi mdi-file-tree-outline", description: "The direct parent is any of these nodes (or matches a nested query)" },
-  { value: "child", label: "Child", icon: "mdi mdi-file-tree", description: "Contains any of these nodes as direct children (or matching a nested query)" },
-  { value: "childPath", label: "Child path", icon: "mdi mdi-arrow-decision-outline", description: "Contains any of these nodes anywhere down their tree (or matching a nested query)" },
-  { value: "page", label: "Page", icon: "mdi mdi-page-layout-body", description: "The containing page is any of these nodes (or matches a nested query)" },
-  { value: "parentPath", label: "Parent path", icon: "mdi mdi-source-branch", description: "An ancestor anywhere up the parent chain is any of these nodes (or matches a nested query)" },
-  { value: "root", label: "Root", icon: "mdi mdi-arrow-collapse-up", description: "The top-level parent (workspace-root child) is any of these nodes (or matches a nested query)" },
+  { value: "links", label: "Links", icon: "mdi mdi-link-variant", description: "Nodes that link to a node" },
+  { value: "referencePath", label: "Link path", icon: "mdi mdi-link-plus", description: "The node or its ancestors reference these nodes — or the node sits inside them" },
+  { value: "parent", label: "Parent", icon: "mdi mdi-file-tree-outline", description: "The direct parent is any of these nodes" },
+  { value: "child", label: "Child", icon: "mdi mdi-file-tree", description: "Contains any of these nodes as direct children" },
+  { value: "childPath", label: "Child path", icon: "mdi mdi-arrow-decision-outline", description: "Contains any of these nodes anywhere down their tree" },
+  { value: "page", label: "Page", icon: "mdi mdi-page-layout-body", description: "The containing page is any of these nodes" },
+  { value: "parentPath", label: "Parent path", icon: "mdi mdi-source-branch", description: "An ancestor anywhere up the parent chain is any of these nodes" },
+  { value: "root", label: "Root", icon: "mdi mdi-arrow-collapse-up", description: "The top-level parent (workspace-root child) is any of these nodes" },
   { value: "cover", label: "Cover", icon: "mdi mdi-image-outline", description: "Cover is set or not" },
   { value: "banner", label: "Banner", icon: "mdi mdi-page-layout-header", description: "Banner is set or not" },
   { value: "alias", label: "Alias", icon: "mdi mdi-repeat-variant", description: "Alias of a main page, set or not" },

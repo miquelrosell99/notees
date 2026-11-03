@@ -41,11 +41,13 @@
  * field pairing with SelectTrigger: the raw native
  * <select>s rendered the browser's chrome, unaligned with the token
  * interface); the node-target families
- * (Links, Parent, Class, Tags) carry the v1 MODE SWITCH: static (picked
- * nodes) or dynamic (a nested query-block list defining the target set —
- * "links to a person node with age > 50"), the nested group rendering
+ * (Links, Parent, Class, Tags) carry the v1 MODE SWITCH in its three-mode
+ * form: Manual (picked nodes), Query (a nested query-block list defining the
+ * target set — "links to a person node with age > 50"), or Self (the page
+ * hosting the query — the `*Self` marker conditions resolving
+ * CompileOptions.selfNodeId at run time); the nested group renders
  * inside a card beneath the row (the v1 DynamicQuerySection; the nesting is
- * infinite — a dynamic row inside a dynamic subgroup can go dynamic again).
+ * infinite — a query-mode row inside a query subgroup can go query again).
  * Groups nest as hairline-indented columns
  * with the Match ALL/ANY header toggle; the root level is not a group.
  * Every control bubbles an immutable update to the root group via onChange —
@@ -87,6 +89,7 @@ import {
   filterKindOptionsForConfig,
   filterQueryToGroup,
   type AddMenuEntry,
+  type ConditionKind,
   type NodeCollectionToolbarConfig,
 } from "./filterQuery.js";
 import { BlockValue, PropertySchemaPick } from "./filterBlockValueControls.js";
@@ -123,6 +126,13 @@ export interface FilterBlockBuilderProps {
   onChange: (group: Group) => void;
   /** Which condition kinds the add menu offers (default: all). */
   config?: NodeCollectionToolbarConfig | undefined;
+  /**
+   * The hosting page's node id — the SELF target mode's anchor ("the page
+   * this query sits on"). Absent at host-less surfaces (the hub filters):
+   * the Self mode is not offered there (a *Self condition would have no
+   * honest reading — the compiler fails loud without one).
+   */
+  selfNodeId?: string | undefined;
   /**
    * Right-aligned content in the builder's foot row, beside the "Add
    * condition" menu (the NodeCollectionToolbar rides it with the "Save as tab" button —
@@ -219,7 +229,7 @@ function withAddedEntry(group: Group, entry: AddMenuEntry): Group {
   return { ...group, children: [...group.children, createCondition(entry)] };
 }
 
-export function FilterBlockBuilder({ client, group, onChange, config, footExtra }: FilterBlockBuilderProps) {
+export function FilterBlockBuilder({ client, group, onChange, config, selfNodeId, footExtra }: FilterBlockBuilderProps) {
   const facts = useBuilderFacts(client);
   /** The placeholder datalist, rendered once, useId-scoped. */
   const datalistId = useId();
@@ -353,6 +363,7 @@ export function FilterBlockBuilder({ client, group, onChange, config, footExtra 
           config={config}
           datalistId={datalistId}
           menuWidth={menuWidth}
+          selfNodeId={selfNodeId}
         />
       )}
       {/* The foot row: the "Add condition" menu (left — the ONE group
@@ -382,6 +393,8 @@ interface BlockContext {
   facts: BuilderFacts;
   config?: NodeCollectionToolbarConfig | undefined;
   datalistId: string;
+  /** The hosting page's id — the SELF target mode's anchor (absent = not offered). */
+  selfNodeId?: string | undefined;
 }
 
 interface GroupBlockProps extends BlockContext {
@@ -407,7 +420,7 @@ interface GroupBlockProps extends BlockContext {
   menuWidth: number;
 }
 
-function GroupBlock({ group, onChange, onDelete, depth, bare = false, client, facts, config, datalistId, menuWidth }: GroupBlockProps) {
+function GroupBlock({ group, onChange, onDelete, depth, bare = false, client, facts, config, datalistId, menuWidth, selfNodeId }: GroupBlockProps) {
   const patch = (partial: Partial<Group>): void => onChange({ ...group, ...partial });
   const updateChild = (index: number, child: Child): void => {
     const children = [...group.children];
@@ -507,6 +520,7 @@ function GroupBlock({ group, onChange, onDelete, depth, bare = false, client, fa
                   config={config}
                   datalistId={datalistId}
                   menuWidth={menuWidth}
+                  selfNodeId={selfNodeId}
                 />
               );
             }
@@ -523,6 +537,7 @@ function GroupBlock({ group, onChange, onDelete, depth, bare = false, client, fa
                   config={config}
                   datalistId={datalistId}
                   menuWidth={menuWidth}
+                  selfNodeId={selfNodeId}
                 />
               );
             }
@@ -540,6 +555,7 @@ function GroupBlock({ group, onChange, onDelete, depth, bare = false, client, fa
                 client={client}
                 facts={facts}
                 datalistId={datalistId}
+                selfNodeId={selfNodeId}
               />
             );
           })
@@ -568,7 +584,7 @@ interface NotBlockProps extends BlockContext {
   menuWidth: number;
 }
 
-function NotBlock({ not, onChange, onDelete, depth, client, facts, config, datalistId, menuWidth }: NotBlockProps) {
+function NotBlock({ not, onChange, onDelete, depth, client, facts, config, datalistId, menuWidth, selfNodeId }: NotBlockProps) {
   const patch = (child: Condition | Group): void =>
     onChange({ ...not, child: child as Condition | Group });
   return (
@@ -586,6 +602,7 @@ function NotBlock({ not, onChange, onDelete, depth, client, facts, config, datal
             config={config}
             datalistId={datalistId}
             menuWidth={menuWidth}
+            selfNodeId={selfNodeId}
           />
         ) : (
           <BlockRow
@@ -601,6 +618,7 @@ function NotBlock({ not, onChange, onDelete, depth, client, facts, config, datal
             client={client}
             facts={facts}
             datalistId={datalistId}
+            selfNodeId={selfNodeId}
           />
         )}
       </div>
@@ -633,6 +651,7 @@ function BlockRow({
   client,
   facts,
   datalistId,
+  selfNodeId,
 }: BlockRowProps) {
   const view = blockView(child)!;
   const { negated, condition } = view;
@@ -641,9 +660,23 @@ function BlockRow({
   const canMoveUp = onMoveUp !== undefined && index > 0;
   const canMoveDown = onMoveDown !== undefined && index < totalSiblings - 1;
   const showReorder = onMoveUp !== undefined || onMoveDown !== undefined;
-  /** The node-target families: static (picked node(s)) or dynamic (a nested
-   * query defining the target set — the v1 static/dynamic switch, now on
-   * links / parent / page / parent path / root / class / tags alike). */
+  /**
+   * The node-target families' target mode — the three-way switch:
+   * Manual (picked node(s)), Query (a nested query defining the target set),
+   * Self (the page hosting the query, resolving at run time). Query and Self
+   * ride the per-family `*Query`/`*Self` condition types.
+   */
+  const self =
+    condition.type === "linkedToSelf" ||
+    condition.type === "referencePathOfSelf" ||
+    condition.type === "parentOfSelf" ||
+    condition.type === "childOfSelf" ||
+    condition.type === "descendantOfSelf" ||
+    condition.type === "pageOfSelf" ||
+    condition.type === "ancestorInSelf" ||
+    condition.type === "rootInSelf" ||
+    condition.type === "classSelf" ||
+    condition.type === "tagSelf";
   const dynamic =
     condition.type === "linkedToQuery" ||
     condition.type === "descendantOfQuery" ||
@@ -655,6 +688,7 @@ function BlockRow({
     condition.type === "referencePathOfQuery" ||
     condition.type === "classAnyQuery" ||
     condition.type === "tagAnyQuery";
+  const mode: "manual" | "query" | "self" = self ? "self" : dynamic ? "query" : "manual";
   return (
     <div className="nt-fb-block">
       <div className="nt-fb-block__row">
@@ -706,11 +740,17 @@ function BlockRow({
             size="sm"
             aria-label="Target mode"
             options={[
-              { value: "static", icon: "mdi mdi-pin-outline", label: "Static — picked nodes" },
-              { value: "dynamic", icon: "mdi mdi-filter-variant", label: "Dynamic — a nested query" },
+              { value: "manual", icon: "mdi mdi-pin-outline", label: "Manual — picked nodes" },
+              { value: "query", icon: "mdi mdi-filter-variant", label: "Query — a nested query" },
+              // The Self mode needs a hosting page to resolve against; a
+              // row already IN Self mode keeps its option even at a
+              // host-less surface (the mode button must show its value).
+              ...(selfNodeId !== undefined || mode === "self"
+                ? [{ value: "self", icon: "mdi mdi-crosshairs", label: "Self — the page this query sits on" }]
+                : []),
             ]}
-            value={dynamic ? "dynamic" : "static"}
-            onChange={(mode) => {
+            value={mode}
+            onChange={(nextMode) => {
               const empty = { type: "group", logic: "and", children: [] } as Group;
               const dynamicFor = (type: string): Condition => ({ type, root: empty } as Condition);
               const staticFor = (type: string): Condition => {
@@ -720,6 +760,29 @@ function BlockRow({
                 if (type === "classAny") return { type, classIds: [] } as Condition;
                 if (type === "tagAny") return { type, tagIds: [] } as Condition;
                 return { type, nodeIds: [] } as Condition;
+              };
+              const selfFor = (familyKind: ConditionKind): Condition => {
+                const type =
+                  familyKind === "class"
+                    ? "classSelf"
+                    : familyKind === "tags"
+                      ? "tagSelf"
+                      : familyKind === "links"
+                        ? "linkedToSelf"
+                        : familyKind === "referencePath"
+                          ? "referencePathOfSelf"
+                          : familyKind === "parent"
+                            ? "parentOfSelf"
+                            : familyKind === "child"
+                              ? "childOfSelf"
+                              : familyKind === "childPath"
+                                ? "descendantOfSelf"
+                                : familyKind === "page"
+                                  ? "pageOfSelf"
+                                  : familyKind === "parentPath"
+                                    ? "ancestorInSelf"
+                                    : "rootInSelf";
+                return { type } as Condition;
               };
               const dynamicType =
                 family === "class"
@@ -761,7 +824,12 @@ function BlockRow({
                                 : family === "parentPath"
                                   ? "ancestorIn"
                                   : "rootIn";
-              const next = mode === "dynamic" ? dynamicFor(dynamicType) : staticFor(staticType);
+              const next =
+                nextMode === "query"
+                  ? dynamicFor(dynamicType)
+                  : nextMode === "self"
+                    ? selfFor(family)
+                    : staticFor(staticType);
               onChange(negated ? { type: "not", child: next } : next);
             }}
           />
@@ -801,9 +869,9 @@ function BlockRow({
           onClick={onDelete}
         />
       </div>
-      {/* Dynamic mode: the nested query rides beneath the row inside a kit
-          Card (the one contained-subgroup surface); the nesting is infinite (a dynamic row inside a
-          dynamic subgroup can go dynamic again). */}
+      {/* Query mode: the nested query rides beneath the row inside a kit
+          Card (the one contained-subgroup surface); the nesting is infinite (a
+          query row inside a query subgroup can go query again). */}
       {dynamic && (
         <div className="nt-fb-block__nested">
           {/* The `default` variant (surface fill + the outline-variant

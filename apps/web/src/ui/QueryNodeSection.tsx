@@ -35,6 +35,7 @@ import { parseQueryAst, type QueryAst } from "@notees/query";
 
 import { NodeCollectionTabs, NodeCollectionTopBar, SECTION_DEFAULT_TAB, useAvailableViewModes, ViewSwitcher } from "../features/collection/index.js";
 import { NodeCollectionToolbar } from "../features/collection/NodeCollectionToolbar.js";
+import { containingPageIdOf } from "../features/collection/sectionViewResolve.js";
 import {
   updateSectionViewAst,
   useSectionViews,
@@ -138,7 +139,15 @@ export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectio
   // looking for.
   const unspecified = isUnspecifiedQueryAst(effectiveAst);
 
-  const run = useQueryRun(client, effectiveAst, { enabled: !unspecified });
+  // The SELF anchor: the page hosting the query block — the containing page
+  // of the block node, never the block itself (nothing usefully points at
+  // the block).
+  const selfNodeId = containingPageIdOf(client, nodeId);
+
+  const run = useQueryRun(client, effectiveAst, {
+    enabled: !unspecified,
+    ...(selfNodeId !== undefined ? { selfNodeId } : {}),
+  });
 
   // The registry's availability gate on the FULL result set (the counts
   // ruling): gantt rides the switcher only while the results carry a valued
@@ -221,6 +230,7 @@ export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectio
               matchCount={null}
               totalCount={null}
               defaultPanelOpen={builderAutoOpen}
+              {...(selfNodeId !== undefined ? { selfNodeId } : {})}
               applyTarget={{
                 tabLabel: selectedView?.name ?? "Default",
                 onApply: applyToTab,

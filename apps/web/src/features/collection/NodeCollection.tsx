@@ -85,7 +85,7 @@ import { childQuery } from "./childQuery.js";
 import { getViewDefinition } from "./registry.js";
 import { SECTION_DEFAULT_TAB, NodeCollectionTabs } from "./NodeCollectionTabs.js";
 import { NodeCollectionTopBar } from "./NodeCollectionTopBar.js";
-import { useSectionViewResolution } from "./sectionViewResolve.js";
+import { containingPageIdOf, useSectionViewResolution } from "./sectionViewResolve.js";
 import type { NodeCollectionProps, ViewMode } from "./types.js";
 import { ViewChromeContext, ViewChromeSlot } from "./viewChrome.js";
 
@@ -162,6 +162,9 @@ export function NodeCollection({
     props.groups,
     props.ungroupedItems,
     selectedView,
+    // The hosted views' host page — the *Self conditions' anchor: a hosted
+    // tab's query resolves "this page" against the node hosting the views.
+    hosted !== null ? containingPageIdOf(props.client, hosted.nodeId) : undefined,
   );
   // View modes are transient surface state, not stored — the host's `viewMode` is the only mode; a hosted tab
   // cannot pin one.

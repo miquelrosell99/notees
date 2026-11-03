@@ -108,12 +108,14 @@ export function colorGroupQueryAst(root: Group): QueryAst {
  * the FIRST group each node matches (the list order IS the priority; the
  * panel's drag-reorder rewrites it). Erroneous (unmigrated) groups and empty
  * groups match nothing; a runner failure skips that group. Async because the
- * worker client's query runner is async.
+ * worker client's query runner is async. `selfNodeId` is the hosting page
+ * the `*Self` conditions resolve against.
  */
 export async function evaluateColorGroups(
   client: AnyDataClient,
   groups: GraphColorGroup[],
   resolveCss: (color: string) => string,
+  selfNodeId?: string,
 ): Promise<Map<string, string>> {
   const assignment = new Map<string, string>();
   for (const group of groups) {
@@ -122,7 +124,7 @@ export async function evaluateColorGroups(
     if (group.ast == null || group.ast.children.length === 0) continue;
     let ids: string[];
     try {
-      ids = (await Promise.resolve(client.runQueryAst(colorGroupQueryAst(group.ast)))).ids;
+      ids = (await Promise.resolve(client.runQueryAst(colorGroupQueryAst(group.ast), { selfNodeId }))).ids;
     } catch {
       continue;
     }

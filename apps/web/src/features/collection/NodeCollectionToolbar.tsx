@@ -135,9 +135,15 @@ export interface NodeCollectionToolbarProps {
    * without moving the cluster's other controls.
    */
   layout?: "block" | "inline" | undefined;
+  /**
+   * The hosting page's node id — the structured builder's SELF target mode
+   * anchor ("the page this query sits on"). Absent at host-less surfaces:
+   * the Self mode is not offered there.
+   */
+  selfNodeId?: string | undefined;
 }
 
-export function NodeCollectionToolbar({ client, value, onChange, config, matchCount, totalCount, viewSaver, applyTarget, defaultPanelOpen = false, layout = "block" }: NodeCollectionToolbarProps) {
+export function NodeCollectionToolbar({ client, value, onChange, config, matchCount, totalCount, viewSaver, applyTarget, defaultPanelOpen = false, layout = "block", selfNodeId }: NodeCollectionToolbarProps) {
   const [panelOpen, setPanelOpen] = useState(defaultPanelOpen);
   /**
    * The full-width panel seat: inside a NodeCollectionTopBar (the hosted
@@ -290,6 +296,7 @@ export function NodeCollectionToolbar({ client, value, onChange, config, matchCo
           onChange={onChange}
           config={config}
           panelHost={layout === "inline" ? topBarPanelHost : null}
+          selfNodeId={selfNodeId}
           footExtra={
             canApplyToTab || canSaveAsTab ? (
               <>
@@ -335,6 +342,7 @@ function Panel({
   onChange,
   config,
   panelHost,
+  selfNodeId,
   footExtra,
 }: {
   client: AnyClient;
@@ -343,6 +351,8 @@ function Panel({
   config: NodeCollectionToolbarConfig | undefined;
   /** The topbar's full-width seat, when one hosts this toolbar. */
   panelHost: HTMLElement | null;
+  /** The hosting page's id — the builder's SELF target mode anchor. */
+  selfNodeId: string | undefined;
   footExtra: ReactNode;
 }) {
   const panel = (
@@ -360,6 +370,7 @@ function Panel({
         group={value.group}
         config={config}
         onChange={(group) => onChange({ ...value, group })}
+        selfNodeId={selfNodeId}
         footExtra={footExtra}
       />
     </div>

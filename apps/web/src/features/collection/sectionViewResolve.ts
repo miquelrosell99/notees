@@ -51,7 +51,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { plainTextExcerpt, parseDateNodeId } from "@notees/domain";
-import { parseQueryAst, placeholderEndDate, placeholderStartDate, resolveDayBounds, resolvePeriodBounds, resolveTimestampPlaceholder, type DateOp, type PropertyOp, type QueryAst } from "@notees/query";
+import { parseQueryAst, placeholderEndDate, placeholderStartDate, resolveDayBounds, resolvePeriodBounds, resolveTimestampPlaceholder, type CompileOptions, type DateOp, type PropertyOp, type QueryAst } from "@notees/query";
 
 import type { ClientNode, EffectiveProperty } from "@/core/workspace-client/index.js";
 
@@ -66,7 +66,7 @@ export interface SectionViewResolveClient {
   getChildren(id: string): ClientNode[];
   /** The effective-values read model (the property condition's sync arm). */
   getEffectiveProperties(id: string): EffectiveProperty[];
-  runQueryAst(rawAst: unknown):
+  runQueryAst(rawAst: unknown, options?: CompileOptions):
     | { ids: string[] }
     | Promise<{ ids: string[] }>;
   /** The notify subscription the probe path's freshness rides. */
@@ -125,6 +125,18 @@ function leafNeedsProbe(condition: QueryAst["root"]["children"][number]): boolea
   if (condition.type === "referencePathOfQuery") return true;
   if (condition.type === "classAnyQuery") return true;
   if (condition.type === "tagAnyQuery") return true;
+  // The *Self markers resolve against the run context's hosting page —
+  // the store's compiler owns that read (one evaluation implementation).
+  if (condition.type === "linkedToSelf") return true;
+  if (condition.type === "referencePathOfSelf") return true;
+  if (condition.type === "parentOfSelf") return true;
+  if (condition.type === "childOfSelf") return true;
+  if (condition.type === "descendantOfSelf") return true;
+  if (condition.type === "pageOfSelf") return true;
+  if (condition.type === "ancestorInSelf") return true;
+  if (condition.type === "rootInSelf") return true;
+  if (condition.type === "classSelf") return true;
+  if (condition.type === "tagSelf") return true;
   if (condition.type === "content" && condition.op === "fts") return true;
   return false;
 }
@@ -203,21 +215,35 @@ function dateCmpMatches(column: string | null, op: DateOp, timestamp: string): b
 }
 
 /**
+ * The containing page of a node — the nearest self-or-ancestor rendering
+ * with document chrome (the Revision-12 page-role walk, cycle-guarded). The
+ * SELF target mode's anchor: a query block's host is its containing page,
+ * never the block itself (nothing usefully points at the block).
+ */
+export function containingPageIdOf(
+  client: Pick<SectionViewResolveClient, "getNode">,
+  nodeId: string,
+): string | undefined {
+  const seen = new Set<string>();
+  let current = client.getNode(nodeId);
+  while (current !== undefined) {
+    if (current.isClass || current.parentId === null || !current.isEmbedded) return current.id;
+    if (seen.has(current.id)) return undefined;
+    seen.add(current.id);
+    current = client.getNode(current.parentId);
+  }
+  return undefined;
+}
+
+/**
  * The containing page walk (Revision-12 page role, flattened the same way the
  * compiler's "pages" scope flattens it): the nearest self-or-ancestor that is
  * a class, parentless, or is_embedded=0 — standalone-under-a-non-page parent
  * is write-time impossible, so the flat test is exact. Cycle-guarded.
  */
 function containingPageOf(ctx: EvalContext, node: ClientNode): ClientNode | undefined {
-  const seen = new Set<string>();
-  let current: ClientNode | undefined = node;
-  while (current !== undefined) {
-    if (current.isClass || current.parentId === null || !current.isEmbedded) return current;
-    if (seen.has(current.id)) return undefined;
-    seen.add(current.id);
-    current = ctx.client.getNode(current.parentId);
-  }
-  return undefined;
+  const id = containingPageIdOf(ctx.client, node.id);
+  return id !== undefined ? ctx.client.getNode(id) : undefined;
 }
 
 function wireFieldMatches(
@@ -786,7 +812,9 @@ export function applySectionView(
 /**
  * The probe path (joined-metadata leaves): one membership query per probe
  * leaf through the established runQueryAst channel, intersected with the
- * base set. Returns the resolved rows.
+ * base set. Returns the resolved rows. `selfNodeId` is the hosting page the
+ * `*Self` leaves resolve against (absent only when the plan has no Self
+ * leaves — the compiler fails loud otherwise).
  */
 export async function resolveSectionViewProbed(
   client: SectionViewResolveClient,
@@ -796,6 +824,7 @@ export async function resolveSectionViewProbed(
     ungrouped?: NodeCollectionItem[] | undefined;
   },
   plan: SectionViewPlan,
+  selfNodeId?: string,
 ): Promise<{ items: NodeCollectionItem[]; groups: CollectionGroup[] | undefined; ungrouped: NodeCollectionItem[] | undefined }> {
   const probes = new Map<string, Set<string>>();
   const probeFor = async (condition: QueryAst["root"]["children"][number]): Promise<Set<string>> => {
@@ -807,7 +836,7 @@ export async function resolveSectionViewProbed(
         version: 1,
         scope: { type: "entire_workspace" },
         root: { type: "group", logic: "and", children: [condition] },
-      }),
+      }, { selfNodeId }),
     );
     const ids = new Set(result.ids.map(String));
     probes.set(key, ids);
@@ -886,6 +915,7 @@ export function useSectionViewResolution(
   groups: CollectionGroup[] | undefined,
   ungrouped: NodeCollectionItem[] | undefined,
   view: { id: string; queryAst: unknown } | null | undefined,
+  selfNodeId?: string,
 ): SectionViewResolution {
   const [probed, setProbed] = useState<{ key: string; items?: NodeCollectionItem[]; groups?: CollectionGroup[] | undefined; ungrouped?: NodeCollectionItem[] | undefined; error?: string } | null>(null);
   const [version, setVersion] = useState(0);
@@ -915,13 +945,13 @@ export function useSectionViewResolution(
     return client.subscribe(() => setVersion((v) => v + 1));
   }, [client, needsProbe]);
   const signature = needsProbe
-    ? `${astKey}|${items.map((item) => item.node.id).join(",")}|${(groups ?? []).map((group) => group.id).join(",")}|${version}`
+    ? `${astKey}|${items.map((item) => item.node.id).join(",")}|${(groups ?? []).map((group) => group.id).join(",")}|${version}|${selfNodeId ?? ""}`
     : "";
 
   useEffect(() => {
     if (!needsProbe || plan === null || "error" in plan) return;
     let cancelled = false;
-    void resolveSectionViewProbed(client, { items, groups, ungrouped }, plan)
+    void resolveSectionViewProbed(client, { items, groups, ungrouped }, plan, selfNodeId)
       .then((result) => {
         if (!cancelled) setProbed({ key: signature, items: result.items, groups: result.groups, ungrouped: result.ungrouped });
       })
