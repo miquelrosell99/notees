@@ -48,7 +48,8 @@ import {
   rememberWorkspaceName,
   rememberedWorkspaceList,
 } from "@/core/workspace-registry.js";
-import { logout } from "@/core/auth-api.js";
+import { login, logout } from "@/core/auth-api.js";
+import { deriveMasterKey } from "@/core/crypto-custody.js";
 import { clearCryptoCustody } from "@/core/crypto-custody.js";
 
 import { titleOfNode } from "./dateDisplay.js";
@@ -74,6 +75,7 @@ import {
   type SourcesQueryState,
 } from "../features/sources/sourcesQuery.js";
 import { useCondensedPreference } from "./viewPrefs.js";
+import { UnlockWorkspaceModal } from "../features/modals/UnlockWorkspaceModal.js";
 import {
   AppBody,
   AppModals,
@@ -195,6 +197,7 @@ export function App() {
   const [syncDetailsOpen, setSyncDetailsOpen] = useState(false);
   /** The account popup's admin entry: the active workspace's settings (plugins tab). */
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
+  const [unlockOpen, setUnlockOpen] = useState(false);
   /** Manage Workspaces view, opened from the workspace switcher popup. */
   const [managerOpen, setManagerOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -998,11 +1001,32 @@ export function App() {
           });
         }}
       />
+      <UnlockWorkspaceModal
+        isOpen={unlockOpen}
+        email={user?.email ?? ""}
+        onClose={() => setUnlockOpen(false)}
+        onSubmit={async (password) => {
+          // The unlock re-prompt: re-login (fresh kdf record), re-derive the
+          // master key into the custody slot, then re-open the workspace —
+          // resolveWorkspaceKey now unwraps the stored key and the engine
+          // gets the provider on reconnect.
+          if (user === null) throw new Error("No account email in this session.");
+          const response = await login(serverUrl, { email: user.email, password });
+          await deriveMasterKey(password, response.kdf);
+          setUnlockOpen(false);
+          await connect(serverUrl, token, readStored(STORAGE_KEYS.workspaceId), {
+            isOffline: false,
+            credentialType: (sessionSignedIn ? "session" : "apikey") as CredentialType,
+            label: workspaceName,
+          });
+        }}
+      />
       <AppOverlays
         client={client}
         storeMode={storeMode}
         storeReason={storeReason}
         encryptedLocked={encryptedLocked}
+        onUnlock={() => setUnlockOpen(true)}
         syncStatus={syncStatus}
         syncDetailsOpen={syncDetailsOpen}
         setSyncDetailsOpen={setSyncDetailsOpen}
