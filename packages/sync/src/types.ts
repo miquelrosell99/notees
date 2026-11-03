@@ -3,13 +3,20 @@
  * state machine shapes, and the engine callback surface. Ported from
  * `frontend/src/core/{sync.ts,transport.ts}`: seq-only cursor
  * (HLC is causality metadata, never a catch-up ordering), camelCase bodies,
- * single-user (API-key auth, no E2EE slot handling, no presence).
+ * single-user (API-key auth, no presence). E2EE is an optional boundary (see
+ * EnvelopeCrypto): when a crypto provider is installed the wire carries only
+ * encrypted payloads and sealed snapshots; when absent everything is plaintext.
  */
 
 import type { Envelope, Hlc } from "@notees/protocol";
 
 import type { BatchChangeInfo } from "./change-info.js";
 import type { SyncConflict } from "./conflicts.js";
+
+// WebCrypto's CryptoKey is ambient in the DOM lib but not under @types/node 20
+// (this package compiles against lib ES2022, no DOM) — derive it from the
+// already-declared global `crypto` so the module stays runtime-agnostic.
+type CryptoKey = Awaited<ReturnType<typeof crypto.subtle.importKey>>;
 
 export type SyncStatus = "idle" | "syncing" | "error";
 
@@ -114,4 +121,18 @@ export interface SyncEngineCallbacks {
   onEnqueued?: (envelope: Envelope) => void;
   /** A chunk of local envelopes was acknowledged by the server (durable-log hook). */
   onAcknowledged?: (ids: string[]) => void;
+}
+
+// --- E2EE boundary (spec §2) --------------------------------------------------------
+
+/**
+ * E2EE boundary (spec §2): encrypt at the push boundary, decrypt after
+ * receive/before apply, seal snapshot blobs. The engine is key-agnostic —
+ * the client owns custody and passes a provider (or null to disable).
+ */
+export interface EnvelopeCrypto {
+  encryptEnvelope(envelope: Envelope): Promise<Envelope>;
+  decryptEnvelope(envelope: Envelope): Promise<Envelope>;
+  encryptSnapshot(bytes: Uint8Array): Promise<Uint8Array>;
+  decryptSnapshot(bytes: Uint8Array): Promise<Uint8Array>;
 }
