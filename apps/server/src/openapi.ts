@@ -532,6 +532,28 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     success: { status: 201, description: "the new workspace id, name, and node count" },
     errors: ["validation_failed", "not_found", "forbidden", "conflict"],
   }],
+  ["get", "/api/workspaces/:id/key", {
+    summary: "The workspace's wrapped E2EE key (member-scoped; opaque to the server)",
+    description:
+      "E2EE custody: one wrapped-key string per workspace, wrapped by the client with the account master key — the server never sees either key. A user without membership gets 404 (key existence is not revealed), as does a member when no key is stored; an API-key principal (operator) gets 403 — keys are user custody, not operator.",
+    tags: ["Workspaces"],
+    success: { description: "the wrapped key", schema: { type: "object", additionalProperties: false, properties: { wrappedKey: { type: "string" } }, required: ["wrappedKey"] } },
+    errors: ["unauthenticated", "forbidden", "not_found"],
+  }],
+  ["put", "/api/workspaces/:id/key", {
+    summary: "Store the workspace's wrapped E2EE key (member-scoped; upsert)",
+    description:
+      "Writes the opaque wrapped-key row (last write wins; the client owns custody). Non-members get 403; the operator API key gets 403; unauthenticated 401.",
+    tags: ["Workspaces"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["wrappedKey"],
+      properties: { wrappedKey: { type: "string", minLength: 1, maxLength: 4096 } },
+    },
+    success: { status: 204, description: "stored" },
+    errors: ["unauthenticated", "forbidden", "validation_failed"],
+  }],
   ["get", "/api/workspaces/:id/export.zip", {
     summary: "Full-workspace Markdown zip (one file per page, manifest, optional assets/)",
     description:
