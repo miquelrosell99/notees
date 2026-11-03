@@ -1,5 +1,5 @@
 /**
- * QueryAST v1 — re-exported from @notees/protocol.
+ * QueryAST v2 — re-exported from @notees/protocol.
  *
  * The zod AST model lives in `packages/protocol/src/query-ast.ts` (the
  * wire-adjacent home: the content grammar's `query` token embeds it, so
@@ -15,12 +15,15 @@ export {
   childSchema,
   conditionSchema,
   groupSchema,
+  memberConditionSchema,
+  memberFamilySchema,
   notSchema,
   parseQueryAst,
   queryAstSchema,
   safeParseQueryAst,
   scopeSchema,
   sortSpecSchema,
+  targetRefSchema,
 } from "@notees/protocol";
 
 export type {
@@ -33,6 +36,8 @@ export type {
   DateOp,
   DatePeriod,
   Group,
+  MemberCondition,
+  MemberFamily,
   NameOp,
   NodeFieldOp,
   Not,
@@ -42,4 +47,5 @@ export type {
   SortDir,
   SortField,
   SortSpec,
+  TargetRef,
 } from "@notees/protocol";

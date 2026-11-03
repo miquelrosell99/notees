@@ -1,9 +1,5 @@
 /**
- * QueryAST v1 — the canonical, serializable query model for Notees
- * (port of `app/domain/entities/query_ast.py` concepts, adapted to the
- * derived schema: the Revision-12 booleans (`is_class`, `is_embedded`)
- * replace node_type/kind, edge replaces node_link as the
- * reference index, class_hierarchy carries the transitive extends closure).
+ * QueryAST v2 — the canonical, serializable query model for Notees.
  *
  * Lives in @notees/protocol because it is wire-adjacent: the content
  * grammar's `query` token embeds it (content-mark.ts), and protocol must
@@ -11,25 +7,48 @@
  * unchanged (`packages/query/src/ast.ts`), so existing
  * `import { … } from "@notees/query"` paths keep working.
  *
+ * v2 replaces the v1 flat union of 64 condition types with SIX types.
+ * The v1 type names smeared three independent axes across the type system —
+ * `descendantOf` / `descendantOfAny` / `descendantOfQuery` /
+ * `descendantOfSelf` / `descendantSet` are one logical condition wearing
+ * five hats. v2 makes the axes explicit and orthogonal:
+ *
+ *  - `member` conditions carry `family` (what reference is tested), `op`
+ *    (the comparator: in / not-in / exists / not-exists / exact), and a
+ *    `target` that names its mode (`ids` manual / `query` nested / `self`
+ *    hosting page). Negative comparators are wire-level ops; free-form
+ *    negation additionally sugars through the `not` group wrapper.
+ *  - `content` folds v1's `contentSet` (op `exists`).
+ *  - `property` folds v1's `propertyBetween` / `propertyWithin`.
+ *  - `date` folds the ten v1 `created*` / `updated*` types behind an
+ *    explicit `field` axis.
+ *  - `nodeField` folds v1's `isClass` / `isEmbedded` (they ride op `eq`
+ *    with value `"true"` / `"false"`); `coverAsset` / `bannerAsset` /
+ *    `aliasedNode` keep their ops unchanged.
+ *
  * Design laws (carried over):
  *  - the AST is the source of truth — UI and SQL are projections of it;
- *  - the AST is versioned (`version: 1`) and evolves by versioned extension —
- *    unknown condition types or newer versions FAIL LOUD at parse time
- *    (`queryAstSchema` is strict; the protocol content token wraps it in a
- *    loose union so foreign blocks still apply — see content-mark);
+ *  - the AST is versioned (`version: 2`) and evolves by versioned extension —
+ *    unknown condition types, families, ops, target modes, or versions FAIL
+ *    LOUD at parse time (every schema is `.strict()`; the protocol content
+ *    token wraps it in a loose union so foreign blocks still apply — see
+ *    content-mark);
+ *  - there is NO v1 parse path: `version: 1` is rejected outright and v1
+ *    data converges by a one-time in-place log rewrite
+ *    (`scripts/migrate-query-ast-v2.mts`, Path-B precedent
+ *    `migrate-is-embedded.mts`), never by dual-parse;
  *  - scopes and conditions carry explicit ids; there are no editor-relative
  *    ID placeholders ("this page" is baked at write time by the
- *    builder) — EXCEPT the `*Self` condition family: the marker conditions
- *    (`linkedToSelf`, `parentOfSelf`, …) name the query's HOSTING PAGE, which
- *    is not knowable at write time (the same AST must mean "this page"
- *    wherever it runs). They resolve at COMPILE time against
- *    `@notees/query` CompileOptions.selfNodeId — the run site supplies the
- *    hosting page's id, and a compile without it FAILS LOUD. The static /
- *    dynamic (nested-group) forms stay explicit-id as before.
- *    `{today}`-style DATE placeholders ({today}/{this_week}/
- *    {this_month}/{this_year}) are ordinary strings in timestamp/value
- *    positions and resolve at compile time against the run clock
- *    (@notees/query CompileOptions.now) — see placeholders.ts.
+ *    builder) — EXCEPT the `self` target mode: the target names the query's
+ *    HOSTING PAGE, which is not knowable at write time (the same AST must
+ *    mean "this page" wherever it runs). It resolves at COMPILE time
+ *    against `@notees/query` CompileOptions.selfNodeId — the run site
+ *    supplies the hosting page's id, and a compile without it FAILS LOUD.
+ *    The static / dynamic (nested-group) target modes stay explicit-id.
+ *    `{today}`-style DATE placeholders ({today}/{this_week}/{this_month}/
+ *    {this_year}) are ordinary strings in timestamp/value positions and
+ *    resolve at compile time against the run clock (@notees/query
+ *    CompileOptions.now) — see placeholders.ts.
  */
 
 import { z } from "zod";
@@ -52,6 +71,32 @@ export const scopeSchema = z.discriminatedUnion("type", [
   /** Roll-up membership: backlinksWithRollup semantics (direct + containment). */
   z.object({ type: z.literal("linkedTo"), nodeId: uuid }).strict(),
 ]);
+
+// --- target reference ---------------------------------------------------------------
+// The target mode axis: `ids` manual / `query` nested / `self` hosting page.
+// Recursive (a query target nests a full group tree) — zod needs explicit
+// output annotations to type the cycle.
+
+/**
+ * The target reference — the mode axis of every `member` membership op.
+ * `ids` is a manual pick (class family → class ids, tags → tag ids, every
+ * other family → node ids); `query` defines the target set dynamically
+ * through a nested group (a saved view re-resolves on every run, never
+ * baked uuids); `self` names the HOSTING PAGE, resolved at compile time
+ * against CompileOptions.selfNodeId.
+ */
+export type TargetRef =
+  | { mode: "ids"; ids: string[] }
+  | { mode: "query"; root: Group }
+  | { mode: "self" };
+
+export const targetRefSchema: z.ZodType<TargetRef> = z.lazy(() =>
+  z.union([
+    z.object({ mode: z.literal("ids"), ids: z.array(uuid).min(1) }).strict(),
+    z.object({ mode: z.literal("query"), root: groupSchema }).strict(),
+    z.object({ mode: z.literal("self") }).strict(),
+  ]),
+);
 
 // --- group / not -------------------------------------------------------------------
 // Recursive: zod needs explicit output annotations to type the cycle.
@@ -83,8 +128,90 @@ export const childSchema: z.ZodType<Child> = z.lazy(() =>
   z.union([conditionSchema, groupSchema, notSchema]),
 );
 
-
 // --- conditions ------------------------------------------------------------------
+
+/**
+ * The node-target families — what reference of the node the `member`
+ * condition tests. The family ↔ semantics table (compiler contract,
+ * unchanged SQL; normative copy in packages/query/README.md):
+ *
+ * | family        | predicate over the target set           | emptiness (`exists`)      |
+ * |---------------|-----------------------------------------|---------------------------|
+ * | class         | extends-closure membership              | has any class             |
+ * | tags          | tag edge membership                     | has any tag               |
+ * | links         | backlinksWithRollup (direct + roll-up)  | has any link              |
+ * | referencePath | self-or-ancestor reference roll-up      | —                         |
+ * | parent        | direct parent ∈ set                     | has a parent              |
+ * | child         | direct child ∈ set                      | has any child             |
+ * | childPath     | strict subtree membership               | has any descendant        |
+ * | page          | containing page ∈ set                   | lives inside a page       |
+ * | parentPath    | ancestor chain ∩ set                    | has a parent (parentSet)  |
+ * | root          | workspace-root ancestor ∈ set           | — (vacuous)               |
+ */
+export type MemberFamily =
+  | "class"
+  | "tags"
+  | "links"
+  | "referencePath"
+  | "parent"
+  | "child"
+  | "childPath"
+  | "page"
+  | "parentPath"
+  | "root";
+
+export const memberFamilySchema = z.enum([
+  "class",
+  "tags",
+  "links",
+  "referencePath",
+  "parent",
+  "child",
+  "childPath",
+  "page",
+  "parentPath",
+  "root",
+]);
+
+/**
+ * The node-target condition — ONE type replaces the v1 family's 45
+ * variants. The three sub-shapes:
+ *  - `in` / `not-in`: membership over the target set (target REQUIRED);
+ *  - `exists` / `not-exists`: the family's reference emptiness test
+ *    (NO target — a target on these is a wire error);
+ *  - `exact`: class family ONLY — exact single-class equality (v1's
+ *    classExact); the target is a single class id.
+ */
+export type MemberCondition =
+  | { type: "member"; family: MemberFamily; op: "in" | "not-in"; target: TargetRef }
+  | { type: "member"; family: MemberFamily; op: "exists" | "not-exists" }
+  | { type: "member"; family: "class"; op: "exact"; target: { mode: "ids"; ids: [string] } };
+
+export const memberConditionSchema = z.union([
+  z
+    .object({
+      type: z.literal("member"),
+      family: memberFamilySchema,
+      op: z.enum(["in", "not-in"]),
+      target: targetRefSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("member"),
+      family: memberFamilySchema,
+      op: z.enum(["exists", "not-exists"]),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("member"),
+      family: z.literal("class"),
+      op: z.literal("exact"),
+      target: z.object({ mode: z.literal("ids"), ids: z.tuple([uuid]) }).strict(),
+    })
+    .strict(),
+]);
 
 /**
  * eq/neq/contains/exists are the original subset; gt/gte/lt/lte are the
@@ -103,10 +230,10 @@ export type ContentOp = "contains" | "fts" | "eq" | "neq" | "starts" | "ends";
  */
 export type NameOp = "eq" | "neq" | "contains" | "exists";
 /**
- * The date-comparison family (Odoo's date operators):
- * eq/neq are DAY-granular equality (the whole local day matches), gt/gte/lt/lte
- * compare against the resolved instant. `between`/`within` ride their own
- * condition shapes.
+ * The base date-comparison ops (Odoo's date operators): eq/neq are
+ * DAY-granular equality (the whole local day matches), gt/gte/lt/lte compare
+ * against the resolved instant. v2's `date` condition rides the full set —
+ * after/before/joins plus the folded `between` / `within` range/period ops.
  */
 export type DateOp = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
 /** The relative periods ("is within today / this week / this month / this year"). */
@@ -120,10 +247,16 @@ export type DatePeriod = "today" | "this_week" | "this_month" | "this_year";
 export type NodeFieldOp = "eq" | "neq" | "exists";
 
 export type Condition =
-  | { type: "class"; classId: string }
-  | { type: "isClass"; isClass: boolean }
-  | { type: "isEmbedded"; isEmbedded: boolean }
-  | { type: "content"; op: ContentOp; value: string }
+  | MemberCondition
+  /**
+   * The plaintext condition: contains is a LIKE substring over the derived
+   * search plaintext (the same text the FTS index holds: name + content
+   * tokens, case-insensitive for ASCII); fts is a prefix-AND FTS MATCH over
+   * search_index; eq/neq plaintext equality; starts/ends prefix/suffix LIKE —
+   * the Odoo text operator set. `exists` (folded from v1's contentSet) reads
+   * "the title/content plaintext is non-empty".
+   */
+  | { type: "content"; op: ContentOp | "exists"; value?: string | undefined }
   /**
    * Title-is-content: the node's title IS its flattened content text (the
    * sort-by-name expression) — the `name:` DSL field. `contains` is a LIKE
@@ -136,8 +269,13 @@ export type Condition =
   | {
       type: "property";
       schemaId: string;
-      op: PropertyOp;
+      op: PropertyOp | "between" | "within";
       value?: unknown;
+      /** Folded from v1's propertyBetween: the inclusive [from, to] range. */
+      from?: unknown;
+      to?: unknown;
+      /** Folded from v1's propertyWithin: the relative period. */
+      period?: DatePeriod | undefined;
       /**
        * Read through the effective-values read model (authored rows plus
        * class-binding defaults derived at query time, first-class-applied-wins)
@@ -146,330 +284,103 @@ export type Condition =
        */
       includeDefaults?: boolean | undefined;
     }
-  /** backlinksWithRollup semantics: direct edge to nodeId, or containment roll-up. */
-  | { type: "linkedTo"; nodeId: string }
   /**
-   * EXACT class-set equality (the Odoo "=" register): the node's class set is
-   * exactly {classId} — nothing else rides it. (The plain `class` condition
-   * is closure MEMBERSHIP: the class among others.) Negation (is-not) is the
-   * not-wrap.
+   * The date condition — the v1 `created*` / `updated*` ten types folded
+   * behind an explicit `field` axis. eq/neq are DAY-granular equality;
+   * gt/gte/lt/lte compare against the resolved instant; after/before are the
+   * inclusive day-boundary ops; between is the inclusive [from, to] range;
+   * within is the relative period.
    */
-  | { type: "classExact"; classId: string }
+  | {
+      type: "date";
+      field: "created" | "updated";
+      op: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "after" | "before" | "between" | "within";
+      timestamp?: string | undefined;
+      from?: string | undefined;
+      to?: string | undefined;
+      period?: DatePeriod | undefined;
+    }
   /**
-   * ANY-of class membership (Odoo "one of"): at least one of the picked
-   * classes rides the node's class set — closure-aware per id, like `class`.
-   * The not-wrap reads "not one of".
+   * The node wire-field condition — v1's isClass/isEmbedded folded in: they
+   * ride op `eq` with value "true" | "false" (the Revision-12 booleans as
+   * wire strings). coverAsset/bannerAsset/aliasedNode keep eq/neq against a
+   * node id and exists for the set/unset bit.
    */
-  | { type: "classAny"; classIds: string[] }
-  /** The class set is non-empty (Odoo "is defined"/"is set"); the not-wrap reads "is not set". */
-  | { type: "classSet" }
-  /**
-   * DYNAMIC class: closure-aware membership of ANY class matching the nested
-   * group — the dynamic form of classAny ("classed as anything matching …").
-   * A saved view re-resolves the nested query on every run, never baked uuids.
-   */
-  | { type: "classAnyQuery"; root: Group }
-  /**
-   * SELF class: closure-aware membership of the HOSTING PAGE used as a class
-   * ("classed as the page this query sits on") — the marker form resolving
-   * CompileOptions.selfNodeId at compile time.
-   */
-  | { type: "classSelf" }
-  /**
-   * The CONTAINING PAGE (the nearest self-or-ancestor rendering with document
-   * chrome — a class, a parentless node, or an is_embedded=0 node under a
-   * page-role parent) IS ONE OF the picked nodes (v1's Page block, static
-   * mode). The not-wrap reads "page is not any of …".
-   */
-  | { type: "pageOf"; nodeIds: string[] }
-  /** DYNAMIC Page: the containing page is one of the nodes matching the nested group. */
-  | { type: "pageOfQuery"; root: Group }
-  /** SELF Page: the containing page IS the hosting page. */
-  | { type: "pageOfSelf" }
-  /** The row lives inside a page at all (the Page "is set" — a page's own page is itself). */
-  | { type: "pageSet" }
-  /**
-   * The PARENT PATH carries one of the picked nodes (v1's Parent path block,
-   * static mode): some STRICT ancestor (parent, grandparent, …) is in the set
-   * — self excluded. The not-wrap reads "parent path includes none of …".
-   */
-  | { type: "ancestorIn"; nodeIds: string[] }
-  /** DYNAMIC Parent path: some strict ancestor matches the nested group. */
-  | { type: "ancestorInQuery"; root: Group }
-  /** SELF Parent path: a strict ancestor IS the hosting page. */
-  | { type: "ancestorInSelf" }
-  /**
-   * The ROOT ancestor (the workspace-root child at the top of the parent
-   * chain — the row itself when parentless) IS ONE OF the picked nodes (v1's
-   * root walk, static mode). The not-wrap reads "root is not any of …".
-   */
-  | { type: "rootIn"; nodeIds: string[] }
-  /** DYNAMIC Root: the workspace-root ancestor matches the nested group. */
-  | { type: "rootInQuery"; root: Group }
-  /** SELF Root: the workspace-root ancestor IS the hosting page. */
-  | { type: "rootInSelf" }
-  /**
-   * v1's PARENT block: the DIRECT parent (one hop up) IS ONE OF the picked
-   * nodes (static mode). The not-wrap reads "parent is not any of …"; the
-   * set bit rides `parentSet`.
-   */
-  | { type: "parentOf"; nodeIds: string[] }
-  /** DYNAMIC Parent: the direct parent is one of the nodes matching the nested group. */
-  | { type: "parentOfQuery"; root: Group }
-  /** SELF Parent: the direct parent IS the hosting page. */
-  | { type: "parentOfSelf" }
-  /**
-   * v1's CHILD block: the node CONTAINS ANY OF the picked nodes as DIRECT
-   * children (static mode). The not-wrap reads "does not contain any of …";
-   * the set bit rides `childSet`.
-   */
-  | { type: "childOf"; nodeIds: string[] }
-  /** DYNAMIC Child: a direct child is one of the nodes matching the nested group. */
-  | { type: "childOfQuery"; root: Group }
-  /** SELF Child: a direct child IS the hosting page. */
-  | { type: "childOfSelf" }
-  /** The CHILD "is set": at least one direct child exists. */
-  | { type: "childSet" }
-  /** The CHILD PATH "is set": at least one descendant exists (any depth below). */
-  | { type: "descendantSet" }
-  /**
-   * v1's REFERENCE PATH block: the node OR any of its ancestors REFERENCES
-   * one of the picked nodes, OR the node sits INSIDE one of them (the target
-   * is an ancestor — v1 folded containment into the reference rollup).
-   */
-  | { type: "referencePathOf"; nodeIds: string[] }
-  /** DYNAMIC Reference path: the rollup targets are the subquery's matches. */
-  | { type: "referencePathOfQuery"; root: Group }
-  /** SELF Reference path: the rollup target IS the hosting page. */
-  | { type: "referencePathOfSelf" }
-  /**
-   * Ancestor-chain membership: the node's parents tree (parent,
-   * grandparent, …, the node itself EXCLUDED) contains nodeId — the row
-   * sits anywhere inside the chosen node's tree. Compiled as subtree
-   * membership minus the anchor row.
-   */
-  | { type: "descendantOf"; nodeId: string }
-  /**
-   * DYNAMIC links-to: the row's backlinksWithRollup target set is ANY node
-   * matching the nested group ("links to a person node with age > 50") —
-   * the v1 dynamic reference blocks as a durable wire form (a saved view
-   * re-resolves the nested query on every run, never baked uuids).
-   */
-  | { type: "linkedToQuery"; root: Group }
-  /** SELF links-to: the row's backlinksWithRollup set includes the hosting page. */
-  | { type: "linkedToSelf" }
-  /** DYNAMIC parent: the ancestor chain contains ANY node matching the group. */
-  | { type: "descendantOfQuery"; root: Group }
-  /** SELF child-path: the row sits strictly inside the hosting page (its subtree, self excluded). */
-  | { type: "descendantOfSelf" }
-  /** node.created_at >= timestamp (ISO-8601, inclusive, lexicographic). */
-  | { type: "createdAfter"; timestamp: string }
-  /** node.created_at <= timestamp (ISO-8601, inclusive, lexicographic). */
-  | { type: "createdBefore"; timestamp: string }
-  /** node.updated_at >= timestamp (the "edit date" facet of created). */
-  | { type: "updatedAfter"; timestamp: string }
-  /** node.updated_at <= timestamp. */
-  | { type: "updatedBefore"; timestamp: string }
-  /** The title/content plaintext is non-empty (the content "is set"). */
-  | { type: "contentSet" }
-  /** Tag membership: the OR-set tag_ids carries tagId (a tag is any page). */
-  | { type: "tag"; tagId: string }
-  /** ANY-of tag membership (Odoo "one of" over tags). */
-  | { type: "tagAny"; tagIds: string[] }
-  /** At least one tag rides the node. */
-  | { type: "tagSet" }
-  /** DYNAMIC tags: tagged with ANY tag matching the nested group. */
-  | { type: "tagAnyQuery"; root: Group }
-  /** SELF tags: tagged with the hosting page itself. */
-  | { type: "tagSelf" }
-  /** backlinksWithRollup membership of ANY picked node (the links "one of"). */
-  | { type: "linkedToAny"; nodeIds: string[] }
-  /** At least one inbound link (a direct edge targets the node). */
-  | { type: "linkSet" }
-  /** Subtree membership of ANY picked node (the parent "one of"), anchors excluded. */
-  | { type: "descendantOfAny"; nodeIds: string[] }
-  /** The node has a parent at all (parent_id IS NOT NULL). */
-  | { type: "parentSet" }
-  /** Date comparison (Odoo's =/!=/>/>=/</<=) over created_at. */
-  | { type: "createdCmp"; op: DateOp; timestamp: string }
-  /** Date comparison over updated_at. */
-  | { type: "updatedCmp"; op: DateOp; timestamp: string }
-  /** Inclusive created-at range (from day-start to to day-end). */
-  | { type: "createdBetween"; from: string; to: string }
-  /** Inclusive updated-at range. */
-  | { type: "updatedBetween"; from: string; to: string }
-  /** created_at inside a relative period (today / this week / this month / this year). */
-  | { type: "createdWithin"; period: DatePeriod }
-  /** updated_at inside a relative period. */
-  | { type: "updatedWithin"; period: DatePeriod }
-  /** The effective property value sits inside the inclusive [from, to] range. */
-  | { type: "propertyBetween"; schemaId: string; from?: unknown; to?: unknown }
-  /** The effective date-valued property sits inside the relative period. */
-  | { type: "propertyWithin"; schemaId: string; period: DatePeriod }
-  /** node.cover_asset_id comparison — the page cover's asset node (the wire field). */
-  | { type: "coverAsset"; op: NodeFieldOp; value?: string | undefined }
-  /** node.banner_asset_id comparison — the page banner's asset node (the wire field). */
-  | { type: "bannerAsset"; op: NodeFieldOp; value?: string | undefined }
-  /** node.aliased_node_id comparison — the main page a node alias points at. */
-  | { type: "aliasedNode"; op: NodeFieldOp; value?: string | undefined };
+  | {
+      type: "nodeField";
+      field: "coverAsset" | "bannerAsset" | "aliasedNode" | "isClass" | "isEmbedded";
+      op: NodeFieldOp;
+      value?: string | undefined;
+    };
 
-export const conditionSchema = z.discriminatedUnion("type", [
-  /** Hierarchy-aware: members of the class OR of any class extending it. */
-  z.object({ type: z.literal("class"), classId: uuid }).strict(),
-  /** Class identity bit: match class nodes (true) or non-class nodes (false). */
-  z.object({ type: z.literal("isClass"), isClass: z.boolean() }).strict(),
-  /** Embedding flag (parented nodes): match the parent's inline body
-   * (true = embedded, the Block role) or the main-children zone (false =
-   * standalone, the Page role). */
-  z.object({ type: z.literal("isEmbedded"), isEmbedded: z.boolean() }).strict(),
-  /**
-   * contains: LIKE substring over the derived search plaintext (the same text
-   * the FTS index holds: name + content tokens, case-insensitive for ASCII).
-   * fts: prefix-AND FTS MATCH over search_index. eq/neq: plaintext equality;
-   * starts/ends: prefix/suffix LIKE — the Odoo text operator set.
-   */
-  z.object({
-    type: z.literal("content"),
-    op: z.enum(["contains", "fts", "eq", "neq", "starts", "ends"]),
-    value: z.string().min(1),
-  }).strict(),
-  /**
-   * The title condition (title-is-content: the flattened content text, the
-   * sort-by-name expression): contains LIKE (ASCII case-insensitive),
-   * eq/neq exact (case-sensitive), exists = non-empty title. An untitled
-   * row matches neither eq nor neq (SQL NULL semantics).
-   */
-  z.object({
-    type: z.literal("name"),
-    op: z.enum(["eq", "neq", "contains", "exists"]),
-    value: z.string().min(1).optional(),
-  }).strict(),
-  z.object({
-    type: z.literal("property"),
-    schemaId: uuid,
-    op: z.enum(["eq", "neq", "contains", "exists", "gt", "gte", "lt", "lte"]),
-    value: z.unknown().optional(),
-    includeDefaults: z.boolean().optional(),
-  }).strict(),
-  z.object({ type: z.literal("linkedTo"), nodeId: uuid }).strict(),
-  /** EXACT class-set equality — the set is {classId}, nothing else (the Odoo "=" register). */
-  z.object({ type: z.literal("classExact"), classId: uuid }).strict(),
-  /** ANY-of class membership (Odoo "one of") — closure-aware per id, like `class`. */
-  z.object({ type: z.literal("classAny"), classIds: z.array(uuid).min(1) }).strict(),
-  /** The class set is non-empty (Odoo "is set"); the not-wrap reads "is not set". */
-  z.object({ type: z.literal("classSet") }).strict(),
-  /** DYNAMIC class: closure-aware membership of ANY class matching the nested group. */
-  z.object({ type: z.literal("classAnyQuery"), root: groupSchema }).strict(),
-  /** SELF class: the hosting page used as the class (closure-aware). */
-  z.object({ type: z.literal("classSelf") }).strict(),
-  /**
-   * Ancestor-chain membership (the "parent is X, anywhere up the tree"
-   * condition): subtree membership minus the anchor itself.
-   */
-  z.object({ type: z.literal("descendantOf"), nodeId: uuid }).strict(),
-  /** Dynamic links-to: the target set is the nested group's matches (v1 dynamic blocks, durable form). */
-  z.object({ type: z.literal("linkedToQuery"), root: groupSchema }).strict(),
-  /** SELF links-to: the target is the hosting page. */
-  z.object({ type: z.literal("linkedToSelf") }).strict(),
-  /** Dynamic parent: any ancestor matching the nested group. */
-  z.object({ type: z.literal("descendantOfQuery"), root: groupSchema }).strict(),
-  /** SELF child-path: the row sits strictly inside the hosting page. */
-  z.object({ type: z.literal("descendantOfSelf") }).strict(),
-  z.object({ type: z.literal("createdAfter"), timestamp: z.string().min(1) }).strict(),
-  z.object({ type: z.literal("createdBefore"), timestamp: z.string().min(1) }).strict(),
-  z.object({ type: z.literal("updatedAfter"), timestamp: z.string().min(1) }).strict(),
-  z.object({ type: z.literal("updatedBefore"), timestamp: z.string().min(1) }).strict(),
-  /** The v1 Page block: the containing page is one of the picked nodes / matches the group. */
-  z.object({ type: z.literal("pageOf"), nodeIds: z.array(uuid).min(1) }).strict(),
-  z.object({ type: z.literal("pageOfQuery"), root: groupSchema }).strict(),
-  /** SELF Page: the containing page is the hosting page. */
-  z.object({ type: z.literal("pageOfSelf") }).strict(),
-  z.object({ type: z.literal("pageSet") }).strict(),
-  /** The v1 Parent path block: a strict ancestor is one of the picked nodes / matches the group. */
-  z.object({ type: z.literal("ancestorIn"), nodeIds: z.array(uuid).min(1) }).strict(),
-  z.object({ type: z.literal("ancestorInQuery"), root: groupSchema }).strict(),
-  /** SELF Parent path: a strict ancestor is the hosting page. */
-  z.object({ type: z.literal("ancestorInSelf") }).strict(),
-  /** The root walk: the workspace-root ancestor is one of the picked nodes / matches the group. */
-  z.object({ type: z.literal("rootIn"), nodeIds: z.array(uuid).min(1) }).strict(),
-  z.object({ type: z.literal("rootInQuery"), root: groupSchema }).strict(),
-  /** SELF Root: the workspace-root ancestor is the hosting page. */
-  z.object({ type: z.literal("rootInSelf") }).strict(),
-  /** v1's Parent block: the direct parent is one of the picked nodes / matches the group. */
-  z.object({ type: z.literal("parentOf"), nodeIds: z.array(uuid).min(1) }).strict(),
-  z.object({ type: z.literal("parentOfQuery"), root: groupSchema }).strict(),
-  /** SELF Parent: the direct parent is the hosting page. */
-  z.object({ type: z.literal("parentOfSelf") }).strict(),
-  /** v1's Child block: a direct child is one of the picked nodes / matches the group. */
-  z.object({ type: z.literal("childOf"), nodeIds: z.array(uuid).min(1) }).strict(),
-  z.object({ type: z.literal("childOfQuery"), root: groupSchema }).strict(),
-  /** SELF Child: a direct child is the hosting page. */
-  z.object({ type: z.literal("childOfSelf") }).strict(),
-  z.object({ type: z.literal("childSet") }).strict(),
-  z.object({ type: z.literal("descendantSet") }).strict(),
-  /** v1's Reference path block: the self-or-ancestor link rollup over the picked nodes. */
-  z.object({ type: z.literal("referencePathOf"), nodeIds: z.array(uuid).min(1) }).strict(),
-  z.object({ type: z.literal("referencePathOfQuery"), root: groupSchema }).strict(),
-  /** SELF Reference path: the rollup target is the hosting page. */
-  z.object({ type: z.literal("referencePathOfSelf") }).strict(),
-  /** The content "is set" bit. */
-  z.object({ type: z.literal("contentSet") }).strict(),
-  /** Tag shapes (the OR-set tag_ids; a tag is any page). */
-  z.object({ type: z.literal("tag"), tagId: uuid }).strict(),
-  z.object({ type: z.literal("tagAny"), tagIds: z.array(uuid).min(1) }).strict(),
-  z.object({ type: z.literal("tagSet") }).strict(),
-  /** DYNAMIC tags: tagged with ANY tag matching the nested group. */
-  z.object({ type: z.literal("tagAnyQuery"), root: groupSchema }).strict(),
-  /** SELF tags: tagged with the hosting page itself. */
-  z.object({ type: z.literal("tagSelf") }).strict(),
-  /** Node-target ANY-of + set shapes (the class operator set over links/parent). */
-  z.object({ type: z.literal("linkedToAny"), nodeIds: z.array(uuid).min(1) }).strict(),
-  z.object({ type: z.literal("linkSet") }).strict(),
-  z.object({ type: z.literal("descendantOfAny"), nodeIds: z.array(uuid).min(1) }).strict(),
-  z.object({ type: z.literal("parentSet") }).strict(),
-  /** The Odoo date operators: comparison, inclusive range, relative period, edited-set. */
-  z.object({
-    type: z.literal("createdCmp"),
-    op: z.enum(["eq", "neq", "gt", "gte", "lt", "lte"]),
-    timestamp: z.string().min(1),
-  }).strict(),
-  z.object({
-    type: z.literal("updatedCmp"),
-    op: z.enum(["eq", "neq", "gt", "gte", "lt", "lte"]),
-    timestamp: z.string().min(1),
-  }).strict(),
-  z.object({ type: z.literal("createdBetween"), from: z.string().min(1), to: z.string().min(1) }).strict(),
-  z.object({ type: z.literal("updatedBetween"), from: z.string().min(1), to: z.string().min(1) }).strict(),
-  z.object({ type: z.literal("createdWithin"), period: z.enum(["today", "this_week", "this_month", "this_year"]) }).strict(),
-  z.object({ type: z.literal("updatedWithin"), period: z.enum(["today", "this_week", "this_month", "this_year"]) }).strict(),
-  /** The property range/period shapes (numbers numerically, ISO dates lexicographically). */
-  z.object({
-    type: z.literal("propertyBetween"),
-    schemaId: uuid,
-    from: z.unknown(),
-    to: z.unknown(),
-  }).strict(),
-  z.object({
-    type: z.literal("propertyWithin"),
-    schemaId: uuid,
-    period: z.enum(["today", "this_week", "this_month", "this_year"]),
-  }).strict(),
-  /** Wire-field predicates over the node-table columns (uuid refs; eq/neq/exists). */
-  z.object({
-    type: z.literal("coverAsset"),
-    op: z.enum(["eq", "neq", "exists"]),
-    value: uuid.optional(),
-  }).strict(),
-  z.object({
-    type: z.literal("bannerAsset"),
-    op: z.enum(["eq", "neq", "exists"]),
-    value: uuid.optional(),
-  }).strict(),
-  z.object({
-    type: z.literal("aliasedNode"),
-    op: z.enum(["eq", "neq", "exists"]),
-    value: uuid.optional(),
-  }).strict(),
+/**
+ * The condition union. NOTE: v1's was a `z.discriminatedUnion("type")`;
+ * v2 cannot be — the three `member` sub-shapes share the `type` value
+ * "member" and zod rejects duplicate discriminator values, so the `member`
+ * family is itself a union of the three precise sub-schemas (strict
+ * objects that enforce the op/target coupling structurally: `in`/`not-in`
+ * REQUIRE the target, `exists`/`not-exists` forbid it via `.strict()`,
+ * `exact` pins family "class" and a single-id tuple).
+ */
+export const conditionSchema = z.union([
+  memberConditionSchema,
+  z
+    .object({
+      type: z.literal("content"),
+      op: z.enum(["contains", "fts", "eq", "neq", "starts", "ends", "exists"]),
+      value: z.string().min(1).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("name"),
+      op: z.enum(["eq", "neq", "contains", "exists"]),
+      value: z.string().min(1).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("property"),
+      schemaId: uuid,
+      op: z.enum(["eq", "neq", "contains", "exists", "gt", "gte", "lt", "lte", "between", "within"]),
+      value: z.unknown().optional(),
+      from: z.unknown().optional(),
+      to: z.unknown().optional(),
+      period: z.enum(["today", "this_week", "this_month", "this_year"]).optional(),
+      includeDefaults: z.boolean().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("date"),
+      field: z.enum(["created", "updated"]),
+      op: z.enum([
+        "eq",
+        "neq",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "after",
+        "before",
+        "between",
+        "within",
+      ]),
+      timestamp: z.string().min(1).optional(),
+      from: z.string().min(1).optional(),
+      to: z.string().min(1).optional(),
+      period: z.enum(["today", "this_week", "this_month", "this_year"]).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("nodeField"),
+      field: z.enum(["coverAsset", "bannerAsset", "aliasedNode", "isClass", "isEmbedded"]),
+      op: z.enum(["eq", "neq", "exists"]),
+      // Not a uuid on purpose: isClass/isEmbedded ride "true"/"false".
+      value: z.string().min(1).optional(),
+    })
+    .strict(),
 ]) satisfies z.ZodType<Condition>;
 
 // --- sort ---------------------------------------------------------------------------
@@ -539,7 +450,7 @@ export const aggregationSchema = z
 // --- root ----------------------------------------------------------------------------
 
 export type QueryAst = {
-  version: 1;
+  version: 2;
   scope: Scope;
   root: Group;
   sort?: SortSpec[] | undefined;
@@ -548,7 +459,7 @@ export type QueryAst = {
 
 export const queryAstSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     scope: scopeSchema,
     root: groupSchema,
     sort: z.array(sortSpecSchema).optional(),
