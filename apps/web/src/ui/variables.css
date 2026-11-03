@@ -448,6 +448,7 @@
   --spacing-4: 1rem;
   --spacing-4-5: 1.125rem; /* 18px */
   --spacing-5: 1.25rem;
+  --spacing-5-5: 1.375rem; /* 22px */
   --spacing-6: 1.5rem;
   --spacing-7-5: 1.875rem; /* 30px */
   --spacing-8: 2rem;
@@ -683,13 +684,30 @@
   /* ==================== Responsive Breakpoints ==================== */
 
   /* CSS custom properties cannot be used in media queries, so breakpoint
-     values are hardcoded at each @media site (480 / 768 / 1024). This token
-     is the single JS-read value — overlay positioning in
-     components/ui/overlay-hooks.ts — and must stay in sync with the 768px
-     media queries. */
+     values are hardcoded at each @media site (480 / 768 / 1024); these
+     tokens are the single JS-read values — overlay positioning in
+     components/ui/overlay-hooks.ts — and must stay in sync with the media
+     queries. */
   --breakpoint-tablet: 768px;
+  --breakpoint-phone: 480px;
+  --breakpoint-desktop: 1024px;
 
   /* === Functional tokens === */
+
+  /* ==================== Elevation tiers ==================== */
+
+  /* z-index ladder — every stacking site references a tier, never a bare
+     number. Values consolidate the pre-token raw numbers (1/2/3/6/10/30/
+     50/60/70/80); the sweep maps each site to the smallest tier >= its
+     current value, which preserves every existing stacking order.
+     (--z-sticky and --z-toast already exist above as dedicated tokens with
+     different values — 200 and var(--z-tooltip) — so they are not redeclared
+     here; adding them would override those values.) */
+  --z-base: 1;
+  --z-raised: 10;
+  --z-overlay: 50;
+  --z-popup: 60;
+  --z-max: 80;
 
   /* Functional shadows */
   --shadow-table-row-gutter: 1px 0 0 0 var(--md-sys-color-outline-variant);
