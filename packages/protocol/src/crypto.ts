@@ -307,3 +307,45 @@ export function importWorkspaceKey(raw: Uint8Array): Promise<CryptoKey> {
 export function exportWorkspaceKey(workspaceKey: CryptoKey): Promise<Uint8Array> {
   return crypto.subtle.exportKey("raw", workspaceKey).then((buf) => new Uint8Array(buf));
 }
+
+// --- asset-byte sealing (plan 05) ------------------------------------------------
+//
+// CAS asset bytes seal with a PER-ASSET random 12-byte IV that lives OUTSIDE
+// the blob as server-side asset metadata (never wire/op-log state). The blob
+// layout is tag(16) ‖ ct — TAG FIRST, same convention as the envelope payload
+// slot's ct field. Ports (GTK cryptography, Flutter package:cryptography)
+// must match this layout for cross-client asset sharing.
+
+/** Seal asset bytes: returns the external IV and the tag-first sealed blob. */
+export async function encryptAssetBytes(
+  workspaceKey: CryptoKey,
+  bytes: Uint8Array,
+): Promise<{ iv: Uint8Array; blob: Uint8Array }> {
+  const iv = randomBytes(12);
+  const sealed = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: iv as BufferSource },
+      workspaceKey,
+      bytes as BufferSource,
+    ),
+  );
+  const { ct, tag } = splitCtTag(sealed);
+  return { iv, blob: concatBytes(tag, ct) };
+}
+
+/** Open a sealed asset blob (tag ‖ ct) with its external IV. */
+export async function decryptAssetBytes(
+  workspaceKey: CryptoKey,
+  iv: Uint8Array,
+  blob: Uint8Array,
+): Promise<Uint8Array> {
+  const tag = blob.slice(0, 16);
+  const ct = blob.slice(16);
+  return new Uint8Array(
+    await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: iv as BufferSource },
+      workspaceKey,
+      concatBytes(ct, tag) as BufferSource,
+    ),
+  );
+}

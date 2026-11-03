@@ -6,6 +6,8 @@ import {
   b64uDecode,
   b64uEncode,
   createKdfRecord,
+  decryptAssetBytes,
+  encryptAssetBytes,
   decryptBytes,
   decryptEnvelope,
   decryptPayload,
@@ -197,5 +199,26 @@ describe("server-format interop (golden vector)", () => {
 
     // Wrong password fails at the verifier, before any unwrap.
     await expect(unwrapMasterKey("wrong password", record)).rejects.toThrow(/verifier|password/i);
+  });
+});
+
+describe("asset-byte sealing (iv external, blob = tag ‖ ct)", () => {
+  it("round-trips: random 12-byte iv, tag-first blob", async () => {
+    const key = await importWorkspaceKey(new Uint8Array(32).fill(0x2a));
+    const bytes = new Uint8Array([0, 1, 2, 250, 251, 252, 7, 8, 9]);
+    const sealed = await encryptAssetBytes(key, bytes);
+    expect(sealed.iv.length).toBe(12);
+    expect(sealed.blob.length).toBe(16 + bytes.length);
+    expect([...(await decryptAssetBytes(key, sealed.iv, sealed.blob))]).toEqual([...bytes]);
+  });
+
+  it("tampered blob and wrong key fail loud", async () => {
+    const key = await importWorkspaceKey(new Uint8Array(32).fill(0x2a));
+    const other = await importWorkspaceKey(new Uint8Array(32).fill(0x9b));
+    const sealed = await encryptAssetBytes(key, new Uint8Array([1, 2, 3]));
+    const tampered = new Uint8Array(sealed.blob);
+    tampered[tampered.length - 1] ^= 0xff;
+    await expect(decryptAssetBytes(key, sealed.iv, tampered)).rejects.toThrow();
+    await expect(decryptAssetBytes(other, sealed.iv, sealed.blob)).rejects.toThrow();
   });
 });
