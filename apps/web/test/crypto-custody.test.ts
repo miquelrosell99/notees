@@ -149,3 +149,120 @@ describe("ensureWorkspaceKey", () => {
     );
   });
 });
+
+describe("ensureWorkspaceKey first-write-wins race", () => {
+  it("two concurrent flights for the same workspace share ONE flight and resolve to the same key", async () => {
+    const { master, kdf } = await makeMaster();
+    const masterHandle = await deriveMasterKey(PASSWORD, kdf);
+
+    let stored: string | null = null;
+    let putCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        if (url.endsWith(`/api/workspaces/${WS}/key`) && method === "GET") {
+          return stored === null
+            ? Response.json({ error: { message: "not found" } }, { status: 404 })
+            : Response.json({ wrappedKey: stored });
+        }
+        if (url.endsWith(`/api/workspaces/${WS}/key`) && method === "PUT") {
+          putCount += 1;
+          if (stored !== null) {
+            return Response.json(
+              { error: { message: "a workspace key already exists" } },
+              { status: 409 },
+            );
+          }
+          stored = (JSON.parse(String(init!.body)) as { wrappedKey: string }).wrappedKey;
+          return new Response(null, { status: 204 });
+        }
+        throw new Error(`unexpected fetch: ${method} ${url}`);
+      }),
+    );
+
+    const [first, second] = await Promise.all([
+      ensureWorkspaceKey(SERVER, TOKEN, WS, masterHandle),
+      ensureWorkspaceKey(SERVER, TOKEN, WS, masterHandle),
+    ]);
+
+    expect([...first]).toEqual([...second]);
+    expect(putCount).toBe(1); // in-flight dedupe: one PUT, not a racing pair
+  });
+
+  it("a PUT 409 adopts the winner's stored key (re-GET + unwrap under the master)", async () => {
+    const { master, kdf } = await makeMaster();
+    const masterHandle = await deriveMasterKey(PASSWORD, kdf);
+    const winnerKey = await generateWorkspaceKey();
+    const winnerWrapped = await wrapWorkspaceKey(master, winnerKey);
+    const expectedRaw = await exportWorkspaceKey(winnerKey);
+
+    // A concurrent device already stored its key; the client's FIRST GET is
+    // the racy read that still sees 404, so it generates and loses the PUT
+    // race (409) — it must then re-GET and adopt the winner's key.
+    let firstGet = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        if (url.endsWith(`/api/workspaces/${WS}/key`) && method === "GET") {
+          if (firstGet) {
+            firstGet = false;
+            return Response.json({ error: { message: "not found" } }, { status: 404 });
+          }
+          return Response.json({ wrappedKey: winnerWrapped });
+        }
+        if (url.endsWith(`/api/workspaces/${WS}/key`) && method === "PUT") {
+          return Response.json(
+            { error: { message: "a workspace key already exists" } },
+            { status: 409 },
+          );
+        }
+        throw new Error(`unexpected fetch: ${method} ${url}`);
+      }),
+    );
+
+    const raw = await ensureWorkspaceKey(SERVER, TOKEN, WS, masterHandle);
+    expect([...raw]).toEqual([...expectedRaw]);
+  });
+
+  it("a PUT 409 whose stored key does NOT open under the master throws the wrong-master error (a real error state)", async () => {
+    const { master, kdf } = await makeMaster();
+    const masterHandle = await deriveMasterKey(PASSWORD, kdf);
+    const otherMaster = await generateMasterKey();
+    const winnerKey = await generateWorkspaceKey();
+    const winnerWrapped = await wrapWorkspaceKey(otherMaster, winnerKey);
+
+    let stored: string | null = null;
+    let putCount = 0;
+    let firstGet = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        if (url.endsWith(`/api/workspaces/${WS}/key`) && method === "GET") {
+          if (firstGet) {
+            firstGet = false;
+            return Response.json({ error: { message: "not found" } }, { status: 404 });
+          }
+          return Response.json({ wrappedKey: winnerWrapped });
+        }
+        if (url.endsWith(`/api/workspaces/${WS}/key`) && method === "PUT") {
+          putCount += 1;
+          return Response.json(
+            { error: { message: "a workspace key already exists" } },
+            { status: 409 },
+          );
+        }
+        throw new Error(`unexpected fetch: ${method} ${url}`);
+      }),
+    );
+
+    await expect(ensureWorkspaceKey(SERVER, TOKEN, WS, masterHandle)).rejects.toThrow(
+      /wrong master key for this workspace/i,
+    );
+  });
+});
