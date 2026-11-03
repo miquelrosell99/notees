@@ -14,6 +14,6 @@
 
 @keyframes inline-confirm-shake {
   0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-2px); }
-  75% { transform: translateX(2px); }
+  25% { transform: translateX(calc(-1 * var(--spacing-micro))); }
+  75% { transform: translateX(var(--spacing-micro)); }
 }

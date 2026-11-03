@@ -37,7 +37,7 @@
 }
 
 .loading-screen__progress {
-  width: min(280px, 80vw);
+  width: min(var(--layout-size-6xl), 80vw);
   height: var(--bullet-dot-size);
   background: var(--md-sys-color-surface-container-highest);
   border-radius: var(--radius-full);

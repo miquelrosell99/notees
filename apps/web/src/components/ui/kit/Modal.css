@@ -111,7 +111,7 @@
 @keyframes modalSlideIn {
   from {
     opacity: var(--opacity-0);
-    transform: translateY(-20px) scale(0.95);
+    transform: translateY(calc(-1 * var(--spacing-5))) scale(0.95);
   }
 
   to {
