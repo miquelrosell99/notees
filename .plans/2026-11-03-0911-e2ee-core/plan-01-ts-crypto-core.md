@@ -186,21 +186,34 @@ function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
   return diff === 0;
 }
 
-/** encrypt returns ct ‖ tag(16); split it. */
+/** WebCrypto returns ct ‖ tag(16); the wire format (auth.ts) is iv ‖ tag ‖ ct. */
 function splitCtTag(sealed: Uint8Array): { ct: Uint8Array; tag: Uint8Array } {
   return { ct: sealed.slice(0, sealed.length - 16), tag: sealed.slice(sealed.length - 16) };
 }
 
-function joinIvTagCt(iv: Uint8Array, sealed: Uint8Array): Uint8Array {
-  const out = new Uint8Array(iv.length + sealed.length);
+/** iv ‖ tag ‖ ct, matching the server groundwork in apps/server/src/auth.ts. */
+function joinIvTagCt(iv: Uint8Array, tag: Uint8Array, ct: Uint8Array): Uint8Array {
+  const out = new Uint8Array(iv.length + tag.length + ct.length);
   out.set(iv, 0);
-  out.set(sealed, iv.length);
+  out.set(tag, iv.length);
+  out.set(ct, iv.length + tag.length);
   return out;
 }
 
-/** keyVerifier parity with auth.ts: HMAC-SHA256(key, "notees-key-check"). */
-function keyVerifierOf(keyBytes: Uint8Array): Uint8Array {
-  return hmac(sha256, keyBytes, utf8ToBytes("notees-key-check"));
+/** Inverse of joinIvTagCt: WebCrypto's unwrap wants the seal back as ct ‖ tag. */
+function ivTagCtToSealed(raw: Uint8Array): { iv: Uint8Array; sealed: Uint8Array } {
+  const iv = raw.slice(0, 12);
+  const tag = raw.slice(12, 28);
+  const ct = raw.slice(28);
+  const sealed = new Uint8Array(ct.length + tag.length);
+  sealed.set(ct, 0);
+  sealed.set(tag, ct.length);
+  return { iv, sealed };
+}
+
+/** keyVerifier parity with auth.ts: HMAC-SHA256(passwordDerivedKey, "notees-key-check"). */
+function keyVerifierOf(derivedKeyBytes: Uint8Array): Uint8Array {
+  return hmac(sha256, derivedKeyBytes, utf8ToBytes("notees-key-check"));
 }
 
 // --- master key (password-wrapped, Standard-Notes-style record) ---------------------
@@ -220,7 +233,9 @@ function scryptKeyBytes(password: string, salt: Uint8Array): Uint8Array {
 }
 
 export function generateMasterKey(): Promise<CryptoKey> {
-  return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
+  // extractable: WebCrypto wrapKey exports the key being wrapped, so the
+  // master key must be extractable even though we never call exportKey on it.
+  return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
     "encrypt",
     "decrypt",
     "wrapKey",
@@ -233,28 +248,33 @@ export async function createKdfRecord(
   password: string,
 ): Promise<KdfRecord> {
   const salt = randomBytes(16);
-  const wrapKey = await importAesKey(scryptKeyBytes(password, salt), ["wrapKey", "unwrapKey"]);
+  const wrapKeyBytes = scryptKeyBytes(password, salt);
+  const wrapKey = await importAesKey(wrapKeyBytes, ["wrapKey", "unwrapKey"]);
   const iv = randomBytes(12);
   const sealed = new Uint8Array(
     await crypto.subtle.wrapKey("raw", masterKey, wrapKey, { name: "AES-GCM", iv: iv as BufferSource }),
   );
-  const masterBytes = new Uint8Array(await crypto.subtle.exportKey("raw", masterKey));
+  const { ct, tag } = splitCtTag(sealed);
   return {
     algorithm: "scrypt",
     ...SCRYPT_PARAMS,
     salt: b64uEncode(salt),
-    wrappedMasterKey: b64uEncode(joinIvTagCt(iv, sealed)),
-    keyVerifier: b64uEncode(keyVerifierOf(masterBytes)),
+    wrappedMasterKey: b64uEncode(joinIvTagCt(iv, tag, ct)),
+    keyVerifier: b64uEncode(keyVerifierOf(wrapKeyBytes)),
   };
 }
 
 export async function unwrapMasterKey(password: string, record: KdfRecord): Promise<CryptoKey> {
   const salt = b64uDecode(record.salt);
-  const wrapKey = await importAesKey(scryptKeyBytes(password, salt), ["wrapKey", "unwrapKey"]);
-  const raw = b64uDecode(record.wrappedMasterKey);
-  const iv = raw.slice(0, 12);
-  const sealed = raw.slice(12);
-  const masterKey = await crypto.subtle.unwrapKey(
+  const wrapKeyBytes = scryptKeyBytes(password, salt);
+  // Fail fast on a wrong password: the verifier is over the derived key, so
+  // it is checkable before attempting the unwrap.
+  if (!constantTimeEqual(keyVerifierOf(wrapKeyBytes), b64uDecode(record.keyVerifier))) {
+    throw new Error("master-key verifier mismatch (wrong password)");
+  }
+  const wrapKey = await importAesKey(wrapKeyBytes, ["wrapKey", "unwrapKey"]);
+  const { iv, sealed } = ivTagCtToSealed(b64uDecode(record.wrappedMasterKey));
+  return crypto.subtle.unwrapKey(
     "raw",
     sealed as BufferSource,
     wrapKey,
@@ -263,11 +283,6 @@ export async function unwrapMasterKey(password: string, record: KdfRecord): Prom
     false,
     ["encrypt", "decrypt", "wrapKey", "unwrapKey"],
   );
-  const masterBytes = new Uint8Array(await crypto.subtle.exportKey("raw", masterKey));
-  if (!constantTimeEqual(keyVerifierOf(masterBytes), b64uDecode(record.keyVerifier))) {
-    throw new Error("master-key verifier mismatch (wrong password)");
-  }
-  return masterKey;
 }
 
 // --- workspace keys (master-key-wrapped) ---------------------------------------------
@@ -287,16 +302,15 @@ export async function wrapWorkspaceKey(
   const sealed = new Uint8Array(
     await crypto.subtle.wrapKey("raw", workspaceKey, masterKey, { name: "AES-GCM", iv: iv as BufferSource }),
   );
-  return b64uEncode(joinIvTagCt(iv, sealed));
+  const { ct, tag } = splitCtTag(sealed);
+  return b64uEncode(joinIvTagCt(iv, tag, ct));
 }
 
 export async function unwrapWorkspaceKey(
   masterKey: CryptoKey,
   wrapped: string,
 ): Promise<CryptoKey> {
-  const raw = b64uDecode(wrapped);
-  const iv = raw.slice(0, 12);
-  const sealed = raw.slice(12);
+  const { iv, sealed } = ivTagCtToSealed(b64uDecode(wrapped));
   return crypto.subtle.unwrapKey(
     "raw",
     sealed as BufferSource,
@@ -309,7 +323,7 @@ export async function unwrapWorkspaceKey(
 }
 ```
 
-Note: `generateMasterKey`/`createKdfRecord` need the master key exportable (for the verifier). Set `extractable: true` on `generateMasterKey` and pass usages including `wrapKey`/`unwrapKey` as shown. Fix the two `generateKey` calls to use `true` for extractable.
+Note: the verifier is HMAC-SHA256 over the scrypt-derived wrap key (auth.ts parity — a wrong password fails the verifier check before the unwrap is attempted), so no `exportKey` call exists anywhere. The master key is still generated `extractable: true` — not for the verifier but because WebCrypto `wrapKey` exports the key it wraps; the unwrapped master key in `unwrapMasterKey` is non-extractable (`false`).
 
 Add the export to `packages/protocol/src/index.ts` (after the `plugin-manifest.js` line):
 
