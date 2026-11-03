@@ -22,7 +22,7 @@
 /* The NodeView preview: bounded + scrollable so the card never grows past
    the viewport (the body inside is already capped at the first level). */
 .nt-hover-preview__view {
-  max-height: var(--layout-size-2xl);
+  max-height: var(--layout-size-8xl);
   overflow-y: auto;
   background: var(--md-sys-color-surface);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
