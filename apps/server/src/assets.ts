@@ -325,6 +325,12 @@ export function registerAssetRoutes(app: FastifyInstance, ctx: ServerContext): v
       throw new AppError(416, "validation_failed", `range is not satisfiable for ${size}-byte asset`);
     }
     reply.header("accept-ranges", "bytes").header("content-type", mimeType);
+    if (asset?.iv != null) {
+      // The sealed asset's external IV rides the download itself so clients
+      // decrypt without a separate /info round-trip (canonical metadata
+      // still lives at GET /assets/:id/info).
+      reply.header("x-notees-asset-iv", asset.iv);
+    }
     if (range !== null) {
       const { start, end } = range;
       return reply
