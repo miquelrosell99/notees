@@ -53,7 +53,7 @@
    sibling (two real buttons, never nested). */
 .node-pill:hover .pill--hover-reveal-right + .pill__right-button,
 .node-pill:focus-within .pill--hover-reveal-right + .pill__right-button {
-  max-width: 1.5rem;
+  max-width: var(--spacing-6);
   opacity: var(--opacity-70);
   margin-inline-start: var(--spacing-1);
 }
