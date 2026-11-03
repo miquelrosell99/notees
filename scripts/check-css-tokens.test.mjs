@@ -96,3 +96,15 @@ test('negative rem is flagged', () => {
   const v = scanCss('.a { margin: -0.5rem; }');
   assert.deepEqual(v, [{ line: 1, kind: 'REM', match: '-0.5rem' }]);
 });
+
+test('multi-line comment preserves line numbers and opt-out honoring', () => {
+  const css = [
+    '/* a multi-line comment',
+    '   spanning lines 1-3, mentioning',
+    '   99px and #ff00ff */',
+    '.a { padding: 8px; }',                                                   // 4 PX
+    '.b { width: 9999px; /* token-gate: constant JS tether contract */ }',    // 5 exempt
+  ].join('\n');
+  const v = scanCss(css);
+  assert.deepEqual(v, [{ line: 4, kind: 'PX', match: '8px' }]);
+});

@@ -37,7 +37,9 @@ const MEDIA_RE = /@media[^{]*\{/g;
 const TOKEN_SOURCE = join('apps', 'web', 'src', 'ui', 'variables.css');
 const MIN_PROPS = ['min-width', 'min-height', 'min-block-size', 'min-inline-size'];
 
-const stripComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, (m) => ' '.repeat(m.length));
+// Blank each comment with spaces but PRESERVE newlines, so line numbers
+// after a multi-line comment stay correct and opt-out lines still align.
+const stripComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
 
 // Declaration context of a match: the text from the nearest '{', ';', or '}'
 // boundary up to idx; the declaration's property name opens it, if present.
