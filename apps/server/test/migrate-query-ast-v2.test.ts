@@ -397,6 +397,70 @@ describe("migrate-query-ast-v2", () => {
     expect(readdirSync(dataDir).some((name) => name.includes(".bak-"))).toBe(false);
   });
 
+  it("a verified-superseded foreign token is accepted by envelope id — apply proceeds, the ancient bytes stay", () => {
+    // The live-prehistoric case: a cleanup object.update already landed, so
+    // the node's CURRENT state is a clean v2 factory AST — but Path-B scans
+    // ALL history, and the superseded envelope still reads foreign. The owner
+    // verifies the supersession; --accept-foreign names the envelope.
+    const relay = new RelayStorage(join(dataDir, "relay.db"), join(dataDir, "snapshots"));
+    relay.ingest([
+      env(WORKSPACE_A, "object.update", {
+        objectId: NODE_A,
+        contentAst: [
+          { type: "query", queryAst: { version: 2, scope: { type: "pages" }, root: { type: "group", logic: "and", children: [{ type: "weather" }] } } },
+        ],
+      }, 3_000),
+      // The superseding cleanup: the node's current state, a clean v2 AST.
+      env(WORKSPACE_A, "object.update", {
+        objectId: NODE_A,
+        contentAst: [
+          { type: "query", queryAst: { version: 2, scope: { type: "entire_workspace" }, root: { type: "group", logic: "and", children: [] } } },
+        ],
+      }, 3_100),
+    ]);
+    relay.close();
+    const db = new Database(join(dataDir, "relay.db"), { readonly: true });
+    const foreignRow = db
+      .prepare("SELECT id, payload FROM envelope WHERE payload LIKE '%weather%' LIMIT 1")
+      .get() as { id: string; payload: string };
+    db.close();
+    const foreignId = foreignRow.id;
+
+    // Dry-run renders the accepted marker distinctly.
+    const dry = runScript(["--data-dir", dataDir, "--accept-foreign", foreignId]);
+    expect(dry.status).toBe(0);
+    expect(dry.stdout).toContain("foreign (accepted, superseded)");
+
+    // --apply proceeds; the accepted envelope's ancient bytes remain untouched.
+    const apply = runScript(["--data-dir", dataDir, "--apply", "--accept-foreign", foreignId]);
+    expect(apply.status).toBe(0);
+    expect(apply.stdout).toContain("envelope payloads rewritten: 3");
+    const after = new Database(join(dataDir, "relay.db"), { readonly: true });
+    const row = after.prepare("SELECT payload FROM envelope WHERE id = ?").get(foreignId) as { payload: string };
+    expect(row.payload).toBe(foreignRow.payload); // byte-identical — never rewritten
+    after.close();
+  });
+
+  it("--accept-foreign naming a different id still aborts", () => {
+    const relay = new RelayStorage(join(dataDir, "relay.db"), join(dataDir, "snapshots"));
+    relay.ingest([
+      env(WORKSPACE_A, "object.update", {
+        objectId: NODE_A,
+        contentAst: [
+          { type: "query", queryAst: { version: 2, scope: { type: "pages" }, root: { type: "group", logic: "and", children: [{ type: "weather" }] } } },
+        ],
+      }, 3_000),
+    ]);
+    relay.close();
+    const apply = runScript([
+      "--data-dir", dataDir, "--apply",
+      "--accept-foreign", "0192a000-0000-7000-8000-00000000deed", // not the seeded envelope
+    ]);
+    expect(apply.status).toBe(1);
+    expect(apply.stderr).toContain("neither v1 nor v2");
+    expect(readdirSync(dataDir).some((name) => name.includes(".bak-"))).toBe(false);
+  });
+
   it("an unmappable v1 token fails loud at --apply (the mapping's own guard)", () => {
     const relay = new RelayStorage(join(dataDir, "relay.db"), join(dataDir, "snapshots"));
     relay.ingest([
