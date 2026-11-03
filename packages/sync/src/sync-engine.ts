@@ -18,6 +18,7 @@
 
 import {
   compareHlc,
+  isEncryptedPayload,
   maxHlc,
   type Clock,
   type Envelope,
@@ -150,6 +151,14 @@ export class SyncEngine {
   private wsBuffer: Array<{ envelopes: Envelope[]; seqs: Record<string, number> }> = [];
   /** Reentrancy latch: only one drain (sync or async) may own the buffer. */
   private wsDraining = false;
+  /**
+   * Locked-skip counter: encrypted envelopes dropped from remote batches
+   * because NO crypto provider is installed (the workspace is encrypted but
+   * this session has no key). Counted once per batch, logged, never thrown —
+   * the cursor still advances, so sync stays green instead of error-looping
+   * on the store's $e rejection.
+   */
+  private lockedSkipTotal = 0;
   private unsubscribeRealtime: (() => void) | null = null;
 
   constructor(store: Store, transport: Transport, clock: Clock, options: SyncEngineOptions = {}) {
@@ -575,10 +584,37 @@ export class SyncEngine {
     envelopes: Envelope[],
     seqs: Record<string, number> | null,
   ): Promise<{ applied: number; info: BatchChangeInfo }> {
-    const opened = this.crypto
-      ? await Promise.all(envelopes.map((envelope) => this.crypto!.decryptEnvelope(envelope)))
-      : envelopes;
-    return this.applyRemotePlain(opened, seqs);
+    if (this.crypto) {
+      const opened = await Promise.all(
+        envelopes.map((envelope) => this.crypto!.decryptEnvelope(envelope)),
+      );
+      return this.applyRemotePlain(opened, seqs);
+    }
+    // Locked (no provider): skip encrypted envelopes with a counted warning
+    // instead of letting the store's $e rejection kill the batch — plaintext
+    // applies, the cursor still advances over the skipped seqs.
+    const plain = this.skipEncryptedWithoutKey(envelopes);
+    return this.applyRemotePlain(plain, seqs, envelopes);
+  }
+
+  /**
+   * The locked semantic (shared by the pull and realtime paths): with no
+   * crypto provider, encrypted envelopes are filtered out of a remote batch
+   * with a counted log warning — never applied, never thrown. Plaintext
+   * envelopes in the same batch apply normally.
+   */
+  private skipEncryptedWithoutKey(envelopes: Envelope[]): Envelope[] {
+    const plain = envelopes.filter((envelope) => !isEncryptedPayload(envelope.payload));
+    const skipped = envelopes.length - plain.length;
+    if (skipped > 0) {
+      this.lockedSkipTotal += skipped;
+      console.warn(
+        `[notees-sync] workspace key unavailable: skipped ${skipped} encrypted envelope(s) ` +
+          `(${this.lockedSkipTotal} this session); local writes stay plaintext until unlocked. ` +
+          "Plaintext envelopes in the batch applied normally.",
+      );
+    }
+    return plain;
   }
 
   /**
@@ -590,6 +626,12 @@ export class SyncEngine {
   private applyRemotePlain(
     opened: Envelope[],
     seqs: Record<string, number> | null,
+    /**
+     * Envelopes whose seqs count toward cursor advancement even when absent
+     * from `opened` — the locked skip passes the pre-filter batch so skipped
+     * encrypted envelopes still advance the cursor (no re-fetch loop).
+     */
+    seqScope?: Envelope[],
   ): { applied: number; info: BatchChangeInfo } {
     // validateEnvelope fails loud on unknown opTypes / newer protocol
     // versions / the $e slot (the last only reachable pre-decrypt) before
@@ -637,7 +679,7 @@ export class SyncEngine {
 
     if (seqs !== null) {
       let maxSeq = this.cursorSeq;
-      for (const envelope of plain) {
+      for (const envelope of seqScope ?? plain) {
         const seq = seqs[envelope.id];
         if (seq !== undefined && seq > maxSeq) maxSeq = seq;
       }
@@ -717,7 +759,8 @@ export class SyncEngine {
             const { applied, info } = await this.applyRemote(frame.envelopes, frame.seqs);
             if (applied > 0) this.callbacks.onRemoteBatch?.(applied, info);
           } else {
-            const { applied, info } = this.applyRemotePlain(frame.envelopes, frame.seqs);
+            const opened = this.skipEncryptedWithoutKey(frame.envelopes);
+            const { applied, info } = this.applyRemotePlain(opened, frame.seqs, frame.envelopes);
             if (applied > 0) this.callbacks.onRemoteBatch?.(applied, info);
           }
         } catch (err) {

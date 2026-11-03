@@ -5,7 +5,7 @@
  * upload and opened on download; tampering fails loud.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   Clock,
@@ -215,5 +215,93 @@ describe("E2EE sync boundary", () => {
       crypto: keyCryptoProvider(wrongKey),
     });
     await expect(cEngine.pull()).rejects.toThrow(/snapshot decryption failed/);
+  });
+});
+
+describe("locked skip (no crypto provider)", () => {
+  it("a keyless engine pulls a mixed batch: plaintext applies, $e skips with a warning, sync stays green", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    // A keyed device sealed two envelopes; a plaintext device wrote one.
+    const keyed = await makeCryptoDevice(relay, DEVICE_A, () => nowMs);
+    for (const envelope of baseEnvelopes(DEVICE_A)) keyed.engine.enqueue(envelope);
+    await keyed.engine.push();
+
+    const plainStore = new Store();
+    const plainEngine = new SyncEngine(plainStore, new MemoryTransport(relay), new Clock("device-plain"), {
+      workspaceId: WS,
+      now: () => nowMs,
+    });
+    const openId = "0192a000-0000-7000-8000-000000000020";
+    plainEngine.enqueue(
+      makeEnvelope("device-plain", T0 + 40, "object.create", {
+        objectId: openId,
+        contentAst: [{ type: "text", text: "Open page" }],
+      }),
+    );
+    await plainEngine.push();
+
+    // The locked device: no provider. Pull applies the plaintext envelope,
+    // skips the two sealed ones, and does NOT error-loop.
+    const locked = new Store();
+    const lockedEngine = new SyncEngine(locked, new MemoryTransport(relay), new Clock(DEVICE_B), {
+      workspaceId: WS,
+      now: () => nowMs,
+    });
+    await expect(lockedEngine.pull()).resolves.toBeUndefined();
+    expect(titleOf(locked, openId)).toBe("Open page");
+    expect(titleOf(locked, PARENT)).toBe(""); // sealed envelopes skipped, not applied
+
+    // Sync stays green: the cursor advanced past the skipped envelopes, so
+    // the next pull is an empty no-op instead of re-fetching and re-skipping.
+    const warnings: string[] = [];
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation((message?: unknown) => {
+      warnings.push(String(message));
+    });
+    await expect(lockedEngine.pull()).resolves.toBeUndefined();
+    warnSpy.mockRestore();
+    const skipWarnings = warnings.filter((w) => w.includes("skipped"));
+    expect(skipWarnings).toHaveLength(0); // nothing re-fetched, nothing re-skipped
+  });
+
+  it("a locked engine advances the cursor past skipped $e frames (realtime path)", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    const keyed = await makeCryptoDevice(relay, DEVICE_A, () => nowMs);
+    keyed.engine.enqueue(baseEnvelopes(DEVICE_A)[0]!);
+    await keyed.engine.push();
+
+    const plainStore = new Store();
+    const plainEngine = new SyncEngine(plainStore, new MemoryTransport(relay), new Clock("device-plain"), {
+      workspaceId: WS,
+      now: () => nowMs,
+    });
+    const openId = "0192a000-0000-7000-8000-000000000021";
+    const openEnv = makeEnvelope("device-plain", T0 + 40, "object.create", {
+      objectId: openId,
+      contentAst: [{ type: "text", text: "Realtime open" }],
+    });
+    plainEngine.enqueue(openEnv);
+    await plainEngine.push();
+
+    const locked = new Store();
+    const lockedEngine = new SyncEngine(locked, new MemoryTransport(relay), new Clock(DEVICE_B), {
+      workspaceId: WS,
+      now: () => nowMs,
+    });
+    const page = await new MemoryTransport(relay).catchUp(0);
+    const envelopes = page.envelopes as Envelope[];
+    const seqs: Record<string, number> = {};
+    for (const [index, envelope] of envelopes.entries()) seqs[envelope.id] = index + 1;
+
+    await expect(
+      Promise.resolve().then(() => lockedEngine.onRemoteBatch(envelopes, seqs)),
+    ).resolves.toBeUndefined();
+    // Microtask flush: the drain is fire-and-forget.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(titleOf(locked, openId)).toBe("Realtime open"); // plaintext applied
+    expect(titleOf(locked, PARENT)).toBe(""); // sealed frame skipped
+    expect(lockedEngine.getCursorSeq()).toBe(envelopes.length); // cursor covers the skipped seq
   });
 });
