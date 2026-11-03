@@ -200,7 +200,7 @@
 
 /* Accent pulse when navigating to today */
 .calendar-day.btn.today.accent-pulse {
-  animation: today-accent-pulse var(--motion-duration-sync-pulse) var(--motion-easing-ease-out);
+  animation: today-accent-pulse var(--motion-duration-pulse) var(--motion-easing-ease-out);
 }
 
 @keyframes today-accent-pulse {

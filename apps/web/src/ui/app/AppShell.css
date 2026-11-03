@@ -151,7 +151,7 @@
   margin: 0;
   font-size: var(--font-size-sm);
   color: var(--md-sys-color-on-surface-variant);
-  border-left: var(--spacing-tiny) solid var(--md-sys-color-outline);
+  border-left: var(--border-width-extra-thick) solid var(--md-sys-color-outline);
   padding-left: var(--spacing-2-5);
 }
 
