@@ -1,14 +1,15 @@
 /**
- * QueryAST -> SQLite compiler over the derived schema.
+ * QueryAST v2 -> SQLite compiler over the derived schema.
  *
  * Port of the `frontend/src/core/query/compileToSqlite.ts` CONCEPTS,
  * adapted to the current store (packages/store):
  *  - the Revision-12 booleans (`node.is_class`, `node.is_embedded`)
  *    replace node_type; `is_active = 1` excludes deleted nodes on every
  *    query (the store's read helpers do the same);
- *  - the reference index is `edge` (never authored) — the linkedTo
- *    condition/scope mirror `Store.backlinksWithRollup` (direct +
- *    containment roll-up, distance in subtree levels);
+ *  - the reference index is `edge` (never authored) — the links family
+ *    (backlinksWithRollup conditions/scopes) mirrors
+ *    `Store.backlinksWithRollup` (direct + containment roll-up, distance in
+ *    subtree levels);
  *  - class conditions probe `class_hierarchy` (applier-maintained transitive
  *    closure INCLUDING the self-row), so descendant classes match;
  *  - property conditions read through the effective-values read model
@@ -28,8 +29,8 @@
  *  - `aggregation` compiles: the filtered-node set becomes a `filtered` CTE,
  *    dimensions GROUP BY it, measures aggregate over it (see compileAggregate).
  *    Execution goes through runAggregate — runQuery rejects aggregation ASTs;
- *  - scopes/conditions outside the AST subset (style marks, parent/child
- *    paths, regex, flags) are not part of the model.
+ *  - scopes/conditions outside the AST subset (style marks, regex, flags)
+ *    are not part of the model.
  */
 
 import type {
@@ -37,13 +38,17 @@ import type {
   AggregationDimension,
   AggregationMeasure,
   Condition,
+  ContentOp,
   DateOp,
   DatePeriod,
   Group,
+  MemberCondition,
+  MemberFamily,
   Not,
   PropertyOp,
   QueryAst,
   SortSpec,
+  TargetRef,
 } from "./ast.js";
 import {
   placeholderEndDate,
@@ -76,14 +81,14 @@ export interface CompiledAggregate {
  */
 export interface CompileOptions extends PlaceholderContext {
   /**
-   * The hosting page for the `*Self` condition family (`linkedToSelf`,
-   * `pageOfSelf`, …): the page the query block sits on, supplied by the run
-   * site (never baked into the AST — the same AST must mean "this page"
-   * wherever it runs). A `*Self` condition compiling WITHOUT this option
-   * FAILS LOUD (there is no honest reading of "self" without a host). This
-   * is the deliberate re-introduction of the once-reserved `currentNodeId`
-   * compile context — dead while "this page" was baked at write time, alive
-   * again under the explicit Self marker conditions.
+   * The hosting page for the `self` member target mode (`{ mode: "self" }`):
+   * the page the query block sits on, supplied by the run site (never baked
+   * into the AST — the same AST must mean "this page" wherever it runs). A
+   * self target compiling WITHOUT this option FAILS LOUD (there is no honest
+   * reading of "self" without a host). This is the deliberate
+   * re-introduction of the once-reserved `currentNodeId` compile context —
+   * dead while "this page" was baked at write time, alive again under the
+   * explicit self target.
    */
   selfNodeId?: string | undefined;
 }
@@ -428,7 +433,7 @@ class Compiler {
   }
 
   /**
-   * The SELF id (the `*Self` condition family): CompileOptions.selfNodeId,
+   * The SELF id (the `self` member target mode): CompileOptions.selfNodeId,
    * failing loud when the run site supplied no host — there is no honest
    * reading of "self" without one.
    */
@@ -539,180 +544,239 @@ class Compiler {
 
   // --- conditions -----------------------------------------------------------------
 
+  /**
+   * The v2 condition set — six types. `member` folds the v1 45-variant
+   * node-target family (family × op × target-mode axes made explicit);
+   * `content` folds contentSet (op exists); `property` folds
+   * propertyBetween/propertyWithin (ops between/within); `date` folds the
+   * ten created-/updated- types (the field axis); `nodeField` folds
+   * isClass/isEmbedded (eq "true"/"false").
+   */
   private conditionSql(condition: Condition): string {
     switch (condition.type) {
-      case "class": {
-        // class_hierarchy includes the self-row (class, class), so direct
-        // members match too; extends-transitive members match via descendants.
-        const classId = this.push(condition.classId);
-        return (
-          "EXISTS (\n  SELECT 1 FROM json_each(n.class_ids)\n" +
-          `  WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id = ${classId})\n` +
-          ")"
-        );
+      case "member":
+        return this.memberSql(condition);
+      case "content": {
+        if (condition.op === "exists") {
+          // The title/content plaintext is non-empty (the content "is set").
+          return (
+            "EXISTS (\n  SELECT 1 FROM search_index_docid d\n" +
+            "  JOIN search_index s ON s.rowid = d.docid\n" +
+            "  WHERE d.node_id = n.id AND length(s.content) > 0\n)"
+          );
+        }
+        return this.contentSql(condition);
       }
-      case "classExact": {
+      case "name":
+        return this.nameSql(condition);
+      case "property": {
+        if (condition.op === "between") {
+          return this.propertyRangeSql(condition.schemaId, condition.from, condition.to);
+        }
+        if (condition.op === "within") {
+          return this.propertyWithinSql(condition.schemaId, condition.period);
+        }
+        return this.propertySql({
+          type: "property",
+          schemaId: condition.schemaId,
+          op: condition.op,
+          value: condition.value,
+          includeDefaults: condition.includeDefaults,
+        });
+      }
+      case "date":
+        return this.dateSql(condition);
+      case "nodeField": {
+        if (condition.field === "isClass" || condition.field === "isEmbedded") {
+          // The Revision-12 booleans ride op "eq" with value "true"/"false".
+          if (condition.op !== "eq") {
+            throw new Error(
+              `query compile: nodeField '${condition.field}' supports only op 'eq'`,
+            );
+          }
+          if (condition.value !== "true" && condition.value !== "false") {
+            throw new Error(
+              `query compile: nodeField '${condition.field}' requires value "true" or "false"`,
+            );
+          }
+          const column = condition.field === "isClass" ? "is_class" : "is_embedded";
+          return `n.${column} = ${this.push(condition.value === "true" ? 1 : 0)}`;
+        }
+        const columns = {
+          coverAsset: "cover_asset_id",
+          bannerAsset: "banner_asset_id",
+          aliasedNode: "aliased_node_id",
+        } as const;
+        return this.nodeFieldSql(condition.field, columns[condition.field], condition);
+      }
+      default:
+        throw new Error(
+          `query compile: unknown condition type ${(condition as { type: string }).type}`,
+        );
+    }
+  }
+
+  /**
+   * The member condition — family × op × target mode. `in`/`not-in` compile
+   * the family's membership predicate over the resolved target set (negated
+   * for `not-in`); `exists`/`not-exists` compile the family's emptiness read
+   * (negated for `not-exists`); class `exact` is the exact class-set equality.
+   * Every predicate is built BEFORE the string composes, so `?` params bind
+   * in evaluation order regardless of the wrapping.
+   */
+  private memberSql(condition: MemberCondition): string {
+    switch (condition.op) {
+      case "in":
+      case "not-in": {
+        const predicate = this.memberInSql(condition.family, condition.target);
+        return condition.op === "not-in" ? `NOT (${predicate})` : predicate;
+      }
+      case "exists":
+      case "not-exists": {
+        const predicate = this.memberExistsSql(condition.family);
+        return condition.op === "not-exists" ? `NOT (${predicate})` : predicate;
+      }
+      case "exact": {
         // EXACT class-set equality (the Odoo "=" register): exactly one class
         // rides the row AND it is the picked one — the closure deliberately
         // does NOT apply ("exactly Day, nothing else").
-        const classId = this.push(condition.classId);
+        const classId = this.push(condition.target.ids[0]);
         return (
           "(SELECT COUNT(*) FROM json_each(n.class_ids)) = 1\n" +
           `AND EXISTS (\n  SELECT 1 FROM json_each(n.class_ids) WHERE value = ${classId}\n)`
         );
       }
-      case "classAny": {
-        // ANY-of membership (Odoo "one of") — closure-aware per picked id.
-        const ids = condition.classIds.map((id) => this.push(id)).join(", ");
-        return (
-          "EXISTS (\n  SELECT 1 FROM json_each(n.class_ids)\n" +
-          `  WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id IN (${ids}))\n` +
-          ")"
-        );
-      }
-      case "classSet":
-        // The class set is non-empty (Odoo "is set"); the not-wrap reads "is not set".
-        return "(SELECT COUNT(*) FROM json_each(n.class_ids)) > 0";
-      case "classAnyQuery": {
+    }
+  }
+
+  /**
+   * The family's `in` predicate over the target set (the v1 static/dynamic/
+   * self per-family arms, unchanged SQL). The target mode selects the anchor
+   * SQL: `ids` the family's manual pick, `query` the nested group's matches,
+   * `self` the hosting page (CompileOptions.selfNodeId — fails loud without).
+   */
+  private memberInSql(family: MemberFamily, target: TargetRef): string {
+    switch (family) {
+      case "class": {
+        if (target.mode === "ids") {
+          // ANY-of membership (Odoo "one of") — closure-aware per picked id.
+          // class_hierarchy includes the self-row (class, class), so direct
+          // members match too; extends-transitive members match via descendants.
+          const ids = target.ids.map((id) => this.push(id)).join(", ");
+          return (
+            "EXISTS (\n  SELECT 1 FROM json_each(n.class_ids)\n" +
+            `  WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id IN (${ids}))\n)`
+          );
+        }
+        if (target.mode === "self") {
+          // The hosting page used as a class (closure-aware).
+          const classId = this.selfId();
+          return (
+            "EXISTS (\n  SELECT 1 FROM json_each(n.class_ids)\n" +
+            `  WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id = ${classId})\n)`
+          );
+        }
         // DYNAMIC class: closure-aware membership of ANY class matching the
         // nested group — the picked ids come from the group's matches (a
-        // fresh `node n` scope), read through the hierarchy closure like
-        // classAny. An empty nested group degrades to the never-matching
-        // subquery (pruneChild drops empty dynamic roots before compose).
-        const group = this.groupSql(condition.root);
+        // fresh `node n` scope). An empty nested group degrades to the
+        // never-matching subquery (pruneChild drops empty dynamic roots
+        // before compose).
+        const group = this.groupSql(target.root);
         const targets =
           group !== undefined
             ? `SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group})`
             : "SELECT n.id FROM node n WHERE n.is_active = 0";
         return (
           "EXISTS (\n  SELECT 1 FROM json_each(n.class_ids)\n" +
-          `  WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id IN (${targets}))\n` +
-          ")"
+          `  WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id IN (${targets}))\n)`
         );
       }
-      case "classSelf": {
-        // SELF class: closure-aware membership of the HOSTING PAGE as a
-        // class — the `class` arm with CompileOptions.selfNodeId as the id.
-        const classId = this.selfId();
+      case "tags": {
+        let targets: string;
+        if (target.mode === "ids") {
+          targets = target.ids.map((id) => this.push(id)).join(", ");
+        } else if (target.mode === "self") {
+          targets = this.selfId();
+        } else {
+          // DYNAMIC tags: tagged with ANY tag matching the nested group — the
+          // tag ids come from the group's matches (a fresh `node n` scope).
+          // An empty nested group degrades to the never-matching subquery.
+          const group = this.groupSql(target.root);
+          targets =
+            group !== undefined
+              ? `SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group})`
+              : "SELECT n.id FROM node n WHERE n.is_active = 0";
+        }
+        // Tag membership over the OR-set tag_ids (a tag is any page — no
+        // hierarchy, so the probe is the literal id).
+        return `EXISTS (\n  SELECT 1 FROM json_each(n.tag_ids)\n  WHERE value IN (${targets})\n)`;
+      }
+      case "links": {
+        // backlinksWithRollup membership over the target set: `ids` an anchor
+        // list, `query` the group's matches, `self` the one hosting-page
+        // anchor (the single-anchor form reduces to the original
+        // direct-edges + containment roll-up semantics exactly).
+        const anchorSet =
+          target.mode === "ids"
+            ? "SELECT id, 0 AS distance FROM node WHERE id IN (" +
+              target.ids.map((id) => this.push(id)).join(", ") +
+              ")"
+            : target.mode === "self"
+              ? this.selfAnchorSql()
+              : this.groupAnchorsSql(target.root);
+        return `n.id IN (SELECT id FROM (${this.linkedToSetSql(anchorSet)}))`;
+      }
+      case "childPath": {
+        if (target.mode === "ids") {
+          // Subtree membership of ANY picked node, anchors excluded — the
+          // anchor list reaches the NOT-IN through ONE json_each param:
+          // unindexed `?` placeholders number per occurrence, so a repeated
+          // list would re-bind wrong.
+          const anchorIds = target.ids.map((id) => this.push(id)).join(", ");
+          const anchorSet = `SELECT id, 0 AS distance FROM node WHERE id IN (${anchorIds})`;
+          const subtree = this.subtreeSetSql(anchorSet);
+          const exclude = this.push(JSON.stringify(target.ids));
+          return (
+            `n.id IN (SELECT id FROM (${subtree})) ` +
+            `AND n.id NOT IN (SELECT value FROM json_each(${exclude}))`
+          );
+        }
+        if (target.mode === "self") {
+          // The row sits strictly inside the hosting page — subtree
+          // membership of the self anchor, the anchor excluded. Both
+          // subqueries are built before the string (params bind in text order).
+          const subtree = this.subtreeSetSql(this.selfAnchorSql());
+          const anchor = this.selfId();
+          return `n.id IN (SELECT id FROM (${subtree})) AND n.id != ${anchor}`;
+        }
+        // DYNAMIC childPath: the ancestor chain contains ANY node matching
+        // the nested group — subtree membership of the anchor set, anchors
+        // excluded. Both subqueries are built before the string (params bind
+        // in text order).
+        const subtree = this.subtreeSetSql(this.groupAnchorsSql(target.root));
+        const anchors = this.groupAnchorsSql(target.root);
         return (
-          "EXISTS (\n  SELECT 1 FROM json_each(n.class_ids)\n" +
-          `  WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id = ${classId})\n` +
-          ")"
+          `n.id IN (SELECT id FROM (${subtree}))` +
+          ` AND n.id NOT IN (SELECT id FROM (${anchors}))`
         );
       }
-      case "pageOf": {
-        // v1's Page block (static): the CONTAINING PAGE is one of the picked
-        // nodes. The page id rides the correlated scalar subquery; the pick
-        // reaches it through ONE json_each param.
-        const ids = this.push(JSON.stringify(condition.nodeIds));
-        return `EXISTS (\n  SELECT 1 FROM json_each(${ids})\n  WHERE value = ${this.containingPageIdSql()}\n)`;
-      }
-      case "pageOfQuery": {
-        // DYNAMIC Page: the containing page is one of the group's matches.
-        // The group rides a fresh `node n` scope (its conditions bind the
-        // inner alias); the page id correlates to the outer row.
-        const group = this.groupSql(condition.root);
-        const inner =
-          group !== undefined
-            ? ` AND page.id IN (SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group}))`
-            : "";
-        return (
-          "EXISTS (\n  SELECT 1 FROM node page\n" +
-          `  WHERE page.id = ${this.containingPageIdSql()} AND page.is_active = 1${inner}\n)`
-        );
-      }
-      case "pageOfSelf": {
-        // SELF Page: the containing page IS the hosting page — the pageOf
-        // arm over the one-element self list.
-        const ids = this.push(JSON.stringify([this.selfIdValue()]));
-        return `EXISTS (\n  SELECT 1 FROM json_each(${ids})\n  WHERE value = ${this.containingPageIdSql()}\n)`;
-      }
-      case "pageSet":
-        // The Page "is set": the row lives inside a page — the containing
-        // page differs from the row itself (a page's own page is itself).
-        return `${this.containingPageIdSql()} != n.id`;
-      case "ancestorIn": {
-        // v1's Parent path block (static): some STRICT ancestor is one of the
-        // picked nodes (the ids ride one json_each param).
-        const ids = this.push(JSON.stringify(condition.nodeIds));
-        return (
-          "EXISTS (\n  WITH RECURSIVE anc(id, depth) AS (\n" +
-          "    SELECT nd.parent_id, 0 FROM node nd WHERE nd.id = n.id\n" +
-          "    UNION ALL\n" +
-          "    SELECT nd.parent_id, anc.depth + 1 FROM node nd JOIN anc ON nd.id = anc.id\n" +
-          "    WHERE anc.id IS NOT NULL AND anc.depth < 64\n" +
-          "  )\n" +
-          `  SELECT 1 FROM anc JOIN json_each(${ids}) ON value = anc.id\n)`
-        );
-      }
-      case "ancestorInQuery": {
-        // DYNAMIC Parent path: some strict ancestor matches the group (the
-        // group rides a fresh `node n` scope, like pageOfQuery).
-        const group = this.groupSql(condition.root);
-        const inner =
-          group !== undefined
-            ? ` AND a.id IN (SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group}))`
-            : "";
-        return (
-          "EXISTS (\n  WITH RECURSIVE anc(id, depth) AS (\n" +
-          "    SELECT nd.parent_id, 0 FROM node nd WHERE nd.id = n.id\n" +
-          "    UNION ALL\n" +
-          "    SELECT nd.parent_id, anc.depth + 1 FROM node nd JOIN anc ON nd.id = anc.id\n" +
-          "    WHERE anc.id IS NOT NULL AND anc.depth < 64\n" +
-          "  )\n" +
-          "  SELECT 1 FROM anc JOIN node a ON a.id = anc.id\n" +
-          `  WHERE a.is_active = 1${inner}\n)`
-        );
-      }
-      case "ancestorInSelf": {
-        // SELF Parent path: some strict ancestor IS the hosting page — the
-        // ancestorIn arm over the singleton self id.
-        return (
-          "EXISTS (\n  WITH RECURSIVE anc(id, depth) AS (\n" +
-          "    SELECT nd.parent_id, 0 FROM node nd WHERE nd.id = n.id\n" +
-          "    UNION ALL\n" +
-          "    SELECT nd.parent_id, anc.depth + 1 FROM node nd JOIN anc ON nd.id = anc.id\n" +
-          "    WHERE anc.id IS NOT NULL AND anc.depth < 64\n" +
-          "  )\n" +
-          `  SELECT 1 FROM anc WHERE anc.id = ${this.selfId()}\n)`
-        );
-      }
-      case "rootIn": {
-        // The root walk (static): the workspace-root ancestor is one of the
-        // picked nodes (one json_each param).
-        const ids = this.push(JSON.stringify(condition.nodeIds));
-        return `EXISTS (\n  SELECT 1 FROM json_each(${ids})\n  WHERE value = ${this.rootIdSql()}\n)`;
-      }
-      case "rootInQuery": {
-        // DYNAMIC Root: the workspace-root ancestor matches the group.
-        const group = this.groupSql(condition.root);
-        const inner =
-          group !== undefined
-            ? ` AND root.id IN (SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group}))`
-            : "";
-        return (
-          "EXISTS (\n  SELECT 1 FROM node root\n" +
-          `  WHERE root.id = ${this.rootIdSql()} AND root.is_active = 1${inner}\n)`
-        );
-      }
-      case "rootInSelf": {
-        // SELF Root: the workspace-root ancestor IS the hosting page — the
-        // rootIn arm over the singleton self list.
-        const ids = this.push(JSON.stringify([this.selfIdValue()]));
-        return `EXISTS (\n  SELECT 1 FROM json_each(${ids})\n  WHERE value = ${this.rootIdSql()}\n)`;
-      }
-      case "parentOf": {
-        // v1's PARENT block (static): the DIRECT parent is one of the picked
-        // nodes (one json_each param). The COALESCE maps the parentless
-        // NULL to '' so the empty parent reads two-valued — matching the
-        // sync evaluator (a parentless row matches the negation; the
-        // dedicated is-set/is-not-set operators own the empty test).
-        const ids = this.push(JSON.stringify(condition.nodeIds));
-        return `COALESCE(n.parent_id, '') IN (SELECT value FROM json_each(${ids}))`;
-      }
-      case "parentOfQuery": {
-        // DYNAMIC Parent: the direct parent is one of the group's matches.
-        const group = this.groupSql(condition.root);
+      case "parent": {
+        if (target.mode === "ids") {
+          // The DIRECT parent (one hop up) is one of the picked nodes (one
+          // json_each param). The COALESCE maps the parentless NULL to '' so
+          // the empty parent reads two-valued — matching the sync evaluator
+          // (a parentless row matches the negation; the dedicated is-set/
+          // is-not-set operators own the empty test).
+          const ids = this.push(JSON.stringify(target.ids));
+          return `COALESCE(n.parent_id, '') IN (SELECT value FROM json_each(${ids}))`;
+        }
+        if (target.mode === "self") {
+          // The direct parent IS the hosting page (the COALESCE keeps the
+          // parentless NULL two-valued, like the ids form).
+          return `COALESCE(n.parent_id, '') = ${this.selfId()}`;
+        }
+        // DYNAMIC parent: the direct parent is one of the group's matches.
+        const group = this.groupSql(target.root);
         const inner =
           group !== undefined
             ? ` AND p.id IN (SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group}))`
@@ -722,22 +786,24 @@ class Compiler {
           `  WHERE p.id = n.parent_id AND p.is_active = 1${inner}\n)`
         );
       }
-      case "parentOfSelf":
-        // SELF Parent: the direct parent IS the hosting page (the
-        // COALESCE keeps the parentless NULL two-valued, like parentOf).
-        return `COALESCE(n.parent_id, '') = ${this.selfId()}`;
-      case "childOf": {
-        // v1's CHILD block (static): a DIRECT child is one of the picked
-        // nodes (one json_each param).
-        const ids = this.push(JSON.stringify(condition.nodeIds));
-        return (
-          "EXISTS (\n  SELECT 1 FROM node c\n" +
-          `  WHERE c.parent_id = n.id AND c.is_active = 1 AND c.id IN (SELECT value FROM json_each(${ids}))\n)`
-        );
-      }
-      case "childOfQuery": {
-        // DYNAMIC Child: a direct child is one of the group's matches.
-        const group = this.groupSql(condition.root);
+      case "child": {
+        if (target.mode === "ids") {
+          // A DIRECT child is one of the picked nodes (one json_each param).
+          const ids = this.push(JSON.stringify(target.ids));
+          return (
+            "EXISTS (\n  SELECT 1 FROM node c\n" +
+            `  WHERE c.parent_id = n.id AND c.is_active = 1 AND c.id IN (SELECT value FROM json_each(${ids}))\n)`
+          );
+        }
+        if (target.mode === "self") {
+          // A direct child IS the hosting page.
+          return (
+            "EXISTS (\n  SELECT 1 FROM node c\n" +
+            `  WHERE c.parent_id = n.id AND c.is_active = 1 AND c.id = ${this.selfId()}\n)`
+          );
+        }
+        // DYNAMIC child: a direct child is one of the group's matches.
+        const group = this.groupSql(target.root);
         const inner =
           group !== undefined
             ? ` AND c.id IN (SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group}))`
@@ -747,193 +813,201 @@ class Compiler {
           `  WHERE c.parent_id = n.id AND c.is_active = 1${inner}\n)`
         );
       }
-      case "childOfSelf":
-        // SELF Child: a direct child IS the hosting page.
-        return (
-          "EXISTS (\n  SELECT 1 FROM node c\n" +
-          `  WHERE c.parent_id = n.id AND c.is_active = 1 AND c.id = ${this.selfId()}\n)`
-        );
-      case "childSet":
-        // The CHILD "is set": at least one direct child.
-        return "EXISTS (SELECT 1 FROM node c WHERE c.parent_id = n.id AND c.is_active = 1)";
-      case "descendantSet": {
-        // The CHILD PATH "is set": at least one descendant (any depth below).
-        // The subtree CTE anchors at the outer row (correlated anchor); any
-        // member other than the row itself is a descendant.
-        const subtree = this.subtreeSetSql("SELECT n.id, 0 AS distance");
-        return `EXISTS (SELECT 1 FROM (${subtree}) WHERE id != n.id LIMIT 1)`;
-      }
-      case "referencePathOf":
-        return this.referencePathSql(
-          `SELECT value AS id FROM json_each(${this.push(JSON.stringify(condition.nodeIds))})`,
-        );
-      case "referencePathOfQuery": {
-        // DYNAMIC Reference path: the rollup targets are the group's matches.
-        const group = this.groupSql(condition.root);
+      case "referencePath": {
+        if (target.mode === "ids") {
+          return this.referencePathSql(
+            `SELECT value AS id FROM json_each(${this.push(JSON.stringify(target.ids))})`,
+          );
+        }
+        if (target.mode === "self") {
+          // The rollup target IS the hosting page.
+          return this.referencePathSql(this.selfAnchorSql());
+        }
+        // DYNAMIC referencePath: the rollup targets are the group's matches.
+        const group = this.groupSql(target.root);
         const targets =
           group !== undefined
             ? `SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group})`
             : "SELECT n.id FROM node n WHERE n.is_active = 0";
         return this.referencePathSql(targets);
       }
-      case "referencePathOfSelf":
-        // SELF Reference path: the rollup target IS the hosting page.
-        return this.referencePathSql(this.selfAnchorSql());
-      case "contentSet":
-        // The title/content plaintext is non-empty (the content "is set").
-        return (
-          "EXISTS (\n  SELECT 1 FROM search_index_docid d\n" +
-          "  JOIN search_index s ON s.rowid = d.docid\n" +
-          "  WHERE d.node_id = n.id AND length(s.content) > 0\n)"
-        );
-      case "tag":
-        // Tag membership over the OR-set tag_ids (a tag is any page — no
-        // hierarchy, so the probe is the literal id).
-        return `EXISTS (\n  SELECT 1 FROM json_each(n.tag_ids) WHERE value = ${this.push(condition.tagId)}\n)`;
-      case "tagAny": {
-        const ids = condition.tagIds.map((id) => this.push(id)).join(", ");
-        return `EXISTS (\n  SELECT 1 FROM json_each(n.tag_ids) WHERE value IN (${ids})\n)`;
-      }
-      case "tagSet":
-        return "(SELECT COUNT(*) FROM json_each(n.tag_ids)) > 0";
-      case "tagAnyQuery": {
-        // DYNAMIC tags: tagged with ANY tag matching the nested group — the
-        // tag ids come from the group's matches (a fresh `node n` scope).
-        // An empty nested group degrades to the never-matching subquery.
-        const group = this.groupSql(condition.root);
-        const targets =
+      case "page": {
+        if (target.mode === "ids") {
+          // The CONTAINING PAGE (nearest self-or-ancestor rendering with
+          // document chrome) is one of the picked nodes. The page id rides
+          // the correlated scalar subquery; the pick reaches it through ONE
+          // json_each param.
+          const ids = this.push(JSON.stringify(target.ids));
+          return `EXISTS (\n  SELECT 1 FROM json_each(${ids})\n  WHERE value = ${this.containingPageIdSql()}\n)`;
+        }
+        if (target.mode === "self") {
+          // The containing page IS the hosting page — the ids form over the
+          // one-element self list.
+          const ids = this.push(JSON.stringify([this.selfIdValue()]));
+          return `EXISTS (\n  SELECT 1 FROM json_each(${ids})\n  WHERE value = ${this.containingPageIdSql()}\n)`;
+        }
+        // DYNAMIC page: the containing page is one of the group's matches.
+        // The group rides a fresh `node n` scope (its conditions bind the
+        // inner alias); the page id correlates to the outer row.
+        const group = this.groupSql(target.root);
+        const inner =
           group !== undefined
-            ? `SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group})`
-            : "SELECT n.id FROM node n WHERE n.is_active = 0";
+            ? ` AND page.id IN (SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group}))`
+            : "";
         return (
-          "EXISTS (\n  SELECT 1 FROM json_each(n.tag_ids)\n" +
-          `  WHERE value IN (${targets})\n)`
+          "EXISTS (\n  SELECT 1 FROM node page\n" +
+          `  WHERE page.id = ${this.containingPageIdSql()} AND page.is_active = 1${inner}\n)`
         );
       }
-      case "tagSelf":
-        // SELF tags: tagged with the hosting page itself.
-        return `EXISTS (\n  SELECT 1 FROM json_each(n.tag_ids) WHERE value = ${this.selfId()}\n)`;
-      case "linkedToAny": {
-        // backlinksWithRollup membership of ANY picked node — the linkedToSet
-        // over an anchor set. Params: the anchor ids (the CTE carries none).
-        const anchorSet =
-          "SELECT id, 0 AS distance FROM node WHERE id IN (" +
-          condition.nodeIds.map((id) => this.push(id)).join(", ") +
-          ")";
-        return `n.id IN (SELECT id FROM (${this.linkedToSetSql(anchorSet)}))`;
+      case "parentPath": {
+        const anc = (where: string) =>
+          "EXISTS (\n  WITH RECURSIVE anc(id, depth) AS (\n" +
+          "    SELECT nd.parent_id, 0 FROM node nd WHERE nd.id = n.id\n" +
+          "    UNION ALL\n" +
+          "    SELECT nd.parent_id, anc.depth + 1 FROM node nd JOIN anc ON nd.id = anc.id\n" +
+          "    WHERE anc.id IS NOT NULL AND anc.depth < 64\n" +
+          "  )\n" +
+          `  ${where}\n)`;
+        if (target.mode === "ids") {
+          // Some STRICT ancestor (the parent path, self excluded) is one of
+          // the picked nodes (the ids ride one json_each param).
+          const ids = this.push(JSON.stringify(target.ids));
+          return anc(`SELECT 1 FROM anc JOIN json_each(${ids}) ON value = anc.id`);
+        }
+        if (target.mode === "self") {
+          // A strict ancestor IS the hosting page.
+          return anc(`SELECT 1 FROM anc WHERE anc.id = ${this.selfId()}`);
+        }
+        // DYNAMIC parentPath: some strict ancestor matches the group (the
+        // group rides a fresh `node n` scope, like the page family).
+        const group = this.groupSql(target.root);
+        const inner =
+          group !== undefined
+            ? ` AND a.id IN (SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group}))`
+            : "";
+        return anc(
+          `SELECT 1 FROM anc JOIN node a ON a.id = anc.id\n  WHERE a.is_active = 1${inner}`,
+        );
       }
-      case "linkSet":
+      case "root": {
+        if (target.mode === "ids") {
+          // The workspace-root ancestor (a parentless row is its own root)
+          // is one of the picked nodes (one json_each param).
+          const ids = this.push(JSON.stringify(target.ids));
+          return `EXISTS (\n  SELECT 1 FROM json_each(${ids})\n  WHERE value = ${this.rootIdSql()}\n)`;
+        }
+        if (target.mode === "self") {
+          // The workspace-root ancestor IS the hosting page — the ids form
+          // over the one-element self list.
+          const ids = this.push(JSON.stringify([this.selfIdValue()]));
+          return `EXISTS (\n  SELECT 1 FROM json_each(${ids})\n  WHERE value = ${this.rootIdSql()}\n)`;
+        }
+        // DYNAMIC root: the workspace-root ancestor matches the group.
+        const group = this.groupSql(target.root);
+        const inner =
+          group !== undefined
+            ? ` AND root.id IN (SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group}))`
+            : "";
+        return (
+          "EXISTS (\n  SELECT 1 FROM node root\n" +
+          `  WHERE root.id = ${this.rootIdSql()} AND root.is_active = 1${inner}\n)`
+        );
+      }
+    }
+  }
+
+  /**
+   * The family's emptiness (`exists`) read — the v1 `*Set` arms, unchanged
+   * SQL. `referencePath` and `root` have no emptiness semantics (the design's
+   * family table marks them "—"): the schema admits the shape, the compiler
+   * fails loud.
+   */
+  private memberExistsSql(family: MemberFamily): string {
+    switch (family) {
+      case "class":
+        // The class set is non-empty (Odoo "is set").
+        return "(SELECT COUNT(*) FROM json_each(n.class_ids)) > 0";
+      case "tags":
+        return "(SELECT COUNT(*) FROM json_each(n.tag_ids)) > 0";
+      case "links":
         // At least one inbound link — a direct edge targets the node.
         return "EXISTS (SELECT 1 FROM edge WHERE target_id = n.id)";
-      case "descendantOfAny": {
-        // Subtree membership of ANY picked node, anchors excluded — the
-        // descendantOf shape over an anchor set. The anchor list reaches the
-        // NOT-IN through ONE json_each param: unindexed `?` placeholders
-        // number per occurrence, so a repeated list would re-bind wrong.
-        const anchorIds = condition.nodeIds.map((id) => this.push(id)).join(", ");
-        const anchorSet = `SELECT id, 0 AS distance FROM node WHERE id IN (${anchorIds})`;
-        const subtree = this.subtreeSetSql(anchorSet);
-        const exclude = this.push(JSON.stringify(condition.nodeIds));
-        return (
-          `n.id IN (SELECT id FROM (${subtree})) ` +
-          `AND n.id NOT IN (SELECT value FROM json_each(${exclude}))`
-        );
-      }
-      case "parentSet":
-        // The node has a parent at all.
+      case "parent":
+      case "parentPath":
+        // parentPath's emptiness reads "has a parent" (the parentSet bit).
         return "n.parent_id IS NOT NULL";
-      case "createdCmp":
-        return this.dateCmpSql("created_at", condition.op, condition.timestamp);
-      case "updatedCmp":
-        return this.dateCmpSql("updated_at", condition.op, condition.timestamp);
-      case "createdBetween":
-        return this.dateBetweenSql("created_at", condition.from, condition.to);
-      case "updatedBetween":
-        return this.dateBetweenSql("updated_at", condition.from, condition.to);
-      case "createdWithin":
-        return this.dateWithinSql("created_at", condition.period);
-      case "updatedWithin":
-        return this.dateWithinSql("updated_at", condition.period);
-      case "propertyBetween":
-        return this.propertyRangeSql(condition);
-      case "propertyWithin":
-        return this.propertyWithinSql(condition);
-      case "isClass":
-        return `n.is_class = ${this.push(condition.isClass ? 1 : 0)}`;
-      case "isEmbedded":
-        return `n.is_embedded = ${this.push(condition.isEmbedded ? 1 : 0)}`;
-      case "content":
-        return this.contentSql(condition);
-      case "name":
-        return this.nameSql(condition);
-      case "property":
-        return this.propertySql(condition);
-      case "linkedTo":
-        // Condition form: membership only (single-column projection; the
-        // scope form joins the same CTE for its distance column).
-        return `n.id IN (SELECT id FROM (${this.linkedToSql(condition.nodeId)}))`;
-      case "descendantOf": {
-        // Ancestor-chain membership: the row sits inside the anchor's
-        // subtree (anywhere up its parents tree) — subtree membership minus
-        // the anchor row itself ("has X as a parent", self excluded).
-        // subtreeSql first: its placeholder must precede the anchor's
-        // (params bind positionally, in evaluation order).
-        const subtree = this.subtreeSql(condition.nodeId);
-        const anchor = this.push(condition.nodeId);
-        return `n.id IN (SELECT id FROM (${subtree})) AND n.id != ${anchor}`;
+      case "child":
+        // At least one direct child.
+        return "EXISTS (SELECT 1 FROM node c WHERE c.parent_id = n.id AND c.is_active = 1)";
+      case "childPath": {
+        // At least one descendant (any depth below). The subtree CTE anchors
+        // at the outer row (correlated anchor); any member other than the row
+        // itself is a descendant.
+        const subtree = this.subtreeSetSql("SELECT n.id, 0 AS distance");
+        return `EXISTS (SELECT 1 FROM (${subtree}) WHERE id != n.id LIMIT 1)`;
       }
-      case "createdAfter":
-        return `n.created_at >= ${this.push(
-          resolveTimestampPlaceholder(condition.timestamp, "after", this.options),
-        )}`;
-      case "createdBefore":
-        return `n.created_at <= ${this.push(
-          resolveTimestampPlaceholder(condition.timestamp, "before", this.options),
-        )}`;
-      case "updatedAfter":
-        return `n.updated_at >= ${this.push(
-          resolveTimestampPlaceholder(condition.timestamp, "after", this.options),
-        )}`;
-      case "updatedBefore":
-        return `n.updated_at <= ${this.push(
-          resolveTimestampPlaceholder(condition.timestamp, "before", this.options),
-        )}`;
-      case "linkedToQuery":
-        // Dynamic links-to: the target set is the nested group's matches.
-        return `n.id IN (SELECT id FROM (${this.linkedToSetSql(this.groupAnchorsSql(condition.root))}))`;
-      case "descendantOfQuery": {
-        // Dynamic parent: the ancestor chain contains ANY node matching the
-        // nested group — subtree membership of the anchor set, anchors excluded.
-        // Both subqueries are built before the string (params bind in text order).
-        const subtree = this.subtreeSetSql(this.groupAnchorsSql(condition.root));
-        const anchors = this.groupAnchorsSql(condition.root);
-        return (
-          `n.id IN (SELECT id FROM (${subtree}))` +
-          ` AND n.id NOT IN (SELECT id FROM (${anchors}))`
-        );
-      }
-      case "linkedToSelf":
-        // SELF links-to: the backlinksWithRollup target set is the one
-        // hosting-page anchor — the linkedToSet over the self anchor.
-        return `n.id IN (SELECT id FROM (${this.linkedToSetSql(this.selfAnchorSql())}))`;
-      case "descendantOfSelf": {
-        // SELF child-path: the row sits strictly inside the hosting page —
-        // the descendantOf shape over the self anchor. Both subqueries are
-        // built before the string (params bind in text order).
-        const subtree = this.subtreeSetSql(this.selfAnchorSql());
-        const anchor = this.selfId();
-        return `n.id IN (SELECT id FROM (${subtree})) AND n.id != ${anchor}`;
-      }
-      case "coverAsset":
-        return this.nodeFieldSql("coverAsset", "cover_asset_id", condition);
-      case "bannerAsset":
-        return this.nodeFieldSql("bannerAsset", "banner_asset_id", condition);
-      case "aliasedNode":
-        return this.nodeFieldSql("aliasedNode", "aliased_node_id", condition);
-      default:
+      case "page":
+        // The row lives inside a page — the containing page differs from the
+        // row itself (a page's own page is itself).
+        return `${this.containingPageIdSql()} != n.id`;
+      case "referencePath":
+      case "root":
         throw new Error(
-          `query compile: unknown condition type ${(condition as { type: string }).type}`,
+          `query compile: the '${family}' family has no emptiness (exists) semantics`,
         );
+    }
+  }
+
+  /**
+   * The date condition — the v1 created-/updated- ten types behind an
+   * explicit `field` axis. eq/neq are DAY-granular (the whole resolved local
+   * day matches); gt/gte/lt/lte compare against the resolved instant;
+   * after/before are the inclusive day-boundary ops; between is the inclusive
+   * [from, to] range; within is the relative period. Operands are optional on
+   * the wire shape — a missing one fails loud here.
+   */
+  private dateSql(condition: Extract<Condition, { type: "date" }>): string {
+    const column = condition.field === "created" ? "created_at" : "updated_at";
+    switch (condition.op) {
+      case "eq":
+      case "neq":
+      case "gt":
+      case "gte":
+      case "lt":
+      case "lte": {
+        if (condition.timestamp === undefined) {
+          throw new Error(`query compile: date op '${condition.op}' requires a timestamp`);
+        }
+        return this.dateCmpSql(column, condition.op, condition.timestamp);
+      }
+      case "after": {
+        if (condition.timestamp === undefined) {
+          throw new Error("query compile: date op 'after' requires a timestamp");
+        }
+        return `n.${column} >= ${this.push(
+          resolveTimestampPlaceholder(condition.timestamp, "after", this.options),
+        )}`;
+      }
+      case "before": {
+        if (condition.timestamp === undefined) {
+          throw new Error("query compile: date op 'before' requires a timestamp");
+        }
+        return `n.${column} <= ${this.push(
+          resolveTimestampPlaceholder(condition.timestamp, "before", this.options),
+        )}`;
+      }
+      case "between": {
+        if (condition.from === undefined || condition.to === undefined) {
+          throw new Error("query compile: date op 'between' requires both bounds");
+        }
+        return this.dateBetweenSql(column, condition.from, condition.to);
+      }
+      case "within": {
+        if (condition.period === undefined) {
+          throw new Error("query compile: date op 'within' requires a period");
+        }
+        return this.dateWithinSql(column, condition.period);
+      }
     }
   }
 
@@ -944,7 +1018,7 @@ class Compiler {
    * eq nor neq — so "is unset" reads `not exists`, not `neq`.
    */
   private nodeFieldSql(
-    type: "coverAsset" | "bannerAsset" | "aliasedNode",
+    field: string,
     column: string,
     condition: { op: "eq" | "neq" | "exists"; value?: string | undefined },
   ): string {
@@ -952,7 +1026,7 @@ class Compiler {
       return `n.${column} IS NOT NULL`;
     }
     if (condition.value === undefined || condition.value === null) {
-      throw new Error(`query compile: ${type} op '${condition.op}' requires a non-null value`);
+      throw new Error(`query compile: ${field} op '${condition.op}' requires a non-null value`);
     }
     return `n.${column} ${condition.op === "eq" ? "=" : "!="} ${this.push(condition.value)}`;
   }
@@ -982,7 +1056,13 @@ class Compiler {
     return `${title} LIKE '%' || ${param} || '%'`;
   }
 
-  private contentSql(condition: Extract<Condition, { type: "content" }>): string {
+  private contentSql(condition: {
+    op: ContentOp | "exists";
+    value?: string | undefined;
+  }): string {
+    if (condition.value === undefined || condition.value === null) {
+      throw new Error(`query compile: content op '${condition.op}' requires a non-null value`);
+    }
     if (condition.op === "fts") {
       const match = buildMatchExpression(condition.value);
       if (match === null) {
@@ -1055,7 +1135,13 @@ class Compiler {
    * point sorts with its day). Plain scalar values (e.g. binding defaults)
    * keep matching through the unchanged first arm.
    */
-  private propertySql(condition: Extract<Condition, { type: "property" }>): string {
+  private propertySql(condition: {
+    type: "property";
+    schemaId: string;
+    op: PropertyOp;
+    value?: unknown;
+    includeDefaults?: boolean | undefined;
+  }): string {
     const valueOps: readonly PropertyOp[] = ["eq", "neq", "contains", "gt", "gte", "lt", "lte"];
     // The comparison bound rides the placeholder clock: a `{today}`-style
     // token resolves to the period start as a plain YYYY-MM-DD date (the
@@ -1113,7 +1199,7 @@ class Compiler {
 
   /**
    * The effective-values CTE pair shared by every property-shaped condition
-   * (property / propertyBetween / propertyWithin): tombstone-suppressed
+   * (property, incl. the between/within ops): tombstone-suppressed
    * authored rows UNION bindings-derived defaults (the effective.ts
    * semantics). Params push in CTE text order (schema, then the two derived
    * arms) — callers build the predicate AFTER this, so bound params always
@@ -1233,13 +1319,14 @@ class Compiler {
   }
 
   /**
-   * v1's REFERENCE PATH rollup over a target set (the targets query yields
-   * one `id` column — a json_each wrapper for the static pick, a fresh
-   * `node n` group scope for the dynamic form). A row matches when the row OR
-   * any of its ancestors links to a target, or a target is a STRICT ancestor
-   * of the row (v1 folded containment into the reference rollup). The
-   * ancestor chain CTE is seeded at the row itself so the edge arm includes
-   * the row's own outbound links. Params: the targets query's own.
+   * The referencePath family rollup over a target set (the targets query
+   * yields one `id` column — a json_each wrapper for the ids pick, a fresh
+   * `node n` group scope for the query mode, the self anchor for the self
+   * mode). A row matches when the row OR any of its ancestors links to a
+   * target, or a target is a STRICT ancestor of the row (containment is
+   * folded into the link rollup). The ancestor chain CTE is seeded at the
+   * row itself so the edge arm includes the row's own outbound links.
+   * Params: the targets query's own.
    */
   private referencePathSql(targetsSql: string): string {
     return (
@@ -1257,10 +1344,11 @@ class Compiler {
   }
 
   /**
-   * The Odoo date comparison (createdCmp/updatedCmp): eq/neq are DAY-granular
-   * (the whole resolved local day matches — the timestamp resolves through
-   * the same placeholder boundary machinery as After/Before); gt/gte/lt/lte
-   * compare against the resolved instant (gte = After, lte = Before).
+   * The Odoo date comparison (the date condition's eq/neq/gt/gte/lt/lte
+   * ops): eq/neq are DAY-granular (the whole resolved local day matches — the
+   * timestamp resolves through the same placeholder boundary machinery as
+   * after/before); gt/gte/lt/lte compare against the resolved instant
+   * (gte = after, lte = before).
    */
   private dateCmpSql(column: string, op: DateOp, timestamp: string): string {
     if (op === "eq" || op === "neq") {
@@ -1291,24 +1379,18 @@ class Compiler {
     return `n.${column} >= ${from} AND n.${column} <= ${to}`;
   }
 
-  /** propertyBetween: the effective value inside the inclusive [from, to]. */
-  private propertyRangeSql(
-    condition: Extract<Condition, { type: "propertyBetween" }>,
-  ): string {
-    if (condition.from === undefined || condition.to === undefined) {
-      throw new Error("query compile: propertyBetween requires both bounds");
+  /** property op between: the effective value inside the inclusive [from, to]. */
+  private propertyRangeSql(schemaId: string, from: unknown, to: unknown): string {
+    if (from === undefined || to === undefined) {
+      throw new Error("query compile: property op 'between' requires both bounds");
     }
-    const { ctes, unions } = this.effectiveValueCtes(condition.schemaId, true);
+    const { ctes, unions } = this.effectiveValueCtes(schemaId, true);
     const fromIso =
-      typeof condition.from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(condition.from)
-        ? condition.from
-        : null;
+      typeof from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : null;
     const toIso =
-      typeof condition.to === "string" && /^\d{4}-\d{2}-\d{2}$/.test(condition.to)
-        ? condition.to
-        : null;
-    const fromParam = this.push(condition.from);
-    const toParam = this.push(condition.to);
+      typeof to === "string" && /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : null;
+    const fromParam = this.push(from);
+    const toParam = this.push(to);
     let predicate = `WHERE json_extract(value, '$') >= ${fromParam} AND json_extract(value, '$') <= ${toParam}`;
     if (fromIso !== null && toIso !== null) {
       // ISO bounds also speak to date-node refs; the scalar arm gates
@@ -1319,16 +1401,17 @@ class Compiler {
     return `n.id IN (\n  ${ctes},\n  effective AS (\n  ${unions}\n  )\n  SELECT node_id FROM effective\n  ${predicate}\n)`;
   }
 
-  /** propertyWithin: the effective DATE-valued property inside the period. */
-  private propertyWithinSql(
-    condition: Extract<Condition, { type: "propertyWithin" }>,
-  ): string {
-    const { ctes, unions } = this.effectiveValueCtes(condition.schemaId, true);
-    const token = `{${condition.period}}`;
+  /** property op within: the effective DATE-valued property inside the period. */
+  private propertyWithinSql(schemaId: string, period: DatePeriod | undefined): string {
+    if (period === undefined) {
+      throw new Error("query compile: property op 'within' requires a period");
+    }
+    const { ctes, unions } = this.effectiveValueCtes(schemaId, true);
+    const token = `{${period}}`;
     const fromIso = placeholderStartDate(token, this.options);
     const toIso = placeholderEndDate(token, this.options);
     if (fromIso === null || toIso === null) {
-      throw new Error(`query compile: unknown property period ${JSON.stringify(condition.period)}`);
+      throw new Error(`query compile: unknown property period ${JSON.stringify(period)}`);
     }
     const fromParam = this.push(fromIso);
     const toParam = this.push(toIso);

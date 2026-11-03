@@ -1,5 +1,5 @@
 /**
- * Query engine tests: QueryAST schema validation (fail-loud evolution) and
+ * Query engine tests: QueryAST v2 schema validation (fail-loud evolution) and
  * the SQLite compiler + execution helpers, run against BOTH store adapters —
  * sql.js (in-memory WASM, FTS4) and better-sqlite3 (file-backed temp dir,
  * FTS5) — so the SQL stays portable across both FTS modules and drivers.
@@ -40,6 +40,10 @@ import {
   runQuery,
   type Aggregation,
   type Child,
+  type Condition,
+  type Group,
+  type MemberFamily,
+  type NodeFieldOp,
   type QueryAst,
   type Scope,
 } from "../src/index.js";
@@ -159,10 +163,11 @@ function worldEnvelopes(): Envelope[] {
 }
 
 // AST helpers -------------------------------------------------------------------
+// v2 condition builders — the member family's three axes made explicit.
 
 function ast(scope: Scope, children: Child[], sort?: QueryAst["sort"]): QueryAst {
   return {
-    version: 1,
+    version: 2,
     scope,
     root: { type: "group", logic: "and", children },
     ...(sort !== undefined ? { sort } : {}),
@@ -173,10 +178,39 @@ const entire: Scope = { type: "entire_workspace" };
 const pages: Scope = { type: "pages" };
 
 const allIn = (scope: Scope): QueryAst => ({
-  version: 1,
+  version: 2,
   scope,
   root: { type: "group", logic: "and", children: [] },
 });
+
+/** member in/not-in over a manual id pick. */
+function mIn(family: MemberFamily, ids: string[]): Condition {
+  return { type: "member", family, op: "in", target: { mode: "ids", ids } };
+}
+
+/** member in over a nested query target (the dynamic form). */
+function mInQ(family: MemberFamily, root: Group): Condition {
+  return { type: "member", family, op: "in", target: { mode: "query", root } };
+}
+
+/** member in over the hosting page (CompileOptions.selfNodeId at compile time). */
+function mSelf(family: MemberFamily): Condition {
+  return { type: "member", family, op: "in", target: { mode: "self" } };
+}
+
+/** member exists — the family's emptiness test. */
+function mExists(family: MemberFamily): Condition {
+  return { type: "member", family, op: "exists" };
+}
+
+/** nodeField condition (the wire-field predicates; isClass/isEmbedded ride eq). */
+function nf(
+  field: "coverAsset" | "bannerAsset" | "aliasedNode" | "isClass" | "isEmbedded",
+  op: NodeFieldOp,
+  value?: string,
+): Condition {
+  return { type: "nodeField", field, op, ...(value !== undefined ? { value } : {}) };
+}
 
 // adapters ------------------------------------------------------------------------
 
@@ -211,20 +245,30 @@ const adapters: { name: string; makeStore: () => Store }[] = [
 // --- schema: fail-loud versioned evolution (adapter-independent) -----------------
 
 describe("queryAstSchema", () => {
-  it("accepts a minimal AST", () => {
+  it("accepts a minimal v2 AST", () => {
     const parsed = parseQueryAst({
-      version: 1,
+      version: 2,
       scope: { type: "subtree", pageId: FRANCE },
-      root: { type: "group", logic: "and", children: [{ type: "class", classId: PLACE }] },
+      root: { type: "group", logic: "and", children: [mIn("class", [PLACE])] },
     });
-    expect(parsed.version).toBe(1);
+    expect(parsed.version).toBe(2);
     expect(parsed.scope).toEqual({ type: "subtree", pageId: FRANCE });
+  });
+
+  it("rejects v1 ASTs outright (no dual-parse — v1 converges by log rewrite)", () => {
+    expect(() =>
+      parseQueryAst({
+        version: 1,
+        scope: { type: "pages" },
+        root: { type: "group", logic: "and", children: [{ type: "class", classId: PLACE }] },
+      }),
+    ).toThrow();
   });
 
   it("rejects unknown condition types (loud, versioned evolution)", () => {
     expect(() =>
       parseQueryAst({
-        version: 1,
+        version: 2,
         scope: { type: "pages" },
         root: {
           type: "group",
@@ -237,16 +281,23 @@ describe("queryAstSchema", () => {
 
   it("rejects newer AST versions and unknown keys", () => {
     const base = { scope: { type: "pages" }, root: { type: "group", logic: "and", children: [] } };
-    expect(() => parseQueryAst({ ...base, version: 2 })).toThrow();
-    expect(() => parseQueryAst({ ...base, version: 1, extra: true })).toThrow();
+    expect(() => parseQueryAst({ ...base, version: 3 })).toThrow();
+    expect(() => parseQueryAst({ ...base, version: 2, extra: true })).toThrow();
   });
 
   it("rejects malformed uuids in scope/condition ids", () => {
     expect(() =>
       parseQueryAst({
-        version: 1,
+        version: 2,
         scope: { type: "subtree", pageId: "not-a-uuid" },
         root: { type: "group", logic: "and", children: [] },
+      }),
+    ).toThrow();
+    expect(() =>
+      parseQueryAst({
+        version: 2,
+        scope: entire,
+        root: { type: "group", logic: "and", children: [mIn("class", ["not-a-uuid"])] },
       }),
     ).toThrow();
   });
@@ -294,23 +345,21 @@ describe("compile: SQL shape", () => {
     expect(params).toEqual([PARIS]);
   });
 
-  it("class condition probes class_hierarchy (descendant classes match)", () => {
-    const { sql, params } = compile(ast(entire, [{ type: "class", classId: PLACE }]));
+  it("member class in-ids probes class_hierarchy (descendant classes match)", () => {
+    const { sql, params } = compile(ast(entire, [mIn("class", [PLACE])]));
     expect(sql).toContain("json_each(n.class_ids)");
     expect(sql).toContain(
-      "value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id = ?)",
+      "value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id IN (?))",
     );
     expect(params).toEqual([PLACE]);
   });
 
-  it("classAnyQuery / tagAnyQuery: the picked ids come from the nested group's subquery", () => {
+  it("member in-query targets: the picked ids come from the nested group's subquery", () => {
     const classSql = compile(ast(entire, [
-      { type: "classAnyQuery", root: { type: "group", logic: "and", children: [
-        { type: "class", classId: PLACE },
-      ] } },
+      mInQ("class", { type: "group", logic: "and", children: [mIn("class", [PLACE])] }),
     ]));
     // The hierarchy closure read rides the group's matches (a fresh `node n`
-    // scope), like classAny but with the subquery in place of the id list.
+    // scope), like the in-ids form but with the subquery in place of the list.
     expect(classSql.sql).toContain("json_each(n.class_ids)");
     expect(classSql.sql).toContain(
       "value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id IN " +
@@ -318,9 +367,7 @@ describe("compile: SQL shape", () => {
     );
     expect(classSql.params).toEqual([PLACE]);
     const tagSql = compile(ast(entire, [
-      { type: "tagAnyQuery", root: { type: "group", logic: "and", children: [
-        { type: "isClass", isClass: true },
-      ] } },
+      mInQ("tags", { type: "group", logic: "and", children: [nf("isClass", "eq", "true")] }),
     ]));
     expect(tagSql.sql).toContain(
       "EXISTS (\n  SELECT 1 FROM json_each(n.tag_ids)\n  WHERE value IN " +
@@ -329,13 +376,13 @@ describe("compile: SQL shape", () => {
     expect(tagSql.params).toEqual([1]);
   });
 
-  it("isClass/isEmbedded and created-window conditions are parameterized", () => {
+  it("nodeField isClass/isEmbedded and date after/before are parameterized", () => {
     const { sql, params } = compile(
       ast(entire, [
-        { type: "isClass", isClass: false },
-        { type: "isEmbedded", isEmbedded: false },
-        { type: "createdAfter", timestamp: "2026-09-24T12:00:00.000Z" },
-        { type: "createdBefore", timestamp: "2026-09-25T12:00:00.000Z" },
+        nf("isClass", "eq", "false"),
+        nf("isEmbedded", "eq", "false"),
+        { type: "date", field: "created", op: "after", timestamp: "2026-09-24T12:00:00.000Z" },
+        { type: "date", field: "created", op: "before", timestamp: "2026-09-25T12:00:00.000Z" },
       ]),
     );
     expect(sql).toContain("n.is_class = ?");
@@ -432,7 +479,7 @@ describe("compile: SQL shape", () => {
   });
 
   it("property comparison ops (gt/gte/lt/lte) are part of the versioned schema", () => {
-    const base = { version: 1, scope: { type: "pages" }, root: { type: "group", logic: "and", children: [] } };
+    const base = { version: 2, scope: { type: "pages" }, root: { type: "group", logic: "and", children: [] } };
     for (const op of ["gt", "gte", "lt", "lte"]) {
       const parsed = parseQueryAst({
         ...base,
@@ -465,7 +512,7 @@ describe("compile: SQL shape", () => {
     const { sql, params } = compile(
       ast(entire, [
         { type: "content", op: "contains", value: injection },
-        { type: "class", classId: PLACE },
+        mIn("class", [PLACE]),
       ]),
     );
     expect(sql).not.toContain(injection);
@@ -483,6 +530,91 @@ describe("compile: SQL shape", () => {
   });
 });
 
+// --- the v2 member grammar pins (compiler, adapter-independent) ---------------------
+
+describe("compile: v2 member grammar pins", () => {
+  it("member-in-query nests to depth 2 (compile + param order)", () => {
+    const { sql, params } = compile(ast(entire, [
+      mInQ("links", { type: "group", logic: "and", children: [
+        mInQ("class", { type: "group", logic: "and", children: [
+          { type: "content", op: "contains", value: "city" },
+        ] }),
+      ] }),
+    ]));
+    // The links family rides the backlinksWithRollup CTE; the class target
+    // resolves through its own nested group.
+    expect(sql).toContain("anchors AS (");
+    expect(sql).toContain("json_each(n.class_ids)");
+    expect(params).toEqual(["city"]);
+  });
+
+  it("not-in wraps the family's in predicate in NOT", () => {
+    const { sql, params } = compile(ast(entire, [
+      { type: "member", family: "class", op: "not-in", target: { mode: "ids", ids: [CITY] } },
+    ]));
+    expect(sql).toContain("NOT (");
+    expect(sql).toContain("json_each(n.class_ids)");
+    expect(params).toEqual([CITY]);
+  });
+
+  it("not-exists wraps the family's set predicate in NOT", () => {
+    const { sql } = compile(ast(entire, [
+      { type: "member", family: "links", op: "not-exists" },
+    ]));
+    expect(sql).toContain("NOT (EXISTS (SELECT 1 FROM edge WHERE target_id = n.id))");
+  });
+
+  it("not wraps every condition type", () => {
+    const nots: Child[] = [
+      { type: "not", child: { type: "content", op: "exists" } },
+      { type: "not", child: { type: "name", op: "exists" } },
+      { type: "not", child: { type: "property", schemaId: PRIORITY, op: "exists" } },
+      { type: "not", child: { type: "date", field: "created", op: "within", period: "today" } },
+      { type: "not", child: nf("isClass", "eq", "true") },
+      { type: "not", child: mIn("class", [PLACE]) },
+    ];
+    for (const not of nots) {
+      const { sql } = compile(ast(entire, [not]));
+      expect(sql).toContain("NOT (");
+    }
+  });
+
+  it("a self target nested inside a query target fails loud without selfNodeId", () => {
+    expect(() =>
+      compile(ast(entire, [
+        mInQ("links", { type: "group", logic: "and", children: [mSelf("class")] }),
+      ])),
+    ).toThrow(/selfNodeId/);
+  });
+
+  it("member exists on a family without emptiness semantics fails loud", () => {
+    // The design's family table offers no emptiness read for referencePath
+    // or root — the schema admits the shape, the compiler rejects it.
+    expect(() => compile(ast(entire, [mExists("referencePath")]))).toThrow(/emptiness/);
+    expect(() => compile(ast(entire, [mExists("root")]))).toThrow(/emptiness/);
+  });
+
+  it("member exact compiles to the exact class-set equality probe", () => {
+    const { sql, params } = compile(ast(entire, [
+      { type: "member", family: "class", op: "exact", target: { mode: "ids", ids: [PLACE] } },
+    ]));
+    expect(sql).toContain("(SELECT COUNT(*) FROM json_each(n.class_ids)) = 1");
+    expect(params).toEqual([PLACE]);
+  });
+
+  it("fails loud: date ops missing their operand; nodeField boolean outside true/false", () => {
+    expect(() =>
+      compile(ast(entire, [{ type: "date", field: "created", op: "after" }])),
+    ).toThrow(/requires a timestamp/);
+    expect(() =>
+      compile(ast(entire, [{ type: "date", field: "created", op: "between", from: "a" }])),
+    ).toThrow(/both bounds/);
+    expect(() =>
+      compile(ast(entire, [nf("isClass", "eq", "yes")])),
+    ).toThrow(/"true" or "false"/);
+  });
+});
+
 // --- aggregation: schema validation (adapter-independent) ---------------------------
 
 const countByClassBit: Aggregation = {
@@ -491,7 +623,7 @@ const countByClassBit: Aggregation = {
 };
 
 describe("aggregation schema", () => {
-  const base = { version: 1, scope: { type: "pages" }, root: { type: "group", logic: "and", children: [] } };
+  const base = { version: 2, scope: { type: "pages" }, root: { type: "group", logic: "and", children: [] } };
 
   it("accepts a well-formed aggregation (dimensions + measures)", () => {
     const parsed = parseQueryAst({
@@ -576,7 +708,7 @@ describe("aggregation schema", () => {
 
   it("aggregation: scope/condition params precede dimension/measure params", () => {
     const { params } = compile({
-      ...ast(entire, [{ type: "class", classId: PLACE }]),
+      ...ast(entire, [mIn("class", [PLACE])]),
       aggregation: countByClassBit,
     });
     expect(params).toEqual([PLACE]);
@@ -615,7 +747,7 @@ describe("protocol query token", () => {
   });
 
   it("accepts a newer/foreign AST shape as a plain record (forward compat)", () => {
-    const foreign = { version: 2, scope: { type: "pages" }, root: { type: "group", logic: "and", children: [] }, future: ["x"] };
+    const foreign = { version: 3, scope: { type: "pages" }, root: { type: "group", logic: "and", children: [] }, future: ["x"] };
     const token = contentTokenSchema.parse({ type: "query", queryAst: foreign });
     expect(token.type).toBe("query");
     if (token.type === "query") expect(token.queryAst).toEqual(foreign);
@@ -623,7 +755,7 @@ describe("protocol query token", () => {
 
   it("accepts an unknown-condition AST as a record rather than rejecting the token", () => {
     const foreign = {
-      version: 1,
+      version: 2,
       scope: { type: "pages" },
       root: { type: "group", logic: "and", children: [{ type: "weather", sunny: true }] },
     };
@@ -678,15 +810,15 @@ describe.each(adapters)("$name", ({ makeStore }) => {
     });
   });
 
-  describe("class conditions (hierarchy-aware)", () => {
+  describe("class family (hierarchy-aware)", () => {
     it("direct membership matches", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "class", classId: CITY }]));
+      const { ids } = runQuery(worldStore(), ast(entire, [mIn("class", [CITY])]));
       expect(ids).toEqual([PARIS]);
     });
 
     it("child classes match the ancestor class condition", () => {
       // City extends Place, so a Place query must find City members too.
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "class", classId: PLACE }]));
+      const { ids } = runQuery(worldStore(), ast(entire, [mIn("class", [PLACE])]));
       expect(ids.sort()).toEqual([FRANCE, PARIS].sort());
     });
   });
@@ -946,7 +1078,7 @@ describe.each(adapters)("$name", ({ makeStore }) => {
         runQuery(
           store,
           ast(entire, [
-            { type: "class", classId: PLACE },
+            mIn("class", [PLACE]),
             { type: "property", schemaId: YEAR, op: "gte", value: 1900 },
           ]),
         ).ids.sort(),
@@ -956,7 +1088,7 @@ describe.each(adapters)("$name", ({ makeStore }) => {
         runQuery(
           store,
           ast(entire, [
-            { type: "class", classId: CITY },
+            mIn("class", [CITY]),
             { type: "property", schemaId: YEAR, op: "gte", value: 1900 },
           ]),
         ).ids,
@@ -978,14 +1110,14 @@ describe.each(adapters)("$name", ({ makeStore }) => {
     });
   });
 
-  describe("linkedTo (backlinksWithRollup semantics)", () => {
+  describe("links family (backlinksWithRollup semantics)", () => {
     it("direct edges match", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "linkedTo", nodeId: PARIS }]));
+      const { ids } = runQuery(worldStore(), ast(entire, [mIn("links", [PARIS])]));
       expect(ids).toEqual([FR_BLOCK]);
     });
 
     it("containment roll-up: a block inside France linking outward links France", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "linkedTo", nodeId: FRANCE }]));
+      const { ids } = runQuery(worldStore(), ast(entire, [mIn("links", [FRANCE])]));
       // frBlock -> Paris is intra-subtree (excluded); outBlock -> Lone Page is
       // an outward link from inside France's subtree.
       expect(ids).toEqual([OUT_BLOCK]);
@@ -994,28 +1126,28 @@ describe.each(adapters)("$name", ({ makeStore }) => {
     it("scope form restricts the universe and carries distance", () => {
       const { ids, rows } = runQuery(
         worldStore(),
-        ast({ type: "linkedTo", nodeId: FRANCE }, [{ type: "isEmbedded", isEmbedded: true }]),
+        ast({ type: "linkedTo", nodeId: FRANCE }, [nf("isEmbedded", "eq", "true")]),
       );
       expect(ids).toEqual([OUT_BLOCK]);
       expect(rows[0]!.distance).toBe(1);
     });
   });
 
-  describe("descendantOf (ancestor-chain membership)", () => {
+  describe("childPath family (ancestor-chain membership)", () => {
     it("every row inside the anchor's parents tree matches — at any depth; the anchor itself does not", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "descendantOf", nodeId: FRANCE }]));
+      const { ids } = runQuery(worldStore(), ast(entire, [mIn("childPath", [FRANCE])]));
       // France's subtree minus France: Paris (depth 1), its block (depth 2),
       // and the two blocks directly under France.
       expect(ids.sort()).toEqual([PARIS, FR_BLOCK, PARIS_BLOCK, OUT_BLOCK].sort());
     });
 
     it("a single-level chain matches exactly the children", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "descendantOf", nodeId: PARIS }]));
+      const { ids } = runQuery(worldStore(), ast(entire, [mIn("childPath", [PARIS])]));
       expect(ids).toEqual([PARIS_BLOCK]);
     });
 
     it("the anchor's direct child matches; the anchor itself does not", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "descendantOf", nodeId: LONE }]));
+      const { ids } = runQuery(worldStore(), ast(entire, [mIn("childPath", [LONE])]));
       expect(ids).toEqual([LONE_BLOCK]);
     });
 
@@ -1023,8 +1155,8 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       const { ids } = runQuery(
         worldStore(),
         ast(entire, [
-          { type: "descendantOf", nodeId: FRANCE },
-          { type: "isEmbedded", isEmbedded: true },
+          mIn("childPath", [FRANCE]),
+          nf("isEmbedded", "eq", "true"),
         ]),
       );
       // Only the inline blocks under France's tree.
@@ -1032,32 +1164,32 @@ describe.each(adapters)("$name", ({ makeStore }) => {
     });
   });
 
-  describe("updatedAfter/updatedBefore (the edit-date facet)", () => {
+  describe("date family: the edit-date facet (updated after/before)", () => {
     it("the edit window reads updated_at", () => {
-      const { sql } = compile(ast(entire, [{ type: "updatedAfter", timestamp: "2026-01-01" }]));
+      const { sql } = compile(ast(entire, [{ type: "date", field: "updated", op: "after", timestamp: "2026-01-01" }]));
       expect(sql).toContain("n.updated_at >=");
-      const { sql: before } = compile(ast(entire, [{ type: "updatedBefore", timestamp: "2026-01-01" }]));
+      const { sql: before } = compile(ast(entire, [{ type: "date", field: "updated", op: "before", timestamp: "2026-01-01" }]));
       expect(before).toContain("n.updated_at <=");
     });
 
     it("a far-past edit window matches nothing; NULL updated_at never matches a window", () => {
-      expect(runQuery(worldStore(), ast(entire, [{ type: "updatedBefore", timestamp: "1999-01-01" }])).ids).toEqual([]);
+      expect(runQuery(worldStore(), ast(entire, [{ type: "date", field: "updated", op: "before", timestamp: "1999-01-01" }])).ids).toEqual([]);
       // The seeded world carries no update ops — updated_at is NULL, and
       // NULL rows never match a window (the same law as the created window).
-      expect(runQuery(worldStore(), ast(entire, [{ type: "updatedAfter", timestamp: "{today}" }])).ids).toEqual([]);
+      expect(runQuery(worldStore(), ast(entire, [{ type: "date", field: "updated", op: "after", timestamp: "{today}" }])).ids).toEqual([]);
     });
   });
 
-  describe("dynamic target sets (linkedToQuery / descendantOfQuery)", () => {
+  describe("dynamic target sets (member in-query over links / childPath)", () => {
     it("links to ANY node matching the nested group — the owner's example: a person-classed node with a property predicate", () => {
       // Paris is the only CITY; frBlock links directly to it.
       const { ids } = runQuery(
         worldStore(),
         ast(entire, [
-          { type: "linkedToQuery", root: { type: "group", logic: "and", children: [
-            { type: "class", classId: CITY },
+          mInQ("links", { type: "group", logic: "and", children: [
+            mIn("class", [CITY]),
             { type: "property", schemaId: YEAR, op: "gt", value: 0 },
-          ] } },
+          ] }),
         ]),
       );
       expect(ids).toEqual([FR_BLOCK]);
@@ -1067,116 +1199,132 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       const { ids } = runQuery(
         worldStore(),
         ast(entire, [
-          { type: "linkedToQuery", root: { type: "group", logic: "and", children: [
-            { type: "isClass", isClass: false },
+          mInQ("links", { type: "group", logic: "and", children: [
+            nf("isClass", "eq", "false"),
             { type: "content", op: "contains", value: "Paris" },
-          ] } },
+          ] }),
         ]),
       );
-      // Exactly the static linkedTo(Paris) membership.
+      // Exactly the static links-in [Paris] membership.
       expect(ids).toEqual([FR_BLOCK]);
     });
 
-    it("dynamic parent: the ancestor chain contains any node matching the group", () => {
+    it("dynamic childPath: the ancestor chain contains any node matching the group", () => {
       const { ids } = runQuery(
         worldStore(),
         ast(entire, [
-          { type: "descendantOfQuery", root: { type: "group", logic: "and", children: [
-            { type: "class", classId: CITY },
-          ] } },
+          mInQ("childPath", { type: "group", logic: "and", children: [
+            mIn("class", [CITY]),
+          ] }),
         ]),
       );
       // Paris matches CITY; its subtree minus Paris is just its block.
       expect(ids).toEqual([PARIS_BLOCK]);
     });
+
+    it("member-in-query nests to depth 2 and executes", () => {
+      // links → anything classed as a class whose title contains "city"
+      // (the CITY class node) — the closure is {City} → Paris → frBlock.
+      const { ids } = runQuery(
+        worldStore(),
+        ast(entire, [
+          mInQ("links", { type: "group", logic: "and", children: [
+            mInQ("class", { type: "group", logic: "and", children: [
+              { type: "content", op: "contains", value: "city" },
+            ] }),
+          ] }),
+        ]),
+      );
+      expect(ids).toEqual([FR_BLOCK]);
+    });
   });
 
-  describe("self conditions (*Self family)", () => {
-    // The hosting page is FRANCE for most arms; the arms reduce to each
-    // family's single-anchor static form with CompileOptions.selfNodeId.
-    const selfTypes = [
-      "linkedToSelf",
-      "referencePathOfSelf",
-      "parentOfSelf",
-      "childOfSelf",
-      "descendantOfSelf",
-      "pageOfSelf",
-      "ancestorInSelf",
-      "rootInSelf",
-      "classSelf",
-      "tagSelf",
-    ] as const;
+  describe("self target (the hosting page)", () => {
+    // The hosting page is FRANCE for most arms; a family's self target
+    // reduces to its single-anchor in-ids form with CompileOptions.selfNodeId.
+    const selfFamilies: MemberFamily[] = [
+      "class",
+      "tags",
+      "links",
+      "referencePath",
+      "parent",
+      "child",
+      "childPath",
+      "page",
+      "parentPath",
+      "root",
+    ];
 
-    it("the strict schema parses every *Self marker", () => {
-      for (const type of selfTypes) {
-        const parsed = parseQueryAst(ast(entire, [{ type } as unknown as Child]));
-        expect(parsed.root.children).toEqual([{ type }]);
+    it("the strict schema parses a self target for every family", () => {
+      for (const family of selfFamilies) {
+        const parsed = parseQueryAst(ast(entire, [mSelf(family)]));
+        expect(parsed.root.children).toEqual([mSelf(family)]);
       }
     });
 
-    it("pageOfSelf: the containing page IS the hosting page (a page is its own page)", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "pageOfSelf" }]), { selfNodeId: FRANCE });
+    it("page self: the containing page IS the hosting page (a page is its own page)", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [mSelf("page")]), { selfNodeId: FRANCE });
       // Paris is its own page (main child), Paris block's page is Paris.
       expect(ids.sort()).toEqual([FRANCE, FR_BLOCK, OUT_BLOCK].sort());
     });
 
-    it("ancestorInSelf: a strict ancestor is the hosting page", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "ancestorInSelf" }]), { selfNodeId: FRANCE });
+    it("parentPath self: a strict ancestor is the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [mSelf("parentPath")]), { selfNodeId: FRANCE });
       expect(ids.sort()).toEqual([PARIS, PARIS_BLOCK, FR_BLOCK, OUT_BLOCK].sort());
     });
 
-    it("rootInSelf: the workspace-root ancestor is the hosting page", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "rootInSelf" }]), { selfNodeId: FRANCE });
+    it("root self: the workspace-root ancestor is the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [mSelf("root")]), { selfNodeId: FRANCE });
       expect(ids.sort()).toEqual([FRANCE, PARIS, FR_BLOCK, PARIS_BLOCK, OUT_BLOCK].sort());
     });
 
-    it("parentOfSelf: the direct parent is the hosting page", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "parentOfSelf" }]), { selfNodeId: FRANCE });
+    it("parent self: the direct parent is the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [mSelf("parent")]), { selfNodeId: FRANCE });
       expect(ids.sort()).toEqual([PARIS, FR_BLOCK, OUT_BLOCK].sort());
     });
 
-    it("childOfSelf: a direct child is the hosting page", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "childOfSelf" }]), { selfNodeId: PARIS });
+    it("child self: a direct child is the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [mSelf("child")]), { selfNodeId: PARIS });
       expect(ids).toEqual([FRANCE]);
     });
 
-    it("descendantOfSelf: the row sits strictly inside the hosting page", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "descendantOfSelf" }]), { selfNodeId: FRANCE });
+    it("childPath self: the row sits strictly inside the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [mSelf("childPath")]), { selfNodeId: FRANCE });
       expect(ids.sort()).toEqual([PARIS, FR_BLOCK, PARIS_BLOCK, OUT_BLOCK].sort());
     });
 
-    it("linkedToSelf: the backlinksWithRollup membership of the hosting page", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "linkedToSelf" }]), { selfNodeId: FRANCE });
-      // Identical membership to the static linkedTo(France): the outward
+    it("links self: the backlinksWithRollup membership of the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [mSelf("links")]), { selfNodeId: FRANCE });
+      // Identical membership to the static links-in [France]: the outward
       // containment roll-up (outBlock → Lone), intra-subtree edges excluded.
       expect(ids).toEqual([OUT_BLOCK]);
     });
 
-    it("referencePathOfSelf: the self-or-ancestor rollup over the hosting page", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "referencePathOfSelf" }]), { selfNodeId: FRANCE });
+    it("referencePath self: the self-or-ancestor rollup over the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [mSelf("referencePath")]), { selfNodeId: FRANCE });
       // Nobody links to France; France is a STRICT ancestor of its subtree.
       expect(ids.sort()).toEqual([PARIS, FR_BLOCK, PARIS_BLOCK, OUT_BLOCK].sort());
     });
 
-    it("classSelf: closure-aware membership of the hosting page as a class", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "classSelf" }]), { selfNodeId: PLACE });
-      // The Place closure is {Place, City} — the `class` arm over the self id.
+    it("class self: closure-aware membership of the hosting page as a class", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [mSelf("class")]), { selfNodeId: PLACE });
+      // The Place closure is {Place, City} — the class family over the self id.
       expect(ids.sort()).toEqual([FRANCE, PARIS].sort());
     });
 
-    it("tagSelf: tagged with the hosting page itself", () => {
-      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "tagSelf" }]), { selfNodeId: FRANCE });
+    it("tags self: tagged with the hosting page itself", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [mSelf("tags")]), { selfNodeId: FRANCE });
       expect(ids).toEqual([]);
     });
 
-    it("every *Self arm fails loud without the hosting page", () => {
-      for (const type of selfTypes) {
-        expect(() => compile(ast(entire, [{ type } as unknown as Child])), type).toThrow(/selfNodeId/);
+    it("every self arm fails loud without the hosting page", () => {
+      for (const family of selfFamilies) {
+        expect(() => compile(ast(entire, [mSelf(family)])), family).toThrow(/selfNodeId/);
       }
     });
   });
 
-  describe("tag edges (tags are links)", () => {
+  describe("tags family (tags are links)", () => {
     // A local world: the shared France world PLUS a tag on France. Kept out
     // of worldEnvelopes so the scope-isolation counts stay untouched.
     const TAG = "0192a000-0000-7000-8000-000000000401";
@@ -1190,18 +1338,18 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       return store;
     }
 
-    it("Links (linkedTo) matches a tagged node exactly like a mention link", () => {
-      const { ids } = runQuery(taggedStore(), ast(entire, [{ type: "linkedTo", nodeId: TAG }]));
+    it("Links (links family) matches a tagged node exactly like a mention link", () => {
+      const { ids } = runQuery(taggedStore(), ast(entire, [mIn("links", [TAG])]));
       expect(ids).toEqual([FRANCE]);
     });
 
-    it("Links ANY-of matches through the tag edge", () => {
-      const { ids } = runQuery(taggedStore(), ast(entire, [{ type: "linkedToAny", nodeIds: [TAG] }]));
+    it("links ANY-of matches through the tag edge", () => {
+      const { ids } = runQuery(taggedStore(), ast(entire, [mIn("links", [TAG])]));
       expect(ids).toEqual([FRANCE]);
     });
 
-    it("Link path: the tag edge rides the row-or-ancestor arm — France's whole subtree matches", () => {
-      const { ids } = runQuery(taggedStore(), ast(entire, [{ type: "referencePathOf", nodeIds: [TAG] }]));
+    it("referencePath: the tag edge rides the row-or-ancestor arm — France's whole subtree matches", () => {
+      const { ids } = runQuery(taggedStore(), ast(entire, [mIn("referencePath", [TAG])]));
       // France carries the tag; every node with France in its parent path
       // matches (the Logseq-style arm), TAG itself excluded.
       expect(ids.sort()).toEqual([FRANCE, PARIS, FR_BLOCK, PARIS_BLOCK, OUT_BLOCK].sort());
@@ -1211,7 +1359,7 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       const store = taggedStore();
       // Paris is classed City and France carries the Place class — neither
       // membership creates edges, so no condition sees them as links.
-      const { ids } = runQuery(store, ast(entire, [{ type: "linkedToAny", nodeIds: [CITY, PLACE] }]));
+      const { ids } = runQuery(store, ast(entire, [mIn("links", [CITY, PLACE])]));
       expect(ids).toEqual([]);
     });
   });
@@ -1222,7 +1370,7 @@ describe.each(adapters)("$name", ({ makeStore }) => {
         worldStore(),
         ast(entire, [
           { type: "content", op: "contains", value: "capital" },
-          { type: "isEmbedded", isEmbedded: true },
+          nf("isEmbedded", "eq", "true"),
         ]),
       );
       expect(ids.sort()).toEqual([FR_BLOCK, PARIS_BLOCK].sort());
@@ -1230,14 +1378,14 @@ describe.each(adapters)("$name", ({ makeStore }) => {
 
     it("or unions", () => {
       const orAst: QueryAst = {
-        version: 1,
+        version: 2,
         scope: entire,
         root: {
           type: "group",
           logic: "or",
           children: [
-            { type: "class", classId: PLACE },
-            { type: "isEmbedded", isEmbedded: true },
+            mIn("class", [PLACE]),
+            nf("isEmbedded", "eq", "true"),
           ],
         },
       };
@@ -1264,22 +1412,65 @@ describe.each(adapters)("$name", ({ makeStore }) => {
         runQuery(
           store,
           ast(entire, [
-            { type: "isEmbedded", isEmbedded: true },
-            { type: "isClass", isClass: false },
+            nf("isEmbedded", "eq", "true"),
+            nf("isClass", "eq", "false"),
             {
               type: "not",
               child: {
                 type: "group",
                 logic: "or",
                 children: [
-                  { type: "linkedTo", nodeId: PARIS },
-                  { type: "linkedTo", nodeId: LONE },
+                  mIn("links", [PARIS]),
+                  mIn("links", [LONE]),
                 ],
               },
             },
           ]),
         ).ids.sort(),
       ).toEqual([PARIS_BLOCK, LONE_BLOCK].sort());
+    });
+  });
+
+  describe("v2 grammar execution pins", () => {
+    it("not wraps every condition type (execution)", () => {
+      const store = worldStore();
+      const now = new Date(T0);
+      const cases: Array<[Child, (ids: string[]) => void]> = [
+        // member: everything except the City members (Paris).
+        [{ type: "not", child: mIn("class", [CITY]) }, (ids) => {
+          expect(ids).not.toContain(PARIS);
+          expect(ids).toHaveLength(8);
+        }],
+        // content: every world node carries text.
+        [{ type: "not", child: { type: "content", op: "exists" } }, (ids) => expect(ids).toEqual([])],
+        // name: every world node is titled.
+        [{ type: "not", child: { type: "name", op: "exists" } }, (ids) => expect(ids).toEqual([])],
+        // property: only France/Paris/Lone carry an effective priority.
+        [{ type: "not", child: { type: "property", schemaId: PRIORITY, op: "exists" } }, (ids) =>
+          expect(ids).toHaveLength(6)],
+        // date: everything was created inside the pinned period.
+        [{ type: "not", child: { type: "date", field: "created", op: "within", period: "this_year" } }, (ids) =>
+          expect(ids).toEqual([])],
+        // nodeField: the non-class nodes.
+        [{ type: "not", child: nf("isClass", "eq", "true") }, (ids) => expect(ids).toHaveLength(7)],
+      ];
+      for (const [not, check] of cases) {
+        check(runQuery(store, ast(entire, [not]), { now }).ids);
+      }
+    });
+
+    it("not-in and not-exists execute as the negated membership/set reads", () => {
+      const store = worldStore();
+      const notIn = runQuery(store, ast(entire, [
+        { type: "member", family: "class", op: "not-in", target: { mode: "ids", ids: [CITY] } },
+      ]));
+      expect(notIn.ids).not.toContain(PARIS);
+      expect(notIn.ids).toContain(FRANCE);
+      const notExists = runQuery(store, ast(entire, [
+        { type: "member", family: "links", op: "not-exists" },
+      ]));
+      expect(notExists.ids).not.toContain(PARIS); // frBlock links to it.
+      expect(notExists.ids).toContain(FRANCE);
     });
   });
 
@@ -1305,16 +1496,16 @@ describe.each(adapters)("$name", ({ makeStore }) => {
   });
 
   describe("created window and is_active", () => {
-    it("createdAfter / createdBefore are inclusive on node.created_at", () => {
+    it("date after/before are inclusive on node.created_at", () => {
       const store = worldStore();
       const t = (i: number) => new Date(T0 + i * STEP).toISOString();
       // Paris is created exactly at t(7); the boundary is inclusive.
-      const after = runQuery(store, ast(entire, [{ type: "createdAfter", timestamp: t(7) }]));
+      const after = runQuery(store, ast(entire, [{ type: "date", field: "created", op: "after", timestamp: t(7) }]));
       expect(after.ids).not.toContain(FRANCE);
       expect(after.ids.sort()).toEqual(
         [PARIS, LONE, FR_BLOCK, PARIS_BLOCK, LONE_BLOCK, OUT_BLOCK].sort(),
       );
-      const before = runQuery(store, ast(entire, [{ type: "createdBefore", timestamp: t(7) }]));
+      const before = runQuery(store, ast(entire, [{ type: "date", field: "created", op: "before", timestamp: t(7) }]));
       // Class nodes are node rows too (created at t0/t1).
       expect(before.ids.sort()).toEqual([PLACE, CITY, FRANCE, PARIS].sort());
     });
@@ -1399,7 +1590,7 @@ describe.each(adapters)("$name", ({ makeStore }) => {
 
     it("groups classed nodes by a property value, summing/averaging a numeric property (effective read model)", () => {
       const result = runAggregate(worldStore(), {
-        ...ast(entire, [{ type: "class", classId: PLACE }]),
+        ...ast(entire, [mIn("class", [PLACE])]),
         aggregation: {
           dimensions: [{ kind: "property", id: PRIORITY }],
           measures: [
@@ -1483,8 +1674,8 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       // Inline blocks: the bit is unset — classes carry it as 0 too (inert),
       // so "not class" is needed to count blocks exactly.
       const astBlocks = ast(entire, [
-        { type: "isEmbedded", isEmbedded: true },
-        { type: "isClass", isClass: false },
+        nf("isEmbedded", "eq", "true"),
+        nf("isClass", "eq", "false"),
       ]);
       expect(countQuery(store, astBlocks)).toBe(4);
       expect(runQuery(store, astBlocks).ids).toHaveLength(4);
@@ -1492,7 +1683,7 @@ describe.each(adapters)("$name", ({ makeStore }) => {
 
     it("matches tests a single node", () => {
       const store = worldStore();
-      const cityQuery = ast(entire, [{ type: "class", classId: CITY }]);
+      const cityQuery = ast(entire, [mIn("class", [CITY])]);
       expect(matches(store, PARIS, cityQuery)).toBe(true);
       expect(matches(store, FRANCE, cityQuery)).toBe(false);
       expect(matches(store, PARIS, allIn({ type: "subtree", pageId: FRANCE }))).toBe(true);
@@ -1653,7 +1844,7 @@ describe.each(adapters)("$name", ({ makeStore }) => {
     });
   });
 
-  describe("wire-field predicates (coverAsset / bannerAsset / aliasedNode)", () => {
+  describe("nodeField wire-field predicates (coverAsset / bannerAsset / aliasedNode)", () => {
     const ASSET = "0192a000-0000-7000-8000-000000000901";
     const MAIN = "0192a000-0000-7000-8000-000000000902";
 
@@ -1670,22 +1861,22 @@ describe.each(adapters)("$name", ({ makeStore }) => {
 
     it("eq/exists compile into the node-table columns (unset matches neither eq nor neq)", () => {
       const store = fieldsStore();
-      expect(runQuery(store, ast(entire, [{ type: "coverAsset", op: "eq", value: ASSET }])).ids).toEqual([FRANCE]);
-      expect(runQuery(store, ast(entire, [{ type: "bannerAsset", op: "eq", value: ASSET }])).ids).toEqual([PARIS]);
-      expect(runQuery(store, ast(entire, [{ type: "aliasedNode", op: "eq", value: MAIN }])).ids).toEqual([PARIS]);
+      expect(runQuery(store, ast(entire, [nf("coverAsset", "eq", ASSET)])).ids).toEqual([FRANCE]);
+      expect(runQuery(store, ast(entire, [nf("bannerAsset", "eq", ASSET)])).ids).toEqual([PARIS]);
+      expect(runQuery(store, ast(entire, [nf("aliasedNode", "eq", MAIN)])).ids).toEqual([PARIS]);
       // exists: France (cover set) and Paris (banner + alias set).
-      expect(runQuery(store, ast(entire, [{ type: "coverAsset", op: "exists" }])).ids).toEqual([FRANCE]);
+      expect(runQuery(store, ast(entire, [nf("coverAsset", "exists")])).ids).toEqual([FRANCE]);
       expect(
-        runQuery(store, ast(entire, [{ type: "aliasedNode", op: "exists" }])).ids,
+        runQuery(store, ast(entire, [nf("aliasedNode", "exists")])).ids,
       ).toEqual([PARIS]);
       // neq matches rows set to a DIFFERENT id; unset rows stay out (SQL NULL).
-      expect(runQuery(store, ast(entire, [{ type: "coverAsset", op: "neq", value: ASSET }])).ids).toEqual([]);
+      expect(runQuery(store, ast(entire, [nf("coverAsset", "neq", ASSET)])).ids).toEqual([]);
       expect(
-        runQuery(store, ast(entire, [{ type: "coverAsset", op: "neq", value: MAIN }])).ids,
+        runQuery(store, ast(entire, [nf("coverAsset", "neq", MAIN)])).ids,
       ).toEqual([FRANCE]);
       // "is unset" reads not-exists: every active node except France.
       const unset = runQuery(store, ast(entire, [
-        { type: "not", child: { type: "coverAsset", op: "exists" } },
+        { type: "not", child: nf("coverAsset", "exists") },
       ])).ids;
       expect(unset).not.toContain(FRANCE);
       expect(unset).toContain(PARIS);
@@ -1693,30 +1884,11 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       store.close();
     });
 
-    it("eq/neq require a value and the schema validates the reference", () => {
+    it("eq/neq require a value; the schema validates the reference shape", () => {
       const store = fieldsStore();
       expect(() =>
-        runQuery(store, ast(entire, [{ type: "coverAsset", op: "eq" }])),
+        runQuery(store, ast(entire, [nf("coverAsset", "eq")])),
       ).toThrow(/requires a non-null value/);
-      // Fail loud at parse time: a non-uuid reference and an unknown op.
-      expect(() =>
-        parseQueryAst({
-          version: 1,
-          scope: entire,
-          root: { type: "group", logic: "and", children: [{ type: "coverAsset", op: "eq", value: "nope" }] },
-        }),
-      ).toThrow();
-      expect(() =>
-        parseQueryAst({
-          version: 1,
-          scope: entire,
-          root: {
-            type: "group",
-            logic: "and",
-            children: [{ type: "bannerAsset", op: "contains", value: "x" }],
-          },
-        }),
-      ).toThrow();
       store.close();
     });
   });
@@ -1752,88 +1924,94 @@ describe("buildMatchExpression (FTS match compilation)", () => {
 });
 
 
-// --- the Odoo operator-set conditions ---------------------
-// classExact / classAny / classSet (the expanded CLASS operator set) and the
-// (retired: the class-based containers — the node-container family lives below) — over the
-// France/Paris/Lone world: France is parentless (its own page/root, classed
-// Place), Paris a main child of France (classed City extends Place), the
-// blocks embedded under them, Lone an unclassed parentless page.
+// --- the member class operator set ---------------------
+// member class exact / in-ids / in-query / exists (the expanded CLASS
+// operator set) and the content text ops, tags, and links families — over
+// the France/Paris/Lone world: France is parentless (its own page/root,
+// classed Place), Paris a main child of France (classed City extends Place),
+// the blocks embedded under them, Lone an unclassed parentless page.
 
-describe.each(adapters)("$name: Odoo operator-set conditions", ({ makeStore }) => {
+describe.each(adapters)("$name: member class operator set", ({ makeStore }) => {
   function worldStore(): Store {
     const store = makeStore();
     store.applyMany(worldEnvelopes());
     return store;
   }
 
-  it("classExact: the class set is exactly the picked class — closure does not apply", () => {
+  it("member class exact: the class set is exactly the picked class — closure does not apply", () => {
     const store = worldStore();
-    expect(runQuery(store, ast(entire, [{ type: "classExact", classId: PLACE }])).ids).toEqual([
+    const exact = (id: string): Child => ({
+      type: "member",
+      family: "class",
+      op: "exact",
+      target: { mode: "ids", ids: [id] },
+    });
+    expect(runQuery(store, ast(entire, [exact(PLACE)])).ids).toEqual([
       FRANCE,
     ]);
     // Paris rides City (extends Place): exact {Place} does NOT match it.
-    expect(runQuery(store, ast(entire, [{ type: "classExact", classId: CITY }])).ids).toEqual([
+    expect(runQuery(store, ast(entire, [exact(CITY)])).ids).toEqual([
       PARIS,
     ]);
   });
 
-  it("classAny: ANY-of membership, closure-aware per picked id", () => {
+  it("member class in-ids: ANY-of membership, closure-aware per picked id", () => {
     const store = worldStore();
     // [Place] matches France directly and Paris through the City extends row.
     expect(
-      runQuery(store, ast(entire, [{ type: "classAny", classIds: [PLACE] }])).ids.sort(),
+      runQuery(store, ast(entire, [mIn("class", [PLACE])])).ids.sort(),
     ).toEqual([FRANCE, PARIS]);
     expect(
-      runQuery(store, ast(entire, [{ type: "classAny", classIds: [PLACE, CITY] }])).ids.sort(),
+      runQuery(store, ast(entire, [mIn("class", [PLACE, CITY])])).ids.sort(),
     ).toEqual([FRANCE, PARIS]);
-    // A bare classAny requires at least one id (the grammar's min(1)).
+    // A bare ids target requires at least one id (the grammar's min(1)).
     expect(() =>
       parseQueryAst({
-        version: 1,
+        version: 2,
         scope: entire,
-        root: { type: "group", logic: "and", children: [{ type: "classAny", classIds: [] }] },
+        root: { type: "group", logic: "and", children: [mIn("class", [])] },
       }),
     ).toThrow();
   });
 
-  it("classAnyQuery: DYNAMIC class — closure-aware membership of ANY class matching the nested group", () => {
+  it("member class in-query: closure-aware membership of ANY class matching the nested group", () => {
     const store = worldStore();
     // The nested group picks the CLASSES (class nodes): "classed as anything
     // matching [isClass]" — the closure of Place and City: France directly,
     // Paris through the City extends row.
     expect(
-      runQuery(store, ast(entire, [{ type: "classAnyQuery", root: { type: "group", logic: "and", children: [
-        { type: "isClass", isClass: true },
-      ] } }])).ids.sort(),
+      runQuery(store, ast(entire, [mInQ("class", { type: "group", logic: "and", children: [
+        nf("isClass", "eq", "true"),
+      ] }) ])).ids.sort(),
     ).toEqual([FRANCE, PARIS].sort());
     // "Anything matching the class NAMED City" — Paris only (the closure of
     // City is just City; France's Place does not match).
     expect(
-      runQuery(store, ast(entire, [{ type: "classAnyQuery", root: { type: "group", logic: "and", children: [
+      runQuery(store, ast(entire, [mInQ("class", { type: "group", logic: "and", children: [
         { type: "content", op: "eq", value: "City" },
-      ] } }])).ids,
+      ] }) ])).ids,
     ).toEqual([PARIS]);
     // The not-wrap reads "does not contain".
     const negated = runQuery(store, ast(entire, [
-      { type: "not", child: { type: "classAnyQuery", root: { type: "group", logic: "and", children: [
-        { type: "isClass", isClass: true },
-      ] } } },
+      { type: "not", child: mInQ("class", { type: "group", logic: "and", children: [
+        nf("isClass", "eq", "true"),
+      ] }) },
     ]));
     expect(negated.ids).not.toContain(FRANCE);
     expect(negated.ids).not.toContain(PARIS);
     expect(negated.ids).toContain(LONE);
   });
 
-  it("classSet: the class set is non-empty", () => {
+  it("member class exists: the class set is non-empty", () => {
     const store = worldStore();
-    const { ids } = runQuery(store, ast(entire, [{ type: "classSet" }]));
+    const { ids } = runQuery(store, ast(entire, [mExists("class")]));
     expect(ids).toContain(FRANCE);
     expect(ids).toContain(PARIS);
     expect(ids).not.toContain(LONE);
     expect(ids).not.toContain(FR_BLOCK);
     // The not-wrap reads "is not set".
     const negated = runQuery(store, ast(entire, [
-      { type: "not", child: { type: "classSet" } },
+      { type: "not", child: mExists("class") },
     ]));
     expect(negated.ids).not.toContain(FRANCE);
     expect(negated.ids).not.toContain(PARIS);
@@ -1841,112 +2019,111 @@ describe.each(adapters)("$name: Odoo operator-set conditions", ({ makeStore }) =
     expect(negated.ids).toContain(FR_BLOCK);
   });
 
-  it("pageOf: the CONTAINING PAGE is one of the picked nodes — a page row matches only when picked itself", () => {
+  it("page family in-ids: the CONTAINING PAGE is one of the picked nodes — a page row matches only when picked itself", () => {
     const store = worldStore();
     // France is its own page; Paris its own; the blocks read their parents.
-    expect(runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [FRANCE] }])).ids.sort()).toEqual(
+    expect(runQuery(store, ast(entire, [mIn("page", [FRANCE])])).ids.sort()).toEqual(
       [FRANCE, FR_BLOCK, OUT_BLOCK].sort(),
     );
     // Paris is its own page (a standalone row) — picked, it matches itself
     // AND its blocks.
-    expect(runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [PARIS] }])).ids.sort()).toEqual(
+    expect(runQuery(store, ast(entire, [mIn("page", [PARIS])])).ids.sort()).toEqual(
       [PARIS, PARIS_BLOCK].sort(),
     );
-    expect(runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [LONE, PARIS] }])).ids.sort()).toEqual(
+    expect(runQuery(store, ast(entire, [mIn("page", [LONE, PARIS])])).ids.sort()).toEqual(
       [LONE, LONE_BLOCK, PARIS, PARIS_BLOCK].sort(),
     );
     const negated = runQuery(store, ast(entire, [
-      { type: "not", child: { type: "pageOf", nodeIds: [FRANCE] } },
+      { type: "not", child: mIn("page", [FRANCE]) },
     ]));
     expect(negated.ids).not.toContain(FRANCE);
     expect(negated.ids).toContain(PARIS_BLOCK);
     expect(negated.ids).toContain(LONE);
   });
 
-  it("pageOfQuery: the subquery informs the page set (v1's dynamic mode)", () => {
+  it("page family in-query: the subquery informs the page set", () => {
     const store = worldStore();
     // Pages classed City (closure): Paris's page matches — Paris itself (its
-    // own page, classed City) AND its block. The dynamic subquery subsumes
-    // the retired class-based container.
+    // own page, classed City) AND its block.
     expect(
-      runQuery(store, ast(entire, [{ type: "pageOfQuery", root: { type: "group", logic: "and", children: [
-        { type: "class", classId: CITY },
-      ] } }])).ids.sort(),
+      runQuery(store, ast(entire, [mInQ("page", { type: "group", logic: "and", children: [
+        mIn("class", [CITY]),
+      ] }) ])).ids.sort(),
     ).toEqual([PARIS, PARIS_BLOCK].sort());
     // Place ∋ {Place, City} through the closure: every France-subtree page
     // matches — the whole subtree.
     expect(
-      runQuery(store, ast(entire, [{ type: "pageOfQuery", root: { type: "group", logic: "and", children: [
-        { type: "class", classId: PLACE },
-      ] } }])).ids.sort(),
+      runQuery(store, ast(entire, [mInQ("page", { type: "group", logic: "and", children: [
+        mIn("class", [PLACE]),
+      ] }) ])).ids.sort(),
     ).toEqual([FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
   });
 
-  it("pageSet: the row lives inside a page (the containing page differs from itself)", () => {
+  it("page family exists: the row lives inside a page (the containing page differs from itself)", () => {
     const store = worldStore();
-    expect(runQuery(store, ast(entire, [{ type: "pageSet" }])).ids.sort()).toEqual(
+    expect(runQuery(store, ast(entire, [mExists("page")])).ids.sort()).toEqual(
       [FR_BLOCK, LONE_BLOCK, OUT_BLOCK, PARIS_BLOCK].sort(),
     );
   });
 
-  it("ancestorIn: the parent PATH includes one of the picked nodes — self excluded", () => {
+  it("parentPath family in-ids: the parent PATH includes one of the picked nodes — self excluded", () => {
     const store = worldStore();
     // Picked NODES (not classes): Paris is an ancestor of parisBlock.
-    expect(runQuery(store, ast(entire, [{ type: "ancestorIn", nodeIds: [PARIS] }])).ids).toEqual([PARIS_BLOCK]);
-    expect(runQuery(store, ast(entire, [{ type: "ancestorIn", nodeIds: [CITY] }])).ids).toEqual([]);
+    expect(runQuery(store, ast(entire, [mIn("parentPath", [PARIS])])).ids).toEqual([PARIS_BLOCK]);
+    expect(runQuery(store, ast(entire, [mIn("parentPath", [CITY])])).ids).toEqual([]);
     expect(
-      runQuery(store, ast(entire, [{ type: "ancestorIn", nodeIds: [FRANCE, PARIS] }])).ids.sort(),
+      runQuery(store, ast(entire, [mIn("parentPath", [FRANCE, PARIS])])).ids.sort(),
     ).toEqual([FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
     const negated = runQuery(store, ast(entire, [
-      { type: "not", child: { type: "ancestorIn", nodeIds: [FRANCE] } },
+      { type: "not", child: mIn("parentPath", [FRANCE]) },
     ]));
     expect(negated.ids).toContain(FRANCE);
     expect(negated.ids).toContain(LONE);
     expect(negated.ids).not.toContain(PARIS);
   });
 
-  it("ancestorInQuery: a strict ancestor matches the nested group", () => {
+  it("parentPath family in-query: a strict ancestor matches the nested group", () => {
     const store = worldStore();
     expect(
-      runQuery(store, ast(entire, [{ type: "ancestorInQuery", root: { type: "group", logic: "and", children: [
-        { type: "class", classId: PLACE },
-      ] } }])).ids.sort(),
+      runQuery(store, ast(entire, [mInQ("parentPath", { type: "group", logic: "and", children: [
+        mIn("class", [PLACE]),
+      ] }) ])).ids.sort(),
     ).toEqual([FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
   });
 
-  it("rootIn: the workspace-root ancestor is one of the picked nodes", () => {
+  it("root family in-ids: the workspace-root ancestor is one of the picked nodes", () => {
     const store = worldStore();
     expect(
-      runQuery(store, ast(entire, [{ type: "rootIn", nodeIds: [FRANCE] }])).ids.sort(),
+      runQuery(store, ast(entire, [mIn("root", [FRANCE])])).ids.sort(),
     ).toEqual([FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
     // The class nodes are workspace roots — picked, each matches itself.
-    expect(runQuery(store, ast(entire, [{ type: "rootIn", nodeIds: [CITY] }])).ids).toEqual([CITY]);
+    expect(runQuery(store, ast(entire, [mIn("root", [CITY])])).ids).toEqual([CITY]);
     // Lone is its own root.
-    expect(runQuery(store, ast(entire, [{ type: "rootIn", nodeIds: [LONE] }])).ids.sort()).toEqual(
+    expect(runQuery(store, ast(entire, [mIn("root", [LONE])])).ids.sort()).toEqual(
       [LONE, LONE_BLOCK].sort(),
     );
     const negated = runQuery(store, ast(entire, [
-      { type: "not", child: { type: "rootIn", nodeIds: [FRANCE] } },
+      { type: "not", child: mIn("root", [FRANCE]) },
     ]));
     expect(negated.ids).toContain(LONE);
     expect(negated.ids).not.toContain(PARIS_BLOCK);
   });
 
-  it("rootInQuery: the root ancestor matches the nested group", () => {
+  it("root family in-query: the root ancestor matches the nested group", () => {
     const store = worldStore();
     expect(
-      runQuery(store, ast(entire, [{ type: "rootInQuery", root: { type: "group", logic: "and", children: [
-        { type: "class", classId: PLACE },
-      ] } }])).ids.sort(),
+      runQuery(store, ast(entire, [mInQ("root", { type: "group", logic: "and", children: [
+        mIn("class", [PLACE]),
+      ] }) ])).ids.sort(),
     ).toEqual([FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
     expect(
-      runQuery(store, ast(entire, [{ type: "rootInQuery", root: { type: "group", logic: "and", children: [
-        { type: "class", classId: CITY },
-      ] } }])).ids,
+      runQuery(store, ast(entire, [mInQ("root", { type: "group", logic: "and", children: [
+        mIn("class", [CITY]),
+      ] }) ])).ids,
     ).toEqual([]);
   });
 
-  it("content text ops: eq/neq/starts/ends + the contentSet bit", () => {
+  it("content text ops: eq/neq/starts/ends + the exists bit", () => {
     const store = worldStore();
     expect(runQuery(store, ast(entire, [{ type: "content", op: "starts", value: "The capital" }])).ids).toEqual([FR_BLOCK]);
     expect(runQuery(store, ast(entire, [{ type: "content", op: "ends", value: "cooking" }])).ids).toEqual([LONE_BLOCK]);
@@ -1959,13 +2136,13 @@ describe.each(adapters)("$name: Odoo operator-set conditions", ({ makeStore }) =
       ])).ids,
     ).not.toContain(PARIS_BLOCK);
     // Every world node carries text.
-    expect(runQuery(store, ast(entire, [{ type: "contentSet" }])).ids).toHaveLength(9);
+    expect(runQuery(store, ast(entire, [{ type: "content", op: "exists" }])).ids).toHaveLength(9);
     expect(
-      runQuery(store, ast(entire, [{ type: "not", child: { type: "contentSet" } }])).ids,
+      runQuery(store, ast(entire, [{ type: "not", child: { type: "content", op: "exists" } }])).ids,
     ).toHaveLength(0);
   });
 
-  it("tags: membership, ANY-of, and the set bit over the OR-set tag_ids", () => {
+  it("tags family: in-ids, and the exists bit over the OR-set tag_ids", () => {
     const TAG_A = "0192a000-0000-7000-8000-000000000501";
     const TAG_B = "0192a000-0000-7000-8000-000000000502";
     const store = makeStore();
@@ -1978,107 +2155,120 @@ describe.each(adapters)("$name: Odoo operator-set conditions", ({ makeStore }) =
       env("object.create", { objectId: PARIS, contentAst: text("Paris"), tagIds: [TAG_A, TAG_B] }, t(3)),
       env("object.create", { objectId: LONE, contentAst: text("Lone") }, t(4)),
     ]);
-    expect(runQuery(store, ast(entire, [{ type: "tag", tagId: TAG_A }])).ids.sort()).toEqual([FRANCE, PARIS].sort());
-    expect(runQuery(store, ast(entire, [{ type: "tag", tagId: TAG_B }])).ids).toEqual([PARIS]);
+    expect(runQuery(store, ast(entire, [mIn("tags", [TAG_A])])).ids.sort()).toEqual([FRANCE, PARIS].sort());
+    expect(runQuery(store, ast(entire, [mIn("tags", [TAG_B])])).ids).toEqual([PARIS]);
     expect(
-      runQuery(store, ast(entire, [{ type: "tagAny", tagIds: [TAG_A, TAG_B] }])).ids.sort(),
+      runQuery(store, ast(entire, [mIn("tags", [TAG_A, TAG_B])])).ids.sort(),
     ).toEqual([FRANCE, PARIS].sort());
-    expect(runQuery(store, ast(entire, [{ type: "tagSet" }])).ids.sort()).toEqual([FRANCE, PARIS].sort());
+    expect(runQuery(store, ast(entire, [mExists("tags")])).ids.sort()).toEqual([FRANCE, PARIS].sort());
     // The untagged: Lone plus the tag nodes themselves (a tag carries no tags).
     expect(
-      runQuery(store, ast(entire, [{ type: "not", child: { type: "tagSet" } }])).ids.sort(),
+      runQuery(store, ast(entire, [{ type: "not", child: mExists("tags") }])).ids.sort(),
     ).toEqual([LONE, TAG_A, TAG_B].sort());
     // DYNAMIC tags: the nested group's matches ARE the tag nodes — "tagged
     // with anything named Urgent" (TAG_A) keeps France and Paris; "Later"
     // (TAG_B) keeps Paris alone.
     expect(
-      runQuery(store, ast(entire, [{ type: "tagAnyQuery", root: { type: "group", logic: "and", children: [
+      runQuery(store, ast(entire, [mInQ("tags", { type: "group", logic: "and", children: [
         { type: "content", op: "eq", value: "Urgent" },
-      ] } }])).ids.sort(),
+      ] }) ])).ids.sort(),
     ).toEqual([FRANCE, PARIS].sort());
     expect(
-      runQuery(store, ast(entire, [{ type: "tagAnyQuery", root: { type: "group", logic: "and", children: [
+      runQuery(store, ast(entire, [mInQ("tags", { type: "group", logic: "and", children: [
         { type: "content", op: "eq", value: "Later" },
-      ] } }])).ids,
+      ] }) ])).ids,
     ).toEqual([PARIS]);
     // A group matching no tag node leaves every row out.
     expect(
-      runQuery(store, ast(entire, [{ type: "tagAnyQuery", root: { type: "group", logic: "and", children: [
+      runQuery(store, ast(entire, [mInQ("tags", { type: "group", logic: "and", children: [
         { type: "content", op: "eq", value: "Zebras" },
-      ] } }])).ids,
+      ] }) ])).ids,
     ).toEqual([]);
   });
 
-  it("links: ANY-of over picked nodes + the inbound-link set bit", () => {
+  it("links family: ANY-of over picked nodes + the inbound-link exists bit", () => {
     const store = worldStore();
     // FR_BLOCK links to Paris, OUT_BLOCK links to Lone.
     expect(
-      runQuery(store, ast(entire, [{ type: "linkedToAny", nodeIds: [PARIS, LONE] }])).ids.sort(),
+      runQuery(store, ast(entire, [mIn("links", [PARIS, LONE])])).ids.sort(),
     ).toEqual([FR_BLOCK, OUT_BLOCK].sort());
-    expect(runQuery(store, ast(entire, [{ type: "linkSet" }])).ids.sort()).toEqual([LONE, PARIS].sort());
+    expect(runQuery(store, ast(entire, [mExists("links")])).ids.sort()).toEqual([LONE, PARIS].sort());
     expect(
-      runQuery(store, ast(entire, [{ type: "not", child: { type: "linkSet" } }])).ids,
+      runQuery(store, ast(entire, [{ type: "not", child: mExists("links") }])).ids,
     ).not.toContain(PARIS);
   });
 
-  it("parent: ANY-of over picked subtrees + the has-a-parent bit", () => {
+  it("childPath ANY-of + the parent exists bit", () => {
     const store = worldStore();
     expect(
-      runQuery(store, ast(entire, [{ type: "descendantOfAny", nodeIds: [FRANCE, LONE] }])).ids.sort(),
+      runQuery(store, ast(entire, [mIn("childPath", [FRANCE, LONE])])).ids.sort(),
     ).toEqual([FR_BLOCK, LONE_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
-    expect(runQuery(store, ast(entire, [{ type: "parentSet" }])).ids).not.toContain(FRANCE);
-    expect(runQuery(store, ast(entire, [{ type: "parentSet" }])).ids).not.toContain(LONE);
-    expect(runQuery(store, ast(entire, [{ type: "parentSet" }])).ids).toContain(PARIS_BLOCK);
+    expect(runQuery(store, ast(entire, [mExists("parent")])).ids).not.toContain(FRANCE);
+    expect(runQuery(store, ast(entire, [mExists("parent")])).ids).not.toContain(LONE);
+    expect(runQuery(store, ast(entire, [mExists("parent")])).ids).toContain(PARIS_BLOCK);
   });
 
   it("dates: day-granular equality, the instant comparisons, the range, the period", () => {
     const store = worldStore();
     const now = new Date(T0);
+    const date = (op: string, extra: Record<string, unknown>): Child =>
+      ({ type: "date", field: "created", op, ...extra }) as Child;
     // Day equality: every world node was created on the pinned day.
     expect(
-      runQuery(store, ast(entire, [{ type: "createdCmp", op: "eq", timestamp: "{today}" }]), { now }).ids,
+      runQuery(store, ast(entire, [date("eq", { timestamp: "{today}" })]), { now }).ids,
     ).toHaveLength(9);
     expect(
-      runQuery(store, ast(entire, [{ type: "createdCmp", op: "neq", timestamp: "{today}" }]), { now }).ids,
+      runQuery(store, ast(entire, [date("neq", { timestamp: "{today}" })]), { now }).ids,
     ).toHaveLength(0);
     // Instant comparisons against a plain date: lexicographic over ISO.
     expect(
-      runQuery(store, ast(entire, [{ type: "createdCmp", op: "gt", timestamp: "2024-09-24" }])).ids,
+      runQuery(store, ast(entire, [date("gt", { timestamp: "2024-09-24" })])).ids,
     ).toHaveLength(9);
     expect(
-      runQuery(store, ast(entire, [{ type: "createdCmp", op: "lte", timestamp: "2024-09-24" }])).ids,
+      runQuery(store, ast(entire, [date("lte", { timestamp: "2024-09-24" })])).ids,
     ).toHaveLength(0);
     // The inclusive range covers the creation day.
     expect(
       runQuery(store, ast(entire, [
-        { type: "createdBetween", from: "2024-09-24", to: "2024-09-25" },
+        date("between", { from: "2024-09-24", to: "2024-09-25" }),
       ])).ids,
     ).toHaveLength(9);
     expect(
       runQuery(store, ast(entire, [
-        { type: "createdBetween", from: "2024-09-25", to: "2024-09-26" },
+        date("between", { from: "2024-09-25", to: "2024-09-26" }),
       ])).ids,
     ).toHaveLength(0);
     // The relative period: pinned to the creation year everything matches, a
     // year later nothing does.
     expect(
-      runQuery(store, ast(entire, [{ type: "createdWithin", period: "this_year" }]), { now }).ids,
+      runQuery(store, ast(entire, [date("within", { period: "this_year" })]), { now }).ids,
     ).toHaveLength(9);
     expect(
-      runQuery(store, ast(entire, [{ type: "createdWithin", period: "this_year" }]), {
+      runQuery(store, ast(entire, [date("within", { period: "this_year" })]), {
         now: new Date("2025-06-15T12:00:00"),
       }).ids,
     ).toHaveLength(0);
   });
 
-  it("propertyBetween: the effective value inside the inclusive range", () => {
+  it("property op between: the effective value inside the inclusive range", () => {
     const store = worldStore();
     // rating: France rides the Place binding default 1, Paris authors 3.
     expect(
-      runQuery(store, ast(entire, [{ type: "propertyBetween", schemaId: RATING, from: 1, to: 5 }])).ids.sort(),
+      runQuery(store, ast(entire, [{ type: "property", schemaId: RATING, op: "between", from: 1, to: 5 }])).ids.sort(),
     ).toEqual([FRANCE, PARIS].sort());
     expect(
-      runQuery(store, ast(entire, [{ type: "propertyBetween", schemaId: RATING, from: 4, to: 10 }])).ids,
+      runQuery(store, ast(entire, [{ type: "property", schemaId: RATING, op: "between", from: 4, to: 10 }])).ids,
+    ).toEqual([]);
+  });
+
+  it("property op within: the effective DATE-valued property inside the period", () => {
+    const store = worldStore();
+    const now = new Date(T0);
+    // opened: France 1900, Paris 1937, Lone 1920 — everything is far in the
+    // past, so only an unbounded-wide period matches, and this_year matches
+    // nothing (the pinned clock is 2024+).
+    expect(
+      runQuery(store, ast(entire, [{ type: "property", schemaId: OPENED, op: "within", period: "this_year" }]), { now }).ids,
     ).toEqual([]);
   });
 
@@ -2086,109 +2276,109 @@ describe.each(adapters)("$name: Odoo operator-set conditions", ({ makeStore }) =
 });
 
 
-// --- the v1 hierarchy/reference blocks -----------
-// v1's PARENT (direct parent), CHILD (direct children), CHILD PATH set bit,
-// and REFERENCE PATH (the self-or-ancestor link rollup with containment
-// folded in) — static + dynamic forms, over the France/Paris/Lone world
-// (FR_BLOCK links to Paris, OUT_BLOCK links to Lone; parisBlock sits inside
-// Paris; loneBlock inside Lone).
+// --- the hierarchy/reference member families -----------
+// The parent (direct parent), child (direct children), childPath set bit,
+// and referencePath (the self-or-ancestor link rollup with containment
+// folded in) families — in-ids + in-query forms, over the France/Paris/Lone
+// world (FR_BLOCK links to Paris, OUT_BLOCK links to Lone; parisBlock sits
+// inside Paris; loneBlock inside Lone).
 
-describe.each(adapters)("$name: the v1 hierarchy/reference blocks", ({ makeStore }) => {
+describe.each(adapters)("$name: hierarchy/reference member families", ({ makeStore }) => {
   function worldStore(): Store {
     const store = makeStore();
     store.applyMany(worldEnvelopes());
     return store;
   }
 
-  it("parentOf: the DIRECT parent (one hop) is one of the picked nodes", () => {
+  it("parent family in-ids: the DIRECT parent (one hop) is one of the picked nodes", () => {
     const store = worldStore();
     expect(
-      runQuery(store, ast(entire, [{ type: "parentOf", nodeIds: [FRANCE] }])).ids.sort(),
+      runQuery(store, ast(entire, [mIn("parent", [FRANCE])])).ids.sort(),
     ).toEqual([FR_BLOCK, OUT_BLOCK, PARIS].sort());
-    expect(runQuery(store, ast(entire, [{ type: "parentOf", nodeIds: [PARIS] }])).ids).toEqual([
+    expect(runQuery(store, ast(entire, [mIn("parent", [PARIS])])).ids).toEqual([
       PARIS_BLOCK,
     ]);
     // A parentless row's NULL parent matches nothing; the not-wrap inverts.
-    expect(runQuery(store, ast(entire, [{ type: "parentOf", nodeIds: [LONE] }])).ids).toEqual([
+    expect(runQuery(store, ast(entire, [mIn("parent", [LONE])])).ids).toEqual([
       LONE_BLOCK,
     ]);
     const negated = runQuery(store, ast(entire, [
-      { type: "not", child: { type: "parentOf", nodeIds: [FRANCE] } },
+      { type: "not", child: mIn("parent", [FRANCE]) },
     ]));
     expect(negated.ids).toContain(FRANCE);
     expect(negated.ids).not.toContain(PARIS);
   });
 
-  it("parentOfQuery: the direct parent matches the nested group", () => {
+  it("parent family in-query: the direct parent matches the nested group", () => {
     const store = worldStore();
     // Parents classed Place (closure ∋ City): France-classed and Paris-classed
     // parents both match — every parented France-subtree row.
     expect(
-      runQuery(store, ast(entire, [{ type: "parentOfQuery", root: { type: "group", logic: "and", children: [
-        { type: "class", classId: PLACE },
-      ] } }])).ids.sort(),
+      runQuery(store, ast(entire, [mInQ("parent", { type: "group", logic: "and", children: [
+        mIn("class", [PLACE]),
+      ] }) ])).ids.sort(),
     ).toEqual([FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
   });
 
-  it("childOf: a DIRECT child is one of the picked nodes", () => {
+  it("child family in-ids: a DIRECT child is one of the picked nodes", () => {
     const store = worldStore();
     expect(
-      runQuery(store, ast(entire, [{ type: "childOf", nodeIds: [FR_BLOCK, PARIS_BLOCK] }])).ids.sort(),
+      runQuery(store, ast(entire, [mIn("child", [FR_BLOCK, PARIS_BLOCK])])).ids.sort(),
     ).toEqual([FRANCE, PARIS].sort());
-    expect(runQuery(store, ast(entire, [{ type: "childOf", nodeIds: [PARIS] }])).ids).toEqual([
+    expect(runQuery(store, ast(entire, [mIn("child", [PARIS])])).ids).toEqual([
       FRANCE,
     ]);
   });
 
-  it("childOfQuery: a direct child matches the nested group", () => {
+  it("child family in-query: a direct child matches the nested group", () => {
     const store = worldStore();
     expect(
-      runQuery(store, ast(entire, [{ type: "childOfQuery", root: { type: "group", logic: "and", children: [
+      runQuery(store, ast(entire, [mInQ("child", { type: "group", logic: "and", children: [
         { type: "content", op: "contains", value: "Capital" },
-      ] } }])).ids.sort(),
+      ] }) ])).ids.sort(),
     ).toEqual([FRANCE, PARIS].sort());
   });
 
-  it("childSet / descendantSet: the direct-child and any-depth set bits", () => {
+  it("child / childPath exists: the direct-child and any-depth set bits", () => {
     const store = worldStore();
     // France (three children), Paris (one), Lone (one); the blocks and the
     // class nodes have none.
-    expect(runQuery(store, ast(entire, [{ type: "childSet" }])).ids.sort()).toEqual(
+    expect(runQuery(store, ast(entire, [mExists("child")])).ids.sort()).toEqual(
       [FRANCE, LONE, PARIS].sort(),
     );
-    expect(runQuery(store, ast(entire, [{ type: "descendantSet" }])).ids.sort()).toEqual(
+    expect(runQuery(store, ast(entire, [mExists("childPath")])).ids.sort()).toEqual(
       [FRANCE, LONE, PARIS].sort(),
     );
   });
 
-  it("referencePathOf: the self-or-ancestor link rollup (containment folded in)", () => {
+  it("referencePath family in-ids: the self-or-ancestor link rollup (containment folded in)", () => {
     const store = worldStore();
     // FR_BLOCK links to Paris (edge); parisBlock sits inside Paris
     // (containment arm). Paris itself does not match (T must be a STRICT
     // ancestor, and Paris has no outbound link to itself).
     expect(
-      runQuery(store, ast(entire, [{ type: "referencePathOf", nodeIds: [PARIS] }])).ids.sort(),
+      runQuery(store, ast(entire, [mIn("referencePath", [PARIS])])).ids.sort(),
     ).toEqual([FR_BLOCK, PARIS_BLOCK].sort());
     // Lone: OUT_BLOCK links to it; loneBlock sits inside it.
     expect(
-      runQuery(store, ast(entire, [{ type: "referencePathOf", nodeIds: [LONE] }])).ids.sort(),
+      runQuery(store, ast(entire, [mIn("referencePath", [LONE])])).ids.sort(),
     ).toEqual([LONE_BLOCK, OUT_BLOCK].sort());
     // The not-wrap inverts.
     const negated = runQuery(store, ast(entire, [
-      { type: "not", child: { type: "referencePathOf", nodeIds: [PARIS] } },
+      { type: "not", child: mIn("referencePath", [PARIS]) },
     ]));
     expect(negated.ids).toContain(PARIS);
     expect(negated.ids).not.toContain(FR_BLOCK);
   });
 
-  it("referencePathOfQuery: the rollup targets are the subquery's matches", () => {
+  it("referencePath family in-query: the rollup targets are the subquery's matches", () => {
     const store = worldStore();
     // Targets = nodes classed City (closure): Paris — same matches as the
     // static [PARIS] pick.
     expect(
-      runQuery(store, ast(entire, [{ type: "referencePathOfQuery", root: { type: "group", logic: "and", children: [
-        { type: "class", classId: CITY },
-      ] } }])).ids.sort(),
+      runQuery(store, ast(entire, [mInQ("referencePath", { type: "group", logic: "and", children: [
+        mIn("class", [CITY]),
+      ] }) ])).ids.sort(),
     ).toEqual([FR_BLOCK, PARIS_BLOCK].sort());
   });
 });
@@ -2197,9 +2387,10 @@ describe.each(adapters)("$name: the v1 hierarchy/reference blocks", ({ makeStore
 //
 // Archival (`object.update {active: false}`, the gallery/picker visibility
 // bit) must NOT change what a class IS: an archived-by-default type still
-// IS-A source — class:/classAny conditions, the aggregate class dimension,
-// and the family-members read all probe the class_hierarchy closure, which
-// carries every class row regardless of the bit (// the source-library slice). The world applies a LATER unrelated setExtends
+// IS-A source — the class family in-ids condition, the aggregate class
+// dimension, and the family-members read all probe the class_hierarchy
+// closure, which carries every class row regardless of the bit (the
+// source-library slice). The world applies a LATER unrelated setExtends
 // AFTER the archival flip — any live workspace keeps extending classes,
 // which rebuilds the whole closure; the archived class must survive it.
 
@@ -2234,33 +2425,33 @@ describe.each(adapters)("$name: archived class resolution", ({ makeStore }) => {
     return store;
   }
 
-  it("class: matches a node classed by an archived type", () => {
+  it("member class in-ids matches a node classed by an archived type", () => {
     const { ids } = runQuery(
       archivedWorld(),
-      ast(entire, [{ type: "class", classId: BOOK_SECTION }]),
+      ast(entire, [mIn("class", [BOOK_SECTION])]),
     );
     expect(ids).toEqual([CHAPTER]);
   });
 
-  it("class: on the family base matches archived-type members through extends", () => {
+  it("member class in-ids on the family base matches archived-type members through extends", () => {
     const { ids } = runQuery(
       archivedWorld(),
-      ast(entire, [{ type: "class", classId: SOURCE_CLASS }]),
+      ast(entire, [mIn("class", [SOURCE_CLASS])]),
     );
     expect(ids.sort()).toEqual([CHAPTER, PAINTING].sort());
   });
 
-  it("classAny matches archived-type members closure-aware", () => {
+  it("member class in-ids matches archived-type members closure-aware (ANY-of)", () => {
     const { ids } = runQuery(
       archivedWorld(),
-      ast(entire, [{ type: "classAny", classIds: [BOOK_SECTION, ARTWORK] }]),
+      ast(entire, [mIn("class", [BOOK_SECTION, ARTWORK])]),
     );
     expect(ids.sort()).toEqual([CHAPTER, PAINTING].sort());
   });
 
   it("the aggregate class dimension counts archived-type members", () => {
     const result = runAggregate(archivedWorld(), {
-      ...ast(entire, [{ type: "class", classId: SOURCE_CLASS }]),
+      ...ast(entire, [mIn("class", [SOURCE_CLASS])]),
       aggregation: {
         dimensions: [{ kind: "class", id: SOURCE_CLASS }],
         measures: [{ function: "count" }],
@@ -2275,9 +2466,10 @@ describe.each(adapters)("$name: archived class resolution", ({ makeStore }) => {
 
 // --- the class-level parentlessRole demote ----------------------
 // A flagged class's parentless members render Block-role: the pages scope
-// excludes them, and pageOf (the containing-page read) never matches them —
-// a standalone secondary node has NO containing page. The effective flag
-// (extends-aware: own OR any ancestor's) rides the class_hierarchy closure.
+// excludes them, and the page family (the containing-page read) never
+// matches them — a standalone secondary node has NO containing page. The
+// effective flag (extends-aware: own OR any ancestor's) rides the
+// class_hierarchy closure.
 
 describe.each(adapters)("$name: parentlessRole demote in role reads", ({ makeStore }) => {
   const TASK = "0192a000-0000-7000-8000-000000000701";
@@ -2323,24 +2515,24 @@ describe.each(adapters)("$name: parentlessRole demote in role reads", ({ makeSto
     expect(ids.sort()).toEqual([MAIN_CHILD, ROOT_PAGE].sort());
   });
 
-  it("pageOf: a standalone-claim row reads its own page; a block-role standalone node has NONE", () => {
+  it("page family in-ids: a standalone-claim row reads its own page; a block-role standalone node has NONE", () => {
     const store = roleStore();
     // A standalone-claim row IS a page — it reads its own page (the existing
     // self-match law): MAIN_CHILD matches only when MAIN_CHILD is picked.
-    expect(runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [MAIN_CHILD] }])).ids).toEqual([
+    expect(runQuery(store, ast(entire, [mIn("page", [MAIN_CHILD])])).ids).toEqual([
       MAIN_CHILD,
     ]);
-    expect(runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [ROOT_PAGE] }])).ids).toEqual([
+    expect(runQuery(store, ast(entire, [mIn("page", [ROOT_PAGE])])).ids).toEqual([
       ROOT_PAGE,
     ]);
     // The block-role standalone tasks' containing page is NULL — picking
     // themselves matches nothing (they are not pages), and no pick reaches
     // them. The extends-inherited Errand demotes the same way.
     expect(
-      runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [STANDALONE_TASK] }])).ids,
+      runQuery(store, ast(entire, [mIn("page", [STANDALONE_TASK])])).ids,
     ).toEqual([]);
     expect(
-      runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [STANDALONE_ERRAND] }])).ids,
+      runQuery(store, ast(entire, [mIn("page", [STANDALONE_ERRAND])])).ids,
     ).toEqual([]);
   });
 });

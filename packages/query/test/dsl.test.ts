@@ -3,6 +3,11 @@
  * quoting, value coercion, name resolution (injected resolvers) and the
  * fail-loud error surface (unknown fields list the known ones, unresolvable
  * names, bad operators, unterminated strings, missing values).
+ *
+ * The emitted AST is the v2 grammar: `class:`/`linked:` emit `member`
+ * conditions (family class/links, op in, ids target), `isClass:`/`isEmbedded:`
+ * emit `nodeField` eq "true"/"false", and the wire node fields emit
+ * `nodeField` conditions.
  */
 
 import { describe, expect, it } from "vitest";
@@ -39,6 +44,11 @@ const resolvers = {
 };
 const KNOWN_FIELDS = ["year", "title"];
 
+/** The v2 shape `class:Name` / `linked:Name` emit: member in over an ids target. */
+function memberIn(family: "class" | "links", ids: string[]): Child {
+  return { type: "member", family, op: "in", target: { mode: "ids", ids } };
+}
+
 function parse(text: string, options: Parameters<typeof parseQueryLanguage>[1] = {}): QueryAst {
   return parseQueryLanguage(text, { resolvers, knownFields: KNOWN_FIELDS, ...options });
 }
@@ -56,7 +66,7 @@ function only(ast: QueryAst): Child {
 describe("parseQueryLanguage: fields", () => {
   it("parses an empty query to an everything-matching AST", () => {
     const ast = parse("   ");
-    expect(ast.version).toBe(1);
+    expect(ast.version).toBe(2);
     expect(ast.scope).toEqual({ type: "entire_workspace" });
     expect(ast.root).toEqual({ type: "group", logic: "and", children: [] });
   });
@@ -67,15 +77,35 @@ describe("parseQueryLanguage: fields", () => {
   });
 
   it("class:Name resolves the class by name", () => {
-    expect(only(parse("class:paper"))).toEqual({ type: "class", classId: CLASS_PAPER });
-    expect(only(parse("class:book"))).toEqual({ type: "class", classId: CLASS_BOOK });
+    expect(only(parse("class:paper"))).toEqual(memberIn("class", [CLASS_PAPER]));
+    expect(only(parse("class:book"))).toEqual(memberIn("class", [CLASS_BOOK]));
   });
 
-  it("isClass:true|false and isEmbedded:true|false emit boolean conditions (case-insensitive field)", () => {
-    expect(only(parse("isClass:true"))).toEqual({ type: "isClass", isClass: true });
-    expect(only(parse("isclass:false"))).toEqual({ type: "isClass", isClass: false });
-    expect(only(parse("isEmbedded:true"))).toEqual({ type: "isEmbedded", isEmbedded: true });
-    expect(only(parse("isembedded:FALSE"))).toEqual({ type: "isEmbedded", isEmbedded: false });
+  it("isClass:true|false and isEmbedded:true|false emit nodeField eq conditions (case-insensitive field)", () => {
+    expect(only(parse("isClass:true"))).toEqual({
+      type: "nodeField",
+      field: "isClass",
+      op: "eq",
+      value: "true",
+    });
+    expect(only(parse("isclass:false"))).toEqual({
+      type: "nodeField",
+      field: "isClass",
+      op: "eq",
+      value: "false",
+    });
+    expect(only(parse("isEmbedded:true"))).toEqual({
+      type: "nodeField",
+      field: "isEmbedded",
+      op: "eq",
+      value: "true",
+    });
+    expect(only(parse("isembedded:FALSE"))).toEqual({
+      type: "nodeField",
+      field: "isEmbedded",
+      op: "eq",
+      value: "false",
+    });
   });
 
   it("text:term and bare words emit content-contains conditions", () => {
@@ -102,7 +132,7 @@ describe("parseQueryLanguage: fields", () => {
       logic: "and",
       children: [
         { type: "name", op: "exists" },
-        { type: "not", child: { type: "class", classId: CLASS_PAPER } },
+        { type: "not", child: memberIn("class", [CLASS_PAPER]) },
       ],
     });
     // Field names are case-insensitive like the rest of the grammar.
@@ -113,7 +143,7 @@ describe("parseQueryLanguage: fields", () => {
   });
 
   it("linked:Name resolves the node by name", () => {
-    expect(only(parse("linked:Paris"))).toEqual({ type: "linkedTo", nodeId: NODE_PARIS });
+    expect(only(parse("linked:Paris"))).toEqual(memberIn("links", [NODE_PARIS]));
   });
 
   it("prop:<name>:<value> with a bare colon is contains", () => {
@@ -134,7 +164,7 @@ describe("parseQueryLanguage: fields", () => {
       logic: "and",
       children: [
         { type: "property", schemaId: SCHEMA_YEAR, op: "exists" },
-        { type: "not", child: { type: "class", classId: CLASS_PAPER } },
+        { type: "not", child: memberIn("class", [CLASS_PAPER]) },
       ],
     });
   });
@@ -178,41 +208,45 @@ describe("parseQueryLanguage: fields", () => {
   it("coverAsset:/bannerAsset:/aliasedNode: bare is the set probe, a value is eq (uuid passthrough or node-name resolution)", () => {
     const ASSET_UUID = "0192a000-0000-7000-8000-000000000501";
     const OTHER_UUID = "0192a000-0000-7000-8000-000000000502";
-    expect(only(parse("coverAsset:"))).toEqual({ type: "coverAsset", op: "exists" });
+    expect(only(parse("coverAsset:"))).toEqual({ type: "nodeField", field: "coverAsset", op: "exists" });
     // Bare colon before a boolean keyword still reads exists (the prop: precedent).
     expect(parse("coverAsset: NOT bannerAsset:").root).toEqual({
       type: "group",
       logic: "and",
       children: [
-        { type: "coverAsset", op: "exists" },
-        { type: "not", child: { type: "bannerAsset", op: "exists" } },
+        { type: "nodeField", field: "coverAsset", op: "exists" },
+        { type: "not", child: { type: "nodeField", field: "bannerAsset", op: "exists" } },
       ],
     });
     // A uuid value skips name resolution.
     expect(only(parse(`coverAsset:${ASSET_UUID}`))).toEqual({
-      type: "coverAsset",
+      type: "nodeField",
+      field: "coverAsset",
       op: "eq",
       value: ASSET_UUID,
     });
     expect(only(parse(`bannerAsset:=${ASSET_UUID}`))).toEqual({
-      type: "bannerAsset",
+      type: "nodeField",
+      field: "bannerAsset",
       op: "eq",
       value: ASSET_UUID,
     });
     // A non-uuid value resolves through the node-name resolver (linked: precedent).
     expect(only(parse("aliasedNode:Paris"))).toEqual({
-      type: "aliasedNode",
+      type: "nodeField",
+      field: "aliasedNode",
       op: "eq",
       value: NODE_PARIS,
     });
     // "!=" is neq (SQL NULL semantics: unset matches neither — "is unset" is NOT coverAsset:).
     expect(only(parse(`coverAsset!=${OTHER_UUID}`))).toEqual({
-      type: "coverAsset",
+      type: "nodeField",
+      field: "coverAsset",
       op: "neq",
       value: OTHER_UUID,
     });
     // Field names are case-insensitive like the rest of the grammar.
-    expect(only(parse("CoverAsset:"))).toEqual({ type: "coverAsset", op: "exists" });
+    expect(only(parse("CoverAsset:"))).toEqual({ type: "nodeField", field: "coverAsset", op: "exists" });
   });
 });
 
@@ -284,11 +318,11 @@ describe("parseQueryLanguage: composition", () => {
           type: "group",
           logic: "and",
           children: [
-            { type: "class", classId: CLASS_PAPER },
+            memberIn("class", [CLASS_PAPER]),
             { type: "property", schemaId: SCHEMA_YEAR, op: "gt", value: 2010 },
           ],
         },
-        { type: "not", child: { type: "class", classId: CLASS_BOOK } },
+        { type: "not", child: memberIn("class", [CLASS_BOOK]) },
       ],
     });
   });
@@ -303,8 +337,8 @@ describe("parseQueryLanguage: composition", () => {
           type: "group",
           logic: "or",
           children: [
-            { type: "class", classId: CLASS_PAPER },
-            { type: "class", classId: CLASS_BOOK },
+            memberIn("class", [CLASS_PAPER]),
+            memberIn("class", [CLASS_BOOK]),
           ],
         },
         { type: "content", op: "contains", value: "revolution" },
@@ -324,8 +358,8 @@ describe("parseQueryLanguage: composition", () => {
             type: "group",
             logic: "or",
             children: [
-              { type: "class", classId: CLASS_PAPER },
-              { type: "class", classId: CLASS_BOOK },
+              memberIn("class", [CLASS_PAPER]),
+              memberIn("class", [CLASS_BOOK]),
             ],
           },
         },
@@ -336,19 +370,19 @@ describe("parseQueryLanguage: composition", () => {
   it("!= negates class, boolean and linked conditions", () => {
     expect(only(parse("class!=paper"))).toEqual({
       type: "not",
-      child: { type: "class", classId: CLASS_PAPER },
+      child: memberIn("class", [CLASS_PAPER]),
     });
     expect(only(parse("isClass!=true"))).toEqual({
       type: "not",
-      child: { type: "isClass", isClass: true },
+      child: { type: "nodeField", field: "isClass", op: "eq", value: "true" },
     });
     expect(only(parse("isEmbedded!=false"))).toEqual({
       type: "not",
-      child: { type: "isEmbedded", isEmbedded: false },
+      child: { type: "nodeField", field: "isEmbedded", op: "eq", value: "false" },
     });
     expect(only(parse("linked!=Paris"))).toEqual({
       type: "not",
-      child: { type: "linkedTo", nodeId: NODE_PARIS },
+      child: memberIn("links", [NODE_PARIS]),
     });
   });
 

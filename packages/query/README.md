@@ -22,56 +22,55 @@ const hit = matches(store, nodeId, ast, opts?);
 const ast = parseQueryAst(token.queryAst);                  // fail-loud validation
 ```
 
-`selfNodeId` is the hosting page for the `*Self` marker conditions — each
-family's single-anchor static form with the host id supplied at compile time
-(the run site passes the page the query block/view sits on). A `*Self`
-condition compiling WITHOUT it throws — there is no honest reading of "self"
-without a host. `now` overrides the placeholder clock (tests pin it). The
-compiler assumes a single-workspace store (no
+`selfNodeId` is the hosting page for the `self` member target mode — each
+family's single-anchor in-ids form with the host id supplied at compile time
+(the run site passes the page the query block/view sits on). A self target
+compiling WITHOUT it throws — there is no honest reading of "self" without a
+host. `now` overrides the placeholder clock (tests pin it). The compiler
+assumes a single-workspace store (no
 workspace filter), matching the store's read helpers. Every query filters
 `n.is_active = 1`.
 
-## AST (version 1, strict — unknown condition types fail loud)
+## AST (version 2, strict — unknown condition types/families/ops/target modes fail loud)
 
 ```ts
-QueryAst  { version: 1, scope, root: Group, sort?, aggregation? }
+QueryAst  { version: 2, scope, root: Group, sort?, aggregation? }
 Scope     entire_workspace | pages | subtree(pageId) | linkedTo(nodeId)
 Group     { logic: and | or, children: (Condition | Group | Not)[] }
 Not       { child: Condition | Group }
 ```
 
-Conditions (the shipped subset, cleanly extensible by versioned addition):
+Conditions — six types (v2 folds the v1 64-variant flat union into
+parameterized axes; comparator and target mode are orthogonal on the wire):
 
 | Condition | Semantics |
 |---|---|
-| `class {classId}` | Members of the class **or any class extending it** (`class_hierarchy`, which includes the self-row) — closure MEMBERSHIP (the class among others). |
-| `classExact {classId}` | EXACT class-set equality (the Odoo "=" register): the set is exactly `{classId}`, nothing else — the closure does not apply. |
-| `classAny {classIds}` / `classAnyQuery {root}` / `classSelf` | ANY-of membership (Odoo "one of"): at least one picked class rides the set — closure-aware per id, like `class` / per the subquery's matching classes / of the hosting page used as a class. |
-| `classSet` | The class set is non-empty (Odoo "is set"). |
-| `pageOf {nodeIds}` / `pageOfQuery {root}` / `pageOfSelf` | v1's **Page** block: the **containing page** (nearest self-or-ancestor rendering with document chrome — a class, a parentless node whose classes do not effectively carry `parentlessRole "block"`, or an `is_embedded = 0` node; the parent-page condition is write-time impossible to violate) IS ONE OF the picked nodes / the subquery's matches / the hosting page. A page row reads its own page (picked, it matches itself). A block-role standalone node (the 2026-10-24 parentlessRole demote) has NO containing page — `pageOf` never matches it. |
-| `pageSet` | The Page "is set" — the row lives inside a page (the containing page differs from the row itself). |
-| `ancestorIn {nodeIds}` / `ancestorInQuery {root}` / `ancestorInSelf` | v1's **Parent path** block: some **strict ancestor** (the parent path, self excluded) is one of the picked nodes / matches the subquery / IS the hosting page. |
-| `rootIn {nodeIds}` / `rootInQuery {root}` / `rootInSelf` | The **root** walk: the workspace-root ancestor (a parentless row is its own root) is one of the picked nodes / matches the subquery / IS the hosting page. |
-| `parentOf {nodeIds}` / `parentOfQuery {root}` / `parentOfSelf` | v1's **PARENT** block: the DIRECT parent (one hop up) is one of the picked nodes / matches the subquery / IS the hosting page. (The parentless NULL reads two-valued — the empty-parent test rides `parentSet`.) |
-| `childOf {nodeIds}` / `childOfQuery {root}` / `childOfSelf` / `childSet` | v1's **CHILD** block: a DIRECT child is one of the picked nodes / matches the subquery / IS the hosting page / at least one direct child exists. |
-| `descendantOf {nodeId}` / `descendantOfQuery {root}` / `descendantOfSelf` | Ancestor-chain membership: the row sits strictly inside the anchor's tree — subtree membership minus the anchor itself (`descendantOfSelf`: the hosting page's tree). |
-| `descendantSet` | The CHILD PATH "is set" — at least one descendant exists at any depth below. |
-| `referencePathOf {nodeIds}` / `referencePathOfQuery {root}` / `referencePathOfSelf` | v1's **REFERENCE PATH** block: the row OR any of its ancestors links to one of the targets (edges: content mentions, tag memberships, node-typed property values), OR a target is a STRICT ancestor of the row (v1 folded containment into the link rollup). |
-| `isClass {isClass}` | `node.is_class = 0/1` — the class identity bit (Revision 11). |
-| `isEmbedded {isEmbedded}` | `node.is_embedded = 0/1` — the embedding bit for parented non-class nodes (Revision 12: the Block role = embedded in the parent's body, the Page-role claim = standalone under a page-role parent). |
-| `content {op, value}` | `contains`: LIKE substring over the derived search plaintext (name + content tokens — the only derived plaintext; it lives in the FTS index). `fts`: prefix-AND `MATCH` over `search_index`. `eq`/`neq`: plaintext equality; `starts`/`ends`: edge-anchored LIKE — the Odoo text set. |
-| `contentSet` | The title/content plaintext is non-empty (the content "is set"). |
-| `name {op, value?}` | The **title** (title-is-content: the flattened content text, the sort-by-name expression — title-only, unlike `content`'s name+content plaintext). `contains`: LIKE substring (ASCII case-insensitive, the `content`-contains convention); `eq`/`neq`: exact case-sensitive comparisons (the `prop` `:=` convention — an untitled row matches neither, SQL NULL semantics); `exists`: the title is non-empty, COALESCE'd two-valued so the not-wrap reads "is untitled". |
-| `tag {tagId}` / `tagAny {tagIds}` / `tagAnyQuery {root}` / `tagSelf` / `tagSet` | Tag membership over the OR-set `tag_ids` (a tag is any page — no hierarchy): single, ANY-of, per the subquery's matching tags, with the hosting page itself, non-empty. |
-| `property {schemaId, op, value?, includeDefaults?}` | See below. `eq`, `neq`, `contains`, `exists`, `gt`, `gte`, `lt`, `lte`. |
-| `linkedTo {nodeId}` | `backlinksWithRollup` membership: a direct edge to the node, **or** an edge sourced strictly inside its subtree and targeting outside it (containment roll-up). Edges are content mentions, tag memberships ("tags are links" — a tagged node links to its tag), and node-typed property values. |
-| `linkedToAny {nodeIds}` / `linkedToQuery {root}` / `linkedToSelf` / `linkSet` | Rollup membership of ANY picked node (Odoo "one of") / of any subquery match / of the hosting page / at least one inbound link (the links "is set"). || `descendantOfAny {nodeIds}` / `parentSet` | Subtree membership of ANY picked node, anchors excluded / the node has a parent at all (`parent_id IS NOT NULL`). |
-| `createdCmp / updatedCmp {op, timestamp}` | Odoo's date comparisons: `eq`/`neq` are DAY-granular (the whole resolved local day matches — tokens and plain dates resolve through the same boundary machinery); `gt`/`gte`/`lt`/`lte` compare the instant. |
-| `createdBetween / updatedBetween {from, to}` | The inclusive range: from day-start to to day-end. |
-| `createdWithin / updatedWithin {period}` | The relative period (`today` / `this_week` / `this_month` / `this_year`), resolved against the run clock. |
-| `propertyBetween {schemaId, from, to}` | The effective property value inside the inclusive range (numeric for JSON numbers, lexicographic for ISO dates — date-node refs speak too). |
-| `propertyWithin {schemaId, period}` | The effective DATE-valued property inside the relative period. |
-| `createdAfter / createdBefore {timestamp}` | Inclusive bounds on `node.created_at` (ISO-8601, lexicographic). |
+| `member {family, op, target?}` | The node-target condition — ONE type over ten families. `op` is the comparator: `in`/`not-in` (membership over the target set; a required `target`), `exists`/`not-exists` (the family's emptiness read; NO target), or class-only `exact` (exact single-class equality — the Odoo "=" register, the closure deliberately does not apply). `not-in`/`not-exists` are wire-level negations of the same predicate; free-form negation additionally sugars through the `not` group wrapper. |
+| `target` (`in`/`not-in` only) | `{ mode: "ids", ids }` a manual pick (class family → class ids, tags → tag ids, every other family → node ids) · `{ mode: "query", root }` the nested group's matches (dynamic — a saved view re-resolves on every run) · `{ mode: "self" }` the HOSTING PAGE, resolved at COMPILE time against `CompileOptions.selfNodeId` (a self target without it fails loud). |
+| `content {op, value?}` | `contains`: LIKE substring over the derived search plaintext (name + content tokens — the only derived plaintext; it lives in the FTS index). `fts`: prefix-AND `MATCH` over `search_index`. `eq`/`neq`: plaintext equality; `starts`/`ends`: edge-anchored LIKE — the Odoo text set. `exists` (folded from v1's `contentSet`): the plaintext is non-empty. |
+| `name {op, value?}` | The **title** (title-is-content: the flattened content text, the sort-by-name expression — title-only, unlike `content`). `contains`: LIKE substring (ASCII case-insensitive); `eq`/`neq`: exact case-sensitive comparisons (an untitled row matches neither, SQL NULL semantics — "is untitled" is the not-wrap of `exists`); `exists`: the title is non-empty, COALESCE'd two-valued. |
+| `property {schemaId, op, value?, from?, to?, period?, includeDefaults?}` | See below. `eq`, `neq`, `contains`, `exists`, `gt`, `gte`, `lt`, `lte`, plus the folded range/period ops: `between {from, to}` (the inclusive range — numeric for JSON numbers, lexicographic for ISO dates, date-node refs speak too) and `within {period}` (the effective DATE-valued property inside the relative period). |
+| `date {field, op, timestamp?, from?, to?, period?}` | The v1 `created*`/`updated*` ten types behind an explicit `field` axis (`created`/`updated` → `node.created_at`/`node.updated_at`). `eq`/`neq` are DAY-granular (the whole resolved local day matches); `gt`/`gte`/`lt`/`lte` compare the instant; `after`/`before` are the inclusive day-boundary ops (`created_at >= / <= timestamp`); `between {from, to}` is the inclusive range (from day-start to to day-end); `within {period}` is the relative period against the run clock. |
+| `nodeField {field, op, value?}` | Wire-field predicates over the node-table columns: `coverAsset`/`bannerAsset`/`aliasedNode` — `eq`/`neq` against a node id, `exists` the set/unset probe (an unset field matches neither eq nor neq under SQL NULL semantics — "is unset" reads `not exists`). `isClass`/`isEmbedded` (folded from the v1 boolean conditions) ride op `eq` with value `"true"`/`"false"` — the Revision-12 identity/embedding bits. |
+
+### Member families (the family ↔ semantics table — compiler contract)
+
+| family | `in` predicate over the target set | `exists` (emptiness) |
+|---|---|---|
+| `class` | extends-closure membership (`class_hierarchy`, self-row included — descendant classes match) | has any class |
+| `tags` | tag edge membership over the OR-set `tag_ids` (a tag is any page — no hierarchy) | has any tag |
+| `links` | `backlinksWithRollup` membership: a direct edge to a target, **or** an edge sourced strictly inside a target's subtree and targeting outside it (containment roll-up). Edges are content mentions, tag memberships ("tags are links"), and node-typed property values. | has any inbound link (a direct edge targets the node) |
+| `referencePath` | the self-or-ancestor link roll-up: the row OR any ancestor links to a target, or a target is a STRICT ancestor of the row (containment folded in) | — (no emptiness read: the compiler fails loud) |
+| `parent` | the DIRECT parent (one hop) is in the set (the parentless NULL reads two-valued via COALESCE — the empty-parent test rides `exists`) | has a parent (`parent_id IS NOT NULL`) |
+| `child` | a DIRECT child is in the set | has any direct child |
+| `childPath` | strict subtree membership, anchors excluded (the row sits anywhere inside the picked node's tree) | has any descendant at any depth |
+| `page` | the CONTAINING PAGE (nearest self-or-ancestor rendering with document chrome — a class, a parentless node whose classes do not effectively carry `parentlessRole "block"`, or an `is_embedded = 0` node) is in the set. A page row reads its own page (picked, it matches itself); a block-role standalone node has NO containing page — `in` never matches it. | lives inside a page (the containing page differs from the row itself) |
+| `parentPath` | some STRICT ancestor (the parent path, self excluded) is in the set | has a parent (the `parent` family's bit) |
+| `root` | the workspace-root ancestor (a parentless row is its own root) is in the set | — (no emptiness read: the compiler fails loud) |
+
+`exact` is class-only: the node's class set is exactly the single picked
+class — nothing else rides it. Negation ("is-not") is the `not` group
+wrapper.
 
 ## Property conditions and the effective read model (DECISION)
 
@@ -105,16 +104,16 @@ The user-facing search grammar — port of `query_language.py`, compiled by
 the same AST pipeline so CLI/API/UI share one language:
 
 ```
-class:Name            class membership (by NAME; "!=" negates)
-isClass:true|false    class identity bit (Revision 11; "!=" negates)
-presentAsMain:t|f     render bit for parented nodes (main zone vs inline body)
+class:Name            member class in ids (closure membership, by NAME; "!=" negates)
+isClass:true|false    nodeField isClass eq "true"/"false" (Revision 12 bit; "!=" negates)
+isEmbedded:true|false nodeField isEmbedded eq "true"/"false" (Revision 12 bit; "!=" negates)
 text:term             content contains (substring; bare words do the same)
 name:term             title contains (LIKE, ASCII case-insensitive); bare ":" =
                       title is non-empty (exists); ":="/"=" eq, "!=" neq —
                       exact, case-sensitive (title = the flattened content
                       text; an untitled row matches neither, so "is untitled"
                       is NOT name:)
-linked:Name           backlinksWithRollup to the named node ("!=" negates)
+linked:Name           member links in ids — backlinksWithRollup to the named node ("!=" negates)
 coverAsset:<ref>      the cover wire node field: bare ":" = is set, "=" eq, "!=" neq
 bannerAsset:<ref>     the banner wire node field (same shape)
 aliasedNode:<ref>     the alias wire node field (same shape; "is unset" is NOT aliasedNode:)
@@ -163,11 +162,11 @@ Scope (the only source of a `distance` column; `SELECT n.*` otherwise):
     SELECT id, MIN(distance) AS distance FROM hits GROUP BY id) sc ON sc.id = n.id
 ```
 
-The `linkedTo` **condition** uses the same CTE with a single-column
-projection (`n.id IN (SELECT id FROM (...))`). `pages` filters to the
-document-chrome predicate — `n.is_class = 0 AND (n.parent_id IS NULL OR
-n.is_embedded = 0)` PLUS the parentlessRole demote as a
-separate conjunct over the parentless population —
+The links family **condition** (`member {family:"links", op:"in", target}`) uses
+the same CTE with a single-column projection (`n.id IN (SELECT id FROM
+(...))`). `pages` filters to the document-chrome predicate — `n.is_class = 0
+AND (n.parent_id IS NULL OR n.is_embedded = 0)` PLUS the parentlessRole
+demote as a separate conjunct over the parentless population —
 `AND (n.parent_id IS NOT NULL OR NOT EXISTS (SELECT 1 FROM class_hierarchy ch
 JOIN node c ON c.id = ch.ancestor_id WHERE ch.class_id IN (SELECT value FROM
 json_each(n.class_ids)) AND c.parentless_role = 'block'))`: workspace documents
@@ -190,7 +189,7 @@ BY the filtered-node set, measures aggregate over it:
 dimensions: Array<{ kind: "class", id }        // hierarchy-aware membership (1/0)
                       | { kind: "property", id } // effective/authored value at idx 0
                       | { kind: "isClass" }      // the class identity bit
-                      | { kind: "presentAsMain" }> // the render bit
+                      | { kind: "isEmbedded" }>  // the embedding bit
 measures:   Array<{ function: "count" | "countDistinct", kind?: "node" }
                       | { function: "sum" | "avg" | "min" | "max", kind: "property", id }>
 ```
@@ -200,7 +199,7 @@ query groups it (zero dimensions = one grand-total row, no GROUP BY):
 
 ```sql
 WITH filtered AS (
-  SELECT n.id, n.is_class, n.present_as_main, n.class_ids
+  SELECT n.id, n.is_class, n.is_embedded, n.class_ids
   FROM node n WHERE n.is_active = 1 AND (...)
 )
 SELECT f.is_class AS "isClass", COUNT(*) AS "count"
@@ -210,7 +209,7 @@ ORDER BY "isClass" ASC
 ```
 
 - Columns are deterministic: dimensions in declared order, then measures;
-  labels `isClass` / `presentAsMain` / `class:<id>` / `property:<id>` /
+  labels `isClass` / `isEmbedded` / `class:<id>` / `property:<id>` /
   `count` / `countDistinct` / `<fn>:<id>` (collisions suffixed `#2`, …).
   GROUP BY / ORDER BY reference the output aliases (SQLite resolves
   result-column names) so parameterized expressions appear exactly once.
@@ -222,10 +221,10 @@ ORDER BY "isClass" ASC
 
 ## Deferred (fail loud today, cleanly extensible)
 
-- Condition types outside the shipped model: style marks, parent/parent_path,
-  child/child_path, page, tag, flag, reference_path, extends (covered by
-  `class` via the hierarchy closure), regex (needs a SQLite extension),
-  in/not_in.
+- Condition types outside the shipped model: style marks, regex (needs a
+  SQLite extension), flags. (The relation families — parent/child/childPath,
+  page, tags, links, referencePath, root — ship as `member` conditions;
+  `in`/`not-in`/`exists`/`not-exists` ship as member ops.)
 - DSL sugar not yet mapped: `collection:` scope, `asset:` field. Dedicated
   relation-based `author:` semantics (resolve a persona and match their
   works) remain deferred — until then `authors:doe` works as
