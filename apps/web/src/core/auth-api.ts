@@ -80,17 +80,21 @@ async function request<T>(
     ...init,
     headers,
   });
-  if (!response.ok) {
-    let message = `HTTP ${response.status}`;
-    try {
-      const body = (await response.json()) as { error?: { message?: string } };
-      if (body.error?.message) message = body.error.message;
-    } catch {
-      // Keep the HTTP status message.
-    }
-    throw new AuthRequestError(response.status, message);
-  }
+  await ensureOk(response);
   return (await response.json()) as T;
+}
+
+/** Throw the AuthRequestError for a non-2xx response (shared by all helpers). */
+async function ensureOk(response: Response): Promise<void> {
+  if (response.ok) return;
+  let message = `HTTP ${response.status}`;
+  try {
+    const body = (await response.json()) as { error?: { message?: string } };
+    if (body.error?.message) message = body.error.message;
+  } catch {
+    // Keep the HTTP status message.
+  }
+  throw new AuthRequestError(response.status, message);
 }
 
 export function fetchServerInfo(serverUrl: string): Promise<ServerInfo> {
@@ -128,6 +132,48 @@ export function logout(serverUrl: string, token: string): Promise<{ ok: boolean 
 
 export function fetchMe(serverUrl: string, token: string): Promise<AccountUser> {
   return request<AccountUser>(serverUrl, "/auth/me", {}, token);
+}
+
+/**
+ * GET /workspaces/:id/key — the workspace's wrapped E2EE key. Resolves
+ * undefined when the workspace is keyless (404); any other failure throws
+ * (network vs rejected credential stay distinguishable via AuthRequestError).
+ */
+export async function fetchWorkspaceKey(
+  serverUrl: string,
+  token: string,
+  workspaceId: string,
+): Promise<string | undefined> {
+  try {
+    const response = await request<{ wrappedKey: string }>(
+      serverUrl,
+      `/workspaces/${encodeURIComponent(workspaceId)}/key`,
+      {},
+      token,
+    );
+    return response.wrappedKey;
+  } catch (error) {
+    if (error instanceof AuthRequestError && error.status === 404) return undefined;
+    throw error;
+  }
+}
+
+/** PUT /workspaces/:id/key — store the workspace's wrapped key (204, no body). */
+export async function storeWorkspaceKey(
+  serverUrl: string,
+  token: string,
+  workspaceId: string,
+  wrappedKey: string,
+): Promise<void> {
+  const headers = new Headers({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  });
+  const response = await fetch(
+    `${serverUrl.replace(/\/$/, "")}/api/workspaces/${encodeURIComponent(workspaceId)}/key`,
+    { method: "PUT", headers, body: JSON.stringify({ wrappedKey }) },
+  );
+  await ensureOk(response);
 }
 
 export function updateMe(
