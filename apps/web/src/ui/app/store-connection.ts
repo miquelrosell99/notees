@@ -45,13 +45,6 @@ export interface ConnectOutcome {
 }
 
 /**
- * Boot a client for `workspaceId`. `credential` is the session token (or
- * operator API key); `isOffline` builds an OfflineTransport instead. The
- * worker store is keyed by workspace id, so adopting "this device's"
- * offline workspace later reuses the same OPFS file and its unpushed
- * backlog drains through the normal outbox push.
- */
-/**
  * E2EE custody, behind the opt-in kill switch: hand the workspace key to the
  * client when `window.NOTEES_CONFIG.e2ee === "on"` AND this session can unwrap
  * one. Any other flag state (absent included) = off = today's keyless
@@ -99,6 +92,13 @@ export async function resolveWorkspaceKey(
   return undefined;
 }
 
+/**
+ * Boot a client for `workspaceId`. `credential` is the session token (or
+ * operator API key); `isOffline` builds an OfflineTransport instead. The
+ * worker store is keyed by workspace id, so adopting "this device's"
+ * offline workspace later reuses the same OPFS file and its unpushed
+ * backlog drains through the normal outbox push.
+ */
 export async function openStoreConnection(
   url: string,
   credential: string,
