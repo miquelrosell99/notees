@@ -60,3 +60,39 @@ test('color-mix over tokens is clean; px inside media condition is clean', () =>
   const css = '@media (width <= 480px) { .a { color: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent); } }';
   assert.deepEqual(scanCss(css), []);
 });
+
+test('units are case-insensitive: uppercase PX/REM/RGBA/MS flag', () => {
+  const css = [
+    '.a { width: 10PX; }',                    // 1 PX
+    '.b { margin: 10REM; }',                  // 2 REM
+    '.c { color: RGBA(1, 2, 3, 0.5); }',      // 3 COLOR
+    '.d { transition: all 0.2S linear; }',    // 4 MOTION
+  ].join('\n');
+  const v = scanCss(css);
+  assert.ok(has(v, 'PX', 1) && has(v, 'REM', 2) && has(v, 'COLOR', 3) && has(v, 'MOTION', 4));
+});
+
+test('48px exemption is declaration-scoped, not line-wide', () => {
+  const v = scanCss('.a { min-height: 48px; width: 48px; }');
+  assert.deepEqual(v, [{ line: 1, kind: 'PX', match: '48px' }]);
+});
+
+test('opt-out without a reason does not exempt', () => {
+  const v = scanCss('.a { width: 9999px; /* token-gate: constant */ }');
+  assert.deepEqual(v, [{ line: 1, kind: 'PX', match: '9999px' }]);
+});
+
+test('#hex as id selector is clean; #hex as a color value flags', () => {
+  const css = [
+    '#abc { color: red; }',
+    '.x #abc { color: red; }',
+    '.a { color: #abc; }',                   // 3 COLOR
+  ].join('\n');
+  const v = scanCss(css);
+  assert.deepEqual(v, [{ line: 3, kind: 'COLOR', match: '#abc' }]);
+});
+
+test('negative rem is flagged', () => {
+  const v = scanCss('.a { margin: -0.5rem; }');
+  assert.deepEqual(v, [{ line: 1, kind: 'REM', match: '-0.5rem' }]);
+});
