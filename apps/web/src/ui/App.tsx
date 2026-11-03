@@ -179,6 +179,7 @@ export function App() {
     offline,
     storeMode,
     storeReason,
+    encryptedLocked,
     sessionSignedIn,
     setSessionSignedIn,
     workspaceName,
@@ -1001,6 +1002,7 @@ export function App() {
         client={client}
         storeMode={storeMode}
         storeReason={storeReason}
+        encryptedLocked={encryptedLocked}
         syncStatus={syncStatus}
         syncDetailsOpen={syncDetailsOpen}
         setSyncDetailsOpen={setSyncDetailsOpen}

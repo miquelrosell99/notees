@@ -40,6 +40,11 @@ export interface WorkspaceConnection {
   offline: boolean;
   storeMode: StoreMode;
   storeReason: string | undefined;
+  /**
+   * The open workspace is encrypted but this session has no key (the reload
+   * dropped it): writes are plaintext until unlocked. Drives the locked banner.
+   */
+  encryptedLocked: boolean;
   /** True when the live credential is a session (API-key management needs one). */
   sessionSignedIn: boolean;
   setSessionSignedIn: Dispatch<SetStateAction<boolean>>;
@@ -69,6 +74,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
   const clientRef = useRef<AnyClient | null>(null);
   const [offline, setOffline] = useState(false);
   const [storeMode, setStoreMode] = useState<StoreMode>("in-process");
+  const [encryptedLocked, setEncryptedLocked] = useState(false);
   const [storeReason, setStoreReason] = useState<string | undefined>(undefined);
   const [sessionSignedIn, setSessionSignedIn] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
@@ -102,6 +108,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
       const outcome = await openStoreConnection(url, credential, workspaceId, options);
       clientRef.current = outcome.client;
       setClient(outcome.client);
+      setEncryptedLocked(outcome.encryptedLocked === true);
       setOffline(options.isOffline);
       setStoreMode(outcome.mode);
       setStoreReason(outcome.mode === "in-process" ? inProcessReason() : undefined);
@@ -133,6 +140,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     offline,
     storeMode,
     storeReason,
+    encryptedLocked,
     sessionSignedIn,
     setSessionSignedIn,
     workspaceName,

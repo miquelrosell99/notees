@@ -37,13 +37,14 @@ describe("E2EE opt-in gate (NOTEES_CONFIG.e2ee)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const key = await resolveWorkspaceKey(SERVER, TOKEN, WS, {
+    const resolution = await resolveWorkspaceKey(SERVER, TOKEN, WS, {
       isOffline: false,
       credentialType: "session",
       label: "Workspace",
     });
 
-    expect(key).toBeUndefined();
+    expect(resolution.key).toBeUndefined();
+    expect(resolution.locked).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -55,13 +56,14 @@ describe("E2EE opt-in gate (NOTEES_CONFIG.e2ee)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const key = await resolveWorkspaceKey(SERVER, TOKEN, WS, {
+    const resolution = await resolveWorkspaceKey(SERVER, TOKEN, WS, {
       isOffline: false,
       credentialType: "session",
       label: "Workspace",
     });
 
-    expect(key).toBeUndefined();
+    expect(resolution.key).toBeUndefined();
+    expect(resolution.locked).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -81,14 +83,15 @@ describe("E2EE opt-in gate (NOTEES_CONFIG.e2ee)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const key = await resolveWorkspaceKey(SERVER, TOKEN, WS, {
+    const resolution = await resolveWorkspaceKey(SERVER, TOKEN, WS, {
       isOffline: false,
       credentialType: "session",
       label: "Workspace",
     });
 
-    expect(key).toBeInstanceOf(Uint8Array);
-    expect(key!.length).toBe(32);
+    expect(resolution.key).toBeInstanceOf(Uint8Array);
+    expect(resolution.key!.length).toBe(32);
+    expect(resolution.locked).toBe(false);
     expect(fetchMock).toHaveBeenCalled();
   });
 
@@ -100,13 +103,14 @@ describe("E2EE opt-in gate (NOTEES_CONFIG.e2ee)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const key = await resolveWorkspaceKey(SERVER, "", WS, {
+    const resolution = await resolveWorkspaceKey(SERVER, "", WS, {
       isOffline: true,
       credentialType: "session",
       label: "Workspace",
     });
 
-    expect(key).toBeUndefined();
+    expect(resolution.key).toBeUndefined();
+    expect(resolution.locked).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
