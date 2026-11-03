@@ -571,7 +571,14 @@ const tagMemberUpsert = db.prepare(
     for (const tagId of p.tagIds) {
       tagMemberUpsert.run(p.objectId, tagId, env.hlc.physical, env.hlc.logical, env.actorId);
     }
-    if (p.tagIds.length > 0) recomputeTagIds(db, p.objectId);
+    if (p.tagIds.length > 0) {
+      recomputeTagIds(db, p.objectId);
+      // Tags project into the edge index (the "tags are links" ruling): a
+      // tag add on the convergence carrier re-derives the node's edges even
+      // though every other tree side effect stays skipped on the re-create.
+      const reEdges = rebuildEdges(db, p.objectId, env.timestamp);
+      return summary(opType, [p.objectId, ...reEdges.affectedNodeIds], true);
+    }
     return summary(opType, [p.objectId], true);
   }
 
@@ -1796,7 +1803,11 @@ function applyTagUnassign(db: StoreDatabase, env: Envelope): ChangeSummary {
             AND excluded.actor_id > COALESCE(actor_id, ''))`,
   ).run(p.objectId, p.tagId, env.hlc.physical, env.hlc.logical, env.actorId);
   recomputeTagIds(db, p.objectId);
-  return summary(opType, [p.objectId]);
+  // Tags project into the edge index (the "tags are links" ruling): the
+  // untag re-derives the node's edges; the affected targets ride the summary
+  // for the scope-classed invalidation, exactly like property writes.
+  const unsetEdges = rebuildEdges(db, p.objectId, env.timestamp);
+  return summary(opType, [p.objectId, ...unsetEdges.affectedNodeIds]);
 }
 
 /**

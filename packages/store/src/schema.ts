@@ -436,8 +436,10 @@ CREATE TABLE IF NOT EXISTS node_property (
 CREATE INDEX IF NOT EXISTS idx_node_property_node ON node_property (node_id);
 
 -- Derived reference index (never authored). type: mention | typed_link |
--- property. verb: the typed-link verb (string) or the bound propertySchemaId;
--- NULL for plain mentions. target_id is NULL for typed_link marks (the
+-- property | tag. verb: the typed-link verb (string) or the bound propertySchemaId;
+-- NULL for plain mentions AND for tag edges (the 2026-11-03 "tags are links"
+-- ruling — tag membership projects one edge per tag, derived from node.tag_ids).
+-- target_id is NULL for typed_link marks (the
 -- target is unresolved by design — RECORD, DON'T RESOLVE).
 -- resolved_target_id (v17): the alias-terminal of target_id, materialized
 -- by the applier at edge-write time (resolveEdgeTarget — the live-aware

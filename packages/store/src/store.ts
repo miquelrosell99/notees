@@ -590,20 +590,23 @@ export class Store {
   }
 
   /**
-   * Recently linked targets: every distinct mention-edge target ordered by
-   * the most recent incoming link (MAX(created_at) desc, the edge's
-   * op-derived timestamp; pre-timestamp edges — NULL — sort last). The
+   * Recently linked targets: every distinct mention- or tag-edge target
+   * ordered by the most recent incoming link (MAX(created_at) desc, the
+   * edge's op-derived timestamp; pre-timestamp edges — NULL — sort last). The
    * palette home's "Recently linked" section reads this: which pages the
-   * current work keeps pointing at. Alias-resolved (resolved_target_id), so
-   * a link to an alias page counts for its terminal. Liveness/chrome are the
-   * CALLER's filters (the read returns ids only).
+   * current work keeps pointing at. Tags joined the index under the
+   * "tags are links" ruling (2026-11-03), so recently TAGGED targets ride
+   * here too — a tag is a link, indistinguishable from a mention at this
+   * read. Alias-resolved (resolved_target_id), so a link to an alias page
+   * counts for its terminal. Liveness/chrome are the CALLER's filters (the
+   * read returns ids only).
    */
   recentLinkTargets(limit: number): Array<{ id: string; linked_at: string | null }> {
     return this.db
       .prepare(
         `SELECT resolved_target_id AS id, MAX(created_at) AS linked_at
          FROM edge
-         WHERE resolved_target_id IS NOT NULL AND type = 'mention'
+         WHERE resolved_target_id IS NOT NULL AND type IN ('mention', 'tag')
          GROUP BY resolved_target_id
          ORDER BY linked_at DESC, id
          LIMIT ?`,
