@@ -339,6 +339,16 @@ export interface NodeCollectionProps {
    */
   parent?: ClientNode | undefined;
   /**
+   * The focused grammar's root-row Enter contract — set by the collection
+   * itself (`parent !== undefined`), not by hosts: in the zoom view the
+   * focused block IS the parent of everything below it, so Enter on its row
+   * never sibling-splits; the text right of the caret (or an empty block)
+   * always becomes the focused block's FIRST CHILD. Outline mode only —
+   * prose renders the parent as the title-variant row (the title's Enter
+   * contract: flush and leave edit mode).
+   */
+  rootEnterNests?: boolean | undefined;
+  /**
    * A trailing affordance rendered at the CHILD INDENT LEVEL of a focused
    * block view. Outline rides it inside the parent row's children
    * container (the last child); prose trails it at the end of the flattened

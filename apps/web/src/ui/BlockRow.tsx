@@ -263,6 +263,15 @@ interface BlockRowProps {
    */
   trailingGhost?: ReactNode | undefined;
   /**
+   * The focused block view's root row (set by OutlineView on the focused
+   * grammar's parent row): the row's Enter NEVER sibling-splits — the text
+   * right of the caret (or an empty block) becomes this node's FIRST CHILD,
+   * the zoom view's "the focused block is the parent of everything below
+   * it" contract. Forwarded to the block editor; the title variant never
+   * splits by its own contract.
+   */
+  rootEnterNests?: boolean | undefined;
+  /**
    * Mount straight into edit mode (the table text cell's placeholder
    * creates its carrier and lands the user in the editor in one click):
    * the initial editing state is true and the editor's mount effect lands
@@ -271,7 +280,7 @@ interface BlockRowProps {
   autoEdit?: boolean | undefined;
 }
 
-export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, proseMode = false, tableRow = false, variant = "block", hideBacklinks = false, hideProperties = false, hideTags = false, condensed = false, trailingGhost = undefined, autoEdit = false }: BlockRowProps) {
+export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, proseMode = false, tableRow = false, variant = "block", hideBacklinks = false, hideProperties = false, hideTags = false, condensed = false, trailingGhost = undefined, rootEnterNests = false, autoEdit = false }: BlockRowProps) {
 
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
@@ -1047,7 +1056,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
             // shows the raw dashes, so the block is never invisible/trapped).
             <hr className="nt-block-rule" />
           ) : editing ? (
-            <BlockTextEditor node={node} caret={caret} onExitEdit={() => setEditing(false)} />
+            <BlockTextEditor node={node} caret={caret} onExitEdit={() => setEditing(false)} rootEnterNests={rootEnterNests} />
           ) : excerpted && excerpt !== null ? (
             <>
               <span className="nt-block-excerpt">{excerpt.text}</span>
@@ -1453,6 +1462,7 @@ function areBlockRowPropsEqual(prev: BlockRowProps, next: BlockRowProps): boolea
     prev.hideTags === next.hideTags &&
     prev.autoEdit === next.autoEdit &&
     prev.trailingGhost === next.trailingGhost &&
+    prev.rootEnterNests === next.rootEnterNests &&
     sameTreeNode(prev.tree, next.tree)
   );
 }
