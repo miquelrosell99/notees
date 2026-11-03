@@ -853,7 +853,6 @@ export function applyOperator(condition: Condition, op: string): Child {
     case "linkedToSelf":
       return applyDynamicOperator(condition, op, ["is-not"], { type: "linkSet" });
     case "parentOf":
-    case "parentSet":
       // The single-value register: is / is not
       // bind the picked id (the wire list carries 0/1 elements).
       return applyPickSetOperator(
