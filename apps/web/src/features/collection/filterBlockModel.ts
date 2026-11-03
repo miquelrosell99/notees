@@ -410,10 +410,12 @@ export function operatorOf(condition: Condition, negated: boolean): string {
     case "linkSet":
       return negated ? "not-set" : "set";
     case "descendantOf":
+    case "descendantOfAny":
     case "descendantOfQuery":
     case "descendantOfSelf":
-      return negated ? "is-not" : "is";
-    case "descendantOfAny":
+      // The child-path register (contains / does not contain) — the legacy
+      // single id and the dynamic/self shapes read the same ANY-of wording;
+      // values outside the register would render the operator dropdown blank.
       return negated ? "not-contains" : "contains";
     case "descendantSet":
       return negated ? "not-set" : "set";
@@ -591,8 +593,8 @@ function applyNodeTargetOperator(
  * picked id into a 0/1-element wire list (the set bits where they mean
  * something — Page is set = lives inside a page; Root's set bit is vacuous —
  * never offered). The parent path is genuinely set-valued and keeps its own
- * pair (includes / does not include). The dynamic subquery re-enters through
- * the same operators.
+ * pair (includes / does not include). The static shapes only — the dynamic/
+ * self rows ride applyDynamicOperator (the mode survives the operator).
  */
 function applyContainerNodeOperator(
   condition: Condition,
@@ -636,8 +638,8 @@ function applyContainerNodeOperator(
  * The generic node-target morph for the v1 pick-set families (Parent direct /
  * Child / Child path / Reference path): a positive/negative operator pair
  * over the picked-id set, plus an optional set bit. The picked ids carry
- * across the morphs; the dynamic (*Query) shapes re-enter through the same
- * operators (the value column is the subquery then).
+ * across the morphs. The static shapes only — the dynamic/self rows ride
+ * applyDynamicOperator (the mode survives the operator).
  */
 function applyPickSetOperator(
   condition: Condition,
@@ -651,6 +653,27 @@ function applyPickSetOperator(
   const neg = (next: Condition): Child => ({ type: "not", child: next });
   if (op === positiveOp) return single(carried);
   if (op === negativeOp) return neg(single(carried));
+  if (setType !== null && op === "set") return setType;
+  if (setType !== null && op === "not-set") return neg(setType);
+  return condition;
+}
+
+/**
+ * The dynamic/self morph: a Query- or Self-mode row keeps its mode across an
+ * operator choice — the register's negative wraps the *Query/*Self condition
+ * in NOT (the compiler negates the whole probe with the subquery / self
+ * marker intact), the positive keeps it, and the set bit swaps the target for
+ * the family's emptiness shape (the value column reads empty then, as in
+ * Manual mode). The morph never rewrites the row into a static shape.
+ */
+function applyDynamicOperator(
+  condition: Condition,
+  op: string,
+  negativeOps: readonly string[],
+  setType: Condition | null,
+): Child {
+  const neg = (next: Condition): Child => ({ type: "not", child: next });
+  if (negativeOps.includes(op)) return neg(condition);
   if (setType !== null && op === "set") return setType;
   if (setType !== null && op === "not-set") return neg(setType);
   return condition;
@@ -789,11 +812,11 @@ function applyPropertyOperator(condition: Condition, op: string): Child {
  * Apply an operator choice to a block's condition, returning the new child
  * (not-wrapped where the operator is negative). The picked ids / values /
  * timestamps carry across the operator morphs; the boolean families flip
- * their bit instead of wrapping.
+ * their bit instead of wrapping; the dynamic (*Query) and self (*Self) rows
+ * keep their mode — the negative wraps, the positive unwraps, never a
+ * rewrite into a static shape.
  */
 export function applyOperator(condition: Condition, op: string): Child {
-  const wrap = (next: Condition): Child => next;
-  const neg = (next: Condition): Child => ({ type: "not", child: next });
   switch (condition.type) {
     case "class":
     case "classExact":
@@ -805,8 +828,6 @@ export function applyOperator(condition: Condition, op: string): Child {
       return applyContentOperator(condition, op);
     case "tag":
     case "tagAny":
-    case "tagAnyQuery":
-    case "tagSelf":
     case "tagSet":
       return applyNodeTargetOperator(
         condition,
@@ -814,9 +835,13 @@ export function applyOperator(condition: Condition, op: string): Child {
         (tagIds) => ({ type: "tagAny", tagIds }),
         { type: "tagSet" },
       );
+    case "tagAnyQuery":
+    case "tagSelf":
+      // The dynamic/self row: the operator only flips the polarity — the
+      // subquery / self marker survives it.
+      return applyDynamicOperator(condition, op, ["is-not"], { type: "tagSet" });
     case "linkedTo":
     case "linkedToAny":
-    case "linkedToSelf":
     case "linkSet":
       return applyNodeTargetOperator(
         condition,
@@ -824,9 +849,11 @@ export function applyOperator(condition: Condition, op: string): Child {
         (nodeIds) => ({ type: "linkedToAny", nodeIds }),
         { type: "linkSet" },
       );
+    case "linkedToQuery":
+    case "linkedToSelf":
+      return applyDynamicOperator(condition, op, ["is-not"], { type: "linkSet" });
     case "parentOf":
-    case "parentOfQuery":
-    case "parentOfSelf":
+    case "parentSet":
       // The single-value register: is / is not
       // bind the picked id (the wire list carries 0/1 elements).
       return applyPickSetOperator(
@@ -837,9 +864,10 @@ export function applyOperator(condition: Condition, op: string): Child {
         (nodeIds) => ({ type: "parentOf", nodeIds }),
         { type: "parentSet" },
       );
+    case "parentOfQuery":
+    case "parentOfSelf":
+      return applyDynamicOperator(condition, op, ["is-not"], { type: "parentSet" });
     case "childOf":
-    case "childOfQuery":
-    case "childOfSelf":
     case "childSet":
       return applyPickSetOperator(
         condition,
@@ -849,10 +877,11 @@ export function applyOperator(condition: Condition, op: string): Child {
         (nodeIds) => ({ type: "childOf", nodeIds }),
         { type: "childSet" },
       );
+    case "childOfQuery":
+    case "childOfSelf":
+      return applyDynamicOperator(condition, op, ["not-contains-any-of"], { type: "childSet" });
     case "descendantOf":
     case "descendantOfAny":
-    case "descendantOfQuery":
-    case "descendantOfSelf":
     case "descendantSet":
       return applyPickSetOperator(
         condition,
@@ -862,9 +891,10 @@ export function applyOperator(condition: Condition, op: string): Child {
         (nodeIds) => ({ type: "descendantOfAny", nodeIds }),
         { type: "descendantSet" },
       );
+    case "descendantOfQuery":
+    case "descendantOfSelf":
+      return applyDynamicOperator(condition, op, ["not-contains"], { type: "descendantSet" });
     case "referencePathOf":
-    case "referencePathOfQuery":
-    case "referencePathOfSelf":
       return applyPickSetOperator(
         condition,
         op,
@@ -873,23 +903,30 @@ export function applyOperator(condition: Condition, op: string): Child {
         (nodeIds) => ({ type: "referencePathOf", nodeIds }),
         null,
       );
+    case "referencePathOfQuery":
+    case "referencePathOfSelf":
+      return applyDynamicOperator(condition, op, ["is-not-any-of"], null);
     case "parentSet":
       // The Parent family's set bit — every operator choice on it keeps it
       // (its operator list is only set / not-set, its own states).
       return condition;
     case "pageOf":
-    case "pageOfQuery":
-    case "pageOfSelf":
     case "pageSet":
       return applyContainerNodeOperator(condition, op, "page");
+    case "pageOfQuery":
+    case "pageOfSelf":
+      return applyDynamicOperator(condition, op, ["is-not"], { type: "pageSet" });
     case "ancestorIn":
+      return applyContainerNodeOperator(condition, op, "path");
     case "ancestorInQuery":
     case "ancestorInSelf":
-      return applyContainerNodeOperator(condition, op, "path");
+      return applyDynamicOperator(condition, op, ["not-includes"], { type: "parentSet" });
     case "rootIn":
+      return applyContainerNodeOperator(condition, op, "root");
     case "rootInQuery":
     case "rootInSelf":
-      return applyContainerNodeOperator(condition, op, "root");
+      // No set bit — every node's root exists (a parentless row is its own).
+      return applyDynamicOperator(condition, op, ["is-not"], null);
     case "createdAfter":
     case "createdBefore":
     case "createdCmp":
@@ -910,20 +947,16 @@ export function applyOperator(condition: Condition, op: string): Child {
       return { ...condition, isClass: op !== "is-not" };
     case "isEmbedded":
       return { ...condition, isEmbedded: op !== "is-not" };
-    case "linkedToQuery":
-      return op === "is-not" ? neg(condition) : wrap(condition);
     case "classAnyQuery":
     case "classSelf":
-      // The dynamic/self class row: the negative operator wraps in not, every
-      // other choice keeps the condition (the nested group / the self marker
-      // is the value).
-      return op === "not-contains" ? neg(condition) : wrap(condition);
-    case "tagAnyQuery":
-      return op === "is-not" ? neg(condition) : wrap(condition);
+      // The dynamic/self class row: both negative register choices (is not /
+      // does not contain) wrap in NOT, the positives keep the condition — the
+      // nested group / the self marker is the value and survives the choice.
+      return applyDynamicOperator(condition, op, ["is-not", "not-contains"], { type: "classSet" });
     case "coverAsset":
     case "bannerAsset":
     case "aliasedNode":
-      return op === "not-exists" ? neg(condition) : wrap(condition);
+      return op === "not-exists" ? { type: "not", child: condition } : condition;
     default:
       return condition;
   }
