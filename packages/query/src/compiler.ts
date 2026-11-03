@@ -72,11 +72,21 @@ export interface CompiledAggregate {
  * The placeholder clock: `{today}`-style tokens in
  * createdAfter/createdBefore timestamps and comparison-bound property values
  * resolve against this instant. Defaults to the current time on each
- * compile, so a saved view re-evaluates on the day it runs. (The once-
- * reserved `currentNodeId` option was dead — the strict AST carries explicit
- * ids, "this page" is baked at write time — and is removed.)
+ * compile, so a saved view re-evaluates on the day it runs.
  */
-export type CompileOptions = PlaceholderContext;
+export interface CompileOptions extends PlaceholderContext {
+  /**
+   * The hosting page for the `*Self` condition family (`linkedToSelf`,
+   * `pageOfSelf`, …): the page the query block sits on, supplied by the run
+   * site (never baked into the AST — the same AST must mean "this page"
+   * wherever it runs). A `*Self` condition compiling WITHOUT this option
+   * FAILS LOUD (there is no honest reading of "self" without a host). This
+   * is the deliberate re-introduction of the once-reserved `currentNodeId`
+   * compile context — dead while "this page" was baked at write time, alive
+   * again under the explicit Self marker conditions.
+   */
+  selfNodeId?: string | undefined;
+}
 
 /**
  * Prefix-AND FTS match expression for query-block filters (modeled on the
@@ -417,6 +427,30 @@ class Compiler {
     return `SELECT id, 0 AS distance FROM node WHERE id = ${this.push(nodeId)}`;
   }
 
+  /**
+   * The SELF id (the `*Self` condition family): CompileOptions.selfNodeId,
+   * failing loud when the run site supplied no host — there is no honest
+   * reading of "self" without one.
+   */
+  private selfIdValue(): string {
+    if (this.options.selfNodeId === undefined || this.options.selfNodeId === "") {
+      throw new Error(
+        "query compile: a '*Self' condition requires CompileOptions.selfNodeId (the query's hosting page)",
+      );
+    }
+    return this.options.selfNodeId;
+  }
+
+  /** The SELF id as one `?` param. */
+  private selfId(): string {
+    return this.push(this.selfIdValue());
+  }
+
+  /** Anchor-set seed for the SELF family: the hosting page (distance 0). */
+  private selfAnchorSql(): string {
+    return `SELECT id, 0 AS distance FROM node WHERE id = ${this.selfId()}`;
+  }
+
   /** Anchor-set seed for a nested group: the matching ACTIVE nodes (distance 0). */
   private groupAnchorsSql(root: Group): string {
     const group = this.groupSql(root);
@@ -556,6 +590,16 @@ class Compiler {
           ")"
         );
       }
+      case "classSelf": {
+        // SELF class: closure-aware membership of the HOSTING PAGE as a
+        // class — the `class` arm with CompileOptions.selfNodeId as the id.
+        const classId = this.selfId();
+        return (
+          "EXISTS (\n  SELECT 1 FROM json_each(n.class_ids)\n" +
+          `  WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id = ${classId})\n` +
+          ")"
+        );
+      }
       case "pageOf": {
         // v1's Page block (static): the CONTAINING PAGE is one of the picked
         // nodes. The page id rides the correlated scalar subquery; the pick
@@ -576,6 +620,12 @@ class Compiler {
           "EXISTS (\n  SELECT 1 FROM node page\n" +
           `  WHERE page.id = ${this.containingPageIdSql()} AND page.is_active = 1${inner}\n)`
         );
+      }
+      case "pageOfSelf": {
+        // SELF Page: the containing page IS the hosting page — the pageOf
+        // arm over the one-element self list.
+        const ids = this.push(JSON.stringify([this.selfIdValue()]));
+        return `EXISTS (\n  SELECT 1 FROM json_each(${ids})\n  WHERE value = ${this.containingPageIdSql()}\n)`;
       }
       case "pageSet":
         // The Page "is set": the row lives inside a page — the containing
@@ -614,6 +664,19 @@ class Compiler {
           `  WHERE a.is_active = 1${inner}\n)`
         );
       }
+      case "ancestorInSelf": {
+        // SELF Parent path: some strict ancestor IS the hosting page — the
+        // ancestorIn arm over the singleton self id.
+        return (
+          "EXISTS (\n  WITH RECURSIVE anc(id, depth) AS (\n" +
+          "    SELECT nd.parent_id, 0 FROM node nd WHERE nd.id = n.id\n" +
+          "    UNION ALL\n" +
+          "    SELECT nd.parent_id, anc.depth + 1 FROM node nd JOIN anc ON nd.id = anc.id\n" +
+          "    WHERE anc.id IS NOT NULL AND anc.depth < 64\n" +
+          "  )\n" +
+          `  SELECT 1 FROM anc WHERE anc.id = ${this.selfId()}\n)`
+        );
+      }
       case "rootIn": {
         // The root walk (static): the workspace-root ancestor is one of the
         // picked nodes (one json_each param).
@@ -631,6 +694,12 @@ class Compiler {
           "EXISTS (\n  SELECT 1 FROM node root\n" +
           `  WHERE root.id = ${this.rootIdSql()} AND root.is_active = 1${inner}\n)`
         );
+      }
+      case "rootInSelf": {
+        // SELF Root: the workspace-root ancestor IS the hosting page — the
+        // rootIn arm over the singleton self list.
+        const ids = this.push(JSON.stringify([this.selfIdValue()]));
+        return `EXISTS (\n  SELECT 1 FROM json_each(${ids})\n  WHERE value = ${this.rootIdSql()}\n)`;
       }
       case "parentOf": {
         // v1's PARENT block (static): the DIRECT parent is one of the picked
@@ -653,6 +722,10 @@ class Compiler {
           `  WHERE p.id = n.parent_id AND p.is_active = 1${inner}\n)`
         );
       }
+      case "parentOfSelf":
+        // SELF Parent: the direct parent IS the hosting page (the
+        // COALESCE keeps the parentless NULL two-valued, like parentOf).
+        return `COALESCE(n.parent_id, '') = ${this.selfId()}`;
       case "childOf": {
         // v1's CHILD block (static): a DIRECT child is one of the picked
         // nodes (one json_each param).
@@ -674,6 +747,12 @@ class Compiler {
           `  WHERE c.parent_id = n.id AND c.is_active = 1${inner}\n)`
         );
       }
+      case "childOfSelf":
+        // SELF Child: a direct child IS the hosting page.
+        return (
+          "EXISTS (\n  SELECT 1 FROM node c\n" +
+          `  WHERE c.parent_id = n.id AND c.is_active = 1 AND c.id = ${this.selfId()}\n)`
+        );
       case "childSet":
         // The CHILD "is set": at least one direct child.
         return "EXISTS (SELECT 1 FROM node c WHERE c.parent_id = n.id AND c.is_active = 1)";
@@ -697,6 +776,9 @@ class Compiler {
             : "SELECT n.id FROM node n WHERE n.is_active = 0";
         return this.referencePathSql(targets);
       }
+      case "referencePathOfSelf":
+        // SELF Reference path: the rollup target IS the hosting page.
+        return this.referencePathSql(this.selfAnchorSql());
       case "contentSet":
         // The title/content plaintext is non-empty (the content "is set").
         return (
@@ -728,6 +810,9 @@ class Compiler {
           `  WHERE value IN (${targets})\n)`
         );
       }
+      case "tagSelf":
+        // SELF tags: tagged with the hosting page itself.
+        return `EXISTS (\n  SELECT 1 FROM json_each(n.tag_ids) WHERE value = ${this.selfId()}\n)`;
       case "linkedToAny": {
         // backlinksWithRollup membership of ANY picked node — the linkedToSet
         // over an anchor set. Params: the anchor ids (the CTE carries none).
@@ -826,6 +911,18 @@ class Compiler {
           `n.id IN (SELECT id FROM (${subtree}))` +
           ` AND n.id NOT IN (SELECT id FROM (${anchors}))`
         );
+      }
+      case "linkedToSelf":
+        // SELF links-to: the backlinksWithRollup target set is the one
+        // hosting-page anchor — the linkedToSet over the self anchor.
+        return `n.id IN (SELECT id FROM (${this.linkedToSetSql(this.selfAnchorSql())}))`;
+      case "descendantOfSelf": {
+        // SELF child-path: the row sits strictly inside the hosting page —
+        // the descendantOf shape over the self anchor. Both subqueries are
+        // built before the string (params bind in text order).
+        const subtree = this.subtreeSetSql(this.selfAnchorSql());
+        const anchor = this.selfId();
+        return `n.id IN (SELECT id FROM (${subtree})) AND n.id != ${anchor}`;
       }
       case "coverAsset":
         return this.nodeFieldSql("coverAsset", "cover_asset_id", condition);

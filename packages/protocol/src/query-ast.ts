@@ -19,7 +19,14 @@
  *    loose union so foreign blocks still apply — see content-mark);
  *  - scopes and conditions carry explicit ids; there are no editor-relative
  *    ID placeholders ("this page" is baked at write time by the
- *    builder). `{today}`-style DATE placeholders ({today}/{this_week}/
+ *    builder) — EXCEPT the `*Self` condition family: the marker conditions
+ *    (`linkedToSelf`, `parentOfSelf`, …) name the query's HOSTING PAGE, which
+ *    is not knowable at write time (the same AST must mean "this page"
+ *    wherever it runs). They resolve at COMPILE time against
+ *    `@notees/query` CompileOptions.selfNodeId — the run site supplies the
+ *    hosting page's id, and a compile without it FAILS LOUD. The static /
+ *    dynamic (nested-group) forms stay explicit-id as before.
+ *    `{today}`-style DATE placeholders ({today}/{this_week}/
  *    {this_month}/{this_year}) are ordinary strings in timestamp/value
  *    positions and resolve at compile time against the run clock
  *    (@notees/query CompileOptions.now) — see placeholders.ts.
@@ -163,6 +170,12 @@ export type Condition =
    */
   | { type: "classAnyQuery"; root: Group }
   /**
+   * SELF class: closure-aware membership of the HOSTING PAGE used as a class
+   * ("classed as the page this query sits on") — the marker form resolving
+   * CompileOptions.selfNodeId at compile time.
+   */
+  | { type: "classSelf" }
+  /**
    * The CONTAINING PAGE (the nearest self-or-ancestor rendering with document
    * chrome — a class, a parentless node, or an is_embedded=0 node under a
    * page-role parent) IS ONE OF the picked nodes (v1's Page block, static
@@ -171,6 +184,8 @@ export type Condition =
   | { type: "pageOf"; nodeIds: string[] }
   /** DYNAMIC Page: the containing page is one of the nodes matching the nested group. */
   | { type: "pageOfQuery"; root: Group }
+  /** SELF Page: the containing page IS the hosting page. */
+  | { type: "pageOfSelf" }
   /** The row lives inside a page at all (the Page "is set" — a page's own page is itself). */
   | { type: "pageSet" }
   /**
@@ -181,6 +196,8 @@ export type Condition =
   | { type: "ancestorIn"; nodeIds: string[] }
   /** DYNAMIC Parent path: some strict ancestor matches the nested group. */
   | { type: "ancestorInQuery"; root: Group }
+  /** SELF Parent path: a strict ancestor IS the hosting page. */
+  | { type: "ancestorInSelf" }
   /**
    * The ROOT ancestor (the workspace-root child at the top of the parent
    * chain — the row itself when parentless) IS ONE OF the picked nodes (v1's
@@ -189,6 +206,8 @@ export type Condition =
   | { type: "rootIn"; nodeIds: string[] }
   /** DYNAMIC Root: the workspace-root ancestor matches the nested group. */
   | { type: "rootInQuery"; root: Group }
+  /** SELF Root: the workspace-root ancestor IS the hosting page. */
+  | { type: "rootInSelf" }
   /**
    * v1's PARENT block: the DIRECT parent (one hop up) IS ONE OF the picked
    * nodes (static mode). The not-wrap reads "parent is not any of …"; the
@@ -197,6 +216,8 @@ export type Condition =
   | { type: "parentOf"; nodeIds: string[] }
   /** DYNAMIC Parent: the direct parent is one of the nodes matching the nested group. */
   | { type: "parentOfQuery"; root: Group }
+  /** SELF Parent: the direct parent IS the hosting page. */
+  | { type: "parentOfSelf" }
   /**
    * v1's CHILD block: the node CONTAINS ANY OF the picked nodes as DIRECT
    * children (static mode). The not-wrap reads "does not contain any of …";
@@ -205,6 +226,8 @@ export type Condition =
   | { type: "childOf"; nodeIds: string[] }
   /** DYNAMIC Child: a direct child is one of the nodes matching the nested group. */
   | { type: "childOfQuery"; root: Group }
+  /** SELF Child: a direct child IS the hosting page. */
+  | { type: "childOfSelf" }
   /** The CHILD "is set": at least one direct child exists. */
   | { type: "childSet" }
   /** The CHILD PATH "is set": at least one descendant exists (any depth below). */
@@ -217,6 +240,8 @@ export type Condition =
   | { type: "referencePathOf"; nodeIds: string[] }
   /** DYNAMIC Reference path: the rollup targets are the subquery's matches. */
   | { type: "referencePathOfQuery"; root: Group }
+  /** SELF Reference path: the rollup target IS the hosting page. */
+  | { type: "referencePathOfSelf" }
   /**
    * Ancestor-chain membership: the node's parents tree (parent,
    * grandparent, …, the node itself EXCLUDED) contains nodeId — the row
@@ -231,8 +256,12 @@ export type Condition =
    * re-resolves the nested query on every run, never baked uuids).
    */
   | { type: "linkedToQuery"; root: Group }
+  /** SELF links-to: the row's backlinksWithRollup set includes the hosting page. */
+  | { type: "linkedToSelf" }
   /** DYNAMIC parent: the ancestor chain contains ANY node matching the group. */
   | { type: "descendantOfQuery"; root: Group }
+  /** SELF child-path: the row sits strictly inside the hosting page (its subtree, self excluded). */
+  | { type: "descendantOfSelf" }
   /** node.created_at >= timestamp (ISO-8601, inclusive, lexicographic). */
   | { type: "createdAfter"; timestamp: string }
   /** node.created_at <= timestamp (ISO-8601, inclusive, lexicographic). */
@@ -251,6 +280,8 @@ export type Condition =
   | { type: "tagSet" }
   /** DYNAMIC tags: tagged with ANY tag matching the nested group. */
   | { type: "tagAnyQuery"; root: Group }
+  /** SELF tags: tagged with the hosting page itself. */
+  | { type: "tagSelf" }
   /** backlinksWithRollup membership of ANY picked node (the links "one of"). */
   | { type: "linkedToAny"; nodeIds: string[] }
   /** At least one inbound link (a direct edge targets the node). */
@@ -329,6 +360,8 @@ export const conditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("classSet") }).strict(),
   /** DYNAMIC class: closure-aware membership of ANY class matching the nested group. */
   z.object({ type: z.literal("classAnyQuery"), root: groupSchema }).strict(),
+  /** SELF class: the hosting page used as the class (closure-aware). */
+  z.object({ type: z.literal("classSelf") }).strict(),
   /**
    * Ancestor-chain membership (the "parent is X, anywhere up the tree"
    * condition): subtree membership minus the anchor itself.
@@ -336,8 +369,12 @@ export const conditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("descendantOf"), nodeId: uuid }).strict(),
   /** Dynamic links-to: the target set is the nested group's matches (v1 dynamic blocks, durable form). */
   z.object({ type: z.literal("linkedToQuery"), root: groupSchema }).strict(),
+  /** SELF links-to: the target is the hosting page. */
+  z.object({ type: z.literal("linkedToSelf") }).strict(),
   /** Dynamic parent: any ancestor matching the nested group. */
   z.object({ type: z.literal("descendantOfQuery"), root: groupSchema }).strict(),
+  /** SELF child-path: the row sits strictly inside the hosting page. */
+  z.object({ type: z.literal("descendantOfSelf") }).strict(),
   z.object({ type: z.literal("createdAfter"), timestamp: z.string().min(1) }).strict(),
   z.object({ type: z.literal("createdBefore"), timestamp: z.string().min(1) }).strict(),
   z.object({ type: z.literal("updatedAfter"), timestamp: z.string().min(1) }).strict(),
@@ -345,24 +382,36 @@ export const conditionSchema = z.discriminatedUnion("type", [
   /** The v1 Page block: the containing page is one of the picked nodes / matches the group. */
   z.object({ type: z.literal("pageOf"), nodeIds: z.array(uuid).min(1) }).strict(),
   z.object({ type: z.literal("pageOfQuery"), root: groupSchema }).strict(),
+  /** SELF Page: the containing page is the hosting page. */
+  z.object({ type: z.literal("pageOfSelf") }).strict(),
   z.object({ type: z.literal("pageSet") }).strict(),
   /** The v1 Parent path block: a strict ancestor is one of the picked nodes / matches the group. */
   z.object({ type: z.literal("ancestorIn"), nodeIds: z.array(uuid).min(1) }).strict(),
   z.object({ type: z.literal("ancestorInQuery"), root: groupSchema }).strict(),
+  /** SELF Parent path: a strict ancestor is the hosting page. */
+  z.object({ type: z.literal("ancestorInSelf") }).strict(),
   /** The root walk: the workspace-root ancestor is one of the picked nodes / matches the group. */
   z.object({ type: z.literal("rootIn"), nodeIds: z.array(uuid).min(1) }).strict(),
   z.object({ type: z.literal("rootInQuery"), root: groupSchema }).strict(),
+  /** SELF Root: the workspace-root ancestor is the hosting page. */
+  z.object({ type: z.literal("rootInSelf") }).strict(),
   /** v1's Parent block: the direct parent is one of the picked nodes / matches the group. */
   z.object({ type: z.literal("parentOf"), nodeIds: z.array(uuid).min(1) }).strict(),
   z.object({ type: z.literal("parentOfQuery"), root: groupSchema }).strict(),
+  /** SELF Parent: the direct parent is the hosting page. */
+  z.object({ type: z.literal("parentOfSelf") }).strict(),
   /** v1's Child block: a direct child is one of the picked nodes / matches the group. */
   z.object({ type: z.literal("childOf"), nodeIds: z.array(uuid).min(1) }).strict(),
   z.object({ type: z.literal("childOfQuery"), root: groupSchema }).strict(),
+  /** SELF Child: a direct child is the hosting page. */
+  z.object({ type: z.literal("childOfSelf") }).strict(),
   z.object({ type: z.literal("childSet") }).strict(),
   z.object({ type: z.literal("descendantSet") }).strict(),
   /** v1's Reference path block: the self-or-ancestor link rollup over the picked nodes. */
   z.object({ type: z.literal("referencePathOf"), nodeIds: z.array(uuid).min(1) }).strict(),
   z.object({ type: z.literal("referencePathOfQuery"), root: groupSchema }).strict(),
+  /** SELF Reference path: the rollup target is the hosting page. */
+  z.object({ type: z.literal("referencePathOfSelf") }).strict(),
   /** The content "is set" bit. */
   z.object({ type: z.literal("contentSet") }).strict(),
   /** Tag shapes (the OR-set tag_ids; a tag is any page). */
@@ -371,6 +420,8 @@ export const conditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("tagSet") }).strict(),
   /** DYNAMIC tags: tagged with ANY tag matching the nested group. */
   z.object({ type: z.literal("tagAnyQuery"), root: groupSchema }).strict(),
+  /** SELF tags: tagged with the hosting page itself. */
+  z.object({ type: z.literal("tagSelf") }).strict(),
   /** Node-target ANY-of + set shapes (the class operator set over links/parent). */
   z.object({ type: z.literal("linkedToAny"), nodeIds: z.array(uuid).min(1) }).strict(),
   z.object({ type: z.literal("linkSet") }).strict(),

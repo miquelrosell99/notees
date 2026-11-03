@@ -29,8 +29,11 @@
  *
  * The C4 note: the compiler once reserved a `currentNodeId` option for
  * node-relative scopes; that option was dead (the strict AST carries explicit
- * ids — "this page" is baked at write time by the builder) and is removed.
- * These placeholders are the only compile-context resolution the model has.
+ * ids — "this page" was baked at write time by the builder) and was removed —
+ * then re-introduced as `CompileOptions.selfNodeId` (2026-11-03) under the
+ * explicit `*Self` marker conditions, where the hosting page genuinely is a
+ * run-time quantity. See compiler.ts's CompileOptions.
+ * These placeholders are the only OTHER compile-context resolution the model has.
  */
 
 /** The supported placeholder tokens, in picker order. */

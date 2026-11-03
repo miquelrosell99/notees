@@ -1091,6 +1091,91 @@ describe.each(adapters)("$name", ({ makeStore }) => {
     });
   });
 
+  describe("self conditions (*Self family)", () => {
+    // The hosting page is FRANCE for most arms; the arms reduce to each
+    // family's single-anchor static form with CompileOptions.selfNodeId.
+    const selfTypes = [
+      "linkedToSelf",
+      "referencePathOfSelf",
+      "parentOfSelf",
+      "childOfSelf",
+      "descendantOfSelf",
+      "pageOfSelf",
+      "ancestorInSelf",
+      "rootInSelf",
+      "classSelf",
+      "tagSelf",
+    ] as const;
+
+    it("the strict schema parses every *Self marker", () => {
+      for (const type of selfTypes) {
+        const parsed = parseQueryAst(ast(entire, [{ type } as unknown as Child]));
+        expect(parsed.root.children).toEqual([{ type }]);
+      }
+    });
+
+    it("pageOfSelf: the containing page IS the hosting page (a page is its own page)", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "pageOfSelf" }]), { selfNodeId: FRANCE });
+      // Paris is its own page (main child), Paris block's page is Paris.
+      expect(ids.sort()).toEqual([FRANCE, FR_BLOCK, OUT_BLOCK].sort());
+    });
+
+    it("ancestorInSelf: a strict ancestor is the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "ancestorInSelf" }]), { selfNodeId: FRANCE });
+      expect(ids.sort()).toEqual([PARIS, PARIS_BLOCK, FR_BLOCK, OUT_BLOCK].sort());
+    });
+
+    it("rootInSelf: the workspace-root ancestor is the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "rootInSelf" }]), { selfNodeId: FRANCE });
+      expect(ids.sort()).toEqual([FRANCE, PARIS, FR_BLOCK, PARIS_BLOCK, OUT_BLOCK].sort());
+    });
+
+    it("parentOfSelf: the direct parent is the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "parentOfSelf" }]), { selfNodeId: FRANCE });
+      expect(ids.sort()).toEqual([PARIS, FR_BLOCK, OUT_BLOCK].sort());
+    });
+
+    it("childOfSelf: a direct child is the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "childOfSelf" }]), { selfNodeId: PARIS });
+      expect(ids).toEqual([FRANCE]);
+    });
+
+    it("descendantOfSelf: the row sits strictly inside the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "descendantOfSelf" }]), { selfNodeId: FRANCE });
+      expect(ids.sort()).toEqual([PARIS, FR_BLOCK, PARIS_BLOCK, OUT_BLOCK].sort());
+    });
+
+    it("linkedToSelf: the backlinksWithRollup membership of the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "linkedToSelf" }]), { selfNodeId: FRANCE });
+      // Identical membership to the static linkedTo(France): the outward
+      // containment roll-up (outBlock → Lone), intra-subtree edges excluded.
+      expect(ids).toEqual([OUT_BLOCK]);
+    });
+
+    it("referencePathOfSelf: the self-or-ancestor rollup over the hosting page", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "referencePathOfSelf" }]), { selfNodeId: FRANCE });
+      // Nobody links to France; France is a STRICT ancestor of its subtree.
+      expect(ids.sort()).toEqual([PARIS, FR_BLOCK, PARIS_BLOCK, OUT_BLOCK].sort());
+    });
+
+    it("classSelf: closure-aware membership of the hosting page as a class", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "classSelf" }]), { selfNodeId: PLACE });
+      // The Place closure is {Place, City} — the `class` arm over the self id.
+      expect(ids.sort()).toEqual([FRANCE, PARIS].sort());
+    });
+
+    it("tagSelf: tagged with the hosting page itself", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "tagSelf" }]), { selfNodeId: FRANCE });
+      expect(ids).toEqual([]);
+    });
+
+    it("every *Self arm fails loud without the hosting page", () => {
+      for (const type of selfTypes) {
+        expect(() => compile(ast(entire, [{ type } as unknown as Child])), type).toThrow(/selfNodeId/);
+      }
+    });
+  });
+
   describe("composition (and / or / not)", () => {
     it("and intersects", () => {
       const { ids } = runQuery(

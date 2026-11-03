@@ -15,15 +15,19 @@ forward-compatible) and `@notees/query` never imports the protocol.
 ```ts
 import { compile, runQuery, countQuery, matches, parseQueryAst } from "@notees/query";
 
-const { sql, params } = compile(ast, { currentNodeId? });   // { sql, params }
+const { sql, params } = compile(ast, { now?, selfNodeId? }); // { sql, params }
 const { ids, rows } = runQuery(store, ast, opts?);          // ids + full n.* rows
 const total = countQuery(store, ast, opts?);
 const hit = matches(store, nodeId, ast, opts?);
 const ast = parseQueryAst(token.queryAst);                  // fail-loud validation
 ```
 
-`currentNodeId` is reserved for future current-node-relative scopes; the
-original AST carries explicit ids. The compiler assumes a single-workspace store (no
+`selfNodeId` is the hosting page for the `*Self` marker conditions — each
+family's single-anchor static form with the host id supplied at compile time
+(the run site passes the page the query block/view sits on). A `*Self`
+condition compiling WITHOUT it throws — there is no honest reading of "self"
+without a host. `now` overrides the placeholder clock (tests pin it). The
+compiler assumes a single-workspace store (no
 workspace filter), matching the store's read helpers. Every query filters
 `n.is_active = 1`.
 
@@ -42,25 +46,26 @@ Conditions (the shipped subset, cleanly extensible by versioned addition):
 |---|---|
 | `class {classId}` | Members of the class **or any class extending it** (`class_hierarchy`, which includes the self-row) — closure MEMBERSHIP (the class among others). |
 | `classExact {classId}` | EXACT class-set equality (the Odoo "=" register): the set is exactly `{classId}`, nothing else — the closure does not apply. |
-| `classAny {classIds}` | ANY-of membership (Odoo "one of"): at least one picked class rides the set — closure-aware per id, like `class`. |
+| `classAny {classIds}` / `classAnyQuery {root}` / `classSelf` | ANY-of membership (Odoo "one of"): at least one picked class rides the set — closure-aware per id, like `class` / per the subquery's matching classes / of the hosting page used as a class. |
 | `classSet` | The class set is non-empty (Odoo "is set"). |
-| `pageOf {nodeIds}` / `pageOfQuery {root}` | v1's **Page** block: the **containing page** (nearest self-or-ancestor rendering with document chrome — a class, a parentless node whose classes do not effectively carry `parentlessRole "block"`, or an `is_embedded = 0` node; the parent-page condition is write-time impossible to violate) IS ONE OF the picked nodes / the subquery's matches. A page row reads its own page (picked, it matches itself). A block-role standalone node (the 2026-10-24 parentlessRole demote) has NO containing page — `pageOf` never matches it. |
+| `pageOf {nodeIds}` / `pageOfQuery {root}` / `pageOfSelf` | v1's **Page** block: the **containing page** (nearest self-or-ancestor rendering with document chrome — a class, a parentless node whose classes do not effectively carry `parentlessRole "block"`, or an `is_embedded = 0` node; the parent-page condition is write-time impossible to violate) IS ONE OF the picked nodes / the subquery's matches / the hosting page. A page row reads its own page (picked, it matches itself). A block-role standalone node (the 2026-10-24 parentlessRole demote) has NO containing page — `pageOf` never matches it. |
 | `pageSet` | The Page "is set" — the row lives inside a page (the containing page differs from the row itself). |
-| `ancestorIn {nodeIds}` / `ancestorInQuery {root}` | v1's **Parent path** block: some **strict ancestor** (the parent path, self excluded) is one of the picked nodes / matches the subquery. |
-| `rootIn {nodeIds}` / `rootInQuery {root}` | The **root** walk: the workspace-root ancestor (a parentless row is its own root) is one of the picked nodes / matches the subquery. |
-| `parentOf {nodeIds}` / `parentOfQuery {root}` | v1's **PARENT** block: the DIRECT parent (one hop up) is one of the picked nodes / matches the subquery. (The parentless NULL reads two-valued — the empty-parent test rides `parentSet`.) |
-| `childOf {nodeIds}` / `childOfQuery {root}` / `childSet` | v1's **CHILD** block: a DIRECT child is one of the picked nodes / matches the subquery / at least one direct child exists. |
+| `ancestorIn {nodeIds}` / `ancestorInQuery {root}` / `ancestorInSelf` | v1's **Parent path** block: some **strict ancestor** (the parent path, self excluded) is one of the picked nodes / matches the subquery / IS the hosting page. |
+| `rootIn {nodeIds}` / `rootInQuery {root}` / `rootInSelf` | The **root** walk: the workspace-root ancestor (a parentless row is its own root) is one of the picked nodes / matches the subquery / IS the hosting page. |
+| `parentOf {nodeIds}` / `parentOfQuery {root}` / `parentOfSelf` | v1's **PARENT** block: the DIRECT parent (one hop up) is one of the picked nodes / matches the subquery / IS the hosting page. (The parentless NULL reads two-valued — the empty-parent test rides `parentSet`.) |
+| `childOf {nodeIds}` / `childOfQuery {root}` / `childOfSelf` / `childSet` | v1's **CHILD** block: a DIRECT child is one of the picked nodes / matches the subquery / IS the hosting page / at least one direct child exists. |
+| `descendantOf {nodeId}` / `descendantOfQuery {root}` / `descendantOfSelf` | Ancestor-chain membership: the row sits strictly inside the anchor's tree — subtree membership minus the anchor itself (`descendantOfSelf`: the hosting page's tree). |
 | `descendantSet` | The CHILD PATH "is set" — at least one descendant exists at any depth below. |
-| `referencePathOf {nodeIds}` / `referencePathOfQuery {root}` | v1's **REFERENCE PATH** block: the row OR any of its ancestors links to one of the targets, OR a target is a STRICT ancestor of the row (v1 folded containment into the link rollup). |
+| `referencePathOf {nodeIds}` / `referencePathOfQuery {root}` / `referencePathOfSelf` | v1's **REFERENCE PATH** block: the row OR any of its ancestors links to one of the targets, OR a target is a STRICT ancestor of the row (v1 folded containment into the link rollup). |
 | `isClass {isClass}` | `node.is_class = 0/1` — the class identity bit (Revision 11). |
 | `isEmbedded {isEmbedded}` | `node.is_embedded = 0/1` — the embedding bit for parented non-class nodes (Revision 12: the Block role = embedded in the parent's body, the Page-role claim = standalone under a page-role parent). |
 | `content {op, value}` | `contains`: LIKE substring over the derived search plaintext (name + content tokens — the only derived plaintext; it lives in the FTS index). `fts`: prefix-AND `MATCH` over `search_index`. `eq`/`neq`: plaintext equality; `starts`/`ends`: edge-anchored LIKE — the Odoo text set. |
 | `contentSet` | The title/content plaintext is non-empty (the content "is set"). |
 | `name {op, value?}` | The **title** (title-is-content: the flattened content text, the sort-by-name expression — title-only, unlike `content`'s name+content plaintext). `contains`: LIKE substring (ASCII case-insensitive, the `content`-contains convention); `eq`/`neq`: exact case-sensitive comparisons (the `prop` `:=` convention — an untitled row matches neither, SQL NULL semantics); `exists`: the title is non-empty, COALESCE'd two-valued so the not-wrap reads "is untitled". |
-| `tag {tagId}` / `tagAny {tagIds}` / `tagSet` | Tag membership over the OR-set `tag_ids` (a tag is any page — no hierarchy): single, ANY-of, non-empty. |
+| `tag {tagId}` / `tagAny {tagIds}` / `tagAnyQuery {root}` / `tagSelf` / `tagSet` | Tag membership over the OR-set `tag_ids` (a tag is any page — no hierarchy): single, ANY-of, per the subquery's matching tags, with the hosting page itself, non-empty. |
 | `property {schemaId, op, value?, includeDefaults?}` | See below. `eq`, `neq`, `contains`, `exists`, `gt`, `gte`, `lt`, `lte`. |
 | `linkedTo {nodeId}` | `backlinksWithRollup` membership: a direct edge to the node, **or** an edge sourced strictly inside its subtree and targeting outside it (containment roll-up). |
-| `linkedToAny {nodeIds}` / `linkSet` | Rollup membership of ANY picked node (Odoo "one of") / at least one inbound link (the links "is set"). |
+| `linkedToAny {nodeIds}` / `linkedToQuery {root}` / `linkedToSelf` / `linkSet` | Rollup membership of ANY picked node (Odoo "one of") / of any subquery match / of the hosting page / at least one inbound link (the links "is set"). |
 | `descendantOfAny {nodeIds}` / `parentSet` | Subtree membership of ANY picked node, anchors excluded / the node has a parent at all (`parent_id IS NOT NULL`). |
 | `createdCmp / updatedCmp {op, timestamp}` | Odoo's date comparisons: `eq`/`neq` are DAY-granular (the whole resolved local day matches — tokens and plain dates resolve through the same boundary machinery); `gt`/`gte`/`lt`/`lte` compare the instant. |
 | `createdBetween / updatedBetween {from, to}` | The inclusive range: from day-start to to day-end. |
