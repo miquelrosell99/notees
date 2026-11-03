@@ -163,6 +163,7 @@ interface GraphPrefs {
 const FAMILY_LABELS: Array<{ key: GraphEdgeKind; label: string }> = [
   { key: "mention", label: "Mentions" },
   { key: "property", label: "Properties" },
+  { key: "tag", label: "Tags" },
   { key: "parent", label: "Parents" },
   { key: "class", label: "Classes" },
   { key: "semantic", label: "Semantic" },

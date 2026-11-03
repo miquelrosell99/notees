@@ -238,6 +238,20 @@ describe("PageView system sections", () => {
     expect(screen.queryByText("No unlinked mentions.")).toBeNull();
   });
 
+  it("a page tagged with the current page appears in its Backlinks section (tags are links)", async () => {
+    const client = await seedClient();
+    // The tag page itself is the backlink target: a source tagged with it
+    // links to it exactly like a content mention (the 2026-11-03 ruling).
+    const tagId = await client.createObject({ isEmbedded: false, name: "Periimplantitis" });
+    const sourceId = await client.createObject({ isEmbedded: false, name: "Tagged Source" });
+    await client.assignTag(sourceId, tagId);
+
+    render(<PageView client={client} pageId={tagId} />);
+    const header = await screen.findByRole("button", { name: "Backlinks" });
+    expect(header).not.toBeNull();
+    expect(await screen.findByText("Tagged Source")).not.toBeNull();
+  });
+
   it("Backlinks loads on mount; Unlinked mentions loads on its first expand and caches across a collapse/expand; mentions link, literal text does not", async () => {
     const client = await seedClient();
     const targetId = await client.createObject({ isEmbedded: false, name: "Zebra" });
