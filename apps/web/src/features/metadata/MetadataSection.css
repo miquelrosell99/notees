@@ -138,7 +138,7 @@ span.pill__text {
 
 .nt-properties-list > li {
   border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  padding: 6px 0;
+  padding: var(--spacing-1-5) 0;
   margin: 0;
 }
 
@@ -479,7 +479,7 @@ button.nt-property-value:focus-visible {
   display: block;
   flex: 1;
   min-width: 0;
-  padding: 2px 0;
+  padding: var(--spacing-micro) 0;
 }
 
 /* --- the single-value selection cell (node-typed / date properties) ------- */
@@ -502,7 +502,7 @@ button.nt-property-value:focus-visible {
   align-items: center;
   gap: var(--spacing-2);
   min-height: var(--height-sm);
-  padding: 2px var(--spacing-2);
+  padding: var(--spacing-micro) var(--spacing-2);
   border-radius: var(--shape-medium);
   cursor: pointer;
   color: var(--md-sys-color-on-surface);
@@ -618,7 +618,7 @@ button.nt-property-value:focus-visible {
 .nt-property-select:focus-within .nt-property-select__chevron,
 .nt-property-select:focus-within .nt-property-select__clear,
 .nt-property-select__nav:focus-visible {
-  max-width: 1.5rem;
+  max-width: var(--spacing-6);
   padding-inline: var(--spacing-1);
   margin-inline-start: var(--spacing-1);
   overflow: visible;
@@ -650,7 +650,7 @@ button.nt-property-value:focus-visible {
   flex-direction: column;
   flex: 1;
   min-width: 0;
-  gap: 2px;
+  gap: var(--spacing-micro);
 }
 
 .nt-property-textcell .nt-refblock-tree {
@@ -682,7 +682,7 @@ button.nt-property-value:focus-visible {
 /* Properties table look: aligned label column (rows are flex); class-derived
    (not yet realized) rows render muted so provenance is visible. */
 .node-metadata-row > .section-label:first-child {
-  flex: 0 0 140px;
+  flex: 0 0 var(--layout-size-md);
 }
 
 /* Vertical divider between the label column and the value column (Notion /
@@ -715,13 +715,13 @@ button.nt-property-value:focus-visible {
 
 .nt-add-property-popup {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--spacing-1));
   left: 0;
-  z-index: 70;
-  width: 280px;
+  z-index: var(--z-70);
+  width: var(--layout-size-6xl);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--spacing-1);
   padding: var(--spacing-2);
   background: var(--md-sys-color-surface-container-high);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
@@ -730,7 +730,7 @@ button.nt-property-value:focus-visible {
 }
 
 .nt-add-property-popup input {
-  padding: 6px 10px;
+  padding: var(--spacing-1-5) var(--spacing-2-5);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   background: var(--md-sys-color-surface);
   color: var(--md-sys-color-on-surface);
@@ -747,7 +747,7 @@ button.nt-property-value:focus-visible {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 200px;
+  max-height: var(--layout-size-2xl);
   overflow-y: auto;
 }
 
@@ -756,7 +756,7 @@ button.nt-property-value:focus-visible {
   display: flex;
   justify-content: space-between;
   gap: var(--spacing-2);
-  padding: 6px var(--spacing-2);
+  padding: var(--spacing-1-5) var(--spacing-2);
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
@@ -801,7 +801,7 @@ button.nt-property-value:focus-visible {
   border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   background: transparent;
   color: var(--md-sys-color-on-surface-variant);
-  padding: 6px var(--spacing-2);
+  padding: var(--spacing-1-5) var(--spacing-2);
   font-size: var(--font-size-sm);
   text-align: left;
 }
@@ -863,8 +863,8 @@ button.nt-property-value:focus-visible {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: var(--spacing-5-5);
+  height: var(--spacing-5-5);
   border-radius: var(--shape-small);
   background: var(--md-sys-color-surface-container-high);
   color: var(--md-sys-color-on-surface-variant);
@@ -1007,8 +1007,8 @@ button.nt-property-value:focus-visible {
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 22px;
-  height: 22px;
+  width: var(--spacing-5-5);
+  height: var(--spacing-5-5);
   padding: 0;
   border: none;
   background: transparent;

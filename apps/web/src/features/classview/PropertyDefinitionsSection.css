@@ -6,7 +6,7 @@
 .nt-propdefs-empty {
   color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-button);
-  padding: 4px 8px 4px 20px;
+  padding: var(--spacing-1) var(--spacing-2) var(--spacing-1) var(--spacing-5);
 }
 
 /* The row's fleet icon buttons carry the law-mandated 48px touch floor as
@@ -21,11 +21,11 @@
 
 .nt-propdefs-list {
   list-style: none;
-  margin: 0 0 8px;
+  margin: 0 0 var(--spacing-2);
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-micro);
   min-width: 0;
 }
 
@@ -36,7 +36,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
-  padding: 3px var(--spacing-2);
+  padding: var(--spacing-tiny) var(--spacing-2);
   border-radius: var(--shape-small);
   min-width: 0;
 }
@@ -75,7 +75,7 @@
   gap: var(--spacing-2);
   flex: 1 1 auto;
   min-width: 0;
-  padding: 2px var(--spacing-1);
+  padding: var(--spacing-micro) var(--spacing-1);
   border-radius: var(--shape-small);
   font: inherit;
   color: var(--md-sys-color-on-surface);
@@ -112,7 +112,7 @@
 
 .nt-propdef-picker {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--spacing-1));
   left: 0;
   right: 0;
   z-index: var(--z-dropdown);
@@ -144,7 +144,7 @@
   min-width: 0;
   border: none;
   background: transparent;
-  padding: 5px 8px;
+  padding: var(--spacing-xxs) var(--spacing-2);
   border-radius: var(--shape-small);
   font-size: var(--font-size-button);
   color: var(--md-sys-color-on-surface);
@@ -184,7 +184,7 @@
 }
 
 .nt-propdef-picker-empty {
-  padding: 5px 8px;
+  padding: var(--spacing-xxs) var(--spacing-2);
   font-size: var(--font-size-sm);
   color: var(--md-sys-color-on-surface-variant);
 }
@@ -194,7 +194,7 @@
   border: none;
   border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   background: transparent;
-  padding: 6px 8px;
+  padding: var(--spacing-1-5) var(--spacing-2);
   font-size: var(--font-size-sm);
   color: var(--md-sys-color-primary-hover);
   text-align: left;
@@ -221,7 +221,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
-  padding: 3px var(--spacing-2);
+  padding: var(--spacing-tiny) var(--spacing-2);
   border-radius: var(--shape-small);
   min-width: 0;
 }
@@ -237,7 +237,7 @@
   gap: var(--spacing-2);
   flex: 1 1 auto;
   min-width: 0;
-  padding: 2px var(--spacing-1);
+  padding: var(--spacing-micro) var(--spacing-1);
   border-radius: var(--shape-small);
   font: inherit;
   color: var(--md-sys-color-on-surface);

@@ -18,8 +18,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   padding: 0;
   border: none;
   background: transparent;
@@ -74,8 +74,8 @@
 
 /* The label-less tinted dot fallback for icon-less options. */
 .nt-propicon__dot {
-  width: 10px;
-  height: 10px;
+  width: var(--spacing-2-5);
+  height: var(--spacing-2-5);
   border-radius: var(--radius-full);
   background: var(--md-sys-color-on-surface-variant);
 }
