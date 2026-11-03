@@ -1048,24 +1048,26 @@ describe("outline list: rows with children collapse at the listCollapseLevel set
     );
     const ring = /\.nt-bullet-ring \{[^}]*\}/.exec(css);
     expect(ring).not.toBeNull();
-    // Two sizes, one style: the classic 16px halo on dot bullets…
-    expect(ring![0]).toContain("width: 16px");
-    expect(ring![0]).toContain("height: 16px");
+    // Two sizes, one style: the classic 16px halo on dot bullets (the
+    // token sweep keeps the computed size: --spacing-4 = 16px at the
+    // 16px root)…
+    expect(ring![0]).toContain("width: var(--spacing-4)");
+    expect(ring![0]).toContain("height: var(--spacing-4)");
     expect(ring![0]).toContain("background-color");
-    // …and the 28px circle on class-icon bullets (the halo that hides
-    // behind the solid glyph without it) — a SIZE variant only, never
-    // the retired border/outline treatment.
+    // …and the 28px circle on class-icon bullets (--spacing-7 = 28px) —
+    // the halo that hides behind the solid glyph without it — a SIZE
+    // variant only, never the retired border/outline treatment.
     const iconRing = /\.nt-bullet:has\(\.nt-bullet-icon\) \.nt-bullet-ring \{[^}]*\}/.exec(css);
     expect(iconRing).not.toBeNull();
-    expect(iconRing![0]).toContain("width: 28px");
+    expect(iconRing![0]).toContain("width: var(--spacing-7)");
     expect(iconRing![0]).not.toContain("border");
     const bullet = /\.nt-bullet \{[^}]*\}/.exec(css);
     expect(bullet).not.toBeNull();
-    expect(bullet![0]).toContain("width: 22px");
-    expect(bullet![0]).toContain("height: 22px");
+    expect(bullet![0]).toContain("width: var(--spacing-5-5)");
+    expect(bullet![0]).toContain("height: var(--spacing-5-5)");
     const dot = /\.nt-bullet-dot \{[^}]*\}/.exec(css);
     expect(dot).not.toBeNull();
-    expect(dot![0]).toContain("width: 6px");
+    expect(dot![0]).toContain("width: var(--spacing-1-5)");
     // The wrapper is layout, not indicator chrome: a flex item whose
     // height sets the row height — growing it inflated every row.
     expect(bullet![0]).not.toContain("46px");
