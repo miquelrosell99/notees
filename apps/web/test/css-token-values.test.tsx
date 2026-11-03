@@ -24,8 +24,8 @@ const { createHash, readFileSync, join } = (() => {
 const css = readFileSync(join(process.cwd(), "src", "ui", "variables.css"), "utf8");
 
 const declarations = [...css.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;{}]+);/gi)].map((m) => [
-  m[1],
-  m[2].trim(),
+  m[1]!,
+  m[2]!.trim(),
 ] as const);
 
 const once = new Map<string, string>();
