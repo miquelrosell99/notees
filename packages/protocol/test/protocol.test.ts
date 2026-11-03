@@ -9,6 +9,7 @@ import {
   contentAstSchema,
   envelopeSchema,
   extractTypedLinkMarks,
+  isEncryptedPayload,
   KNOWN_OP_TYPES,
   newEnvelope,
   objectUpdatePayload,
@@ -16,12 +17,14 @@ import {
   PROTOCOL_VERSION,
   trashEmptyPayload,
 } from "../src/index.js";
+import { b64uDecode, decryptEnvelope, importWorkspaceKey } from "../src/crypto.js";
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures");
 
 interface FixtureFile {
   name: string;
   envelopes: Record<string, unknown>[];
+  crypto?: { workspaceKey: string };
 }
 
 function loadFixtures(): FixtureFile[] {
@@ -35,14 +38,20 @@ function loadFixtures(): FixtureFile[] {
       const envelopes = Array.isArray(raw.envelopes)
         ? (raw.envelopes as Record<string, unknown>[])
         : [raw];
-      return { name, envelopes };
+      return {
+        name,
+        envelopes,
+        ...(raw.crypto !== undefined
+          ? { crypto: raw.crypto as { workspaceKey: string } }
+          : {}),
+      };
     });
 }
 
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the forty-eight required fixtures", () => {
+  it("has exactly the forty-nine required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "card-review.json",
@@ -60,6 +69,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "class-unassign.json",
       "code-block.json",
       "embed-ref-view.json",
+      "envelope-encrypted.json",
       "envelope-minimal.json",
       "external-ref.json",
       "heading-content.json",
@@ -105,13 +115,24 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
           expect(parsed.success, JSON.stringify(parsed.error?.issues, null, 2)).toBe(true);
         });
 
-        it(`envelope ${i} has a known opType and a valid payload`, () => {
+        it(`envelope ${i} has a known opType and a valid payload`, async () => {
           const opType = raw.opType as string;
           expect(KNOWN_OP_TYPES).toContain(opType);
           const schema = payloadSchemaFor(opType);
           expect(schema).toBeDefined();
-          const parsed = schema!.safeParse(raw.payload);
-          expect(parsed.success, JSON.stringify(parsed.error?.issues, null, 2)).toBe(true);
+          if (isEncryptedPayload(raw.payload)) {
+            // E2EE payloads are opaque on the wire: assert the slot shape, then prove
+            // the fixture's key opens a payload that DOES satisfy the op schema
+            // (the lockstep contract for GTK/Flutter decrypt-and-replay).
+            const cryptoBlock = (fixture as { crypto?: { workspaceKey: string } }).crypto;
+            expect(cryptoBlock, `${fixture.name} carries its workspace key`).toBeDefined();
+            const key = await importWorkspaceKey(b64uDecode(cryptoBlock!.workspaceKey));
+            const opened = await decryptEnvelope(key, envelopeSchema.parse(raw));
+            expect(schema!.safeParse(opened.payload).success, JSON.stringify(schema!.safeParse(opened.payload).error?.issues, null, 2)).toBe(true);
+          } else {
+            const parsed = schema!.safeParse(raw.payload);
+            expect(parsed.success, JSON.stringify(parsed.error?.issues, null, 2)).toBe(true);
+          }
         });
       }
     });
