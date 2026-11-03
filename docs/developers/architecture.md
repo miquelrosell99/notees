@@ -78,7 +78,7 @@ content.
   state, which is exactly what the store's own tests assert
   (`packages/store/test/store.test.ts`).
 
-**Shipped (2026-11-03):** the E2EE slot and client crypto primitives (`@notees/protocol` `crypto.ts`: scrypt KDF record, key wrap, envelope/snapshot sealing) plus the optional `EnvelopeCrypto` boundary in `@notees/sync`. **Designed, not shipped:** key custody in clients (unwrapping at login, workspace-key storage), which is what turns the boundary on for real workspaces; encryption is opt-in until then.
+**Shipped (2026-11-03):** the E2EE slot and client crypto primitives (`@notees/protocol` `crypto.ts`: scrypt KDF record, key wrap, envelope/snapshot sealing), the optional `EnvelopeCrypto` boundary in `@notees/sync`, and — same day — key custody for the web client: the server stores one opaque wrapped key per workspace (`workspace_key` table + member-scoped GET/PUT routes, key existence never revealed), the client derives the account master key at login (wrong password fails loud) and ensures a wrapped workspace key per workspace (fetch-or-create), raw keys live in memory only and ride the worker init message into the engine boundary. **Seed shim:** the server seeds only KEYLESS workspaces; an empty keyed workspace is seeded client-side (the shared `@notees/domain` `buildSystemSeedEnvelopes`, stamped per side) and pushed sealed. **Designed, not shipped:** the unlock re-prompt — a reloaded session without a password re-open opens keyed workspaces keyless (plaintext writes, legal in the mixed log) with a console warning; offline/keyless workspaces stay plaintext until history migration. GTK/Flutter/CLI keep working via the keyless-seed shim.
 
 ## 3. The derived store — wipe, replay, identical
 
