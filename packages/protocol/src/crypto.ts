@@ -15,13 +15,23 @@ import { isEncryptedPayload, type Envelope } from "./envelope.js";
 
 // WebCrypto type names (CryptoKey, KeyUsage, BufferSource) are ambient in the
 // DOM lib, but this package compiles against lib ES2022 + @types/node 20,
-// which keeps them under the `webcrypto` namespace only. Derive them from the
-// already-declared global `crypto` so the module stays runtime-agnostic
-// (browser + Node) with no `node:crypto` import.
-type Subtle = typeof crypto.subtle;
-type CryptoKey = Awaited<ReturnType<Subtle["importKey"]>>;
-type KeyUsage = Parameters<Subtle["importKey"]>[4][number];
-type BufferSource = Parameters<Subtle["importKey"]>[1];
+// which keeps them under the `webcrypto` namespace only. CryptoKey derives
+// from the declared global `crypto` (same Promise<CryptoKey> return under
+// both lib regimes); KeyUsage and BufferSource are the fixed WebIDL
+// definitions, spelled out so the module compiles identically with and
+// without the DOM lib (web consumers read this source via the development
+// condition). No `node:crypto` import — the module stays runtime-agnostic.
+type CryptoKey = Awaited<ReturnType<typeof crypto.subtle.importKey>>;
+type KeyUsage =
+  | "encrypt"
+  | "decrypt"
+  | "sign"
+  | "verify"
+  | "deriveKey"
+  | "deriveBits"
+  | "wrapKey"
+  | "unwrapKey";
+type BufferSource = ArrayBufferView<ArrayBuffer> | ArrayBuffer;
 
 export const SCRYPT_PARAMS = { N: 131072, r: 8, p: 1 } as const;
 

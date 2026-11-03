@@ -49,6 +49,7 @@ import {
   rememberedWorkspaceList,
 } from "@/core/workspace-registry.js";
 import { logout } from "@/core/auth-api.js";
+import { clearCryptoCustody } from "@/core/crypto-custody.js";
 
 import { titleOfNode } from "./dateDisplay.js";
 import { parentlessBlockResolverOf } from "./renderStateLabel.js";
@@ -735,6 +736,7 @@ export function App() {
     }
     clearStored(STORAGE_KEYS.sessionToken);
     clearStored(STORAGE_KEYS.apiKey);
+    clearCryptoCustody();
     setToken("");
     setUser(null);
     closeClient();
@@ -748,6 +750,7 @@ export function App() {
    * the same-origin guess.
    */
   function handleForgetServer() {
+    clearCryptoCustody();
     clearStored(STORAGE_KEYS.serverUrl);
     clearStored(STORAGE_KEYS.sessionToken);
     clearStored(STORAGE_KEYS.apiKey);
