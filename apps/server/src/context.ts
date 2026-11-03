@@ -207,6 +207,15 @@ export class ServerContext {
 
   /** First-open seeding of a workspace (system classes/properties/pages). */
   ensureSeeded(workspaceId: string): Promise<SeedResult> {
+    // E2EE seed shim: a workspace with a workspace_key row is CLIENT-seeded
+    // (the client stamps the system seeds from its own device and pushes
+    // them, encrypted, through the boundary). The server must never write
+    // plaintext seeds into a keyed workspace — the gate is the row itself,
+    // checked before isEmpty. Keyless workspaces keep the server shim that
+    // GTK/Flutter/CLI rely on.
+    if (this.auth.getWorkspaceKey(workspaceId) !== undefined) {
+      return Promise.resolve({ seededCount: 0 });
+    }
     if (this.seededWorkspaces.has(workspaceId)) {
       return Promise.resolve({ seededCount: 0 });
     }
