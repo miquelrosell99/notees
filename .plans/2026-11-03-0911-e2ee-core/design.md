@@ -4,11 +4,13 @@ Date: 2026-11-03. Status: approved design (section-by-section with the owner), p
 
 ## Context and intent
 
-Notees is local-first: the op log is the only authority, every store is a derived projection. The hosted-sync monetization program (hosted relay at `notees.rosellramos.es` + Stripe, Tauri deferred) requires the privacy claim to be real before strangers' notes land on our server. Today the relay reads everything: envelopes are validated, persisted, applied to the server-side derived store, and served via search/query/shares.
+Notees is local-first: the op log is the only authority, every store is a derived projection. The hosted-sync monetization program (hosted relay at `notees.rosellramos.es` + Open Collective donation-gating, Tauri deferred) requires the privacy claim to be real before strangers' notes land on our server. Today the relay reads everything: envelopes are validated, persisted, applied to the server-side derived store, and served via search/query/shares.
 
 **Intent (owner-approved):** ship end-to-end encryption as core infrastructure, *encrypted-only* (no plaintext mode), so the hosted offering can truthfully say "we cannot read your notes". Self-hosting stays free, first-class, and billing-agnostic forever.
 
-**Program direction (recorded, designed later):** E2EE core → hosted web + public relay (paid hosted, free self-host; Stripe commission-only; 14-day trial) → web split → (deferred) Tauri. Each phase gets its own design + plan cycle. The parked-decision un-park condition for Tauri (a concrete non-Linux desktop requirement) is noted but not acted on here.
+**Program direction (recorded, designed later):** E2EE core → hosted web + public relay (paid hosted, free self-host; Open Collective donation-gating — see the monetization decision below) → web split → (deferred) Tauri. Each phase gets its own design + plan cycle. The parked-decision un-park condition for Tauri (a concrete non-Linux desktop requirement) is noted but not acted on here.
+
+**Monetization decision (owner, amended 2026-11-03 after investigation):** the Logseq model replaces the earlier Stripe plan. Hosted sync is gated on an *active* Open Collective donation of ≥ $5/month (Logseq's $5/$15 tiers are the precedent), identity matched by account email (Notees already logs in with email+password — no account changes needed), verified by a cached server-side poll of the OC API (~1h propagation, à la Logseq). Rationale: zero payment code / PCI / VAT-registration burden in our stack (OC's fiscal host handles the money plumbing at ~10% fee — comparable to Stripe's cut once VAT duties are priced in), perfect fit with "paid hosted, free self-host" (sync is a supporter perk, not a paywalled feature), and strong community optics for a privacy-first FOSS product. Costs accepted: self-serve churn (poll revokes, plus a grace period), donate-then-wait onboarding friction (no in-app card, no trials), and ~10% fiscal-host fee. Launch prerequisites recorded: apply for a `notees` collective under a fiscal host (manual approval — start early), the backer-check poll + `user.backer_until` stamp + sync/bootstrap authorization check, and a documented revocation grace period. Self-hosted instances: nothing — no billing code ever ships to them.
 
 ## Goals
 
@@ -31,8 +33,8 @@ Notees is local-first: the op log is the only authority, every store is a derive
 |---|---|
 | E2EE scope | Encrypted-only; every workspace encrypted, no plaintext mode |
 | Public shares | Key-in-fragment: encrypted artifact + viewer, key in URL `#fragment` |
-| Self-host | Hard constraint: billing is deployment-level; clients never know about Stripe; self-hosted instances unchanged (env-gated signup) |
-| Monetization | Paid hosted + free self-host; Stripe; ~14-day trial; no perpetual free tier |
+| Self-host | Hard constraint: billing is deployment-level; clients never know about billing; self-hosted instances unchanged (env-gated signup) |
+| Monetization | Paid hosted + free self-host, via **Open Collective donation-gating** (Logseq model): active ≥$5/mo recurring donation, email-match identity, cached server poll; replaces the earlier Stripe plan (see Context — Monetization decision); revocation grace period TBD at hosted-launch planning |
 | Workflow rules | Evaluation moves client-side (against each client's local derived store) |
 
 ## Threat model / plaintext surface
