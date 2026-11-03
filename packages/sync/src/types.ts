@@ -13,11 +13,6 @@ import type { Envelope, Hlc } from "@notees/protocol";
 import type { BatchChangeInfo } from "./change-info.js";
 import type { SyncConflict } from "./conflicts.js";
 
-// WebCrypto's CryptoKey is ambient in the DOM lib but not under @types/node 20
-// (this package compiles against lib ES2022, no DOM) — derive it from the
-// already-declared global `crypto` so the module stays runtime-agnostic.
-type CryptoKey = Awaited<ReturnType<typeof crypto.subtle.importKey>>;
-
 export type SyncStatus = "idle" | "syncing" | "error";
 
 // --- transport contract (WIRE.md) ------------------------------------------------
