@@ -21,6 +21,7 @@ import {
   type AccountUser,
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
+import { clearCryptoCustody, deriveMasterKey } from "@/core/crypto-custody.js";
 import { rememberWorkspaceList } from "@/core/workspace-registry.js";
 import { STORAGE_KEYS, clearStored, readStored, writeStored } from "./storage.js";
 import type { WorkspaceConnection } from "./useWorkspaceConnection.js";
@@ -107,6 +108,9 @@ export function useAuthFlow({ conn, serverUrl, setServerUrl, setHint, setWorkspa
         password,
         displayName: displayName.trim() || undefined,
       });
+      // E2EE custody: unwrap the master key BEFORE entering — a wrong
+      // password throws at the verifier and must abort entry (Review Focus 2).
+      await deriveMasterKey(password, response.kdf);
       await enterWorkspaces(serverUrl, response.token, response.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -118,6 +122,7 @@ export function useAuthFlow({ conn, serverUrl, setServerUrl, setHint, setWorkspa
     setError(null);
     try {
       const response = await login(serverUrl, { email: email.trim(), password });
+      await deriveMasterKey(password, response.kdf);
       await enterWorkspaces(serverUrl, response.token, response.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -133,6 +138,7 @@ export function useAuthFlow({ conn, serverUrl, setServerUrl, setHint, setWorkspa
     }
     try {
       const response = await signup(serverUrl, { email: email.trim(), password });
+      await deriveMasterKey(password, response.kdf);
       await enterWorkspaces(serverUrl, response.token, response.user);
     } catch (err) {
       // A 404 here means the server closed signups after the client probed it
@@ -153,6 +159,10 @@ export function useAuthFlow({ conn, serverUrl, setServerUrl, setHint, setWorkspa
       return;
     }
     try {
+      // API-key sign-in has no password and therefore no key custody: drop
+      // any previous account's master key + workspace keys (the session is
+      // keyless — plaintext until a password sign-in).
+      clearCryptoCustody();
       // Validating against /workspaces also proves the key: a user API key
       // authenticates as its owner (routes-auth requireUser). No silent
       // same-host fallback (never re-route without an

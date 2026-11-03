@@ -23,6 +23,7 @@ import {
   listWorkspaces,
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
+import { clearCryptoCustody } from "@/core/crypto-custody.js";
 import { rememberedWorkspaceName, rememberWorkspaceList } from "@/core/workspace-registry.js";
 import { STORAGE_KEYS, clearStored, readStored, writeStored } from "./storage.js";
 import type { CredentialType } from "./store-connection.js";
@@ -129,6 +130,7 @@ export function useBootFlow(
           ) {
             clearStored(STORAGE_KEYS.sessionToken);
             clearStored(STORAGE_KEYS.apiKey);
+            clearCryptoCustody();
             auth.setToken("");
             setPhase({ name: "server" });
             return;
