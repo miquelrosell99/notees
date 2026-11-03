@@ -18,7 +18,7 @@ import {
   type KdfRecord,
 } from "@notees/protocol";
 
-import { fetchWorkspaceKey, storeWorkspaceKey } from "./auth-api.js";
+import { fetchWorkspaceKey, storeWorkspaceKey, AuthRequestError } from "./auth-api.js";
 
 /** Opaque handle on the account master key (one per session). */
 export interface MasterKeyHandle {
@@ -28,6 +28,10 @@ export interface MasterKeyHandle {
 let masterKeySlot: MasterKeyHandle | null = null;
 /** Raw workspace keys, in memory only, keyed by workspace id. */
 const workspaceKeyCache = new Map<string, CryptoKey>();
+/** In-flight ensure flights, keyed by workspace id: concurrent first-opens
+ * share ONE flight (first write wins server-side, so they converge on the
+ * same key instead of racing two PUTs). */
+const inFlightEnsures = new Map<string, Promise<Uint8Array>>();
 
 /**
  * Unwrap the account master key from the login kdf record. Throws at the
@@ -50,9 +54,11 @@ export function currentMasterKey(): MasterKeyHandle | null {
 
 /**
  * The workspace's raw 32-byte key: fetch + unwrap when the server holds a
- * wrapped key; generate + wrap + store when keyless (404). Throws a clear
- * error when the stored key does not open under this master key (a key
- * wrapped for a different account password).
+ * wrapped key; generate + wrap + store when keyless (404). Concurrent calls
+ * for the same workspace share one flight. A PUT rejected with 409 (first
+ * write wins — a concurrent device stored its key first) re-fetches the
+ * winner's key and unwraps THAT; a stored key that does not open under this
+ * master is a real error state (thrown, never silently degraded).
  */
 export async function ensureWorkspaceKey(
   serverUrl: string,
@@ -62,23 +68,60 @@ export async function ensureWorkspaceKey(
 ): Promise<Uint8Array> {
   const cached = workspaceKeyCache.get(workspaceId);
   if (cached !== undefined) return exportWorkspaceKey(cached);
+  const shared = inFlightEnsures.get(workspaceId);
+  if (shared !== undefined) return shared;
+  const flight = ensureWorkspaceKeyFlight(serverUrl, token, workspaceId, master).finally(() => {
+    inFlightEnsures.delete(workspaceId);
+  });
+  inFlightEnsures.set(workspaceId, flight);
+  return flight;
+}
 
+async function ensureWorkspaceKeyFlight(
+  serverUrl: string,
+  token: string,
+  workspaceId: string,
+  master: MasterKeyHandle,
+): Promise<Uint8Array> {
   const wrapped = await fetchWorkspaceKey(serverUrl, token, workspaceId);
   let workspaceKey: CryptoKey;
   if (wrapped === undefined) {
     workspaceKey = await generateWorkspaceKey();
-    await storeWorkspaceKey(serverUrl, token, workspaceId, await wrapWorkspaceKey(master.key, workspaceKey));
-  } else {
     try {
-      workspaceKey = await unwrapWorkspaceKey(master.key, wrapped);
-    } catch {
-      throw new Error(
-        "wrong master key for this workspace: the stored key was wrapped for a different account password",
+      await storeWorkspaceKey(
+        serverUrl,
+        token,
+        workspaceId,
+        await wrapWorkspaceKey(master.key, workspaceKey),
       );
+    } catch (error) {
+      // First write wins: 409 means a concurrent device stored its key
+      // first — adopt the winner's key instead of splitting the workspace.
+      if (error instanceof AuthRequestError && error.status === 409) {
+        const winner = await fetchWorkspaceKey(serverUrl, token, workspaceId);
+        if (winner === undefined) {
+          throw new Error("workspace key disappeared between the 409 and the re-fetch");
+        }
+        workspaceKey = await unwrapOrWrongMaster(master, winner);
+      } else {
+        throw error;
+      }
     }
+  } else {
+    workspaceKey = await unwrapOrWrongMaster(master, wrapped);
   }
   workspaceKeyCache.set(workspaceId, workspaceKey);
   return exportWorkspaceKey(workspaceKey);
+}
+
+async function unwrapOrWrongMaster(master: MasterKeyHandle, wrapped: string): Promise<CryptoKey> {
+  try {
+    return await unwrapWorkspaceKey(master.key, wrapped);
+  } catch {
+    throw new Error(
+      "wrong master key for this workspace: the stored key was wrapped for a different account password",
+    );
+  }
 }
 
 /** Drop the raw workspace keys (keeps the master key — a per-workspace refresh). */

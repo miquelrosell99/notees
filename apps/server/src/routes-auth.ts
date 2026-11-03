@@ -727,6 +727,14 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid workspace key request");
     }
+    // First write wins: an existing row is NEVER overwritten. Two devices
+    // opening a never-keyed workspace concurrently both GET 404 and race
+    // their PUTs — the loser must learn it lost (409), fetch the winner's
+    // wrapped key, and unwrap THAT (a blind upsert here would permanently
+    // split the workspace's keys).
+    if (ctx.auth.getWorkspaceKey(id) !== undefined) {
+      throw new AppError(409, "conflict", "a workspace key already exists; fetch and unwrap it instead");
+    }
     ctx.auth.putWorkspaceKey(id, parsed.data.wrappedKey);
     reply.code(204);
     return reply.send();

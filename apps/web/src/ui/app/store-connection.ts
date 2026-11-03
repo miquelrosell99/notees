@@ -14,6 +14,7 @@ import sqliteWasmUrl from "@sqlite.org/sqlite-wasm/sqlite3.wasm?url";
 
 import { WorkspaceClient } from "@/core/workspace-client/index.js";
 import {
+  clearWorkspaceKeys,
   currentMasterKey,
   ensureWorkspaceKey,
 } from "@/core/crypto-custody.js";
@@ -22,7 +23,7 @@ import { WorkerClient } from "@/core/worker-client.js";
 import { markLocalWorkspaceCopy } from "@/core/workspace-registry.js";
 import { settingsSectionFromPath } from "../../features/settings/SettingsPage.js";
 import { navFromPath } from "./routing.js";
-import { STORAGE_KEYS, clearStored, writeStored } from "./storage.js";
+import { STORAGE_KEYS, clearStored, readStored, writeStored } from "./storage.js";
 import { detectStoreMode, type StoreMode } from "./storeMode.js";
 import type { AnyClient } from "./clients.js";
 
@@ -56,6 +57,15 @@ export async function openStoreConnection(
   workspaceId: string,
   options: ConnectOptions,
 ): Promise<ConnectOutcome> {
+  // Workspace switch: drop the previous workspace's raw keys from the
+  // in-memory cache (the master key stays). The per-workspace cache would
+  // otherwise hold keys for every workspace opened this session; on a switch
+  // the old keys are dead weight and a same-workspace re-open re-derives
+  // them from the wrapped row anyway.
+  const previousWorkspaceId = readStored(STORAGE_KEYS.workspaceId);
+  if (previousWorkspaceId !== "" && previousWorkspaceId !== workspaceId) {
+    clearWorkspaceKeys();
+  }
   writeStored(STORAGE_KEYS.serverUrl, url);
   writeStored(STORAGE_KEYS.workspaceId, workspaceId);
   // E2EE custody: hand the workspace key to the client when this session can

@@ -161,4 +161,50 @@ describe("workspace-key routes", () => {
     });
     expect(oversized.statusCode).toBe(422);
   });
+
+  it("first write wins: a second PUT is rejected with 409 and the stored key is untouched", async () => {
+    server = await makeTestServer();
+    const { token } = await setupUser();
+    const workspaceId = await createWorkspace(token);
+    const headers = { authorization: `Bearer ${token}` };
+
+    const first = await server.app.inject({
+      method: "PUT",
+      url: `/api/workspaces/${workspaceId}/key`,
+      headers,
+      payload: { wrappedKey: "wrapped-key-A" },
+    });
+    expect(first.statusCode).toBe(204);
+
+    const second = await server.app.inject({
+      method: "PUT",
+      url: `/api/workspaces/${workspaceId}/key`,
+      headers,
+      payload: { wrappedKey: "wrapped-key-B" },
+    });
+    expect(second.statusCode).toBe(409);
+
+    const get = await server.app.inject({
+      method: "GET",
+      url: `/api/workspaces/${workspaceId}/key`,
+      headers,
+    });
+    expect(get.statusCode).toBe(200);
+    expect(get.json()).toEqual({ wrappedKey: "wrapped-key-A" });
+  });
+
+  it("non-member PUT with an invalid body is rejected 403 BEFORE body validation (no existence/validity leak)", async () => {
+    server = await makeTestServer();
+    const { token } = await setupUser();
+    const workspaceId = await createWorkspace(token);
+    const outsider = createSecondUser();
+
+    const response = await server.app.inject({
+      method: "PUT",
+      url: `/api/workspaces/${workspaceId}/key`,
+      headers: { authorization: `Bearer ${outsider.token}` },
+      payload: {},
+    });
+    expect(response.statusCode).toBe(403);
+  });
 });
