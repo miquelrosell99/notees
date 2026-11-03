@@ -77,14 +77,14 @@
 
 /* Revealed chevron: tuck -1px against the undo button so the pair reads as
    a split button; --height-md matches the sibling icon buttons; the 18px
-   width is the icon canvas (fixed px: the glyph metric — the height tokens
-   would resize the icon). */
+   width is the icon canvas (the spacing-4-5 step — the glyph metric, the
+   height tokens would resize the icon). */
 .nt-topbar-undo:hover .nt-topbar-undo__chevron.ui-hover-reveal,
 .nt-topbar-undo__chevron.ui-hover-reveal:focus-visible,
 .nt-topbar-undo__chevron.ui-hover-reveal[aria-expanded="true"] {
-  width: 18px;
+  width: var(--spacing-4-5);
   height: var(--height-md);
-  margin-left: -1px;
+  margin-left: calc(-1 * var(--border-width-default));
   opacity: var(--opacity-100);
 }
 
@@ -103,7 +103,7 @@
    stretch the left section. */
 .nt-topbar-left .workspace-switcher {
   width: auto;
-  max-width: 12rem;
+  max-width: 12rem; /* token-gate: constant workspace-switcher label cap ruling — sizes to its label in the top bar, not a scale step */
 }
 
 .nt-topbar-spacer {

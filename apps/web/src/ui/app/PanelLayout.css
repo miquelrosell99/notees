@@ -6,7 +6,7 @@
 /* --- page ------------------------------------------------------------------- */
 
 .nt-page {
-  max-width: 46rem;
+  max-width: 46rem; /* token-gate: constant prose measure cap ruling — the journal text measure, not a scale step */
   margin: 0 auto;
   padding: var(--spacing-10) var(--spacing-6) var(--spacing-10);
   display: flex;
@@ -135,7 +135,7 @@
 .nt-nodeview-body {
   flex: 0 0 auto;
   width: 100%;
-  max-width: 46rem;
+  max-width: 46rem; /* token-gate: constant prose measure cap ruling — the journal text measure, not a scale step */
   margin-inline: auto;
   padding-inline: var(--spacing-6);
 }
@@ -253,7 +253,7 @@
   position: absolute;
   top: var(--spacing-4);
   right: var(--spacing-4);
-  z-index: 1;
+  z-index: var(--z-1);
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
@@ -269,7 +269,7 @@
   position: absolute;
   top: var(--spacing-4);
   left: var(--spacing-4);
-  z-index: 1;
+  z-index: var(--z-1);
 }
 
 .nt-page-classes-corner .nt-classes-row {

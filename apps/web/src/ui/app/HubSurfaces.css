@@ -31,8 +31,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--height-xs);
+  height: var(--height-xs);
   padding: 0;
   border: none;
   border-radius: var(--shape-small);
@@ -56,8 +56,8 @@
   width: calc(100% - var(--spacing-1));
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding: 3px var(--spacing-1);
+  gap: var(--spacing-tiny);
+  padding: var(--spacing-tiny) var(--spacing-1);
   margin: var(--spacing-2) var(--spacing-1) var(--spacing-1);
   border: none;
   border-radius: var(--shape-small);
@@ -86,9 +86,9 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: var(--spacing-tiny);
   margin-top: var(--spacing-2);
-  padding: 4px var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
@@ -107,7 +107,7 @@
 
 .nt-ws-offline {
   flex: 1;
-  padding: 6px var(--spacing-2);
+  padding: var(--spacing-1-5) var(--spacing-2);
   font-weight: 600;
   font-size: var(--font-size-button);
   letter-spacing: 0.05em;

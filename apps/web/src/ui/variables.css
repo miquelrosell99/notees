@@ -202,6 +202,12 @@
   --height-xl: 46px;
   --height-2xl: 56px;
 
+  /* ==================== App-shell widths ==================== */
+  /* Role-named chrome widths: the docked sidebar and its mobile drawer
+     (the <=768px overlay). Named by role, not pixel. */
+  --width-sidebar: 260px;
+  --width-sidebar-drawer: 280px;
+
   /* Button text heights (slightly taller than the base scale for comfortable vertical padding) */
   --height-button-xs: 26px;
   --height-button-sm: 30px;
@@ -433,6 +439,8 @@
   /* The universal reduced-motion kill (app.css blanket): near-zero but
      non-zero so animation/transition events still fire. */
   --motion-duration-reduced-motion: 0.01ms;
+  /* Sync-badge corner pulse (Sidebar.css nt-sync-pulse) */
+  --motion-duration-sync-pulse: 1.2s;
   --motion-easing-standard: cubic-bezier(0.645, 0.045, 0.355, 1);
   --motion-easing-emphasized: cubic-bezier(0.645, 0.045, 0.355, 1);
   --motion-easing-decelerate: cubic-bezier(0, 0, 0, 1);
@@ -513,6 +521,7 @@
   --z-20: 20;
   --z-30: 30;
   --z-50: 50;
+  --z-60: 60;
   --z-100: 100;
   --z-1000: 1000;
   --z-9998: 9998;
