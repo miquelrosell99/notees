@@ -24,7 +24,12 @@ import {
   type KdfRecord,
 } from "../src/crypto.js";
 
-const nodeScrypt = promisify(scryptCallback);
+const nodeScrypt = promisify(scryptCallback) as (
+  password: string,
+  salt: Uint8Array,
+  keylen: number,
+  options: { N: number; r: number; p: number; maxmem: number },
+) => Promise<Buffer>;
 
 describe("b64u", () => {
   it("round-trips and uses unpadded url-safe alphabet", () => {
@@ -162,7 +167,7 @@ describe("server-format interop (golden vector)", () => {
       p: 1,
       maxmem: 256 * 1024 * 1024,
     });
-    const cipher = createCipheriv("aes-256-gcm", derived, iv);
+    const cipher = createCipheriv("aes-256-gcm", derived, Buffer.from(iv));
     const ct = Buffer.concat([cipher.update(Buffer.from(masterBytes)), cipher.final()]);
     const tag = cipher.getAuthTag();
     const record: KdfRecord = {
