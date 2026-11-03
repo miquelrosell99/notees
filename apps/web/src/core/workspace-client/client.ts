@@ -115,6 +115,8 @@ export class WorkspaceClient {
     apiKey: string;
     workspaceId: string;
     sqlJsConfig?: Parameters<typeof initSqlJs>[0];
+    /** Raw 32-byte workspace key (E2EE); absent → plaintext passthrough. */
+    workspaceKey?: Uint8Array;
   }): Promise<WorkspaceClient> {
     const transport = new HttpTransport({
       baseUrl: options.serverUrl,
@@ -126,6 +128,7 @@ export class WorkspaceClient {
       serverUrl: options.serverUrl,
       apiKey: options.apiKey,
       sqlJsConfig: options.sqlJsConfig,
+      ...(options.workspaceKey !== undefined ? { workspaceKey: options.workspaceKey } : {}),
     });
   }
 

@@ -59,6 +59,12 @@ export class ClientContext {
   readonly actorId: string;
   readonly deviceId: string;
   readonly clientClaim: string | undefined;
+  /**
+   * Raw 32-byte workspace key for the E2EE boundary, or null when keyless.
+   * Imported to a CryptoKey at bootstrap (the only SyncEngine construction
+   * site); never persisted.
+   */
+  readonly workspaceKey: Uint8Array | null;
   readonly userOnConflict: ((conflicts: SyncConflict[]) => void) | undefined;
   readonly userOnSyncError: ((error: Error) => void) | undefined;
   readonly clock: Clock;
@@ -120,6 +126,7 @@ export class ClientContext {
     this.actorId = options.actorId ?? DEFAULT_ACTOR_ID;
     this.deviceId = options.deviceId ?? "web";
     this.clientClaim = options.client;
+    this.workspaceKey = options.workspaceKey ?? null;
     this.userOnConflict = options.onConflict;
     this.userOnSyncError = options.onSyncError;
     this.clock = new Clock(this.deviceId);

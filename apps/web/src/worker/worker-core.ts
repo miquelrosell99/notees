@@ -95,6 +95,8 @@ export interface WorkerInitMessage {
   apiKey: string;
   /** Offline-first mode: no server calls at all; edits stay on the device. */
   offline?: boolean;
+  /** Raw 32-byte workspace key (E2EE); absent → plaintext passthrough. */
+  workspaceKey?: Uint8Array;
 }
 
 export interface WorkerRequestMessage {
@@ -272,6 +274,8 @@ export interface WorkerCoreOptions {
    */
   serverUrl?: string;
   apiKey?: string;
+  /** Raw 32-byte workspace key (E2EE); absent → plaintext passthrough. */
+  workspaceKey?: Uint8Array;
   /** Persist debounce after mutations; defaults to 500 ms. */
   debounceMs?: number;
   /** Notification coalescing window; defaults to 50 ms. */
@@ -354,6 +358,7 @@ export class WorkerCore {
       ...(options.deviceId !== undefined ? { deviceId: options.deviceId } : {}),
       ...(options.serverUrl !== undefined ? { serverUrl: options.serverUrl } : {}),
       ...(options.apiKey !== undefined ? { apiKey: options.apiKey } : {}),
+      ...(options.workspaceKey !== undefined ? { workspaceKey: options.workspaceKey } : {}),
       ...(options.onConflict !== undefined ? { onConflict: options.onConflict } : {}),
       ...(options.onSyncError !== undefined ? { onSyncError: options.onSyncError } : {}),
     });
