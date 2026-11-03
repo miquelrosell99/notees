@@ -50,18 +50,18 @@ const OTHER_PAGE = "0192b000-0000-7000-8000-0000000000b2";
 
 /** A minimal valid QueryAST v1 (flat AND root, workspace scope). */
 const AST = {
-  version: 1,
+  version: 2,
   scope: { type: "entire_workspace" },
   root: { type: "group", logic: "and", children: [] },
 };
 
 const AST_WITH_CONDITION = {
-  version: 1,
+  version: 2,
   scope: { type: "entire_workspace" },
   root: {
     type: "group",
     logic: "and",
-    children: [{ type: "isClass", isClass: false }],
+    children: [{ type: "nodeField", field: "isClass", op: "eq", value: "false" }],
   },
 };
 

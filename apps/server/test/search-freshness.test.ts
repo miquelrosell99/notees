@@ -46,7 +46,7 @@ function api(method: string, url: string, options: { payload?: unknown; headers?
 
 function ast(children: Child[]): QueryAst {
   return {
-    version: 1,
+    version: 2,
     scope: { type: "entire_workspace" },
     root: { type: "group", logic: "and", children },
   };

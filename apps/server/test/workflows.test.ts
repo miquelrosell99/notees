@@ -52,7 +52,7 @@ function api(method: string, url: string, options: { payload?: unknown; headers?
 
 function ast(children: Child[]): QueryAst {
   return {
-    version: 1,
+    version: 2,
     scope: { type: "entire_workspace" },
     root: { type: "group", logic: "and", children },
   };
@@ -73,7 +73,7 @@ function ruleBody(overrides: Partial<RuleBody> = {}): RuleBody {
   return {
     name: "flag papers",
     trigger: { opType: "object.create" },
-    criteria: ast([{ type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article }]),
+    criteria: ast([{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [SYSTEM_CLASS_UUIDS.journal_article] } }]),
     actions: [{ type: "property.set", propertySchemaId: PLACEHOLDER_SCHEMA_ID, value: "review" }],
     ...overrides,
   };
@@ -185,7 +185,7 @@ describe("workflow engine (issue #13)", () => {
       payload: ruleBody({
         name: "paper means academic",
         trigger: { opType: "class.assign" },
-        criteria: ast([{ type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article }]),
+        criteria: ast([{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [SYSTEM_CLASS_UUIDS.journal_article] } }]),
         actions: [{ type: "class.assign", classId: SYSTEM_CLASS_UUIDS.book }],
       }),
     });
@@ -432,7 +432,7 @@ describe("workflow routes (issue #13)", () => {
   it("validates fail-loud (422): unknown trigger, broken/aggregated criteria, bad actions, unknown keys", async () => {
     server = await makeTestServer();
     const aggregationCriteria = {
-      ...ast([{ type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article }]),
+      ...ast([{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [SYSTEM_CLASS_UUIDS.journal_article] } }]),
       aggregation: { dimensions: [], measures: [{ function: "count", kind: "node" }] },
     };
     const bad: Array<[string, unknown]> = [

@@ -112,7 +112,7 @@ export interface WorkspaceListEntry {
 
 /**
  * One hosted custom view (a node's custom tab). queryAst is the serialized
- * QueryAST v1 (parsed back to `unknown` — the server validates at the route,
+ * QueryAST v2 (parsed back to `unknown` — the server validates at the route,
  * the client parses at resolution). Views are node-scoped: shared by every
  * user of the deployment, no per-user key, no stored view mode.
  */
@@ -240,7 +240,7 @@ CREATE TABLE IF NOT EXISTS user_prefs (
 -- cross-device UI state on the prefs channel, never op-log state, but
 -- node-scoped rather than per-user. One row per custom tab; the default
 -- view is derived-not-stored (the schema cannot express it: emptying the
--- table restores factory behavior). query_ast is the serialized QueryAST v1
+-- table restores factory behavior). query_ast is the serialized QueryAST v2
 -- the FilterBuilderModal produces (validated at the route against the zod
 -- schema); there is deliberately no view_mode column (view modes are
 -- transient surface state, not stored). sequence is the dense 0..n-1 tab
