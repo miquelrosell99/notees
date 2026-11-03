@@ -17,12 +17,13 @@
  *
  * Allowlist (exhaustive — a deviation not on this list fails):
  *   - 0px and 1px (hairlines)
- *   - 48px in min-width/min-height/min-block-size/min-inline-size
- *     (the 48px touch-floor ruling)
+ *   - 48px inside a min-width/min-height/min-block-size/min-inline-size
+ *     declaration (the 48px touch-floor ruling; declaration-scoped, not
+ *     line-scoped)
  *   - px inside an @media condition (custom properties are not allowed
  *     there by CSS)
  *   - a line carrying /* token-gate: constant <reason> *\/ — reserved for
- *     JS-contract dimensions; the reason is mandatory
+ *     JS-contract dimensions; the reason is mandatory (enforced)
  *
  * The token definition file (ui/variables.css) is never scanned.
  * Exit 0 = clean, exit 1 = drift (file:line report + summary).
@@ -31,12 +32,22 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const OPT_OUT_RE = /\/\*\s*token-gate:\s*constant\b/;
+const OPT_OUT_RE = /\/\*\s*token-gate:\s*constant\s+\w+/;
 const MEDIA_RE = /@media[^{]*\{/g;
 const TOKEN_SOURCE = join('apps', 'web', 'src', 'ui', 'variables.css');
 const MIN_PROPS = ['min-width', 'min-height', 'min-block-size', 'min-inline-size'];
 
 const stripComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, (m) => ' '.repeat(m.length));
+
+// Declaration context of a match: the text from the nearest '{', ';', or '}'
+// boundary up to idx; the declaration's property name opens it, if present.
+const declPropAt = (line, idx) => {
+  const before = line.slice(0, idx);
+  const boundary = Math.max(before.lastIndexOf('{'), before.lastIndexOf(';'), before.lastIndexOf('}'));
+  const prop = line.slice(boundary + 1, idx).match(/^\s*([a-z-]+)\s*:/i);
+  return prop ? prop[1].toLowerCase() : null;
+};
+const minDeclAt = (line, idx) => MIN_PROPS.includes(declPropAt(line, idx));
 
 export function scanCss(rawContent) {
   const rawLines = rawContent.split('\n');
@@ -54,30 +65,37 @@ export function scanCss(rawContent) {
     const trimmed = line.trim();
     if (trimmed === '' || trimmed.startsWith('@')) continue; // @import/@keyframes names etc.
 
-    // COLOR
-    for (const m of line.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {
+    // COLOR — a #hex is a color VALUE only in declaration context: a ':'
+    // must precede it on the line (id selectors, attribute values, and
+    // keyframe names carry no preceding colon and are suppressed).
+    for (const m of line.matchAll(/#[0-9a-fA-F]{3,8}\b/gi)) {
+      if (!line.slice(0, m.index).includes(':')) continue;
       violations.push({ line: lineNo, kind: 'COLOR', match: m[0] });
     }
-    for (const m of line.matchAll(/\brgba?\([^)]*\)/g)) {
+    for (const m of line.matchAll(/\brgba?\([^)]*\)/gi)) {
       violations.push({ line: lineNo, kind: 'COLOR', match: m[0] });
     }
-    // MOTION
-    for (const m of line.matchAll(/(?<![-\w.])(\d+(?:\.\d+)?)(ms|s)\b/g)) {
+    // MOTION (units are case-insensitive in CSS — PX/REM/MS flag too)
+    for (const m of line.matchAll(/(?<![-\w.])(\d+(?:\.\d+)?)(ms|s)\b/gi)) {
       violations.push({ line: lineNo, kind: 'MOTION', match: m[0] });
     }
     for (const m of line.matchAll(/cubic-bezier\([^)]*\)/g)) {
       violations.push({ line: lineNo, kind: 'MOTION', match: m[0] });
     }
-    // PX (allowlist: 0px, 1px, 48px on a min-* line, media conditions already blanked)
-    const inMinProp = MIN_PROPS.some((p) => line.includes(`${p}:`));
-    for (const m of line.matchAll(/(?<![-\w.])(-?\d+(?:\.\d+)?)px\b/g)) {
+    // PX (allowlist: 0px, 1px, 48px in a min-* declaration, media conditions already blanked)
+    for (const m of line.matchAll(/(?<![-\w.])(-?\d+(?:\.\d+)?)px\b/gi)) {
       const px = parseFloat(m[0]);
       if (px === 0 || px === 1) continue;
-      if (px === 48 && inMinProp) continue;
+      // The 48px exemption is declaration-scoped: the match is exempt only
+      // when the declaration it sits in — the text back to the nearest '{',
+      // ';', or '}' — opens with a min-* property; a 48px in any other
+      // declaration on the same line still flags.
+      if (px === 48 && minDeclAt(line, m.index)) continue;
       violations.push({ line: lineNo, kind: 'PX', match: m[0] });
     }
-    // REM (all hardcoded rem duplicates a scale step or needs an opt-out)
-    for (const m of line.matchAll(/(?<![-\w.])(\d+(?:\.\d+)?)rem\b/g)) {
+    // REM (all hardcoded rem duplicates a scale step or needs an opt-out;
+    // negative rem drifts exactly like negative px)
+    for (const m of line.matchAll(/(?<![-\w.])(-?\d+(?:\.\d+)?)rem\b/gi)) {
       violations.push({ line: lineNo, kind: 'REM', match: m[0] });
     }
     // Z
