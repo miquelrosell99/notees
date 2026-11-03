@@ -5,10 +5,10 @@
 
 .history-popup {
   position: fixed;
-  z-index: 80;
-  min-width: 240px;
-  max-width: 340px;
-  max-height: 320px;
+  z-index: var(--z-80);
+  min-width: 240px; /* token-gate: constant history-popup menu min-width ruling — one-off popup width, not a scale step */
+  max-width: 340px; /* token-gate: constant history-popup menu max-width ruling — one-off popup width, not a scale step */
+  max-height: 320px; /* token-gate: constant history-popup menu max-height ruling — one-off popup height, not a scale step */
   overflow-y: auto;
   display: flex;
   flex-direction: column;

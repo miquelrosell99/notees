@@ -95,7 +95,7 @@
 
 /* Editable reference trees: same block chrome as the editor. */
 .nt-refblock-tree {
-  padding: 2px var(--spacing-2) 2px 0;
+  padding: var(--spacing-micro) var(--spacing-2) var(--spacing-micro) 0;
 }
 
 /* The unlinked-references action pair: quiet icon buttons that
@@ -104,7 +104,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
-  margin-top: 2px;
+  margin-top: var(--spacing-micro);
   vertical-align: middle;
 }
 
