@@ -439,8 +439,10 @@
   /* The universal reduced-motion kill (app.css blanket): near-zero but
      non-zero so animation/transition events still fire. */
   --motion-duration-reduced-motion: 0.01ms;
-  /* Sync-badge corner pulse (Sidebar.css nt-sync-pulse) */
-  --motion-duration-sync-pulse: 1.2s;
+  /* Accent pulse (1.2s) — role-neutral: the Sidebar sync badge
+     (nt-sync-pulse) and the calendar today marker (today-accent-pulse)
+     share it. */
+  --motion-duration-pulse: 1.2s;
   /* Cover pending-placeholder pulse (CardsView.css node-card-cover-pulse) */
   --motion-duration-cover-pulse: 1.6s;
   --motion-easing-standard: cubic-bezier(0.645, 0.045, 0.355, 1);
@@ -710,10 +712,12 @@
   /* ==================== Responsive Breakpoints ==================== */
 
   /* CSS custom properties cannot be used in media queries, so breakpoint
-     values are hardcoded at each @media site (480 / 768 / 1024); these
-     tokens are the single JS-read values — overlay positioning in
-     components/ui/overlay-hooks.ts — and must stay in sync with the media
-     queries. */
+     values are hardcoded at each @media site (480 / 768 / 1024). Only the
+     tablet token has a JS reader — overlay positioning in
+     components/ui/overlay-hooks.ts — and it must stay in sync with the
+     media queries. The phone/desktop tokens are DOCUMENTATION-ONLY: they
+     record the trio in one place; no code may read them until a consumer
+     ships (a reader must then be added here, as the tablet one is). */
   --breakpoint-tablet: 768px;
   --breakpoint-phone: 480px;
   --breakpoint-desktop: 1024px;

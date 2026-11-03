@@ -345,7 +345,7 @@
 
 .nt-profile-sync--syncing {
   background: var(--md-sys-color-primary);
-  animation: nt-sync-pulse var(--motion-duration-sync-pulse) var(--motion-easing-standard) infinite;
+  animation: nt-sync-pulse var(--motion-duration-pulse) var(--motion-easing-standard) infinite;
 }
 
 .nt-profile-sync--backlog {
