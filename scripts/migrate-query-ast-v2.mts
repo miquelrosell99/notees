@@ -41,6 +41,8 @@
  *   pnpm --filter @notees/server exec tsx ../../scripts/migrate-query-ast-v2.mts \
  *     --data-dir ../../config/notees/sync --apply                  # rewrite (backs up first)
  *   ... --workspace <uuid>        # restrict the rewrite + epoch bump to one workspace
+ *                                   (node_view rows are GLOBAL — if any carries a v1 AST,
+ *                                   a --workspace run refuses to apply; use --all)
  *   ... --db <path>               # override the relay file directly (precedent style)
  *   ... --force                   # re-run past the marker (fresh backup first)
  *
@@ -49,12 +51,33 @@
 
 import { copyFileSync, existsSync, readdirSync, unlinkSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 // The script lives outside the server package, so bare specifiers do not
 // resolve from here — go through the server's dependency (the same
 // better-sqlite3 build the relay storage uses), mirroring
-// migrate-is-embedded.mts.
-import Database from "../apps/server/node_modules/better-sqlite3/lib/index.js";
+// migrate-is-embedded.mts. The deep import carries no type declarations (the
+// script runs under tsx); the slice the migration uses is typed locally.
+// @ts-expect-error — the deep import carries no type declarations (the
+// script runs under tsx); the slice the migration uses is typed locally.
+import DatabaseImport from "../apps/server/node_modules/better-sqlite3/lib/index.js";
+
+type Db = {
+  prepare: (sql: string) => {
+    get: (...params: unknown[]) => unknown;
+    all: (...params: unknown[]) => unknown;
+    run: (...params: unknown[]) => unknown;
+  };
+  exec: (sql: string) => void;
+  pragma: (pragma: string, options?: { simple?: boolean }) => unknown;
+  transaction: <T extends (...args: never[]) => unknown>(fn: T) => T;
+  close: () => void;
+};
+
+const Database = DatabaseImport as unknown as new (
+  path: string,
+  options?: { readonly?: boolean },
+) => Db;
 
 import {
   envelopeSchema,
@@ -69,8 +92,6 @@ import {
   QueryAstV1MapError,
 } from "./lib/map-query-ast-v1-v2.ts";
 
-type Db = InstanceType<typeof Database>;
-
 const MARKER_KEY = "query_ast_v2_migration_v1";
 const AST_OPS = new Set(["object.create", "object.update"]);
 
@@ -84,7 +105,7 @@ function parseArgs(argv: string[]): {
   force: boolean;
   workspace: string | null;
 } {
-  const args: Record<string, string | boolean> = {};
+  const args: Record<string, string | boolean | null> = {};
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]!;
     if (arg === "--dry-run") args.apply = false;
@@ -169,6 +190,23 @@ function dispositionOf(rawAst: unknown): AstDisposition {
 }
 
 /**
+ * The strict v2 re-parse of a mapped token (review guard): the query token's
+ * queryAst rides a LOOSE record union in the content grammar, so envelope
+ * validation alone would admit a hypothetical mapper bug emitting an invalid
+ * v2 shape — it would persist and fail at read time on every client. Every
+ * mapped AST re-parses against the strict v2 schema HERE, before the
+ * envelope-level validation, failing loud with the token path.
+ */
+export function assertRewrittenAstValid(mapped: unknown, where: string): void {
+  const checked = safeParseQueryAst(mapped);
+  if (!checked.success) {
+    throw new Error(
+      `${where}: mapped v1→v2 AST fails the strict v2 schema: ${checked.error.issues[0]?.message ?? "invalid"}`,
+    );
+  }
+}
+
+/**
  * Rewrite the v1 query ASTs inside one parsed contentAst (any carrier the
  * loose union accepted). Returns the NEW value when something changed, else
  * the original. `where` names the envelope (id + path) for fail-loud notes.
@@ -188,6 +226,7 @@ function rewriteContentAst(
     const tokenWhere = `${where} contentAst[${index}].queryAst`;
     switch (disposition.kind) {
       case "v1":
+        assertRewrittenAstValid(disposition.mapped, tokenWhere);
         stats.v1Tokens += 1;
         changed = true;
         return { ...token, queryAst: disposition.mapped };
@@ -427,6 +466,20 @@ function main(): void {
         const disposition = dispositionOf(raw);
         const label = `node_view ${row.id} (node ${row.node_id})`;
         if (disposition.kind === "v1") {
+          if (options.workspace !== null) {
+            // node_view rows are GLOBAL (the table has no workspace column)
+            // yet carry per-workspace ASTs: a --workspace run that rewrote
+            // them while other workspaces' envelopes stay v1 would open a
+            // mixed v1/v2 window the flag promises against. Fail loud; the
+            // dry run reports the same as a scan note.
+            const note =
+              `${label} carries a v1 AST but node_view rows are global (no workspace column) — ` +
+              "a --workspace run cannot rewrite them without a mixed v1/v2 window. " +
+              "Re-run with --all (or drop --workspace) so every workspace converges in one pass.";
+            if (options.apply) throw new Error(note);
+            serverNotes.push(note);
+            continue;
+          }
           trialCompile(label, disposition.mapped);
           serverPlans.push({ table: "node_view", id: row.id, workspaceId: null, value: JSON.stringify(disposition.mapped) });
         } else if (disposition.kind === "error") {
@@ -619,9 +672,13 @@ function main(): void {
   }
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`migrate-query-ast-v2: ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(1);
+const invokedDirectly =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (invokedDirectly) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`migrate-query-ast-v2: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
 }
