@@ -800,7 +800,7 @@ export function parseRdfDate(value: string): { iso: string; precision: "year" | 
   // above, so "01/2022" keeps month precision.
   const numericDay = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(text);
   if (numericDay !== null) {
-    const iso = `${numericDay[3]}-${numericDay[2].padStart(2, "0")}-${numericDay[1].padStart(2, "0")}`;
+    const iso = `${numericDay[3]}-${numericDay[2]!.padStart(2, "0")}-${numericDay[1]!.padStart(2, "0")}`;
     try {
       parseIsoDate(iso);
     } catch {
