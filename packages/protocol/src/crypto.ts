@@ -10,7 +10,8 @@
 import { hmac } from "@noble/hashes/hmac";
 import { scrypt } from "@noble/hashes/scrypt";
 import { sha256 } from "@noble/hashes/sha2";
-import { utf8ToBytes } from "@noble/hashes/utils";
+import { bytesToUtf8, utf8ToBytes } from "@noble/hashes/utils";
+import { isEncryptedPayload, type Envelope } from "./envelope.js";
 
 // WebCrypto type names (CryptoKey, KeyUsage, BufferSource) are ambient in the
 // DOM lib, but this package compiles against lib ES2022 + @types/node 20,
@@ -82,6 +83,14 @@ function ivTagCtToSealed(raw: Uint8Array): { iv: Uint8Array; sealed: Uint8Array 
   sealed.set(ct, 0);
   sealed.set(tag, ct.length);
   return { iv, sealed };
+}
+
+/** Plain two-part concat (the payload slot's ct field is tag ‖ ct, no iv). */
+function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
 }
 
 /**
@@ -197,4 +206,94 @@ export async function unwrapWorkspaceKey(
     true,
     ["encrypt", "decrypt"],
   );
+}
+
+// --- envelope payload encryption (the {"$e": {iv, ct}} slot) -------------------------
+
+export interface EncryptedPayloadSlot {
+  $e: { iv: string; ct: string };
+}
+
+/** GCM AAD binds ciphertext to its envelope: `${id}.${workspaceId}`. */
+export function envelopeAad(envelope: { id: string; workspaceId: string }): string {
+  return `${envelope.id}.${envelope.workspaceId}`;
+}
+
+export async function encryptPayload(
+  workspaceKey: CryptoKey,
+  aad: string,
+  payload: Record<string, unknown>,
+): Promise<EncryptedPayloadSlot> {
+  const iv = randomBytes(12);
+  const sealed = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: iv as BufferSource, additionalData: utf8ToBytes(aad) as BufferSource },
+      workspaceKey,
+      utf8ToBytes(JSON.stringify(payload)) as BufferSource,
+    ),
+  );
+  const { ct, tag } = splitCtTag(sealed);
+  return { $e: { iv: b64uEncode(iv), ct: b64uEncode(concatBytes(tag, ct)) } };
+}
+
+export async function decryptPayload(
+  workspaceKey: CryptoKey,
+  aad: string,
+  slot: EncryptedPayloadSlot,
+): Promise<Record<string, unknown>> {
+  const iv = b64uDecode(slot.$e.iv);
+  const raw = b64uDecode(slot.$e.ct);
+  const tag = raw.slice(0, 16);
+  const ct = raw.slice(16);
+  const sealed = concatBytes(ct, tag); // WebCrypto expects ct ‖ tag
+  const plain = new Uint8Array(
+    await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: iv as BufferSource, additionalData: utf8ToBytes(aad) as BufferSource },
+      workspaceKey,
+      sealed as BufferSource,
+    ),
+  );
+  return JSON.parse(bytesToUtf8(plain)) as Record<string, unknown>;
+}
+
+/** Seal an envelope's payload; every other field (id, HLC, …) is preserved. */
+export async function encryptEnvelope(workspaceKey: CryptoKey, envelope: Envelope): Promise<Envelope> {
+  const slot = await encryptPayload(workspaceKey, envelopeAad(envelope), envelope.payload as Record<string, unknown>);
+  return { ...envelope, payload: slot };
+}
+
+/** Open an envelope's payload; plaintext envelopes pass through unchanged. */
+export async function decryptEnvelope(workspaceKey: CryptoKey, envelope: Envelope): Promise<Envelope> {
+  if (!isEncryptedPayload(envelope.payload)) return envelope;
+  const payload = await decryptPayload(workspaceKey, envelopeAad(envelope), envelope.payload);
+  return { ...envelope, payload };
+}
+
+// --- byte encryption (snapshot blobs) --------------------------------------------------
+
+export async function encryptBytes(workspaceKey: CryptoKey, bytes: Uint8Array): Promise<Uint8Array> {
+  const iv = randomBytes(12);
+  const sealed = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource }, workspaceKey, bytes as BufferSource),
+  );
+  const { ct, tag } = splitCtTag(sealed);
+  return joinIvTagCt(iv, tag, ct); // iv ‖ tag ‖ ct
+}
+
+export async function decryptBytes(workspaceKey: CryptoKey, bytes: Uint8Array): Promise<Uint8Array> {
+  const { iv, sealed } = ivTagCtToSealed(bytes); // wire tag ‖ ct → WebCrypto ct ‖ tag
+  return new Uint8Array(
+    await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv as BufferSource }, workspaceKey, sealed as BufferSource),
+  );
+}
+
+export function importWorkspaceKey(raw: Uint8Array): Promise<CryptoKey> {
+  return crypto.subtle.importKey("raw", raw as BufferSource, { name: "AES-GCM", length: 256 }, true, [
+    "encrypt",
+    "decrypt",
+  ]);
+}
+
+export function exportWorkspaceKey(workspaceKey: CryptoKey): Promise<Uint8Array> {
+  return crypto.subtle.exportKey("raw", workspaceKey).then((buf) => new Uint8Array(buf));
 }
