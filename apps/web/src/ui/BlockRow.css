@@ -66,9 +66,13 @@
 }
 
 .nt-block-row {
+  /* The inter-item gap as a named source: the hidden collapsed-count badge
+     cancels it with a negative margin (see .nt-block-collapsed-count), and
+     both sides must read ONE value or the cancellation drifts. */
+  --nt-row-gap: var(--spacing-2);
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--nt-row-gap);
   padding: 2px 0;
   /* Room for the hover-revealed collapse chevron, which sits in this gutter
      (absolute, left of the bullet) so bullets stay aligned at every level.
@@ -249,8 +253,9 @@
   /* Cancels the row flex gap the zero-width wrapper would otherwise still
      earn between itself and the content: at rest the collapsed row's text
      then aligns exactly with an uncollapsed sibling's; on hover the reveal
-     pushes the text right by exactly the pill's grown width. */
-  margin-inline-end: -8px;
+     pushes the text right by exactly the pill's grown width. Reads the row's
+     own --nt-row-gap so the two sides can never drift apart. */
+  margin-inline-end: calc(-1 * var(--nt-row-gap, 0.5rem));
   opacity: 0;
   transform: translateX(-4px) translateY(-2px);
   transition:
