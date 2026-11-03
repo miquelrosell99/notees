@@ -514,7 +514,7 @@ export async function encryptPayload(
     ),
   );
   const { ct, tag } = splitCtTag(sealed);
-  return { $e: { iv: b64uEncode(iv), ct: b64uEncode(joinIvTagCt(tag, ct)) } };
+  return { $e: { iv: b64uEncode(iv), ct: b64uEncode(concatBytes(tag, ct)) } };
 }
 
 export async function decryptPayload(
@@ -526,7 +526,7 @@ export async function decryptPayload(
   const raw = b64uDecode(slot.$e.ct);
   const tag = raw.slice(0, 16);
   const ct = raw.slice(16);
-  const sealed = joinIvTagCt(ct, tag); // WebCrypto expects ct ‖ tag
+  const sealed = concatBytes(ct, tag); // WebCrypto expects ct ‖ tag
   const plain = new Uint8Array(
     await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: iv as BufferSource, additionalData: utf8ToBytes(aad) as BufferSource },
@@ -557,12 +557,12 @@ export async function encryptBytes(workspaceKey: CryptoKey, bytes: Uint8Array): 
   const sealed = new Uint8Array(
     await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource }, workspaceKey, bytes as BufferSource),
   );
-  return joinIvTagCt(iv, sealed); // iv ‖ tag ‖ ct
+  const { ct, tag } = splitCtTag(sealed);
+  return joinIvTagCt(iv, tag, ct); // iv ‖ tag ‖ ct
 }
 
 export async function decryptBytes(workspaceKey: CryptoKey, bytes: Uint8Array): Promise<Uint8Array> {
-  const iv = bytes.slice(0, 12);
-  const sealed = bytes.slice(12); // tag ‖ ct — already the WebCrypto layout
+  const { iv, sealed } = ivTagCtToSealed(bytes); // wire tag ‖ ct → WebCrypto ct ‖ tag
   return new Uint8Array(
     await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv as BufferSource }, workspaceKey, sealed as BufferSource),
   );
@@ -580,7 +580,7 @@ export function exportWorkspaceKey(workspaceKey: CryptoKey): Promise<Uint8Array>
 }
 ```
 
-Move the `import { isEncryptedPayload, type Envelope } from "./envelope.js";` to the top of the file with the other imports (keep one import block; the plan shows it inline for placement clarity).
+Move the `import { isEncryptedPayload, type Envelope } from "./envelope.js";` to the top of the file with the other imports (keep one import block; the plan shows it inline for placement clarity). Task 1's `joinIvTagCt` takes `(iv, tag, ct)`, so the plain two-part concats here use a small private `concatBytes(a, b)` helper (payload-slot ct field is `tag ‖ ct`; the pre-unwrap seal is `ct ‖ tag`), and `decryptBytes` reorders via the Task-1 `ivTagCtToSealed` helper — the wire layout is `iv ‖ tag ‖ ct` everywhere.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
