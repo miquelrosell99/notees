@@ -254,7 +254,7 @@ export function buildSeedEnvelopes(): Envelope[] {
         {
           type: "query",
           queryAst: {
-            version: 1,
+            version: 2,
             scope: { type: "entire_workspace" },
             root: {
               type: "group",
@@ -266,12 +266,19 @@ export function buildSeedEnvelopes(): Envelope[] {
         {
           type: "query",
           queryAst: {
-            version: 1,
+            version: 2,
             scope: { type: "entire_workspace" },
             root: {
               type: "group",
               logic: "and",
-              children: [{ type: "class", classId: SOURCE_ID }],
+              children: [
+                {
+                  type: "member",
+                  family: "class",
+                  op: "in",
+                  target: { mode: "ids", ids: [SOURCE_ID] },
+                },
+              ],
             },
           },
         },
@@ -284,13 +291,20 @@ export function buildSeedEnvelopes(): Envelope[] {
         {
           type: "query",
           queryAst: {
-            version: 1,
+            version: 2,
             type: "saved_query",
             id: "8b000000-0000-4000-8000-000000000001",
             root_group: {
               type: "group",
               logic: "and",
-              children: [{ type: "class", classId: SOURCE_ID }],
+              children: [
+                {
+                  type: "member",
+                  family: "class",
+                  op: "in",
+                  target: { mode: "ids", ids: [SOURCE_ID] },
+                },
+              ],
             },
           },
         },

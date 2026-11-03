@@ -88,14 +88,14 @@ function normalizeSectionKey(sectionKey: string): string {
   return sectionKey === EMPTY_SECTION_SENTINEL ? "" : sectionKey;
 }
 
-/** query_ast must be a valid QueryAST v1 — the same parse the client's resolution runs. */
+/** query_ast must be a valid QueryAST v2 — the same parse the client's resolution runs. */
 function parseStoredAst(raw: unknown): unknown {
   const parsed = queryAstSchema.safeParse(raw);
   if (!parsed.success) {
     throw new AppError(
       422,
       "validation_failed",
-      `queryAst is not a valid QueryAST v1: ${parsed.error.issues[0]?.message ?? "invalid"}`,
+      `queryAst is not a valid QueryAST v2: ${parsed.error.issues[0]?.message ?? "invalid"}`,
     );
   }
   return parsed.data;

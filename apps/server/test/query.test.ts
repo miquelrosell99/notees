@@ -33,7 +33,7 @@ function api(method: string, url: string, options: { payload?: unknown; headers?
 
 function ast(children: Child[]): QueryAst {
   return {
-    version: 1,
+    version: 2,
     scope: { type: "entire_workspace" },
     root: { type: "group", logic: "and", children },
   };
@@ -84,7 +84,7 @@ describe("POST /api/query", () => {
     const res = await api("POST", "/api/query", {
       payload: {
         ast: ast([
-          { type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article },
+          { type: "member", family: "class", op: "in", target: { mode: "ids", ids: [SYSTEM_CLASS_UUIDS.journal_article] } },
           { type: "property", schemaId: await ensureYearSchema(), op: "gt", value: 1900 },
         ]),
       },
@@ -110,7 +110,7 @@ describe("POST /api/query", () => {
     const res = await api("POST", "/api/query", {
       payload: {
         ast: ast([
-          { type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article },
+          { type: "member", family: "class", op: "in", target: { mode: "ids", ids: [SYSTEM_CLASS_UUIDS.journal_article] } },
           { type: "property", schemaId: await ensureYearSchema(), op: "gte", value: 2010 },
         ]),
       },
@@ -141,7 +141,7 @@ describe("POST /api/query", () => {
     const exists = await api("POST", "/api/query", {
       payload: {
         ast: ast([
-          { type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article },
+          { type: "member", family: "class", op: "in", target: { mode: "ids", ids: [SYSTEM_CLASS_UUIDS.journal_article] } },
           { type: "name", op: "exists" },
         ]),
       },
@@ -157,7 +157,7 @@ describe("POST /api/query", () => {
     const res = await api("POST", "/api/query", {
       payload: {
         ast: {
-          ...ast([{ type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article }]),
+          ...ast([{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [SYSTEM_CLASS_UUIDS.journal_article] } }]),
           aggregation: {
             dimensions: [{ kind: "property", id: await ensureYearSchema() }],
             measures: [{ function: "count" }],
@@ -173,7 +173,13 @@ describe("POST /api/query", () => {
   it("422s loudly on invalid ASTs, unknown conditions and bad bodies", async () => {
     server = await makeTestServer();
     const invalid = await api("POST", "/api/query", {
-      payload: { ast: { version: 2, scope: { type: "pages" }, root: { type: "group", logic: "and", children: [] } } },
+      payload: {
+        ast: {
+          version: 2,
+          scope: { type: "pages" },
+          root: { type: "group", logic: "and", children: [{ type: "weather" }] },
+        },
+      },
     });
     expect(invalid.statusCode).toBe(422);
     expect(invalid.json().error.message).toContain("invalid query AST");

@@ -420,7 +420,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["post", "/api/nodes/:nodeId/sections/:sectionKey/views", {
     summary: "Create a hosted view (appends after the last tab)",
     description:
-      "queryAst must parse against QueryAST v1 (the same grammar the FilterBuilderModal produces — a transient filter persists verbatim). The name is unique per (node, section) — a collision is 409. There is deliberately no viewMode: view modes are transient surface state, not stored.",
+      "queryAst must parse against QueryAST v2 (the same grammar the FilterBuilderModal produces — a transient filter persists verbatim). The name is unique per (node, section) — a collision is 409. There is deliberately no viewMode: view modes are transient surface state, not stored.",
     tags: ["Nodes"],
     params: {
       nodeId: "the page/class/query node the surface lives on",
@@ -432,7 +432,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
       required: ["name", "queryAst"],
       properties: {
         name: { type: "string", minLength: 1, maxLength: 120, description: "tab label (unique per surface)" },
-        queryAst: { description: "QueryAST v1 (validated against the zod schema)" },
+        queryAst: { description: "QueryAST v2 (validated against the zod schema)" },
       },
     },
     success: { status: 201, description: "the created view" },
@@ -441,7 +441,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["patch", "/api/nodes/:nodeId/sections/:sectionKey/views/:viewId", {
     summary: "Patch a hosted view — rename it and/or rewrite its query",
     description:
-      "The row must exist and live on this node+surface — anything else is 404. A name collision on the surface's unique key is 409. The queryAst, when present, must parse against QueryAST v1; a rename-only patch omits it. At least one of name/queryAst is required.",
+      "The row must exist and live on this node+surface — anything else is 404. A name collision on the surface's unique key is 409. The queryAst, when present, must parse against QueryAST v2; a rename-only patch omits it. At least one of name/queryAst is required.",
     tags: ["Nodes"],
     params: {
       nodeId: "the page/class/query node the surface lives on",
@@ -453,7 +453,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
       additionalProperties: false,
       properties: {
         name: { type: "string", minLength: 1, maxLength: 120 },
-        queryAst: { description: "QueryAST v1 (validated against the zod schema)" },
+        queryAst: { description: "QueryAST v2 (validated against the zod schema)" },
       },
     },
     errors: ["validation_failed", "not_found", "conflict"],
@@ -1109,7 +1109,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["post", "/api/workflows", {
     summary: "Create a workflow rule (owner/admin only; criteria + actions validated fail-loud)",
     description:
-      "issue #13. Body: { name, enabled?, trigger: { opType }, criteria, actions }. trigger opType ∈ object.create | property.set | class.assign — the last is the semantic name for the wire's class-add carrier (a re-issued object.create carrying classIds; there is no class.assign op). criteria is a strict QueryAST v1 node filter (no aggregation — 422) compiled against the derived store and probed for the trigger envelope's affected nodes. actions (1..10): { type: \"property.set\", propertySchemaId, value, idx? } | { type: \"class.assign\", classId } — each translates to an EXISTING wire op at execution time (class.assign → object.create re-issue with classIds), validated against the wire payload schema. 409 at the 100-rules-per-workspace cap.",
+      "issue #13. Body: { name, enabled?, trigger: { opType }, criteria, actions }. trigger opType ∈ object.create | property.set | class.assign — the last is the semantic name for the wire's class-add carrier (a re-issued object.create carrying classIds; there is no class.assign op). criteria is a strict QueryAST v2 node filter (no aggregation — 422) compiled against the derived store and probed for the trigger envelope's affected nodes. actions (1..10): { type: \"property.set\", propertySchemaId, value, idx? } | { type: \"class.assign\", classId } — each translates to an EXISTING wire op at execution time (class.assign → object.create re-issue with classIds), validated against the wire payload schema. 409 at the 100-rules-per-workspace cap.",
     tags: ["Workflows"],
     requestBody: {
       type: "object",
