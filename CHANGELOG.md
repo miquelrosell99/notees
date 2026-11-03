@@ -7,6 +7,28 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-11-03
+
+- **feat(web): the focused block view's root row Enter nests — never
+  sibling-splits.** In the zoom view the focused block IS the parent of
+  everything below it, so Enter on its own row (edit mode, outline grammar)
+  now always descends: mid-text the tail right of the caret becomes the
+  focused block's FIRST CHILD (before any existing children); at the end —
+  or with nothing to the right — a new empty FIRST CHILD is created; at the
+  start the whole text moves into the first child and the row is left empty.
+  Previously the childless cases sibling-split (the tail escaped to the
+  focused block's real parent, leaving the zoom) and Enter-at-start inserted
+  an empty sibling before it. The flag rides the focused grammar
+  (`NodeCollection`'s `parent` prop → `rootEnterNests` → the parent row's
+  `BlockTextEditor`); every other row in the focused view — and the whole
+  page body — keeps the ordinary sibling-split contract. Prose mode
+  unchanged (the focused block renders as the title-variant row there; the
+  title's Enter contract is flush-and-leave). Pin: 4 new cases in
+  `apps/web/test/outliner-keys.test.tsx` (14 in the file, all green);
+  scoped gate: `tsc --noEmit` clean on the touched files (two pre-existing
+  `pmcid` errors in the sources feature belong to the in-flight
+  zotero-alignment slice, untouched here).
+
 ## 2026-11-02
 
 - **feat(scripts): import-zotero-rdf clears the date long tail (datetimes,
