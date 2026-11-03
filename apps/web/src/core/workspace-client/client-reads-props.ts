@@ -14,7 +14,7 @@ import {
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
 } from "@notees/domain";
-import { parseQueryAst, runAggregate, runQuery, type QueryAst } from "@notees/query";
+import { parseQueryAst, runAggregate, runQuery, type CompileOptions, type QueryAst } from "@notees/query";
 import { visiblePropertyValueRows, type NodeRow } from "@notees/store";
 
 import { aliasValuesOf } from "../../features/metadata/aliasProperty.js";
@@ -471,7 +471,7 @@ export class WorkspaceClientReadsProps {
    * list, the simple table, and the containing-node walk. ASTs carrying an
    * aggregation run through runAggregateAst instead.
    */
-  runQueryAst(rawAst: unknown): QueryRunResult {
+  runQueryAst(rawAst: unknown, options?: CompileOptions): QueryRunResult {
     let ast: QueryAst;
     try {
       ast = parseQueryAst(rawAst);
@@ -487,7 +487,7 @@ export class WorkspaceClientReadsProps {
     }
     let result: ReturnType<typeof runQuery>;
     try {
-      result = runQuery(this.ctx.store, ast);
+      result = runQuery(this.ctx.store, ast, options);
     } catch (error) {
       throw new InvalidQueryAstError(
         `query not supported: ${error instanceof Error ? error.message : String(error)}`,
@@ -516,7 +516,7 @@ export class WorkspaceClientReadsProps {
    * rows) for a `query` token whose AST carries an `aggregation`. Throws
    * InvalidQueryAstError for unparseable ASTs and ASTs without one.
    */
-  runAggregateAst(rawAst: unknown): QueryAggregateResult {
+  runAggregateAst(rawAst: unknown, options?: CompileOptions): QueryAggregateResult {
     let ast: QueryAst;
     try {
       ast = parseQueryAst(rawAst);
@@ -526,7 +526,7 @@ export class WorkspaceClientReadsProps {
       );
     }
     try {
-      return runAggregate(this.ctx.store, ast);
+      return runAggregate(this.ctx.store, ast, options);
     } catch (error) {
       throw new InvalidQueryAstError(
         `query not supported: ${error instanceof Error ? error.message : String(error)}`,

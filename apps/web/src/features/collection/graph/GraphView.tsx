@@ -47,6 +47,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphEdge, GraphEdgeKind, GraphTopology } from "@notees/store";
 
 import type { NodeCollectionProps } from "../types.js";
+import { containingPageIdOf } from "../sectionViewResolve.js";
 import { registerView } from "../registry.js";
 import {
   BooleanToggle,
@@ -583,7 +584,11 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   // Color groups evaluation (first match wins). The ONLY painting mechanism
   // since the retired per-class color list
   // migrated one-time into groups below. Async — the worker client's query
-  // runner is async.
+  // runner is async. The *Self conditions anchor at the local card's
+  // neighborhood page; the full surface has no single host, so it offers no
+  // Self mode.
+  const colorGroupSelfId =
+    local !== undefined ? containingPageIdOf(client, local.anchorId) : undefined;
   const [groupColors, setGroupColors] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     if (!prefs.colorGroupsOn || prefs.colorGroups.length === 0) {
@@ -591,13 +596,13 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       return;
     }
     let cancelled = false;
-    void evaluateColorGroups(client, prefs.colorGroups, resolveCssColor).then((colors) => {
+    void evaluateColorGroups(client, prefs.colorGroups, resolveCssColor, colorGroupSelfId).then((colors) => {
       if (!cancelled) setGroupColors(colors);
     });
     return () => {
       cancelled = true;
     };
-  }, [client, prefs.colorGroupsOn, prefs.colorGroups]);
+  }, [client, prefs.colorGroupsOn, prefs.colorGroups, colorGroupSelfId]);
 
   /** Query groups sort — the list order IS the first-match-wins priority. */
   const moveColorGroup = (fromIndex: number, toIndex: number): void => {
@@ -1478,6 +1483,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
                     // The full offered set — every condition kind evaluates
                     // through the query runner, so all are paintable.
                     config={{ class: true, properties: true, dateRange: true }}
+                    {...(colorGroupSelfId !== undefined ? { selfNodeId: colorGroupSelfId } : {})}
                     onChange={(ast) =>
                       patch({
                         colorGroups: prefs.colorGroups.map((g) =>

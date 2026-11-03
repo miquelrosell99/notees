@@ -18,6 +18,7 @@ import { startTransition } from "react";
 import type { ContentAst, OpPayload, WorkspaceFeature } from "@notees/protocol";
 import type { CardSrsState, SrsAlgorithm, WorkflowOpStep } from "@notees/domain";
 import type { GraphOptions, GraphTopology, MergePlanSummary, PathRow } from "@notees/store";
+import type { CompileOptions } from "@notees/query";
 import type {
   ArchivedEntry,
   AssetInfo,
@@ -709,13 +710,13 @@ export class WorkerClient {
    * Live-query bridge (async RPC; an invalid AST rejects with the worker's
    * Error message — the view renders the "invalid query" placeholder).
    */
-  runQueryAst(rawAst: unknown): Promise<QueryRunResult> {
-    return this.call("runQueryAst", [rawAst]) as Promise<QueryRunResult>;
+  runQueryAst(rawAst: unknown, options?: CompileOptions): Promise<QueryRunResult> {
+    return this.call("runQueryAst", [rawAst, options]) as Promise<QueryRunResult>;
   }
 
   /** Aggregation counterpart of runQueryAst (grouped grid for aggregated ASTs). */
-  runAggregateAst(rawAst: unknown): Promise<QueryAggregateResult> {
-    return this.call("runAggregateAst", [rawAst]) as Promise<QueryAggregateResult>;
+  runAggregateAst(rawAst: unknown, options?: CompileOptions): Promise<QueryAggregateResult> {
+    return this.call("runAggregateAst", [rawAst, options]) as Promise<QueryAggregateResult>;
   }
 
   getBacklinks(id: string): ClientEdge[] {

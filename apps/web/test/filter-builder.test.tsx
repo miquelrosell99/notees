@@ -450,9 +450,9 @@ describe("the block query builder", () => {
 
     const panel = openPanel(section);
     addCondition(panel, /^Links /);
-    // Switch the block to DYNAMIC mode — the nested query builder appears
+    // Switch the block to QUERY mode — the nested query builder appears
     // inside a card.
-    fireEvent.click(within(panel).getByRole("radio", { name: "Dynamic — a nested query" }));
+    fireEvent.click(within(panel).getByRole("radio", { name: "Query — a nested query" }));
     const nested = panel.querySelector(".nt-fb-block__nested") as HTMLElement;
     expect(nested).not.toBeNull();
     expect(nested.querySelector(".nt-fb-card")).not.toBeNull();
@@ -483,7 +483,7 @@ describe("the block query builder", () => {
     await act(async () => {});
   });
 
-  it("Class flips to Dynamic — the nested query rides in a card and the probe carries classAnyQuery", async () => {
+  it("Class flips to Query mode — the nested query rides in a card and the probe carries classAnyQuery", async () => {
     const client = await seedClient();
     const classId = await seedMembers(client);
     await seedClass(client, "client");
@@ -495,7 +495,7 @@ describe("the block query builder", () => {
     addCondition(panel, /^Class/);
     // Flip the CLASS block to DYNAMIC mode: the
     // nested subgroup renders inside a card.
-    fireEvent.click(within(panel).getByRole("radio", { name: "Dynamic — a nested query" }));
+    fireEvent.click(within(panel).getByRole("radio", { name: "Query — a nested query" }));
     const nested = panel.querySelector(".nt-fb-block__nested") as HTMLElement;
     expect(nested).not.toBeNull();
     expect(nested.querySelector(".nt-fb-card")).not.toBeNull();
@@ -510,7 +510,31 @@ describe("the block query builder", () => {
     expect(ast.root.children.map((child) => child.type)).toContain("classAnyQuery");
   });
 
-  it("a dynamic row inside a dynamic subgroup nests again (infinite dynamic nesting)", async () => {
+  it("Links flips to Self — the wire carries linkedToSelf and the probe names the hosting page", async () => {
+    const client = await seedClient();
+    const classId = await seedMembers(client);
+    const probe = vi.spyOn(client, "runQueryAst").mockResolvedValue({ ids: [], rows: [] });
+
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    const section = classedNodesSection();
+    const panel = openPanel(section);
+    addCondition(panel, /^Links /);
+    // The SELF mode: the target IS the hosting page (the view's page —
+    // the query's containing page, never the query block itself).
+    fireEvent.click(within(panel).getByRole("radio", { name: "Self — the page this query sits on" }));
+    // No nested card — the marker carries no value; the value column names it.
+    expect(panel.querySelector(".nt-fb-block__nested")).toBeNull();
+    expect(within(panel).getByText("this page")).not.toBeNull();
+    await act(async () => {});
+    expect(probe).toHaveBeenCalled();
+    const [ast, options] = probe.mock.calls.at(-1)! as [unknown, { selfNodeId?: string } | undefined];
+    expect(
+      (ast as { root: { children: Array<{ type: string }> } }).root.children.map((child) => child.type),
+    ).toContain("linkedToSelf");
+    expect(options?.selfNodeId).toBe(classId);
+  });
+
+  it("a query-mode row inside a query subgroup nests again (infinite query nesting)", async () => {
     const client = await seedClient();
     const classId = await seedMembers(client);
     const probe = vi.spyOn(client, "runQueryAst").mockResolvedValue({ ids: [], rows: [] });
@@ -519,15 +543,15 @@ describe("the block query builder", () => {
     const section = classedNodesSection();
     const panel = openPanel(section);
     addCondition(panel, /^Class/);
-    fireEvent.click(within(panel).getByRole("radio", { name: "Dynamic — a nested query" }));
+    fireEvent.click(within(panel).getByRole("radio", { name: "Query — a nested query" }));
     const nested = panel.querySelector(".nt-fb-block__nested") as HTMLElement;
     expect(nested).not.toBeNull();
 
-    // Inside the card, a Links row flips to Dynamic too — a SECOND-level
+    // Inside the card, a Links row flips to Query mode too — a SECOND-level
     // nested card renders (the empty inner subgroup prunes at compose time,
     // so no probe leaf fires).
     addCondition(nested, /^Links /);
-    fireEvent.click(within(nested).getByRole("radio", { name: "Dynamic — a nested query" }));
+    fireEvent.click(within(nested).getByRole("radio", { name: "Query — a nested query" }));
     expect(panel.querySelectorAll(".nt-fb-block__nested")).toHaveLength(2);
     expect(panel.querySelectorAll(".nt-fb-block__nested .nt-fb-card")).toHaveLength(2);
     expect(probe).not.toHaveBeenCalled();
@@ -684,7 +708,7 @@ describe("the block query builder", () => {
       expect(within(section).queryByText("InDay")).toBeNull();
     });
 
-    it("Page: dynamic — the subquery informs the node set (v1's nested-query mode)", async () => {
+    it("Page: query mode — the subquery informs the node set (v1's nested-query mode)", async () => {
       const client = await seedClient();
       const { projectId } = await seedContainerWorld(client);
       render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
@@ -692,9 +716,9 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Page\b/);
-      // Flip the target mode to dynamic — the nested builder appears inside
+      // Flip the target mode to query — the nested builder appears inside
       // a card beneath the row; the subquery's matches BECOME the page set.
-      fireEvent.click(within(panel).getByRole("radio", { name: "Dynamic — a nested query" }));
+      fireEvent.click(within(panel).getByRole("radio", { name: "Query — a nested query" }));
       const nested = panel.querySelector(".nt-fb-block__nested") as HTMLElement;
       expect(nested).not.toBeNull();
       expect(nested.querySelector(".nt-fb-card")).not.toBeNull();
@@ -786,7 +810,7 @@ describe("the block query builder", () => {
       expect(within(section).queryByText("RootMember")).toBeNull();
     });
 
-    it("Child (v1's direct child): contains any of the picked nodes + the set bit", async () => {
+    it("Child (v1's direct child): contains the picked nodes + the set bit", async () => {
       const client = await seedClient();
       const projectId = await seedClass(client, "project");
       const withKid = await client.createObject({ isEmbedded: false, name: "WithKid", classIds: [projectId] });
@@ -799,7 +823,7 @@ describe("the block query builder", () => {
       const panel = openPanel(section);
       addCondition(panel, /^Child Contains/);
       addNodeViaPicker(panel, "Add child", "Kid");
-      pickOption(panel, "Operator", "contains any of");
+      pickOption(panel, "Operator", "contains");
       expect(tableRowCount()).toBe(1);
       expect(within(section).getByText("WithKid")).not.toBeNull();
 
@@ -808,7 +832,7 @@ describe("the block query builder", () => {
       expect(tableRowCount()).toBe(1);
     });
 
-    it("Reference path (v1's rollup): the node or its ancestors reference the targets — or sit inside them", async () => {
+    it("Link path (v1's rollup): the node or its ancestors reference the targets — or sit inside them", async () => {
       const client = await seedClient();
       const projectId = await seedClass(client, "project");
       const target = await client.createObject({ isEmbedded: false, name: "Target" });
@@ -831,7 +855,7 @@ describe("the block query builder", () => {
       expect(tableRowCount()).toBe(3);
 
       const panel = openPanel(section);
-      addCondition(panel, /^Reference path/);
+      addCondition(panel, /^Link path/);
       addNodeViaPicker(panel, "Add target", "Target");
       // The rollup rides the probe path — the membership set lands a beat
       // later. (Linker's title IS its mention text — "Target" — so the count
@@ -866,7 +890,7 @@ describe("the block query builder", () => {
       expect(tableRowCount()).toBe(3);
     });
 
-    it("tags: is set / is (multi ANY-of) / is not over the OR-set tag membership", async () => {
+    it("tags: is set / contains (multi ANY-of) / does not contain over the OR-set tag membership", async () => {
       const client = await seedClient();
       const classId = await seedMembers(client);
       const tagUrgent = await client.createObject({ isEmbedded: false, name: "Urgent" });
@@ -881,15 +905,15 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Tags/);
-      // The default "is" binds the LIST: the pills
+      // The default "contains" binds the LIST: the pills
       // accumulate through the picker — ANY-of [Urgent, Later] keeps Alpha
       // AND Beta.
       addNodeViaPicker(panel, "Add tag", "Urgent");
       addNodeViaPicker(panel, "Add tag", "Later");
       expect(tableRowCount()).toBe(2);
 
-      // The negative register: "is not" keeps only the untagged Gamma.
-      pickOption(panel, "Operator", "is not");
+      // The negative register: "does not contain" keeps only the untagged Gamma.
+      pickOption(panel, "Operator", "does not contain");
       expect(tableRowCount()).toBe(1);
       expect(within(section).getByText("Gamma")).not.toBeNull();
 

@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { parseQueryAst, type QueryAst } from "@notees/query";
+import { parseQueryAst, type CompileOptions, type QueryAst } from "@notees/query";
 
 import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 
@@ -33,8 +33,8 @@ export type QueryRunState =
 
 /** The run bridge both client classes satisfy (OutlinerReader declares it too). */
 export interface QueryRunClient {
-  runQueryAst(rawAst: unknown): QueryRunResult | Promise<QueryRunResult>;
-  runAggregateAst(rawAst: unknown): QueryAggregateResult | Promise<QueryAggregateResult>;
+  runQueryAst(rawAst: unknown, options?: CompileOptions): QueryRunResult | Promise<QueryRunResult>;
+  runAggregateAst(rawAst: unknown, options?: CompileOptions): QueryAggregateResult | Promise<QueryAggregateResult>;
   /** The notify subscription the coalesced re-run rides. */
   subscribe(listener: () => void): () => void;
   getNode(id: string): { id: string; parentId: string | null } | undefined;
@@ -51,19 +51,22 @@ export function parseRunAst(raw: unknown): QueryAst | null {
   }
 }
 
-export function useQueryRun(client: QueryRunClient, rawAst: unknown, options?: { enabled?: boolean }): {
+export function useQueryRun(client: QueryRunClient, rawAst: unknown, options?: { enabled?: boolean; selfNodeId?: string }): {
   result: QueryRunState | null;
   error: string | null;
 } {
   const enabled = options?.enabled ?? true;
+  /** The hosting page for `*Self` conditions — part of the run's identity. */
+  const selfNodeId = options?.selfNodeId;
   const [result, setResult] = useState<QueryRunState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
-  const status = useRef<{ running: boolean; dirty: boolean; astKey: string | null; version: number }>({
+  const status = useRef<{ running: boolean; dirty: boolean; astKey: string | null; version: number; selfNodeId: string | undefined }>({
     running: false,
     dirty: false,
     astKey: null,
     version: -1,
+    selfNodeId: undefined,
   });
 
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
@@ -76,14 +79,16 @@ export function useQueryRun(client: QueryRunClient, rawAst: unknown, options?: {
       // query emptied after a run renders nothing, not its last result.
       current.astKey = astKey;
       current.version = version;
+      current.selfNodeId = selfNodeId;
       setResult(null);
       setError(null);
       return;
     }
-    if (current.astKey === astKey && current.version === version) return; // already current
+    if (current.astKey === astKey && current.version === version && current.selfNodeId === selfNodeId) return; // already current
     const execute = async () => {
       const runAstKey = astKey;
       const runVersion = version;
+      const runSelfNodeId = selfNodeId;
       current.running = true;
       try {
         const parsed = parseRunAst(rawAst);
@@ -92,16 +97,18 @@ export function useQueryRun(client: QueryRunClient, rawAst: unknown, options?: {
             ? {
                 kind: "aggregate",
                 dimensionCount: parsed.aggregation.dimensions.length,
-                ...(await Promise.resolve(client.runAggregateAst(rawAst))),
+                ...(await Promise.resolve(client.runAggregateAst(rawAst, { selfNodeId: runSelfNodeId }))),
               }
-            : { kind: "query", ...(await Promise.resolve(client.runQueryAst(rawAst))) };
+            : { kind: "query", ...(await Promise.resolve(client.runQueryAst(rawAst, { selfNodeId: runSelfNodeId }))) };
         current.astKey = runAstKey;
         current.version = runVersion;
+        current.selfNodeId = runSelfNodeId;
         setResult(next);
         setError(null);
       } catch (err) {
         current.astKey = runAstKey;
         current.version = runVersion;
+        current.selfNodeId = runSelfNodeId;
         setResult(null);
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -119,7 +126,7 @@ export function useQueryRun(client: QueryRunClient, rawAst: unknown, options?: {
       return;
     }
     void execute();
-  }, [client, astKey, version, enabled]);
+  }, [client, astKey, version, enabled, selfNodeId]);
 
   return { result, error };
 }

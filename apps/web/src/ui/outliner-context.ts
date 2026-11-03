@@ -9,6 +9,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 
 import { foldSearchText } from "@notees/store";
 import type { ContentAst } from "@notees/protocol";
+import type { CompileOptions } from "@notees/query";
 
 import type { CaretPlacement } from "@/editor/caret.js";
 import type { OutlinePositionMap } from "@/editor/outline.js";
@@ -202,9 +203,9 @@ export interface OutlinerReader {
   getClassBindings(classId: string): ClassBinding[];
   subscribe(listener: () => void): () => void;
   /** Live-query bridge for `query` content tokens (the query node's section). */
-  runQueryAst(rawAst: unknown): QueryRunResult | Promise<QueryRunResult>;
+  runQueryAst(rawAst: unknown, options?: CompileOptions): QueryRunResult | Promise<QueryRunResult>;
   /** Aggregation bridge for `query` tokens carrying an `aggregation`. */
-  runAggregateAst(rawAst: unknown): QueryAggregateResult | Promise<QueryAggregateResult>;
+  runAggregateAst(rawAst: unknown, options?: CompileOptions): QueryAggregateResult | Promise<QueryAggregateResult>;
   /** Direct children in child order (export-on-query's nested-bullets read). */
   getChildren(id: string): ClientNode[];
   /** Effective properties (export-on-query's frontmatter read). */

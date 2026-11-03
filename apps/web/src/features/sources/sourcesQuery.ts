@@ -34,7 +34,7 @@ import {
   type SystemClassName,
 } from "@notees/domain";
 import { renderCsv } from "@notees/export";
-import type { QueryAst } from "@notees/query";
+import type { CompileOptions, QueryAst } from "@notees/query";
 
 import { titleOf } from "../../ui/dateDisplay.js";
 import { propertyDisplayText } from "../collection/propertyDisplay.js";
@@ -163,7 +163,7 @@ export function sourcesPathFor(state: SourcesQueryState): string {
  * satisfy it (the ExportReadSurface precedent).
  */
 export interface SourcesReadSurface {
-  runQueryAst(rawAst: unknown): { ids: string[] } | Promise<{ ids: string[] }>;
+  runQueryAst(rawAst: unknown, options?: CompileOptions): { ids: string[] } | Promise<{ ids: string[] }>;
   getNode(id: string): ClientNode | undefined;
   getNodeRaw(id: string): { id: string; isActive: boolean } | undefined;
   getEffectiveProperties(id: string): EffectiveProperty[];

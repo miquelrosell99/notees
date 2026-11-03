@@ -415,6 +415,19 @@ export function BlockValue({
           onChange={(period) => onChange({ ...condition, period })}
         />
       );
+    case "linkedToSelf":
+    case "referencePathOfSelf":
+    case "parentOfSelf":
+    case "childOfSelf":
+    case "descendantOfSelf":
+    case "pageOfSelf":
+    case "ancestorInSelf":
+    case "rootInSelf":
+    case "classSelf":
+    case "tagSelf":
+      // The SELF target names itself in the value column — the row reads
+      // "Links is this page" (the hosting page resolves at run time).
+      return <span className="nt-fb-block__word">this page</span>;
     case "coverAsset":
     case "bannerAsset":
     case "aliasedNode":

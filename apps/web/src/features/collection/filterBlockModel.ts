@@ -47,6 +47,7 @@ export function familyOf(condition: Condition): ConditionKind {
     case "classExact":
     case "classAny":
     case "classAnyQuery":
+    case "classSelf":
     case "classSet":
       return "class";
     case "isClass":
@@ -59,40 +60,49 @@ export function familyOf(condition: Condition): ConditionKind {
       return "property";
     case "linkedTo":
     case "linkedToQuery":
+    case "linkedToSelf":
     case "linkedToAny":
     case "linkSet":
       return "links";
     case "referencePathOf":
     case "referencePathOfQuery":
+    case "referencePathOfSelf":
       return "referencePath";
     case "parentOf":
     case "parentOfQuery":
+    case "parentOfSelf":
       return "parent";
     case "childOf":
     case "childOfQuery":
+    case "childOfSelf":
     case "childSet":
       return "child";
     case "descendantOf":
     case "descendantOfQuery":
+    case "descendantOfSelf":
     case "descendantOfAny":
     case "descendantSet":
       return "childPath";
     case "tag":
     case "tagAny":
     case "tagAnyQuery":
+    case "tagSelf":
     case "tagSet":
       return "tags";
     case "parentSet":
       return "parent";
     case "pageOf":
     case "pageOfQuery":
+    case "pageOfSelf":
     case "pageSet":
       return "page";
     case "ancestorIn":
     case "ancestorInQuery":
+    case "ancestorInSelf":
       return "parentPath";
     case "rootIn":
     case "rootInQuery":
+    case "rootInSelf":
       return "root";
     case "coverAsset":
       return "cover";
@@ -166,21 +176,21 @@ export function operatorOptions(
     case "tags":
     case "links":
       // The link/tag families (the multi-value
-      // register): is/is not bind the LIST (ANY-of membership over the picked
-      // nodes — the "one of" operator collapsed into is), is set/is not set
-      // test the reference's existence.
+      // register): contains/does not contain bind the LIST (ANY-of membership
+      // over the picked nodes — the "one of" operator collapsed into
+      // contains); is set/is not set test the reference's existence.
       return [
-        { value: "is", label: "is" },
-        { value: "is-not", label: "is not" },
+        { value: "is", label: "contains" },
+        { value: "is-not", label: "does not contain" },
         { value: "set", label: "is set" },
         { value: "not-set", label: "is not set" },
       ];
     case "referencePath":
       // v1's REFERENCE PATH: the self-or-ancestor link rollup (containment
-      // folded in) over the picked nodes / the subquery's matches.
+      // folded in) over the picked nodes / the subquery's matches / the host.
       return [
-        { value: "is-any-of", label: "is any of" },
-        { value: "is-not-any-of", label: "is not any of" },
+        { value: "is-any-of", label: "contains" },
+        { value: "is-not-any-of", label: "does not contain" },
       ];
     case "parent":
       // v1's PARENT (single-value): the DIRECT
@@ -195,8 +205,8 @@ export function operatorOptions(
     case "child":
       // v1's CHILD: contains any of the picked nodes as DIRECT children.
       return [
-        { value: "contains-any-of", label: "contains any of" },
-        { value: "not-contains-any-of", label: "does not contain any of" },
+        { value: "contains-any-of", label: "contains" },
+        { value: "not-contains-any-of", label: "does not contain" },
         { value: "set", label: "is set" },
         { value: "not-set", label: "is not set" },
       ];
@@ -230,11 +240,11 @@ export function operatorOptions(
         { value: "not-set", label: "is not set" },
       ];
     case "parentPath":
-      // v1's Parent path block: the ancestor chain includes any of the
-      // picked nodes (or the subquery's matches) — the v1 "includes" wording.
+      // v1's Parent path block: the ancestor chain contains any of the
+      // picked nodes (or the subquery's matches / the host page).
       return [
-        { value: "includes", label: "includes" },
-        { value: "not-includes", label: "does not include" },
+        { value: "includes", label: "contains" },
+        { value: "not-includes", label: "does not contain" },
         { value: "set", label: "is set" },
         { value: "not-set", label: "is not set" },
       ];
@@ -360,6 +370,7 @@ export function operatorOf(condition: Condition, negated: boolean): string {
       return negated ? "is-not" : "is";
     case "classAny":
     case "classAnyQuery":
+    case "classSelf":
       // ANY-of closure membership over the picked list (the collapsed
       // "one of" register).
       return negated ? "not-contains" : "contains";
@@ -383,6 +394,7 @@ export function operatorOf(condition: Condition, negated: boolean): string {
       return negated ? "is-not" : "is";
     case "tagAny":
     case "tagAnyQuery":
+    case "tagSelf":
       // The multi-value register: "is" binds the
       // picked LIST — ANY-of membership.
       return negated ? "is-not" : "is";
@@ -390,6 +402,7 @@ export function operatorOf(condition: Condition, negated: boolean): string {
       return negated ? "not-set" : "set";
     case "linkedTo":
     case "linkedToQuery":
+    case "linkedToSelf":
       return negated ? "is-not" : "is";
     case "linkedToAny":
       // The multi-value register: "is" binds the picked LIST.
@@ -398,6 +411,7 @@ export function operatorOf(condition: Condition, negated: boolean): string {
       return negated ? "not-set" : "set";
     case "descendantOf":
     case "descendantOfQuery":
+    case "descendantOfSelf":
       return negated ? "is-not" : "is";
     case "descendantOfAny":
       return negated ? "not-contains" : "contains";
@@ -405,29 +419,35 @@ export function operatorOf(condition: Condition, negated: boolean): string {
       return negated ? "not-set" : "set";
     case "parentOf":
     case "parentOfQuery":
+    case "parentOfSelf":
       // The single-value register.
       return negated ? "is-not" : "is";
     case "parentSet":
       return negated ? "not-set" : "set";
     case "childOf":
     case "childOfQuery":
+    case "childOfSelf":
       return negated ? "not-contains-any-of" : "contains-any-of";
     case "childSet":
       return negated ? "not-set" : "set";
     case "referencePathOf":
     case "referencePathOfQuery":
+    case "referencePathOfSelf":
       return negated ? "is-not-any-of" : "is-any-of";
     case "pageOf":
     case "pageOfQuery":
+    case "pageOfSelf":
       // The single-value register.
       return negated ? "is-not" : "is";
     case "pageSet":
       return negated ? "not-set" : "set";
     case "ancestorIn":
     case "ancestorInQuery":
+    case "ancestorInSelf":
       return negated ? "not-includes" : "includes";
     case "rootIn":
     case "rootInQuery":
+    case "rootInSelf":
       // The single-value register.
       return negated ? "is-not" : "is";
     case "isClass":
@@ -786,6 +806,7 @@ export function applyOperator(condition: Condition, op: string): Child {
     case "tag":
     case "tagAny":
     case "tagAnyQuery":
+    case "tagSelf":
     case "tagSet":
       return applyNodeTargetOperator(
         condition,
@@ -795,6 +816,7 @@ export function applyOperator(condition: Condition, op: string): Child {
       );
     case "linkedTo":
     case "linkedToAny":
+    case "linkedToSelf":
     case "linkSet":
       return applyNodeTargetOperator(
         condition,
@@ -804,6 +826,7 @@ export function applyOperator(condition: Condition, op: string): Child {
       );
     case "parentOf":
     case "parentOfQuery":
+    case "parentOfSelf":
       // The single-value register: is / is not
       // bind the picked id (the wire list carries 0/1 elements).
       return applyPickSetOperator(
@@ -816,6 +839,7 @@ export function applyOperator(condition: Condition, op: string): Child {
       );
     case "childOf":
     case "childOfQuery":
+    case "childOfSelf":
     case "childSet":
       return applyPickSetOperator(
         condition,
@@ -828,6 +852,7 @@ export function applyOperator(condition: Condition, op: string): Child {
     case "descendantOf":
     case "descendantOfAny":
     case "descendantOfQuery":
+    case "descendantOfSelf":
     case "descendantSet":
       return applyPickSetOperator(
         condition,
@@ -839,6 +864,7 @@ export function applyOperator(condition: Condition, op: string): Child {
       );
     case "referencePathOf":
     case "referencePathOfQuery":
+    case "referencePathOfSelf":
       return applyPickSetOperator(
         condition,
         op,
@@ -853,13 +879,16 @@ export function applyOperator(condition: Condition, op: string): Child {
       return condition;
     case "pageOf":
     case "pageOfQuery":
+    case "pageOfSelf":
     case "pageSet":
       return applyContainerNodeOperator(condition, op, "page");
     case "ancestorIn":
     case "ancestorInQuery":
+    case "ancestorInSelf":
       return applyContainerNodeOperator(condition, op, "path");
     case "rootIn":
     case "rootInQuery":
+    case "rootInSelf":
       return applyContainerNodeOperator(condition, op, "root");
     case "createdAfter":
     case "createdBefore":
@@ -884,8 +913,10 @@ export function applyOperator(condition: Condition, op: string): Child {
     case "linkedToQuery":
       return op === "is-not" ? neg(condition) : wrap(condition);
     case "classAnyQuery":
-      // The dynamic class row: the negative operator wraps in not, every
-      // other choice keeps the condition (the nested group is the value).
+    case "classSelf":
+      // The dynamic/self class row: the negative operator wraps in not, every
+      // other choice keeps the condition (the nested group / the self marker
+      // is the value).
       return op === "not-contains" ? neg(condition) : wrap(condition);
     case "tagAnyQuery":
       return op === "is-not" ? neg(condition) : wrap(condition);

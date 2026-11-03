@@ -24,6 +24,7 @@
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
 import { HttpTransport, OfflineTransport } from "@notees/sync";
+import type { CompileOptions } from "@notees/query";
 import type { ContentAst, Envelope, OpPayload } from "@notees/protocol";import { Store, type GraphOptions } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
 import type { WorkspaceFeature } from "@notees/protocol";
@@ -364,12 +365,12 @@ export class WorkspaceClient {
     return this.readsProps.resolveNodeByName(name);
   }
 
-  runQueryAst(rawAst: unknown) {
-    return this.readsProps.runQueryAst(rawAst);
+  runQueryAst(rawAst: unknown, options?: CompileOptions) {
+    return this.readsProps.runQueryAst(rawAst, options);
   }
 
-  runAggregateAst(rawAst: unknown) {
-    return this.readsProps.runAggregateAst(rawAst);
+  runAggregateAst(rawAst: unknown, options?: CompileOptions) {
+    return this.readsProps.runAggregateAst(rawAst, options);
   }
 
   getChildren(id: string) {
