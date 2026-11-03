@@ -94,7 +94,7 @@
 .cal-grid__blocks {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-micro);
   min-height: 0;
   overflow: hidden;
 }
@@ -195,8 +195,8 @@
   left: 50%;
   bottom: 0;
   transform: translateX(-50%);
-  width: 3px;
-  height: 3px;
+  width: var(--spacing-tiny);
+  height: var(--spacing-tiny);
   border-radius: var(--shape-full);
   background: var(--md-sys-color-primary);
 }
@@ -209,7 +209,7 @@
 
 .cal-block-menu {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-60);
   display: flex;
   flex-direction: column;
   min-width: 12ch;
@@ -241,7 +241,7 @@
 .cal-scope {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: var(--z-70);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -249,7 +249,7 @@
 }
 
 .cal-scope__card {
-  width: min(30rem, calc(100vw - var(--spacing-8)));
+  width: min(var(--modal-width-md), calc(100vw - var(--spacing-8)));
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
@@ -286,7 +286,7 @@
 .cal-scope__option-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-micro);
 }
 
 .cal-scope__option-label {
