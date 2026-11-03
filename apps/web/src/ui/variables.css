@@ -534,9 +534,7 @@
   --z-10002: 10002;
 
   /* ==================== Layout ==================== */
-  --sidebar-width: 240px;
   --sidebar-collapsed-width: 3.5rem;
-  --right-sidebar-width: 320px;
   --topbar-height: 44px;
   --container-gap: 8px;
   --container-radius: var(--shape-large);
