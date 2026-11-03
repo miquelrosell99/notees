@@ -24,6 +24,10 @@ import Database from "better-sqlite3";
 import { newEnvelope, payloadSchemaFor, envelopeSchema, type Envelope } from "@notees/protocol";
 
 import { RelayStorage } from "../src/relay-storage.js";
+import {
+  assertRewrittenAstValid,
+} from "../../../scripts/migrate-query-ast-v2.mts";
+import { mapQueryAstV1ToV2 } from "../../../scripts/lib/map-query-ast-v1-v2.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const TSX = join(REPO_ROOT, "apps", "server", "node_modules", ".bin", "tsx");
@@ -337,6 +341,19 @@ describe("migrate-query-ast-v2", () => {
   });
 
   it("--workspace restricts the rewrite + the epoch bump to that workspace", () => {
+    // The node_view row is global — rewrite it to v2 first so the mixed-window
+    // guard (its own e2e case below) doesn't abort this envelope-scoping pin.
+    {
+      const db = new Database(join(dataDir, "relay.db"));
+      db.prepare("UPDATE node_view SET query_ast = ? WHERE id = 'view-1'").run(
+        JSON.stringify({
+          version: 2,
+          scope: { type: "entire_workspace" },
+          root: { type: "group", logic: "and", children: [{ "type": "content", "op": "exists" }] },
+        }),
+      );
+      db.close();
+    }
     const apply = runScript(["--data-dir", dataDir, "--apply", "--workspace", WORKSPACE_B]);
     expect(apply.status).toBe(0);
     expect(apply.stdout).toContain("envelope payloads rewritten: 1");
@@ -406,5 +423,85 @@ describe("migrate-query-ast-v2", () => {
     const apply = runScript(["--data-dir", dataDir, "--apply"]);
     expect(apply.status).toBe(1);
     expect(apply.stderr).toContain("siblingsOf");
+  });
+
+  it("a workspace-scoped run refuses to rewrite global node_views (mixed-window guard)", () => {
+    // node_view rows are global (no workspace column — apps/server/src/auth.ts)
+    // yet carry per-workspace ASTs; a --workspace run that rewrote them while
+    // leaving other workspaces' envelopes v1 would open a mixed v1/v2 window.
+    const apply = runScript(["--data-dir", dataDir, "--apply", "--workspace", WORKSPACE_B]);
+    expect(apply.status).toBe(1);
+    expect(apply.stderr).toContain("node_view");
+    expect(apply.stderr).toContain("--all");
+    // Abort BEFORE any mutation: no backup, the log untouched (workspace A's
+    // tokens still v1), no epoch rows, the marker absent.
+    expect(readdirSync(dataDir).some((name) => name.includes(".bak-"))).toBe(false);
+    const db = new Database(join(dataDir, "relay.db"), { readonly: true });
+    const row = db
+      .prepare("SELECT payload FROM envelope WHERE workspace_id = ? AND op_type = 'object.create'")
+      .get(WORKSPACE_A) as { payload: string };
+    const tokens = (JSON.parse(row.payload) as { contentAst: Array<{ queryAst?: { version: number } }> })
+      .contentAst;
+    expect(tokens.find((t) => t.queryAst !== undefined)!.queryAst!.version).toBe(1);
+    expect(db.prepare("SELECT 1 FROM restore_epoch").get()).toBeUndefined();
+    expect(
+      db.prepare("SELECT value FROM schema_meta WHERE key = 'query_ast_v2_migration_v1'").get(),
+    ).toBeUndefined();
+    db.close();
+  });
+});
+
+describe("assertRewrittenAstValid — the strict v2 re-parse of a mapped token (review guard)", () => {
+  it("a corrupted v2 shape fails loud, naming the token path", () => {
+    // A member class exact with a TWO-element ids tuple — the real mapper can
+    // never emit it (the 145-case suite pins valid output), so the guard is
+    // exercised directly with a hand-corrupted mapped AST.
+    const corrupted = {
+      version: 2,
+      scope: { type: "entire_workspace" },
+      root: {
+        type: "group",
+        logic: "and",
+        children: [
+          {
+            type: "member",
+            family: "class",
+            op: "exact",
+            target: { mode: "ids", ids: ["a111a111-1111-4111-8111-111111111111", "b222b222-2222-4222-8222-222222222222"] },
+          },
+        ],
+      },
+    };
+    expect(() =>
+      assertRewrittenAstValid(corrupted, "envelope test-id seq 7: contentAst[0].queryAst"),
+    ).toThrow(/at most 1 element/);
+    expect(() =>
+      assertRewrittenAstValid(corrupted, "envelope test-id seq 7: contentAst[0].queryAst"),
+    ).toThrow(/contentAst\[0\]\.queryAst/);
+    expect(() =>
+      assertRewrittenAstValid(corrupted, "envelope test-id seq 7: contentAst[0].queryAst"),
+    ).toThrow(/strict v2 schema/);
+  });
+
+  it("every v1 image the real mapper produces passes the strict re-parse", () => {
+    const v1Shapes: unknown[] = [
+      { type: "classSet" },
+      { type: "classAny", classIds: [CLASS_ID] },
+      { type: "classAnyQuery", root: { type: "group", logic: "and", children: [] } },
+      { type: "createdBetween", from: "a", to: "b" },
+      { type: "propertyWithin", schemaId: CLASS_ID, period: "today" },
+      { type: "isEmbedded", isEmbedded: false },
+      { type: "linkedToSelf" },
+      { type: "descendantOfQuery", root: { type: "group", logic: "or", children: [{ type: "contentSet" }] } },
+    ];
+    for (const v1 of v1Shapes) {
+      const ast = {
+        version: 1,
+        scope: { type: "entire_workspace" },
+        root: { type: "group", logic: "and", children: [v1] },
+      };
+      const mapped = mapQueryAstV1ToV2(ast);
+      expect(() => assertRewrittenAstValid(mapped, "fixture"), JSON.stringify(v1)).not.toThrow();
+    }
   });
 });
