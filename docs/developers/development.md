@@ -37,6 +37,7 @@ Run from the repo root:
 | `pnpm --filter @notees/server dev` | `tsx watch src/server.ts` — dev server with reload |
 | `pnpm --filter @notees/web dev` | vite dev server (browser client against a running server) |
 | the CLI | split into its own repo (`notees-cli`) — `pnpm dev -- <args>` runs it from source via tsx there |
+| `node scripts/check-css-tokens.mjs` | the CSS token-drift gate — app CSS must reference `var(--*)` tokens; law-owned literals (colors, motion, spacing, z-index) fail CI. Dependency-free; self-tests at `node --test scripts/check-css-tokens.test.mjs` |
 
 Per-package scripts (`packages/*`): `test` (vitest run), `typecheck` (tsc --noEmit). Apps
 add `dev`/`build`/`start` (`apps/server`: `start` = `node dist/server.js`).
