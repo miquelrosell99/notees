@@ -816,6 +816,19 @@ describe("query node (nodecollection surface below the content row)", () => {
       // null); the title lives in the node's own content.
       expect(result.rows[0]).toMatchObject({ id: paris, isEmbedded: false, parentId: null });
       expect(result.rows[0]!.name).toBe("Paris");
+
+      // The *Self conditions' compile context crosses the wire too: the
+      // hosting page rides the second arg (descendantOfSelf — the two
+      // blocks sit strictly inside Paris).
+      const selfResult = (await core.invoke("runQueryAst", [
+        makeAst(WORKSPACE(), [{ type: "descendantOfSelf" }]),
+        { selfNodeId: paris },
+      ])) as { ids: string[] };
+      expect(selfResult.ids).toHaveLength(2);
+      // Without the host the same AST fails loud (there is no honest "self").
+      await expect(
+        core.invoke("runQueryAst", [makeAst(WORKSPACE(), [{ type: "descendantOfSelf" }])]),
+      ).rejects.toThrow(/selfNodeId/);
       const parisNode = (await core.invoke("getPage", [paris])) as { contentAst: unknown };
       expect(parisNode.contentAst).toEqual(text("Paris"));
 
