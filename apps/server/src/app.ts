@@ -83,6 +83,10 @@ export async function buildServer(
       // The client may upload snapshots (PUT) and run other non-simple
       // methods cross-origin; fastify-cors defaults to GET/HEAD/POST only.
       methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      // The sealed-asset IV rides asset downloads; browsers refuse to hand a
+      // cross-origin client a non-exposed header (the web client reads it to
+      // decrypt — plan 05).
+      exposedHeaders: ["x-notees-asset-iv"],
     });
   }
 
