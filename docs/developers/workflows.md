@@ -31,7 +31,7 @@ workflow_rule
   name TEXT NOT NULL
   enabled INTEGER NOT NULL DEFAULT 1
   trigger_op_type TEXT NOT NULL  -- object.create | property.set | class.assign
-  criteria TEXT NOT NULL         -- QueryAST v1 JSON (a node filter, no aggregation)
+  criteria TEXT NOT NULL         -- QueryAST v2 JSON (a node filter, no aggregation)
   actions TEXT NOT NULL          -- JSON array, 1..10 entries
   created_at / updated_at INTEGER
 
@@ -58,7 +58,7 @@ with no retention sweep yet — runs grow with matches; prune is future work.
   `object.create` carrying `classIds` (see `op-catalog.ts`), and the semantic
   trigger matches exactly those envelopes. Validation is fail-loud at the API
   (422 on anything else).
-- **Y (criteria)** — the QueryAST (`packages/protocol/src/query-ast.ts`),
+- **Y (criteria)** — the QueryAST v2 (`packages/protocol/src/query-ast.ts`),
   compiled by `@notees/query` against the workspace's **derived store** and
   probed for the envelope's affected node. Criteria must be a pure node
   filter: an AST carrying an aggregation is rejected at creation, and a trial
