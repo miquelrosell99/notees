@@ -16,6 +16,10 @@
  *  - GET  /workspaces         the account's workspaces (membership view);
  *  - POST /workspaces         create a workspace (creator becomes owner);
  *  - PATCH /workspaces/:id    rename a workspace (owner-only via membership);
+ *  - GET/PUT /workspaces/:id/key
+ *                             the E2EE custody surface: one opaque wrapped-key
+ *                             string per workspace (member-scoped; GET 404s
+ *                             for non-members and keyless workspaces);
  *  - GET  /workspaces/:id/export.zip
  *                             full-workspace ZIP export: one
  *                             Markdown file per page (roots + their
@@ -84,6 +88,11 @@ const createWorkspaceSchema = z
 
 const renameWorkspaceSchema = z
   .object({ name: z.string().trim().min(1).max(120) })
+  .strict();
+
+/** The E2EE custody body: one opaque wrapped-key string (client-wrapped). */
+const workspaceKeySchema = z
+  .object({ wrappedKey: z.string().min(1).max(4096) })
   .strict();
 
 const exportZipQuerySchema = z
@@ -674,6 +683,53 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     }
     reply.code(201);
     return { id, name, nodeCount };
+  });
+
+  // GET/PUT /workspaces/:id/key — the E2EE custody surface. The server stores
+  // ONE opaque wrapped-key string per workspace (the client wraps the
+  // workspace key with the account master key; the server never sees either
+  // key). Authorization (Review Focus 1): a USER principal with membership;
+  // a user without membership gets 404 on GET (key existence is not
+  // revealed) and 403 on PUT; an API-key principal (the operator key) gets
+  // 403 on both — keys are user custody, not operator; unauthenticated 401.
+  app.get("/workspaces/:id/key", async (request) => {
+    const { id } = request.params as { id: string };
+    const resolved = resolvePrincipal(ctx, request);
+    if (resolved === null) {
+      throw new AppError(401, "unauthenticated", "a valid session or API key is required");
+    }
+    if (resolved.principal.kind !== "user") {
+      throw new AppError(403, "forbidden", "workspace keys are user custody; an API-key principal cannot read them");
+    }
+    if (ctx.auth.membership(id, resolved.principal.userId) === null) {
+      throw new AppError(404, "not_found", "no such workspace");
+    }
+    const wrappedKey = ctx.auth.getWorkspaceKey(id);
+    if (wrappedKey === undefined) {
+      throw new AppError(404, "not_found", "no workspace key stored");
+    }
+    return { wrappedKey };
+  });
+
+  app.put("/workspaces/:id/key", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const resolved = resolvePrincipal(ctx, request);
+    if (resolved === null) {
+      throw new AppError(401, "unauthenticated", "a valid session or API key is required");
+    }
+    if (resolved.principal.kind !== "user") {
+      throw new AppError(403, "forbidden", "workspace keys are user custody; an API-key principal cannot write them");
+    }
+    if (ctx.auth.membership(id, resolved.principal.userId) === null) {
+      throw new AppError(403, "forbidden", "only a workspace member can store its key");
+    }
+    const parsed = workspaceKeySchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid workspace key request");
+    }
+    ctx.auth.putWorkspaceKey(id, parsed.data.wrappedKey);
+    reply.code(204);
+    return reply.send();
   });
 
   // GET /workspaces/:id/export.zip — full-workspace ZIP export:
