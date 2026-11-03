@@ -45,6 +45,8 @@ Asset tokens render their file with a lightbox — the asset rendering rules the
 
 Pages come with predefined sections that are **named system queries** over the query runtime, not bespoke UI: **linked references**, **references** (outgoing), **unlinked references**, **child pages**, **classed nodes**, and **extended-by**. They are fixtures like any op type, and the section registry becomes plugin-extensible later.
 
+What counts as a link for these sections (the edge index, one ruling): **content mentions**, **node-typed property values**, and — since 2026-11-03 — **tags**. A source tagged #periimplantitis backlinks to the tag page exactly as if the tag were mentioned in its content: the tag page's Backlinks section lists every tagged source, and the backlink badge counts it. The dedicated Tags filter condition remains the tag-only surface. Class assignment and inline class chips are NOT links — a class marker with the node-link look, never a node link (no backlinks, no graph edges, no link analytics).
+
 The rules, all of them load-bearing for performance:
 
 - **Collapsed by default, and a collapsed section runs no query at all.** Nothing loads until the first expand.

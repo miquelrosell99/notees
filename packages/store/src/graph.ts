@@ -33,7 +33,7 @@
 
 import type { Store } from "./store.js";
 
-export type GraphEdgeKind = "mention" | "property" | "parent" | "class" | "semantic" | "temporal";
+export type GraphEdgeKind = "mention" | "property" | "tag" | "parent" | "class" | "semantic" | "temporal";
 
 export interface GraphNode {
   id: string;
@@ -309,16 +309,19 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
     edges.push(edge);
   };
 
-  // Structural mention + property families (multiplicity rides in weight).
-  // Targets ride the applier-materialized resolved_target_id (the alias
-  // terminal — graph.ts already steps through aliases, so this is the same
-  // projection, one column read instead of a per-endpoint chain walk).
+  // Structural mention + property + tag families (multiplicity rides in
+  // weight). Targets ride the applier-materialized resolved_target_id (the
+  // alias terminal — graph.ts already steps through aliases, so this is the
+  // same projection, one column read instead of a per-endpoint chain walk).
+  // Tags joined the reference index under the "tags are links" ruling
+  // (2026-11-03): tag edges render as their own filterable family, and the
+  // co-occurrence projections below still key on mentions only.
   const typedLinkRows = db
     .prepare(
       `SELECT source_id, resolved_target_id AS target_id, type, created_at FROM edge
-       WHERE workspace_id = ? AND resolved_target_id IS NOT NULL AND type IN ('mention', 'property')`,
+       WHERE workspace_id = ? AND resolved_target_id IS NOT NULL AND type IN ('mention', 'property', 'tag')`,
     )
-    .all(workspaceId) as unknown as (EdgeRow & { type: "mention" | "property" })[];
+    .all(workspaceId) as unknown as (EdgeRow & { type: "mention" | "property" | "tag" })[];
   for (const row of typedLinkRows) {
     addEdge(row.source_id, row.target_id, row.type, undefined, row.created_at);
   }

@@ -3457,6 +3457,84 @@ for (const adapter of adapters) {
   });
 }
 
+for (const adapter of adapters) {
+  describe(`tag edges on ${adapter.name} (the "tags are links" ruling)`, () => {
+    const PAGE = "0192a000-0000-7000-8000-000000000311";
+    const TAG_A = "0192a000-0000-7000-8000-000000000312";
+    const TAG_B = "0192a000-0000-7000-8000-000000000313";
+
+    /** Page + two tag pages, untagged. */
+    function tagEdgeStore(): Store {
+      const store = Store.open(adapter.makeBackend());
+      store.apply(env("object.create", { objectId: PAGE, contentAst: [{ type: "text", text: "P" }] }, 1727200001000));
+      store.apply(env("object.create", { objectId: TAG_A, contentAst: [{ type: "text", text: "tag A" }] }, 1727200001100));
+      store.apply(env("object.create", { objectId: TAG_B, contentAst: [{ type: "text", text: "tag B" }] }, 1727200001200));
+      return store;
+    }
+
+    const edgeRows = (store: Store, source: string) =>
+      store.database
+        .prepare("SELECT target_id, type, verb FROM edge WHERE source_id = ? ORDER BY target_id")
+        .all(source) as Array<{ target_id: string; type: string; verb: string | null }>;
+
+    it("tagging derives one tag edge per tag; untag drops it; re-add restores; the untag summary carries the target", () => {
+      const store = tagEdgeStore();
+      store.apply(env("object.create", { objectId: PAGE, tagIds: [TAG_A, TAG_B] }, 1727200002000));
+      expect(edgeRows(store, PAGE)).toEqual([
+        { target_id: TAG_A, type: "tag", verb: null },
+        { target_id: TAG_B, type: "tag", verb: null },
+      ]);
+      const untag = store.apply(env("tag.unassign", { objectId: PAGE, tagId: TAG_A }, 1727200003000));
+      expect(edgeRows(store, PAGE)).toEqual([{ target_id: TAG_B, type: "tag", verb: null }]);
+      // The untag's change summary carries the edge's target — the
+      // scope-classed cache invalidation depends on it.
+      expect(untag.affectedNodeIds).toContain(TAG_A);
+      store.apply(env("object.create", { objectId: PAGE, tagIds: [TAG_A] }, 1727200004000));
+      expect(edgeRows(store, PAGE)).toEqual([
+        { target_id: TAG_A, type: "tag", verb: null },
+        { target_id: TAG_B, type: "tag", verb: null },
+      ]);
+      store.close();
+    });
+
+    it("backlinks: the tag page lists tagged sources as direct backlinks and the badge counts them", () => {
+      const store = tagEdgeStore();
+      store.apply(env("object.create", { objectId: PAGE, tagIds: [TAG_A] }, 1727200002000));
+      const rollup = store.backlinksWithRollup(TAG_A) as Array<{
+        source_id: string;
+        kind: string;
+        type: string;
+      }>;
+      expect(rollup.map((r) => ({ source: r.source_id, kind: r.kind, type: r.type }))).toEqual([
+        { source: PAGE, kind: "direct", type: "tag" },
+      ]);
+      const statsOf = (id: string) =>
+        (
+          store.database
+            .prepare("SELECT backlink_count AS n FROM node_stats WHERE node_id = ?")
+            .get(id) as { n: number }
+        ).n;
+      expect(statsOf(TAG_A)).toBe(1);
+      store.close();
+    });
+
+    it("PB1: trashing the tag node keeps the edge (membership rides deletion)", () => {
+      const store = tagEdgeStore();
+      store.apply(env("object.create", { objectId: PAGE, tagIds: [TAG_A] }, 1727200002000));
+      store.apply(env("object.delete", { objectId: TAG_A }, 1727200003000));
+      expect(edgeRows(store, PAGE)).toEqual([{ target_id: TAG_A, type: "tag", verb: null }]);
+      store.close();
+    });
+
+    it("recentLinkTargets includes recently tagged targets", () => {
+      const store = tagEdgeStore();
+      store.apply(env("object.create", { objectId: PAGE, tagIds: [TAG_A] }, 1727200002000));
+      expect(store.recentLinkTargets(10).map((r) => r.id)).toContain(TAG_A);
+      store.close();
+    });
+  });
+}
+
 const TASK_CLASS = "00000000-0000-0000-0001-000000000012";
 const EVENT_CLASS = "00000000-0000-0000-0001-000000000040";
 const MEETING_CLASS = "00000000-0000-0000-0001-000000000039";

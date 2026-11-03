@@ -124,7 +124,7 @@ export function reresolveEdgeTargets(db: StoreDatabase, nodeIds: string[]): void
 
 export interface DesiredEdge {
   targetId: string | null;
-  type: "mention" | "typed_link" | "property";
+  type: "mention" | "typed_link" | "property" | "tag";
   verb: string | null;
   metadata: string | null;
   /** Mention edges only: the link's manual embedding flag (SCHEMA.md
@@ -251,6 +251,35 @@ export function deriveDesiredEdges(db: StoreDatabase, nodeId: string): DesiredEd
       const range = parsed as { start?: unknown; end?: unknown };
       pushRefEdge(pr.property_schema_id, range.start, pr.metadata, pr.hlc_physical);
       pushRefEdge(pr.property_schema_id, range.end, pr.metadata, pr.hlc_physical);
+    }
+  }
+
+  // Tag membership projects into the edge index too (the 2026-11-03 ruling:
+  // tags ARE links — a tagged node links to its tag exactly like a content
+  // mention, so backlinks, the Links / Link path query conditions, and the
+  // graph all read tags through this one index; the dedicated Tags condition
+  // keeps reading tag_ids directly for the tag-only surface). Derived from
+  // the node's own tag_ids column (the tag OR-Set's projection — the appliers
+  // recompute it before every rebuild), one edge per tag. Class assignment
+  // and class_link chips deliberately stay OUT of the index (a separate
+  // ruling). PB1 holds: membership rides deletion, so the edge derives from
+  // the surviving row, never the tag node's liveness.
+  const tagRow = db.prepare("SELECT tag_ids FROM node WHERE id = ?").get(nodeId) as
+    | { tag_ids: string | null }
+    | undefined;
+  if (tagRow !== undefined && tagRow.tag_ids !== null) {
+    let tagIds: unknown = null;
+    try {
+      tagIds = JSON.parse(tagRow.tag_ids);
+    } catch {
+      tagIds = null;
+    }
+    if (Array.isArray(tagIds)) {
+      for (const tagId of tagIds) {
+        if (typeof tagId === "string" && tagId.length > 0) {
+          desired.push({ targetId: tagId, type: "tag", verb: null, metadata: null });
+        }
+      }
     }
   }
 

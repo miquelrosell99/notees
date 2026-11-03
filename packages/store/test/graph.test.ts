@@ -108,6 +108,26 @@ describe("graphTopology", () => {
     expect(topology.edges.every((e) => e.source !== BLOCK_B1)).toBe(true);
   });
 
+  it("tag membership renders as its own tag family edge (tags are links); class assignment stays out", () => {
+    const store = setup(
+      createPage(PAGE_A),
+      createPage(PAGE_B),
+      env("class.create", { classId: CLASS_X, contentAst: [{ type: "text", text: "Class X" }] }),
+      // Tag PAGE_B with PAGE_A (the create re-issue is the add carrier); class
+      // PAGE_B into CLASS_X in the same breath — the class arm must NOT land
+      // in the reference index.
+      env("object.create", { objectId: PAGE_B, tagIds: [PAGE_A], classIds: [CLASS_X] }),
+    );
+    const topology = graphTopology(store, WS);
+    const tagEdge = edge(topology, "tag", PAGE_B, PAGE_A);
+    expect(tagEdge).toBeDefined();
+    // The class membership rides class_member_set (the graph synthesizes its
+    // own class family from it — a DIFFERENT edge than the reference index's).
+    const classFamily = topology.edges.filter((e) => e.kind === "class");
+    expect(classFamily.some((e) => e.source === PAGE_B && e.target === CLASS_X)).toBe(true);
+    store.close();
+  });
+
   it("a block target rolls up to its containing page", () => {
     const store = setup(
       createPage(PAGE_A),

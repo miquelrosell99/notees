@@ -1176,6 +1176,46 @@ describe.each(adapters)("$name", ({ makeStore }) => {
     });
   });
 
+  describe("tag edges (tags are links)", () => {
+    // A local world: the shared France world PLUS a tag on France. Kept out
+    // of worldEnvelopes so the scope-isolation counts stay untouched.
+    const TAG = "0192a000-0000-7000-8000-000000000401";
+
+    function taggedStore(): Store {
+      const store = worldStore();
+      store.apply(
+        env("object.create", { objectId: TAG, contentAst: [{ type: "text", text: "Peri" }] }, T0 + 90 * STEP),
+      );
+      store.apply(env("object.create", { objectId: FRANCE, tagIds: [TAG] }, T0 + 91 * STEP));
+      return store;
+    }
+
+    it("Links (linkedTo) matches a tagged node exactly like a mention link", () => {
+      const { ids } = runQuery(taggedStore(), ast(entire, [{ type: "linkedTo", nodeId: TAG }]));
+      expect(ids).toEqual([FRANCE]);
+    });
+
+    it("Links ANY-of matches through the tag edge", () => {
+      const { ids } = runQuery(taggedStore(), ast(entire, [{ type: "linkedToAny", nodeIds: [TAG] }]));
+      expect(ids).toEqual([FRANCE]);
+    });
+
+    it("Link path: the tag edge rides the row-or-ancestor arm — France's whole subtree matches", () => {
+      const { ids } = runQuery(taggedStore(), ast(entire, [{ type: "referencePathOf", nodeIds: [TAG] }]));
+      // France carries the tag; every node with France in its parent path
+      // matches (the Logseq-style arm), TAG itself excluded.
+      expect(ids.sort()).toEqual([FRANCE, PARIS, FR_BLOCK, PARIS_BLOCK, OUT_BLOCK].sort());
+    });
+
+    it("class assignment and class chips never count as links (the paired ruling)", () => {
+      const store = taggedStore();
+      // Paris is classed City and France carries the Place class — neither
+      // membership creates edges, so no condition sees them as links.
+      const { ids } = runQuery(store, ast(entire, [{ type: "linkedToAny", nodeIds: [CITY, PLACE] }]));
+      expect(ids).toEqual([]);
+    });
+  });
+
   describe("composition (and / or / not)", () => {
     it("and intersects", () => {
       const { ids } = runQuery(

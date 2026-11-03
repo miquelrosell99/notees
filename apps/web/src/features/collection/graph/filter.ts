@@ -94,6 +94,7 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   families: {
     mention: true,
     property: true,
+    tag: true,
     parent: true,
     class: true,
     semantic: true,
@@ -232,16 +233,18 @@ export const LINK_TYPE_IDS: Record<GraphEdgeKind, number> = {
   property: 3,
   semantic: 4,
   temporal: 5,
+  tag: 6,
 };
 
 /**
  * The zoom-dependent edge LOD mask (the original convention): parent/class always,
- * mention from 0.30, property from 0.60, semantic + temporal from 1.00.
+ * mention from 0.30, property + tag from 0.60 (tags ride the references tier
+ * under the "tags are links" ruling), semantic + temporal from 1.00.
  */
 export function edgeMaskForZoom(zoom: number): number {
   let mask = (1 << LINK_TYPE_IDS.parent) | (1 << LINK_TYPE_IDS.class);
   if (zoom >= 0.3) mask |= 1 << LINK_TYPE_IDS.mention;
-  if (zoom >= 0.6) mask |= 1 << LINK_TYPE_IDS.property;
+  if (zoom >= 0.6) mask |= (1 << LINK_TYPE_IDS.property) | (1 << LINK_TYPE_IDS.tag);
   if (zoom >= 1.0) mask |= (1 << LINK_TYPE_IDS.semantic) | (1 << LINK_TYPE_IDS.temporal);
   return mask;
 }
