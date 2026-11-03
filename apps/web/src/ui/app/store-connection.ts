@@ -18,7 +18,7 @@ import {
   currentMasterKey,
   ensureWorkspaceKey,
 } from "@/core/crypto-custody.js";
-import { fetchWorkspaceKey } from "@/core/auth-api.js";
+import { AuthRequestError, fetchWorkspaceKey } from "@/core/auth-api.js";
 import { WorkerClient } from "@/core/worker-client.js";
 import { markLocalWorkspaceCopy } from "@/core/workspace-registry.js";
 import { settingsSectionFromPath } from "../../features/settings/SettingsPage.js";
@@ -90,10 +90,15 @@ export async function resolveWorkspaceKey(
         `[notees-web] workspace key unavailable for ${workspaceId}; opening keyless (plaintext passthrough):`,
         error instanceof Error ? error.message : String(error),
       );
-      // A wrong-master failure proves the workspace is keyed; a network
-      // failure does not — probe before reporting "locked".
+      // A wrong-master/unwrap failure proves the workspace is keyed; a
+      // network failure does not — probe before reporting "locked". When
+      // the original failure was NOT an HTTP error (a crypto/unwrap failure)
+      // and the probe cannot settle it, default to locked so the open never
+      // degrades silently without a banner.
       const wrapped = await fetchWorkspaceKey(url, credential, workspaceId).catch(() => undefined);
-      return { key: undefined, locked: wrapped !== undefined };
+      if (wrapped !== undefined) return { key: undefined, locked: true };
+      const locked = !(error instanceof AuthRequestError);
+      return { key: undefined, locked };
     }
   }
   if (options.credentialType === "session") {

@@ -100,6 +100,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
   ): Promise<void> {
     setPhase({ name: "connecting", label: options.isOffline ? "Opening local workspace…" : "Connecting…" });
     setError(null);
+    setEncryptedLocked(false);
     const previous = clientRef.current;
     clientRef.current = null;
     previous?.close();
@@ -132,6 +133,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     clientRef.current = null;
     live?.close();
     setClient(null);
+    setEncryptedLocked(false);
   }
 
   return {
