@@ -29,8 +29,11 @@
  * The dry-run is READ-ONLY and never aborts: it reports the per-workspace
  * distribution (including a per-v1-condition-shape histogram) plus a
  * scan-notes list of anything it could not map. --apply fails loud on any
- * unmapped remainder (defense in depth: every rewritten envelope is
- * re-validated against the strict v3 schemas before the write).
+ * unmapped remainder — except foreign tokens on envelopes VERIFIED
+ * SUPERSEDED (named by id via the repeatable --accept-foreign flag; the
+ * ancient bytes are never rewritten, and the accepted notes still list in
+ * the report) — defense in depth holding otherwise: every rewritten
+ * envelope is re-validated against the strict v3 schemas before the write.
  *
  * Idempotent: a schema_meta row marks a completed run; a second invocation
  * without --force reports "already migrated" and exits 0.
@@ -45,6 +48,14 @@
  *                                   a --workspace run refuses to apply; use --all)
  *   ... --db <path>               # override the relay file directly (precedent style)
  *   ... --force                   # re-run past the marker (fresh backup first)
+ *   ... --accept-foreign <envelope-id>   # REPEATABLE: envelope ids whose foreign
+ *                                   query tokens are VERIFIED SUPERSEDED (a later
+ *                                   op replaced them — the query token is a loose
+ *                                   record at apply, so history stays inert).
+ *                                   Accepted foreign notes render distinctly and
+ *                                   never block --apply; the ancient bytes are
+ *                                   never rewritten. Unaccepted foreign still
+ *                                   aborts before the backup, fail loud.
  *
  * Exit codes: 0 success (dry-run included), 1 any error.
  */
@@ -104,15 +115,25 @@ function parseArgs(argv: string[]): {
   apply: boolean;
   force: boolean;
   workspace: string | null;
+  /** Envelope ids whose foreign query tokens are VERIFIED SUPERSEDED (repeatable). */
+  acceptForeign: string[];
 } {
   const args: Record<string, string | boolean | null> = {};
+  const acceptForeign: string[] = [];
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]!;
     if (arg === "--dry-run") args.apply = false;
     else if (arg === "--apply") args.apply = true;
     else if (arg === "--force") args.force = true;
     else if (arg === "--all") args.workspace = null;
-    else if (arg.startsWith("--")) {
+    else if (arg === "--accept-foreign") {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith("--")) {
+        throw new Error("--accept-foreign requires a value");
+      }
+      acceptForeign.push(value);
+      i += 1;
+    } else if (arg.startsWith("--")) {
       const value = argv[i + 1];
       if (value === undefined || value.startsWith("--")) {
         throw new Error(`${arg} requires a value`);
@@ -134,6 +155,7 @@ function parseArgs(argv: string[]): {
     apply: args.apply === true,
     force: args.force === true,
     workspace: typeof args.workspace === "string" ? args.workspace : null,
+    acceptForeign,
   };
 }
 
@@ -340,6 +362,8 @@ function planRow(
   stats: WorkspaceStats,
   notes: string[],
   plans: RowPlan[],
+  acceptedNotes: string[],
+  acceptedForeign: ReadonlySet<string>,
 ): void {
   if (!AST_OPS.has(row.op_type)) return;
   if (workspaceFilter !== null && row.workspace_id !== workspaceFilter) return;
@@ -362,7 +386,16 @@ function planRow(
   stats.foreign += tokenStats.foreign.length;
   stats.unmapped += tokenStats.unmappable.length;
   for (const note of tokenStats.foreign) {
-    notes.push(`${note}: neither v1 nor v2 — left untouched`);
+    // A foreign token on a VERIFIED-SUPPERSEDED envelope (a later op replaced
+    // it — the query token is a loose record at apply, so history stays
+    // inert) may be accepted by envelope id; accepted notes render
+    // distinctly and never block --apply. Anything else stays blocking.
+    const envelopeId = /^envelope ([0-9a-f-]{36})/.exec(note)?.[1];
+    if (envelopeId !== undefined && acceptedForeign.has(envelopeId)) {
+      acceptedNotes.push(note);
+    } else {
+      notes.push(`${note}: neither v1 nor v2 — left untouched`);
+    }
   }
   for (const note of tokenStats.unmappable) {
     notes.push(`envelope ${row.id} seq ${row.seq}: ${note}`);
@@ -414,6 +447,8 @@ function main(): void {
     const rows = db.prepare("SELECT * FROM envelope ORDER BY seq ASC").all() as unknown as StoredRow[];
     const workspaces = new Map<string, WorkspaceStats>();
     const scanNotes: string[] = [];
+    const acceptedNotes: string[] = [];
+    const acceptedForeign = new Set(options.acceptForeign);
     const plans: RowPlan[] = [];
     const shapeHistogram = new Map<string, number>();
     for (const row of rows) {
@@ -429,7 +464,7 @@ function main(): void {
         workspaces.get(row.workspace_id) ??
         { total: 0, v1Tokens: 0, v2Tokens: 0, foreign: 0, unmapped: 0 };
       const before = stats.v1Tokens;
-      planRow(row, options.workspace, stats, scanNotes, plans);
+      planRow(row, options.workspace, stats, scanNotes, plans, acceptedNotes, acceptedForeign);
       const rewritten = stats.v1Tokens - before;
       if (options.workspace === null || row.workspace_id === options.workspace) {
         workspaces.set(row.workspace_id, stats);
@@ -573,6 +608,11 @@ function main(): void {
       console.log(`scan notes (${allNotes.length} occurrence(s) need attention before --apply):`);
       for (const note of allNotes.slice(0, 50)) console.log(`  ${note}`);
       if (allNotes.length > 50) console.log(`  … and ${allNotes.length - 50} more`);
+    }
+    if (acceptedNotes.length > 0) {
+      console.log(`foreign (accepted, superseded) — verified by envelope id, never rewritten, not blocking:`);
+      for (const note of acceptedNotes.slice(0, 50)) console.log(`  ${note}`);
+      if (acceptedNotes.length > 50) console.log(`  … and ${acceptedNotes.length - 50} more`);
     }
 
     if (!options.apply) {
