@@ -260,6 +260,16 @@ CREATE TABLE IF NOT EXISTS node_view (
 );
 CREATE INDEX IF NOT EXISTS idx_node_view_owner ON node_view (node_id, section_key);
 
+-- E2EE custody: one opaque wrapped workspace key per workspace. The server
+-- never sees the master key or any unwrapped key — the client wraps with the
+-- account master key, and this row is the whole custody surface. Keyed
+-- workspaces are client-seeded only (the seed shim checks this table).
+CREATE TABLE IF NOT EXISTS workspace_key (
+    workspace_id TEXT PRIMARY KEY,
+    wrapped_key TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
 -- (The retired per-user section_view table's one-time migration runs in the
 -- constructor, after this DDL — it must be conditional on the old table
 -- existing, which plain SQL cannot express.)
@@ -820,6 +830,29 @@ export class AuthStorage {
       )
       .run(record.salt, record.N, record.r, record.p, record.wrappedMasterKey, record.keyVerifier, userId);
     return record;
+  }
+
+  // --- E2EE workspace-key custody (opaque wrapped keys) ----------------------
+
+  /** The workspace's wrapped key, or undefined when the workspace is keyless. */
+  getWorkspaceKey(workspaceId: string): string | undefined {
+    const row = this.db
+      .prepare("SELECT wrapped_key FROM workspace_key WHERE workspace_id = ?")
+      .get(workspaceId) as { wrapped_key: string } | undefined;
+    return row?.wrapped_key;
+  }
+
+  /** Upsert the workspace's wrapped key (last write wins; the client owns custody). */
+  putWorkspaceKey(workspaceId: string, wrappedKey: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO workspace_key (workspace_id, wrapped_key, updated_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT (workspace_id) DO UPDATE SET
+           wrapped_key = excluded.wrapped_key,
+           updated_at = excluded.updated_at`,
+      )
+      .run(workspaceId, wrappedKey, Date.now());
   }
 
   // --- per-user UI prefs (favorites/recents — server-side UI state) ---
