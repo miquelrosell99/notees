@@ -60,49 +60,90 @@ export function scanCss(rawContent) {
   const lines = content.split('\n');
   const violations = [];
 
+  // Declaration context is tracked ACROSS lines: a declaration opened by a
+  // ':' inside a block and not yet closed by ';' or '}' continues on the
+  // following lines, so a #hex on a continuation line is a color VALUE and
+  // must flag (the old line-scoped "no ':' before it" suppression let
+  // `color:\n  #a1b2c3;` sail through). Brace depth locates the ':' inside a
+  // block, so a selector pseudo-class (`.x:hover {`) does not open one.
+  let depth = 0;
+  let declContinuation = false;
+
   for (let i = 0; i < lines.length; i++) {
     const lineNo = i + 1;
-    if (optOut.has(lineNo)) continue;
     const line = lines[i];
     const trimmed = line.trim();
-    if (trimmed === '' || trimmed.startsWith('@')) continue; // @import/@keyframes names etc.
+    const skipped = optOut.has(lineNo) || trimmed === '' || trimmed.startsWith('@');
 
-    // COLOR — a #hex is a color VALUE only in declaration context: a ':'
-    // must precede it on the line (id selectors, attribute values, and
-    // keyframe names carry no preceding colon and are suppressed).
-    for (const m of line.matchAll(/#[0-9a-fA-F]{3,8}\b/gi)) {
-      if (!line.slice(0, m.index).includes(':')) continue;
-      violations.push({ line: lineNo, kind: 'COLOR', match: m[0] });
+    if (!skipped) {
+      // COLOR — a #hex literal flags unless it is unambiguously NOT a color
+      // value:
+      //   (a) inside url(...) — an SVG fragment reference, never a color;
+      //   (b) in selector position — preceded (ignoring whitespace) by
+      //       nothing/start or one of '{', '/', ',', '(' — an id selector
+      //       like `#abc {`, `.x #abc {`, `, #abc`, `:not(#abc)`;
+      //   (c) on a line with no ':' before it and not in declaration
+      //       continuation — a selector fragment (`#abc {`, `.x #abc`).
+      // Anything else — a ':' before it on the line, or a declaration open
+      // from a previous line — is a color value and flags.
+      for (const m of line.matchAll(/#[0-9a-fA-F]{3,8}\b/gi)) {
+        const before = line.slice(0, m.index);
+        if (/\burl\s*\([^)]*$/.test(before)) continue;                       // (a)
+        if (!declContinuation) {
+          const tail = before.replace(/\s+$/, '');
+          if (tail === '' || /[{/,/(]$/.test(tail)) continue;                // (b)
+          if (!before.includes(':')) continue;                               // (c)
+        }
+        violations.push({ line: lineNo, kind: 'COLOR', match: m[0] });
+      }
+      for (const m of line.matchAll(/\brgba?\([^)]*\)/gi)) {
+        violations.push({ line: lineNo, kind: 'COLOR', match: m[0] });
+      }
+      // MOTION (units are case-insensitive in CSS — PX/REM/MS flag too)
+      for (const m of line.matchAll(/(?<![-\w.])(\d+(?:\.\d+)?)(ms|s)\b/gi)) {
+        violations.push({ line: lineNo, kind: 'MOTION', match: m[0] });
+      }
+      for (const m of line.matchAll(/cubic-bezier\([^)]*\)/g)) {
+        violations.push({ line: lineNo, kind: 'MOTION', match: m[0] });
+      }
+      // PX (allowlist: 0px, 1px, 48px in a min-* declaration, media conditions already blanked)
+      for (const m of line.matchAll(/(?<![-\w.])(-?\d+(?:\.\d+)?)px\b/gi)) {
+        const px = parseFloat(m[0]);
+        if (px === 0 || px === 1) continue;
+        // The 48px exemption is declaration-scoped: the match is exempt only
+        // when the declaration it sits in — the text back to the nearest '{',
+        // ';', or '}' — opens with a min-* property; a 48px in any other
+        // declaration on the same line still flags.
+        if (px === 48 && minDeclAt(line, m.index)) continue;
+        violations.push({ line: lineNo, kind: 'PX', match: m[0] });
+      }
+      // REM (all hardcoded rem duplicates a scale step or needs an opt-out;
+      // negative rem drifts exactly like negative px)
+      for (const m of line.matchAll(/(?<![-\w.])(-?\d+(?:\.\d+)?)rem\b/gi)) {
+        violations.push({ line: lineNo, kind: 'REM', match: m[0] });
+      }
+      // Z (property names are case-insensitive in CSS — Z-INDEX flags too)
+      for (const m of line.matchAll(/z-index\s*:\s*(-?\d+)\b/gi)) {
+        violations.push({ line: lineNo, kind: 'Z', match: m[0] });
+      }
     }
-    for (const m of line.matchAll(/\brgba?\([^)]*\)/gi)) {
-      violations.push({ line: lineNo, kind: 'COLOR', match: m[0] });
+
+    // Advance the declaration-continuation state from this line's text. An
+    // open declaration runs until its ';' or '}' closes it; otherwise a
+    // ':' inside a block (brace depth > 0, after the last '{', ';', or
+    // '}' boundary — or anywhere on a boundary-less line, which by
+    // definition sits inside the block) opens one. A selector pseudo-class
+    // (`.x:hover {`) or a media condition never passes the boundary test.
+    for (const ch of line) {
+      if (ch === '{') depth++;
+      else if (ch === '}') depth--;
     }
-    // MOTION (units are case-insensitive in CSS — PX/REM/MS flag too)
-    for (const m of line.matchAll(/(?<![-\w.])(\d+(?:\.\d+)?)(ms|s)\b/gi)) {
-      violations.push({ line: lineNo, kind: 'MOTION', match: m[0] });
+    if (declContinuation && (line.includes(';') || line.includes('}'))) {
+      declContinuation = false;
     }
-    for (const m of line.matchAll(/cubic-bezier\([^)]*\)/g)) {
-      violations.push({ line: lineNo, kind: 'MOTION', match: m[0] });
-    }
-    // PX (allowlist: 0px, 1px, 48px in a min-* declaration, media conditions already blanked)
-    for (const m of line.matchAll(/(?<![-\w.])(-?\d+(?:\.\d+)?)px\b/gi)) {
-      const px = parseFloat(m[0]);
-      if (px === 0 || px === 1) continue;
-      // The 48px exemption is declaration-scoped: the match is exempt only
-      // when the declaration it sits in — the text back to the nearest '{',
-      // ';', or '}' — opens with a min-* property; a 48px in any other
-      // declaration on the same line still flags.
-      if (px === 48 && minDeclAt(line, m.index)) continue;
-      violations.push({ line: lineNo, kind: 'PX', match: m[0] });
-    }
-    // REM (all hardcoded rem duplicates a scale step or needs an opt-out;
-    // negative rem drifts exactly like negative px)
-    for (const m of line.matchAll(/(?<![-\w.])(-?\d+(?:\.\d+)?)rem\b/gi)) {
-      violations.push({ line: lineNo, kind: 'REM', match: m[0] });
-    }
-    // Z
-    for (const m of line.matchAll(/z-index\s*:\s*(-?\d+)\b/g)) {
-      violations.push({ line: lineNo, kind: 'Z', match: m[0] });
+    if (!declContinuation) {
+      const b = Math.max(line.lastIndexOf('{'), line.lastIndexOf(';'), line.lastIndexOf('}'));
+      declContinuation = depth > 0 && line.slice(b + 1).includes(':');
     }
   }
   return violations;
