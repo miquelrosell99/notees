@@ -459,6 +459,7 @@ export function OutlineView(props: NodeCollectionProps) {
             hideBacklinks={props.hideBacklinkCount}
             condensed={props.condensed}
             trailingGhost={props.parentTrailing}
+            rootEnterNests={props.rootEnterNests}
           />
         </SortableContext>
       </div>

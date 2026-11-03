@@ -24,6 +24,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
+import { FocusedBlockView } from "../src/ui/FocusedBlockView.js";
 import { writeDeviceSetting } from "../src/features/settings/deviceSettings.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -315,5 +316,97 @@ describe("outliner keys", () => {
     expect(childIds(client, cat)).toEqual([b]);
     expect(childIds(client, a)).toEqual([]);
     writeDeviceSetting("treeEditMode", "logical");
+  });
+});
+
+describe("focused block view — root-row Enter (rootEnterNests)", () => {
+  /** Render the zoom view rooted at `blockId` and enter edit on its row. */
+  async function renderFocused(client: WorkspaceClient, blockId: string) {
+    const node = client.getNode(blockId);
+    if (node === undefined) throw new Error(`node ${blockId} missing`);
+    const rendered = render(<FocusedBlockView client={client} node={node} viewMode="outline" />);
+    const editor = clickIntoBlock(rendered.container, 0); // the focused root row
+    return { ...rendered, editor };
+  }
+
+  it("Enter mid-text on a childless focused block moves the tail to its FIRST CHILD (never a sibling)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zoom" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello world" }],
+    });
+    const { container, editor } = await renderFocused(client, blockId);
+    setProseCaret(editor, 6);
+    keyDown(editor, "Enter");
+    await flushAsync();
+
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "hello " }]);
+    // The page keeps exactly the focused block — no sibling split.
+    expect(childIds(client, pageId)).toEqual([blockId]);
+    const kids = client.getChildren(blockId);
+    expect(kids).toHaveLength(1);
+    expect(kids[0]!.contentAst).toEqual([{ type: "text", text: "world" }]);
+    expect(container.querySelector(".nt-focused-block")).not.toBeNull();
+  });
+
+  it("Enter at the end of a childless focused block creates an empty FIRST CHILD", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "ZoomEnd" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "parent" }],
+    });
+    const { editor } = await renderFocused(client, blockId);
+    setProseCaret(editor, 6); // end
+    keyDown(editor, "Enter");
+    await flushAsync();
+
+    expect(childIds(client, pageId)).toEqual([blockId]);
+    const kids = client.getChildren(blockId);
+    expect(kids).toHaveLength(1);
+    expect(kids[0]!.contentAst).toEqual([]);
+  });
+
+  it("Enter mid-text lands the tail BEFORE the existing first child", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "ZoomOrder" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello world" }],
+    });
+    const kid = await client.createObject({
+      parentId: blockId,
+      contentAst: [{ type: "text", text: "kid" }],
+    });
+    const { editor } = await renderFocused(client, blockId);
+    setProseCaret(editor, 6);
+    keyDown(editor, "Enter");
+    await flushAsync();
+
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "hello " }]);
+    const ids = childIds(client, blockId);
+    expect(ids).toHaveLength(2);
+    expect(client.getNode(ids[0]!)?.contentAst).toEqual([{ type: "text", text: "world" }]);
+    expect(ids[1]).toBe(kid);
+  });
+
+  it("Enter at the start moves the whole text into the first child, leaving the focused block empty", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "ZoomStart" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "all of it" }],
+    });
+    const { editor } = await renderFocused(client, blockId);
+    setProseCaret(editor, 0);
+    keyDown(editor, "Enter");
+    await flushAsync();
+
+    expect(childIds(client, pageId)).toEqual([blockId]);
+    expect(client.getNode(blockId)?.contentAst).toEqual([]);
+    const kids = client.getChildren(blockId);
+    expect(kids).toHaveLength(1);
+    expect(kids[0]!.contentAst).toEqual([{ type: "text", text: "all of it" }]);
   });
 });

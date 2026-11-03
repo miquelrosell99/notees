@@ -235,6 +235,10 @@ export function NodeCollection({
     props.parentTrailing ?? (props.parent !== undefined ? ghost : undefined);
   const viewProps = {
     ...props,
+    // The focused grammar's root-row Enter contract: the parent row (the
+    // zoom root) never sibling-splits — Enter nests into its first child.
+    // Only outline consumes it (prose renders the parent as the title row).
+    rootEnterNests: props.parent !== undefined,
     items: resolvedItems,
     groups: resolvedGroups,
     ungroupedItems: resolvedUngrouped,

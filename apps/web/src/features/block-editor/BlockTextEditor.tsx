@@ -281,10 +281,19 @@ interface BlockTextEditorProps {
    * outliner contract.
    */
   variant?: "block" | "title" | undefined;
+  /**
+   * The focused block view's root row (the zoom grammar — the focused block
+   * IS the parent of everything below it): Enter NEVER sibling-splits on
+   * this row. Mid-text the tail becomes this node's FIRST CHILD (before any
+   * existing children); at the end / on an empty row a new empty FIRST
+   * CHILD is created. Absent = the ordinary outliner contract (sibling
+   * split; the Roam first-child rule only when children exist).
+   */
+  rootEnterNests?: boolean | undefined;
 }
 
 
-export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: BlockTextEditorProps) {
+export function BlockTextEditor({ node, caret, onExitEdit, variant = "block", rootEnterNests = false }: BlockTextEditorProps) {
   const {
     client,
     rootId,
@@ -2160,12 +2169,16 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       const singleCarrier = carrier !== null && !carrier.multi;
       const firstChildId = singleCarrier ? client.getChildren(currentId)[0]?.id : undefined;
       const childAnchor = firstChildId !== undefined ? { beforeId: firstChildId } : {};
-      if (caret !== null && caret > 0 && caret < cutLen) {
+      if (caret !== null && caret < cutLen && (caret > 0 || rootEnterNests)) {
         // MID-TEXT: split at the caret. The head stays in this block; the
         // tail moves to a new block right after — a SIBLING normally, the
         // FIRST CHILD when this block has children (the children stay with
-        // the head). The head write supersedes the debounced flush — clear
-        // it so the unmount flush can't overwrite the split.
+        // the head) or ALWAYS when this is the focused view's root row
+        // (rootEnterNests — the zoom grammar: the focused block is the
+        // parent of everything below it, so at caret 0 the whole text
+        // moves into the first child and the row is left empty). The head
+        // write supersedes the debounced flush — clear it so the unmount
+        // flush can't overwrite the split.
         if (timerRef.current !== null) {
           clearTimeout(timerRef.current);
           timerRef.current = null;
@@ -2174,7 +2187,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
         const head = spliceTokens(cut, caret, cutLen, [], resolveClassName, resolveMentionName);
         const tail = spliceTokens(cut, 0, caret, [], resolveClassName, resolveMentionName);
         const firstChild = client.getChildren(currentId)[0]?.id;
-        const nest = !singleCarrier && firstChild !== undefined;
+        const nest = !singleCarrier && (firstChild !== undefined || rootEnterNests);
         const headCommitted = withCandidateSpans(head);
         committedRef.current = headCommitted;
         void client.updateObject(currentId, { contentAst: headCommitted });
@@ -2185,7 +2198,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
             ...(singleCarrier
               ? childAnchor
               : nest
-                ? { beforeId: firstChild }
+                ? firstChild !== undefined
+                  ? { beforeId: firstChild }
+                  : {}
                 : parentId !== null
                   ? { afterId: currentId }
                   : {}),
@@ -2196,7 +2211,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
           });
         return;
       }
-      if (caret === 0 && cutLen > 0) {
+      if (caret === 0 && cutLen > 0 && !rootEnterNests) {
         // START: a new empty block BEFORE this one (W1 beforeId) — or a
         // first CHILD for a single-value carrier. A cut selection commits
         // first so the emptied text doesn't linger.
@@ -2216,15 +2231,17 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
         return;
       }
       // END / EMPTY: a sibling after this block — but a block WITH CHILDREN
-      // takes the new block as its FIRST child instead (the Roam rule); a
-      // single-value carrier ALWAYS takes the child branch (its value is
-      // one block — Enter adds a line, never a sibling value). A cut
-      // selection commits first so the emptied text doesn't linger.
+      // takes the new block as its FIRST child instead (the Roam rule); the
+      // focused view's root row ALWAYS takes the child branch
+      // (rootEnterNests — never a sibling); a single-value carrier ALWAYS
+      // takes the child branch (its value is one block — Enter adds a line,
+      // never a sibling value). A cut selection commits first so the emptied
+      // text doesn't linger.
       if (cut !== base) {
         void client.updateObject(currentId, { contentAst: withCandidateSpans(cut) });
       }
       const children = client.getChildren(currentId);
-      if (singleCarrier || children.length > 0) {
+      if (singleCarrier || rootEnterNests || children.length > 0) {
         const firstChild = children[0]?.id;
         void client
           .createObject({
