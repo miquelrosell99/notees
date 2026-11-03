@@ -39,6 +39,7 @@ export type { Notification, NotificationType } from './notificationStore.js';
 export { BackendDownLock, OUTAGE_GRACE_MS, RISK_BACKLOG_OPS } from './BackendDownLock.js';
 export type { BackendDownLockProps } from './BackendDownLock.js';
 
+export { EncryptedLockedBanner } from './EncryptedLockedBanner.js';
 export { InProcessStoreBanner } from './InProcessStoreBanner.js';
 
 export { LintHintRow } from './LintHintRow.js';

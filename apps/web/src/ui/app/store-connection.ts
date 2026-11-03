@@ -42,6 +42,11 @@ export interface ConnectOutcome {
   /** True when the live credential is a session (API-key management needs one). */
   sessionSignedIn: boolean;
   workspaceName: string;
+  /**
+   * The workspace is encrypted but this open has no key (the session reloaded
+   * without the master key): writes are plaintext until unlocked.
+   */
+  encryptedLocked: boolean;
 }
 
 /**
@@ -54,31 +59,45 @@ export interface ConnectOutcome {
  * When the switch is on: offline workspaces are keyless by design (no server
  * → no keys → plaintext). With a session but NO master key in memory (a
  * reload restores the session without it — custody is memory-only), a keyed
- * workspace opens KEYLESS (plaintext passthrough, legal in the mixed log)
- * with a visible warning; the unlock re-prompt is a documented fast-follow.
+ * workspace opens KEYLESS (plaintext passthrough, legal in the mixed log):
+ * `locked` reports that state so the UI can banner it and offer the unlock
+ * re-prompt. The unlock re-prompt re-derives the master key and re-opens.
  */
+export interface WorkspaceKeyResolution {
+  /** The raw 32-byte workspace key, when this open is sealed. */
+  key: Uint8Array | undefined;
+  /**
+   * The workspace IS encrypted but this session opened without the key —
+   * writes are plaintext until unlocked.
+   */
+  locked: boolean;
+}
+
 export async function resolveWorkspaceKey(
   url: string,
   credential: string,
   workspaceId: string,
   options: ConnectOptions,
-): Promise<Uint8Array | undefined> {
-  if (window.NOTEES_CONFIG?.e2ee !== "on") return undefined;
-  if (options.isOffline) return undefined;
+): Promise<WorkspaceKeyResolution> {
+  if (window.NOTEES_CONFIG?.e2ee !== "on") return { key: undefined, locked: false };
+  if (options.isOffline) return { key: undefined, locked: false };
   const master = currentMasterKey();
   if (master !== null) {
     try {
-      return await ensureWorkspaceKey(url, credential, workspaceId, master);
+      return { key: await ensureWorkspaceKey(url, credential, workspaceId, master), locked: false };
     } catch (error) {
       console.warn(
         `[notees-web] workspace key unavailable for ${workspaceId}; opening keyless (plaintext passthrough):`,
         error instanceof Error ? error.message : String(error),
       );
-      return undefined;
+      // A wrong-master failure proves the workspace is keyed; a network
+      // failure does not — probe before reporting "locked".
+      const wrapped = await fetchWorkspaceKey(url, credential, workspaceId).catch(() => undefined);
+      return { key: undefined, locked: wrapped !== undefined };
     }
   }
   if (options.credentialType === "session") {
-    // Distinguish "keyed but locked" from "keyless" for the warning: the
+    // Distinguish "keyed but locked" from "keyless" for the banner: the
     // wrapped-key row needs only membership, not the master key.
     const wrapped = await fetchWorkspaceKey(url, credential, workspaceId).catch(() => undefined);
     if (wrapped !== undefined) {
@@ -87,9 +106,10 @@ export async function resolveWorkspaceKey(
           "(a reload restores the session without it). Opening keyless — writes are plaintext " +
           "until you sign in again with your password. (Unlock re-prompt is a fast-follow.)",
       );
+      return { key: undefined, locked: true };
     }
   }
-  return undefined;
+  return { key: undefined, locked: false };
 }
 
 /**
@@ -116,7 +136,8 @@ export async function openStoreConnection(
   }
   writeStored(STORAGE_KEYS.serverUrl, url);
   writeStored(STORAGE_KEYS.workspaceId, workspaceId);
-  const workspaceKey = await resolveWorkspaceKey(url, credential, workspaceId, options);
+  const resolution = await resolveWorkspaceKey(url, credential, workspaceId, options);
+  const workspaceKey = resolution.key;
   const mode = detectStoreMode();
   let nextClient: AnyClient;
   if (mode === "worker") {
@@ -178,5 +199,11 @@ export async function openStoreConnection(
   // workspace, so the offline registry may offer it while the server
   // can't answer.
   markLocalWorkspaceCopy(workspaceId);
-  return { client: nextClient, mode, sessionSignedIn, workspaceName: options.label ?? "Workspace" };
+  return {
+    client: nextClient,
+    mode,
+    sessionSignedIn,
+    workspaceName: options.label ?? "Workspace",
+    encryptedLocked: resolution.locked,
+  };
 }
