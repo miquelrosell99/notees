@@ -235,7 +235,6 @@ export default {
       },
       width: {
         panel: "var(--panel-width-md)",
-        sidebar: "var(--sidebar-width)",
         /* The square box controls' twin of the height register (Checkbox,
            Radio): the box sides ride the same --height-N tokens, so `w-xs`
            and friends actually generate — without them twMerge keeps the

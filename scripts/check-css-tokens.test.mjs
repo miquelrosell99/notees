@@ -108,3 +108,37 @@ test('multi-line comment preserves line numbers and opt-out honoring', () => {
   const v = scanCss(css);
   assert.deepEqual(v, [{ line: 4, kind: 'PX', match: '8px' }]);
 });
+
+test('z-index property name is case-insensitive: Z-INDEX and Z-Index flag', () => {
+  const css = [
+    '.a { Z-INDEX: 42; }',    // 1 Z
+    '.b { Z-Index: 42; }',    // 2 Z
+  ].join('\n');
+  const v = scanCss(css);
+  assert.ok(has(v, 'Z', 1) && has(v, 'Z', 2));
+  assert.equal(v.filter((x) => x.kind === 'Z').length, 2);
+});
+
+test('#hex on a declaration continuation line flags', () => {
+  const css = [
+    '.a {',
+    '  color:',            // opens the declaration
+    '    #a1b2c3;',        // 3 COLOR (continuation line)
+    '}',
+  ].join('\n');
+  const v = scanCss(css);
+  assert.deepEqual(v, [{ line: 3, kind: 'COLOR', match: '#a1b2c3' }]);
+});
+
+test('id selectors and url(#...) fragments stay clean; color: #hex flags', () => {
+  const css = [
+    '#abc { color: red; }',       // id selector — clean
+    '.x #abc, #def { }',          // selector list — clean
+    'a:not(#abc) { }',            // functional pseudo — clean
+    'fill="url(#abc)"',           // SVG attribute fragment — clean
+    '.b { background: url(#abc); }', // 5 url fragment — clean
+    '.c { color: #abc; }',        // 6 COLOR
+  ].join('\n');
+  const v = scanCss(css);
+  assert.deepEqual(v, [{ line: 6, kind: 'COLOR', match: '#abc' }]);
+});
