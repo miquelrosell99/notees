@@ -37,34 +37,34 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--spacing-6);
 }
 
 .nt-bootstrap-form {
   background: var(--md-sys-color-surface);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
-  padding: 28px;
-  width: 360px;
+  padding: var(--spacing-7);
+  width: 360px; /* token-gate: constant bootstrap form width — one-off boot-screen form ruling, no scale step */
   max-width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--spacing-3-5);
   box-shadow: var(--shadow-elevation-3);
 }
 
 .nt-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--spacing-2-5);
 }
 
 .nt-brand-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: var(--spacing-7-5);
+  height: var(--spacing-7-5);
   border-radius: var(--shape-medium);
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
@@ -86,13 +86,13 @@
 .nt-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--spacing-3);
 }
 
 .nt-tabs {
   display: flex;
-  gap: 4px;
-  padding: 3px;
+  gap: var(--spacing-1);
+  padding: var(--spacing-tiny);
   background: var(--md-sys-color-surface-container-high);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large); /* 9px is off the shape scale; nearest token */
@@ -129,7 +129,7 @@
 .nt-field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: var(--spacing-xxs);
   font-size: var(--font-size-button);
   color: var(--md-sys-color-on-surface-variant);
 }
@@ -151,8 +151,8 @@
   margin: 0;
   font-size: var(--font-size-sm);
   color: var(--md-sys-color-on-surface-variant);
-  border-left: 3px solid var(--md-sys-color-outline);
-  padding-left: 10px;
+  border-left: var(--spacing-tiny) solid var(--md-sys-color-outline);
+  padding-left: var(--spacing-2-5);
 }
 
 .nt-bootstrap-footer {
@@ -172,7 +172,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--spacing-2-5);
 }
 
 /* --- settings modal --------------------------------------------------------- */
@@ -189,7 +189,7 @@
 .nt-settings-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--spacing-2-5);
 }
 
 .nt-settings-heading {
@@ -209,14 +209,14 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--spacing-1-5);
 }
 
 .nt-apikey {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: var(--spacing-2-5);
+  padding: var(--spacing-2) var(--spacing-2-5);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   font-size: var(--font-size-button);
@@ -248,7 +248,7 @@
   background: transparent;
   color: var(--md-sys-color-error);
   border-radius: var(--shape-medium);
-  padding: 3px 8px;
+  padding: var(--spacing-tiny) var(--spacing-2);
   font-size: var(--font-size-sm);
 }
 
@@ -260,7 +260,7 @@
 .nt-apikey-revoke-confirm {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--spacing-1-5);
   font-size: var(--font-size-sm);
   color: var(--md-sys-color-error);
 }
@@ -272,7 +272,7 @@
 
 .nt-apikey-new {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .nt-apikey-new input {
@@ -301,10 +301,10 @@
 .nt-apikey-fresh {
   border: 1px solid var(--md-sys-color-primary);
   border-radius: var(--shape-large);
-  padding: 12px;
+  padding: var(--spacing-3);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--spacing-2);
   font-size: var(--font-size-button);
 }
 
@@ -316,13 +316,13 @@
   word-break: break-all;
   background: var(--md-sys-color-surface-container-high);
   border-radius: var(--shape-medium);
-  padding: 8px;
+  padding: var(--spacing-2);
   font-size: var(--font-size-sm);
 }
 
 .nt-apikey-fresh-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .nt-apikey-fresh-actions button {
@@ -330,7 +330,7 @@
   background: transparent;
   color: var(--md-sys-color-on-surface);
   border-radius: var(--shape-medium);
-  padding: 5px 10px;
+  padding: var(--spacing-xxs) var(--spacing-2-5);
   font-size: var(--font-size-sm);
 }
 

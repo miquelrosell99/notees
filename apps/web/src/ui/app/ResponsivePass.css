@@ -15,7 +15,7 @@
      inherited the desktop transparent canvas — give it a real surface so
      the nav reads above the page beneath. */
   .nt-sidebar-open .nt-sidebar {
-    width: min(280px, 85vw);
+    width: min(var(--width-sidebar-drawer), 85vw);
     background: var(--md-sys-color-surface-container-low);
     border-right: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   }
