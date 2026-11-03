@@ -124,6 +124,17 @@ async function unwrapOrWrongMaster(master: MasterKeyHandle, wrapped: string): Pr
   }
 }
 
+/**
+ * The cached raw workspace key for a workspace, or null when keyless/locked/
+ * not-yet-resolved. Memory-only, main-thread (the asset REST channel never
+ * enters the worker, so both store modes resolve through here).
+ */
+export async function getCachedWorkspaceKey(workspaceId: string): Promise<Uint8Array | null> {
+  const cached = workspaceKeyCache.get(workspaceId);
+  if (cached === undefined) return null;
+  return exportWorkspaceKey(cached);
+}
+
 /** Drop the raw workspace keys (keeps the master key — a per-workspace refresh). */
 export function clearWorkspaceKeys(): void {
   workspaceKeyCache.clear();

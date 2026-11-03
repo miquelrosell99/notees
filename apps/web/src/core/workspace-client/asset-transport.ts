@@ -15,14 +15,28 @@ import type { AssetUploadResult } from "./types.js";
  * Shared by WorkspaceClient (in-process) and WorkerClient (main-thread proxy
  * — the worker owns the store, but the REST call needs no store).
  */
+export interface AssetSealFields {
+  encrypted: string;
+  mimeType: string;
+  iv: string;
+}
+
 export async function postAssetUpload(
   serverUrl: string,
   apiKey: string,
   workspaceId: string,
   file: Blob,
   filename: string,
+  sealedFields?: AssetSealFields | undefined,
 ): Promise<AssetUploadResult> {
   const form = new FormData();
+  if (sealedFields !== undefined) {
+    // Declared-encrypted upload (plan 05): the server trusts the declared
+    // mime and skips sniffing ONLY on this arm.
+    form.append("encrypted", sealedFields.encrypted);
+    form.append("mimeType", sealedFields.mimeType);
+    form.append("iv", sealedFields.iv);
+  }
   form.append("file", file, filename);
   const response = await fetch(`${serverUrl.replace(/\/$/, "")}/api/assets`, {
     method: "POST",
@@ -55,12 +69,18 @@ export async function postAssetUpload(
  * header (a bare window.open cannot set headers), then opened as a blob URL
  * so the chip click lands in a new tab without leaking the key into a URL.
  */
+export interface AssetBlob {
+  blob: Blob;
+  /** b64u 12-byte GCM nonce when the asset is sealed; null = plaintext. */
+  iv: string | null;
+}
+
 export async function fetchAssetBlob(
   serverUrl: string,
   apiKey: string,
   assetId: string,
   workspaceId?: string,
-): Promise<Blob> {
+): Promise<AssetBlob> {
   const response = await fetch(
     `${serverUrl.replace(/\/$/, "")}/api/assets/${encodeURIComponent(assetId)}`,
     {
@@ -78,7 +98,20 @@ export async function fetchAssetBlob(
   if (!response.ok) {
     throw new Error(`asset download failed: HTTP ${response.status}`);
   }
-  return response.blob();
+  return { blob: await response.blob(), iv: response.headers.get("x-notees-asset-iv") };
+}
+
+/** Blob → bytes. `Blob.arrayBuffer` is absent in older DOM shims (jsdom) — FileReader fallback. */
+export async function blobBytes(blob: Blob): Promise<Uint8Array> {
+  if (typeof blob.arrayBuffer === "function") {
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(blob);
+  });
 }
 
 /** Blob → data URL (image thumbnails/covers); null on read failure. */

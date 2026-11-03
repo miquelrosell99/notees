@@ -8,7 +8,8 @@
  * domain — takes the shared ClientContext, no inheritance.
  */
 
-import { fetchAssetBlob, postAssetUpload } from "./asset-transport.js";
+import { openAssetIfSealed, sealAssetIfKeyed } from "./asset-crypto.js";
+import { blobBytes, fetchAssetBlob, postAssetUpload } from "./asset-transport.js";
 import {
   normalizeUserPrefs,
   readDevicePrefList,
@@ -296,7 +297,22 @@ export class WorkspaceClientServer {
    */
   async uploadAsset(file: Blob, filename: string): Promise<AssetUploadResult> {
     const { serverUrl, apiKey } = this.requireRest();
-    return postAssetUpload(serverUrl, apiKey, this.ctx.workspaceId, file, filename);
+    // Seal at the CAS boundary when keyed (plan 05); keyless stays plaintext.
+    const sealed = await sealAssetIfKeyed(
+      serverUrl,
+      apiKey,
+      this.ctx.workspaceId,
+      await blobBytes(file),
+      file.type || "application/octet-stream",
+    );
+    return postAssetUpload(
+      serverUrl,
+      apiKey,
+      this.ctx.workspaceId,
+      new Blob([sealed.bytes as BlobPart]),
+      filename,
+      sealed.fields ?? undefined,
+    );
   }
 
   /**
@@ -330,7 +346,18 @@ export class WorkspaceClientServer {
    */
   async fetchAssetBytes(assetId: string): Promise<Blob> {
     const { serverUrl, apiKey } = this.requireRest();
-    return fetchAssetBlob(serverUrl, apiKey, assetId, this.ctx.workspaceId);
+    return this.openAssetBlob(assetId, serverUrl, apiKey);
+  }
+
+  /** Download + open a sealed asset (plaintext passes through). */
+  private async openAssetBlob(assetId: string, serverUrl: string, apiKey: string): Promise<Blob> {
+    const { blob, iv } = await fetchAssetBlob(serverUrl, apiKey, assetId, this.ctx.workspaceId);
+    const opened = await openAssetIfSealed(
+      this.ctx.workspaceId,
+      iv,
+      await blobBytes(blob),
+    );
+    return new Blob([opened as BlobPart], { type: blob.type });
   }
 
   /**
@@ -339,7 +366,7 @@ export class WorkspaceClientServer {
    */
   async downloadAsset(assetId: string): Promise<void> {
     const { serverUrl, apiKey } = this.requireRest();
-    const blob = await fetchAssetBlob(serverUrl, apiKey, assetId);
+    const blob = await this.openAssetBlob(assetId, serverUrl, apiKey);
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener");
   }
