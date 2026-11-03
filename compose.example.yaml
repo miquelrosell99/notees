@@ -68,6 +68,9 @@ services:
       # guesses its sync URL from its own origin, which is right on every
       # standard path — deployment.md; empty ships no prefill).
       - NOTEES_SERVER_URL=${NOTEES_SERVER_URL:-}
+      # Optional E2EE opt-in (default OFF): enables client-side workspace
+      # encryption keying. Keep off until all your clients support E2EE.
+      - NOTEES_E2EE=${NOTEES_E2EE:-}
     depends_on:
       notees-sync:
         condition: service_healthy
