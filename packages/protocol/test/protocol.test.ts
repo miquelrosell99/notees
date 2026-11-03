@@ -51,7 +51,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the forty-nine required fixtures", () => {
+  it("has exactly the fifty required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "card-review.json",
@@ -99,6 +99,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "property-set-lww.json",
       "property-validation-rules.json",
       "property-value-elements.json",
+      "query-ast-v2.json",
       "tag-membership.json",
       "trash-empty.json",
       "typed-link-mark-deleted.json",
