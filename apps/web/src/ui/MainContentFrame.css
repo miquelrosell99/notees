@@ -98,7 +98,7 @@
      column width per view (the calendar's mini-month sets
      var(--layout-size-8xl)), undefined falls back to
      the register default. */
-  flex: 0 0 var(--nt-side-panel-width, clamp(13rem, 24%, 22rem));
+  flex: 0 0 var(--nt-side-panel-width, clamp(13rem, 24%, 22rem)); /* token-gate: constant side-panel flex-basis clamp ruling (13rem/22rem panel min/max), not a scale step */
   min-width: 0;
   align-self: stretch;
   max-height: 100%;
@@ -114,7 +114,7 @@
    AND the main content container (see above): the very card the container
    wears, nested inside it; the old full-height divider retired. */
 .nt-page-context {
-  flex: 0 0 var(--nt-context-panel-width, clamp(15rem, 26%, 22rem));
+  flex: 0 0 var(--nt-context-panel-width, clamp(15rem, 26%, 22rem)); /* token-gate: constant context-panel flex-basis clamp ruling (15rem/22rem panel min/max), not a scale step */
   min-width: 0;
   align-self: stretch;
   max-height: 100%;

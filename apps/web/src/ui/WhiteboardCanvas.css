@@ -16,15 +16,15 @@
 
 .nt-wb-fullscreen {
   height: 65vh;
-  margin: 8px 0;
+  margin: var(--spacing-2) 0;
 }
 
 .nt-wb-toolbar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px 10px;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1-5) var(--spacing-2-5);
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
   background: var(--md-sys-color-surface);
   font-size: var(--font-size-sm);
@@ -33,7 +33,7 @@
 .nt-wb-toolbar-sep {
   width: 1px;
   align-self: stretch;
-  margin: 2px 4px;
+  margin: var(--spacing-micro) var(--spacing-1);
   background: var(--md-sys-color-outline-variant);
 }
 
@@ -45,8 +45,8 @@
 }
 
 .nt-wb-surface:focus {
-  outline: 2px solid var(--md-sys-color-primary);
-  outline-offset: -2px;
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: calc(-1 * var(--border-width-thick));
 }
 
 .nt-wb-embedded .nt-wb-surface {
@@ -67,7 +67,7 @@
   height: 0;
   transform-origin: 0 0;
   background-image: radial-gradient(var(--md-sys-color-outline-variant) 1px, transparent 1px);
-  background-size: 24px 24px;
+  background-size: 24px 24px; /* token-gate: constant GRID_STEP — the dot-grid pitch must match the JS whiteboard grid/snap math (whiteboard/geometry.ts) */
 }
 
 .nt-wb-svg {
@@ -118,14 +118,14 @@
 .nt-wb-stroke {
   fill: none;
   stroke: var(--md-sys-color-on-surface-variant);
-  stroke-width: 2;
+  stroke-width: var(--spacing-micro);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .nt-wb-stroke-highlight {
   opacity: 0.45;
-  stroke-width: 8;
+  stroke-width: var(--spacing-2);
 }
 
 /* The canvas context menu's color row: the ColorButton picker nests inside
@@ -177,8 +177,8 @@
 .nt-wb-card-title {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
+  gap: var(--spacing-1-5);
+  padding: var(--spacing-tiny) var(--spacing-2);
   background: var(--md-sys-color-surface-container-highest);
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
   font-size: var(--font-size-sm);
@@ -199,7 +199,7 @@
   border: none;
   background: none;
   color: var(--md-sys-color-on-surface-variant);
-  padding: 0 2px;
+  padding: 0 var(--spacing-micro);
   border-radius: var(--shape-medium);
   line-height: 1;
   font-size: var(--font-size-base);
@@ -211,7 +211,7 @@
 
 .nt-wb-card-body {
   flex: 1;
-  padding: 6px 8px;
+  padding: var(--spacing-1-5) var(--spacing-2);
   font-size: var(--font-size-button);
   overflow: auto;
   cursor: text;
@@ -225,17 +225,17 @@
 .nt-wb-label-input {
   position: absolute;
   font-size: var(--font-size-sm);
-  padding: 1px 4px;
+  padding: 1px var(--spacing-1);
   border: 1px solid var(--md-sys-color-primary);
   border-radius: var(--shape-small);
 }
 
 .nt-wb-empty {
   position: absolute;
-  left: 32px;
-  top: 32px;
-  padding: 24px 32px;
-  border: 2px dashed var(--md-sys-color-outline);
+  left: var(--spacing-8);
+  top: var(--spacing-8);
+  padding: var(--spacing-6) var(--spacing-8);
+  border: var(--border-width-thick) dashed var(--md-sys-color-outline);
   border-radius: var(--shape-button-compact);
   color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-button);
@@ -244,18 +244,18 @@
 }
 
 .nt-wb-missing {
-  padding: 16px;
+  padding: var(--spacing-4);
   color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-wb-zoom {
   position: absolute;
-  left: 10px;
-  bottom: 10px;
+  left: var(--spacing-2-5);
+  bottom: var(--spacing-2-5);
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px 6px;
+  gap: var(--spacing-micro);
+  padding: var(--spacing-tiny) var(--spacing-1-5);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   background: var(--md-sys-color-surface);
@@ -264,7 +264,7 @@
 }
 
 .nt-wb-zoom-level {
-  min-width: 44px;
+  min-width: 44px; /* token-gate: constant zoom readout 44px min-width ruling, not a scale step */
   text-align: center;
   color: var(--md-sys-color-on-surface-variant);
   font-variant-numeric: tabular-nums;
@@ -272,8 +272,8 @@
 
 .nt-wb-minimap {
   position: absolute;
-  right: 10px;
-  bottom: 10px;
+  right: var(--spacing-2-5);
+  bottom: var(--spacing-2-5);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   background: var(--md-sys-color-surface);

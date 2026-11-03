@@ -25,7 +25,7 @@
 @keyframes trigger-popup-enter {
   from {
     opacity: var(--opacity-0);
-    transform: translateY(-4px);
+    transform: translateY(calc(-1 * var(--spacing-1)));
   }
 
   to {
@@ -41,7 +41,7 @@
 @keyframes trigger-popup-enter-above {
   from {
     opacity: var(--opacity-0);
-    transform: translateY(4px);
+    transform: translateY(var(--spacing-1));
   }
 
   to {

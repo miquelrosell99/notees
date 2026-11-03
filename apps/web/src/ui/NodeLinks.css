@@ -23,7 +23,7 @@
   cursor: pointer;
   text-align: left;
   text-decoration: underline dashed var(--md-sys-color-on-surface-variant);
-  text-underline-offset: 2px;
+  text-underline-offset: var(--spacing-micro);
 }
 
 .nt-link:hover {
@@ -83,7 +83,7 @@
 .nt-class-link {
   border-bottom: none;
   text-decoration: underline wavy var(--md-sys-color-on-surface-variant);
-  text-underline-offset: 2px;
+  text-underline-offset: var(--spacing-micro);
 }
 
 .nt-link--class:hover {
@@ -127,7 +127,7 @@
 .nt-atom--chip {
   border-bottom: none;
   text-decoration: underline wavy var(--md-sys-color-on-surface-variant);
-  text-underline-offset: 2px;
+  text-underline-offset: var(--spacing-micro);
 }
 
 .nt-atom--chip:hover {

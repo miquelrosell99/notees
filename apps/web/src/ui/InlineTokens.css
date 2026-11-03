@@ -23,15 +23,15 @@
 .nt-typed-link {
   text-decoration: underline;
   text-decoration-style: dotted;
-  text-underline-offset: 3px;
+  text-underline-offset: var(--spacing-tiny);
   cursor: help;
 }
 
 .nt-quote {
   display: block;
-  border-left: 3px solid var(--md-sys-color-outline);
-  padding: 2px 12px;
-  margin: 4px 0;
+  border-left: var(--spacing-tiny) solid var(--md-sys-color-outline);
+  padding: var(--spacing-micro) var(--spacing-3);
+  margin: var(--spacing-1) 0;
   color: var(--md-sys-color-on-surface-variant);
 }
 
@@ -52,11 +52,11 @@
 @keyframes nt-block-flash {
   0% {
     outline: var(--border-width-thick) solid var(--md-sys-color-primary);
-    outline-offset: 2px;
+    outline-offset: var(--spacing-micro);
   }
   100% {
     outline: var(--border-width-thick) solid transparent;
-    outline-offset: 6px;
+    outline-offset: var(--spacing-1-5);
   }
 }
 
@@ -70,14 +70,14 @@
 .nt-hyperlink {
   color: var(--md-sys-color-primary);
   text-decoration: underline;
-  text-underline-offset: 3px;
+  text-underline-offset: var(--spacing-tiny);
 }
 
 .nt-placeholder {
   display: inline-block;
   border: 1px dashed var(--md-sys-color-outline);
   border-radius: var(--shape-medium);
-  padding: 0 10px;
+  padding: 0 var(--spacing-2-5);
   margin: 1px 0;
   color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-base);

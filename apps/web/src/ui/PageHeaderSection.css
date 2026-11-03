@@ -42,13 +42,13 @@
 .nt-page-header {
   position: sticky;
   top: 0;
-  z-index: 6;
+  z-index: var(--z-6);
   background: var(--md-sys-color-surface);
 }
 
 .nt-page-footer {
   position: sticky;
   bottom: 0;
-  z-index: 6;
+  z-index: var(--z-6);
   background: var(--md-sys-color-surface);
 }
