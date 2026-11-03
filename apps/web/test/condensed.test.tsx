@@ -472,11 +472,11 @@ describe("condensed chrome reveal mechanism (CSS source)", () => {
     const mark = /\.nt-block-excerpt__ellipsis \{[^}]*\}/.exec(css);
     expect(mark).not.toBeNull();
     expect(mark![0]).not.toContain("opacity: 0");
-    // The visible box rides the row's 22px floor; the interactive area
-    // reaches M3's 48px hit-area floor (the 48dp ruling)
-    // through the invisible ::after overlay.
-    expect(mark![0]).toContain("min-width: 22px");
-    expect(mark![0]).toContain("min-height: 22px");
+    // The visible box rides the row's 22px floor (--spacing-5-5 = 22px);
+    // the interactive area reaches M3's 48px hit-area floor (the 48dp
+    // ruling) through the invisible ::after overlay.
+    expect(mark![0]).toContain("min-width: var(--spacing-5-5)");
+    expect(mark![0]).toContain("min-height: var(--spacing-5-5)");
     expect(mark![0]).toContain("position: relative");
     const overlay = /\.nt-block-excerpt__ellipsis::after \{[^}]*\}/.exec(css);
     expect(overlay).not.toBeNull();
@@ -488,8 +488,8 @@ describe("condensed chrome reveal mechanism (CSS source)", () => {
   it("the links badge carries the same overlay contract: 48px hit area, 22px visible", () => {
     const badge = /\.nt-block-links-badge \{[^}]*\}/.exec(css);
     expect(badge).not.toBeNull();
-    expect(badge![0]).toContain("min-width: 22px");
-    expect(badge![0]).toContain("min-height: 22px");
+    expect(badge![0]).toContain("min-width: var(--spacing-5-5)");
+    expect(badge![0]).toContain("min-height: var(--spacing-5-5)");
     const overlay = /\.nt-block-links-badge::after \{[^}]*\}/.exec(css);
     expect(overlay).not.toBeNull();
     expect(overlay![0]).toContain("width: max(100%, var(--button-min-height))");
