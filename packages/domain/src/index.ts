@@ -12,3 +12,4 @@ export * from "./markdownLinks.js";
 export * from "./zotero-types.js";
 export * from "./source-class-bindings.js";
 export * from "./display-template.js";
+export * from "./system-seed-envelopes.js";
