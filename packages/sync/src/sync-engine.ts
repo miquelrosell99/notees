@@ -9,8 +9,11 @@
  *    idempotency, one transaction per page via applyMany);
  *  - the server seq cursor persists in app_meta (see meta.ts for why not
  *    sync_state.cursor_seq);
- *  - single-user: no E2EE decryption, no presence; the WS acceleration
- *    path is wired through Transport.subscribe (HttpTransport implements it).
+ *  - single-user: no presence; E2EE is an OPTIONAL boundary (EnvelopeCrypto)
+ *    — with a provider installed the wire and snapshots carry only ciphertext
+ *    (decrypt-before-apply); key custody lives in the client. The WS
+ *    acceleration path is wired through Transport.subscribe (HttpTransport
+ *    implements it).
  */
 
 import {
@@ -28,6 +31,7 @@ import { TransportError } from "./errors.js";
 import { SyncMeta } from "./meta.js";
 import { Outbox } from "./outbox.js";
 import type {
+  EnvelopeCrypto,
   OutboxStatusCounts,
   SnapshotMeta,
   SyncEngineCallbacks,
@@ -89,6 +93,11 @@ export interface SyncEngineOptions {
    */
   snapshotUploadLimit?: number;
   callbacks?: SyncEngineCallbacks;
+  /**
+   * Optional E2EE boundary (spec §2): encrypt at the push boundary, decrypt
+   * before apply, seal snapshot blobs. Absent → plaintext wire (the default).
+   */
+  crypto?: EnvelopeCrypto;
 }
 
 function asError(err: unknown): Error {
@@ -112,6 +121,8 @@ export class SyncEngine {
    */
   private readonly snapshotUploadLimit: number;
   private callbacks: SyncEngineCallbacks;
+  /** E2EE boundary; null → plaintext wire. Mutable: setCrypto swaps the key. */
+  private crypto: EnvelopeCrypto | null;
 
   private cursorSeq: number;
   private receivedHlc: Hlc;
@@ -137,6 +148,8 @@ export class SyncEngine {
   >();
   private readonly conflictListeners = new Set<(conflicts: SyncConflict[]) => void>();
   private wsBuffer: Array<{ envelopes: Envelope[]; seqs: Record<string, number> }> = [];
+  /** Reentrancy latch: only one drain (sync or async) may own the buffer. */
+  private wsDraining = false;
   private unsubscribeRealtime: (() => void) | null = null;
 
   constructor(store: Store, transport: Transport, clock: Clock, options: SyncEngineOptions = {}) {
@@ -149,6 +162,7 @@ export class SyncEngine {
     this.catchUpLimit = options.catchUpLimit ?? DEFAULT_CATCH_UP_LIMIT;
     this.snapshotUploadLimit = options.snapshotUploadLimit ?? SNAPSHOT_UPLOAD_BODY_LIMIT;
     this.callbacks = options.callbacks ?? {};
+    this.crypto = options.crypto ?? null;
     this.meta = new SyncMeta(store, `sync:${this.workspaceId}:state`);
     const persisted = this.meta.load();
     this.cursorSeq = persisted?.cursorSeq ?? 0;
@@ -184,6 +198,11 @@ export class SyncEngine {
 
   setCallbacks(callbacks: SyncEngineCallbacks): void {
     this.callbacks = callbacks;
+  }
+
+  /** Install or rotate the E2EE boundary (null disables: plaintext wire). */
+  setCrypto(provider: EnvelopeCrypto | null): void {
+    this.crypto = provider;
   }
 
   subscribeStatus(callback: (status: SyncStatus, error: Error | null) => void): () => void {
@@ -274,7 +293,14 @@ export class SyncEngine {
       const ids = chunk.map((entry) => entry.envelope.id);
       this.outbox.markInFlight(ids);
       try {
-        await this.transport.sendBatch(chunk.map((entry) => entry.envelope));
+        // E2EE: encrypt at the push boundary. The outbox stays plaintext in
+        // memory (local-first); only the wire gets ciphertext. The changeInfo
+        // below summarizes the PLAINTEXT envelopes — the summary vocabulary
+        // must not leak what the wire sealed.
+        const wireEnvelopes = this.crypto
+          ? await Promise.all(chunk.map((entry) => this.crypto!.encryptEnvelope(entry.envelope)))
+          : chunk.map((entry) => entry.envelope);
+        await this.transport.sendBatch(wireEnvelopes);
         // Whole-chunk ack: a 200 means every envelope is persisted
         // server-side — the server omits duplicate ids from savedIds, but
         // duplicate-only chunks still leave the outbox.
@@ -305,7 +331,7 @@ export class SyncEngine {
       await this.pullInternal(options);
     } finally {
       this.pullInFlight = false;
-      this.drainWsBuffer();
+      void this.drainWsBuffer();
     }
   }
 
@@ -331,9 +357,10 @@ export class SyncEngine {
       compareHlc(meta.hlc, this.receivedHlc) > 0;
     if (snapshotIsNewer) {
       const data = await this.transport.getSnapshotData();
+      const bytes = this.crypto ? await this.decryptSnapshotOrThrow(data) : data;
       // Awaits staged (OPFS-VFS) restores; synchronous backends fall back
       // inside restoreAsync.
-      await this.store.restoreAsync(data);
+      await this.store.restoreAsync(bytes);
       // The metadata HLC is the authoritative server-side watermark.
       this.receivedHlc = maxHlc(this.receivedHlc, meta.hlc);
       this.cursorSeq = meta.upToSeq ?? 0;
@@ -360,10 +387,9 @@ export class SyncEngine {
       );
 
       if (page.envelopes.length > 0) {
-        // validateEnvelope fails loud on unknown opTypes / newer protocol
-        // versions before the transaction opens.
-        const envelopes = page.envelopes.map((input) => validateEnvelope(input));
-        const pageResult = this.applyRemote(envelopes, null);
+        // Validation happens inside applyRemote, AFTER decryption — the
+        // wire payloads are opaque $e slots that validateEnvelope rejects.
+        const pageResult = await this.applyRemote(page.envelopes as Envelope[], null);
         appliedOps += pageResult.applied;
         changeInfo = mergeChangeInfo(changeInfo, pageResult.info);
       }
@@ -407,6 +433,17 @@ export class SyncEngine {
     }
   }
 
+  /** Open a sealed snapshot, translating any decrypt failure into a clear error. */
+  private async decryptSnapshotOrThrow(data: Uint8Array): Promise<Uint8Array> {
+    try {
+      return await this.crypto!.decryptSnapshot(data);
+    } catch (error) {
+      throw new Error(
+        `snapshot decryption failed: wrong workspace key or corrupted snapshot (${(error as Error).message})`,
+      );
+    }
+  }
+
   /** Best-effort snapshot upload when the server has none or an older one. */
   private async maybeUploadSnapshot(meta: SnapshotMeta, skip: boolean): Promise<void> {
     const upload = this.transport.uploadSnapshot?.bind(this.transport);
@@ -433,6 +470,26 @@ export class SyncEngine {
       this.uploadedSnapshotHlc === null || compareHlc(this.receivedHlc, this.uploadedSnapshotHlc) > 0;
     if (!newerThanServer || !newerThanUploaded) return;
     try {
+      if (this.crypto) {
+        // E2EE: the streaming source would upload the RAW image (the OPFS
+        // stream is unsealed) — buffer, seal, and upload the sealed snapshot
+        // instead. Same pre-flight body cap on the sealed size.
+        const bytes = this.store.snapshot();
+        const sealed = await this.crypto.encryptSnapshot(bytes);
+        if (sealed.byteLength >= this.snapshotUploadLimit) {
+          if (!this.snapshotOversizeReported) {
+            this.snapshotOversizeReported = true;
+            const message =
+              `snapshot upload skipped: the sealed local projection (${Math.round(sealed.byteLength / 1048576)} MiB) ` +
+              "meets the relay's body cap — uploading would be rejected. A server-side snapshot covers " +
+              "restore; the client upload stays skipped this session.";
+            console.error(`[sync] ${message}`);
+            this.callbacks.onError?.(new Error(message));
+          }
+          return;
+        }
+        await upload(sealed, this.receivedHlc);
+      } else {
       // Prefer the streaming source when BOTH sides have it (the OPFS-VFS
       // backend): the image is checkpointed and read lazily from the OPFS
       // file — the upload never materializes it. byteLength is the raw size,
@@ -476,6 +533,7 @@ export class SyncEngine {
         }
         await upload(bytes, this.receivedHlc);
       }
+      }
       this.uploadedSnapshotHlc = this.receivedHlc;
       this.snapshotOversizeReported = false;
       this.snapshotQuarantineReported = false;
@@ -502,20 +560,45 @@ export class SyncEngine {
   // --- shared remote apply path (catch-up pages + realtime frames) -------------------
 
   /**
-   * Apply a remote batch: one store transaction, conflict detection against
-   * local un-acknowledged ops (reported, never blocking), HLC watermark +
-   * device clock merge, and (when seqs are known) cursor advancement.
+   * Apply a remote batch: decrypt first under E2EE (wire payloads are opaque
+   * $e slots — the store's validateEnvelope rejects them by design, and
+   * everything below reads plaintext: applyMany, the summaries zip, conflict
+   * detection, the HLC and seq loops all operate on the opened envelopes, so
+   * conflict detection and structural classification stay exact), then one
+   * store transaction, conflict detection against local un-acknowledged ops
+   * (reported, never blocking), HLC watermark + device clock merge, and (when
+   * seqs are known) cursor advancement.
    * Returns the number of newly applied envelopes plus the batch's change
    * info for incremental UI invalidation.
    */
-  private applyRemote(
+  private async applyRemote(
     envelopes: Envelope[],
     seqs: Record<string, number> | null,
+  ): Promise<{ applied: number; info: BatchChangeInfo }> {
+    const opened = this.crypto
+      ? await Promise.all(envelopes.map((envelope) => this.crypto!.decryptEnvelope(envelope)))
+      : envelopes;
+    return this.applyRemotePlain(opened, seqs);
+  }
+
+  /**
+   * The synchronous core of applyRemote, run on PLAINTEXT envelopes
+   * (decryption, when needed, happens in the async wrapper before this is
+   * called — and realtime drain calls it directly to preserve its historical
+   * synchronous callback surface when crypto is off).
+   */
+  private applyRemotePlain(
+    opened: Envelope[],
+    seqs: Record<string, number> | null,
   ): { applied: number; info: BatchChangeInfo } {
+    // validateEnvelope fails loud on unknown opTypes / newer protocol
+    // versions / the $e slot (the last only reachable pre-decrypt) before
+    // the transaction opens.
+    const plain = opened.map((envelope) => validateEnvelope(envelope));
     const ordered =
       seqs !== null
-        ? [...envelopes].sort((a, b) => (seqs[a.id] ?? 0) - (seqs[b.id] ?? 0))
-        : envelopes;
+        ? [...plain].sort((a, b) => (seqs[a.id] ?? 0) - (seqs[b.id] ?? 0))
+        : plain;
 
     const summaries = this.store.applyMany(ordered, { quarantinePoisonOps: true });
     // summaries pair 1:1 with `ordered` (one entry per envelope, ignored
@@ -542,11 +625,11 @@ export class SyncEngine {
       );
     }
 
-    const conflicts = detectConflicts(ordered, this.outbox.unacknowledgedEnvelopes());
+    const conflicts = detectConflicts(plain, this.outbox.unacknowledgedEnvelopes());
     this.emitConflicts(conflicts);
 
     let maxIncoming: Hlc | null = null;
-    for (const envelope of ordered) {
+    for (const envelope of plain) {
       this.receivedHlc = maxHlc(this.receivedHlc, envelope.hlc);
       maxIncoming = maxIncoming === null ? envelope.hlc : maxHlc(maxIncoming, envelope.hlc);
     }
@@ -554,7 +637,7 @@ export class SyncEngine {
 
     if (seqs !== null) {
       let maxSeq = this.cursorSeq;
-      for (const envelope of ordered) {
+      for (const envelope of plain) {
         const seq = seqs[envelope.id];
         if (seq !== undefined && seq > maxSeq) maxSeq = seq;
       }
@@ -574,7 +657,7 @@ export class SyncEngine {
   onRemoteBatch(envelopes: Envelope[], seqs: Record<string, number>): void {
     if (envelopes.length === 0) return;
     this.wsBuffer.push({ envelopes, seqs });
-    if (!this.pullInFlight) this.drainWsBuffer();
+    if (!this.pullInFlight) void this.drainWsBuffer();
   }
 
   /**
@@ -597,7 +680,7 @@ export class SyncEngine {
           // handles restoreEpoch changes.
           void this.pull().catch(() => {});
         } else {
-          this.drainWsBuffer();
+          void this.drainWsBuffer();
         }
       },
       onAck: (savedIds) => {
@@ -618,21 +701,35 @@ export class SyncEngine {
     this.wsBuffer = [];
   }
 
-  private drainWsBuffer(): void {
-    if (this.pullInFlight) return;
-    while (this.wsBuffer.length > 0 && !this.pullInFlight) {
-      const frame = this.wsBuffer.shift()!;
-      try {
-        const envelopes = frame.envelopes.map((input) => validateEnvelope(input));
-        const { applied, info } = this.applyRemote(envelopes, frame.seqs);
-        if (applied > 0) this.callbacks.onRemoteBatch?.(applied, info);
-      } catch (err) {
-        // Drop the remaining buffer — unapplied frames never advanced the
-        // cursor, so the next pull re-fetches them through catch-up.
-        this.wsBuffer = [];
-        this.callbacks.onError?.(asError(err));
-        return;
+  private async drainWsBuffer(): Promise<void> {
+    if (this.pullInFlight || this.wsDraining) return;
+    this.wsDraining = true;
+    try {
+      while (this.wsBuffer.length > 0 && !this.pullInFlight) {
+        const frame = this.wsBuffer.shift()!;
+        try {
+          // Deliberate branch split: with crypto OFF the whole drain runs
+          // synchronously (applyRemotePlain is sync) and the realtime
+          // callback surface keeps its historical synchronous semantics;
+          // under E2EE the decrypt step is awaited and the loop continues on
+          // microtasks. Validation happens inside, after decryption.
+          if (this.crypto) {
+            const { applied, info } = await this.applyRemote(frame.envelopes, frame.seqs);
+            if (applied > 0) this.callbacks.onRemoteBatch?.(applied, info);
+          } else {
+            const { applied, info } = this.applyRemotePlain(frame.envelopes, frame.seqs);
+            if (applied > 0) this.callbacks.onRemoteBatch?.(applied, info);
+          }
+        } catch (err) {
+          // Drop the remaining buffer — unapplied frames never advanced the
+          // cursor, so the next pull re-fetches them through catch-up.
+          this.wsBuffer = [];
+          this.callbacks.onError?.(asError(err));
+          return;
+        }
       }
+    } finally {
+      this.wsDraining = false;
     }
   }
 

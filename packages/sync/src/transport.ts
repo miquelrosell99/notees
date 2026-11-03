@@ -567,6 +567,25 @@ export class MemoryRelay {
     return this.log.length;
   }
 
+  // --- test support (read-only views + tamper hook for E2EE tests) ----------------
+
+  /** Test support: every logged envelope, in seq order (what the wire holds). */
+  envelopes(): Envelope[] {
+    return this.log.map((row) => row.envelope);
+  }
+
+  /** Test support: the stored snapshot blob, or null when none was uploaded. */
+  snapshotBlob(): Uint8Array | null {
+    return this.snapshotBytes;
+  }
+
+  /** Test support: replace an envelope's payload in place (tamper tests). */
+  replacePayload(id: string, payload: unknown): void {
+    const row = this.log[this.seqById.get(id)! - 1];
+    if (row === undefined) throw new Error(`MemoryRelay: no envelope with id ${id}`);
+    row.envelope = { ...row.envelope, payload: payload as Envelope["payload"] };
+  }
+
   subscribe(handlers: RealtimeHandlers): () => void {
     this.subscribers.add(handlers);
     return () => this.subscribers.delete(handlers);
